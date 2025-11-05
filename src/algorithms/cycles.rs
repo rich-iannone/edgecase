@@ -55,3 +55,52 @@ fn has_cycle_util(
     false
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::{Edge, Node};
+
+    #[test]
+    fn test_find_cycles_empty_graph() {
+        let graph = Graph::new(false, false);
+        let cycles = find_cycles(&graph, None).unwrap();
+        assert_eq!(cycles.len(), 0);
+    }
+
+    #[test]
+    fn test_has_cycle_acyclic_graph() {
+        let mut graph = Graph::new(true, false);
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        
+        graph
+            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
+            .unwrap();
+        
+        assert!(!has_cycle(&graph));
+    }
+
+    #[test]
+    fn test_has_cycle_cyclic_graph() {
+        let mut graph = Graph::new(true, false);
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        
+        graph
+            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("C".to_string(), "A".to_string(), None, None))
+            .unwrap();
+        
+        assert!(has_cycle(&graph));
+    }
+}
