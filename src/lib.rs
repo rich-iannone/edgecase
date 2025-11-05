@@ -1,0 +1,29 @@
+//! EdgeCase: High-performance graph analysis library
+//!
+//! This is the Rust core that provides performance-critical graph algorithms
+//! with Python bindings via PyO3.
+
+use pyo3::prelude::*;
+
+pub mod algorithms;
+pub mod graph;
+pub mod temporal;
+pub mod utils;
+
+/// Initialize the Python module
+#[pymodule]
+fn _core(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<graph::Graph>()?;
+    m.add_class::<graph::Node>()?;
+    m.add_class::<graph::Edge>()?;
+    
+    // Algorithm functions
+    m.add_function(wrap_pyfunction!(algorithms::centrality::betweenness_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality::pagerank, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community::detect_communities, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::cycles::find_cycles, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::paths::shortest_path, m)?)?;
+    
+    Ok(())
+}
+
