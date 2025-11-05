@@ -70,3 +70,80 @@ impl Edge {
     }
 }
 
+/// Main graph structure
+#[pyclass]
+pub struct Graph {
+    nodes: FxHashMap<String, Node>,
+    edges: Vec<Edge>,
+    adjacency_list: FxHashMap<String, Vec<String>>,
+    directed: bool,
+    weighted: bool,
+}
+
+#[pymethods]
+impl Graph {
+    #[new]
+    #[pyo3(signature = (directed=false, weighted=false))]
+    fn new(directed: bool, weighted: bool) -> Self {
+        Graph {
+            nodes: FxHashMap::default(),
+            edges: Vec::new(),
+            adjacency_list: FxHashMap::default(),
+            directed,
+            weighted,
+        }
+    }
+
+    /// Add a node to the graph
+    fn add_node(&mut self, node: Node) -> PyResult<()> {
+        let node_id = node.id.clone();
+        self.nodes.insert(node_id.clone(), node);
+        self.adjacency_list
+            .entry(node_id)
+            .or_insert_with(Vec::new);
+        Ok(())
+    }
+
+    /// Add an edge to the graph
+    fn add_edge(&mut self, edge: Edge) -> PyResult<()> {
+        // Ensure nodes exist
+        if !self.nodes.contains_key(&edge.source) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Source node '{}' does not exist",
+                edge.source
+            )));
+        }
+        if !self.nodes.contains_key(&edge.target) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Target node '{}' does not exist",
+                edge.target
+            )));
+        }
+
+        // Add to adjacency list
+        self.adjacency_list
+            .entry(edge.source.clone())
+            .or_insert_with(Vec::new)
+            .push(edge.target.clone());
+
+        if !self.directed {
+            self.adjacency_list
+                .entry(edge.target.clone())
+                .or_insert_with(Vec::new)
+                .push(edge.source.clone());
+        }
+
+        self.edges.push(edge);
+        Ok(())
+    }
+
+    /// Get the number of nodes
+    fn num_nodes(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Get the number of edges
+    fn num_edges(&self) -> usize {
+        self.edges.len()
+    }
+
