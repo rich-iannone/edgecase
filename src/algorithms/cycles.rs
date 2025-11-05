@@ -30,3 +30,28 @@ pub fn has_cycle(graph: &Graph) -> bool {
     false
 }
 
+fn has_cycle_util(
+    graph: &Graph,
+    node: &str,
+    visited: &mut FxHashSet<String>,
+    rec_stack: &mut FxHashSet<String>,
+) -> bool {
+    visited.insert(node.to_string());
+    rec_stack.insert(node.to_string());
+    
+    if let Ok(neighbors) = graph.neighbors(node) {
+        for neighbor in neighbors {
+            if !visited.contains(&neighbor) {
+                if has_cycle_util(graph, &neighbor, visited, rec_stack) {
+                    return true;
+                }
+            } else if rec_stack.contains(&neighbor) {
+                return true;
+            }
+        }
+    }
+    
+    rec_stack.remove(node);
+    false
+}
+
