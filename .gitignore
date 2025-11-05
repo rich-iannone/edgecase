@@ -78,6 +78,24 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Playground files
+playground.qmd
+playground.html
+playground_files/
+*_cache/
+
+# Example outputs (ignore potential outputs)
+examples/outputs/
+examples/*.png
+examples/*.html
+examples/*.csv
+examples/scratch_*.py
+
+# Top-level Markdown files (excepting specific .md files)
+/*.md
+!README.md
+!CONTRIBUTING.md
+
 # IPython
 profile_default/
 ipython_config.py
