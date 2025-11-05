@@ -70,3 +70,50 @@ pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Vec<
     )))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::{Edge, Node};
+
+    #[test]
+    fn test_shortest_path_direct_connection() {
+        let mut graph = Graph::new(false, false);
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        
+        graph
+            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .unwrap();
+        
+        let path = shortest_path(&graph, "A", "B").unwrap();
+        assert_eq!(path, vec!["A", "B"]);
+    }
+
+    #[test]
+    fn test_shortest_path_multiple_hops() {
+        let mut graph = Graph::new(false, false);
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        
+        graph
+            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
+            .unwrap();
+        
+        let path = shortest_path(&graph, "A", "C").unwrap();
+        assert_eq!(path, vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn test_shortest_path_no_connection() {
+        let mut graph = Graph::new(false, false);
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        
+        let result = shortest_path(&graph, "A", "B");
+        assert!(result.is_err());
+    }
+}
