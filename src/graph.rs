@@ -182,3 +182,15 @@ impl Graph {
     }
 }
 
+impl Graph {
+    /// Get the adjacency list (internal method)
+    pub fn get_adjacency_list(&self) -> &FxHashMap<String, Vec<String>> {
+        &self.adjacency_list
+    }
+
+    /// Get all node IDs
+    pub fn node_ids(&self) -> Vec<String> {
+        self.nodes.keys().cloned().collect()
+    }
+}
+
