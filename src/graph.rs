@@ -194,3 +194,80 @@ impl Graph {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_empty_graph() {
+        let graph = Graph::new(false, false);
+        assert_eq!(graph.num_nodes(), 0);
+        assert_eq!(graph.num_edges(), 0);
+        assert!(!graph.is_directed());
+    }
+
+    #[test]
+    fn test_add_nodes() {
+        let mut graph = Graph::new(false, false);
+        let node1 = Node::new("A".to_string(), None);
+        let node2 = Node::new("B".to_string(), None);
+        
+        assert!(graph.add_node(node1).is_ok());
+        assert!(graph.add_node(node2).is_ok());
+        assert_eq!(graph.num_nodes(), 2);
+    }
+
+    #[test]
+    fn test_add_edges() {
+        let mut graph = Graph::new(false, false);
+        
+        // Add nodes first
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        
+        // Add edge
+        let edge = Edge::new("A".to_string(), "B".to_string(), Some(1.0), None);
+        assert!(graph.add_edge(edge).is_ok());
+        assert_eq!(graph.num_edges(), 1);
+    }
+
+    #[test]
+    fn test_neighbors() {
+        let mut graph = Graph::new(false, false);
+        
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        
+        graph
+            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("A".to_string(), "C".to_string(), None, None))
+            .unwrap();
+        
+        let neighbors = graph.neighbors("A").unwrap();
+        assert_eq!(neighbors.len(), 2);
+        assert!(neighbors.contains(&"B".to_string()));
+        assert!(neighbors.contains(&"C".to_string()));
+    }
+
+    #[test]
+    fn test_directed_graph() {
+        let mut graph = Graph::new(true, false);
+        
+        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        
+        graph
+            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .unwrap();
+        
+        // In directed graph, B should not have A as neighbor
+        let b_neighbors = graph.neighbors("B").unwrap();
+        assert_eq!(b_neighbors.len(), 0);
+        
+        let a_neighbors = graph.neighbors("A").unwrap();
+        assert_eq!(a_neighbors.len(), 1);
+    }
+}
