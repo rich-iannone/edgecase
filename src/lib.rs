@@ -27,3 +27,17 @@ fn _core(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_module_initialization() {
+        // Test that the module can be initialized
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let module = PyModule::new(py, "_core").unwrap();
+            assert!(_core(py, module).is_ok());
+        });
+    }
+}
