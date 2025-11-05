@@ -147,3 +147,38 @@ impl Graph {
         self.edges.len()
     }
 
+    /// Get neighbors of a node
+    fn neighbors(&self, node_id: &str) -> PyResult<Vec<String>> {
+        self.adjacency_list
+            .get(node_id)
+            .cloned()
+            .ok_or_else(|| {
+                pyo3::exceptions::PyKeyError::new_err(format!(
+                    "Node '{}' does not exist",
+                    node_id
+                ))
+            })
+    }
+
+    /// Check if the graph is directed
+    #[getter]
+    fn is_directed(&self) -> bool {
+        self.directed
+    }
+
+    /// Check if the graph is weighted
+    #[getter]
+    fn is_weighted(&self) -> bool {
+        self.weighted
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Graph(nodes={}, edges={}, directed={})",
+            self.num_nodes(),
+            self.num_edges(),
+            self.directed
+        )
+    }
+}
+
