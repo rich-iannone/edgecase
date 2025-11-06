@@ -42,8 +42,7 @@ class Graph:
     
     def edges(self) -> list[tuple[str, str]]:
         """Return list of edges as (source, target) tuples."""
-        # TODO: Implement edges() method in Rust
-        return []
+        return self._graph.edges()
     
     def neighbors(self, node_id: str) -> list[str]:
         """Get neighbors of a node."""
@@ -87,7 +86,7 @@ Edge = rust.Edge
 
 
 # Algorithm functions - wrap Rust functions to accept our Graph wrapper
-def shortest_path(graph: Graph, source: str, target: str) -> list[str]:
+def shortest_path(graph: Graph, source: str, target: str) -> list[str] | None:
     """Find shortest path between two nodes."""
     return rust.shortest_path(graph._graph, source, target)
 
