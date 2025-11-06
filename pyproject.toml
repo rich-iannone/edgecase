@@ -1,0 +1,152 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "edgecase"
+version = "0.1.0"
+description = "High-performance graph analysis library"
+authors = [
+    {name = "Rich Iannone", email = "riannone@me.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+keywords = ["graph", "network-analysis", "polars", "rust", "bioinformatics", "fraud-detection"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Security",
+]
+
+dependencies = [
+    "polars>=0.20.0",
+    "great-tables>=0.10.0",
+    "typing-extensions>=4.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-xdist>=3.3.0",  # parallel test execution
+    "hypothesis>=6.82.0",  # property-based testing
+    "ruff>=0.1.0",
+    "black>=23.7.0",
+    "maturin>=1.4.0",
+]
+bio = [
+    "scikit-learn>=1.3.0",  # for similarity metrics
+    "scipy>=1.11.0",  # for scientific computing
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.0",
+]
+all = [
+    "edgecase[dev,bio,docs]",
+]
+
+[project.urls]
+Homepage = "https://github.com/rich-iannone/edgecase"
+Documentation = "https://edgecase.readthedocs.io"
+Repository = "https://github.com/rich-iannone/edgecase"
+Issues = "https://github.com/rich-iannone/edgecase/issues"
+
+[tool.maturin]
+python-source = "python"
+module-name = "edgecase._core"
+features = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=edgecase",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-branch",
+    "--cov-fail-under=80",  # High coverage requirement
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "property: marks property-based tests",
+    "benchmark: marks performance benchmark tests",
+]
+
+[tool.coverage.run]
+source = ["edgecase"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "python/edgecase/_typing.py",
+]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+exclude_also = ["if TYPE_CHECKING:"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+exclude = ["docs", ".venv", "tests/*", "target/*", "build/*"]
+
+ignore = [
+    "E402",  # module level import not at top of file
+    "E501",  # line too long (handled by formatter)
+    "F811",  # redefinition of unused name
+    "E203",  # whitespace before ':'
+    "F841",  # local variable assigned but never used
+    "E702",  # multiple statements on one line (semicolon)
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401", "E402"]
+"tests/*" = ["F401", "E402"]
+"*_simple.py" = ["F401"]  # Allow unused imports in fallback implementations
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
