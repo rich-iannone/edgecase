@@ -15,7 +15,7 @@ name = "edgecase_core"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.23", features = ["extension-module", "abi3-py39"] }
+pyo3 = { version = "0.23", features = ["abi3-py39"] }
 rayon = "1.10"  # Parallel iterators
 petgraph = "0.8"  # Graph data structures
 ahash = "0.8"  # Fast hashing
@@ -33,7 +33,8 @@ quickcheck_macros = "1.0"
 rstest = "0.18"  # Parameterized tests
 
 [features]
-default = ["temporal", "weighted"]
+default = ["extension-module", "temporal", "weighted"]
+extension-module = ["pyo3/extension-module"]
 temporal = []  # Temporal graph analysis
 weighted = []  # Weighted graph support
 parallel = []  # Parallel computation
