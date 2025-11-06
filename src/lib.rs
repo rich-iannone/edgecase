@@ -12,7 +12,7 @@ pub mod utils;
 
 /// Initialize the Python module
 #[pymodule]
-fn _core(_py: Python, m: &PyModule) -> PyResult<()> {
+fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<graph::Graph>()?;
     m.add_class::<graph::Node>()?;
     m.add_class::<graph::Edge>()?;
@@ -36,8 +36,8 @@ mod tests {
         // Test that the module can be initialized
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let module = PyModule::new(py, "_core").unwrap();
-            assert!(_core(py, module).is_ok());
+            let module = PyModule::new_bound(py, "_core").unwrap();
+            assert!(_core(&module).is_ok());
         });
     }
 }
