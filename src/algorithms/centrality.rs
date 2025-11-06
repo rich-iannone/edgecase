@@ -36,8 +36,21 @@ pub fn pagerank(
     let initial_rank = 1.0 / n as f64;
     
     // Initialize all nodes with equal rank
-    for node_id in graph.node_ids() {
+    let node_ids: Vec<String> = graph.node_ids();
+    for node_id in &node_ids {
         ranks.insert(node_id.clone(), initial_rank);
+    }
+    
+    // Use the adjacency list to get out-degree (number of neighbors each node points to)
+    // For incoming edges, we need to traverse all nodes and see who points to each node
+    let mut out_degree: FxHashMap<String, usize> = FxHashMap::default();
+    
+    for node_id in &node_ids {
+        if let Ok(neighbors) = graph.neighbors(node_id) {
+            out_degree.insert(node_id.clone(), neighbors.len());
+        } else {
+            out_degree.insert(node_id.clone(), 0);
+        }
     }
     
     // Power iteration
@@ -45,17 +58,29 @@ pub fn pagerank(
         let mut new_ranks = FxHashMap::default();
         let mut converged = true;
         
-        for node_id in graph.node_ids() {
+        for node_id in &node_ids {
             let mut rank_sum = 0.0;
             
-            // Sum contributions from incoming neighbors
-            // Note: This is simplified and needs proper implementation
-            // for directed graphs with in-degree consideration
+            // Sum contributions from all nodes that have node_id as a neighbor
+            for other_node in &node_ids {
+                if let Ok(neighbors) = graph.neighbors(other_node) {
+                    if neighbors.contains(node_id) {
+                        // other_node points to node_id
+                        if let Some(other_rank) = ranks.get(other_node) {
+                            if let Some(&out_deg) = out_degree.get(other_node) {
+                                if out_deg > 0 {
+                                    rank_sum += other_rank / out_deg as f64;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             
             let new_rank = (1.0 - damping) / n as f64 + damping * rank_sum;
             new_ranks.insert(node_id.clone(), new_rank);
             
-            if let Some(old_rank) = ranks.get(&node_id) {
+            if let Some(old_rank) = ranks.get(node_id) {
                 if (new_rank - old_rank).abs() > tol {
                     converged = false;
                 }
