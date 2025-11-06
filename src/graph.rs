@@ -1,9 +1,8 @@
 //! Graph data structure and core operations
 
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::PyDict;
 use rustc_hash::FxHashMap;
-use std::collections::HashSet;
 
 /// A node in the graph
 #[pyclass]
@@ -122,7 +121,7 @@ impl Graph {
         self.nodes.insert(node_id.clone(), node);
         self.adjacency_list
             .entry(node_id)
-            .or_insert_with(Vec::new);
+            .or_default();
         Ok(())
     }
 
@@ -142,16 +141,25 @@ impl Graph {
             )));
         }
 
+        // Check for duplicate edges
+        let duplicate_exists = self.edges.iter().any(|e| {
+            e.source == edge.source && e.target == edge.target
+        });
+        
+        if duplicate_exists {
+            return Ok(()); // Silently ignore duplicate
+        }
+
         // Add to adjacency list
         self.adjacency_list
             .entry(edge.source.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(edge.target.clone());
 
         if !self.directed {
             self.adjacency_list
                 .entry(edge.target.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(edge.source.clone());
         }
 
@@ -197,6 +205,14 @@ impl Graph {
     /// Get all node IDs
     pub fn node_ids(&self) -> Vec<String> {
         self.nodes.keys().cloned().collect()
+    }
+
+    /// Get all edges as (source, target) tuples
+    pub fn edges(&self) -> Vec<(String, String)> {
+        self.edges
+            .iter()
+            .map(|e| (e.source.clone(), e.target.clone()))
+            .collect()
     }
 
     /// Check if a node exists (O(1) hash lookup)
