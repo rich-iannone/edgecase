@@ -1,0 +1,78 @@
+__version__ = "0.1.0"
+
+# Try to import Rust core, fall back to Python implementation
+try:
+    # Import Rust core with Python wrapper for API compatibility
+    from edgecase._core_rust import (
+        Graph,
+        Node,
+        Edge,
+        shortest_path,
+        pagerank,
+        betweenness_centrality,
+        detect_communities,
+        find_cycles,
+    )
+    _USING_RUST = True
+except ImportError:
+    # Fall back to pure Python implementation
+    from edgecase._core_simple import (
+        Graph,
+        shortest_path,
+        pagerank,
+        from_polars,
+    )
+    _USING_RUST = False
+    Node = None
+    Edge = None
+    betweenness_centrality = None
+    detect_communities = None
+    find_cycles = None
+
+# Python-layer functionality
+from edgecase.polars_integration import from_polars, to_polars
+from edgecase.analysis import NetworkAnalyzer
+from edgecase.tables import tbl_centrality, tbl_network_summary
+from edgecase.viz import plot_graph
+from edgecase.bio import (
+    protein_network,
+    patient_similarity_network,
+    pathway_analysis,
+)
+from edgecase.fraud import (
+    transaction_network,
+    find_suspicious_patterns,
+    temporal_fraud_detection,
+)
+
+__all__ = [
+    # Version
+    "__version__",
+    # Core classes
+    "Graph",
+    "Node",
+    "Edge",
+    # Core algorithms
+    "shortest_path",
+    "pagerank",
+    "betweenness_centrality",
+    "detect_communities",
+    "find_cycles",
+    # I/O
+    "from_polars",
+    "to_polars",
+    # Analysis
+    "NetworkAnalyzer",
+    # Visualization
+    "plot_graph",
+    # Tables
+    "tbl_centrality",
+    "tbl_network_summary",
+    # Domain-specific
+    "protein_network",
+    "patient_similarity_network",
+    "pathway_analysis",
+    "transaction_network",
+    "find_suspicious_patterns",
+    "temporal_fraud_detection",
+]
