@@ -32,7 +32,7 @@ pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Vec<
     // Simple BFS for unweighted graphs
     let mut queue = VecDeque::new();
     let mut visited = FxHashMap::default();
-    let mut parent = FxHashMap::default();
+    let mut parent: FxHashMap<String, String> = FxHashMap::default();
     
     queue.push_back(source.to_string());
     visited.insert(source.to_string(), true);
