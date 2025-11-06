@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 /// A node in the graph
 #[pyclass]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub struct Node {
     #[pyo3(get, set)]
     pub id: String,
@@ -15,9 +15,19 @@ pub struct Node {
     pub attributes: Option<Py<PyDict>>,
 }
 
+impl Clone for Node {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| Node {
+            id: self.id.clone(),
+            attributes: self.attributes.as_ref().map(|d| d.clone_ref(py)),
+        })
+    }
+}
+
 #[pymethods]
 impl Node {
     #[new]
+    #[pyo3(signature = (id, attributes=None))]
     fn new(id: String, attributes: Option<Py<PyDict>>) -> Self {
         Node { id, attributes }
     }
@@ -33,7 +43,7 @@ impl Node {
 
 /// An edge connecting two nodes
 #[pyclass]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Edge {
     #[pyo3(get, set)]
     pub source: String,
@@ -45,9 +55,21 @@ pub struct Edge {
     pub attributes: Option<Py<PyDict>>,
 }
 
+impl Clone for Edge {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| Edge {
+            source: self.source.clone(),
+            target: self.target.clone(),
+            weight: self.weight,
+            attributes: self.attributes.as_ref().map(|d| d.clone_ref(py)),
+        })
+    }
+}
+
 #[pymethods]
 impl Edge {
     #[new]
+    #[pyo3(signature = (source, target, weight=None, attributes=None))]
     fn new(
         source: String,
         target: String,
@@ -138,17 +160,17 @@ impl Graph {
     }
 
     /// Get the number of nodes
-    fn num_nodes(&self) -> usize {
+    pub fn num_nodes(&self) -> usize {
         self.nodes.len()
     }
 
     /// Get the number of edges
-    fn num_edges(&self) -> usize {
+    pub fn num_edges(&self) -> usize {
         self.edges.len()
     }
 
     /// Get neighbors of a node
-    fn neighbors(&self, node_id: &str) -> PyResult<Vec<String>> {
+    pub fn neighbors(&self, node_id: &str) -> PyResult<Vec<String>> {
         self.adjacency_list
             .get(node_id)
             .cloned()
@@ -172,6 +194,16 @@ impl Graph {
         self.weighted
     }
 
+    /// Get all node IDs
+    pub fn node_ids(&self) -> Vec<String> {
+        self.nodes.keys().cloned().collect()
+    }
+
+    /// Check if a node exists (O(1) hash lookup)
+    pub fn has_node(&self, node_id: &str) -> bool {
+        self.nodes.contains_key(node_id)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Graph(nodes={}, edges={}, directed={})",
@@ -186,11 +218,6 @@ impl Graph {
     /// Get the adjacency list (internal method)
     pub fn get_adjacency_list(&self) -> &FxHashMap<String, Vec<String>> {
         &self.adjacency_list
-    }
-
-    /// Get all node IDs
-    pub fn node_ids(&self) -> Vec<String> {
-        self.nodes.keys().cloned().collect()
     }
 }
 
