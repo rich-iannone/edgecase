@@ -3,32 +3,16 @@
 use crate::graph::Graph;
 use pyo3::prelude::*;
 use rustc_hash::FxHashMap;
-use std::collections::{BinaryHeap, VecDeque};
-use std::cmp::Ordering;
-
-#[derive(Copy, Clone, PartialEq)]
-struct State {
-    cost: f64,
-    position: usize,
-}
-
-impl Eq for State {}
-
-impl Ord for State {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
-    }
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
+use std::collections::VecDeque;
 
 /// Find shortest path between two nodes
 #[pyfunction]
-pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Vec<String>> {
+pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Option<Vec<String>>> {
+    // Check if nodes exist
+    if !graph.has_node(source) || !graph.has_node(target) {
+        return Ok(None);
+    }
+    
     // Simple BFS for unweighted graphs
     let mut queue = VecDeque::new();
     let mut visited = FxHashMap::default();
@@ -49,7 +33,7 @@ pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Vec<
             }
             
             path.reverse();
-            return Ok(path);
+            return Ok(Some(path));
         }
         
         if let Ok(neighbors) = graph.neighbors(&current) {
@@ -64,10 +48,7 @@ pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Vec<
     }
     
     // No path found
-    Err(pyo3::exceptions::PyValueError::new_err(format!(
-        "No path found from '{}' to '{}'",
-        source, target
-    )))
+    Ok(None)
 }
 
 #[cfg(test)]
