@@ -295,6 +295,23 @@ impl Graph {
         self.edges.iter().any(|e| e.id == edge_id)
     }
 
+    /// Find edge IDs by from/to node IDs
+    /// Returns all matching edges (supports multi-edges)
+    pub fn find_edge_ids(&self, from: &str, to: &str) -> Vec<u64> {
+        self.edges
+            .iter()
+            .filter(|e| {
+                if self.directed {
+                    e.source == from && e.target == to
+                } else {
+                    // For undirected graphs, match either direction
+                    (e.source == from && e.target == to) || (e.source == to && e.target == from)
+                }
+            })
+            .map(|e| e.id)
+            .collect()
+    }
+
     /// Delete edge by ID
     pub fn delete_edge_by_id(&mut self, edge_id: u64) -> PyResult<()> {
         let edge_idx = self.edges.iter().position(|e| e.id == edge_id);

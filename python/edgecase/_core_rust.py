@@ -167,9 +167,74 @@ class Graph:
         """Check if an edge with given ID exists."""
         return self._graph.has_edge_id(edge_id)
     
+    def has_edge(self, from_node: str, to_node: str) -> bool:
+        """Check if an edge exists between two nodes.
+        
+        Args:
+            from_node: Source node ID
+            to_node: Target node ID (for undirected graphs, order doesn't matter)
+            
+        Returns:
+            True if at least one edge exists between the nodes
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.has_edge("A", "B")
+            True
+            >>> G.has_edge("B", "A")
+            False
+        """
+        edge_ids = self._graph.find_edge_ids(from_node, to_node)
+        return len(edge_ids) > 0
+    
     def delete_edge_by_id(self, edge_id: int):
         """Delete edge by ID."""
         return self._graph.delete_edge_by_id(edge_id)
+    
+    def delete_edge(
+        self, 
+        from_node: str | None = None, 
+        to_node: str | None = None, 
+        id: int | None = None
+    ) -> "Graph":
+        """Delete an edge from the graph (DiagrammeR-compatible).
+        
+        From DiagrammeR: delete_edge(graph, from = NULL, to = NULL, id = NULL)
+        
+        Specify either (from, to) pair OR edge id. For multigraphs with from/to,
+        only the first matching edge is deleted.
+        
+        Args:
+            from_node: Source node ID. Can use node labels if all nodes have distinct labels.
+            to_node: Target node ID. Can use node labels if all nodes have distinct labels.
+            id: Edge ID to delete (if provided, from_node and to_node are ignored)
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.delete_edge(from_node="A", to_node="B")
+            
+            >>> # Or delete by edge ID
+            >>> G.delete_edge(id=1)
+        """
+        if id is not None:
+            # Delete by edge ID
+            self._graph.delete_edge_by_id(id)
+        elif from_node is not None and to_node is not None:
+            # Find and delete first matching edge
+            edge_ids = self._graph.find_edge_ids(from_node, to_node)
+            if len(edge_ids) > 0:
+                self._graph.delete_edge_by_id(edge_ids[0])
+            else:
+                raise KeyError(f"No edge found from '{from_node}' to '{to_node}'")
+        else:
+            raise ValueError("Must specify either (from_node, to_node) or id")
+        
+        return self
     
     def neighbors(self, node_id: str) -> list[str]:
         """Get neighbors of a node."""
@@ -1381,8 +1446,71 @@ class Graph:
         
         return self
     
-    def get_edge_attrs(self, attr: str, edges: list[int] | None = None) -> dict[int, any]:
-        """Get attribute values for edges.
+    def get_edge_attrs(
+        self, 
+        edge_attr: str, 
+        from_nodes: list[str] | None = None, 
+        to_nodes: list[str] | None = None
+    ) -> dict[str, any]:
+        """Get edge attribute values (DiagrammeR-compatible).
+        
+        From DiagrammeR: get_edge_attrs(graph, edge_attr, from = NULL, to = NULL)
+        
+        Args:
+            edge_attr: The name of the attribute to get
+            from_nodes: Optional list of source node IDs to filter edges
+            to_nodes: Optional list of target node IDs to filter edges
+            
+        Returns:
+            Dictionary mapping edge strings (e.g., "A->B") to attribute values
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "B", weight=1.5, type="friend")
+            >>> G.add_edge("B", "C", weight=2.0, type="friend")
+            >>> G.get_edge_attrs("weight")
+            {'A->B': 1.5, 'B->C': 2.0}
+            
+            >>> # Filter by from/to nodes
+            >>> G.get_edge_attrs("weight", from_nodes=["A"], to_nodes=["B"])
+            {'A->B': 1.5}
+        """
+        result = {}
+        separator = "->" if self.directed else "--"
+        
+        # Determine which edges to check
+        if from_nodes is not None and to_nodes is not None:
+            # Filter by specific from/to pairs
+            for from_node in from_nodes:
+                for to_node in to_nodes:
+                    edge_ids = self._graph.find_edge_ids(from_node, to_node)
+                    for edge_id in edge_ids:
+                        edge = self.get_edge(edge_id)
+                        if edge:
+                            edge_key = f"{edge.source}{separator}{edge.target}"
+                            # Check special weight attribute first
+                            if edge_attr == "weight" and edge.weight is not None:
+                                result[edge_key] = edge.weight
+                            # Then check attributes dict
+                            elif edge.attributes and edge_attr in edge.attributes:
+                                result[edge_key] = edge.attributes[edge_attr]
+        else:
+            # Get all edges
+            for edge_id in self.edge_ids():
+                edge = self.get_edge(edge_id)
+                if edge:
+                    edge_key = f"{edge.source}{separator}{edge.target}"
+                    # Check special weight attribute first
+                    if edge_attr == "weight" and edge.weight is not None:
+                        result[edge_key] = edge.weight
+                    # Then check attributes dict
+                    elif edge.attributes and edge_attr in edge.attributes:
+                        result[edge_key] = edge.attributes[edge_attr]
+        
+        return result
+    
+    def get_edge_attrs_by_id(self, attr: str, edges: list[int] | None = None) -> dict[int, any]:
+        """Get attribute values for edges by edge ID.
         
         Args:
             attr: Attribute name to extract
@@ -1394,7 +1522,7 @@ class Graph:
         Example:
             >>> G = Graph()
             >>> G.add_edge("A", "B", weight=1.5, type="friend")
-            >>> G.get_edge_attrs("weight")
+            >>> G.get_edge_attrs_by_id("weight")
             {1: 1.5}
         """
         if edges is None:
