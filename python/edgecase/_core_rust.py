@@ -126,6 +126,61 @@ class Graph:
         """Check if graph is weighted (alias for weighted)."""
         return self._graph.is_weighted
     
+    def degree(self, node_id: str) -> int:
+        """Get the degree of a node.
+        
+        For directed graphs, returns total degree (in + out).
+        For undirected graphs, returns the number of neighbors.
+        
+        Args:
+            node_id: Node ID
+            
+        Returns:
+            Degree of the node
+        """
+        neighbors = self._graph.neighbors(node_id)
+        if self._graph.is_directed:
+            # For directed, count both in and out
+            # edges() returns (edge_id, source, target) tuples
+            in_count = sum(1 for edge in self._graph.edges() if edge[2] == node_id)
+            out_count = len(neighbors)
+            return in_count + out_count
+        else:
+            return len(neighbors)
+    
+    def in_degree(self, node_id: str) -> int:
+        """Get the in-degree of a node (directed graphs only).
+        
+        Args:
+            node_id: Node ID
+            
+        Returns:
+            Number of incoming edges
+            
+        Raises:
+            ValueError: If graph is undirected
+        """
+        if not self._graph.is_directed:
+            raise ValueError("in_degree only available for directed graphs")
+        # edges() returns (edge_id, source, target) tuples
+        return sum(1 for edge in self._graph.edges() if edge[2] == node_id)
+    
+    def out_degree(self, node_id: str) -> int:
+        """Get the out-degree of a node (directed graphs only).
+        
+        Args:
+            node_id: Node ID
+            
+        Returns:
+            Number of outgoing edges
+            
+        Raises:
+            ValueError: If graph is undirected
+        """
+        if not self._graph.is_directed:
+            raise ValueError("out_degree only available for directed graphs")
+        return len(self._graph.neighbors(node_id))
+    
     # ========== Selection Methods ==========
     
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
@@ -392,6 +447,92 @@ class Graph:
             2
         """
         self._graph.select_last_edges_created(n)
+        return self
+    
+    def select_nodes_in_neighborhood(
+        self,
+        node_ids: list[str] | str,
+        k: int = 1,
+        mode: str = "out"
+    ) -> "Graph":
+        """Select all nodes within K hops of the specified seed nodes.
+        
+        Uses breadth-first search to find neighbors at distance up to k.
+        Does not include the seed nodes themselves in the selection.
+        
+        Args:
+            node_ids: Seed node ID(s) to start from
+            k: Maximum number of hops/distance (default 1)
+            mode: Direction to traverse - "out", "in", or "all" (default "out")
+                  For undirected graphs, always uses "all" mode
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_path(10)
+            >>> G.select_nodes_in_neighborhood("1", k=2, mode="out")
+            >>> G.get_selected_nodes()  # Gets nodes 1, 2, 3
+        """
+        # Convert single string to list
+        if isinstance(node_ids, str):
+            node_ids = [node_ids]
+        
+        self._graph.select_nodes_in_neighborhood(node_ids, k, mode)
+        return self
+    
+    def select_nodes_by_centrality(
+        self,
+        measure: str = "degree",
+        k: int = 10,
+        include_ties: bool = False,
+        **kwargs
+    ) -> "Graph":
+        """Select top-K nodes by centrality measure.
+        
+        Computes centrality scores and selects the highest-scoring nodes.
+        
+        Args:
+            measure: Centrality measure - "degree", "in_degree", "out_degree",
+                    "pagerank", or "betweenness" (default "degree")
+            k: Number of top nodes to select (default 10)
+            include_ties: If True, include all nodes tied with k-th score (default False)
+            **kwargs: Additional arguments for centrality algorithms (e.g., damping for pagerank)
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_star(20, "hub")
+            >>> G.select_nodes_by_centrality("degree", k=5)
+            >>> "hub" in G.get_selected_nodes()  # Hub has highest degree
+            True
+        """
+        # Compute scores based on measure
+        if measure == "degree":
+            scores = {node_id: self.degree(node_id) for node_id in self.node_ids()}
+        elif measure == "in_degree":
+            if not self._graph.is_directed:
+                raise ValueError("in_degree only available for directed graphs")
+            scores = {node_id: self.in_degree(node_id) for node_id in self.node_ids()}
+        elif measure == "out_degree":
+            if not self._graph.is_directed:
+                raise ValueError("out_degree only available for directed graphs")
+            scores = {node_id: self.out_degree(node_id) for node_id in self.node_ids()}
+        elif measure == "pagerank":
+            scores = pagerank(self, **kwargs)
+        elif measure == "betweenness":
+            scores = betweenness_centrality(self)
+        else:
+            raise ValueError(
+                f"Unknown centrality measure '{measure}'. "
+                "Choose from: degree, in_degree, out_degree, pagerank, betweenness"
+            )
+        
+        # Use the Rust helper to select top-k
+        self._graph.select_nodes_by_scores(scores, k, include_ties)
         return self
     
     def get_node_creation_order(self) -> list[str]:
