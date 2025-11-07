@@ -41,11 +41,14 @@ class Graph:
             weight: Optional edge weight
             edge_id: Optional edge ID (auto-assigned if None)
             **attributes: Optional edge attributes
+            
+        Returns:
+            The ID of the added edge
         """
         # Handle both raw Edge objects and (source, target) pairs
         if isinstance(source, rust.Edge):
             # Direct Rust Edge object
-            self._graph.add_edge(source)
+            return self._graph.add_edge(source)
         else:
             # String IDs with attributes
             # Ensure nodes exist first (direct Rust hash lookup - O(1))
@@ -61,7 +64,7 @@ class Graph:
                 weight=weight,
                 attributes=attributes if attributes else None
             )
-            self._graph.add_edge(edge)
+            return self._graph.add_edge(edge)
     
     def nodes(self) -> list[str]:
         """Return list of node IDs."""
@@ -2263,6 +2266,155 @@ class Graph:
             100
         """
         self._graph.generate_smallworld_graph(n, k, p, seed)
+        return self
+    
+    # ========================================
+    # TRAVERSAL OPERATIONS
+    # ========================================
+    
+    def trav_out(self) -> 'Graph':
+        """Traverse from selected nodes to outward neighbors.
+        
+        From the currently selected nodes, moves to all nodes that can be
+        reached by following outward edges (where selected nodes are sources).
+        The current node selection is replaced with the traversed nodes.
+        
+        For directed graphs, follows edges in the forward direction.
+        For undirected graphs, follows edges in all directions (equivalent to trav_both).
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "C")
+            >>> G.select_nodes_by_id(["A"]).trav_out().get_selected_nodes()
+            ['B']
+            >>> G.clear_selection().select_nodes_by_id(["A"]).trav_out().trav_out().get_selected_nodes()
+            ['C']
+        """
+        self._graph.trav_out()
+        return self
+    
+    def trav_in(self) -> 'Graph':
+        """Traverse from selected nodes to inward neighbors.
+        
+        From the currently selected nodes, moves to all nodes that have
+        outward edges leading to the selected nodes (where selected nodes are targets).
+        The current node selection is replaced with the traversed nodes.
+        
+        For directed graphs, follows edges in the reverse direction.
+        For undirected graphs, follows edges in all directions (equivalent to trav_both).
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "C")
+            >>> G.select_nodes_by_id(["C"]).trav_in().get_selected_nodes()
+            ['B']
+            >>> G.clear_selection().select_nodes_by_id(["C"]).trav_in().trav_in().get_selected_nodes()
+            ['A']
+        """
+        self._graph.trav_in()
+        return self
+    
+    def trav_both(self) -> 'Graph':
+        """Traverse from selected nodes to all neighbors.
+        
+        From the currently selected nodes, moves to all connected neighbors
+        in both directions (both outward and inward edges).
+        The current node selection is replaced with the traversed nodes.
+        
+        Works the same for directed and undirected graphs.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("C", "B")
+            >>> G.select_nodes_by_id(["B"]).trav_both().get_selected_nodes()
+            ['A', 'C']
+        """
+        self._graph.trav_both()
+        return self
+    
+    def trav_out_edge(self) -> 'Graph':
+        """Traverse from selected nodes to outbound edges.
+        
+        From the currently selected nodes, moves to all edges where the
+        selected nodes are sources (outbound edges). The current node
+        selection is cleared and replaced with an edge selection.
+        
+        For directed graphs, selects edges where from=selected_node.
+        For undirected graphs, selects all edges incident to selected nodes.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("A", "C")
+            >>> G.select_nodes_by_id(["A"]).trav_out_edge()
+            >>> len(G.get_selected_edges())
+            2
+        """
+        self._graph.trav_out_edge()
+        return self
+    
+    def trav_in_edge(self) -> 'Graph':
+        """Traverse from selected nodes to inbound edges.
+        
+        From the currently selected nodes, moves to all edges where the
+        selected nodes are targets (inbound edges). The current node
+        selection is cleared and replaced with an edge selection.
+        
+        For directed graphs, selects edges where to=selected_node.
+        For undirected graphs, selects all edges incident to selected nodes.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "C")
+            >>> G.add_edge("B", "C")
+            >>> G.select_nodes_by_id(["C"]).trav_in_edge()
+            >>> len(G.get_selected_edges())
+            2
+        """
+        self._graph.trav_in_edge()
+        return self
+    
+    def trav_reverse_edge(self, add_to_selection: bool = False) -> 'Graph':
+        """Traverse to reverse edges.
+        
+        From the currently selected edges, finds the reverse edges.
+        For each selected edge A→B, looks for the edge B→A.
+        
+        Args:
+            add_to_selection: If True, adds reverse edges to the current selection.
+                If False (default), replaces the selection with reverse edges.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "A")  # Reverse edge
+            >>> G.select_edges_by_node_id("A", "B")
+            >>> G.trav_reverse_edge()
+            >>> edges = G.get_selected_edges()
+            >>> # Now selects the B→A edge
+        """
+        self._graph.trav_reverse_edge(add_to_selection)
         return self
     
     def __repr__(self) -> str:
