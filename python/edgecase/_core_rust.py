@@ -126,6 +126,226 @@ class Graph:
         """Check if graph is weighted (alias for weighted)."""
         return self._graph.is_weighted
     
+    # ========== Selection Methods ==========
+    
+    def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
+        """Select nodes by their IDs.
+        
+        Args:
+            node_ids: List of node IDs to select
+            
+        Returns:
+            Self for method chaining
+            
+        Raises:
+            KeyError: If any node ID doesn't exist
+        """
+        self._graph.select_nodes_by_id(node_ids)
+        return self
+    
+    def select_edges_by_id(self, edge_ids: list[int]) -> "Graph":
+        """Select edges by their IDs.
+        
+        Args:
+            edge_ids: List of edge IDs to select
+            
+        Returns:
+            Self for method chaining
+            
+        Raises:
+            KeyError: If any edge ID doesn't exist
+        """
+        self._graph.select_edges_by_id(edge_ids)
+        return self
+    
+    def select_edges_by_node_id(self, node_ids: list[str]) -> "Graph":
+        """Select all edges connected to the specified nodes.
+        
+        Args:
+            node_ids: List of node IDs
+            
+        Returns:
+            Self for method chaining
+        """
+        self._graph.select_edges_by_node_id(node_ids)
+        return self
+    
+    def select_nodes_by_degree(
+        self,
+        min_degree: int | None = None,
+        max_degree: int | None = None,
+        degree_type: str = "total"
+    ) -> "Graph":
+        """Select nodes by degree criteria.
+        
+        Args:
+            min_degree: Minimum degree (inclusive)
+            max_degree: Maximum degree (inclusive)
+            degree_type: Type of degree - "in", "out", or "total" (default: "total")
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G.select_nodes_by_degree(min_degree=5, degree_type="out")
+            >>> G.select_nodes_by_degree(max_degree=10)
+        """
+        self._graph.select_nodes_by_degree(
+            min_degree=min_degree,
+            max_degree=max_degree,
+            degree_type=degree_type
+        )
+        return self
+    
+    def deselect_nodes(self, node_ids: list[str]) -> "Graph":
+        """Remove nodes from selection.
+        
+        Args:
+            node_ids: List of node IDs to deselect
+            
+        Returns:
+            Self for method chaining
+        """
+        self._graph.deselect_nodes(node_ids)
+        return self
+    
+    def deselect_edges(self, edge_ids: list[int]) -> "Graph":
+        """Remove edges from selection.
+        
+        Args:
+            edge_ids: List of edge IDs to deselect
+            
+        Returns:
+            Self for method chaining
+        """
+        self._graph.deselect_edges(edge_ids)
+        return self
+    
+    def clear_selection(self) -> "Graph":
+        """Clear all node and edge selections.
+        
+        Returns:
+            Self for method chaining
+        """
+        self._graph.clear_selection()
+        return self
+    
+    def invert_node_selection(self) -> "Graph":
+        """Invert node selection (select unselected, unselect selected).
+        
+        Returns:
+            Self for method chaining
+        """
+        self._graph.invert_node_selection()
+        return self
+    
+    def invert_edge_selection(self) -> "Graph":
+        """Invert edge selection (select unselected, unselect selected).
+        
+        Returns:
+            Self for method chaining
+        """
+        self._graph.invert_edge_selection()
+        return self
+    
+    def get_selected_nodes(self) -> list[str]:
+        """Get currently selected node IDs.
+        
+        Returns:
+            List of selected node IDs
+        """
+        return self._graph.get_selected_nodes()
+    
+    def get_selected_edges(self) -> list[int]:
+        """Get currently selected edge IDs.
+        
+        Returns:
+            List of selected edge IDs
+        """
+        return self._graph.get_selected_edges()
+    
+    def count_selected_nodes(self) -> int:
+        """Get count of currently selected nodes.
+        
+        Returns:
+            Number of selected nodes
+        """
+        return self._graph.count_selected_nodes()
+    
+    def count_selected_edges(self) -> int:
+        """Get count of currently selected edges.
+        
+        Returns:
+            Number of selected edges
+        """
+        return self._graph.count_selected_edges()
+    
+    def select_nodes(self, predicate) -> "Graph":
+        """Select nodes using a predicate function.
+        
+        The predicate function receives a Node object and should return True
+        for nodes to be selected.
+        
+        Args:
+            predicate: Callable that takes a Node and returns bool
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> # Select nodes with specific attribute
+            >>> G.select_nodes(lambda n: n.attributes and n.attributes.get('type') == 'hub')
+            >>> 
+            >>> # Select nodes by ID pattern
+            >>> G.select_nodes(lambda n: n.id.startswith('user_'))
+        """
+        self._graph.select_nodes(predicate)
+        return self
+    
+    def select_edges(self, predicate) -> "Graph":
+        """Select edges using a predicate function.
+        
+        The predicate function receives an Edge object and should return True
+        for edges to be selected.
+        
+        Args:
+            predicate: Callable that takes an Edge and returns bool
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> # Select edges with weight > 0.5
+            >>> G.select_edges(lambda e: e.weight and e.weight > 0.5)
+            >>> 
+            >>> # Select edges with specific relationship type
+            >>> G.select_edges(lambda e: e.attributes and e.attributes.get('rel') == 'friend')
+        """
+        self._graph.select_edges(predicate)
+        return self
+    
+    def get_node(self, node_id: str):
+        """Get a node object by ID.
+        
+        Args:
+            node_id: Node ID to retrieve
+            
+        Returns:
+            Node object or None if not found
+        """
+        return self._graph.get_node(node_id)
+    
+    def get_edge(self, edge_id: int):
+        """Get an edge object by ID.
+        
+        Args:
+            edge_id: Edge ID to retrieve
+            
+        Returns:
+            Edge object or None if not found
+        """
+        return self._graph.get_edge(edge_id)
+    
     def __repr__(self) -> str:
         return self._graph.__repr__()
 
