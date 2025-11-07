@@ -3,6 +3,9 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rustc_hash::{FxHashMap, FxHashSet};
+use rand::{Rng, SeedableRng};
+use rand::seq::SliceRandom;
+use rand_chacha::ChaCha8Rng;
 
 /// A node in the graph
 #[pyclass]
@@ -815,6 +818,330 @@ impl Graph {
             self.num_edges(),
             self.directed
         )
+    }
+
+    // ========== Random Graph Generators ==========
+
+    /// Generate Erdős-Rényi G(n,p) random graph
+    /// Each possible edge is included independently with probability p
+    fn generate_gnp_graph(
+        &mut self,
+        n: usize,
+        p: f64,
+        seed: Option<u64>,
+    ) -> PyResult<()> {
+        if !(0.0..=1.0).contains(&p) {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Probability p must be between 0.0 and 1.0"
+            ));
+        }
+
+        let mut rng = match seed {
+            Some(s) => ChaCha8Rng::seed_from_u64(s),
+            None => ChaCha8Rng::from_entropy(),
+        };
+
+        // Add nodes
+        let start_id = self.nodes.len() + 1;
+        let node_ids: Vec<String> = (0..n)
+            .map(|i| (start_id + i).to_string())
+            .collect();
+
+        for node_id in &node_ids {
+            self.add_node(Node::new(node_id.clone(), None))?;
+        }
+
+        // Add edges with probability p
+        if self.directed {
+            // For directed graphs, consider all ordered pairs
+            for i in 0..n {
+                for j in 0..n {
+                    if i != j && rng.gen::<f64>() < p {
+                        self.add_edge(Edge::new(
+                            0, // edge_id will be auto-assigned
+                            node_ids[i].clone(),
+                            node_ids[j].clone(),
+                            None,
+                            None,
+                        ))?;
+                    }
+                }
+            }
+        } else {
+            // For undirected graphs, consider unordered pairs
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    if rng.gen::<f64>() < p {
+                        self.add_edge(Edge::new(
+                            0,
+                            node_ids[i].clone(),
+                            node_ids[j].clone(),
+                            None,
+                            None,
+                        ))?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Generate Erdős-Rényi G(n,m) random graph
+    /// Graph with n nodes and exactly m randomly placed edges
+    fn generate_gnm_graph(
+        &mut self,
+        n: usize,
+        m: usize,
+        seed: Option<u64>,
+    ) -> PyResult<()> {
+        let mut rng = match seed {
+            Some(s) => ChaCha8Rng::seed_from_u64(s),
+            None => ChaCha8Rng::from_entropy(),
+        };
+
+        // Calculate maximum possible edges
+        let max_edges = if self.directed {
+            n * (n - 1)
+        } else {
+            n * (n - 1) / 2
+        };
+
+        if m > max_edges {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Cannot create {} edges with {} nodes (max: {})",
+                m, n, max_edges
+            )));
+        }
+
+        // Add nodes
+        let start_id = self.nodes.len() + 1;
+        let node_ids: Vec<String> = (0..n)
+            .map(|i| (start_id + i).to_string())
+            .collect();
+
+        for node_id in &node_ids {
+            self.add_node(Node::new(node_id.clone(), None))?;
+        }
+
+        // Generate all possible edges
+        let mut possible_edges: Vec<(String, String)> = Vec::with_capacity(max_edges);
+        
+        if self.directed {
+            for i in 0..n {
+                for j in 0..n {
+                    if i != j {
+                        possible_edges.push((node_ids[i].clone(), node_ids[j].clone()));
+                    }
+                }
+            }
+        } else {
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    possible_edges.push((node_ids[i].clone(), node_ids[j].clone()));
+                }
+            }
+        }
+
+        // Randomly select m edges
+        possible_edges.shuffle(&mut rng);
+        for (u, v) in possible_edges.iter().take(m) {
+            self.add_edge(Edge::new(0, u.clone(), v.clone(), None, None))?;
+        }
+
+        Ok(())
+    }
+
+    /// Generate Barabási-Albert preferential attachment graph
+    /// Grows a graph by adding nodes one at a time with preferential attachment
+    fn generate_pa_graph(
+        &mut self,
+        n: usize,
+        m: usize,
+        seed: Option<u64>,
+    ) -> PyResult<()> {
+        if m < 1 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "m must be at least 1"
+            ));
+        }
+        if m >= n {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "m must be less than n"
+            ));
+        }
+
+        let mut rng = match seed {
+            Some(s) => ChaCha8Rng::seed_from_u64(s),
+            None => ChaCha8Rng::from_entropy(),
+        };
+
+        let start_id = self.nodes.len() + 1;
+        let node_ids: Vec<String> = (0..n)
+            .map(|i| (start_id + i).to_string())
+            .collect();
+
+        // Add first m+1 nodes in a clique
+        for i in 0..=m {
+            self.add_node(Node::new(node_ids[i].clone(), None))?;
+        }
+
+        for i in 0..=m {
+            for j in (i + 1)..=m {
+                self.add_edge(Edge::new(
+                    0,
+                    node_ids[i].clone(),
+                    node_ids[j].clone(),
+                    None,
+                    None,
+                ))?;
+            }
+        }
+
+        // Track degree for preferential attachment
+        let mut degrees: FxHashMap<String, usize> = FxHashMap::default();
+        for i in 0..=m {
+            degrees.insert(node_ids[i].clone(), m);
+        }
+
+        // Add remaining nodes with preferential attachment
+        for i in (m + 1)..n {
+            self.add_node(Node::new(node_ids[i].clone(), None))?;
+
+            // Select m targets with probability proportional to degree
+            let mut targets: FxHashSet<String> = FxHashSet::default();
+            let total_degree: usize = degrees.values().sum();
+
+            while targets.len() < m {
+                let r = rng.gen::<f64>() * total_degree as f64;
+                let mut cumsum = 0.0;
+
+                for (node, &deg) in &degrees {
+                    cumsum += deg as f64;
+                    if cumsum >= r {
+                        targets.insert(node.clone());
+                        break;
+                    }
+                }
+            }
+
+            // Add edges to selected targets
+            for target in &targets {
+                self.add_edge(Edge::new(
+                    0,
+                    node_ids[i].clone(),
+                    target.clone(),
+                    None,
+                    None,
+                ))?;
+                *degrees.get_mut(target).unwrap() += 1;
+            }
+
+            degrees.insert(node_ids[i].clone(), m);
+        }
+
+        Ok(())
+    }
+
+    /// Generate Watts-Strogatz small-world graph
+    /// Creates a ring lattice with rewiring probability p
+    fn generate_smallworld_graph(
+        &mut self,
+        n: usize,
+        k: usize,
+        p: f64,
+        seed: Option<u64>,
+    ) -> PyResult<()> {
+        if k >= n {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "k must be less than n"
+            ));
+        }
+        if k % 2 != 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "k must be even"
+            ));
+        }
+        if !(0.0..=1.0).contains(&p) {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Probability p must be between 0.0 and 1.0"
+            ));
+        }
+
+        let mut rng = match seed {
+            Some(s) => ChaCha8Rng::seed_from_u64(s),
+            None => ChaCha8Rng::from_entropy(),
+        };
+
+        let start_id = self.nodes.len() + 1;
+        let node_ids: Vec<String> = (0..n)
+            .map(|i| (start_id + i).to_string())
+            .collect();
+
+        // Add nodes
+        for node_id in &node_ids {
+            self.add_node(Node::new(node_id.clone(), None))?;
+        }
+
+        // Create ring lattice: connect each node to k/2 neighbors on each side
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        for i in 0..n {
+            for j in 1..=(k / 2) {
+                let neighbor_idx = (i + j) % n;
+                edges.push((i, neighbor_idx));
+            }
+        }
+
+        // Rewire edges with probability p
+        let mut rewired_edges: FxHashSet<(usize, usize)> = FxHashSet::default();
+        
+        for (u_idx, v_idx) in edges {
+            if rng.gen::<f64>() < p {
+                // Rewire: choose new target
+                let mut new_v_idx = rng.gen_range(0..n);
+                let mut attempts = 0;
+                
+                while (new_v_idx == u_idx 
+                    || rewired_edges.contains(&(u_idx, new_v_idx))
+                    || rewired_edges.contains(&(new_v_idx, u_idx)))
+                    && attempts < 100 {
+                    new_v_idx = rng.gen_range(0..n);
+                    attempts += 1;
+                }
+
+                if attempts < 100 {
+                    self.add_edge(Edge::new(
+                        0,
+                        node_ids[u_idx].clone(),
+                        node_ids[new_v_idx].clone(),
+                        None,
+                        None,
+                    ))?;
+                    rewired_edges.insert((u_idx, new_v_idx));
+                } else {
+                    // Fallback: keep original edge
+                    self.add_edge(Edge::new(
+                        0,
+                        node_ids[u_idx].clone(),
+                        node_ids[v_idx].clone(),
+                        None,
+                        None,
+                    ))?;
+                    rewired_edges.insert((u_idx, v_idx));
+                }
+            } else {
+                self.add_edge(Edge::new(
+                    0,
+                    node_ids[u_idx].clone(),
+                    node_ids[v_idx].clone(),
+                    None,
+                    None,
+                ))?;
+                rewired_edges.insert((u_idx, v_idx));
+            }
+        }
+
+        Ok(())
     }
 }
 
