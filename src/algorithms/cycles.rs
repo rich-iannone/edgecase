@@ -19,7 +19,7 @@ pub fn has_cycle(graph: &Graph) -> bool {
     let mut visited = FxHashSet::default();
     let mut rec_stack = FxHashSet::default();
     
-    for node_id in graph.node_ids() {
+    for node_id in graph.get_node_ids() {
         if !visited.contains(&node_id)
             && has_cycle_util(graph, &node_id, &mut visited, &mut rec_stack) {
                 return true;
