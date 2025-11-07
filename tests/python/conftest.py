@@ -12,9 +12,9 @@ def simple_graph() -> Graph:
     for node_id in ["A", "B", "C", "D"]:
         graph.add_node(Node(node_id, None))
     
-    graph.add_edge(Edge("A", "B", None, None))
-    graph.add_edge(Edge("B", "C", None, None))
-    graph.add_edge(Edge("C", "D", None, None))
+    graph.add_edge(Edge(0, "A", "B", None, None))
+    graph.add_edge(Edge(0, "B", "C", None, None))
+    graph.add_edge(Edge(0, "C", "D", None, None))
     
     return graph
 
@@ -26,8 +26,8 @@ def directed_graph() -> Graph:
     for node_id in ["A", "B", "C"]:
         graph.add_node(Node(node_id, None))
     
-    graph.add_edge(Edge("A", "B", None, None))
-    graph.add_edge(Edge("B", "C", None, None))
+    graph.add_edge(Edge(0, "A", "B", None, None))
+    graph.add_edge(Edge(0, "B", "C", None, None))
     
     return graph
 
@@ -39,8 +39,8 @@ def weighted_graph() -> Graph:
     for node_id in ["A", "B", "C"]:
         graph.add_node(Node(node_id, None))
     
-    graph.add_edge(Edge("A", "B", weight=1.5, attributes=None))
-    graph.add_edge(Edge("B", "C", weight=2.5, attributes=None))
+    graph.add_edge(Edge(0, "A", "B", 1.5, None))  # id, source, target, weight, attributes
+    graph.add_edge(Edge(0, "B", "C", 2.5, None))  # id, source, target, weight, attributes
     
     return graph
 
