@@ -291,5 +291,263 @@ class TestTraversalEdgeCases:
         assert "D" not in nodes
 
 
+class TestConditionalTraversal:
+    """Tests for trav_out_until and trav_in_until."""
+    
+    def test_trav_out_until_simple_condition(self):
+        """Test outward traversal stopping at a specific value."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(10)  # 1 -> 2 -> 3 -> ... -> 10
+        
+        # Add values 1-10 to nodes
+        for i in range(1, 11):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Start at node 1, traverse until value == 8
+        G.select_nodes_by_id(["1"])
+        G.trav_out_until(lambda nid: G.get_node(nid).attributes.get("value") == 8)
+        
+        nodes = G.get_selected_nodes()
+        assert nodes == ["8"]
+    
+    def test_trav_in_until_simple_condition(self):
+        """Test inward traversal stopping at a specific value."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(10)  # 1 -> 2 -> 3 -> ... -> 10
+        
+        # Add values 1-10 to nodes
+        for i in range(1, 11):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Start at node 10, traverse backward until value == 1
+        G.select_nodes_by_id(["10"])
+        G.trav_in_until(lambda nid: G.get_node(nid).attributes.get("value") == 1)
+        
+        nodes = G.get_selected_nodes()
+        assert nodes == ["1"]
+    
+    def test_trav_out_until_multiple_values(self):
+        """Test condition checking multiple values."""
+        G = ec.Graph(directed=True)
+        
+        # Create two cycles
+        # Cycle 1: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 1
+        for i in range(1, 7):
+            next_node = (i % 6) + 1
+            G.add_edge(str(i), str(next_node))
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Cycle 2: 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 7
+        for i in range(7, 13):
+            next_node = ((i - 7 + 1) % 6) + 7
+            G.add_edge(str(i), str(next_node))
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Start at 1 and 7, traverse until value in [5, 6, 9]
+        G.select_nodes_by_id(["1", "7"])
+        G.trav_out_until(
+            lambda nid: G.get_node(nid).attributes.get("value") in [5, 6, 9],
+            exclude_unmatched=True
+        )
+        
+        nodes = sorted(G.get_selected_nodes())
+        assert set(nodes) == {"5", "9"}
+    
+    def test_trav_in_until_multiple_values(self):
+        """Test inward traversal with multiple target values."""
+        G = ec.Graph(directed=True)
+        
+        # Create two cycles
+        # Cycle 1: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 1
+        for i in range(1, 7):
+            next_node = (i % 6) + 1
+            G.add_edge(str(i), str(next_node))
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Cycle 2: 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 7
+        for i in range(7, 13):
+            next_node = ((i - 7 + 1) % 6) + 7
+            G.add_edge(str(i), str(next_node))
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Start at 6 and 12, traverse backward until value in [1, 2, 10]
+        G.select_nodes_by_id(["6", "12"])
+        G.trav_in_until(
+            lambda nid: G.get_node(nid).attributes.get("value") in [1, 2, 10],
+            exclude_unmatched=True
+        )
+        
+        nodes = sorted(G.get_selected_nodes())
+        assert set(nodes) == {"2", "10"}
+    
+    def test_trav_out_until_max_steps(self):
+        """Test that max_steps limits traversal."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(20)  # Long path
+        
+        for i in range(1, 21):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Start at 1, try to reach 20 but limit to 5 steps
+        G.select_nodes_by_id(["1"])
+        G.trav_out_until(
+            lambda nid: G.get_node(nid).attributes.get("value") == 20,
+            max_steps=5,
+            exclude_unmatched=False
+        )
+        
+        nodes = G.get_selected_nodes()
+        # Should stop at node 6 (5 steps from 1)
+        assert "6" in nodes
+        assert "20" not in nodes
+    
+    def test_trav_out_until_add_to_selection(self):
+        """Test add_to_selection includes all traversed nodes."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(10)
+        
+        for i in range(1, 11):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Traverse from 1 to 5, keeping all visited nodes
+        G.select_nodes_by_id(["1"])
+        G.trav_out_until(
+            lambda nid: G.get_node(nid).attributes.get("value") == 5,
+            add_to_selection=True,
+            exclude_unmatched=False
+        )
+        
+        nodes = sorted(G.get_selected_nodes())
+        # Should include 1, 2, 3, 4, 5 (all visited)
+        assert set(nodes) == {"1", "2", "3", "4", "5"}
+    
+    def test_trav_in_until_add_to_selection(self):
+        """Test add_to_selection with inward traversal."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(10)
+        
+        for i in range(1, 11):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Traverse from 10 to 6, keeping all visited nodes
+        G.select_nodes_by_id(["10"])
+        G.trav_in_until(
+            lambda nid: G.get_node(nid).attributes.get("value") == 6,
+            add_to_selection=True,
+            exclude_unmatched=False
+        )
+        
+        nodes = sorted(G.get_selected_nodes())
+        # Should include 10, 9, 8, 7, 6 (all visited)
+        assert set(nodes) == {"6", "7", "8", "9", "10"}
+    
+    def test_trav_out_until_exclude_unmatched_false(self):
+        """Test keeping unmatched nodes when exclude_unmatched=False."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(5)
+        
+        for i in range(1, 6):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Traverse but look for non-existent value
+        G.select_nodes_by_id(["1"])
+        G.trav_out_until(
+            lambda nid: G.get_node(nid).attributes.get("value") == 999,
+            max_steps=2,
+            exclude_unmatched=False
+        )
+        
+        nodes = G.get_selected_nodes()
+        # Should get node 3 (2 steps from 1), even though it doesn't match
+        assert "3" in nodes
+    
+    def test_trav_out_until_no_match_exclude(self):
+        """Test that no nodes selected when exclude_unmatched=True and no match."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(5)
+        
+        for i in range(1, 6):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Traverse but look for non-existent value
+        G.select_nodes_by_id(["1"])
+        G.trav_out_until(
+            lambda nid: G.get_node(nid).attributes.get("value") == 999,
+            max_steps=2,
+            exclude_unmatched=True
+        )
+        
+        nodes = G.get_selected_nodes()
+        # Should have no selection (no matches and exclude_unmatched=True)
+        assert len(nodes) == 0
+    
+    def test_trav_out_until_immediate_match(self):
+        """Test when starting node already satisfies condition."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(5)
+        
+        for i in range(1, 6):
+            G.set_node_attrs("value", {str(i): i})
+        
+        # Start at node that already matches
+        G.select_nodes_by_id(["3"])
+        G.trav_out_until(lambda nid: G.get_node(nid).attributes.get("value") == 3)
+        
+        nodes = G.get_selected_nodes()
+        assert nodes == ["3"]
+    
+    def test_trav_out_until_branching_graph(self):
+        """Test conditional traversal in branching graph."""
+        G = ec.Graph(directed=True)
+        
+        # Create diamond pattern: 1 -> 2,3 -> 4
+        G.add_edge("1", "2")
+        G.add_edge("1", "3")
+        G.add_edge("2", "4")
+        G.add_edge("3", "4")
+        
+        G.set_node_attrs("value", {"1": 1, "2": 2, "3": 3, "4": 4})
+        
+        # Traverse from 1 until value >= 3
+        G.select_nodes_by_id(["1"])
+        G.trav_out_until(lambda nid: G.get_node(nid).attributes.get("value") >= 3)
+        
+        nodes = sorted(G.get_selected_nodes())
+        # Should find node 3 (value=3) in first hop
+        assert "3" in nodes
+    
+    def test_trav_in_until_empty_selection(self):
+        """Test that empty selection returns empty."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(5)
+        
+        # No selection
+        G.trav_in_until(lambda nid: True)
+        
+        nodes = G.get_selected_nodes()
+        assert nodes == []
+    
+    def test_trav_out_until_complex_condition(self):
+        """Test with complex lambda condition."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(10)
+        
+        for i in range(1, 11):
+            G.set_node_attrs("value", {str(i): i})
+            G.set_node_attrs("category", {str(i): "even" if i % 2 == 0 else "odd"})
+        
+        # Traverse until we find an even number >= 6
+        G.select_nodes_by_id(["1"])
+        G.trav_out_until(
+            lambda nid: (
+                G.get_node(nid).attributes.get("value", 0) >= 6 and
+                G.get_node(nid).attributes.get("category") == "even"
+            )
+        )
+        
+        nodes = G.get_selected_nodes()
+        assert nodes == ["6"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
