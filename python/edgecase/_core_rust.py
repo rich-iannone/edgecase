@@ -496,6 +496,193 @@ class Graph:
         """
         return self._graph.get_cohesion()
     
+    def get_eccentricity(self) -> dict[str, int | None]:
+        """Get eccentricity for each node.
+        
+        Eccentricity of a node is the maximum distance from that node to
+        any other node in the graph. Returns None for a node if the graph
+        is disconnected.
+        
+        Returns:
+            Dictionary mapping node ID to eccentricity (None if disconnected)
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(5)  # Linear chain
+            >>> ecc = G.get_eccentricity()
+            >>> ecc['3']  # Middle node has eccentricity 2
+            2
+        """
+        return self._graph.get_eccentricity()
+    
+    def get_radiality(self) -> dict[str, float | None]:
+        """Get radiality centrality for each node.
+        
+        Radiality measures how central a node is based on its eccentricity.
+        Formula: radiality = (diameter + 1 - eccentricity) / (n - 1)
+        
+        Higher radiality means more central. Returns None if graph is disconnected.
+        
+        Returns:
+            Dictionary mapping node ID to radiality score (None if disconnected)
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)  # Hub at center
+            >>> rad = G.get_radiality()
+            >>> # Hub has highest radiality
+        """
+        return self._graph.get_radiality()
+    
+    def get_closeness_vitality(self) -> dict[str, float]:
+        """Get closeness vitality for each node.
+        
+        Closeness vitality measures a node's importance by computing the
+        change in total graph distances when the node is removed.
+        
+        vitality(v) = sum_distances(G) - sum_distances(G - v)
+        
+        Higher values indicate more important/central nodes. Computationally
+        expensive for large graphs (O(n²) or worse).
+        
+        Returns:
+            Dictionary mapping node ID to vitality score
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)  # Hub should have high vitality
+            >>> vitality = G.get_closeness_vitality()
+            >>> # Hub removal greatly increases total distances
+        """
+        return self._graph.get_closeness_vitality()
+    
+    def get_coreness(self) -> dict[str, int]:
+        """Get k-core decomposition (coreness for each node).
+        
+        The k-core is the maximal subgraph where every node has degree >= k.
+        A node's coreness is the highest k for which it belongs to the k-core.
+        
+        Uses iterative pruning algorithm. Higher coreness indicates nodes
+        in denser, more cohesive parts of the graph.
+        
+        Returns:
+            Dictionary mapping node ID to coreness value
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_full_graph(5)  # Complete graph
+            >>> coreness = G.get_coreness()
+            >>> # All nodes have coreness 4 (K5 is 4-core)
+        """
+        return self._graph.get_coreness()
+    
+    def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
+        """Get HITS authority scores for directed graph.
+        
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores.
+        Authority score = sum of hub scores of nodes pointing to this node.
+        
+        Good authorities are pointed to by good hubs. Requires directed graph.
+        Uses power iteration until convergence.
+        
+        Args:
+            max_iter: Maximum iterations (default: 100)
+            tol: Convergence tolerance (default: 1e-6)
+            
+        Returns:
+            Dictionary mapping node ID to authority score
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('A', 'C')
+            >>> auth = G.get_authority_centrality()
+            >>> # B and C have high authority (pointed to by A)
+        """
+        return self._graph.get_authority_centrality(max_iter, tol)
+    
+    def get_hub_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
+        """Get HITS hub scores for directed graph.
+        
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores.
+        Hub score = sum of authority scores of nodes this node points to.
+        
+        Good hubs point to good authorities. Requires directed graph.
+        Uses power iteration until convergence.
+        
+        Args:
+            max_iter: Maximum iterations (default: 100)
+            tol: Convergence tolerance (default: 1e-6)
+            
+        Returns:
+            Dictionary mapping node ID to hub score
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('A', 'C')
+            >>> hub = G.get_hub_centrality()
+            >>> # A has high hub score (points to many nodes)
+        """
+        return self._graph.get_hub_centrality(max_iter, tol)
+    
+    def get_alpha_centrality(self, alpha: float = 0.1, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
+        """Get alpha centrality for each node.
+        
+        Alpha centrality is a generalization of eigenvector centrality:
+        x = alpha * A * x + e
+        
+        where alpha is attenuation factor, A is adjacency matrix, 
+        e is exogenous factor (set to 1). Lower alpha emphasizes local
+        neighborhood, higher alpha considers global structure.
+        
+        Args:
+            alpha: Attenuation factor (default: 0.1, range: 0-1)
+            max_iter: Maximum iterations (default: 100)
+            tol: Convergence tolerance (default: 1e-6)
+            
+        Returns:
+            Dictionary mapping node ID to alpha centrality score
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)
+            >>> alpha_cent = G.get_alpha_centrality(alpha=0.1)
+            >>> # Hub has highest alpha centrality
+        """
+        return self._graph.get_alpha_centrality(alpha, max_iter, tol)
+    
+    def get_leverage_centrality(self) -> dict[str, float]:
+        """Get leverage centrality for each node.
+        
+        Leverage centrality measures the degree connectivity of a node
+        relative to its neighbors:
+        
+        leverage(v) = (1/k_v) * sum((k_v - k_n) / (k_v + k_n))
+        
+        where k_v is degree of v, k_n is degree of neighbor n.
+        
+        Positive values: node has more connections than its neighbors (influential)
+        Negative values: node has fewer connections than its neighbors (peripheral)
+        
+        Returns:
+            Dictionary mapping node ID to leverage score
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)
+            >>> leverage = G.get_leverage_centrality()
+            >>> # Hub has positive leverage (high degree)
+            >>> # Leaves have negative leverage (low degree)
+        """
+        return self._graph.get_leverage_centrality()
+    
     # ========== Selection Methods ==========
     
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":

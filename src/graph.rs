@@ -1667,7 +1667,394 @@ impl Graph {
         // Exact computation requires sophisticated algorithms
         Ok(min_degree)
     }
+
+    /// Get eccentricity for each node
+    /// Eccentricity is the maximum distance from a node to any other node
+    /// Returns HashMap mapping node ID to eccentricity (None if disconnected)
+    fn get_eccentricity(&self) -> FxHashMap<String, Option<usize>> {
+        self.compute_eccentricities()
+    }
+
+    /// Get radiality centrality for each node
+    /// Radiality = (diameter + 1 - eccentricity) / (n - 1)
+    /// Measures how central a node is based on eccentricity
+    /// Returns HashMap mapping node ID to radiality (None if graph disconnected)
+    fn get_radiality(&self) -> FxHashMap<String, Option<f64>> {
+        let n = self.num_nodes();
+        if n <= 1 {
+            return self.nodes.keys()
+                .map(|id| (id.clone(), Some(0.0)))
+                .collect();
+        }
+
+        let eccentricities = self.compute_eccentricities();
+        let diameter = self.get_graph_diameter();
+
+        match diameter {
+            Some(d) => {
+                let denom = (n - 1) as f64;
+                eccentricities
+                    .into_iter()
+                    .map(|(node, ecc)| {
+                        let radiality = ecc.map(|e| (d + 1 - e) as f64 / denom);
+                        (node, radiality)
+                    })
+                    .collect()
+            }
+            None => {
+                // Graph is disconnected
+                eccentricities
+                    .into_iter()
+                    .map(|(node, _)| (node, None))
+                    .collect()
+            }
+        }
+    }
+
+    /// Get closeness vitality for each node
+    /// Measures importance by the change in total distance when node is removed
+    /// vitality(v) = sum_distances(G) - sum_distances(G - v)
+    /// Higher values indicate more important nodes
+    fn get_closeness_vitality(&self) -> FxHashMap<String, f64> {
+        let n = self.num_nodes();
+        if n == 0 {
+            return FxHashMap::default();
+        }
+
+        // Compute total distances in original graph
+        let original_total = self.compute_total_distances();
+
+        let mut vitality = FxHashMap::default();
+
+        for node in self.nodes.keys() {
+            // Compute total distances without this node
+            let total_without = self.compute_total_distances_without_node(node);
+            
+            // Vitality is the difference (higher = more important)
+            let vital = original_total - total_without;
+            vitality.insert(node.clone(), vital);
+        }
+
+        vitality
+    }
+
+    /// Helper: compute sum of all pairwise shortest path distances
+    fn compute_total_distances(&self) -> f64 {
+        let mut total = 0.0;
+        
+        for start in self.nodes.keys() {
+            let distances = self.bfs_distances(start);
+            total += distances.values().sum::<usize>() as f64;
+        }
+
+        total
+    }
+
+    /// Helper: compute total distances excluding a specific node
+    fn compute_total_distances_without_node(&self, excluded: &str) -> f64 {
+        let mut total = 0.0;
+
+        for start in self.nodes.keys() {
+            if start == excluded {
+                continue;
+            }
+
+            let distances = self.bfs_distances_excluding(start, excluded);
+            total += distances.values().sum::<usize>() as f64;
+        }
+
+        total
+    }
+
+    /// Helper: BFS to compute distances from a start node
+    fn bfs_distances(&self, start: &str) -> FxHashMap<String, usize> {
+        let mut distances = FxHashMap::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        distances.insert(start.to_string(), 0);
+        queue.push_back(start.to_string());
+
+        while let Some(current) = queue.pop_front() {
+            let current_dist = *distances.get(&current).unwrap();
+
+            if let Some(neighbors) = self.adjacency_list.get(&current) {
+                for neighbor in neighbors {
+                    if !distances.contains_key(neighbor) {
+                        distances.insert(neighbor.clone(), current_dist + 1);
+                        queue.push_back(neighbor.clone());
+                    }
+                }
+            }
+        }
+
+        distances
+    }
+
+    /// Helper: BFS excluding a specific node
+    fn bfs_distances_excluding(&self, start: &str, excluded: &str) -> FxHashMap<String, usize> {
+        let mut distances = FxHashMap::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        distances.insert(start.to_string(), 0);
+        queue.push_back(start.to_string());
+
+        while let Some(current) = queue.pop_front() {
+            let current_dist = *distances.get(&current).unwrap();
+
+            if let Some(neighbors) = self.adjacency_list.get(&current) {
+                for neighbor in neighbors {
+                    if neighbor == excluded {
+                        continue;
+                    }
+                    if !distances.contains_key(neighbor) {
+                        distances.insert(neighbor.clone(), current_dist + 1);
+                        queue.push_back(neighbor.clone());
+                    }
+                }
+            }
+        }
+
+        distances
+    }
+
+    /// Get k-core decomposition (coreness for each node)
+    /// k-core is maximal subgraph where all nodes have degree >= k
+    /// Coreness is the highest k for which a node belongs to the k-core
+    fn get_coreness(&self) -> FxHashMap<String, usize> {
+        let mut coreness = FxHashMap::default();
+        let mut degrees: FxHashMap<String, usize> = self.nodes.keys()
+            .map(|id| (id.clone(), self.degree(id)))
+            .collect();
+
+        let mut remaining: FxHashSet<String> = self.nodes.keys().cloned().collect();
+        let mut k = 0;
+
+        while !remaining.is_empty() {
+            // Find minimum degree among remaining nodes
+            let min_deg = remaining.iter()
+                .map(|id| degrees.get(id).unwrap())
+                .min()
+                .copied()
+                .unwrap_or(0);
+
+            k = k.max(min_deg);
+
+            // Remove all nodes with degree <= min_deg
+            let mut to_remove = Vec::new();
+            for node in &remaining {
+                if *degrees.get(node).unwrap() <= min_deg {
+                    to_remove.push(node.clone());
+                }
+            }
+
+            for node in &to_remove {
+                coreness.insert(node.clone(), k);
+                remaining.remove(node);
+
+                // Update degrees of neighbors
+                if let Some(neighbors) = self.adjacency_list.get(node) {
+                    for neighbor in neighbors {
+                        if remaining.contains(neighbor) {
+                            if let Some(deg) = degrees.get_mut(neighbor) {
+                                *deg = deg.saturating_sub(1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        coreness
+    }
+
+    /// Get HITS authority scores
+    /// Hyperlink-Induced Topic Search algorithm for directed graphs
+    /// Authority score: sum of hub scores of nodes pointing to this node
+    /// Returns HashMap of node -> authority score
+    fn get_authority_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<String, f64>> {
+        if !self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "HITS algorithm requires a directed graph",
+            ));
+        }
+
+        let (authorities, _) = self.compute_hits(max_iter, tol);
+        Ok(authorities)
+    }
+
+    /// Get HITS hub scores
+    /// Hub score: sum of authority scores of nodes this node points to
+    /// Returns HashMap of node -> hub score
+    fn get_hub_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<String, f64>> {
+        if !self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "HITS algorithm requires a directed graph",
+            ));
+        }
+
+        let (_, hubs) = self.compute_hits(max_iter, tol);
+        Ok(hubs)
+    }
+
+    /// Helper: compute HITS (Hyperlink-Induced Topic Search) scores
+    /// Returns (authorities, hubs)
+    fn compute_hits(&self, max_iter: usize, tol: f64) -> (FxHashMap<String, f64>, FxHashMap<String, f64>) {
+        let n = self.num_nodes();
+        if n == 0 {
+            return (FxHashMap::default(), FxHashMap::default());
+        }
+
+        // Initialize all scores to 1.0
+        let mut authorities: FxHashMap<String, f64> = self.nodes.keys()
+            .map(|id| (id.clone(), 1.0))
+            .collect();
+        let mut hubs: FxHashMap<String, f64> = self.nodes.keys()
+            .map(|id| (id.clone(), 1.0))
+            .collect();
+
+        for _ in 0..max_iter {
+            let prev_authorities = authorities.clone();
+            let prev_hubs = hubs.clone();
+
+            // Update authority scores: sum of hub scores of incoming neighbors
+            for node in self.nodes.keys() {
+                let mut auth_score = 0.0;
+                // Find all nodes that point to this node
+                for (source, targets) in &self.adjacency_list {
+                    if targets.contains(node) {
+                        auth_score += prev_hubs.get(source).unwrap_or(&0.0);
+                    }
+                }
+                authorities.insert(node.clone(), auth_score);
+            }
+
+            // Update hub scores: sum of authority scores of outgoing neighbors
+            for node in self.nodes.keys() {
+                let mut hub_score = 0.0;
+                if let Some(neighbors) = self.adjacency_list.get(node) {
+                    for neighbor in neighbors {
+                        hub_score += prev_authorities.get(neighbor).unwrap_or(&0.0);
+                    }
+                }
+                hubs.insert(node.clone(), hub_score);
+            }
+
+            // Normalize
+            let auth_norm: f64 = authorities.values().map(|&v| v * v).sum::<f64>().sqrt();
+            let hub_norm: f64 = hubs.values().map(|&v| v * v).sum::<f64>().sqrt();
+
+            if auth_norm > 0.0 {
+                for val in authorities.values_mut() {
+                    *val /= auth_norm;
+                }
+            }
+            if hub_norm > 0.0 {
+                for val in hubs.values_mut() {
+                    *val /= hub_norm;
+                }
+            }
+
+            // Check convergence
+            let auth_diff: f64 = authorities.iter()
+                .map(|(k, &v)| (v - prev_authorities.get(k).unwrap()).abs())
+                .sum();
+            let hub_diff: f64 = hubs.iter()
+                .map(|(k, &v)| (v - prev_hubs.get(k).unwrap()).abs())
+                .sum();
+
+            if auth_diff < tol && hub_diff < tol {
+                break;
+            }
+        }
+
+        (authorities, hubs)
+    }
+
+    /// Get alpha centrality
+    /// Generalization of eigenvector centrality with attenuation factor
+    /// x = alpha * A * x + e
+    /// where alpha is attenuation, A is adjacency matrix, e is exogenous factor
+    fn get_alpha_centrality(&self, alpha: f64, max_iter: usize, tol: f64) -> FxHashMap<String, f64> {
+        let n = self.num_nodes();
+        if n == 0 {
+            return FxHashMap::default();
+        }
+
+        // Initialize centrality to 1.0 for all nodes
+        let mut centrality: FxHashMap<String, f64> = self.nodes.keys()
+            .map(|id| (id.clone(), 1.0))
+            .collect();
+
+        for _ in 0..max_iter {
+            let prev_centrality = centrality.clone();
+            let mut max_change: f64 = 0.0;
+
+            for node in self.nodes.keys() {
+                // Sum of centralities of neighbors
+                let mut neighbor_sum = 0.0;
+                if let Some(neighbors) = self.adjacency_list.get(node) {
+                    for neighbor in neighbors {
+                        neighbor_sum += prev_centrality.get(neighbor).unwrap_or(&0.0);
+                    }
+                }
+
+                // alpha * (sum of neighbor centralities) + 1.0 (exogenous)
+                let new_value = alpha * neighbor_sum + 1.0;
+                centrality.insert(node.clone(), new_value);
+
+                let change = (new_value - prev_centrality.get(node).unwrap()).abs();
+                max_change = max_change.max(change);
+            }
+
+            // Normalize
+            let total: f64 = centrality.values().sum();
+            if total > 0.0 {
+                for val in centrality.values_mut() {
+                    *val /= total;
+                }
+            }
+
+            if max_change < tol {
+                break;
+            }
+        }
+
+        centrality
+    }
+
+    /// Get leverage centrality for each node
+    /// Measures the degree connectivity of a node relative to its neighbors
+    /// leverage(v) = (1/k_v) * sum((k_v - k_n) / (k_v + k_n))
+    /// where k_v is degree of v, k_n is degree of neighbor n
+    fn get_leverage_centrality(&self) -> FxHashMap<String, f64> {
+        let mut leverage = FxHashMap::default();
+
+        for node in self.nodes.keys() {
+            let k_v = self.degree(node) as f64;
+            
+            if k_v == 0.0 {
+                leverage.insert(node.clone(), 0.0);
+                continue;
+            }
+
+            let mut sum = 0.0;
+            if let Some(neighbors) = self.adjacency_list.get(node) {
+                for neighbor in neighbors {
+                    let k_n = self.degree(neighbor) as f64;
+                    if k_v + k_n > 0.0 {
+                        sum += (k_v - k_n) / (k_v + k_n);
+                    }
+                }
+            }
+
+            let lev = sum / k_v;
+            leverage.insert(node.clone(), lev);
+        }
+
+        leverage
+    }
 }
+
 
 impl Graph {
     /// Get the adjacency list (internal method)
