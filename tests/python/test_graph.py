@@ -45,7 +45,7 @@ def test_add_edge_between_existing_nodes() -> None:
     graph.add_node(node_a)
     graph.add_node(node_b)
     
-    edge = Edge("A", "B", None, None)
+    edge = Edge(0, "A", "B", None, None)  # edge_id=0 means auto-assign
     graph.add_edge(edge)
     assert graph.num_edges() == 1
 
@@ -55,7 +55,7 @@ def test_add_edge_nonexistent_source_raises_error() -> None:
     graph = Graph(directed=False)
     graph.add_node(Node("B", None))
     
-    edge = Edge("A", "B", None, None)
+    edge = Edge(0, "A", "B", None, None)
     with pytest.raises(Exception):  # Should raise ValueError
         graph.add_edge(edge)
 
@@ -65,7 +65,7 @@ def test_add_edge_nonexistent_target_raises_error() -> None:
     graph = Graph(directed=False)
     graph.add_node(Node("A", None))
     
-    edge = Edge("A", "B", None, None)
+    edge = Edge(0, "A", "B", None, None)
     with pytest.raises(Exception):  # Should raise ValueError
         graph.add_edge(edge)
 
@@ -78,7 +78,7 @@ def test_weighted_graph() -> None:
     # Add nodes and weighted edge
     graph.add_node(Node("A", None))
     graph.add_node(Node("B", None))
-    edge = Edge("A", "B", weight=2.5, attributes=None)
+    edge = Edge(0, "A", "B", 2.5, None)  # id, source, target, weight, attributes
     graph.add_edge(edge)
     assert graph.num_edges() == 1
 
@@ -90,8 +90,8 @@ def test_neighbors_undirected_graph() -> None:
     graph.add_node(Node("B", None))
     graph.add_node(Node("C", None))
     
-    graph.add_edge(Edge("A", "B", None, None))
-    graph.add_edge(Edge("A", "C", None, None))
+    graph.add_edge(Edge(0, "A", "B", None, None))
+    graph.add_edge(Edge(0, "A", "C", None, None))
     
     neighbors = graph.neighbors("A")
     assert len(neighbors) == 2
@@ -107,8 +107,8 @@ def test_neighbors_directed_graph() -> None:
     graph.add_node(Node("C", None))
     
     # A -> B, A -> C
-    graph.add_edge(Edge("A", "B", None, None))
-    graph.add_edge(Edge("A", "C", None, None))
+    graph.add_edge(Edge(0, "A", "B", None, None))
+    graph.add_edge(Edge(0, "A", "C", None, None))
     
     # A should have B and C as neighbors
     a_neighbors = graph.neighbors("A")
@@ -146,7 +146,7 @@ def test_node_repr() -> None:
 
 def test_create_unweighted_edge() -> None:
     """Test creating an unweighted edge."""
-    edge = Edge("A", "B", None, None)
+    edge = Edge(0, "A", "B", None, None)
     assert edge.source == "A"
     assert edge.target == "B"
     assert edge.weight is None
@@ -154,13 +154,13 @@ def test_create_unweighted_edge() -> None:
 
 def test_create_weighted_edge() -> None:
     """Test creating a weighted edge."""
-    edge = Edge("A", "B", weight=3.5, attributes=None)
+    edge = Edge(0, "A", "B", 3.5, None)  # id, source, target, weight, attributes
     assert edge.weight == 3.5
 
 
 def test_edge_repr() -> None:
     """Test edge string representation."""
-    edge = Edge("A", "B", weight=2.0, attributes=None)
+    edge = Edge(0, "A", "B", 2.0, None)  # id, source, target, weight, attributes
     repr_str = repr(edge)
     assert "A" in repr_str
     assert "B" in repr_str

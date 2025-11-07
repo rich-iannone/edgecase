@@ -22,8 +22,8 @@ def test_pagerank_simple_chain() -> None:
     for node_id in ["A", "B", "C"]:
         graph.add_node(Node(node_id, None))
     
-    graph.add_edge(Edge("A", "B", None, None))
-    graph.add_edge(Edge("B", "C", None, None))
+    graph.add_edge(Edge(0, "A", "B", None, None))
+    graph.add_edge(Edge(0, "B", "C", None, None))
     
     ranks = pagerank(graph)
     assert len(ranks) == 3
@@ -47,7 +47,7 @@ def test_betweenness_star_graph() -> None:
     for i in range(5):
         node_id = f"leaf{i}"
         graph.add_node(Node(node_id, None))
-        graph.add_edge(Edge("center", node_id, None, None))
+        graph.add_edge(Edge(0, "center", node_id, None, None))
     
     centrality = betweenness_centrality(graph)
     # Center should have highest centrality (placeholder checks existence)
@@ -61,7 +61,7 @@ def test_shortest_path_direct_connection() -> None:
     graph = Graph(directed=False)
     graph.add_node(Node("A", None))
     graph.add_node(Node("B", None))
-    graph.add_edge(Edge("A", "B", None, None))
+    graph.add_edge(Edge(0, "A", "B", None, None))
     
     path = shortest_path(graph, "A", "B")
     assert path == ["A", "B"]
@@ -73,9 +73,9 @@ def test_shortest_path_multiple_hops() -> None:
     for node_id in ["A", "B", "C", "D"]:
         graph.add_node(Node(node_id, None))
     
-    graph.add_edge(Edge("A", "B", None, None))
-    graph.add_edge(Edge("B", "C", None, None))
-    graph.add_edge(Edge("C", "D", None, None))
+    graph.add_edge(Edge(0, "A", "B", None, None))
+    graph.add_edge(Edge(0, "B", "C", None, None))
+    graph.add_edge(Edge(0, "C", "D", None, None))
     
     path = shortest_path(graph, "A", "D")
     assert len(path) == 4
