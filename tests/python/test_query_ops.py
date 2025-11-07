@@ -364,6 +364,292 @@ class TestGetPredecessorsSuccessors:
             G.get_successors("3")
 
 
+class TestGetNonNeighbors:
+    """Tests for get_non_neighbors()."""
+    
+    def test_non_neighbors_path_graph(self):
+        """Test non-neighbors on a path graph."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(5)  # 1 -> 2 -> 3 -> 4 -> 5
+        
+        # Node 2 connects to 1 and 3, so non-neighbors are 4, 5
+        non_neighbors = G.get_non_neighbors("2")
+        
+        assert set(non_neighbors) == {"4", "5"}
+        assert "1" not in non_neighbors
+        assert "3" not in non_neighbors
+        assert "2" not in non_neighbors  # Self excluded
+    
+    def test_non_neighbors_undirected(self):
+        """Test non-neighbors on undirected graph."""
+        G = ec.Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_node("D")
+        G.add_node("E")
+        
+        # A connects to B and C, so non-neighbors are D, E
+        non_neighbors = G.get_non_neighbors("A")
+        
+        assert set(non_neighbors) == {"D", "E"}
+    
+    def test_non_neighbors_fully_connected(self):
+        """Test when node is connected to all others."""
+        G = ec.Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("A", "D")
+        
+        # A is connected to everyone
+        non_neighbors = G.get_non_neighbors("A")
+        
+        assert non_neighbors == []
+    
+    def test_non_neighbors_isolated(self):
+        """Test isolated node (everyone is a non-neighbor)."""
+        G = ec.Graph()
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
+        G.add_edge("B", "C")  # Only B-C connected
+        
+        # A is isolated, so all others are non-neighbors
+        non_neighbors = G.get_non_neighbors("A")
+        
+        assert set(non_neighbors) == {"B", "C", "D"}
+    
+    def test_non_neighbors_directed_asymmetric(self):
+        """Test directed graph with asymmetric connections."""
+        G = ec.Graph(directed=True)
+        G.add_edge("A", "B")  # A -> B
+        G.add_edge("C", "A")  # C -> A
+        G.add_node("D")
+        G.add_node("E")
+        
+        # A connects to B (out) and C (in), mode="all" by default
+        non_neighbors = G.get_non_neighbors("A")
+        
+        assert set(non_neighbors) == {"D", "E"}
+        assert "B" not in non_neighbors
+        assert "C" not in non_neighbors
+
+
+class TestGetSimilarNeighbors:
+    """Tests for get_similar_neighbors()."""
+    
+    def test_similar_neighbors_absolute_tolerance(self):
+        """Test with absolute tolerance."""
+        G = ec.Graph()
+        G.add_node("A", value=5.0)
+        G.add_node("B", value=5.5)
+        G.add_node("C", value=10.0)
+        G.add_node("D", value=4.8)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("A", "D")
+        
+        # A has value=5.0, tolerance ±1.0
+        similar = G.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
+        
+        # B (5.5) and D (4.8) within ±1.0, C (10.0) outside
+        assert set(similar) == {"B", "D"}
+        assert "C" not in similar
+    
+    def test_similar_neighbors_percentage_tolerance(self):
+        """Test with percentage tolerance."""
+        G = ec.Graph()
+        G.add_node("A", value=100.0)
+        G.add_node("B", value=105.0)  # +5%
+        G.add_node("C", value=95.0)   # -5%
+        G.add_node("D", value=120.0)  # +20%
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("A", "D")
+        
+        # Tolerance ±10%
+        similar = G.get_similar_neighbors("A", "value", tol_pct=(10, 10))
+        
+        # B and C within ±10%, D outside
+        assert set(similar) == {"B", "C"}
+        assert "D" not in similar
+    
+    def test_similar_neighbors_exact_match(self):
+        """Test exact match (no tolerance specified)."""
+        G = ec.Graph()
+        G.add_node("A", score=5)
+        G.add_node("B", score=5)
+        G.add_node("C", score=6)
+        G.add_node("D", score=5)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("A", "D")
+        
+        # No tolerance = exact match
+        similar = G.get_similar_neighbors("A", "score")
+        
+        assert set(similar) == {"B", "D"}
+        assert "C" not in similar
+    
+    def test_similar_neighbors_asymmetric_tolerance(self):
+        """Test with different upper/lower tolerances."""
+        G = ec.Graph()
+        G.add_node("A", value=10.0)
+        G.add_node("B", value=12.0)  # +2.0
+        G.add_node("C", value=8.5)   # -1.5
+        G.add_node("D", value=7.0)   # -3.0
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("A", "D")
+        
+        # Allow +3.0 above, -2.0 below
+        similar = G.get_similar_neighbors("A", "value", tol_abs=(2.0, 3.0))
+        
+        # B (12.0) within +3.0, C (8.5) within -2.0, D (7.0) outside -2.0
+        assert set(similar) == {"B", "C"}
+        assert "D" not in similar
+    
+    def test_similar_neighbors_missing_attribute(self):
+        """Test when some neighbors lack the attribute."""
+        G = ec.Graph()
+        G.add_node("A", value=5.0)
+        G.add_node("B", value=5.5)
+        G.add_node("C")  # No value attribute
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        
+        similar = G.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
+        
+        # Only B should be included, C ignored
+        assert similar == ["B"]
+    
+    def test_similar_neighbors_non_numeric_error(self):
+        """Test error when attribute is not numeric."""
+        G = ec.Graph()
+        G.add_node("A", category="X")
+        G.add_node("B", category="Y")
+        G.add_edge("A", "B")
+        
+        with pytest.raises(ValueError, match="must be numeric"):
+            G.get_similar_neighbors("A", "category", tol_abs=(1, 1))
+    
+    def test_similar_neighbors_directed_graph(self):
+        """Test on directed graph."""
+        G = ec.Graph(directed=True)
+        G.add_node("A", score=10)
+        G.add_node("B", score=11)
+        G.add_node("C", score=9)
+        G.add_edge("A", "B")  # A -> B
+        G.add_edge("C", "A")  # C -> A
+        
+        # By default uses mode="all", so both B and C are neighbors
+        similar = G.get_similar_neighbors("A", "score", tol_abs=(2, 2))
+        
+        assert set(similar) == {"B", "C"}
+
+
+class TestGetAllConnectedNodes:
+    """Tests for get_all_connected_nodes()."""
+    
+    def test_connected_nodes_simple_component(self):
+        """Test on a simple connected component."""
+        G = ec.Graph()
+        G.add_path_graph(5)  # 1-2-3-4-5
+        
+        # All nodes 2-5 are connected to 1
+        connected = G.get_all_connected_nodes("1")
+        
+        assert set(connected) == {"2", "3", "4", "5"}
+        assert "1" not in connected  # Source excluded
+    
+    def test_connected_nodes_disconnected_graph(self):
+        """Test with disconnected components."""
+        G = ec.Graph()
+        G.add_path_graph(3)  # 1-2-3
+        G.add_node("4")
+        G.add_node("5")
+        G.add_edge("4", "5")  # Separate component: 4-5
+        
+        # Only 2 and 3 are connected to 1
+        connected1 = G.get_all_connected_nodes("1")
+        assert set(connected1) == {"2", "3"}
+        
+        # Only 5 is connected to 4
+        connected4 = G.get_all_connected_nodes("4")
+        assert set(connected4) == {"5"}
+    
+    def test_connected_nodes_isolated(self):
+        """Test isolated node."""
+        G = ec.Graph()
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_edge("B", "C")
+        
+        # A is isolated, no connected nodes
+        connected = G.get_all_connected_nodes("A")
+        
+        assert connected == []
+    
+    def test_connected_nodes_directed_as_undirected(self):
+        """Test that directed graph is treated as undirected."""
+        G = ec.Graph(directed=True)
+        G.add_edge("1", "2")  # 1 -> 2
+        G.add_edge("2", "3")  # 2 -> 3
+        
+        # Even though edges are directed, BFS treats as undirected
+        connected_from_3 = G.get_all_connected_nodes("3")
+        
+        # Should find both 1 and 2 despite direction
+        assert set(connected_from_3) == {"1", "2"}
+    
+    def test_connected_nodes_cyclic(self):
+        """Test on graph with cycles."""
+        G = ec.Graph()
+        # Create cycle: A-B-C-D-A
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        G.add_edge("D", "A")
+        
+        # All others are connected to A
+        connected = G.get_all_connected_nodes("A")
+        
+        assert set(connected) == {"B", "C", "D"}
+    
+    def test_connected_nodes_star_graph(self):
+        """Test on star graph."""
+        G = ec.Graph()
+        add_star(G, 5)  # Center node "1" connected to 2-5
+        
+        # From center, all spokes are connected
+        connected_center = G.get_all_connected_nodes("1")
+        assert set(connected_center) == {"2", "3", "4", "5"}
+        
+        # From spoke, only center is connected (spokes not interconnected)
+        connected_spoke = G.get_all_connected_nodes("2")
+        assert set(connected_spoke) == {"1", "3", "4", "5"}
+    
+    def test_connected_nodes_large_component(self):
+        """Test on larger connected component."""
+        G = ec.Graph()
+        # Create a grid-like structure
+        for i in range(1, 11):
+            for j in range(1, 11):
+                node = f"{i}_{j}"
+                G.add_node(node)
+                if i > 1:
+                    G.add_edge(f"{i-1}_{j}", node)
+                if j > 1:
+                    G.add_edge(f"{i}_{j-1}", node)
+        
+        # All 100 nodes are connected
+        connected = G.get_all_connected_nodes("1_1")
+        
+        assert len(connected) == 99  # All except source
+        assert "1_1" not in connected
+
+
 class TestQueryWorkflows:
     """Test realistic query workflows."""
     
