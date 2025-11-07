@@ -91,9 +91,13 @@ def test_add_duplicate_edge_directed():
     """Adding duplicate edge in directed graph"""
     G = Graph(directed=True)
     G.add_edge("A", "B")
-    G.add_edge("A", "B")  # Exact duplicate
-    # Should only count once
-    assert G.num_edges() == 1
+    G.add_edge("A", "B")  # Second edge between same nodes
+    # With edge IDs, both edges are preserved (multi-edge support)
+    assert G.num_edges() == 2
+    # Each edge gets a unique ID
+    edge_ids = G.edge_ids()
+    assert len(edge_ids) == 2
+    assert edge_ids[0] != edge_ids[1]
 
 
 def test_edges_returns_list(simple_graph):
