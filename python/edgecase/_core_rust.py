@@ -139,7 +139,7 @@ class Graph:
     def get_edges(self) -> list[str]:
         """Get edges as formatted strings.
         
-        Returns edge definitions in DiagrammeR format:
+        Returns edge definitions:
         - Directed graphs: "A->B"
         - Undirected graphs: "A--B"
         
@@ -198,10 +198,8 @@ class Graph:
         to_node: str | None = None, 
         id: int | None = None
     ) -> "Graph":
-        """Delete an edge from the graph (DiagrammeR-compatible).
-        
-        From DiagrammeR: delete_edge(graph, from = NULL, to = NULL, id = NULL)
-        
+        """Delete an edge from the graph.
+                
         Specify either (from, to) pair OR edge id. For multigraphs with from/to,
         only the first matching edge is deleted.
         
@@ -1164,6 +1162,87 @@ class Graph:
         """
         return self._graph.count_selected_edges()
     
+    def transform_to_subgraph_ws(self) -> "Graph":
+        """Create a subgraph from current selection.
+                
+        Creates a new graph containing:
+        - If nodes are selected: those nodes and all edges between them
+        - If edges are selected: those edges and their endpoint nodes
+        - If both selected: uses node selection
+        
+        Returns:
+            New Graph object containing the subgraph
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_path_graph(6)  # 1 → 2 → 3 → 4 → 5 → 6
+            >>> G.select_nodes(lambda n: int(n.id) > 2)
+            >>> subgraph = G.transform_to_subgraph_ws()
+            >>> subgraph.num_nodes()  # 4 nodes (3, 4, 5, 6)
+            4
+        """
+        selected_nodes = self.get_selected_nodes()
+        selected_edges = self.get_selected_edges()
+        
+        # Create new graph with same directedness
+        subgraph = Graph(directed=self.directed)
+        
+        if len(selected_nodes) > 0:
+            # Node-based subgraph: include selected nodes and edges between them
+            node_set = set(selected_nodes)
+            
+            # Add nodes with their attributes
+            for node_id in selected_nodes:
+                node = self.get_node(node_id)
+                if node and node.attributes:
+                    subgraph.add_node(node_id, **node.attributes)
+                else:
+                    subgraph.add_node(node_id)
+            
+            # Add edges that connect selected nodes
+            for edge_id in self.edge_ids():
+                edge = self.get_edge(edge_id)
+                if edge and edge.source in node_set and edge.target in node_set:
+                    # Prepare edge attributes
+                    attrs = {}
+                    if edge.weight is not None:
+                        attrs['weight'] = edge.weight
+                    if edge.attributes:
+                        attrs.update(edge.attributes)
+                    subgraph.add_edge(edge.source, edge.target, **attrs)
+                    
+        elif len(selected_edges) > 0:
+            # Edge-based subgraph: include selected edges and their endpoints
+            nodes_to_add = set()
+            edges_to_add = []
+            
+            # Collect nodes and edges
+            for edge_id in selected_edges:
+                edge = self.get_edge(edge_id)
+                if edge:
+                    nodes_to_add.add(edge.source)
+                    nodes_to_add.add(edge.target)
+                    edges_to_add.append(edge)
+            
+            # Add nodes
+            for node_id in nodes_to_add:
+                node = self.get_node(node_id)
+                if node and node.attributes:
+                    subgraph.add_node(node_id, **node.attributes)
+                else:
+                    subgraph.add_node(node_id)
+            
+            # Add edges
+            for edge in edges_to_add:
+                attrs = {}
+                if edge.weight is not None:
+                    attrs['weight'] = edge.weight
+                if edge.attributes:
+                    attrs.update(edge.attributes)
+                subgraph.add_edge(edge.source, edge.target, **attrs)
+        
+        return subgraph
+    
     def select_nodes(self, predicate) -> "Graph":
         """Select nodes using a predicate function.
         
@@ -1400,8 +1479,6 @@ class Graph:
     def set_node_attrs(self, node_attr: str, values, nodes: list[str] | None = None) -> "Graph":
         """Set attribute values for one or more nodes.
         
-        From DiagrammeR: set_node_attrs(graph, node_attr, values, nodes = NULL)
-        
         Args:
             node_attr: The name of the attribute to set
             values: The value(s) to set. Can be a single value (applied to all nodes)
@@ -1452,10 +1529,8 @@ class Graph:
         from_nodes: list[str] | None = None, 
         to_nodes: list[str] | None = None
     ) -> dict[str, any]:
-        """Get edge attribute values (DiagrammeR-compatible).
-        
-        From DiagrammeR: get_edge_attrs(graph, edge_attr, from = NULL, to = NULL)
-        
+        """Get edge attribute values.
+                
         Args:
             edge_attr: The name of the attribute to get
             from_nodes: Optional list of source node IDs to filter edges
