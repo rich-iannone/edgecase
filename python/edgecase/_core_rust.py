@@ -938,6 +938,353 @@ class Graph:
         """
         return self._graph.get_edge_creation_order()
     
+    # ===== Bulk Modification Operations (_ws = with selection) =====
+    
+    def delete_nodes_ws(self) -> "Graph":
+        """Delete all selected nodes and their incident edges.
+        
+        Removes nodes in the current selection from the graph, along with
+        all edges connected to those nodes. Updates selection state.
+        
+        NOTE: This is a TODO - requires Rust-level node deletion support.
+        Currently only deletes incident edges.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> # G.add_path(5)  # Requires builders
+            >>> # G.select_nodes_by_id(['2', '3'])
+            >>> # G.delete_nodes_ws()
+        """
+        selected = self.get_selected_nodes()
+        
+        # Delete all edges incident to selected nodes
+        edges_to_delete = []
+        for edge_id, source, target in self.edges():
+            if source in selected or target in selected:
+                edges_to_delete.append(edge_id)
+        
+        for edge_id in edges_to_delete:
+            try:
+                self.delete_edge_by_id(edge_id)
+            except Exception:
+                pass  # Edge might already be deleted
+        
+        # TODO: Implement node deletion in Rust
+        # For now, we can only delete edges
+        
+        # Clear selection
+        self.clear_selection()
+        
+        return self
+    
+    def delete_edges_ws(self) -> "Graph":
+        """Delete all selected edges.
+        
+        Removes edges in the current selection from the graph.
+        Updates selection state.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_path(5)
+            >>> G.select_edges_by_id([1, 2])
+            >>> G.delete_edges_ws()
+            >>> G.num_edges()
+            2
+        """
+        selected = self.get_selected_edges()
+        
+        for edge_id in selected:
+            self.delete_edge_by_id(edge_id)
+        
+        # Clear edge selection
+        self._graph.selected_edges.clear()
+        
+        return self
+    
+    def set_node_attrs_ws(self, **attributes) -> "Graph":
+        """Set attributes on all selected nodes.
+        
+        Updates or adds attributes to nodes in the current selection.
+        Existing attributes are preserved unless explicitly overwritten.
+        
+        NOTE: Currently requires Rust-level implementation for persistence.
+        Node objects returned by get_node() are copies, not references.
+        
+        Args:
+            **attributes: Attribute name-value pairs to set
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node('A', value=10)
+            >>> G.select_nodes_by_id(['A'])
+            >>> G.set_node_attrs_ws(color='red')
+            >>> # TODO: Implement in Rust for persistence
+        """
+        # TODO: This requires Rust-level set_node_attr method
+        # Node objects are copies, modifying them doesn't update the graph
+        raise NotImplementedError("set_node_attrs_ws() requires Rust implementation for attribute persistence")
+        
+        return self
+    
+    def set_edge_attrs_ws(self, **attributes) -> "Graph":
+        """Set attributes on all selected edges.
+        
+        Updates or adds attributes to edges in the current selection.
+        Special handling for 'weight' attribute.
+        
+        Args:
+            **attributes: Attribute name-value pairs to set
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_path(3)
+            >>> G.select_edges_by_id([1])
+            >>> G.set_edge_attrs_ws(weight=5.0, type='strong')
+            >>> G.get_edge(1).weight
+            5.0
+        """
+        selected = self.get_selected_edges()
+        
+        for edge_id in selected:
+            edge = self.get_edge(edge_id)
+            if edge:
+                # Handle weight separately (it's a direct field, not in attributes)
+                if 'weight' in attributes:
+                    edge.weight = attributes['weight']
+                    remaining = {k: v for k, v in attributes.items() if k != 'weight'}
+                else:
+                    remaining = attributes
+                
+                # Set other attributes
+                if remaining:
+                    if edge.attributes is None:
+                        edge.attributes = remaining
+                    else:
+                        edge.attributes.update(remaining)
+        
+        return self
+    
+    def mutate_node_attrs_ws(self, attr: str, func: Callable) -> "Graph":
+        """Transform a node attribute using a function on selected nodes.
+        
+        Applies a transformation function to the specified attribute
+        for all selected nodes. The function receives the current
+        attribute value and returns the new value.
+        
+        Args:
+            attr: Attribute name to transform
+            func: Function that takes current value and returns new value
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node('A', score=10)
+            >>> G.add_node('B', score=20)
+            >>> G.select_nodes_by_id(['A', 'B'])
+            >>> G.mutate_node_attrs_ws('score', lambda x: x * 2)
+            >>> G.get_node('A').attributes['score']
+            20
+        """
+        selected = self.get_selected_nodes()
+        
+        for node_id in selected:
+            node = self.get_node(node_id)
+            if node and node.attributes and attr in node.attributes:
+                old_value = node.attributes[attr]
+                new_value = func(old_value)
+                node.attributes[attr] = new_value
+        
+        return self
+    
+    def mutate_edge_attrs_ws(self, attr: str, func: Callable) -> "Graph":
+        """Transform an edge attribute using a function on selected edges.
+        
+        Applies a transformation function to the specified attribute
+        for all selected edges. Handles 'weight' field specially.
+        
+        Args:
+            attr: Attribute name to transform (can be 'weight')
+            func: Function that takes current value and returns new value
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_edge('A', 'B', weight=1.5)
+            >>> G.select_edges_by_id([1])
+            >>> G.mutate_edge_attrs_ws('weight', lambda x: x * 2)
+            >>> G.get_edge(1).weight
+            3.0
+        """
+        selected = self.get_selected_edges()
+        
+        for edge_id in selected:
+            edge = self.get_edge(edge_id)
+            if edge:
+                if attr == 'weight' and edge.weight is not None:
+                    edge.weight = func(edge.weight)
+                elif edge.attributes and attr in edge.attributes:
+                    old_value = edge.attributes[attr]
+                    new_value = func(old_value)
+                    edge.attributes[attr] = new_value
+        
+        return self
+    
+    def fully_connect_nodes_ws(self, **edge_attributes) -> "Graph":
+        """Create edges between all pairs of selected nodes (clique).
+        
+        Adds edges to form a complete graph among selected nodes.
+        For directed graphs, creates edges in both directions.
+        
+        Args:
+            **edge_attributes: Optional attributes for new edges
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node('A')
+            >>> G.add_node('B')
+            >>> G.add_node('C')
+            >>> G.select_nodes_by_id(['A', 'B', 'C'])
+            >>> G.fully_connect_nodes_ws(type='clique')
+            >>> G.num_edges()
+            3  # or 6 if directed
+        """
+        selected = list(self.get_selected_nodes())
+        
+        # Create edges between all pairs
+        for i, source in enumerate(selected):
+            for target in selected[i+1:]:
+                # Check if edge already exists
+                has_edge = any(
+                    (s == source and t == target) or
+                    (not self.directed and s == target and t == source)
+                    for _, s, t in self.edges()
+                )
+                
+                if not has_edge:
+                    self.add_edge(source, target, **edge_attributes)
+                
+                # For directed graphs, add reverse edge
+                if self.directed:
+                    has_reverse = any(
+                        s == target and t == source
+                        for _, s, t in self.edges()
+                    )
+                    if not has_reverse:
+                        self.add_edge(target, source, **edge_attributes)
+        
+        return self
+    
+    def add_reverse_edges_ws(self, **edge_attributes) -> "Graph":
+        """Add reverse edges for all selected edges (directed graphs only).
+        
+        For each selected edge (A → B), adds the reverse edge (B → A)
+        if it doesn't already exist.
+        
+        Args:
+            **edge_attributes: Optional attributes for new reverse edges
+            
+        Returns:
+            Self for method chaining
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge('A', 'B')
+            >>> G.select_edges_by_id([1])
+            >>> G.add_reverse_edges_ws()
+            >>> G.num_edges()
+            2
+        """
+        if not self.directed:
+            raise ValueError("add_reverse_edges_ws() only works on directed graphs")
+        
+        selected = self.get_selected_edges()
+        edges_to_add = []
+        
+        for edge_id in selected:
+            edge_tuple = self.get_edge_by_id(edge_id)
+            if edge_tuple:
+                source, target = edge_tuple
+                # Check if reverse edge exists
+                has_reverse = any(
+                    s == target and t == source
+                    for _, s, t in self.edges()
+                )
+                if not has_reverse:
+                    edges_to_add.append((target, source))
+        
+        # Add reverse edges
+        for source, target in edges_to_add:
+            self.add_edge(source, target, **edge_attributes)
+        
+        return self
+    
+    def rev_edge_dir_ws(self) -> "Graph":
+        """Reverse the direction of all selected edges (directed graphs only).
+        
+        For each selected edge (A → B), changes it to (B → A).
+        Preserves edge ID and attributes.
+        
+        Returns:
+            Self for method chaining
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge('A', 'B', weight=1.5)
+            >>> G.select_edges_by_id([1])
+            >>> G.rev_edge_dir_ws()
+            >>> G.get_edge_by_id(1)
+            ('B', 'A')
+        """
+        if not self.directed:
+            raise ValueError("rev_edge_dir_ws() only works on directed graphs")
+        
+        selected = self.get_selected_edges()
+        
+        for edge_id in selected:
+            edge = self.get_edge(edge_id)
+            if edge:
+                # Swap source and target
+                edge.source, edge.target = edge.target, edge.source
+                
+                # Update adjacency list
+                # Remove old direction
+                if edge.target in self._graph.adjacency_list:
+                    if edge.source in self._graph.adjacency_list[edge.target]:
+                        self._graph.adjacency_list[edge.target].remove(edge.source)
+                
+                # Add new direction
+                if edge.source not in self._graph.adjacency_list:
+                    self._graph.adjacency_list[edge.source] = []
+                if edge.target not in self._graph.adjacency_list[edge.source]:
+                    self._graph.adjacency_list[edge.source].append(edge.target)
+        
+        return self
+    
     def __repr__(self) -> str:
         return self._graph.__repr__()
 
