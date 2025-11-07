@@ -1397,6 +1397,81 @@ impl Graph {
             .count()
     }
 
+    /// Count multi-edges (multiple edges between same node pair)
+    /// Only counts parallel edges beyond the first one
+    fn count_multi_edges(&self) -> usize {
+        let mut edge_pairs: FxHashMap<(&String, &String), usize> = FxHashMap::default();
+        
+        for edge in &self.edges {
+            *edge_pairs.entry((&edge.source, &edge.target)).or_insert(0) += 1;
+        }
+        
+        // Count edges beyond the first for each pair
+        edge_pairs.values().filter(|&&count| count > 1).map(|&count| count - 1).sum()
+    }
+
+    /// Count mutual node pairs (bidirectional edges in directed graphs)
+    /// Returns number of node pairs (a,b) where both (a->b) and (b->a) edges exist
+    fn count_mutual_node_pairs(&self) -> PyResult<usize> {
+        if !self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Mutual node pairs only defined for directed graphs",
+            ));
+        }
+
+        let mut forward_edges: FxHashSet<(&String, &String)> = FxHashSet::default();
+        let mut mutual_count = 0;
+
+        for edge in &self.edges {
+            // Skip self-loops
+            if edge.source == edge.target {
+                continue;
+            }
+
+            let reverse_pair = (&edge.target, &edge.source);
+            
+            // If we've seen the reverse edge, this is a mutual pair
+            if forward_edges.contains(&reverse_pair) {
+                mutual_count += 1;
+            } else {
+                // Add this edge to the set
+                forward_edges.insert((&edge.source, &edge.target));
+            }
+        }
+
+        Ok(mutual_count)
+    }
+
+    /// Count asymmetric node pairs (one-way edges in directed graphs)
+    /// Returns number of node pairs (a,b) where edge (a->b) exists but not (b->a)
+    fn count_asymmetric_node_pairs(&self) -> PyResult<usize> {
+        if !self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Asymmetric node pairs only defined for directed graphs",
+            ));
+        }
+
+        let mut edge_pairs: FxHashSet<(&String, &String)> = FxHashSet::default();
+        
+        // Collect all edges
+        for edge in &self.edges {
+            // Skip self-loops
+            if edge.source != edge.target {
+                edge_pairs.insert((&edge.source, &edge.target));
+            }
+        }
+
+        // Count edges without reverse
+        let mut asymmetric_count = 0;
+        for (src, tgt) in &edge_pairs {
+            if !edge_pairs.contains(&(tgt, src)) {
+                asymmetric_count += 1;
+            }
+        }
+
+        Ok(asymmetric_count)
+    }
+
     /// Get average degree
     fn average_degree(&self) -> f64 {
         let n = self.num_nodes();

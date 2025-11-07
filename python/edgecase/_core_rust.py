@@ -494,6 +494,88 @@ class Graph:
         """
         return self._graph.count_selfloops()
     
+    def count_loop_edges(self) -> int:
+        """Count number of self-loops in the graph.
+        
+        Alias for count_selfloops() for consistency with DiagrammeR API.
+        
+        Returns:
+            Number of edges where source equals target
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('A', 'A')  # Self-loop
+            >>> G.count_loop_edges()
+            1
+        """
+        return self._graph.count_selfloops()
+    
+    def count_multi_edges(self) -> int:
+        """Count multi-edges (parallel edges between same node pair).
+        
+        Only counts edges beyond the first one for each node pair.
+        For example, if there are 3 edges from A to B, this counts 2 of them.
+        
+        Returns:
+            Number of duplicate edges (beyond first edge per pair)
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge('A', 'B', id=1)
+            >>> G.add_edge('A', 'B', id=2)  # Duplicate
+            >>> G.add_edge('A', 'B', id=3)  # Another duplicate
+            >>> G.add_edge('B', 'C', id=4)
+            >>> G.count_multi_edges()
+            2
+        """
+        return self._graph.count_multi_edges()
+    
+    def count_mutual_node_pairs(self) -> int:
+        """Count mutual node pairs (bidirectional edges) in directed graphs.
+        
+        Returns the number of node pairs (a,b) where both edges a->b and b->a exist.
+        Only works for directed graphs. Self-loops are excluded.
+        
+        Returns:
+            Number of node pairs with edges in both directions
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('B', 'A')  # Mutual pair with A
+            >>> G.add_edge('A', 'C')  # One-way only
+            >>> G.count_mutual_node_pairs()
+            1
+        """
+        return self._graph.count_mutual_node_pairs()
+    
+    def count_asymmetric_node_pairs(self) -> int:
+        """Count asymmetric node pairs (one-way edges) in directed graphs.
+        
+        Returns the number of node pairs (a,b) where edge a->b exists but not b->a.
+        Only works for directed graphs. Self-loops are excluded.
+        
+        Returns:
+            Number of node pairs with edges in only one direction
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('B', 'A')  # Mutual, not counted
+            >>> G.add_edge('A', 'C')  # Asymmetric
+            >>> G.add_edge('D', 'E')  # Asymmetric
+            >>> G.count_asymmetric_node_pairs()
+            2
+        """
+        return self._graph.count_asymmetric_node_pairs()
+    
     def average_degree(self) -> float:
         """Calculate average degree across all nodes.
         
