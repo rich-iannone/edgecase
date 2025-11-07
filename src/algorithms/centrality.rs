@@ -11,7 +11,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<String, f64>>
     // TODO: Implement Brandes' algorithm for betweenness centrality
     let mut centrality = FxHashMap::default();
     
-    for node_id in graph.node_ids() {
+    for node_id in graph.get_node_ids() {
         centrality.insert(node_id, 0.0);
     }
     
@@ -32,11 +32,11 @@ pub fn pagerank(
         return Ok(FxHashMap::default());
     }
     
+    let node_ids: Vec<String> = graph.get_node_ids();
     let mut ranks = FxHashMap::default();
     let initial_rank = 1.0 / n as f64;
     
-    // Initialize all nodes with equal rank
-    let node_ids: Vec<String> = graph.node_ids();
+    // Initialize all ranks
     for node_id in &node_ids {
         ranks.insert(node_id.clone(), initial_rank);
     }
