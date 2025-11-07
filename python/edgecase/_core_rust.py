@@ -1251,6 +1251,505 @@ class Graph:
         
         return self
     
+    # ====================================================================
+    # Graph Generators
+    # ====================================================================
+    
+    def add_path_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """Add a path graph (linear chain) to the current graph.
+        
+        Creates a sequence of n nodes connected linearly: 1 → 2 → 3 → ... → n
+        
+        Args:
+            n: Number of nodes in the path
+            type: Optional node type/category for all nodes
+            label: If True, label nodes with their IDs
+            rel: Optional relationship label for all edges
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(5)
+            >>> G.num_nodes()
+            5
+            >>> G.num_edges()
+            4
+        """
+        from edgecase.builders import add_path
+        add_path(self, n, type=type, label=label, rel=rel)
+        return self
+    
+    def add_cycle_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """Add a cycle graph (closed loop) to the current graph.
+        
+        Creates n nodes in a circular pattern where the last connects back to first.
+        
+        Args:
+            n: Number of nodes in the cycle (minimum 3)
+            type: Optional node type/category for all nodes
+            label: If True, label nodes with their IDs
+            rel: Optional relationship label for all edges
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_cycle_graph(4)
+            >>> G.num_nodes()
+            4
+            >>> G.num_edges()
+            4
+        """
+        from edgecase.builders import add_cycle
+        add_cycle(self, n, type=type, label=label, rel=rel)
+        return self
+    
+    def add_star_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """Add a star graph (hub-and-spoke) to the current graph.
+        
+        Creates a central hub node connected to n-1 peripheral nodes.
+        
+        Args:
+            n: Total number of nodes (minimum 2)
+            type: Optional node type/category for all nodes
+            label: If True, label nodes with their IDs
+            rel: Optional relationship label for all edges
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)  # 1 hub + 4 spokes
+            >>> G.num_nodes()
+            5
+            >>> G.num_edges()
+            4
+        """
+        from edgecase.builders import add_star
+        add_star(self, n, type=type, label=label, rel=rel)
+        return self
+    
+    def add_full_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        keep_loops: bool = False,
+    ) -> "Graph":
+        """Add a complete graph (clique) to the current graph.
+        
+        Creates n nodes where every node is connected to every other node.
+        
+        Args:
+            n: Number of nodes
+            type: Optional node type/category for all nodes
+            label: If True, label nodes with their IDs
+            rel: Optional relationship label for all edges
+            keep_loops: If True, include self-loops
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_full_graph(4)
+            >>> G.num_nodes()
+            4
+            >>> G.num_edges()
+            6
+        """
+        from edgecase.builders import add_full_graph
+        add_full_graph(self, n, type=type, label=label, rel=rel, keep_loops=keep_loops)
+        return self
+    
+    def add_balanced_tree(
+        self,
+        k: int,
+        h: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """Add a balanced k-ary tree to the current graph.
+        
+        Creates a tree where each internal node has exactly k children, with height h.
+        
+        Args:
+            k: Number of children per node (branching factor)
+            h: Height of the tree (root has height 0)
+            type: Optional node type/category for all nodes
+            label: If True, label nodes with their IDs
+            rel: Optional relationship label for all edges
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_balanced_tree(k=2, h=3)  # Binary tree of height 3
+            >>> G.num_nodes()
+            15
+        """
+        from edgecase.builders import add_balanced_tree
+        add_balanced_tree(self, k, h, type=type, label=label, rel=rel)
+        return self
+    
+    def add_grid_2d(
+        self,
+        rows: int,
+        cols: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """Add a 2D grid/lattice graph to the current graph.
+        
+        Creates a rectangular grid where each node is connected to its
+        neighbors (up, down, left, right).
+        
+        Args:
+            rows: Number of rows
+            cols: Number of columns
+            type: Optional node type/category for all nodes
+            label: If True, label nodes with their IDs
+            rel: Optional relationship label for all edges
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_grid_2d(3, 4)  # 3x4 grid
+            >>> G.num_nodes()
+            12
+        """
+        from edgecase.builders import add_grid_2d
+        add_grid_2d(self, rows, cols, type=type, label=label, rel=rel)
+        return self
+    
+    def add_prism_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """Add a prism graph to the current graph.
+        
+        Creates two parallel n-cycles connected by n vertical edges.
+        
+        Args:
+            n: Number of nodes in each cycle (minimum 3)
+            type: Optional node type/category for all nodes
+            label: If True, label nodes with their IDs
+            rel: Optional relationship label for all edges
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_prism_graph(5)
+            >>> G.num_nodes()
+            10
+        """
+        from edgecase.builders import add_prism
+        add_prism(self, n, type=type, label=label, rel=rel)
+        return self
+    
+    def add_gnp_graph(
+        self,
+        n: int,
+        p: float,
+        directed: Optional[bool] = None,
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """Add an Erdős-Rényi G(n,p) random graph to the current graph.
+        
+        Each possible edge is included independently with probability p.
+        
+        Args:
+            n: Number of nodes to add
+            p: Probability of edge creation (0.0 to 1.0)
+            directed: If None, use graph's directed setting; else override
+            seed: Random seed for reproducibility
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_gnp_graph(100, 0.05, seed=42)
+            >>> G.num_nodes()
+            100
+        """
+        import random
+        if seed is not None:
+            random.seed(seed)
+        
+        if not (0.0 <= p <= 1.0):
+            raise ValueError("Probability p must be between 0.0 and 1.0")
+        
+        use_directed = directed if directed is not None else self.directed
+        
+        # Add nodes
+        start_id = self.num_nodes() + 1
+        node_ids = [str(start_id + i) for i in range(n)]
+        for node_id in node_ids:
+            self.add_node(node_id)
+        
+        # Add edges with probability p
+        if use_directed:
+            # For directed graphs, consider all ordered pairs
+            for i, u in enumerate(node_ids):
+                for j, v in enumerate(node_ids):
+                    if i != j and random.random() < p:
+                        self.add_edge(u, v)
+        else:
+            # For undirected graphs, consider unordered pairs
+            for i, u in enumerate(node_ids):
+                for v in node_ids[i+1:]:
+                    if random.random() < p:
+                        self.add_edge(u, v)
+        
+        return self
+    
+    def add_gnm_graph(
+        self,
+        n: int,
+        m: int,
+        directed: Optional[bool] = None,
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """Add an Erdős-Rényi G(n,m) random graph to the current graph.
+        
+        Graph with n nodes and exactly m randomly placed edges.
+        
+        Args:
+            n: Number of nodes to add
+            m: Number of edges to create
+            directed: If None, use graph's directed setting; else override
+            seed: Random seed for reproducibility
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_gnm_graph(50, 100, seed=42)
+            >>> G.num_edges()
+            100
+        """
+        import random
+        if seed is not None:
+            random.seed(seed)
+        
+        use_directed = directed if directed is not None else self.directed
+        
+        # Add nodes
+        start_id = self.num_nodes() + 1
+        node_ids = [str(start_id + i) for i in range(n)]
+        for node_id in node_ids:
+            self.add_node(node_id)
+        
+        # Calculate maximum possible edges
+        if use_directed:
+            max_edges = n * (n - 1)
+        else:
+            max_edges = n * (n - 1) // 2
+        
+        if m > max_edges:
+            raise ValueError(f"Cannot create {m} edges with {n} nodes (max: {max_edges})")
+        
+        # Generate all possible edges
+        if use_directed:
+            possible_edges = [(u, v) for u in node_ids for v in node_ids if u != v]
+        else:
+            possible_edges = [(node_ids[i], node_ids[j]) 
+                            for i in range(n) for j in range(i+1, n)]
+        
+        # Randomly select m edges
+        selected_edges = random.sample(possible_edges, m)
+        for u, v in selected_edges:
+            self.add_edge(u, v)
+        
+        return self
+    
+    def add_pa_graph(
+        self,
+        n: int,
+        m: int = 2,
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """Add a Barabási-Albert preferential attachment graph.
+        
+        Grows a graph by adding nodes one at a time, with each new node
+        connecting to m existing nodes with probability proportional to degree.
+        
+        Args:
+            n: Number of nodes to add
+            m: Number of edges to attach from new node (default 2)
+            seed: Random seed for reproducibility
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_pa_graph(100, m=3, seed=42)
+            >>> G.num_nodes()
+            100
+        """
+        import random
+        if seed is not None:
+            random.seed(seed)
+        
+        if m < 1:
+            raise ValueError("m must be at least 1")
+        if m >= n:
+            raise ValueError("m must be less than n")
+        
+        start_id = self.num_nodes() + 1
+        node_ids = [str(start_id + i) for i in range(n)]
+        
+        # Add first m+1 nodes in a clique
+        for i in range(m + 1):
+            self.add_node(node_ids[i])
+        
+        for i in range(m + 1):
+            for j in range(i + 1, m + 1):
+                self.add_edge(node_ids[i], node_ids[j])
+        
+        # Track degree for preferential attachment
+        degree = {node_ids[i]: m for i in range(m + 1)}
+        
+        # Add remaining nodes with preferential attachment
+        for i in range(m + 1, n):
+            self.add_node(node_ids[i])
+            
+            # Select m targets with probability proportional to degree
+            total_degree = sum(degree.values())
+            targets = set()
+            
+            while len(targets) < m:
+                # Weighted random selection
+                r = random.random() * total_degree
+                cumsum = 0
+                for node, deg in degree.items():
+                    cumsum += deg
+                    if cumsum >= r:
+                        targets.add(node)
+                        break
+            
+            # Add edges to selected targets
+            for target in targets:
+                self.add_edge(node_ids[i], target)
+                degree[target] = degree.get(target, 0) + 1
+            
+            degree[node_ids[i]] = m
+        
+        return self
+    
+    def add_smallworld_graph(
+        self,
+        n: int,
+        k: int = 6,
+        p: float = 0.1,
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """Add a Watts-Strogatz small-world graph.
+        
+        Creates a ring lattice with rewiring probability p, producing
+        graphs with high clustering and short path lengths.
+        
+        Args:
+            n: Number of nodes to add
+            k: Each node connected to k nearest neighbors (must be even)
+            p: Probability of rewiring each edge (0.0 to 1.0)
+            seed: Random seed for reproducibility
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_smallworld_graph(100, k=6, p=0.1, seed=42)
+            >>> G.num_nodes()
+            100
+        """
+        import random
+        if seed is not None:
+            random.seed(seed)
+        
+        if k >= n:
+            raise ValueError("k must be less than n")
+        if k % 2 != 0:
+            raise ValueError("k must be even")
+        if not (0.0 <= p <= 1.0):
+            raise ValueError("Probability p must be between 0.0 and 1.0")
+        
+        start_id = self.num_nodes() + 1
+        node_ids = [str(start_id + i) for i in range(n)]
+        
+        # Add nodes
+        for node_id in node_ids:
+            self.add_node(node_id)
+        
+        # Create ring lattice: connect each node to k/2 neighbors on each side
+        edges = []
+        for i in range(n):
+            for j in range(1, k // 2 + 1):
+                neighbor_idx = (i + j) % n
+                edges.append((i, neighbor_idx))
+        
+        # Rewire edges with probability p
+        rewired_edges = set()
+        for u_idx, v_idx in edges:
+            if random.random() < p:
+                # Rewire: choose new target
+                new_v_idx = random.randint(0, n - 1)
+                # Avoid self-loops and duplicate edges
+                attempts = 0
+                while (new_v_idx == u_idx or (u_idx, new_v_idx) in rewired_edges or (new_v_idx, u_idx) in rewired_edges) and attempts < 100:
+                    new_v_idx = random.randint(0, n - 1)
+                    attempts += 1
+                
+                if attempts < 100:
+                    self.add_edge(node_ids[u_idx], node_ids[new_v_idx])
+                    rewired_edges.add((u_idx, new_v_idx))
+                else:
+                    # Fallback: keep original edge
+                    self.add_edge(node_ids[u_idx], node_ids[v_idx])
+                    rewired_edges.add((u_idx, v_idx))
+            else:
+                self.add_edge(node_ids[u_idx], node_ids[v_idx])
+                rewired_edges.add((u_idx, v_idx))
+        
+        return self
+    
     def __repr__(self) -> str:
         return self._graph.__repr__()
 
