@@ -240,7 +240,7 @@ impl Graph {
 
     /// Check if the graph is directed
     #[getter]
-    fn is_directed(&self) -> bool {
+    pub fn is_directed(&self) -> bool {
         self.directed
     }
 
@@ -2525,6 +2525,18 @@ impl Graph {
 
         Ok(())
     }
+
+    pub fn count_weakly_connected_components(&self) -> usize {
+        crate::algorithms::connectivity::count_weakly_connected_components(self)
+    }
+
+    /// Count strongly connected components (directed graphs only).
+    /// A strongly connected component is a maximal set of vertices where
+    /// every vertex is reachable from every other vertex.
+    pub fn count_strongly_connected_components(&self) -> PyResult<usize> {
+        crate::algorithms::connectivity::count_strongly_connected_components(self)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+    }
 }
 
 
@@ -2532,6 +2544,11 @@ impl Graph {
     /// Get the adjacency list (internal method)
     pub fn get_adjacency_list(&self) -> &FxHashMap<String, Vec<String>> {
         &self.adjacency_list
+    }
+
+    /// Get edges vector (internal method for algorithms)
+    pub fn get_edges_internal(&self) -> &Vec<Edge> {
+        &self.edges
     }
 }
 

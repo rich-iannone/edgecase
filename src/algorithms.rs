@@ -2,6 +2,7 @@
 
 pub mod centrality;
 pub mod community;
+pub mod connectivity;
 pub mod cycles;
 pub mod paths;
 
