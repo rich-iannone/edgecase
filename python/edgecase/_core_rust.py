@@ -1332,6 +1332,55 @@ class Graph:
         
         return result
     
+    def set_node_attrs(self, node_attr: str, values, nodes: list[str] | None = None) -> "Graph":
+        """Set attribute values for one or more nodes.
+        
+        From DiagrammeR: set_node_attrs(graph, node_attr, values, nodes = NULL)
+        
+        Args:
+            node_attr: The name of the attribute to set
+            values: The value(s) to set. Can be a single value (applied to all nodes)
+                   or a list/dict of values matching the nodes
+            nodes: Optional list of node IDs to set attributes for (default: all nodes)
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node("A")
+            >>> G.add_node("B")
+            >>> G.set_node_attrs("color", "green", nodes=["A"])
+            >>> G.get_node_attrs("color")
+            {'A': 'green'}
+            
+            >>> # Set for all nodes
+            >>> G.set_node_attrs("status", "active")
+            >>> G.get_node_attrs("status")
+            {'A': 'active', 'B': 'active'}
+        """
+        if nodes is None:
+            nodes = self.node_ids()
+        
+        # Handle different value types
+        if isinstance(values, dict):
+            # Dict mapping node IDs to values
+            for node_id in nodes:
+                if node_id in values:
+                    self._graph.set_node_attr(node_id, node_attr, values[node_id])
+        elif isinstance(values, list):
+            # List of values (must match length of nodes)
+            if len(values) != len(nodes):
+                raise ValueError(f"Length of values ({len(values)}) must match length of nodes ({len(nodes)})")
+            for node_id, value in zip(nodes, values):
+                self._graph.set_node_attr(node_id, node_attr, value)
+        else:
+            # Single value applied to all nodes
+            for node_id in nodes:
+                self._graph.set_node_attr(node_id, node_attr, values)
+        
+        return self
+    
     def get_edge_attrs(self, attr: str, edges: list[int] | None = None) -> dict[int, any]:
         """Get attribute values for edges.
         
