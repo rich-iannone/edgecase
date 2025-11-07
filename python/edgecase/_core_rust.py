@@ -356,6 +356,52 @@ class Graph:
         """
         return self._graph.is_bipartite()
     
+    def count_weakly_connected_components(self) -> int:
+        """Count weakly connected components.
+        
+        For undirected graphs, this counts regular connected components.
+        For directed graphs, treats edges as undirected (ignores direction).
+        
+        A weakly connected component is a maximal set of nodes where every
+        node is reachable from every other node when ignoring edge direction.
+        
+        Returns:
+            Number of weakly connected components
+            
+        Example:
+            >>> G = ec.Graph(directed=False)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("X", "Y")
+            >>> G.count_weakly_connected_components()
+            2
+        """
+        return self._graph.count_weakly_connected_components()
+    
+    def count_strongly_connected_components(self) -> int:
+        """Count strongly connected components (directed graphs only).
+        
+        A strongly connected component is a maximal set of nodes where every
+        node is reachable from every other node following directed edges.
+        
+        Uses Kosaraju's algorithm.
+        
+        Returns:
+            Number of strongly connected components
+            
+        Raises:
+            ValueError: If called on an undirected graph
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "C")
+            >>> G.add_edge("C", "A")  # Cycle: all in same component
+            >>> G.add_edge("X", "Y")  # Separate component
+            >>> G.count_strongly_connected_components()
+            2
+        """
+        return self._graph.count_strongly_connected_components()
+    
     def degree_distribution(self) -> dict[int, int]:
         """Get degree distribution as a mapping from degree to count.
         
