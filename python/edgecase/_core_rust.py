@@ -182,6 +182,147 @@ class Graph:
             raise ValueError("out_degree only available for directed graphs")
         return len(self._graph.neighbors(node_id))
     
+    # ========== Structural Properties ==========
+    
+    def density(self) -> float:
+        """Calculate graph density (ratio of actual to possible edges).
+        
+        For directed graphs: density = E / (N * (N-1))
+        For undirected graphs: density = 2E / (N * (N-1))
+        
+        Returns:
+            Graph density between 0.0 and 1.0
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('B', 'C')
+            >>> G.density()  # 2 edges, 3 nodes, undirected: 2/3 = 0.667
+            0.6666666666666666
+        """
+        return self._graph.density()
+    
+    def is_connected(self) -> bool:
+        """Check if graph is connected.
+        
+        For undirected graphs: checks if all nodes are reachable from any node.
+        For directed graphs: checks weak connectivity (ignoring edge direction).
+        
+        Returns:
+            True if graph is connected, False otherwise
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('B', 'C')
+            >>> G.is_connected()
+            True
+            >>> G.add_node('D')  # Isolated node
+            >>> G.is_connected()
+            False
+        """
+        return self._graph.is_connected()
+    
+    def is_dag(self) -> bool:
+        """Check if directed graph is a DAG (Directed Acyclic Graph).
+        
+        Returns:
+            True if graph is a DAG, False if it contains cycles
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('B', 'C')
+            >>> G.is_dag()
+            True
+            >>> G.add_edge('C', 'A')  # Creates cycle
+            >>> G.is_dag()
+            False
+        """
+        return self._graph.is_dag()
+    
+    def is_simple(self) -> bool:
+        """Check if graph is simple (no self-loops or multi-edges).
+        
+        Returns:
+            True if graph has no self-loops and no parallel edges
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_edge('A', 'B')
+            >>> G.is_simple()
+            True
+            >>> G.add_edge('A', 'A')  # Self-loop
+            >>> G.is_simple()
+            False
+        """
+        return self._graph.is_simple()
+    
+    def is_bipartite(self) -> bool:
+        """Check if graph is bipartite (2-colorable).
+        
+        A graph is bipartite if its nodes can be divided into two sets
+        such that edges only connect nodes from different sets.
+        
+        Returns:
+            True if graph is bipartite, False otherwise
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('B', 'C')
+            >>> G.add_edge('C', 'A')  # Triangle - not bipartite
+            >>> G.is_bipartite()
+            False
+        """
+        return self._graph.is_bipartite()
+    
+    def degree_distribution(self) -> dict[int, int]:
+        """Get degree distribution as a mapping from degree to count.
+        
+        Returns:
+            Dictionary mapping degree values to the number of nodes with that degree
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(4)  # 1-2-2-1 degrees
+            >>> G.degree_distribution()
+            {1: 2, 2: 2}  # 2 nodes with degree 1, 2 nodes with degree 2
+        """
+        return self._graph.degree_distribution()
+    
+    def count_selfloops(self) -> int:
+        """Count number of self-loops in the graph.
+        
+        Returns:
+            Number of edges where source equals target
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('A', 'A')  # Self-loop
+            >>> G.count_selfloops()
+            1
+        """
+        return self._graph.count_selfloops()
+    
+    def average_degree(self) -> float:
+        """Calculate average degree across all nodes.
+        
+        Returns:
+            Mean degree value
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_cycle_graph(4)  # All nodes have degree 2
+            >>> G.average_degree()
+            2.0
+        """
+        return self._graph.average_degree()
+    
     # ========== Selection Methods ==========
     
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
