@@ -697,6 +697,134 @@ class Graph:
     
     # ========== Selection Methods ==========
     
+    def get_dice_similarity(self) -> dict[str, dict[str, float]]:
+        """Get Dice similarity coefficient between all node pairs.
+        
+        The Dice coefficient measures the similarity between two nodes based on
+        their neighborhood overlap:
+        
+        Dice(A, B) = 2 * |neighbors(A) ∩ neighbors(B)| / (|neighbors(A)| + |neighbors(B)|)
+        
+        Range: [0, 1]
+        - 0: No common neighbors
+        - 1: Identical neighborhoods (or same node)
+        
+        Useful for:
+        - Link prediction (similar nodes likely to connect)
+        - Community detection (nodes with similar neighborhoods)
+        - Recommendation systems (find similar users/items)
+        
+        Returns:
+            Nested dictionary: {node1: {node2: similarity_score}}
+            Self-similarity (node to itself) is always 1.0
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('A', 'C')
+            >>> G.add_edge('D', 'B')
+            >>> G.add_edge('D', 'C')
+            >>> sim = G.get_dice_similarity()
+            >>> sim['A']['D']  # A and D share neighbors B and C
+            1.0
+        """
+        return self._graph.get_dice_similarity()
+    
+    def get_jaccard_similarity(self) -> dict[str, dict[str, float]]:
+        """Get Jaccard similarity index between all node pairs.
+        
+        The Jaccard index is a classic set similarity measure:
+        
+        Jaccard(A, B) = |neighbors(A) ∩ neighbors(B)| / |neighbors(A) ∪ neighbors(B)|
+        
+        Range: [0, 1]
+        - 0: No common neighbors
+        - 1: Identical neighborhoods (or same node)
+        
+        More conservative than Dice coefficient (always ≤ Dice score).
+        Widely used in:
+        - Document similarity (bag-of-words)
+        - User similarity (common items/friends)
+        - Biological networks (protein interactions)
+        
+        Returns:
+            Nested dictionary: {node1: {node2: similarity_score}}
+            Self-similarity (node to itself) is always 1.0
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)  # Hub connected to 4 leaves
+            >>> sim = G.get_jaccard_similarity()
+            >>> # Leaves have zero Jaccard (no common neighbors)
+            >>> sim['2']['3']
+            0.0
+        """
+        return self._graph.get_jaccard_similarity()
+    
+    def get_cosine_similarity(self) -> dict[str, dict[str, float]]:
+        """Get Cosine similarity between all node pairs.
+        
+        Cosine similarity treats nodes as vectors in the graph adjacency space:
+        
+        Cosine(A, B) = |A ∩ B| / (√|A| * √|B|)
+        
+        Range: [0, 1]
+        - 0: No common neighbors
+        - 1: Identical neighborhoods (or same node)
+        
+        Geometric interpretation: angle between adjacency vectors.
+        Useful for:
+        - High-dimensional graph embeddings
+        - Collaborative filtering (user-item matrices)
+        - Text analysis (TF-IDF vectors)
+        
+        Returns:
+            Nested dictionary: {node1: {node2: similarity_score}}
+            Self-similarity (node to itself) is always 1.0
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_cycle_graph(5)
+            >>> sim = G.get_cosine_similarity()
+            >>> # Adjacent nodes in cycle share one neighbor
+            >>> sim['1']['2'] > 0
+            True
+        """
+        return self._graph.get_cosine_similarity()
+    
+    def get_overlap_similarity(self) -> dict[str, dict[str, float]]:
+        """Get Overlap coefficient between all node pairs.
+        
+        The Overlap coefficient emphasizes subset relationships:
+        
+        Overlap(A, B) = |neighbors(A) ∩ neighbors(B)| / min(|neighbors(A)|, |neighbors(B)|)
+        
+        Range: [0, 1]
+        - 0: No common neighbors
+        - 1: One neighborhood is a subset of the other (or same node)
+        
+        Useful for:
+        - Detecting hierarchical relationships (parent-child)
+        - Finding hubs (nodes whose neighbors are subsets of others)
+        - Asymmetric similarity (specialization vs generalization)
+        
+        Returns:
+            Nested dictionary: {node1: {node2: similarity_score}}
+            Self-similarity (node to itself) is always 1.0
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> # Create hub-spoke with one spoke having extra connection
+            >>> G.add_edge('hub', 'A')
+            >>> G.add_edge('hub', 'B')
+            >>> G.add_edge('A', 'X')
+            >>> sim = G.get_overlap_similarity()
+            >>> # hub's neighborhood is subset of A's neighborhood
+            >>> sim['hub']['A']
+            1.0
+        """
+        return self._graph.get_overlap_similarity()
+    
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
         """Select nodes by their IDs.
         

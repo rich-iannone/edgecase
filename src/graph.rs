@@ -2092,6 +2092,186 @@ impl Graph {
 
         leverage
     }
+
+    /// Get Dice similarity coefficient between all node pairs
+    /// Dice coefficient: 2 * |A ∩ B| / (|A| + |B|)
+    /// Measures neighborhood overlap, range [0, 1]
+    /// Returns nested HashMap: node1 -> node2 -> similarity
+    fn get_dice_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+        let mut similarities = FxHashMap::default();
+        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+
+        for node1 in &nodes {
+            let mut node1_sims = FxHashMap::default();
+            let neighbors1: FxHashSet<&String> = self.adjacency_list
+                .get(node1)
+                .map(|v| v.iter().collect())
+                .unwrap_or_default();
+
+            for node2 in &nodes {
+                if node1 == node2 {
+                    node1_sims.insert(node2.clone(), 1.0);
+                    continue;
+                }
+
+                let neighbors2: FxHashSet<&String> = self.adjacency_list
+                    .get(node2)
+                    .map(|v| v.iter().collect())
+                    .unwrap_or_default();
+
+                let intersection = neighbors1.intersection(&neighbors2).count();
+                let size1 = neighbors1.len();
+                let size2 = neighbors2.len();
+
+                let dice = if size1 + size2 > 0 {
+                    (2.0 * intersection as f64) / (size1 + size2) as f64
+                } else {
+                    0.0
+                };
+
+                node1_sims.insert(node2.clone(), dice);
+            }
+
+            similarities.insert(node1.clone(), node1_sims);
+        }
+
+        similarities
+    }
+
+    /// Get Jaccard similarity index between all node pairs
+    /// Jaccard index: |A ∩ B| / |A ∪ B|
+    /// Classic set similarity measure, range [0, 1]
+    /// Returns nested HashMap: node1 -> node2 -> similarity
+    fn get_jaccard_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+        let mut similarities = FxHashMap::default();
+        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+
+        for node1 in &nodes {
+            let mut node1_sims = FxHashMap::default();
+            let neighbors1: FxHashSet<&String> = self.adjacency_list
+                .get(node1)
+                .map(|v| v.iter().collect())
+                .unwrap_or_default();
+
+            for node2 in &nodes {
+                if node1 == node2 {
+                    node1_sims.insert(node2.clone(), 1.0);
+                    continue;
+                }
+
+                let neighbors2: FxHashSet<&String> = self.adjacency_list
+                    .get(node2)
+                    .map(|v| v.iter().collect())
+                    .unwrap_or_default();
+
+                let intersection = neighbors1.intersection(&neighbors2).count();
+                let union = neighbors1.union(&neighbors2).count();
+
+                let jaccard = if union > 0 {
+                    intersection as f64 / union as f64
+                } else {
+                    0.0
+                };
+
+                node1_sims.insert(node2.clone(), jaccard);
+            }
+
+            similarities.insert(node1.clone(), node1_sims);
+        }
+
+        similarities
+    }
+
+    /// Get Cosine similarity between all node pairs
+    /// Cosine similarity: A·B / (||A|| ||B||)
+    /// Normalized dot product of adjacency vectors, range [0, 1]
+    /// Returns nested HashMap: node1 -> node2 -> similarity
+    fn get_cosine_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+        let mut similarities = FxHashMap::default();
+        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+
+        for node1 in &nodes {
+            let mut node1_sims = FxHashMap::default();
+            let neighbors1: FxHashSet<&String> = self.adjacency_list
+                .get(node1)
+                .map(|v| v.iter().collect())
+                .unwrap_or_default();
+
+            for node2 in &nodes {
+                if node1 == node2 {
+                    node1_sims.insert(node2.clone(), 1.0);
+                    continue;
+                }
+
+                let neighbors2: FxHashSet<&String> = self.adjacency_list
+                    .get(node2)
+                    .map(|v| v.iter().collect())
+                    .unwrap_or_default();
+
+                let intersection = neighbors1.intersection(&neighbors2).count();
+                let size1 = neighbors1.len();
+                let size2 = neighbors2.len();
+
+                let cosine = if size1 > 0 && size2 > 0 {
+                    intersection as f64 / ((size1 as f64).sqrt() * (size2 as f64).sqrt())
+                } else {
+                    0.0
+                };
+
+                node1_sims.insert(node2.clone(), cosine);
+            }
+
+            similarities.insert(node1.clone(), node1_sims);
+        }
+
+        similarities
+    }
+
+    /// Get Overlap coefficient between all node pairs
+    /// Overlap coefficient: |A ∩ B| / min(|A|, |B|)
+    /// Subset-based similarity measure, range [0, 1]
+    /// Returns nested HashMap: node1 -> node2 -> similarity
+    fn get_overlap_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+        let mut similarities = FxHashMap::default();
+        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+
+        for node1 in &nodes {
+            let mut node1_sims = FxHashMap::default();
+            let neighbors1: FxHashSet<&String> = self.adjacency_list
+                .get(node1)
+                .map(|v| v.iter().collect())
+                .unwrap_or_default();
+
+            for node2 in &nodes {
+                if node1 == node2 {
+                    node1_sims.insert(node2.clone(), 1.0);
+                    continue;
+                }
+
+                let neighbors2: FxHashSet<&String> = self.adjacency_list
+                    .get(node2)
+                    .map(|v| v.iter().collect())
+                    .unwrap_or_default();
+
+                let intersection = neighbors1.intersection(&neighbors2).count();
+                let size1 = neighbors1.len();
+                let size2 = neighbors2.len();
+                let min_size = size1.min(size2);
+
+                let overlap = if min_size > 0 {
+                    intersection as f64 / min_size as f64
+                } else {
+                    0.0
+                };
+
+                node1_sims.insert(node2.clone(), overlap);
+            }
+
+            similarities.insert(node1.clone(), node1_sims);
+        }
+
+        similarities
+    }
 }
 
 
