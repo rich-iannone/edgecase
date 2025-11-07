@@ -45,6 +45,8 @@ impl Node {
 #[derive(Debug)]
 pub struct Edge {
     #[pyo3(get, set)]
+    pub id: u64,
+    #[pyo3(get, set)]
     pub source: String,
     #[pyo3(get, set)]
     pub target: String,
@@ -57,6 +59,7 @@ pub struct Edge {
 impl Clone for Edge {
     fn clone(&self) -> Self {
         Python::with_gil(|py| Edge {
+            id: self.id,
             source: self.source.clone(),
             target: self.target.clone(),
             weight: self.weight,
@@ -68,14 +71,16 @@ impl Clone for Edge {
 #[pymethods]
 impl Edge {
     #[new]
-    #[pyo3(signature = (source, target, weight=None, attributes=None))]
+    #[pyo3(signature = (id, source, target, weight=None, attributes=None))]
     fn new(
+        id: u64,
         source: String,
         target: String,
         weight: Option<f64>,
         attributes: Option<Py<PyDict>>,
     ) -> Self {
         Edge {
+            id,
             source,
             target,
             weight,
@@ -85,8 +90,8 @@ impl Edge {
 
     fn __repr__(&self) -> String {
         format!(
-            "Edge(source='{}', target='{}', weight={:?})",
-            self.source, self.target, self.weight
+            "Edge(id={}, source='{}', target='{}', weight={:?})",
+            self.id, self.source, self.target, self.weight
         )
     }
 }
@@ -97,6 +102,7 @@ pub struct Graph {
     nodes: FxHashMap<String, Node>,
     edges: Vec<Edge>,
     adjacency_list: FxHashMap<String, Vec<String>>,
+    next_edge_id: u64,
     directed: bool,
     weighted: bool,
 }
@@ -110,6 +116,7 @@ impl Graph {
             nodes: FxHashMap::default(),
             edges: Vec::new(),
             adjacency_list: FxHashMap::default(),
+            next_edge_id: 1,
             directed,
             weighted,
         }
@@ -126,7 +133,7 @@ impl Graph {
     }
 
     /// Add an edge to the graph
-    fn add_edge(&mut self, edge: Edge) -> PyResult<()> {
+    fn add_edge(&mut self, mut edge: Edge) -> PyResult<()> {
         // Ensure nodes exist
         if !self.nodes.contains_key(&edge.source) {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -141,16 +148,18 @@ impl Graph {
             )));
         }
 
-        // Check for duplicate edges
-        let duplicate_exists = self.edges.iter().any(|e| {
-            e.source == edge.source && e.target == edge.target
-        });
-        
-        if duplicate_exists {
-            return Ok(()); // Silently ignore duplicate
+        // Auto-assign edge ID if it's 0 (default/unset)
+        if edge.id == 0 {
+            edge.id = self.next_edge_id;
+            self.next_edge_id += 1;
+        } else {
+            // If user provided an ID, make sure next_edge_id is beyond it
+            if edge.id >= self.next_edge_id {
+                self.next_edge_id = edge.id + 1;
+            }
         }
 
-        // Add to adjacency list
+        // Add to adjacency list (multi-edges allowed)
         self.adjacency_list
             .entry(edge.source.clone())
             .or_default()
@@ -207,12 +216,62 @@ impl Graph {
         self.nodes.keys().cloned().collect()
     }
 
-    /// Get all edges as (source, target) tuples
-    pub fn edges(&self) -> Vec<(String, String)> {
+    /// Get all edges as (id, source, target) tuples
+    pub fn edges(&self) -> Vec<(u64, String, String)> {
         self.edges
             .iter()
-            .map(|e| (e.source.clone(), e.target.clone()))
+            .map(|e| (e.id, e.source.clone(), e.target.clone()))
             .collect()
+    }
+
+    /// Get all edge IDs
+    pub fn edge_ids(&self) -> Vec<u64> {
+        self.edges.iter().map(|e| e.id).collect()
+    }
+
+    /// Get edge by ID
+    pub fn get_edge_by_id(&self, edge_id: u64) -> Option<(String, String)> {
+        self.edges
+            .iter()
+            .find(|e| e.id == edge_id)
+            .map(|e| (e.source.clone(), e.target.clone()))
+    }
+
+    /// Check if an edge exists by ID
+    pub fn has_edge_id(&self, edge_id: u64) -> bool {
+        self.edges.iter().any(|e| e.id == edge_id)
+    }
+
+    /// Delete edge by ID
+    pub fn delete_edge_by_id(&mut self, edge_id: u64) -> PyResult<()> {
+        let edge_idx = self.edges.iter().position(|e| e.id == edge_id);
+        
+        if let Some(idx) = edge_idx {
+            let edge = &self.edges[idx];
+            
+            // Remove from adjacency list
+            if let Some(neighbors) = self.adjacency_list.get_mut(&edge.source) {
+                if let Some(pos) = neighbors.iter().position(|n| n == &edge.target) {
+                    neighbors.remove(pos);
+                }
+            }
+            
+            if !self.directed {
+                if let Some(neighbors) = self.adjacency_list.get_mut(&edge.target) {
+                    if let Some(pos) = neighbors.iter().position(|n| n == &edge.source) {
+                        neighbors.remove(pos);
+                    }
+                }
+            }
+            
+            self.edges.remove(idx);
+            Ok(())
+        } else {
+            Err(pyo3::exceptions::PyKeyError::new_err(format!(
+                "Edge with ID {} does not exist",
+                edge_id
+            )))
+        }
     }
 
     /// Check if a node exists (O(1) hash lookup)
@@ -268,10 +327,15 @@ mod tests {
         graph.add_node(Node::new("A".to_string(), None)).unwrap();
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
         
-        // Add edge
-        let edge = Edge::new("A".to_string(), "B".to_string(), Some(1.0), None);
+        // Add edge (ID will be auto-assigned)
+        let edge = Edge::new(0, "A".to_string(), "B".to_string(), Some(1.0), None);
         assert!(graph.add_edge(edge).is_ok());
         assert_eq!(graph.num_edges(), 1);
+        
+        // Check edge ID was auto-assigned
+        let edge_ids = graph.edge_ids();
+        assert_eq!(edge_ids.len(), 1);
+        assert_eq!(edge_ids[0], 1);
     }
 
     #[test]
@@ -283,10 +347,10 @@ mod tests {
         graph.add_node(Node::new("C".to_string(), None)).unwrap();
         
         graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .add_edge(Edge::new(0, "A".to_string(), "B".to_string(), None, None))
             .unwrap();
         graph
-            .add_edge(Edge::new("A".to_string(), "C".to_string(), None, None))
+            .add_edge(Edge::new(0, "A".to_string(), "C".to_string(), None, None))
             .unwrap();
         
         let neighbors = graph.neighbors("A").unwrap();
@@ -303,7 +367,7 @@ mod tests {
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
         
         graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
+            .add_edge(Edge::new(0, "A".to_string(), "B".to_string(), None, None))
             .unwrap();
         
         // In directed graph, B should not have A as neighbor
