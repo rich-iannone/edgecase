@@ -5,6 +5,7 @@ This module wraps the raw Rust bindings to provide the same API
 as the pure Python implementation.
 """
 
+from typing import Optional, Callable, Any
 from edgecase import _core as rust
 
 
@@ -534,6 +535,392 @@ class Graph:
         # Use the Rust helper to select top-k
         self._graph.select_nodes_by_scores(scores, k, include_ties)
         return self
+    
+    # ========== Query Operations ==========
+    
+    def get_node_attrs(self, attr: str, nodes: list[str] | None = None) -> dict[str, any]:
+        """Get attribute values for nodes.
+        
+        Args:
+            attr: Attribute name to extract
+            nodes: Optional list of node IDs (default: all nodes)
+            
+        Returns:
+            Dictionary mapping node IDs to attribute values
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node("A", type="user", score=95)
+            >>> G.add_node("B", type="admin", score=88)
+            >>> G.get_node_attrs("score")
+            {'A': 95, 'B': 88}
+        """
+        import polars as pl
+        
+        if nodes is None:
+            nodes = self.node_ids()
+        
+        result = {}
+        for node_id in nodes:
+            node = self.get_node(node_id)
+            if node and node.attributes:
+                if attr in node.attributes:
+                    result[node_id] = node.attributes[attr]
+        
+        return result
+    
+    def get_edge_attrs(self, attr: str, edges: list[int] | None = None) -> dict[int, any]:
+        """Get attribute values for edges.
+        
+        Args:
+            attr: Attribute name to extract
+            edges: Optional list of edge IDs (default: all edges)
+            
+        Returns:
+            Dictionary mapping edge IDs to attribute values
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_edge("A", "B", weight=1.5, type="friend")
+            >>> G.get_edge_attrs("weight")
+            {1: 1.5}
+        """
+        if edges is None:
+            edges = self.edge_ids()
+        
+        result = {}
+        for edge_id in edges:
+            edge = self.get_edge(edge_id)
+            if edge:
+                # Check special weight attribute first
+                if attr == "weight" and edge.weight is not None:
+                    result[edge_id] = edge.weight
+                # Then check attributes dict
+                elif edge.attributes and attr in edge.attributes:
+                    result[edge_id] = edge.attributes[attr]
+        
+        return result
+    
+    def get_node_df(self, include_degree: bool = True) -> "pl.DataFrame":
+        """Get nodes as a Polars DataFrame.
+        
+        Args:
+            include_degree: If True, include degree column (default True)
+            
+        Returns:
+            DataFrame with node IDs and attributes
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node("A", type="user", score=95)
+            >>> G.add_node("B", type="admin", score=88)
+            >>> df = G.get_node_df()
+            >>> df.columns
+            ['id', 'type', 'score', 'degree']
+        """
+        import polars as pl
+        
+        node_ids = self.node_ids()
+        if not node_ids:
+            return pl.DataFrame()
+        
+        # Collect all attributes
+        data = {'id': node_ids}
+        
+        # Get all unique attribute keys
+        attr_keys = set()
+        for node_id in node_ids:
+            node = self.get_node(node_id)
+            if node and node.attributes:
+                attr_keys.update(node.attributes.keys())
+        
+        # Extract attributes
+        for key in sorted(attr_keys):
+            data[key] = [
+                self.get_node(nid).attributes.get(key) if self.get_node(nid) and self.get_node(nid).attributes else None
+                for nid in node_ids
+            ]
+        
+        # Add degree if requested
+        if include_degree:
+            data['degree'] = [self.degree(nid) for nid in node_ids]
+        
+        return pl.DataFrame(data)
+    
+    def get_edge_df(self, include_endpoints: bool = True) -> "pl.DataFrame":
+        """Get edges as a Polars DataFrame.
+        
+        Args:
+            include_endpoints: If True, include source and target columns (default True)
+            
+        Returns:
+            DataFrame with edge IDs, endpoints, and attributes
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_edge("A", "B", weight=1.5)
+            >>> df = G.get_edge_df()
+            >>> df.columns
+            ['id', 'source', 'target', 'weight']
+        """
+        import polars as pl
+        
+        edge_ids = self.edge_ids()
+        if not edge_ids:
+            return pl.DataFrame()
+        
+        # Collect basic edge info
+        data = {'id': edge_ids}
+        
+        if include_endpoints:
+            edges = [self.get_edge_by_id(eid) for eid in edge_ids]
+            data['source'] = [e[0] if e else None for e in edges]
+            data['target'] = [e[1] if e else None for e in edges]
+        
+        # Get all unique attribute keys (including weight)
+        attr_keys = set()
+        edges_list = [self.get_edge(eid) for eid in edge_ids]
+        
+        # Check for weight attribute
+        if any(e and e.weight is not None for e in edges_list):
+            attr_keys.add("weight")
+        
+        # Add other attributes from dict
+        for edge in edges_list:
+            if edge and edge.attributes:
+                attr_keys.update(edge.attributes.keys())
+        
+        # Extract attributes
+        for key in sorted(attr_keys):
+            if key == "weight":
+                data[key] = [e.weight if e else None for e in edges_list]
+            else:
+                data[key] = [
+                    e.attributes.get(key) if e and e.attributes else None
+                    for e in edges_list
+                ]
+        
+        return pl.DataFrame(data)
+    
+    def get_node_df_ws(self, include_degree: bool = True) -> "pl.DataFrame":
+        """Get selected nodes as a Polars DataFrame.
+        
+        Only includes nodes in the current selection.
+        
+        Args:
+            include_degree: If True, include degree column (default True)
+            
+        Returns:
+            DataFrame with selected node IDs and attributes
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_path(5)
+            >>> G.select_nodes_by_degree(min_degree=2)
+            >>> df = G.get_node_df_ws()
+            >>> len(df)  # Only selected nodes
+        """
+        import polars as pl
+        
+        node_ids = self.get_selected_nodes()
+        if not node_ids:
+            return pl.DataFrame()
+        
+        # Use same logic as get_node_df but with selected nodes
+        data = {'id': node_ids}
+        
+        attr_keys = set()
+        for node_id in node_ids:
+            node = self.get_node(node_id)
+            if node and node.attributes:
+                attr_keys.update(node.attributes.keys())
+        
+        for key in sorted(attr_keys):
+            data[key] = [
+                self.get_node(nid).attributes.get(key) if self.get_node(nid) and self.get_node(nid).attributes else None
+                for nid in node_ids
+            ]
+        
+        if include_degree:
+            data['degree'] = [self.degree(nid) for nid in node_ids]
+        
+        return pl.DataFrame(data)
+    
+    def get_edge_df_ws(self, include_endpoints: bool = True) -> "pl.DataFrame":
+        """Get selected edges as a Polars DataFrame.
+        
+        Only includes edges in the current selection.
+        
+        Args:
+            include_endpoints: If True, include source and target columns (default True)
+            
+        Returns:
+            DataFrame with selected edge IDs, endpoints, and attributes
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_path(5)
+            >>> G.select_edges_by_id([1, 2])
+            >>> df = G.get_edge_df_ws()
+            >>> len(df)
+            2
+        """
+        import polars as pl
+        
+        edge_ids = self.get_selected_edges()
+        if not edge_ids:
+            return pl.DataFrame()
+        
+        data = {'id': edge_ids}
+        
+        if include_endpoints:
+            edges = [self.get_edge_by_id(eid) for eid in edge_ids]
+            data['source'] = [e[0] if e else None for e in edges]
+            data['target'] = [e[1] if e else None for e in edges]
+        
+        # Get all unique attribute keys (including weight)
+        attr_keys = set()
+        edges_list = [self.get_edge(eid) for eid in edge_ids]
+        
+        # Check for weight attribute
+        if any(e and e.weight is not None for e in edges_list):
+            attr_keys.add("weight")
+        
+        # Add other attributes from dict
+        for edge in edges_list:
+            if edge and edge.attributes:
+                attr_keys.update(edge.attributes.keys())
+        
+        # Extract attributes
+        for key in sorted(attr_keys):
+            if key == "weight":
+                data[key] = [e.weight if e else None for e in edges_list]
+            else:
+                data[key] = [
+                    e.attributes.get(key) if e and e.attributes else None
+                    for e in edges_list
+                ]
+        
+        return pl.DataFrame(data)
+    
+    def get_neighbors(
+        self,
+        node_id: str,
+        mode: str = "all",
+        predicate: Optional[Callable] = None
+    ) -> list[str]:
+        """Get neighbors of a node with optional filtering.
+        
+        Args:
+            node_id: Node ID
+            mode: Direction - "out" (successors), "in" (predecessors), or "all" (default)
+            predicate: Optional filter function that takes a node ID and returns bool
+            
+        Returns:
+            List of neighbor node IDs
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "B", weight=1.0)
+            >>> G.add_edge("C", "A", weight=2.0)
+            >>> G.get_neighbors("A", mode="out")
+            ['B']
+            >>> G.get_neighbors("A", mode="in")
+            ['C']
+        """
+        if mode not in ["out", "in", "all"]:
+            raise ValueError("mode must be 'out', 'in', or 'all'")
+        
+        neighbors = []
+        
+        if mode in ["out", "all"]:
+            # Outgoing neighbors from adjacency list
+            neighbors.extend(self._graph.neighbors(node_id))
+        
+        if mode in ["in", "all"]:
+            # Incoming neighbors - find edges where this node is target
+            for edge_tuple in self._graph.edges():
+                # edge_tuple is (edge_id, source, target)
+                if edge_tuple[2] == node_id and edge_tuple[1] not in neighbors:
+                    neighbors.append(edge_tuple[1])
+        
+        # For undirected graphs, mode doesn't matter
+        if not self._graph.is_directed and mode != "all":
+            # Already got all neighbors via adjacency list
+            pass
+        
+        # Apply predicate filter if provided
+        if predicate:
+            neighbors = [n for n in neighbors if predicate(n)]
+        
+        return neighbors
+    
+    def get_common_neighbors(self, node_id1: str, node_id2: str) -> list[str]:
+        """Get nodes that are neighbors of both specified nodes.
+        
+        Args:
+            node_id1: First node ID
+            node_id2: Second node ID
+            
+        Returns:
+            List of common neighbor node IDs
+            
+        Example:
+            >>> G = Graph(directed=False)
+            >>> G.add_edge("A", "C")
+            >>> G.add_edge("B", "C")
+            >>> G.add_edge("A", "D")
+            >>> G.add_edge("B", "D")
+            >>> G.get_common_neighbors("A", "B")
+            ['C', 'D']
+        """
+        neighbors1 = set(self.get_neighbors(node_id1, mode="all"))
+        neighbors2 = set(self.get_neighbors(node_id2, mode="all"))
+        return list(neighbors1 & neighbors2)
+    
+    def get_predecessors(self, node_id: str) -> list[str]:
+        """Get direct predecessors of a node (incoming neighbors).
+        
+        Only for directed graphs.
+        
+        Args:
+            node_id: Node ID
+            
+        Returns:
+            List of predecessor node IDs
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "C")
+            >>> G.add_edge("B", "C")
+            >>> G.get_predecessors("C")
+            ['A', 'B']
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_predecessors only available for directed graphs")
+        return self.get_neighbors(node_id, mode="in")
+    
+    def get_successors(self, node_id: str) -> list[str]:
+        """Get direct successors of a node (outgoing neighbors).
+        
+        Only for directed graphs.
+        
+        Args:
+            node_id: Node ID
+            
+        Returns:
+            List of successor node IDs
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("A", "C")
+            >>> G.get_successors("A")
+            ['B', 'C']
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_successors only available for directed graphs")
+        return self.get_neighbors(node_id, mode="out")
     
     def get_node_creation_order(self) -> list[str]:
         """Get the creation order of all nodes.
