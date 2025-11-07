@@ -108,6 +108,9 @@ pub struct Graph {
     // Selection state
     selected_nodes: FxHashSet<String>,
     selected_edges: FxHashSet<u64>,
+    // Creation order tracking
+    node_creation_order: Vec<String>,
+    edge_creation_order: Vec<u64>,
 }
 
 #[pymethods]
@@ -124,12 +127,20 @@ impl Graph {
             weighted,
             selected_nodes: FxHashSet::default(),
             selected_edges: FxHashSet::default(),
+            node_creation_order: Vec::new(),
+            edge_creation_order: Vec::new(),
         }
     }
 
     /// Add a node to the graph
     fn add_node(&mut self, node: Node) -> PyResult<()> {
         let node_id = node.id.clone();
+        
+        // Track creation order only if this is a new node
+        if !self.nodes.contains_key(&node_id) {
+            self.node_creation_order.push(node_id.clone());
+        }
+        
         self.nodes.insert(node_id.clone(), node);
         self.adjacency_list
             .entry(node_id)
@@ -177,6 +188,9 @@ impl Graph {
                 .push(edge.source.clone());
         }
 
+        // Track creation order
+        self.edge_creation_order.push(edge.id);
+        
         self.edges.push(edge);
         Ok(())
     }
@@ -494,6 +508,40 @@ impl Graph {
     /// Get an edge object by ID (for use with selection predicates)
     pub fn get_edge(&self, edge_id: u64) -> Option<Edge> {
         self.edges.iter().find(|e| e.id == edge_id).cloned()
+    }
+
+    /// Select the last N nodes that were created
+    #[pyo3(signature = (n))]
+    pub fn select_last_nodes_created(&mut self, n: usize) -> PyResult<()> {
+        let total = self.node_creation_order.len();
+        let start_idx = if n >= total { 0 } else { total - n };
+        
+        for node_id in &self.node_creation_order[start_idx..] {
+            self.selected_nodes.insert(node_id.clone());
+        }
+        Ok(())
+    }
+
+    /// Select the last N edges that were created
+    #[pyo3(signature = (n))]
+    pub fn select_last_edges_created(&mut self, n: usize) -> PyResult<()> {
+        let total = self.edge_creation_order.len();
+        let start_idx = if n >= total { 0 } else { total - n };
+        
+        for edge_id in &self.edge_creation_order[start_idx..] {
+            self.selected_edges.insert(*edge_id);
+        }
+        Ok(())
+    }
+
+    /// Get the creation order of all nodes
+    pub fn get_node_creation_order(&self) -> Vec<String> {
+        self.node_creation_order.clone()
+    }
+
+    /// Get the creation order of all edges
+    pub fn get_edge_creation_order(&self) -> Vec<u64> {
+        self.edge_creation_order.clone()
     }
 
     fn __repr__(&self) -> String {
