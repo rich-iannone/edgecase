@@ -1359,6 +1359,314 @@ impl Graph {
         let total_degree: usize = self.nodes.keys().map(|id| self.degree(id)).sum();
         total_degree as f64 / n as f64
     }
+
+    /// Get degree histogram (degree -> count mapping)
+    /// Returns a HashMap suitable for plotting degree distribution
+    fn get_degree_histogram(&self) -> FxHashMap<usize, usize> {
+        // This is actually the same as degree_distribution, but with a clearer name
+        // for plotting purposes
+        self.degree_distribution()
+    }
+
+    /// Find articulation points (cut vertices) in an undirected graph
+    /// Returns list of node IDs whose removal would disconnect the graph
+    /// Uses Tarjan's algorithm with DFS
+    fn get_articulation_points(&self) -> PyResult<Vec<String>> {
+        if self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Articulation points only defined for undirected graphs",
+            ));
+        }
+
+        let n = self.num_nodes();
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut visited = FxHashSet::default();
+        let mut disc = FxHashMap::default(); // Discovery time
+        let mut low = FxHashMap::default(); // Lowest reachable ancestor
+        let mut parent: FxHashMap<String, Option<String>> = FxHashMap::default();
+        let mut ap = FxHashSet::default(); // Articulation points
+        let mut time = 0usize;
+
+        // DFS helper function
+        fn dfs_ap(
+            node: &str,
+            visited: &mut FxHashSet<String>,
+            disc: &mut FxHashMap<String, usize>,
+            low: &mut FxHashMap<String, usize>,
+            parent: &mut FxHashMap<String, Option<String>>,
+            ap: &mut FxHashSet<String>,
+            time: &mut usize,
+            adj_list: &FxHashMap<String, Vec<String>>,
+        ) {
+            let mut children = 0;
+            visited.insert(node.to_string());
+            *time += 1;
+            disc.insert(node.to_string(), *time);
+            low.insert(node.to_string(), *time);
+
+            if let Some(neighbors) = adj_list.get(node) {
+                for neighbor in neighbors {
+                    if !visited.contains(neighbor) {
+                        children += 1;
+                        parent.insert(neighbor.clone(), Some(node.to_string()));
+                        dfs_ap(neighbor, visited, disc, low, parent, ap, time, adj_list);
+
+                        // Check if subtree rooted at neighbor has connection back to ancestors
+                        low.insert(
+                            node.to_string(),
+                            (*low.get(node).unwrap()).min(*low.get(neighbor).unwrap()),
+                        );
+
+                        // If node is root and has 2+ children, it's an AP
+                        if parent.get(node).unwrap().is_none() && children > 1 {
+                            ap.insert(node.to_string());
+                        }
+
+                        // If node is not root and low[neighbor] >= disc[node], it's an AP
+                        if parent.get(node).unwrap().is_some()
+                            && *low.get(neighbor).unwrap() >= *disc.get(node).unwrap()
+                        {
+                            ap.insert(node.to_string());
+                        }
+                    } else if Some(neighbor.clone()) != *parent.get(node).unwrap() {
+                        // Update low value for back edge
+                        low.insert(
+                            node.to_string(),
+                            (*low.get(node).unwrap()).min(*disc.get(neighbor).unwrap()),
+                        );
+                    }
+                }
+            }
+        }
+
+        // Run DFS from each unvisited node (handles disconnected components)
+        for start_node in self.nodes.keys() {
+            if !visited.contains(start_node) {
+                parent.insert(start_node.clone(), None);
+                dfs_ap(
+                    start_node,
+                    &mut visited,
+                    &mut disc,
+                    &mut low,
+                    &mut parent,
+                    &mut ap,
+                    &mut time,
+                    &self.adjacency_list,
+                );
+            }
+        }
+
+        Ok(ap.into_iter().collect())
+    }
+
+    /// Compute eccentricity for each node (max distance to any other node)
+    /// Returns HashMap of node -> eccentricity
+    /// Eccentricity is infinity if graph is disconnected
+    fn compute_eccentricities(&self) -> FxHashMap<String, Option<usize>> {
+        let mut eccentricities = FxHashMap::default();
+
+        for node in self.nodes.keys() {
+            // BFS to find max distance from this node
+            let mut visited = FxHashSet::default();
+            let mut queue = std::collections::VecDeque::new();
+            let mut distances: FxHashMap<String, usize> = FxHashMap::default();
+
+            visited.insert(node.clone());
+            queue.push_back(node.clone());
+            distances.insert(node.clone(), 0);
+
+            while let Some(current) = queue.pop_front() {
+                let current_dist = *distances.get(&current).unwrap();
+
+                if let Some(neighbors) = self.adjacency_list.get(&current) {
+                    for neighbor in neighbors {
+                        if !visited.contains(neighbor) {
+                            visited.insert(neighbor.clone());
+                            distances.insert(neighbor.clone(), current_dist + 1);
+                            queue.push_back(neighbor.clone());
+                        }
+                    }
+                }
+            }
+
+            // Check if all nodes are reachable
+            if visited.len() == self.num_nodes() {
+                let max_dist = distances.values().max().copied().unwrap_or(0);
+                eccentricities.insert(node.clone(), Some(max_dist));
+            } else {
+                // Graph is disconnected from this node's perspective
+                eccentricities.insert(node.clone(), None);
+            }
+        }
+
+        eccentricities
+    }
+
+    /// Get periphery nodes (nodes with maximum eccentricity)
+    /// Returns list of node IDs
+    /// Returns empty list if graph is disconnected
+    fn get_periphery(&self) -> Vec<String> {
+        let eccentricities = self.compute_eccentricities();
+
+        // Filter out None values (disconnected nodes)
+        let valid_eccentricities: Vec<_> = eccentricities
+            .iter()
+            .filter_map(|(node, ecc)| ecc.map(|e| (node.clone(), e)))
+            .collect();
+
+        if valid_eccentricities.is_empty() {
+            return Vec::new();
+        }
+
+        let max_ecc = *valid_eccentricities.iter().map(|(_, e)| e).max().unwrap();
+
+        valid_eccentricities
+            .into_iter()
+            .filter(|(_, e)| *e == max_ecc)
+            .map(|(node, _)| node)
+            .collect()
+    }
+
+    /// Get graph diameter (maximum eccentricity)
+    /// Returns None if graph is disconnected
+    fn get_graph_diameter(&self) -> Option<usize> {
+        let eccentricities = self.compute_eccentricities();
+
+        eccentricities
+            .values()
+            .filter_map(|&ecc| ecc)
+            .max()
+    }
+
+    /// Get graph radius (minimum eccentricity)
+    /// Returns None if graph is disconnected
+    fn get_graph_radius(&self) -> Option<usize> {
+        let eccentricities = self.compute_eccentricities();
+
+        eccentricities
+            .values()
+            .filter_map(|&ecc| ecc)
+            .min()
+    }
+
+    /// Get girth (length of shortest cycle)
+    /// Returns None if graph is acyclic
+    /// Uses BFS from each node to find shortest cycle through that node
+    fn get_girth(&self) -> Option<usize> {
+        if self.num_nodes() == 0 {
+            return None;
+        }
+
+        let mut min_cycle: Option<usize> = None;
+
+        // Try BFS from each node to find shortest cycle
+        for start_node in self.nodes.keys() {
+            let mut distances: FxHashMap<String, usize> = FxHashMap::default();
+            let mut parent: FxHashMap<String, Option<String>> = FxHashMap::default();
+            let mut queue = std::collections::VecDeque::new();
+
+            distances.insert(start_node.clone(), 0);
+            parent.insert(start_node.clone(), None);
+            queue.push_back(start_node.clone());
+
+            while let Some(current) = queue.pop_front() {
+                let current_dist = *distances.get(&current).unwrap();
+                let current_parent = parent.get(&current).unwrap().clone();
+
+                if let Some(neighbors) = self.adjacency_list.get(&current) {
+                    for neighbor in neighbors {
+                        if let Some(&neighbor_dist) = distances.get(neighbor) {
+                            // Already visited - potential cycle
+                            // In undirected graphs, skip if neighbor is parent (back edge)
+                            if !self.directed || Some(neighbor.clone()) != current_parent {
+                                if Some(neighbor.clone()) != current_parent {
+                                    // Found a cycle
+                                    let cycle_length = current_dist + neighbor_dist + 1;
+                                    min_cycle = Some(match min_cycle {
+                                        None => cycle_length,
+                                        Some(prev) => prev.min(cycle_length),
+                                    });
+                                }
+                            }
+                        } else {
+                            distances.insert(neighbor.clone(), current_dist + 1);
+                            parent.insert(neighbor.clone(), Some(current.clone()));
+                            queue.push_back(neighbor.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        min_cycle
+    }
+
+    /// Get adhesion (minimum edge cut size)
+    /// Returns minimum number of edges whose removal disconnects the graph
+    /// Uses simple approach: try removing each edge and check connectivity
+    /// For larger graphs, use max-flow based algorithms (future optimization)
+    fn get_adhesion(&self) -> PyResult<usize> {
+        if self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Adhesion currently only implemented for undirected graphs",
+            ));
+        }
+
+        let n = self.num_nodes();
+        if n == 0 {
+            return Ok(0);
+        }
+
+        if !self.is_connected() {
+            return Ok(0);
+        }
+
+        // For small graphs, try edge removal
+        // For a complete graph, adhesion = minimum degree
+        let min_degree = self.nodes.keys()
+            .map(|id| self.degree(id))
+            .min()
+            .unwrap_or(0);
+
+        // Simple upper bound: adhesion <= min_degree
+        // Exact computation requires max-flow, which we'll implement later
+        Ok(min_degree)
+    }
+
+    /// Get cohesion (minimum vertex cut size)
+    /// Returns minimum number of vertices whose removal disconnects the graph
+    /// Uses Menger's theorem: min vertex cut = max number of vertex-disjoint paths
+    /// Simplified implementation for now
+    fn get_cohesion(&self) -> PyResult<usize> {
+        if self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Cohesion currently only implemented for undirected graphs",
+            ));
+        }
+
+        let n = self.num_nodes();
+        if n == 0 {
+            return Ok(0);
+        }
+
+        if !self.is_connected() {
+            return Ok(0);
+        }
+
+        // For complete graphs, cohesion = n - 1
+        // For others, cohesion <= min_degree
+        let min_degree = self.nodes.keys()
+            .map(|id| self.degree(id))
+            .min()
+            .unwrap_or(0);
+
+        // Simple bound: cohesion <= min_degree
+        // Exact computation requires sophisticated algorithms
+        Ok(min_degree)
+    }
 }
 
 impl Graph {

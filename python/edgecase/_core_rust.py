@@ -323,6 +323,179 @@ class Graph:
         """
         return self._graph.average_degree()
     
+    def get_degree_histogram(self) -> dict[int, int]:
+        """Get degree histogram for plotting.
+        
+        Returns a dictionary mapping degree values to their frequencies,
+        suitable for creating degree distribution plots.
+        
+        Returns:
+            Dictionary where keys are degree values and values are counts
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)  # 1 hub (degree 4) + 4 leaves (degree 1)
+            >>> hist = G.get_degree_histogram()
+            >>> hist
+            {1: 4, 4: 1}
+        """
+        return self._graph.get_degree_histogram()
+    
+    def get_articulation_points(self) -> list[str]:
+        """Find articulation points (cut vertices) in the graph.
+        
+        An articulation point is a node whose removal would disconnect
+        the graph. Uses Tarjan's DFS-based algorithm.
+        
+        Only defined for undirected graphs.
+        
+        Returns:
+            List of node IDs that are articulation points
+            
+        Raises:
+            ValueError: If graph is directed
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(5)  # Linear chain
+            >>> ap = G.get_articulation_points()
+            >>> len(ap)  # Middle 3 nodes are articulation points
+            3
+        """
+        return self._graph.get_articulation_points()
+    
+    def get_periphery(self) -> list[str]:
+        """Get periphery nodes (nodes with maximum eccentricity).
+        
+        Periphery nodes are the farthest from the graph's center.
+        Eccentricity is the maximum distance to any other node.
+        
+        Returns:
+            List of node IDs in the periphery, empty if graph is disconnected
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(5)  # Linear: 0-1-2-3-4
+            >>> periphery = G.get_periphery()
+            >>> sorted(periphery)  # End nodes are periphery
+            ['0', '4']
+        """
+        return self._graph.get_periphery()
+    
+    def get_graph_diameter(self) -> int | None:
+        """Get graph diameter (maximum eccentricity).
+        
+        The diameter is the longest shortest path between any two nodes.
+        Returns None if the graph is disconnected.
+        
+        Returns:
+            Maximum distance between any two nodes, or None if disconnected
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(5)  # Linear chain
+            >>> G.get_graph_diameter()
+            4
+            >>> G.add_cycle_graph(6)  # Disconnected components
+            >>> G.get_graph_diameter() is None
+            True
+        """
+        return self._graph.get_graph_diameter()
+    
+    def get_graph_radius(self) -> int | None:
+        """Get graph radius (minimum eccentricity).
+        
+        The radius is the minimum of all node eccentricities.
+        Nodes with eccentricity equal to the radius form the center.
+        Returns None if the graph is disconnected.
+        
+        Returns:
+            Minimum eccentricity, or None if disconnected
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(5)  # Linear chain
+            >>> G.get_graph_radius()
+            2
+            >>> G.add_star_graph(5)  # Hub at center
+            >>> G.get_graph_radius()
+            1
+        """
+        return self._graph.get_graph_radius()
+    
+    def get_girth(self) -> int | None:
+        """Get girth (length of shortest cycle).
+        
+        The girth is the length of the shortest cycle in the graph.
+        Returns None if the graph is acyclic (a forest/tree).
+        
+        Uses BFS from each node to detect shortest cycles.
+        
+        Returns:
+            Length of shortest cycle, or None if acyclic
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_cycle_graph(6)  # Single 6-cycle
+            >>> G.get_girth()
+            6
+            >>> G_tree = ec.Graph()
+            >>> G_tree.add_balanced_tree(2, 3)  # Tree has no cycles
+            >>> G_tree.get_girth() is None
+            True
+        """
+        return self._graph.get_girth()
+    
+    def get_adhesion(self) -> int:
+        """Get adhesion (minimum edge cut size).
+        
+        The adhesion is the minimum number of edges whose removal
+        would disconnect the graph. Also called edge connectivity.
+        
+        Only defined for undirected graphs. Returns 0 if already disconnected.
+        
+        Note: Current implementation provides an upper bound (minimum degree)
+        for efficiency. Exact computation requires max-flow algorithms.
+        
+        Returns:
+            Minimum edge cut size
+            
+        Raises:
+            ValueError: If graph is directed
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_cycle_graph(5)  # Need to remove 2 edges to disconnect
+            >>> G.get_adhesion()
+            2
+        """
+        return self._graph.get_adhesion()
+    
+    def get_cohesion(self) -> int:
+        """Get cohesion (minimum vertex cut size).
+        
+        The cohesion is the minimum number of nodes whose removal
+        would disconnect the graph. Also called vertex connectivity.
+        
+        Only defined for undirected graphs. Returns 0 if already disconnected.
+        
+        Note: Current implementation provides an upper bound (minimum degree)
+        for efficiency. Exact computation requires sophisticated algorithms.
+        
+        Returns:
+            Minimum vertex cut size
+            
+        Raises:
+            ValueError: If graph is directed
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_cycle_graph(5)  # Need to remove 2 nodes to disconnect
+            >>> G.get_cohesion()
+            2
+        """
+        return self._graph.get_cohesion()
+    
     # ========== Selection Methods ==========
     
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
