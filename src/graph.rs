@@ -211,6 +211,20 @@ impl Graph {
         self.edges.len()
     }
 
+    /// Check if the graph is simple (no self-loops or multi-edges)
+    /// 
+    /// A simple graph is one that does not contain any loops nor any multiple edges.
+    pub fn is_graph_simple(&self) -> bool {
+        self.is_simple()
+    }
+
+    /// Check if the graph contains any cycles
+    /// 
+    /// Uses depth-first search to detect cycles in the graph.
+    pub fn has_cycles(&self) -> bool {
+        crate::algorithms::cycles::has_cycle(self)
+    }
+
     /// Get neighbors of a node
     pub fn neighbors(&self, node_id: &str) -> PyResult<Vec<String>> {
         self.adjacency_list
@@ -237,7 +251,8 @@ impl Graph {
     }
 
     /// Get all node IDs
-    pub fn node_ids(&self) -> Vec<String> {
+    /// Get all node IDs
+    pub fn get_node_ids(&self) -> Vec<String> {
         self.nodes.keys().cloned().collect()
     }
 
@@ -246,6 +261,19 @@ impl Graph {
         self.edges
             .iter()
             .map(|e| (e.id, e.source.clone(), e.target.clone()))
+            .collect()
+    }
+
+    /// Get edges as "source->target" or "source--target" strings
+    /// 
+    /// Returns edge definitions in DiagrammeR format.
+    /// For directed graphs: "A->B"
+    /// For undirected graphs: "A--B"
+    pub fn get_edges(&self) -> Vec<String> {
+        let separator = if self.directed { "->" } else { "--" };
+        self.edges
+            .iter()
+            .map(|e| format!("{}{}{}", e.source, separator, e.target))
             .collect()
     }
 
