@@ -2929,6 +2929,249 @@ class Graph:
         self._graph.trav_reverse_edge(add_to_selection)
         return self
     
+    def trav_out_until(
+        self,
+        conditions: callable,
+        max_steps: int = 30,
+        exclude_unmatched: bool = True,
+        add_to_selection: bool = False
+    ) -> 'Graph':
+        """Traverse outward node-by-node until stopping conditions are met.
+        
+        From the currently selected nodes, moves along outward edges to connected
+        nodes, continuing until reaching nodes that satisfy the condition or until
+        max_steps is reached. The traversal proceeds in a breadth-first manner.
+        
+        Args:
+            conditions: A callable that takes a node ID (str) and returns True if
+                the stopping condition is met for that node. The callable can access
+                node attributes via graph.get_node(node_id).attributes
+            max_steps: Maximum number of traversal steps (node-to-node hops) before
+                stopping. Default is 30.
+            exclude_unmatched: If True (default), only nodes satisfying the conditions
+                are kept in the final selection. If False, all reached nodes are kept.
+            add_to_selection: If True, all traversed nodes are included in the final
+                selection. If False (default), only the final nodes are selected.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_path_graph(10)
+            >>> for i in range(1, 11):
+            ...     G.set_node_attrs("value", {str(i): i})
+            >>> G.select_nodes_by_id(["1"])
+            >>> G.trav_out_until(lambda nid: G.get_node(nid).attributes.get("value") == 8)
+            >>> G.get_selected_nodes()
+            ['8']
+            
+            >>> # Example with multiple starting points
+            >>> G.clear_selection().select_nodes_by_id(["1", "2"])
+            >>> G.trav_out_until(
+            ...     lambda nid: G.get_node(nid).attributes.get("value", 0) >= 5,
+            ...     max_steps=10
+            ... )
+            >>> # Returns first nodes >= 5 from each starting point
+        """
+        selected = self.get_selected_nodes()
+        if not selected:
+            return self
+        
+        starting_nodes = set(selected)
+        all_visited = set()  # For add_to_selection=True
+        final_nodes = set()  # Nodes that satisfy conditions or reach max_steps
+        
+        # BFS from each starting node
+        for start_node in starting_nodes:
+            visited = {start_node}
+            current_level = {start_node}
+            
+            if add_to_selection:
+                all_visited.add(start_node)
+            
+            # Check if start node already satisfies condition
+            if conditions(start_node):
+                final_nodes.add(start_node)
+                continue
+            
+            # Multi-hop BFS traversal
+            for step in range(max_steps):
+                next_level = set()
+                
+                for node_id in current_level:
+                    # Get outward neighbors
+                    try:
+                        neighbors = self.get_neighbors(node_id, mode="out")
+                    except (ValueError, KeyError):
+                        neighbors = []
+                    
+                    for neighbor in neighbors:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            
+                            if add_to_selection:
+                                all_visited.add(neighbor)
+                            
+                            # Check if condition is satisfied
+                            if conditions(neighbor):
+                                final_nodes.add(neighbor)
+                            else:
+                                # Continue traversal from this node
+                                next_level.add(neighbor)
+                
+                # If no more nodes to explore, stop
+                if not next_level:
+                    break
+                
+                current_level = next_level
+            
+            # If we reached max_steps without satisfying condition
+            if not add_to_selection and current_level:
+                # Add the final frontier nodes
+                for node_id in current_level:
+                    if not exclude_unmatched or conditions(node_id):
+                        final_nodes.add(node_id)
+        
+        # Update selection
+        self.clear_selection()
+        
+        if add_to_selection:
+            # Include all visited nodes
+            nodes_to_select = all_visited
+            if exclude_unmatched:
+                # But only keep those that satisfy conditions
+                nodes_to_select = {n for n in all_visited if conditions(n)}
+        else:
+            # Only final nodes
+            nodes_to_select = final_nodes
+        
+        if nodes_to_select:
+            self.select_nodes_by_id(list(nodes_to_select))
+        
+        return self
+    
+    def trav_in_until(
+        self,
+        conditions: callable,
+        max_steps: int = 30,
+        exclude_unmatched: bool = True,
+        add_to_selection: bool = False
+    ) -> 'Graph':
+        """Traverse inward node-by-node until stopping conditions are met.
+        
+        From the currently selected nodes, moves along inward edges to connected
+        nodes, continuing until reaching nodes that satisfy the condition or until
+        max_steps is reached. The traversal proceeds in a breadth-first manner.
+        
+        Args:
+            conditions: A callable that takes a node ID (str) and returns True if
+                the stopping condition is met for that node. The callable can access
+                node attributes via graph.get_node(node_id).attributes
+            max_steps: Maximum number of traversal steps (node-to-node hops) before
+                stopping. Default is 30.
+            exclude_unmatched: If True (default), only nodes satisfying the conditions
+                are kept in the final selection. If False, all reached nodes are kept.
+            add_to_selection: If True, all traversed nodes are included in the final
+                selection. If False (default), only the final nodes are selected.
+        
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_path_graph(10)
+            >>> for i in range(1, 11):
+            ...     G.set_node_attrs("value", {str(i): i})
+            >>> G.select_nodes_by_id(["10"])
+            >>> G.trav_in_until(lambda nid: G.get_node(nid).attributes.get("value") == 1)
+            >>> G.get_selected_nodes()
+            ['1']
+            
+            >>> # Example with condition checking multiple values
+            >>> G.clear_selection().select_nodes_by_id(["6", "12"])
+            >>> G.trav_in_until(
+            ...     lambda nid: G.get_node(nid).attributes.get("value", 0) in [1, 2, 10]
+            ... )
+            >>> # Returns nodes with value in [1, 2, 10]
+        """
+        selected = self.get_selected_nodes()
+        if not selected:
+            return self
+        
+        starting_nodes = set(selected)
+        all_visited = set()  # For add_to_selection=True
+        final_nodes = set()  # Nodes that satisfy conditions or reach max_steps
+        
+        # BFS from each starting node
+        for start_node in starting_nodes:
+            visited = {start_node}
+            current_level = {start_node}
+            
+            if add_to_selection:
+                all_visited.add(start_node)
+            
+            # Check if start node already satisfies condition
+            if conditions(start_node):
+                final_nodes.add(start_node)
+                continue
+            
+            # Multi-hop BFS traversal
+            for step in range(max_steps):
+                next_level = set()
+                
+                for node_id in current_level:
+                    # Get inward neighbors
+                    try:
+                        neighbors = self.get_neighbors(node_id, mode="in")
+                    except (ValueError, KeyError):
+                        neighbors = []
+                    
+                    for neighbor in neighbors:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            
+                            if add_to_selection:
+                                all_visited.add(neighbor)
+                            
+                            # Check if condition is satisfied
+                            if conditions(neighbor):
+                                final_nodes.add(neighbor)
+                            else:
+                                # Continue traversal from this node
+                                next_level.add(neighbor)
+                
+                # If no more nodes to explore, stop
+                if not next_level:
+                    break
+                
+                current_level = next_level
+            
+            # If we reached max_steps without satisfying condition
+            if not add_to_selection and current_level:
+                # Add the final frontier nodes
+                for node_id in current_level:
+                    if not exclude_unmatched or conditions(node_id):
+                        final_nodes.add(node_id)
+        
+        # Update selection
+        self.clear_selection()
+        
+        if add_to_selection:
+            # Include all visited nodes
+            nodes_to_select = all_visited
+            if exclude_unmatched:
+                # But only keep those that satisfy conditions
+                nodes_to_select = {n for n in all_visited if conditions(n)}
+        else:
+            # Only final nodes
+            nodes_to_select = final_nodes
+        
+        if nodes_to_select:
+            self.select_nodes_by_id(list(nodes_to_select))
+        
+        return self
+    
     def __repr__(self) -> str:
         return self._graph.__repr__()
 
