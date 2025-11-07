@@ -66,13 +66,67 @@ class Graph:
             )
             return self._graph.add_edge(edge)
     
+    def get_node_ids(self) -> list[str]:
+        """Get all node IDs in the graph.
+        
+        Returns:
+            List of node ID strings
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node("A")
+            >>> G.add_node("B")
+            >>> G.get_node_ids()
+            ['A', 'B']
+        """
+        return self._graph.get_node_ids()
+    
     def nodes(self) -> list[str]:
-        """Return list of node IDs."""
-        return self._graph.node_ids()
+        """Return list of node IDs (alias for get_node_ids)."""
+        return self._graph.get_node_ids()
     
     def node_ids(self) -> list[str]:
-        """Return list of node IDs (alias for nodes)."""
-        return self._graph.node_ids()
+        """Return list of node IDs (alias for get_node_ids)."""
+        return self._graph.get_node_ids()
+    
+    def is_graph_simple(self) -> bool:
+        """Check if the graph is simple (no self-loops or multi-edges).
+        
+        A simple graph is one that does not contain any loops nor any multiple edges.
+        
+        Returns:
+            True if the graph is simple, False otherwise
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_edge("A", "B")
+            >>> G.is_graph_simple()
+            True
+            >>> G.add_edge("A", "B")  # Add multi-edge
+            >>> G.is_graph_simple()
+            False
+        """
+        return self._graph.is_graph_simple()
+    
+    def has_cycles(self) -> bool:
+        """Check if the graph contains any cycles.
+        
+        Uses depth-first search to detect cycles in the graph.
+        
+        Returns:
+            True if the graph contains at least one cycle, False otherwise
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "C")
+            >>> G.has_cycles()
+            False
+            >>> G.add_edge("C", "A")  # Creates a cycle
+            >>> G.has_cycles()
+            True
+        """
+        return self._graph.has_cycles()
     
     def has_node(self, node_id: str) -> bool:
         """Check if a node exists in the graph."""
@@ -81,6 +135,25 @@ class Graph:
     def edges(self) -> list[tuple[int, str, str]]:
         """Return list of edges as (id, source, target) tuples."""
         return self._graph.edges()
+    
+    def get_edges(self) -> list[str]:
+        """Get edges as formatted strings.
+        
+        Returns edge definitions in DiagrammeR format:
+        - Directed graphs: "A->B"
+        - Undirected graphs: "A--B"
+        
+        Returns:
+            List of edge strings
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "C")
+            >>> G.get_edges()
+            ['A->B', 'B->C']
+        """
+        return self._graph.get_edges()
     
     def edge_ids(self) -> list[int]:
         """Return list of edge IDs."""
