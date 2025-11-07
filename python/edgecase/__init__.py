@@ -44,6 +44,16 @@ from edgecase.fraud import (
     find_suspicious_patterns,
     temporal_fraud_detection,
 )
+from edgecase.builders import (
+    add_path,
+    add_cycle,
+    add_star,
+    add_full_graph,
+    add_balanced_tree,
+    add_prism,
+    add_grid_2d,
+    create_graph,
+)
 
 __all__ = [
     # Version
@@ -68,6 +78,15 @@ __all__ = [
     # Tables
     "tbl_centrality",
     "tbl_network_summary",
+    # Graph builders
+    "add_path",
+    "add_cycle",
+    "add_star",
+    "add_full_graph",
+    "add_balanced_tree",
+    "add_prism",
+    "add_grid_2d",
+    "create_graph",
     # Domain-specific
     "protein_network",
     "patient_similarity_network",
