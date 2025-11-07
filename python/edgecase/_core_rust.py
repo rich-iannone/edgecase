@@ -946,37 +946,26 @@ class Graph:
         Removes nodes in the current selection from the graph, along with
         all edges connected to those nodes. Updates selection state.
         
-        NOTE: This is a TODO - requires Rust-level node deletion support.
-        Currently only deletes incident edges.
-        
         Returns:
             Self for method chaining
             
         Example:
             >>> G = Graph()
-            >>> # G.add_path(5)  # Requires builders
-            >>> # G.select_nodes_by_id(['2', '3'])
-            >>> # G.delete_nodes_ws()
+            >>> from edgecase.builders import add_path
+            >>> add_path(G, 5)
+            >>> G.select_nodes_by_id(['2', '3'])
+            >>> G.delete_nodes_ws()
+            >>> G.num_nodes()
+            3
         """
         selected = self.get_selected_nodes()
         
-        # Delete all edges incident to selected nodes
-        edges_to_delete = []
-        for edge_id, source, target in self.edges():
-            if source in selected or target in selected:
-                edges_to_delete.append(edge_id)
-        
-        for edge_id in edges_to_delete:
+        # Delete each selected node (Rust handles incident edges)
+        for node_id in selected:
             try:
-                self.delete_edge_by_id(edge_id)
+                self._graph.delete_node(node_id)
             except Exception:
-                pass  # Edge might already be deleted
-        
-        # TODO: Implement node deletion in Rust
-        # For now, we can only delete edges
-        
-        # Clear selection
-        self.clear_selection()
+                pass  # Node might already be deleted
         
         return self
     
@@ -1002,8 +991,7 @@ class Graph:
         for edge_id in selected:
             self.delete_edge_by_id(edge_id)
         
-        # Clear edge selection
-        self._graph.selected_edges.clear()
+        # Edge selection is automatically cleared since edges no longer exist
         
         return self
     
@@ -1012,9 +1000,6 @@ class Graph:
         
         Updates or adds attributes to nodes in the current selection.
         Existing attributes are preserved unless explicitly overwritten.
-        
-        NOTE: Currently requires Rust-level implementation for persistence.
-        Node objects returned by get_node() are copies, not references.
         
         Args:
             **attributes: Attribute name-value pairs to set
@@ -1026,12 +1011,16 @@ class Graph:
             >>> G = Graph()
             >>> G.add_node('A', value=10)
             >>> G.select_nodes_by_id(['A'])
-            >>> G.set_node_attrs_ws(color='red')
-            >>> # TODO: Implement in Rust for persistence
+            >>> G.set_node_attrs_ws(color='red', importance=0.9)
+            >>> G.get_node('A').attributes['color']
+            'red'
         """
-        # TODO: This requires Rust-level set_node_attr method
-        # Node objects are copies, modifying them doesn't update the graph
-        raise NotImplementedError("set_node_attrs_ws() requires Rust implementation for attribute persistence")
+        selected = self.get_selected_nodes()
+        
+        for node_id in selected:
+            for key, value in attributes.items():
+                # Use Rust set_node_attr for persistence
+                self._graph.set_node_attr(node_id, key, value)
         
         return self
     
@@ -1049,7 +1038,8 @@ class Graph:
             
         Example:
             >>> G = Graph()
-            >>> G.add_path(3)
+            >>> from edgecase.builders import add_path
+            >>> add_path(G, 3)
             >>> G.select_edges_by_id([1])
             >>> G.set_edge_attrs_ws(weight=5.0, type='strong')
             >>> G.get_edge(1).weight
@@ -1058,21 +1048,9 @@ class Graph:
         selected = self.get_selected_edges()
         
         for edge_id in selected:
-            edge = self.get_edge(edge_id)
-            if edge:
-                # Handle weight separately (it's a direct field, not in attributes)
-                if 'weight' in attributes:
-                    edge.weight = attributes['weight']
-                    remaining = {k: v for k, v in attributes.items() if k != 'weight'}
-                else:
-                    remaining = attributes
-                
-                # Set other attributes
-                if remaining:
-                    if edge.attributes is None:
-                        edge.attributes = remaining
-                    else:
-                        edge.attributes.update(remaining)
+            for key, value in attributes.items():
+                # Use Rust set_edge_attr for persistence (handles weight specially)
+                self._graph.set_edge_attr(edge_id, key, value)
         
         return self
     
@@ -1106,7 +1084,8 @@ class Graph:
             if node and node.attributes and attr in node.attributes:
                 old_value = node.attributes[attr]
                 new_value = func(old_value)
-                node.attributes[attr] = new_value
+                # Use Rust method to persist the change
+                self._graph.set_node_attr(node_id, attr, new_value)
         
         return self
     
@@ -1137,11 +1116,12 @@ class Graph:
             edge = self.get_edge(edge_id)
             if edge:
                 if attr == 'weight' and edge.weight is not None:
-                    edge.weight = func(edge.weight)
+                    new_value = func(edge.weight)
+                    self._graph.set_edge_attr(edge_id, 'weight', new_value)
                 elif edge.attributes and attr in edge.attributes:
                     old_value = edge.attributes[attr]
                     new_value = func(old_value)
-                    edge.attributes[attr] = new_value
+                    self._graph.set_edge_attr(edge_id, attr, new_value)
         
         return self
     
@@ -1266,22 +1246,8 @@ class Graph:
         selected = self.get_selected_edges()
         
         for edge_id in selected:
-            edge = self.get_edge(edge_id)
-            if edge:
-                # Swap source and target
-                edge.source, edge.target = edge.target, edge.source
-                
-                # Update adjacency list
-                # Remove old direction
-                if edge.target in self._graph.adjacency_list:
-                    if edge.source in self._graph.adjacency_list[edge.target]:
-                        self._graph.adjacency_list[edge.target].remove(edge.source)
-                
-                # Add new direction
-                if edge.source not in self._graph.adjacency_list:
-                    self._graph.adjacency_list[edge.source] = []
-                if edge.target not in self._graph.adjacency_list[edge.source]:
-                    self._graph.adjacency_list[edge.source].append(edge.target)
+            # Use Rust method to reverse edge direction
+            self._graph.reverse_edge_direction(edge_id)
         
         return self
     
