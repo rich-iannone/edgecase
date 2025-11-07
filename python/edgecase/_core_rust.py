@@ -346,6 +346,70 @@ class Graph:
         """
         return self._graph.get_edge(edge_id)
     
+    def select_last_nodes_created(self, n: int) -> "Graph":
+        """Select the last N nodes that were created.
+        
+        Useful for incremental graph building workflows where you want to
+        work with recently added nodes.
+        
+        Args:
+            n: Number of most recently created nodes to select
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node("A")
+            >>> G.add_node("B")
+            >>> G.add_node("C")
+            >>> G.select_last_nodes_created(2)  # Selects B and C
+            >>> G.get_selected_nodes()
+            ['B', 'C']
+        """
+        self._graph.select_last_nodes_created(n)
+        return self
+    
+    def select_last_edges_created(self, n: int) -> "Graph":
+        """Select the last N edges that were created.
+        
+        Useful for incremental graph building workflows where you want to
+        work with recently added edges.
+        
+        Args:
+            n: Number of most recently created edges to select
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "C")
+            >>> G.add_edge("C", "D")
+            >>> G.select_last_edges_created(2)  # Selects last 2 edges
+            >>> len(G.get_selected_edges())
+            2
+        """
+        self._graph.select_last_edges_created(n)
+        return self
+    
+    def get_node_creation_order(self) -> list[str]:
+        """Get the creation order of all nodes.
+        
+        Returns:
+            List of node IDs in the order they were created
+        """
+        return self._graph.get_node_creation_order()
+    
+    def get_edge_creation_order(self) -> list[int]:
+        """Get the creation order of all edges.
+        
+        Returns:
+            List of edge IDs in the order they were created
+        """
+        return self._graph.get_edge_creation_order()
+    
     def __repr__(self) -> str:
         return self._graph.__repr__()
 
