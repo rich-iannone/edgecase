@@ -10,7 +10,7 @@ pub fn detect_communities(graph: &Graph) -> PyResult<FxHashMap<String, usize>> {
     // Placeholder: Assign each node to its own community
     let mut communities = FxHashMap::default();
     
-    for (idx, node_id) in graph.node_ids().iter().enumerate() {
+    for (idx, node_id) in graph.get_node_ids().iter().enumerate() {
         communities.insert(node_id.clone(), idx);
     }
     
