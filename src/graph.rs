@@ -1143,6 +1143,222 @@ impl Graph {
 
         Ok(())
     }
+
+    // ========== Structural Properties ==========
+
+    /// Calculate graph density
+    /// Density = actual edges / possible edges
+    fn density(&self) -> f64 {
+        let n = self.num_nodes();
+        if n <= 1 {
+            return 0.0;
+        }
+
+        let actual_edges = self.num_edges() as f64;
+        let possible_edges = if self.directed {
+            (n * (n - 1)) as f64
+        } else {
+            (n * (n - 1) / 2) as f64
+        };
+
+        if possible_edges == 0.0 {
+            0.0
+        } else {
+            actual_edges / possible_edges
+        }
+    }
+
+    /// Check if graph is connected (for undirected) or weakly connected (for directed)
+    fn is_connected(&self) -> bool {
+        if self.num_nodes() == 0 {
+            return true;
+        }
+
+        // BFS from first node
+        let start_node = match self.nodes.keys().next() {
+            Some(node) => node.clone(),
+            None => return true,
+        };
+
+        let mut visited: FxHashSet<String> = FxHashSet::default();
+        let mut queue: Vec<String> = vec![start_node.clone()];
+        visited.insert(start_node);
+
+        while let Some(current) = queue.pop() {
+            if let Some(neighbors) = self.adjacency_list.get(&current) {
+                for neighbor in neighbors {
+                    if !visited.contains(neighbor) {
+                        visited.insert(neighbor.clone());
+                        queue.push(neighbor.clone());
+                    }
+                }
+            }
+
+            // For directed graphs, also check reverse edges (weak connectivity)
+            if self.directed {
+                for edge in &self.edges {
+                    if &edge.target == &current && !visited.contains(&edge.source) {
+                        visited.insert(edge.source.clone());
+                        queue.push(edge.source.clone());
+                    }
+                }
+            }
+        }
+
+        visited.len() == self.num_nodes()
+    }
+
+    /// Check if directed graph is a DAG (Directed Acyclic Graph)
+    fn is_dag(&self) -> PyResult<bool> {
+        if !self.directed {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "is_dag() only works on directed graphs"
+            ));
+        }
+
+        // Use DFS with coloring: white (unvisited), gray (visiting), black (visited)
+        let mut color: FxHashMap<String, u8> = FxHashMap::default();
+        for node_id in self.nodes.keys() {
+            color.insert(node_id.clone(), 0); // white
+        }
+
+        fn has_cycle(
+            node: &str,
+            color: &mut FxHashMap<String, u8>,
+            adj_list: &FxHashMap<String, Vec<String>>,
+        ) -> bool {
+            color.insert(node.to_string(), 1); // gray
+
+            if let Some(neighbors) = adj_list.get(node) {
+                for neighbor in neighbors {
+                    let neighbor_color = *color.get(neighbor).unwrap_or(&0);
+                    if neighbor_color == 1 {
+                        // Back edge found - cycle detected
+                        return true;
+                    }
+                    if neighbor_color == 0 && has_cycle(neighbor, color, adj_list) {
+                        return true;
+                    }
+                }
+            }
+
+            color.insert(node.to_string(), 2); // black
+            false
+        }
+
+        for node_id in self.nodes.keys() {
+            if *color.get(node_id).unwrap() == 0 {
+                if has_cycle(node_id, &mut color, &self.adjacency_list) {
+                    return Ok(false);
+                }
+            }
+        }
+
+        Ok(true)
+    }
+
+    /// Check if graph is simple (no self-loops or multi-edges)
+    fn is_simple(&self) -> bool {
+        // Check for self-loops
+        for edge in &self.edges {
+            if edge.source == edge.target {
+                return false;
+            }
+        }
+
+        // Check for multi-edges
+        let mut seen_edges: FxHashSet<(String, String)> = FxHashSet::default();
+        for edge in &self.edges {
+            let edge_key = if self.directed {
+                (edge.source.clone(), edge.target.clone())
+            } else {
+                // Normalize undirected edge
+                if edge.source <= edge.target {
+                    (edge.source.clone(), edge.target.clone())
+                } else {
+                    (edge.target.clone(), edge.source.clone())
+                }
+            };
+
+            if seen_edges.contains(&edge_key) {
+                return false;
+            }
+            seen_edges.insert(edge_key);
+        }
+
+        true
+    }
+
+    /// Get degree distribution as a map from degree to count
+    fn degree_distribution(&self) -> FxHashMap<usize, usize> {
+        let mut distribution: FxHashMap<usize, usize> = FxHashMap::default();
+
+        for node_id in self.nodes.keys() {
+            let deg = self.degree(node_id);
+            *distribution.entry(deg).or_insert(0) += 1;
+        }
+
+        distribution
+    }
+
+    /// Check if graph is bipartite using BFS coloring
+    fn is_bipartite(&self) -> bool {
+        if self.num_nodes() == 0 {
+            return true;
+        }
+
+        let mut color: FxHashMap<String, i8> = FxHashMap::default();
+
+        // Check all connected components
+        for start_node in self.nodes.keys() {
+            if color.contains_key(start_node) {
+                continue;
+            }
+
+            // BFS coloring
+            let mut queue: Vec<String> = vec![start_node.clone()];
+            color.insert(start_node.clone(), 0);
+
+            while let Some(current) = queue.pop() {
+                let current_color = *color.get(&current).unwrap();
+                let next_color = 1 - current_color;
+
+                if let Some(neighbors) = self.adjacency_list.get(&current) {
+                    for neighbor in neighbors {
+                        if let Some(&neighbor_color) = color.get(neighbor) {
+                            if neighbor_color == current_color {
+                                return false; // Same color as current - not bipartite
+                            }
+                        } else {
+                            color.insert(neighbor.clone(), next_color);
+                            queue.push(neighbor.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
+    /// Count self-loops in the graph
+    fn count_selfloops(&self) -> usize {
+        self.edges
+            .iter()
+            .filter(|e| e.source == e.target)
+            .count()
+    }
+
+    /// Get average degree
+    fn average_degree(&self) -> f64 {
+        let n = self.num_nodes();
+        if n == 0 {
+            return 0.0;
+        }
+
+        let total_degree: usize = self.nodes.keys().map(|id| self.degree(id)).sum();
+        total_degree as f64 / n as f64
+    }
 }
 
 impl Graph {
