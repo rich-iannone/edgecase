@@ -544,6 +544,140 @@ impl Graph {
         self.edge_creation_order.clone()
     }
 
+    /// Select nodes in the K-hop neighborhood of specified nodes
+    #[pyo3(signature = (node_ids, k=1, mode="out"))]
+    pub fn select_nodes_in_neighborhood(
+        &mut self,
+        node_ids: Vec<String>,
+        k: usize,
+        mode: &str,
+    ) -> PyResult<()> {
+        // Validate mode
+        if mode != "out" && mode != "in" && mode != "all" {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "mode must be 'out', 'in', or 'all'"
+            ));
+        }
+
+        // For undirected graphs, always use "all" mode
+        let effective_mode = if !self.directed { "all" } else { mode };
+
+        // Use BFS to find all nodes within k hops
+        let mut visited = FxHashSet::default();
+        let mut current_level = FxHashSet::default();
+        
+        // Initialize with seed nodes
+        for node_id in node_ids {
+            if !self.nodes.contains_key(&node_id) {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    format!("Node '{}' does not exist", node_id)
+                ));
+            }
+            current_level.insert(node_id);
+        }
+        
+        // BFS for k hops
+        for _ in 0..k {
+            let mut next_level = FxHashSet::default();
+            
+            for node_id in &current_level {
+                visited.insert(node_id.clone());
+                
+                // Get neighbors based on mode
+                match effective_mode {
+                    "out" => {
+                        // Outgoing neighbors
+                        if let Some(neighbors) = self.adjacency_list.get(node_id) {
+                            for neighbor in neighbors {
+                                if !visited.contains(neighbor) {
+                                    next_level.insert(neighbor.clone());
+                                }
+                            }
+                        }
+                    }
+                    "in" => {
+                        // Incoming neighbors - need to search all edges
+                        for edge in &self.edges {
+                            if &edge.target == node_id && !visited.contains(&edge.source) {
+                                next_level.insert(edge.source.clone());
+                            }
+                        }
+                    }
+                    "all" => {
+                        // Outgoing neighbors from adjacency list
+                        if let Some(neighbors) = self.adjacency_list.get(node_id) {
+                            for neighbor in neighbors {
+                                if !visited.contains(neighbor) {
+                                    next_level.insert(neighbor.clone());
+                                }
+                            }
+                        }
+                        // Incoming neighbors from edge list
+                        for edge in &self.edges {
+                            if &edge.target == node_id && !visited.contains(&edge.source) {
+                                next_level.insert(edge.source.clone());
+                            }
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            
+            current_level = next_level;
+        }
+        
+        // Add all visited nodes to selection (including the final level)
+        for node_id in visited {
+            self.selected_nodes.insert(node_id);
+        }
+        for node_id in current_level {
+            self.selected_nodes.insert(node_id);
+        }
+        
+        Ok(())
+    }
+
+    /// Select top-K nodes by degree (used internally for centrality-based selection)
+    #[pyo3(signature = (scores, k, include_ties=false))]
+    pub fn select_nodes_by_scores(
+        &mut self,
+        scores: FxHashMap<String, f64>,
+        k: usize,
+        include_ties: bool,
+    ) -> PyResult<()> {
+        if scores.is_empty() {
+            return Ok(());
+        }
+        
+        // Convert to vector and sort by score (descending)
+        let mut scored_nodes: Vec<(String, f64)> = scores.into_iter().collect();
+        scored_nodes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        
+        if k == 0 {
+            return Ok(());
+        }
+        
+        // Select top k
+        let actual_k = k.min(scored_nodes.len());
+        
+        if include_ties && actual_k > 0 {
+            // Include all nodes with the same score as the k-th node
+            let threshold_score = scored_nodes[actual_k - 1].1;
+            for (node_id, score) in scored_nodes {
+                if score >= threshold_score {
+                    self.selected_nodes.insert(node_id);
+                }
+            }
+        } else {
+            // Just take the top k
+            for (node_id, _score) in scored_nodes.iter().take(actual_k) {
+                self.selected_nodes.insert(node_id.clone());
+            }
+        }
+        
+        Ok(())
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Graph(nodes={}, edges={}, directed={})",
