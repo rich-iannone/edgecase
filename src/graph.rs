@@ -1715,27 +1715,53 @@ impl Graph {
     /// Measures importance by the change in total distance when node is removed
     /// vitality(v) = sum_distances(G) - sum_distances(G - v)
     /// Higher values indicate more important nodes
+    /// 
+    /// Performance: Uses parallel BFS (via Rayon) for ~linear speedup with cores
+    /// Complexity: O(V²E / num_cores) with parallelization
     fn get_closeness_vitality(&self) -> FxHashMap<String, f64> {
+        use rayon::prelude::*;
+        
         let n = self.num_nodes();
         if n == 0 {
             return FxHashMap::default();
         }
 
-        // Compute total distances in original graph
-        let original_total = self.compute_total_distances();
+        // Compute total distances in original graph (parallelized)
+        let original_total = self.compute_total_distances_parallel();
 
-        let mut vitality = FxHashMap::default();
+        // Collect node IDs to iterate over
+        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
 
-        for node in self.nodes.keys() {
-            // Compute total distances without this node
-            let total_without = self.compute_total_distances_without_node(node);
-            
-            // Vitality is the difference (higher = more important)
-            let vital = original_total - total_without;
-            vitality.insert(node.clone(), vital);
-        }
+        // Compute vitality for each node in parallel
+        let vitality_vec: Vec<(String, f64)> = node_ids
+            .par_iter()
+            .map(|node| {
+                // Compute total distances without this node
+                let total_without = self.compute_total_distances_without_node(node);
+                
+                // Vitality is the difference (higher = more important)
+                let vital = original_total - total_without;
+                (node.clone(), vital)
+            })
+            .collect();
 
-        vitality
+        // Convert to HashMap
+        vitality_vec.into_iter().collect()
+    }
+
+    /// Helper: compute sum of all pairwise shortest path distances (parallel)
+    fn compute_total_distances_parallel(&self) -> f64 {
+        use rayon::prelude::*;
+        
+        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        
+        node_ids
+            .par_iter()
+            .map(|start| {
+                let distances = self.bfs_distances_optimized(start);
+                distances.values().sum::<usize>() as f64
+            })
+            .sum()
     }
 
     /// Helper: compute sum of all pairwise shortest path distances
@@ -1743,7 +1769,7 @@ impl Graph {
         let mut total = 0.0;
         
         for start in self.nodes.keys() {
-            let distances = self.bfs_distances(start);
+            let distances = self.bfs_distances_optimized(start);
             total += distances.values().sum::<usize>() as f64;
         }
 
@@ -1759,17 +1785,19 @@ impl Graph {
                 continue;
             }
 
-            let distances = self.bfs_distances_excluding(start, excluded);
+            let distances = self.bfs_distances_excluding_optimized(start, excluded);
             total += distances.values().sum::<usize>() as f64;
         }
 
         total
     }
 
-    /// Helper: BFS to compute distances from a start node
-    fn bfs_distances(&self, start: &str) -> FxHashMap<String, usize> {
-        let mut distances = FxHashMap::default();
-        let mut queue = std::collections::VecDeque::new();
+    /// Helper: Optimized BFS to compute distances from a start node
+    /// Preallocates capacity for better performance
+    fn bfs_distances_optimized(&self, start: &str) -> FxHashMap<String, usize> {
+        let n = self.num_nodes();
+        let mut distances = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut queue = std::collections::VecDeque::with_capacity(n);
 
         distances.insert(start.to_string(), 0);
         queue.push_back(start.to_string());
@@ -1790,10 +1818,16 @@ impl Graph {
         distances
     }
 
-    /// Helper: BFS excluding a specific node
-    fn bfs_distances_excluding(&self, start: &str, excluded: &str) -> FxHashMap<String, usize> {
-        let mut distances = FxHashMap::default();
-        let mut queue = std::collections::VecDeque::new();
+    /// Helper: BFS to compute distances from a start node
+    fn bfs_distances(&self, start: &str) -> FxHashMap<String, usize> {
+        self.bfs_distances_optimized(start)
+    }
+
+    /// Helper: Optimized BFS excluding a specific node
+    fn bfs_distances_excluding_optimized(&self, start: &str, excluded: &str) -> FxHashMap<String, usize> {
+        let n = self.num_nodes();
+        let mut distances = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut queue = std::collections::VecDeque::with_capacity(n);
 
         distances.insert(start.to_string(), 0);
         queue.push_back(start.to_string());
@@ -1815,6 +1849,11 @@ impl Graph {
         }
 
         distances
+    }
+
+    /// Helper: BFS excluding a specific node
+    fn bfs_distances_excluding(&self, start: &str, excluded: &str) -> FxHashMap<String, usize> {
+        self.bfs_distances_excluding_optimized(start, excluded)
     }
 
     /// Get k-core decomposition (coreness for each node)
