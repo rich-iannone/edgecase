@@ -1937,6 +1937,147 @@ class Graph:
             raise ValueError("get_successors only available for directed graphs")
         return self.get_neighbors(node_id, mode="out")
     
+    def get_non_neighbors(self, node_id: str) -> list[str]:
+        """Get nodes that are NOT neighbors of the specified node.
+        
+        Returns all nodes in the graph except:
+        - The specified node itself
+        - Neighbors of the specified node
+        
+        Args:
+            node_id: Node ID to find non-neighbors for
+            
+        Returns:
+            List of non-neighbor node IDs
+            
+        Example:
+            >>> G = Graph(directed=True)
+            >>> G.add_path_graph(5)  # 1 → 2 → 3 → 4 → 5
+            >>> G.get_non_neighbors("2")  # Not connected to 4, 5
+            ['4', '5']
+        """
+        all_nodes = set(self.node_ids())
+        neighbors = set(self.get_neighbors(node_id, mode="all"))
+        
+        # Remove the node itself and its neighbors
+        non_neighbors = all_nodes - neighbors - {node_id}
+        
+        return sorted(list(non_neighbors))
+    
+    def get_similar_neighbors(
+        self,
+        node_id: str,
+        node_attr: str,
+        tol_abs: tuple[float, float] | None = None,
+        tol_pct: tuple[float, float] | None = None
+    ) -> list[str]:
+        """Get neighbors with similar attribute values.
+        
+        Returns neighbors whose attribute values are within tolerance of the
+        starting node's value. For numeric attributes only.
+        
+        Args:
+            node_id: Starting node ID
+            node_attr: Attribute name to compare
+            tol_abs: Absolute tolerance as (lower_bound, upper_bound) from starting value
+            tol_pct: Percentage tolerance as (lower_pct, upper_pct) from starting value
+            
+        Returns:
+            List of neighbor node IDs with similar attribute values
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node("A", value=5.0)
+            >>> G.add_node("B", value=5.5)
+            >>> G.add_node("C", value=10.0)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("A", "C")
+            >>> G.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
+            ['B']  # C's value (10) is outside tolerance
+        """
+        # Get starting node's attribute value
+        start_node = self.get_node(node_id)
+        if not start_node or not start_node.attributes:
+            return []
+        
+        if node_attr not in start_node.attributes:
+            return []
+        
+        start_value = start_node.attributes[node_attr]
+        
+        # Must be numeric
+        if not isinstance(start_value, (int, float)):
+            raise ValueError(f"Attribute '{node_attr}' must be numeric for similarity comparison")
+        
+        # Determine bounds
+        if tol_abs is not None:
+            lower_bound = start_value - tol_abs[0]
+            upper_bound = start_value + tol_abs[1]
+        elif tol_pct is not None:
+            lower_bound = start_value * (1 - tol_pct[0] / 100.0)
+            upper_bound = start_value * (1 + tol_pct[1] / 100.0)
+        else:
+            # Exact match if no tolerance specified
+            lower_bound = start_value
+            upper_bound = start_value
+        
+        # Get all neighbors
+        neighbors = self.get_neighbors(node_id, mode="all")
+        
+        # Filter by attribute similarity
+        similar = []
+        for neighbor_id in neighbors:
+            neighbor = self.get_node(neighbor_id)
+            if neighbor and neighbor.attributes and node_attr in neighbor.attributes:
+                neighbor_value = neighbor.attributes[node_attr]
+                if isinstance(neighbor_value, (int, float)):
+                    if lower_bound <= neighbor_value <= upper_bound:
+                        similar.append(neighbor_id)
+        
+        return similar
+    
+    def get_all_connected_nodes(self, node_id: str) -> list[str]:
+        """Get all nodes reachable from the specified node.
+        
+        Uses BFS to find all nodes in the same connected component.
+        For directed graphs, considers the graph as undirected.
+        
+        Args:
+            node_id: Starting node ID
+            
+        Returns:
+            List of all reachable node IDs (excluding the starting node)
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_path_graph(3)  # 1-2-3
+            >>> G.add_path_graph(2)  # 4-5 (separate component)
+            >>> G.get_all_connected_nodes("1")
+            ['2', '3']
+        """
+        if not self.has_node(node_id):
+            raise KeyError(f"Node '{node_id}' does not exist")
+        
+        visited = set()
+        queue = [node_id]
+        visited.add(node_id)
+        
+        while queue:
+            current = queue.pop(0)
+            
+            # Get all neighbors (treating directed as undirected)
+            neighbors = self.get_neighbors(current, mode="all")
+            
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        
+        # Remove the starting node from results
+        visited.discard(node_id)
+        
+        return sorted(list(visited))
+    
     def get_node_creation_order(self) -> list[str]:
         """Get the creation order of all nodes.
         
