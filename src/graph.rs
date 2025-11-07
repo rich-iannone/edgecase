@@ -2,7 +2,7 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// A node in the graph
 #[pyclass]
@@ -105,6 +105,9 @@ pub struct Graph {
     next_edge_id: u64,
     directed: bool,
     weighted: bool,
+    // Selection state
+    selected_nodes: FxHashSet<String>,
+    selected_edges: FxHashSet<u64>,
 }
 
 #[pymethods]
@@ -119,6 +122,8 @@ impl Graph {
             next_edge_id: 1,
             directed,
             weighted,
+            selected_nodes: FxHashSet::default(),
+            selected_edges: FxHashSet::default(),
         }
     }
 
@@ -277,6 +282,218 @@ impl Graph {
     /// Check if a node exists (O(1) hash lookup)
     pub fn has_node(&self, node_id: &str) -> bool {
         self.nodes.contains_key(node_id)
+    }
+
+    // ========== Selection Methods ==========
+
+    /// Select nodes by their IDs
+    pub fn select_nodes_by_id(&mut self, node_ids: Vec<String>) -> PyResult<()> {
+        for node_id in node_ids {
+            if !self.nodes.contains_key(&node_id) {
+                return Err(pyo3::exceptions::PyKeyError::new_err(format!(
+                    "Node '{}' does not exist",
+                    node_id
+                )));
+            }
+            self.selected_nodes.insert(node_id);
+        }
+        Ok(())
+    }
+
+    /// Select edges by their IDs
+    pub fn select_edges_by_id(&mut self, edge_ids: Vec<u64>) -> PyResult<()> {
+        for edge_id in edge_ids {
+            if !self.has_edge_id(edge_id) {
+                return Err(pyo3::exceptions::PyKeyError::new_err(format!(
+                    "Edge with ID {} does not exist",
+                    edge_id
+                )));
+            }
+            self.selected_edges.insert(edge_id);
+        }
+        Ok(())
+    }
+
+    /// Select edges connected to specified nodes
+    pub fn select_edges_by_node_id(&mut self, node_ids: Vec<String>) -> PyResult<()> {
+        let node_set: FxHashSet<String> = node_ids.into_iter().collect();
+        
+        for edge in &self.edges {
+            if node_set.contains(&edge.source) || node_set.contains(&edge.target) {
+                self.selected_edges.insert(edge.id);
+            }
+        }
+        Ok(())
+    }
+
+    /// Select nodes by degree criteria
+    #[pyo3(signature = (min_degree=None, max_degree=None, degree_type="total"))]
+    pub fn select_nodes_by_degree(
+        &mut self,
+        min_degree: Option<usize>,
+        max_degree: Option<usize>,
+        degree_type: &str,
+    ) -> PyResult<()> {
+        for node_id in self.nodes.keys() {
+            let degree = match degree_type {
+                "in" => self.in_degree(node_id),
+                "out" => self.out_degree(node_id),
+                "total" => self.degree(node_id),
+                _ => {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Invalid degree_type '{}'. Must be 'in', 'out', or 'total'",
+                        degree_type
+                    )))
+                }
+            };
+
+            let matches = match (min_degree, max_degree) {
+                (Some(min), Some(max)) => degree >= min && degree <= max,
+                (Some(min), None) => degree >= min,
+                (None, Some(max)) => degree <= max,
+                (None, None) => true,
+            };
+
+            if matches {
+                self.selected_nodes.insert(node_id.clone());
+            }
+        }
+        Ok(())
+    }
+
+    /// Get the degree of a node (total neighbors)
+    fn degree(&self, node_id: &str) -> usize {
+        self.adjacency_list
+            .get(node_id)
+            .map(|v| v.len())
+            .unwrap_or(0)
+    }
+
+    /// Get in-degree of a node (for directed graphs)
+    fn in_degree(&self, node_id: &str) -> usize {
+        if !self.directed {
+            return self.degree(node_id);
+        }
+        
+        self.edges
+            .iter()
+            .filter(|e| &e.target == node_id)
+            .count()
+    }
+
+    /// Get out-degree of a node (for directed graphs)
+    fn out_degree(&self, node_id: &str) -> usize {
+        if !self.directed {
+            return self.degree(node_id);
+        }
+        
+        self.edges
+            .iter()
+            .filter(|e| &e.source == node_id)
+            .count()
+    }
+
+    /// Deselect specific nodes
+    pub fn deselect_nodes(&mut self, node_ids: Vec<String>) -> PyResult<()> {
+        for node_id in node_ids {
+            self.selected_nodes.remove(&node_id);
+        }
+        Ok(())
+    }
+
+    /// Deselect specific edges
+    pub fn deselect_edges(&mut self, edge_ids: Vec<u64>) -> PyResult<()> {
+        for edge_id in edge_ids {
+            self.selected_edges.remove(&edge_id);
+        }
+        Ok(())
+    }
+
+    /// Clear all selections
+    pub fn clear_selection(&mut self) -> PyResult<()> {
+        self.selected_nodes.clear();
+        self.selected_edges.clear();
+        Ok(())
+    }
+
+    /// Invert node selection
+    pub fn invert_node_selection(&mut self) -> PyResult<()> {
+        let all_nodes: FxHashSet<String> = self.nodes.keys().cloned().collect();
+        self.selected_nodes = all_nodes
+            .difference(&self.selected_nodes)
+            .cloned()
+            .collect();
+        Ok(())
+    }
+
+    /// Invert edge selection
+    pub fn invert_edge_selection(&mut self) -> PyResult<()> {
+        let all_edges: FxHashSet<u64> = self.edges.iter().map(|e| e.id).collect();
+        self.selected_edges = all_edges
+            .difference(&self.selected_edges)
+            .cloned()
+            .collect();
+        Ok(())
+    }
+
+    /// Get currently selected node IDs
+    pub fn get_selected_nodes(&self) -> Vec<String> {
+        self.selected_nodes.iter().cloned().collect()
+    }
+
+    /// Get currently selected edge IDs
+    pub fn get_selected_edges(&self) -> Vec<u64> {
+        self.selected_edges.iter().cloned().collect()
+    }
+
+    /// Get count of selected nodes
+    pub fn count_selected_nodes(&self) -> usize {
+        self.selected_nodes.len()
+    }
+
+    /// Get count of selected edges
+    pub fn count_selected_edges(&self) -> usize {
+        self.selected_edges.len()
+    }
+
+    /// Select nodes using a Python callable/predicate function
+    /// The predicate receives a Node object and should return True/False
+    pub fn select_nodes(&mut self, py: Python, predicate: PyObject) -> PyResult<()> {
+        for (node_id, node) in &self.nodes {
+            // Call the predicate with the node
+            let result = predicate.call1(py, (node.clone(),))?;
+            let matches: bool = result.extract(py)?;
+            
+            if matches {
+                self.selected_nodes.insert(node_id.clone());
+            }
+        }
+        Ok(())
+    }
+
+    /// Select edges using a Python callable/predicate function
+    /// The predicate receives an Edge object and should return True/False
+    pub fn select_edges(&mut self, py: Python, predicate: PyObject) -> PyResult<()> {
+        for edge in &self.edges {
+            // Call the predicate with the edge
+            let result = predicate.call1(py, (edge.clone(),))?;
+            let matches: bool = result.extract(py)?;
+            
+            if matches {
+                self.selected_edges.insert(edge.id);
+            }
+        }
+        Ok(())
+    }
+
+    /// Get a node object by ID (for use with selection predicates)
+    pub fn get_node(&self, node_id: &str) -> Option<Node> {
+        self.nodes.get(node_id).cloned()
+    }
+
+    /// Get an edge object by ID (for use with selection predicates)
+    pub fn get_edge(&self, edge_id: u64) -> Option<Edge> {
+        self.edges.iter().find(|e| e.id == edge_id).cloned()
     }
 
     fn __repr__(&self) -> String {
