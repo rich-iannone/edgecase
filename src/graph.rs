@@ -152,7 +152,7 @@ impl Graph {
     }
 
     /// Add an edge to the graph
-    fn add_edge(&mut self, mut edge: Edge) -> PyResult<()> {
+    fn add_edge(&mut self, mut edge: Edge) -> PyResult<u64> {
         // Ensure nodes exist
         if !self.nodes.contains_key(&edge.source) {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -194,8 +194,11 @@ impl Graph {
         // Track creation order
         self.edge_creation_order.push(edge.id);
         
+        // Store the edge ID before moving the edge
+        let edge_id = edge.id;
+
         self.edges.push(edge);
-        Ok(())
+        Ok(edge_id)  // Return the edge ID
     }
 
     /// Get the number of nodes
@@ -2272,6 +2275,228 @@ impl Graph {
 
         similarities
     }
+
+    // ========================================
+    // TRAVERSAL OPERATIONS
+    // ========================================
+
+    /// Traverse from selected nodes to outward neighbors.
+    /// Replaces the current node selection with neighbors in the outward direction.
+    /// For directed graphs, this follows edges where selected nodes are sources.
+    pub fn trav_out(&mut self) -> PyResult<()> {
+        // Get current selected nodes
+        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        
+        if current_selection.is_empty() {
+            return Ok(()); // No selection, nothing to do
+        }
+
+        // Collect all neighbors
+        let mut new_selection = FxHashSet::default();
+        
+        if !self.directed {
+            // For undirected graphs, get all neighbors
+            for node_id in current_selection {
+                if let Some(neighbors) = self.adjacency_list.get(&node_id) {
+                    new_selection.extend(neighbors.iter().cloned());
+                }
+            }
+        } else {
+            // For directed graphs, only get outward neighbors (successors)
+            for node_id in current_selection {
+                for edge in &self.edges {
+                    if edge.source == node_id {
+                        new_selection.insert(edge.target.clone());
+                    }
+                }
+            }
+        }
+
+        // Replace selection with neighbors
+        self.selected_nodes = new_selection;
+        Ok(())
+    }
+
+    /// Traverse from selected nodes to inward neighbors.
+    /// Replaces the current node selection with neighbors in the inward direction.
+    /// For directed graphs, this follows edges where selected nodes are targets.
+    pub fn trav_in(&mut self) -> PyResult<()> {
+        // Get current selected nodes
+        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        
+        if current_selection.is_empty() {
+            return Ok(()); // No selection, nothing to do
+        }
+
+        // Collect all neighbors
+        let mut new_selection = FxHashSet::default();
+        
+        if !self.directed {
+            // For undirected graphs, get all neighbors
+            for node_id in current_selection {
+                if let Some(neighbors) = self.adjacency_list.get(&node_id) {
+                    new_selection.extend(neighbors.iter().cloned());
+                }
+            }
+        } else {
+            // For directed graphs, only get inward neighbors (predecessors)
+            for node_id in current_selection {
+                for edge in &self.edges {
+                    if edge.target == node_id {
+                        new_selection.insert(edge.source.clone());
+                    }
+                }
+            }
+        }
+
+        // Replace selection with neighbors
+        self.selected_nodes = new_selection;
+        Ok(())
+    }
+
+    /// Traverse from selected nodes to all neighbors (both directions).
+    /// Replaces the current node selection with all connected neighbors.
+    /// Works the same for directed and undirected graphs.
+    pub fn trav_both(&mut self) -> PyResult<()> {
+        // Get current selected nodes
+        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        
+        if current_selection.is_empty() {
+            return Ok(()); // No selection, nothing to do
+        }
+
+        // Collect all neighbors (both directions)
+        let mut new_selection = FxHashSet::default();
+        for node_id in current_selection {
+            // For all graphs, get neighbors from adjacency list (handles undirected)
+            if let Some(neighbors) = self.adjacency_list.get(&node_id) {
+                new_selection.extend(neighbors.iter().cloned());
+            }
+            
+            // For directed graphs, also get predecessors
+            if self.directed {
+                for edge in &self.edges {
+                    if edge.target == node_id {
+                        new_selection.insert(edge.source.clone());
+                    }
+                }
+            }
+        }
+
+        // Replace selection with neighbors
+        self.selected_nodes = new_selection;
+        Ok(())
+    }
+
+    /// Traverse from selected nodes to outward edges.
+    /// Replaces the current node selection with an edge selection of outbound edges.
+    pub fn trav_out_edge(&mut self) -> PyResult<()> {
+        // Get current selected nodes
+        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        
+        if current_selection.is_empty() {
+            return Ok(()); // No selection, nothing to do
+        }
+
+        // Clear node selection and build edge selection
+        self.selected_nodes.clear();
+        let mut new_edge_selection = FxHashSet::default();
+
+        for node_id in current_selection {
+            // Find edges where this node is the source
+            for edge in &self.edges {
+                if !self.directed {
+                    // For undirected, include edges in both directions
+                    if edge.source == node_id || edge.target == node_id {
+                        new_edge_selection.insert(edge.id);
+                    }
+                } else {
+                    // For directed, only outbound edges
+                    if edge.source == node_id {
+                        new_edge_selection.insert(edge.id);
+                    }
+                }
+            }
+        }
+
+        // Replace selection with edges
+        self.selected_edges = new_edge_selection;
+        Ok(())
+    }
+
+    /// Traverse from selected nodes to inward edges.
+    /// Replaces the current node selection with an edge selection of inbound edges.
+    pub fn trav_in_edge(&mut self) -> PyResult<()> {
+        // Get current selected nodes
+        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        
+        if current_selection.is_empty() {
+            return Ok(()); // No selection, nothing to do
+        }
+
+        // Clear node selection and build edge selection
+        self.selected_nodes.clear();
+        let mut new_edge_selection = FxHashSet::default();
+
+        for node_id in current_selection {
+            // Find edges where this node is the target
+            for edge in &self.edges {
+                if !self.directed {
+                    // For undirected, include edges in both directions
+                    if edge.source == node_id || edge.target == node_id {
+                        new_edge_selection.insert(edge.id);
+                    }
+                } else {
+                    // For directed, only inbound edges
+                    if edge.target == node_id {
+                        new_edge_selection.insert(edge.id);
+                    }
+                }
+            }
+        }
+
+        // Replace selection with edges
+        self.selected_edges = new_edge_selection;
+        Ok(())
+    }
+
+    /// Traverse from selected edges to reverse edges.
+    /// For each selected edge A→B, finds the reverse edge B→A (if it exists).
+    /// If add_to_selection is true, adds reverse edges to selection; otherwise replaces.
+    pub fn trav_reverse_edge(&mut self, add_to_selection: bool) -> PyResult<()> {
+        // Get current selected edges
+        let current_selection: Vec<u64> = self.selected_edges.iter().cloned().collect();
+        
+        if current_selection.is_empty() {
+            return Ok(()); // No selection, nothing to do
+        }
+
+        // Find reverse edges
+        let mut reverse_edges = FxHashSet::default();
+        
+        for edge_id in current_selection {
+            // Find the edge
+            if let Some(edge) = self.edges.iter().find(|e| e.id == edge_id) {
+                // Look for the reverse edge: B→A for edge A→B
+                for other_edge in &self.edges {
+                    if other_edge.source == edge.target && other_edge.target == edge.source {
+                        reverse_edges.insert(other_edge.id);
+                    }
+                }
+            }
+        }
+
+        // Update selection based on add_to_selection parameter
+        if add_to_selection {
+            // Add reverse edges to current selection
+            self.selected_edges.extend(reverse_edges);
+        } else {
+            // Replace selection with reverse edges
+            self.selected_edges = reverse_edges;
+        }
+
+        Ok(())
+    }
 }
 
 
@@ -2364,3 +2589,4 @@ mod tests {
         assert_eq!(a_neighbors.len(), 1);
     }
 }
+
