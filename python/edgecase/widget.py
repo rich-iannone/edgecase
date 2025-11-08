@@ -309,7 +309,7 @@ function render({ model, el }) {
   container.style.position = 'relative';
   container.style.display = 'inline-block';
   el.appendChild(container);
-  
+
   const canvas = document.createElement('canvas');
   canvas.width = data.width || 800;
   canvas.height = data.height || 600;
