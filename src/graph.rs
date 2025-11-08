@@ -3126,6 +3126,145 @@ impl Graph {
 
         Ok(result)
     }
+
+    /// Get community membership using Edge Betweenness (Girvan-Newman) algorithm
+    /// 
+    /// Iteratively removes edges with highest betweenness centrality to reveal communities.
+    /// Uses Brandes' algorithm for efficient betweenness calculation.
+    /// 
+    /// Algorithm:
+    /// 1. Compute edge betweenness for all edges using Brandes' algorithm
+    /// 2. Remove edge with highest betweenness
+    /// 3. Recompute betweenness and check if modularity improved
+    /// 4. Repeat until modularity stops improving or graph fully disconnected
+    /// 5. Return partition with maximum modularity
+    /// 
+    /// Complexity: O(m²n) where m = edges, n = nodes
+    /// 
+    /// # Arguments
+    /// * None - automatically finds best partition
+    /// 
+    /// # Returns
+    /// * HashMap mapping node_id -> community_id (0-indexed)
+    /// 
+    /// # Errors
+    /// * Returns error if graph is directed (requires undirected graph)
+    /// 
+    /// # References
+    /// Girvan & Newman. "Community structure in social and biological networks" (2002)
+    /// Brandes. "A faster algorithm for betweenness centrality" (2001)
+    fn get_cmty_edge_btwns(&self) -> PyResult<FxHashMap<String, usize>> {
+        // Require undirected graph
+        if self.is_directed() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Edge Betweenness requires an undirected graph"
+            ));
+        }
+
+        let n = self.num_nodes();
+        if n == 0 {
+            return Ok(FxHashMap::default());
+        }
+
+        // Special case: single node
+        if n == 1 {
+            let mut result = FxHashMap::default();
+            if let Some(node_id) = self.nodes.keys().next() {
+                result.insert(node_id.clone(), 0);
+            }
+            return Ok(result);
+        }
+
+        // No edges: each node is its own community
+        if self.num_edges() == 0 {
+            let result: FxHashMap<String, usize> = self.nodes.keys()
+                .enumerate()
+                .map(|(idx, id)| (id.clone(), idx))
+                .collect();
+            return Ok(result);
+        }
+
+        // Create mutable working graph (adjacency list that we'll modify)
+        let mut working_adj: FxHashMap<String, FxHashSet<String>> = self.adjacency_list
+            .iter()
+            .map(|(k, v)| (k.clone(), v.iter().cloned().collect()))
+            .collect();
+
+        // Track best partition and modularity
+        let mut best_modularity = -1.0;
+        let mut best_partition = self.find_components(&working_adj);
+        
+        // Initial modularity (all connected)
+        let m_initial = self.num_edges() as f64;
+        let mut current_modularity = self.compute_modularity_for_partition(&best_partition, m_initial);
+        best_modularity = current_modularity;
+
+        // Iteratively remove edges
+        let max_iterations = self.num_edges();
+        for _iteration in 0..max_iterations {
+            // Compute edge betweenness
+            let betweenness = self.compute_edge_betweenness(&working_adj);
+            
+            if betweenness.is_empty() {
+                break; // No more edges
+            }
+
+            // Find edge with maximum betweenness
+            let max_edge = betweenness.iter()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|(edge, _)| edge.clone());
+
+            if let Some((u, v)) = max_edge {
+                // Remove edge from working graph
+                if let Some(neighbors) = working_adj.get_mut(&u) {
+                    neighbors.remove(&v);
+                }
+                if let Some(neighbors) = working_adj.get_mut(&v) {
+                    neighbors.remove(&u);
+                }
+
+                // Find current communities
+                let current_partition = self.find_components(&working_adj);
+                
+                // Count remaining edges
+                let remaining_edges: usize = working_adj.values()
+                    .map(|neighbors| neighbors.len())
+                    .sum::<usize>() / 2;
+
+                if remaining_edges == 0 {
+                    break; // Graph fully disconnected
+                }
+
+                // Compute modularity for current partition
+                current_modularity = self.compute_modularity_for_partition(&current_partition, m_initial);
+
+                // Update best if improved
+                if current_modularity > best_modularity {
+                    best_modularity = current_modularity;
+                    best_partition = current_partition;
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Renumber communities to be contiguous
+        let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
+        let mut next_id = 0;
+        
+        for comm_id in best_partition.values() {
+            if !community_map.contains_key(comm_id) {
+                community_map.insert(*comm_id, next_id);
+                next_id += 1;
+            }
+        }
+
+        let result: FxHashMap<String, usize> = best_partition.iter()
+            .map(|(node_id, old_comm)| (node_id.clone(), *community_map.get(old_comm).unwrap()))
+            .collect();
+
+        Ok(result)
+    }
 }
 
 
@@ -3138,6 +3277,148 @@ impl Graph {
     /// Get edges vector (internal method for algorithms)
     pub fn get_edges_internal(&self) -> &Vec<Edge> {
         &self.edges
+    }
+
+    /// Find connected components using BFS
+    fn find_components(&self, adj_list: &FxHashMap<String, FxHashSet<String>>) -> FxHashMap<String, usize> {
+        let mut communities: FxHashMap<String, usize> = FxHashMap::default();
+        let mut visited: FxHashSet<String> = FxHashSet::default();
+        let mut current_community = 0;
+
+        for start_node in self.nodes.keys() {
+            if visited.contains(start_node) {
+                continue;
+            }
+
+            // BFS to find all nodes in this component
+            let mut queue = std::collections::VecDeque::new();
+            queue.push_back(start_node.clone());
+            visited.insert(start_node.clone());
+
+            while let Some(node) = queue.pop_front() {
+                communities.insert(node.clone(), current_community);
+
+                if let Some(neighbors) = adj_list.get(&node) {
+                    for neighbor in neighbors {
+                        if !visited.contains(neighbor) {
+                            visited.insert(neighbor.clone());
+                            queue.push_back(neighbor.clone());
+                        }
+                    }
+                }
+            }
+
+            current_community += 1;
+        }
+
+        communities
+    }
+
+    /// Compute edge betweenness using Brandes' algorithm
+    fn compute_edge_betweenness(&self, adj_list: &FxHashMap<String, FxHashSet<String>>) -> FxHashMap<(String, String), f64> {
+        let mut betweenness: FxHashMap<(String, String), f64> = FxHashMap::default();
+
+        // Initialize all edges with 0
+        for (u, neighbors) in adj_list {
+            for v in neighbors {
+                let edge_key = if u < v { (u.clone(), v.clone()) } else { (v.clone(), u.clone()) };
+                betweenness.entry(edge_key).or_insert(0.0);
+            }
+        }
+
+        // Run BFS from each node
+        for source in self.nodes.keys() {
+            // BFS to find shortest paths
+            let mut distance: FxHashMap<String, usize> = FxHashMap::default();
+            let mut num_paths: FxHashMap<String, f64> = FxHashMap::default();
+            let mut predecessors: FxHashMap<String, Vec<String>> = FxHashMap::default();
+            let mut stack: Vec<String> = Vec::new();
+            
+            let mut queue = std::collections::VecDeque::new();
+            queue.push_back(source.clone());
+            distance.insert(source.clone(), 0);
+            num_paths.insert(source.clone(), 1.0);
+
+            // Forward BFS
+            while let Some(node) = queue.pop_front() {
+                stack.push(node.clone());
+                let node_dist = *distance.get(&node).unwrap();
+
+                if let Some(neighbors) = adj_list.get(&node) {
+                    for neighbor in neighbors {
+                        // First time seeing this node
+                        if !distance.contains_key(neighbor) {
+                            distance.insert(neighbor.clone(), node_dist + 1);
+                            queue.push_back(neighbor.clone());
+                        }
+
+                        // Shortest path to neighbor via node
+                        if *distance.get(neighbor).unwrap() == node_dist + 1 {
+                            let node_paths = *num_paths.get(&node).unwrap();
+                            *num_paths.entry(neighbor.clone()).or_insert(0.0) += node_paths;
+                            predecessors.entry(neighbor.clone()).or_insert_with(Vec::new).push(node.clone());
+                        }
+                    }
+                }
+            }
+
+            // Backward accumulation
+            let mut dependency: FxHashMap<String, f64> = FxHashMap::default();
+            for node in self.nodes.keys() {
+                dependency.insert(node.clone(), 0.0);
+            }
+
+            // Process nodes in reverse order of distance from source
+            while let Some(w) = stack.pop() {
+                if let Some(preds) = predecessors.get(&w) {
+                    for v in preds {
+                        let coeff = (num_paths.get(v).unwrap() / num_paths.get(&w).unwrap()) 
+                                    * (1.0 + dependency.get(&w).unwrap());
+                        *dependency.get_mut(v).unwrap() += coeff;
+
+                        // Accumulate edge betweenness
+                        let edge_key = if v < &w { (v.clone(), w.clone()) } else { (w.clone(), v.clone()) };
+                        *betweenness.entry(edge_key).or_insert(0.0) += coeff;
+                    }
+                }
+            }
+        }
+
+        // Divide by 2 for undirected graphs (each edge counted twice)
+        for value in betweenness.values_mut() {
+            *value /= 2.0;
+        }
+
+        betweenness
+    }
+
+    /// Compute modularity for a given partition
+    fn compute_modularity_for_partition(&self, partition: &FxHashMap<String, usize>, m: f64) -> f64 {
+        if m == 0.0 {
+            return 0.0;
+        }
+
+        let mut Q = 0.0;
+
+        for (node_i, comm_i) in partition {
+            for (node_j, comm_j) in partition {
+                if comm_i == comm_j {
+                    // Check if edge exists
+                    let has_edge = self.adjacency_list.get(node_i)
+                        .map(|neighbors| neighbors.contains(node_j))
+                        .unwrap_or(false);
+                    
+                    let A_ij = if has_edge { 1.0 } else { 0.0 };
+                    
+                    let k_i = self.degree(node_i) as f64;
+                    let k_j = self.degree(node_j) as f64;
+                    
+                    Q += A_ij - (k_i * k_j) / (2.0 * m);
+                }
+            }
+        }
+
+        Q / (2.0 * m)
     }
 
     /// Helper: BFS to find augmenting path in residual graph (for min cut)

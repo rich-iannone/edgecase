@@ -1204,6 +1204,71 @@ class Graph:
         """
         return self._graph.get_cmty_fast_greedy()
     
+    def get_cmty_edge_btwns(self) -> dict[str, int]:
+        """Get community membership using Edge Betweenness (Girvan-Newman) algorithm.
+        
+        Iteratively removes edges with highest betweenness centrality to reveal
+        community structure. Uses Brandes' algorithm for efficient betweenness
+        calculation. More accurate than Fast Greedy but significantly slower.
+        
+        Algorithm:
+            1. Compute edge betweenness for all edges using Brandes' algorithm
+            2. Remove edge with highest betweenness
+            3. Recompute betweenness and check if modularity improved
+            4. Repeat until modularity stops improving
+            5. Return partition with maximum modularity
+        
+        Best for:
+            - Small to medium graphs (< 5K nodes)
+            - Hierarchical community structure
+            - When accuracy is more important than speed
+            - Graphs with clear "bridge" edges between communities
+        
+        Complexity: O(m²n) where m = edges, n = nodes
+        
+        Returns:
+            Dictionary mapping node IDs to community IDs (0-indexed).
+            Community IDs are contiguous integers starting from 0.
+        
+        Raises:
+            ValueError: If graph is directed (requires undirected graph)
+        
+        Examples:
+            >>> import edgecase as ec
+            >>> G = ec.Graph(directed=False)
+            >>> 
+            >>> # Two triangles connected by a bridge
+            >>> G.add_edge('A', 'B')
+            >>> G.add_edge('B', 'C')
+            >>> G.add_edge('C', 'A')
+            >>> G.add_edge('C', 'D')  # Bridge edge
+            >>> G.add_edge('D', 'E')
+            >>> G.add_edge('E', 'F')
+            >>> G.add_edge('F', 'D')
+            >>> 
+            >>> communities = G.get_cmty_edge_btwns()
+            >>> # Returns: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
+            >>> # The bridge edge C-D has highest betweenness and is removed first
+        
+        References:
+            Girvan, M., & Newman, M. E. (2002). Community structure in social
+            and biological networks. PNAS, 99(12), 7821-7826.
+            
+            Brandes, U. (2001). A faster algorithm for betweenness centrality.
+            Journal of Mathematical Sociology, 25(2), 163-177.
+        
+        Note:
+            This algorithm is O(m²n) and can be slow for large graphs.
+            For graphs with > 10K nodes, consider get_cmty_fast_greedy() or
+            get_cmty_louvain() instead.
+            
+        See Also:
+            - get_cmty_fast_greedy(): Faster greedy modularity optimization
+            - get_cmty_louvain(): Best for very large graphs
+            - get_cmty_walktrap(): Alternative hierarchical method
+        """
+        return self._graph.get_cmty_edge_btwns()
+    
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get HITS authority scores for directed graph.
         
