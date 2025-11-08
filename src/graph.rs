@@ -1909,6 +1909,127 @@ impl Graph {
         vitality_vec.into_iter().collect()
     }
 
+    /// Get reciprocity (fraction of reciprocal edges in a directed graph)
+    /// Reciprocity is the fraction of edges that have a reverse edge
+    /// Only defined for directed graphs
+    /// Returns a value between 0.0 (no reciprocal edges) and 1.0 (all edges reciprocal)
+    fn get_reciprocity(&self) -> PyResult<f64> {
+        if !self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Reciprocity only defined for directed graphs",
+            ));
+        }
+
+        if self.edges.is_empty() {
+            return Ok(0.0);
+        }
+
+        // Count reciprocal edges
+        let mut reciprocal_count = 0;
+
+        // Build a set of edges for fast lookup
+        let edge_set: FxHashSet<(&str, &str)> = self
+            .edges
+            .iter()
+            .map(|e| (e.source.as_str(), e.target.as_str()))
+            .collect();
+
+        // Check each edge for a reverse edge
+        for edge in &self.edges {
+            // Skip self-loops
+            if edge.source == edge.target {
+                continue;
+            }
+
+            // Check if reverse edge exists
+            if edge_set.contains(&(edge.target.as_str(), edge.source.as_str())) {
+                reciprocal_count += 1;
+            }
+        }
+
+        // Each reciprocal pair is counted twice (once from each direction)
+        // So we divide by 2 to get the number of reciprocal pairs
+        // Then divide by total edges to get the fraction
+        let reciprocity = reciprocal_count as f64 / self.edges.len() as f64;
+
+        Ok(reciprocity)
+    }
+
+    /// Get minimum cut between two nodes using Ford-Fulkerson with BFS (Edmonds-Karp)
+    /// Returns the size of the minimum cut that separates source from sink
+    /// This is equivalent to the maximum flow from source to sink
+    fn get_min_cut_between(&self, source: &str, sink: &str) -> PyResult<usize> {
+        if !self.nodes.contains_key(source) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Source node '{}' does not exist", source),
+            ));
+        }
+        if !self.nodes.contains_key(sink) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Sink node '{}' does not exist", sink),
+            ));
+        }
+        if source == sink {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Source and sink must be different nodes",
+            ));
+        }
+
+        // Build capacity matrix (using adjacency list representation for efficiency)
+        // For unweighted graphs, each edge has capacity 1
+        let mut capacity: FxHashMap<(String, String), usize> = FxHashMap::default();
+
+        for edge in &self.edges {
+            let key = (edge.source.clone(), edge.target.clone());
+            *capacity.entry(key).or_insert(0) += 1;
+
+            // For undirected graphs, add reverse edge
+            if !self.directed {
+                let rev_key = (edge.target.clone(), edge.source.clone());
+                *capacity.entry(rev_key).or_insert(0) += 1;
+            }
+        }
+
+        // Initialize residual capacity = capacity
+        let mut residual = capacity.clone();
+
+        // Ford-Fulkerson with BFS (Edmonds-Karp algorithm)
+        let mut max_flow = 0;
+
+        loop {
+            // Find augmenting path using BFS
+            let path = self.bfs_augmenting_path(source, sink, &residual);
+
+            if path.is_empty() {
+                break; // No more augmenting paths
+            }
+
+            // Find minimum capacity along the path
+            let mut path_flow = usize::MAX;
+            for i in 0..path.len() - 1 {
+                let edge_key = (path[i].clone(), path[i + 1].clone());
+                let cap = residual.get(&edge_key).copied().unwrap_or(0);
+                path_flow = path_flow.min(cap);
+            }
+
+            // Update residual capacities
+            for i in 0..path.len() - 1 {
+                let forward_key = (path[i].clone(), path[i + 1].clone());
+                let backward_key = (path[i + 1].clone(), path[i].clone());
+
+                // Decrease forward capacity
+                *residual.entry(forward_key).or_insert(0) -= path_flow;
+
+                // Increase backward capacity (for flow reversal)
+                *residual.entry(backward_key).or_insert(0) += path_flow;
+            }
+
+            max_flow += path_flow;
+        }
+
+        Ok(max_flow)
+    }
+
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;
@@ -2678,6 +2799,51 @@ impl Graph {
     /// Get edges vector (internal method for algorithms)
     pub fn get_edges_internal(&self) -> &Vec<Edge> {
         &self.edges
+    }
+
+    /// Helper: BFS to find augmenting path in residual graph (for min cut)
+    fn bfs_augmenting_path(
+        &self,
+        source: &str,
+        sink: &str,
+        residual: &FxHashMap<(String, String), usize>,
+    ) -> Vec<String> {
+        let mut visited = FxHashSet::default();
+        let mut parent: FxHashMap<String, String> = FxHashMap::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        visited.insert(source.to_string());
+        queue.push_back(source.to_string());
+
+        while let Some(current) = queue.pop_front() {
+            if current == sink {
+                // Reconstruct path
+                let mut path = vec![current.clone()];
+                let mut node = current;
+
+                while let Some(p) = parent.get(&node) {
+                    path.push(p.clone());
+                    node = p.clone();
+                }
+
+                path.reverse();
+                return path;
+            }
+
+            // Explore neighbors with residual capacity > 0
+            for other_node in self.nodes.keys() {
+                let edge_key = (current.clone(), other_node.clone());
+                let capacity = residual.get(&edge_key).copied().unwrap_or(0);
+
+                if capacity > 0 && !visited.contains(other_node) {
+                    visited.insert(other_node.clone());
+                    parent.insert(other_node.clone(), current.clone());
+                    queue.push_back(other_node.clone());
+                }
+            }
+        }
+
+        Vec::new() // No path found
     }
 }
 

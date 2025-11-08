@@ -1002,6 +1002,63 @@ class Graph:
         """
         return self._graph.get_cohesion()
     
+    def get_reciprocity(self) -> float:
+        """Get reciprocity (fraction of reciprocal edges).
+        
+        Reciprocity measures the proportion of edges that have a corresponding
+        reverse edge. Only defined for directed graphs.
+        
+        Returns a value between 0.0 (no reciprocal edges) and 1.0 (all edges
+        are reciprocal). Self-loops are excluded from the calculation.
+        
+        Returns:
+            Fraction of reciprocal edges (0.0 to 1.0)
+            
+        Raises:
+            ValueError: If graph is undirected
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "A")  # Reciprocal
+            >>> G.add_edge("A", "C")  # Not reciprocal
+            >>> G.get_reciprocity()  # 2/3 ≈ 0.667
+            0.6666666666666666
+        """
+        return self._graph.get_reciprocity()
+    
+    def get_min_cut_between(self, source: str, sink: str) -> int:
+        """Get minimum cut between source and sink nodes.
+        
+        Computes the minimum number of edges that must be removed to
+        disconnect the source from the sink. Uses the Ford-Fulkerson
+        algorithm with BFS (Edmonds-Karp) to find maximum flow, which
+        equals the minimum cut by the max-flow min-cut theorem.
+        
+        For unweighted graphs, each edge has capacity 1. For undirected
+        graphs, edges are treated as bidirectional.
+        
+        Args:
+            source: Source node ID
+            sink: Sink node ID
+            
+        Returns:
+            Size of minimum cut (number of edges to remove)
+            
+        Raises:
+            ValueError: If source or sink node doesn't exist, or if they're the same
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(4)  # 0-1-2-3
+            >>> G.get_min_cut_between("0", "3")  # Must cut at least 1 edge
+            1
+            >>> G.add_edge("1", "2")  # Add parallel edge
+            >>> G.get_min_cut_between("0", "3")  # Now need to cut 2 edges
+            2
+        """
+        return self._graph.get_min_cut_between(source, sink)
+    
     def get_eccentricity(self) -> dict[str, int | None]:
         """Get eccentricity for each node.
         
