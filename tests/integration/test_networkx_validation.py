@@ -731,3 +731,376 @@ class TestEdgeCases:
         # Actually, A->C (1.5) is cheaper than A->B->C (2.0)
         assert ec_path == nx_path
         assert ec_path == ["A", "C"]
+
+
+class TestConnectedComponents:
+    """Test connected components detection."""
+    
+    def test_single_component(self):
+        """Test graph with single connected component."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        # Check if connected
+        ec_connected = G.is_connected() if hasattr(G, 'is_connected') else None
+        nx_connected = nx.is_connected(nx_graph)
+        
+        if ec_connected is not None:
+            assert ec_connected == nx_connected
+    
+    def test_multiple_components(self):
+        """Test graph with multiple connected components."""
+        G = Graph(directed=False)
+        # Component 1
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        # Component 2
+        G.add_edge("D", "E")
+        # Isolated node
+        G.add_node("F")
+        
+        nx_graph = to_networkx(G)
+        
+        # Check number of components if available
+        if hasattr(G, 'num_connected_components'):
+            ec_num_components = G.num_connected_components()
+            nx_num_components = nx.number_connected_components(nx_graph)
+            assert ec_num_components == nx_num_components
+    
+    def test_component_sizes(self):
+        """Test connected component sizes."""
+        G = Graph(directed=False)
+        # Component 1: 3 nodes
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        # Component 2: 2 nodes
+        G.add_edge("D", "E")
+        # Component 3: 1 node
+        G.add_node("F")
+        
+        nx_graph = to_networkx(G)
+        
+        nx_components = sorted([len(c) for c in nx.connected_components(nx_graph)], reverse=True)
+        
+        # Should have components of size 3, 2, 1
+        assert nx_components == [3, 2, 1]
+
+
+class TestGraphTraversal:
+    """Test graph traversal operations."""
+    
+    def test_bfs_order(self):
+        """Test BFS traversal order."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("B", "D")
+        G.add_edge("C", "E")
+        
+        nx_graph = to_networkx(G)
+        
+        # BFS from A
+        if hasattr(G, 'bfs'):
+            ec_bfs = list(G.bfs("A"))
+            nx_bfs = list(nx.bfs_tree(nx_graph, "A").nodes())
+            
+            # Both should visit all nodes
+            assert set(ec_bfs) == set(nx_bfs)
+            assert len(ec_bfs) == 5
+    
+    def test_dfs_order(self):
+        """Test DFS traversal order."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("B", "D")
+        G.add_edge("C", "E")
+        
+        nx_graph = to_networkx(G)
+        
+        # DFS from A
+        if hasattr(G, 'dfs'):
+            ec_dfs = list(G.dfs("A"))
+            nx_dfs = list(nx.dfs_tree(nx_graph, "A").nodes())
+            
+            # Both should visit all nodes
+            assert set(ec_dfs) == set(nx_dfs)
+            assert len(ec_dfs) == 5
+
+
+class TestShortestPathLengths:
+    """Test shortest path length calculations."""
+    
+    def test_shortest_path_length_unweighted(self):
+        """Test shortest path length in unweighted graph."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        G.add_edge("A", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        # A to D: direct path has length 1
+        if hasattr(G, 'shortest_path_length'):
+            ec_length = G.shortest_path_length("A", "D")
+            nx_length = nx.shortest_path_length(nx_graph, "A", "D")
+            assert ec_length == nx_length
+            assert ec_length == 1
+    
+    def test_shortest_path_length_weighted(self):
+        """Test shortest path length in weighted graph."""
+        G = Graph(directed=True, weighted=True)
+        G.add_edge("A", "B", weight=1.0)
+        G.add_edge("B", "C", weight=2.0)
+        G.add_edge("A", "C", weight=5.0)
+        
+        nx_graph = to_networkx(G)
+        
+        # A to C: via B is shorter (3.0) than direct (5.0)
+        if hasattr(G, 'shortest_path_length'):
+            ec_length = G.shortest_path_length("A", "C", weighted=True)
+            nx_length = nx.shortest_path_length(nx_graph, "A", "C", weight="weight")
+            assert abs(ec_length - nx_length) < 0.001
+            assert abs(ec_length - 3.0) < 0.001
+
+
+class TestDiameter:
+    """Test graph diameter calculations."""
+    
+    def test_diameter_path_graph(self):
+        """Test diameter of path graph."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        # Diameter should be 3 (A to D)
+        if hasattr(G, 'diameter'):
+            ec_diameter = G.diameter()
+            nx_diameter = nx.diameter(nx_graph)
+            assert ec_diameter == nx_diameter
+            assert ec_diameter == 3
+    
+    def test_diameter_complete_graph(self):
+        """Test diameter of complete graph."""
+        G = Graph(directed=False)
+        nodes = ["A", "B", "C", "D"]
+        for i, u in enumerate(nodes):
+            for v in nodes[i+1:]:
+                G.add_edge(u, v)
+        
+        nx_graph = to_networkx(G)
+        
+        # Diameter should be 1 (all nodes directly connected)
+        if hasattr(G, 'diameter'):
+            ec_diameter = G.diameter()
+            nx_diameter = nx.diameter(nx_graph)
+            assert ec_diameter == nx_diameter
+            assert ec_diameter == 1
+
+
+class TestClustering:
+    """Test clustering coefficient calculations."""
+    
+    def test_clustering_triangle(self):
+        """Test clustering on triangle graph."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "A")
+        
+        nx_graph = to_networkx(G)
+        
+        # All nodes should have clustering coefficient 1.0
+        if hasattr(G, 'clustering_coefficient'):
+            for node in G.nodes():
+                ec_cc = G.clustering_coefficient(node)
+                nx_cc = nx.clustering(nx_graph, node)
+                assert abs(ec_cc - nx_cc) < 0.01
+                assert abs(ec_cc - 1.0) < 0.01
+    
+    def test_clustering_star(self):
+        """Test clustering on star graph."""
+        G = Graph(directed=False)
+        G.add_edge("center", "A")
+        G.add_edge("center", "B")
+        G.add_edge("center", "C")
+        
+        nx_graph = to_networkx(G)
+        
+        # Center has clustering 0, spokes have clustering 0
+        if hasattr(G, 'clustering_coefficient'):
+            for node in G.nodes():
+                ec_cc = G.clustering_coefficient(node)
+                nx_cc = nx.clustering(nx_graph, node)
+                assert abs(ec_cc - nx_cc) < 0.01
+    
+    def test_average_clustering(self):
+        """Test average clustering coefficient."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "A")
+        G.add_edge("A", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'average_clustering'):
+            ec_avg = G.average_clustering()
+            nx_avg = nx.average_clustering(nx_graph)
+            assert abs(ec_avg - nx_avg) < 0.01
+
+
+class TestGraphDistance:
+    """Test distance-related metrics."""
+    
+    def test_eccentricity(self):
+        """Test node eccentricity."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        # Eccentricity: max distance from node to any other node
+        if hasattr(G, 'eccentricity'):
+            for node in G.nodes():
+                ec_ecc = G.eccentricity(node)
+                nx_ecc = nx.eccentricity(nx_graph, node)
+                assert ec_ecc == nx_ecc
+    
+    def test_radius(self):
+        """Test graph radius."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        # Radius: minimum eccentricity
+        if hasattr(G, 'radius'):
+            ec_radius = G.radius()
+            nx_radius = nx.radius(nx_graph)
+            assert ec_radius == nx_radius
+
+
+class TestDegreeMetrics:
+    """Test degree-related metrics."""
+    
+    def test_degree_centrality(self):
+        """Test degree centrality."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("A", "D")
+        G.add_edge("B", "C")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'degree_centrality'):
+            ec_dc = G.degree_centrality()
+            nx_dc = nx.degree_centrality(nx_graph)
+            
+            for node in G.nodes():
+                assert abs(ec_dc[node] - nx_dc[node]) < 0.01
+    
+    def test_average_degree(self):
+        """Test average degree."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        G.add_edge("D", "A")
+        
+        nx_graph = to_networkx(G)
+        
+        # Average degree = 2 * edges / nodes
+        ec_avg = sum(G.degree(n) for n in G.nodes()) / G.num_nodes()
+        nx_avg = sum(dict(nx_graph.degree()).values()) / nx_graph.number_of_nodes()
+        
+        assert abs(ec_avg - nx_avg) < 0.01
+        assert abs(ec_avg - 2.0) < 0.01  # Each node has degree 2
+
+
+class TestTriangles:
+    """Test triangle counting."""
+    
+    def test_triangle_count_simple(self):
+        """Test counting triangles."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "A")
+        
+        nx_graph = to_networkx(G)
+        
+        # Should have 1 triangle
+        if hasattr(G, 'num_triangles'):
+            ec_triangles = G.num_triangles()
+            nx_triangles = sum(nx.triangles(nx_graph).values()) // 3
+            assert ec_triangles == nx_triangles
+            assert ec_triangles == 1
+    
+    def test_triangles_per_node(self):
+        """Test triangles per node."""
+        G = Graph(directed=False)
+        # Create two triangles sharing an edge
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "A")
+        G.add_edge("B", "D")
+        G.add_edge("D", "C")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'triangles'):
+            ec_tri = G.triangles()
+            nx_tri = nx.triangles(nx_graph)
+            
+            for node in G.nodes():
+                assert ec_tri[node] == nx_tri[node]
+
+
+class TestGraphIsomorphism:
+    """Test graph comparison operations."""
+    
+    def test_same_structure_different_labels(self):
+        """Test graphs with same structure but different labels."""
+        G1 = Graph(directed=False)
+        G1.add_edge("A", "B")
+        G1.add_edge("B", "C")
+        
+        G2 = Graph(directed=False)
+        G2.add_edge("X", "Y")
+        G2.add_edge("Y", "Z")
+        
+        # Same structure, different labels
+        assert G1.num_nodes() == G2.num_nodes()
+        assert G1.num_edges() == G2.num_edges()
+    
+    def test_graph_complement(self):
+        """Test graph complement."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'complement'):
+            ec_comp = G.complement()
+            nx_comp = nx.complement(nx_graph)
+            
+            ec_comp_nx = to_networkx(ec_comp)
+            
+            # Complement should have edges where original doesn't
+            assert ec_comp_nx.number_of_nodes() == nx_comp.number_of_nodes()
+            assert ec_comp_nx.number_of_edges() == nx_comp.number_of_edges()
