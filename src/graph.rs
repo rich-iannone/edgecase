@@ -247,7 +247,7 @@ impl Graph {
 
     /// Check if the graph is weighted
     #[getter]
-    fn is_weighted(&self) -> bool {
+    pub fn is_weighted(&self) -> bool {
         self.weighted
     }
 
@@ -311,6 +311,15 @@ impl Graph {
             })
             .map(|e| e.id)
             .collect()
+    }
+    
+    /// Get weight of edge between two nodes (for internal use in algorithms)
+    pub(crate) fn get_edge_weight(&self, from: &str, to: &str) -> f64 {
+        self.edges
+            .iter()
+            .find(|e| e.source == from && e.target == to)
+            .and_then(|e| e.weight)
+            .unwrap_or(1.0)
     }
 
     /// Delete edge by ID

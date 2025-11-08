@@ -94,6 +94,14 @@ pub fn pagerank(
         }
     }
     
+    // Normalize ranks to sum to 1.0
+    let sum: f64 = ranks.values().sum();
+    if sum > 0.0 {
+        for rank in ranks.values_mut() {
+            *rank /= sum;
+        }
+    }
+    
     Ok(ranks)
 }
 
