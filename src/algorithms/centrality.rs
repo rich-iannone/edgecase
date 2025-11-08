@@ -4,18 +4,124 @@ use crate::graph::Graph;
 use pyo3::prelude::*;
 use rustc_hash::FxHashMap;
 
-/// Calculate betweenness centrality for all nodes
+/// Calculate betweenness centrality for all nodes using Brandes' algorithm
+/// 
+/// Brandes, U. (2001). A faster algorithm for betweenness centrality.
+/// Journal of Mathematical Sociology, 25(2), 163-177.
 #[pyfunction]
 pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<String, f64>> {
-    // Placeholder implementation
-    // TODO: Implement Brandes' algorithm for betweenness centrality
-    let mut centrality = FxHashMap::default();
+    use std::collections::{VecDeque, HashSet};
     
-    for node_id in graph.get_node_ids() {
-        centrality.insert(node_id, 0.0);
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    
+    if n == 0 {
+        return Ok(FxHashMap::default());
     }
     
-    Ok(centrality)
+    // Initialize betweenness centrality for all nodes
+    let mut betweenness: FxHashMap<String, f64> = FxHashMap::default();
+    for node_id in &node_ids {
+        betweenness.insert(node_id.clone(), 0.0);
+    }
+    
+    // For each node as source
+    for source in &node_ids {
+        // Stack to store nodes in order of non-increasing distance from source
+        let mut stack: Vec<String> = Vec::new();
+        
+        // Predecessors on shortest paths from source
+        let mut predecessors: FxHashMap<String, Vec<String>> = FxHashMap::default();
+        for node_id in &node_ids {
+            predecessors.insert(node_id.clone(), Vec::new());
+        }
+        
+        // Number of shortest paths from source to each node
+        let mut sigma: FxHashMap<String, f64> = FxHashMap::default();
+        for node_id in &node_ids {
+            sigma.insert(node_id.clone(), 0.0);
+        }
+        sigma.insert(source.clone(), 1.0);
+        
+        // Distance from source
+        let mut distance: FxHashMap<String, i32> = FxHashMap::default();
+        for node_id in &node_ids {
+            distance.insert(node_id.clone(), -1);
+        }
+        distance.insert(source.clone(), 0);
+        
+        // BFS to find shortest paths
+        let mut queue: VecDeque<String> = VecDeque::new();
+        queue.push_back(source.clone());
+        
+        while let Some(v) = queue.pop_front() {
+            stack.push(v.clone());
+            
+            // Get neighbors of v
+            if let Ok(neighbors) = graph.neighbors(&v) {
+                for w in neighbors {
+                    // First time we see w?
+                    if distance[&w] < 0 {
+                        queue.push_back(w.clone());
+                        distance.insert(w.clone(), distance[&v] + 1);
+                    }
+                    
+                    // Shortest path to w via v?
+                    if distance[&w] == distance[&v] + 1 {
+                        let sigma_w = sigma[&w] + sigma[&v];
+                        sigma.insert(w.clone(), sigma_w);
+                        predecessors.get_mut(&w).unwrap().push(v.clone());
+                    }
+                }
+            }
+        }
+        
+        // Accumulation: back-propagation of dependencies
+        let mut delta: FxHashMap<String, f64> = FxHashMap::default();
+        for node_id in &node_ids {
+            delta.insert(node_id.clone(), 0.0);
+        }
+        
+        // S returns vertices in order of non-increasing distance from source
+        while let Some(w) = stack.pop() {
+            for v in &predecessors[&w] {
+                let contribution = (sigma[v] / sigma[&w]) * (1.0 + delta[&w]);
+                let delta_v = delta[v] + contribution;
+                delta.insert(v.clone(), delta_v);
+            }
+            
+            if w != *source {
+                let betweenness_w = betweenness[&w] + delta[&w];
+                betweenness.insert(w, betweenness_w);
+            }
+        }
+    }
+    
+    // Normalization
+    // For undirected graphs, divide by 2 since each shortest path is counted twice
+    // For directed graphs, no division needed
+    if !graph.is_directed() {
+        for value in betweenness.values_mut() {
+            *value /= 2.0;
+        }
+    }
+    
+    // Normalization to match NetworkX:
+    // - For undirected graphs: divide by ((n-1)*(n-2))/2
+    // - For directed graphs: divide by (n-1)*(n-2)
+    if n > 2 {
+        let normalization = if graph.is_directed() {
+            1.0 / ((n - 1) * (n - 2)) as f64
+        } else {
+            2.0 / ((n - 1) * (n - 2)) as f64
+        };
+        
+        for value in betweenness.values_mut() {
+            *value *= normalization;
+        }
+    }
+    
+    Ok(betweenness)
 }
 
 /// Calculate PageRank for all nodes
