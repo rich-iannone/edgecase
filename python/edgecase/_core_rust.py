@@ -1151,6 +1151,59 @@ class Graph:
         """
         return self._graph.get_coreness()
     
+    # ========== Community Detection Methods ==========
+    
+    def get_cmty_fast_greedy(self) -> dict[str, int]:
+        """
+        Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
+        
+        This is a greedy modularity optimization algorithm that merges communities
+        to maximize modularity. It's efficient for medium to large graphs and provides
+        good quality communities.
+        
+        Algorithm:
+            1. Start with each node in its own community
+            2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
+            3. Repeatedly merge the pair with highest ΔQ until no improvement
+            4. Return the partition with maximum modularity
+        
+        Returns:
+            dict[str, int]: Mapping from node ID to community ID (0-indexed)
+            
+        Raises:
+            ValueError: If graph is directed (requires undirected graph)
+            
+        Complexity:
+            Time: O(n log²n) on sparse graphs
+            Space: O(n + m)
+            
+        Examples:
+            >>> G = ec.Graph(directed=False)
+            >>> # Two disconnected cliques
+            >>> G.add_edges([('A','B'), ('B','C'), ('C','A')])
+            >>> G.add_edges([('D','E'), ('E','F'), ('F','D')])
+            >>> communities = G.get_cmty_fast_greedy()
+            >>> # Should find 2 communities: {A,B,C} and {D,E,F}
+            >>> len(set(communities.values()))
+            2
+            
+            >>> # Karate club example
+            >>> G = ec.Graph(directed=False)
+            >>> G.add_edges([...])  # Add karate club edges
+            >>> communities = G.get_cmty_fast_greedy()
+            >>> # Modularity typically > 0.40 for karate club
+            
+        References:
+            Clauset, A., Newman, M. E., & Moore, C. (2004).
+            "Finding community structure in very large networks."
+            Physical review E, 70(6), 066111.
+            
+        See Also:
+            - get_cmty_louvain(): Faster for very large graphs
+            - get_cmty_edge_btwns(): More accurate but slower
+        """
+        return self._graph.get_cmty_fast_greedy()
+    
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get HITS authority scores for directed graph.
         
@@ -3615,3 +3668,59 @@ def detect_communities(graph: Graph) -> dict[str, int]:
 def find_cycles(graph: Graph) -> list[list[str]]:
     """Find all cycles in the graph."""
     return rust.find_cycles(graph._graph)
+
+
+# Community detection algorithms
+def get_cmty_fast_greedy(graph: Graph) -> dict[str, int]:
+    """
+    Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
+    
+    This is a greedy modularity optimization algorithm that merges communities
+    to maximize modularity. It's efficient for medium to large graphs and provides
+    good quality communities.
+    
+    Algorithm:
+        1. Start with each node in its own community
+        2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
+        3. Repeatedly merge the pair with highest ΔQ until no improvement
+        4. Return the partition with maximum modularity
+    
+    Args:
+        graph: An undirected Graph instance
+        
+    Returns:
+        dict[str, int]: Mapping from node ID to community ID (0-indexed)
+        
+    Raises:
+        ValueError: If graph is directed (requires undirected graph)
+        
+    Complexity:
+        Time: O(n log²n) on sparse graphs
+        Space: O(n + m)
+        
+    Examples:
+        >>> G = ec.Graph(directed=False)
+        >>> # Two disconnected cliques
+        >>> G.add_edges([('A','B'), ('B','C'), ('C','A')])
+        >>> G.add_edges([('D','E'), ('E','F'), ('F','D')])
+        >>> communities = G.get_cmty_fast_greedy()
+        >>> # Should find 2 communities: {A,B,C} and {D,E,F}
+        >>> len(set(communities.values()))
+        2
+        
+        >>> # Karate club example
+        >>> G = ec.Graph(directed=False)
+        >>> G.add_edges([...])  # Add karate club edges
+        >>> communities = G.get_cmty_fast_greedy()
+        >>> # Modularity typically > 0.40 for karate club
+        
+    References:
+        Clauset, A., Newman, M. E., & Moore, C. (2004).
+        "Finding community structure in very large networks."
+        Physical review E, 70(6), 066111.
+        
+    See Also:
+        - get_cmty_louvain(): Faster for very large graphs
+        - get_cmty_edge_btwns(): More accurate but slower
+    """
+    return graph._graph.get_cmty_fast_greedy()

@@ -2861,6 +2861,271 @@ impl Graph {
         crate::algorithms::connectivity::count_strongly_connected_components(self)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
+
+    // ========== Community Detection ==========
+
+    /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm
+    /// 
+    /// Greedy modularity optimization using an efficient heap-based approach.
+    /// Merges communities that maximally increase modularity until no improvement is possible.
+    /// 
+    /// Algorithm:
+    /// 1. Initialize: each node in its own community
+    /// 2. Build heap of merge candidates ordered by ΔQ (modularity gain)
+    /// 3. Repeatedly merge communities with largest ΔQ until heap empty or ΔQ ≤ 0
+    /// 4. Return partition with maximum modularity achieved
+    /// 
+    /// Complexity: O(n log²n) on sparse graphs
+    /// 
+    /// # Arguments
+    /// * None - uses default modularity calculation
+    /// 
+    /// # Returns
+    /// * HashMap mapping node_id -> community_id (0-indexed)
+    /// 
+    /// # Errors
+    /// * Returns error if graph is directed (requires undirected graph)
+    /// 
+    /// # References
+    /// Clauset, Newman, Moore. "Finding community structure in very large networks" (2004)
+    fn get_cmty_fast_greedy(&self) -> PyResult<FxHashMap<String, usize>> {
+        // Require undirected graph
+        if self.is_directed() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Fast Greedy requires an undirected graph"
+            ));
+        }
+
+        let n = self.num_nodes();
+        if n == 0 {
+            return Ok(FxHashMap::default());
+        }
+
+        // Special case: single node
+        if n == 1 {
+            let mut result = FxHashMap::default();
+            if let Some(node_id) = self.nodes.keys().next() {
+                result.insert(node_id.clone(), 0);
+            }
+            return Ok(result);
+        }
+
+        // Initialize: each node in own community
+        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        let mut communities: FxHashMap<String, usize> = node_ids.iter()
+            .enumerate()
+            .map(|(idx, id)| (id.clone(), idx))
+            .collect();
+
+        // Calculate total edge weight (m)
+        let m = self.num_edges() as f64;
+        if m == 0.0 {
+            // No edges: each node is its own community
+            return Ok(communities);
+        }
+
+        // Calculate degrees for all nodes
+        let degrees: Vec<f64> = node_ids.iter()
+            .map(|id| self.degree(id) as f64)
+            .collect();
+
+        // Track edges between communities (sparse representation)
+        // (comm_i, comm_j) -> edge_weight
+        let mut edge_weights: FxHashMap<(usize, usize), f64> = FxHashMap::default();
+        
+        // Initialize edge weights from graph edges
+        for (from_id, neighbors) in &self.adjacency_list {
+            let from_comm = *communities.get(from_id).unwrap();
+            for to_id in neighbors {
+                let to_comm = *communities.get(to_id).unwrap();
+                if from_comm != to_comm {
+                    let key = if from_comm < to_comm {
+                        (from_comm, to_comm)
+                    } else {
+                        (to_comm, from_comm)
+                    };
+                    *edge_weights.entry(key).or_insert(0.0) += 1.0;
+                }
+            }
+        }
+        // Divide by 2 because undirected edges are counted twice
+        for weight in edge_weights.values_mut() {
+            *weight /= 2.0;
+        }
+
+        // Calculate sum of degrees for each community
+        let mut community_degrees: Vec<f64> = degrees.clone();
+
+        // Build initial heap of merge candidates
+        use std::collections::BinaryHeap;
+        use std::cmp::Ordering;
+
+        #[derive(Debug)]
+        struct MergeCandidate {
+            delta_q: f64,
+            comm_a: usize,
+            comm_b: usize,
+        }
+
+        impl PartialEq for MergeCandidate {
+            fn eq(&self, other: &Self) -> bool {
+                self.delta_q == other.delta_q
+            }
+        }
+
+        impl Eq for MergeCandidate {}
+
+        impl PartialOrd for MergeCandidate {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                // Higher delta_q = higher priority
+                self.delta_q.partial_cmp(&other.delta_q)
+            }
+        }
+
+        impl Ord for MergeCandidate {
+            fn cmp(&self, other: &Self) -> Ordering {
+                self.partial_cmp(other).unwrap_or(Ordering::Equal)
+            }
+        }
+
+        let mut heap: BinaryHeap<MergeCandidate> = BinaryHeap::new();
+
+        // Populate initial heap with all community pairs that have edges
+        for (&(comm_a, comm_b), &e_ij) in &edge_weights {
+            let a_i = community_degrees[comm_a];
+            let a_j = community_degrees[comm_b];
+            
+            // ΔQ = e_ij/m - (a_i * a_j)/(2m²)
+            let delta_q = (e_ij / m) - (a_i * a_j) / (2.0 * m * m);
+            
+            heap.push(MergeCandidate {
+                delta_q,
+                comm_a,
+                comm_b,
+            });
+        }
+
+        // Track which communities are still active
+        let mut active_communities: FxHashSet<usize> = (0..n).collect();
+        
+        // Track best modularity and partition
+        let mut best_modularity = -1.0;
+        let mut best_partition = communities.clone();
+        let mut current_modularity = 0.0; // Initial modularity with all separate
+
+        // Main greedy loop
+        while let Some(candidate) = heap.pop() {
+            let MergeCandidate { delta_q, comm_a, comm_b } = candidate;
+
+            // Skip if communities were already merged
+            if !active_communities.contains(&comm_a) || !active_communities.contains(&comm_b) {
+                continue;
+            }
+
+            // Stop if no positive gain
+            if delta_q <= 0.0 {
+                break;
+            }
+
+            // Merge comm_b into comm_a (keep comm_a, remove comm_b)
+            for (_node_id, comm_id) in communities.iter_mut() {
+                if *comm_id == comm_b {
+                    *comm_id = comm_a;
+                }
+            }
+
+            // Update modularity
+            current_modularity += delta_q;
+
+            // Track best partition
+            if current_modularity > best_modularity {
+                best_modularity = current_modularity;
+                best_partition = communities.clone();
+            }
+
+            // Update community degrees
+            community_degrees[comm_a] += community_degrees[comm_b];
+            community_degrees[comm_b] = 0.0;
+
+            // Mark comm_b as inactive
+            active_communities.remove(&comm_b);
+
+            // Update edge weights: merge comm_b edges into comm_a
+            let mut new_edges: Vec<((usize, usize), f64)> = Vec::new();
+            let mut edges_to_remove: Vec<(usize, usize)> = Vec::new();
+
+            for (&(ci, cj), &weight) in &edge_weights {
+                if ci == comm_b || cj == comm_b {
+                    edges_to_remove.push((ci, cj));
+                    
+                    // Redirect to comm_a
+                    let new_ci = if ci == comm_b { comm_a } else { ci };
+                    let new_cj = if cj == comm_b { comm_a } else { cj };
+                    
+                    if new_ci != new_cj {
+                        let key = if new_ci < new_cj {
+                            (new_ci, new_cj)
+                        } else {
+                            (new_cj, new_ci)
+                        };
+                        new_edges.push((key, weight));
+                    }
+                }
+            }
+
+            // Remove old edges
+            for key in edges_to_remove {
+                edge_weights.remove(&key);
+            }
+
+            // Add new edges (accumulating weights)
+            for (key, weight) in new_edges {
+                *edge_weights.entry(key).or_insert(0.0) += weight;
+            }
+
+            // Add new merge candidates to heap
+            for &other_comm in &active_communities {
+                if other_comm == comm_a {
+                    continue;
+                }
+
+                let key = if comm_a < other_comm {
+                    (comm_a, other_comm)
+                } else {
+                    (other_comm, comm_a)
+                };
+
+                if let Some(&e_ij) = edge_weights.get(&key) {
+                    let a_i = community_degrees[comm_a];
+                    let a_j = community_degrees[other_comm];
+                    let delta_q = (e_ij / m) - (a_i * a_j) / (2.0 * m * m);
+                    
+                    heap.push(MergeCandidate {
+                        delta_q,
+                        comm_a: if comm_a < other_comm { comm_a } else { other_comm },
+                        comm_b: if comm_a < other_comm { other_comm } else { comm_a },
+                    });
+                }
+            }
+        }
+
+        // Renumber communities to be contiguous (0, 1, 2, ...)
+        let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
+        let mut next_id = 0;
+        
+        for comm_id in best_partition.values() {
+            if !community_map.contains_key(comm_id) {
+                community_map.insert(*comm_id, next_id);
+                next_id += 1;
+            }
+        }
+
+        let result: FxHashMap<String, usize> = best_partition.iter()
+            .map(|(node_id, old_comm)| (node_id.clone(), *community_map.get(old_comm).unwrap()))
+            .collect();
+
+        Ok(result)
+    }
 }
 
 
