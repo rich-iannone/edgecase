@@ -6,6 +6,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
+use nalgebra as na;
 
 /// A node in the graph
 #[pyclass]
@@ -3704,10 +3705,13 @@ impl Graph {
         }
     }
 
-    /// Compute leading eigenvector of modularity matrix using power iteration
+    /// Compute leading eigenvector of modularity matrix using nalgebra eigensolver
     /// For a subgraph, we use the generalized modularity matrix:
     /// B^(g)_ij = B_ij - δ_ij * Σ_k B_ik
     /// This modification is essential for correct bisection (Newman 2006, Eq. 5)
+    /// 
+    /// Uses nalgebra's symmetric_eigen() for robust eigenvalue computation,
+    /// specifically targeting the largest real eigenvalue (most positive).
     fn compute_leading_eigenvector(
         &self,
         nodes: &[String],
