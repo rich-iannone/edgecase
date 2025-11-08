@@ -3954,44 +3954,69 @@ impl Graph {
         let max_passes = 10;
         let mut pass = 0;
 
-        let node_ids: Vec<String> = node_to_idx.keys().cloned().collect();
+        let mut node_ids: Vec<String> = node_to_idx.keys().cloned().collect();
 
         while changed && pass < max_passes {
             changed = false;
             pass += 1;
 
+            // Shuffle node order with a fixed seed for determinism
+            // This helps convergence while keeping results reproducible
+            use rand::SeedableRng;
+            use rand::seq::SliceRandom;
+            let mut rng = rand::rngs::StdRng::seed_from_u64(42 + pass as u64);
+            node_ids.shuffle(&mut rng);
+
             for node_id in &node_ids {
                 let node_idx = node_to_idx[node_id];
                 let current_comm = node_to_comm[node_idx];
+                let k_i = self.degree(node_id) as f64;
 
-                // Get neighboring communities
-                let mut neighbor_comms = FxHashSet::default();
+                // Calculate weight_all (total degree of node)
+                let weight_all = k_i;
+                
+                // Calculate edges from this node to each community
+                let mut comm_weights: FxHashMap<usize, f64> = FxHashMap::default();
+                
                 if let Some(neighbors) = self.adjacency_list.get(node_id) {
                     for neighbor_id in neighbors {
                         if let Some(&neighbor_idx) = node_to_idx.get(neighbor_id) {
-                            neighbor_comms.insert(node_to_comm[neighbor_idx]);
+                            let neighbor_comm = node_to_comm[neighbor_idx];
+                            if neighbor_id != node_id { // Don't count self-loops for community detection
+                                *comm_weights.entry(neighbor_comm).or_insert(0.0) += 1.0;
+                            }
                         }
                     }
                 }
 
-                // Try moving to each neighboring community
+                // Calculate sum of degrees for each community (BEFORE removing current node)
+                let mut comm_degree_sum: FxHashMap<usize, f64> = FxHashMap::default();
+                for (nid, &idx) in node_to_idx {
+                    let comm = node_to_comm[idx];
+                    let deg = self.degree(nid) as f64;
+                    *comm_degree_sum.entry(comm).or_insert(0.0) += deg;
+                }
+
+                // Now "remove" the node from its current community for calculation
+                if let Some(sum) = comm_degree_sum.get_mut(&current_comm) {
+                    *sum -= k_i;
+                }
+
+                // Try moving to each neighboring community (or staying in modified current)
                 let mut best_comm = current_comm;
                 let mut best_gain = 0.0;
+                
+                // Collect all communities the node has edges to
+                let communities_to_try: Vec<usize> = comm_weights.keys().copied().collect();
 
-                for &target_comm in &neighbor_comms {
-                    if target_comm == current_comm {
-                        continue;
-                    }
-
-                    let gain = self.louvain_modularity_gain(
-                        node_id,
-                        current_comm,
-                        target_comm,
-                        node_to_comm,
-                        node_to_idx,
-                        m,
-                        resolution,
-                    );
+                for target_comm in communities_to_try {
+                    let k_i_in = comm_weights.get(&target_comm).copied().unwrap_or(0.0);
+                    
+                    // Modularity gain formula from igraph:
+                    // gain = k_i_in - resolution * sigma_tot * k_i / (2*m)
+                    // where sigma_tot is the sum of degrees in target community (with node removed if it's current)
+                    let sigma_tot = comm_degree_sum.get(&target_comm).copied().unwrap_or(0.0);
+                    let gain = k_i_in - resolution * sigma_tot * weight_all / (2.0 * m);
 
                     if gain > best_gain {
                         best_gain = gain;
@@ -4009,56 +4034,6 @@ impl Graph {
         }
 
         improved
-    }
-
-    /// Calculate modularity gain for moving a node.
-    fn louvain_modularity_gain(
-        &self,
-        node_id: &str,
-        from_comm: usize,
-        to_comm: usize,
-        node_to_comm: &[usize],
-        node_to_idx: &FxHashMap<String, usize>,
-        m: f64,
-        resolution: f64,
-    ) -> f64 {
-        // Get node degree
-        let k_i = self.degree(node_id) as f64;
-
-        // Calculate sum of degrees in communities
-        let mut sigma_to = 0.0;
-        let mut sigma_from = 0.0;
-        for (nid, &idx) in node_to_idx {
-            let comm = node_to_comm[idx];
-            let deg = self.degree(nid) as f64;
-            if comm == to_comm {
-                sigma_to += deg;
-            } else if comm == from_comm {
-                sigma_from += deg;
-            }
-        }
-
-        // Calculate edges to communities
-        let mut k_i_in_to = 0.0;
-        let mut k_i_in_from = 0.0;
-        if let Some(neighbors) = self.adjacency_list.get(node_id) {
-            for neighbor_id in neighbors {
-                if let Some(&neighbor_idx) = node_to_idx.get(neighbor_id) {
-                    let neighbor_comm = node_to_comm[neighbor_idx];
-                    if neighbor_comm == to_comm {
-                        k_i_in_to += 1.0;
-                    } else if neighbor_comm == from_comm && neighbor_id != node_id {
-                        k_i_in_from += 1.0;
-                    }
-                }
-            }
-        }
-
-        // Modularity gain formula
-        let two_m = 2.0 * m;
-        let gain_to = k_i_in_to - resolution * sigma_to * k_i / two_m;
-        let gain_from = k_i_in_from - resolution * (sigma_from - k_i) * k_i / two_m;
-        gain_to - gain_from
     }
 
     /// Compute modularity for Louvain.
