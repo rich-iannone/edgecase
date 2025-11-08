@@ -192,10 +192,11 @@ class GraphWidget:
                 'label': str(node_id),
             }
             
-            # Try to get node attributes
+            # Get node attributes
             try:
-                attrs = self.graph.get_node_attrs(node_id)
-                node_info.update(attrs)
+                node = self.graph.get_node(node_id)
+                if node and node.attributes:
+                    node_info.update(node.attributes)
             except Exception:
                 pass
             
@@ -214,39 +215,52 @@ class GraphWidget:
         }
     
     def _apply_aesthetics(self, node_data: List[Dict]) -> List[Dict]:
-        """Apply aesthetic mappings to node data."""
+        """Apply aesthetic mappings to node data.
         
-        # Color mapping
+        Priority:
+        1. Direct visual attributes ('color', 'size', 'shape') from nodes
+        2. Legacy color_by/size_by parameters for backward compatibility
+        3. Default values
+        """
+        
+        # Legacy: Color mapping via color_by parameter (for backward compatibility)
         if self.color_by:
             unique_values = list(set(n.get(self.color_by) for n in node_data if self.color_by in n))
             if unique_values:
                 color_map = self._create_color_map(unique_values)
                 for node in node_data:
-                    if self.color_by in node:
+                    if self.color_by in node and 'color' not in node:
+                        # Only apply if node doesn't already have a 'color' attribute
                         node['color'] = color_map.get(node[self.color_by], '#cccccc')
         
-        # Size mapping
+        # Legacy: Size mapping via size_by parameter (for backward compatibility)
         if self.size_by:
             sizes = [n.get(self.size_by, 0) for n in node_data if self.size_by in n]
             if sizes:
                 min_size, max_size = min(sizes), max(sizes)
                 size_range = max_size - min_size if max_size > min_size else 1.0
                 for node in node_data:
-                    if self.size_by in node:
+                    if self.size_by in node and 'size' not in node:
+                        # Only apply if node doesn't already have a 'size' attribute
                         normalized = (node[self.size_by] - min_size) / size_range
                         node['size'] = self.node_size * (0.5 + normalized * self.size_scale)
         
-        # Default size if not set
+        # Apply defaults for nodes without visual attributes
         for node in node_data:
             if 'size' not in node:
                 node['size'] = self.node_size
+            else:
+                # Scale existing size values to pixel units if they look normalized (0-1 range)
+                if isinstance(node['size'], (int, float)) and 0 <= node['size'] <= 1:
+                    node['size'] = self.node_size * (0.5 + node['size'] * self.size_scale)
+            
             if 'color' not in node:
                 node['color'] = '#4285f4'  # Default blue
         
         return node_data
     
     def _create_color_map(self, categories: List[Any]) -> Dict[Any, str]:
-        """Create color mapping for categorical data using built-in palettes."""
+        """Create color mapping for categorical data using built-in palettes."""""
         # Get the color palette
         palette = COLOR_PALETTES.get(self.color_palette, COLOR_PALETTES['default'])
         
@@ -272,93 +286,91 @@ class GraphWidget:
         try:
             import anywidget
             import traitlets
-            
-            if self._data is None:
-                self._data = self._prepare_data()
-            
-            # Create widget class dynamically
-            class GraphWidgetImpl(anywidget.AnyWidget):
-                _esm = """
-                function render({ model, el }) {
-                  const data = model.get('data');
-                  const canvas = document.createElement('canvas');
-                  canvas.width = data.width;
-                  canvas.height = data.height;
-                  canvas.style.border = '1px solid #ccc';
-                  el.appendChild(canvas);
-                  
-                  const ctx = canvas.getContext('2d');
-                  
-                  // Simple canvas renderer (can be upgraded to WebGL)
-                  function draw() {
-                    ctx.fillStyle = data.background;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Transform to center and scale
-                    ctx.save();
-                    ctx.translate(canvas.width / 2, canvas.height / 2);
-                    const scale = Math.min(canvas.width, canvas.height) / 2.5;
-                    ctx.scale(scale, scale);
-                    
-                    // Draw edges
-                    ctx.strokeStyle = '#cccccc';
-                    ctx.lineWidth = data.edge_width / scale;
-                    data.edges.forEach(edge => {
-                      const from = data.nodes.find(n => n.id === edge[0]);
-                      const to = data.nodes.find(n => n.id === edge[1]);
-                      if (from && to) {
-                        ctx.beginPath();
-                        ctx.moveTo(from.x, from.y);
-                        ctx.lineTo(to.x, to.y);
-                        ctx.stroke();
-                      }
-                    });
-                    
-                    // Draw nodes
-                    data.nodes.forEach(node => {
-                      ctx.fillStyle = node.color || '#4285f4';
-                      ctx.beginPath();
-                      ctx.arc(node.x, node.y, node.size / scale, 0, 2 * Math.PI);
-                      ctx.fill();
-                      ctx.strokeStyle = '#ffffff';
-                      ctx.lineWidth = 1.5 / scale;
-                      ctx.stroke();
-                    });
-                    
-                    // Draw labels
-                    ctx.font = `${12 / scale}px sans-serif`;
-                    ctx.fillStyle = '#333333';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    data.nodes.forEach(node => {
-                      ctx.fillText(node.label, node.x, node.y);
-                    });
-                    
-                    ctx.restore();
-                  }
-                  
-                  draw();
-                  
-                  // Interaction handling
-                  canvas.addEventListener('mousemove', (e) => {
-                    const rect = canvas.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    // Tooltip logic can be added here
-                  });
-                }
-                export default { render };
-                """
-                data = traitlets.Dict({}).tag(sync=True)
-            
-            widget = GraphWidgetImpl(data=self._data)
-            self._widget = widget
-            return widget
-            
         except ImportError:
             print("AnyWidget not installed. Falling back to browser display.")
             print("Install with: pip install anywidget")
             return self._show_browser()
+        
+        if self._data is None:
+            self._data = self._prepare_data()
+        
+        # Create widget class dynamically
+        class GraphWidgetImpl(anywidget.AnyWidget):
+            _esm = """
+function render({ model, el }) {
+  const data = model.get('data');
+  if (!data || !data.nodes) {
+    el.innerHTML = '<p>No graph data available</p>';
+    return;
+  }
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = data.width || 800;
+  canvas.height = data.height || 600;
+  canvas.style.border = '1px solid #ccc';
+  el.appendChild(canvas);
+  
+  const ctx = canvas.getContext('2d');
+  
+  // Draw function
+  ctx.fillStyle = data.background || '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Transform to center and scale
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  const scale = Math.min(canvas.width, canvas.height) / 2.5;
+  ctx.scale(scale, scale);
+  
+  // Draw edges
+  if (data.edges && data.edges.length > 0) {
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = (data.edge_width || 1) / scale;
+    data.edges.forEach(edge => {
+      const from = data.nodes.find(n => n.id === edge[0]);
+      const to = data.nodes.find(n => n.id === edge[1]);
+      if (from && to) {
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+      }
+    });
+  }
+  
+  // Draw nodes
+  data.nodes.forEach(node => {
+    ctx.fillStyle = node.color || '#4285f4';
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, (node.size || 10) / scale, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5 / scale;
+    ctx.stroke();
+  });
+  
+  // Draw labels
+  ctx.font = `${12 / scale}px sans-serif`;
+  ctx.fillStyle = '#333333';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  data.nodes.forEach(node => {
+    ctx.fillText(node.label || node.id, node.x, node.y);
+  });
+  
+  ctx.restore();
+}
+
+export default { render };
+"""
+            data = traitlets.Dict({}).tag(sync=True)
+        
+        widget = GraphWidgetImpl(data=self._data)
+        self._widget = widget
+        
+        # Display in notebook (don't return to avoid double display)
+        from IPython.display import display
+        display(widget)
     
     def _show_browser(self):
         """Fallback to opening in browser."""
