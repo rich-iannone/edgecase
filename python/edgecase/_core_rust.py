@@ -590,6 +590,177 @@ class Graph:
         """
         return self._graph.average_degree()
     
+    def get_agg_degree_in(self, agg: str, conditions: Optional[Callable] = None) -> float:
+        """Get aggregate value from indegree of nodes.
+        
+        Computes a single aggregate statistic from the indegree values of all nodes
+        (or a filtered subset) in a directed graph.
+        
+        Args:
+            agg: Aggregation function - one of 'sum', 'min', 'max', 'mean', 'median'
+            conditions: Optional callable to filter nodes. Takes a node object and
+                       returns True to include it in the aggregation.
+        
+        Returns:
+            Aggregated indegree value
+            
+        Raises:
+            ValueError: If graph is undirected or agg function is invalid
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_gnm_graph(20, 35, seed=23)
+            >>> G.get_agg_degree_in('mean')  # Mean indegree
+            1.75
+            >>> G.get_agg_degree_in('median')  # Median indegree
+            1.5
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_agg_degree_in() only works with directed graphs")
+        
+        valid_agg = {'sum', 'min', 'max', 'mean', 'median'}
+        if agg not in valid_agg:
+            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
+        
+        # Get indegrees for all nodes (or filtered nodes)
+        degrees = []
+        for node_id in self.node_ids():
+            if conditions is None or conditions(self.get_node(node_id)):
+                degrees.append(self.in_degree(node_id))
+        
+        if not degrees:
+            return 0.0
+        
+        # Apply aggregation
+        if agg == 'sum':
+            return float(sum(degrees))
+        elif agg == 'min':
+            return float(min(degrees))
+        elif agg == 'max':
+            return float(max(degrees))
+        elif agg == 'mean':
+            return sum(degrees) / len(degrees)
+        elif agg == 'median':
+            sorted_degrees = sorted(degrees)
+            n = len(sorted_degrees)
+            if n % 2 == 0:
+                return (sorted_degrees[n//2 - 1] + sorted_degrees[n//2]) / 2.0
+            else:
+                return float(sorted_degrees[n//2])
+    
+    def get_agg_degree_out(self, agg: str, conditions: Optional[Callable] = None) -> float:
+        """Get aggregate value from outdegree of nodes.
+        
+        Computes a single aggregate statistic from the outdegree values of all nodes
+        (or a filtered subset) in a directed graph.
+        
+        Args:
+            agg: Aggregation function - one of 'sum', 'min', 'max', 'mean', 'median'
+            conditions: Optional callable to filter nodes. Takes a node object and
+                       returns True to include it in the aggregation.
+        
+        Returns:
+            Aggregated outdegree value
+            
+        Raises:
+            ValueError: If graph is undirected or agg function is invalid
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_gnm_graph(20, 35, seed=23)
+            >>> G.get_agg_degree_out('mean')  # Mean outdegree
+            1.75
+            >>> G.get_agg_degree_out('median')  # Median outdegree
+            1.0
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_agg_degree_out() only works with directed graphs")
+        
+        valid_agg = {'sum', 'min', 'max', 'mean', 'median'}
+        if agg not in valid_agg:
+            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
+        
+        # Get outdegrees for all nodes (or filtered nodes)
+        degrees = []
+        for node_id in self.node_ids():
+            if conditions is None or conditions(self.get_node(node_id)):
+                degrees.append(self.out_degree(node_id))
+        
+        if not degrees:
+            return 0.0
+        
+        # Apply aggregation
+        if agg == 'sum':
+            return float(sum(degrees))
+        elif agg == 'min':
+            return float(min(degrees))
+        elif agg == 'max':
+            return float(max(degrees))
+        elif agg == 'mean':
+            return sum(degrees) / len(degrees)
+        elif agg == 'median':
+            sorted_degrees = sorted(degrees)
+            n = len(sorted_degrees)
+            if n % 2 == 0:
+                return (sorted_degrees[n//2 - 1] + sorted_degrees[n//2]) / 2.0
+            else:
+                return float(sorted_degrees[n//2])
+    
+    def get_agg_degree_total(self, agg: str, conditions: Optional[Callable] = None) -> float:
+        """Get aggregate value from total degree of nodes.
+        
+        Computes a single aggregate statistic from the total degree values of all nodes
+        (or a filtered subset). Works with both directed and undirected graphs.
+        
+        Args:
+            agg: Aggregation function - one of 'sum', 'min', 'max', 'mean', 'median'
+            conditions: Optional callable to filter nodes. Takes a node object and
+                       returns True to include it in the aggregation.
+        
+        Returns:
+            Aggregated total degree value
+            
+        Raises:
+            ValueError: If agg function is invalid
+            
+        Example:
+            >>> G = ec.Graph(directed=True)
+            >>> G.add_gnm_graph(20, 35, seed=23)
+            >>> G.get_agg_degree_total('mean')  # Mean total degree
+            3.5
+            >>> G.get_agg_degree_total('median')  # Median total degree
+            3.0
+        """
+        valid_agg = {'sum', 'min', 'max', 'mean', 'median'}
+        if agg not in valid_agg:
+            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
+        
+        # Get total degrees for all nodes (or filtered nodes)
+        degrees = []
+        for node_id in self.node_ids():
+            if conditions is None or conditions(self.get_node(node_id)):
+                degrees.append(self.degree(node_id))
+        
+        if not degrees:
+            return 0.0
+        
+        # Apply aggregation
+        if agg == 'sum':
+            return float(sum(degrees))
+        elif agg == 'min':
+            return float(min(degrees))
+        elif agg == 'max':
+            return float(max(degrees))
+        elif agg == 'mean':
+            return sum(degrees) / len(degrees)
+        elif agg == 'median':
+            sorted_degrees = sorted(degrees)
+            n = len(sorted_degrees)
+            if n % 2 == 0:
+                return (sorted_degrees[n//2 - 1] + sorted_degrees[n//2]) / 2.0
+            else:
+                return float(sorted_degrees[n//2])
+    
     def get_degree_histogram(self) -> dict[int, int]:
         """Get degree histogram for plotting.
         
