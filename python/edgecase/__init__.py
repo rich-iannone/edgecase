@@ -61,6 +61,15 @@ from edgecase.builders import (
     create_graph,
 )
 
+# NetworkX interoperability (optional)
+try:
+    from edgecase.networkx import to_networkx, from_networkx
+    _HAS_NETWORKX = True
+except ImportError:
+    _HAS_NETWORKX = False
+    to_networkx = None
+    from_networkx = None
+
 __all__ = [
     # Version
     "__version__",
@@ -77,6 +86,8 @@ __all__ = [
     # I/O
     "from_polars",
     "to_polars",
+    "to_networkx",
+    "from_networkx",
     # Analysis
     "NetworkAnalyzer",
     # Visualization
