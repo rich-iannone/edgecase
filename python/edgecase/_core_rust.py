@@ -1503,6 +1503,57 @@ class Graph:
             - get_cmty_l_eigenvec(): Spectral method
         """
         return self._graph.get_cmty_walktrap(steps)
+
+
+    def colorize_node_attrs(
+        self,
+        node_attr_from: str = None,
+        values: dict[str, Any] = None,
+        node_attr_to: str = "color",
+        palette: str | list[str] = "default",
+        alpha: Optional[int] = None,
+        nodes: Optional[list[str]] = None,
+    ) -> "Graph":
+        """Map node attribute values to colors.
+        
+        See edgecase.aesthetics.colorize_node_attrs() for full documentation.
+        """
+        from edgecase.aesthetics import colorize_node_attrs
+        return colorize_node_attrs(
+            self, node_attr_from=node_attr_from, values=values,
+            node_attr_to=node_attr_to, palette=palette, alpha=alpha, nodes=nodes
+        )
+    
+    def rescale_node_attrs(
+        self,
+        node_attr_from: str = None,
+        values: dict[str, int | float] = None,
+        node_attr_to: str = "size",
+        to_lower_bound: float = 0.5,
+        to_upper_bound: float = 1.0,
+        nodes: Optional[list[str]] = None,
+    ) -> "Graph":
+        """Rescale node attribute values to a range.
+        
+        See edgecase.aesthetics.rescale_node_attrs() for full documentation.
+        """
+        from edgecase.aesthetics import rescale_node_attrs
+        return rescale_node_attrs(
+            self, node_attr_from=node_attr_from, values=values,
+            node_attr_to=node_attr_to, to_lower_bound=to_lower_bound,
+            to_upper_bound=to_upper_bound, nodes=nodes
+        )
+    
+    def set_node_attr_to_display(
+        self,
+        attr: Optional[str] = None,
+    ) -> "Graph":
+        """Set which node attribute to display in tooltips/labels.
+        
+        See edgecase.aesthetics.set_node_attr_to_display() for full documentation.
+        """
+        from edgecase.aesthetics import set_node_attr_to_display
+        return set_node_attr_to_display(self, attr=attr)
     
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get HITS authority scores for directed graph.

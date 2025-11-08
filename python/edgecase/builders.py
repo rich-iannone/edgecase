@@ -1,5 +1,5 @@
 """
-Graph building functions inspired by DiagrammeR.
+Graph building functions.
 
 These functions create common graph structures and patterns, making it easy
 to construct graphs for analysis and visualization.
@@ -488,7 +488,7 @@ def create_graph(
     directed: bool = False,
 ) -> "Graph":
     """
-    Create a graph from Polars DataFrames following DiagrammeR's NDF/EDF pattern.
+    Create a graph from Polars DataFrames following an NDF/EDF pattern.
     
     Node DataFrame (NDF) should have:
     - 'id': Unique node identifier (required)
