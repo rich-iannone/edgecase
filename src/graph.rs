@@ -3720,19 +3720,13 @@ impl Graph {
     ) -> Option<Vec<f64>> {
         let n = nodes.len();
         
-        // Initialize with alternating +1/-1 pattern (similar to igraph)
-        // This helps the power iteration converge to an eigenvector with mixed signs
-        let mut v: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
-        let mut v_new: Vec<f64> = vec![0.0; n];
-
         // Precompute degrees for efficiency
         let degrees: Vec<f64> = nodes.iter()
             .map(|id| self.degree(id) as f64)
             .collect();
 
-        // Precompute B matrix for the subgraph
-        // B^(g)_ij = (A_ij - k_i*k_j/2m) - δ_ij * Σ_k (A_ik - k_i*k_k/2m)
-        let mut b_matrix: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
+        // Build B^(g) matrix for the subgraph using nalgebra DMatrix
+        let mut b_matrix = na::DMatrix::<f64>::zeros(n, n);
         
         for (i, node_i) in nodes.iter().enumerate() {
             // First compute row sum: Σ_k B_ik
