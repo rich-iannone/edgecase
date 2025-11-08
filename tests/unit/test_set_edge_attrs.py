@@ -44,7 +44,7 @@ class TestSetEdgeAttrsBasic:
         G.add_edge("B", "D")
         
         # Set for edges from A to B or C
-        G.set_edge_attrs("type", "important", from_nodes=["A"], to_nodes=["B", "C"])
+        G.set_edge_attrs("type", "important", sources=["A"], targets=["B", "C"])
         
         result = G.get_edge_attrs("type")
         assert result == {"A->B": "important", "A->C": "important"}
@@ -184,14 +184,14 @@ class TestSetEdgeAttrsDirected:
     """Test with directed graphs."""
     
     def test_directed_graph_from_to_filtering(self):
-        """Test from/to filtering respects direction."""
+        """Test source/target filtering respects direction."""
         G = ec.Graph(directed=True)
         G.add_edge("A", "B")
         G.add_edge("B", "A")  # Reverse edge
         G.add_edge("A", "C")
         
         # Only A->B should be updated
-        G.set_edge_attrs("marked", True, from_nodes=["A"], to_nodes=["B"])
+        G.set_edge_attrs("marked", True, sources=["A"], targets=["B"])
         
         result = G.get_edge_attrs("marked")
         assert result == {"A->B": True}

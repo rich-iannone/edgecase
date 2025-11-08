@@ -167,12 +167,12 @@ class Graph:
         """Check if an edge with given ID exists."""
         return self._graph.has_edge_id(edge_id)
     
-    def has_edge(self, from_node: str, to_node: str) -> bool:
+    def has_edge(self, source: str, target: str) -> bool:
         """Check if an edge exists between two nodes.
         
         Args:
-            from_node: Source node ID
-            to_node: Target node ID (for undirected graphs, order doesn't matter)
+            source: Source node ID
+            target: Target node ID (for undirected graphs, order doesn't matter)
             
         Returns:
             True if at least one edge exists between the nodes
@@ -185,7 +185,7 @@ class Graph:
             >>> G.has_edge("B", "A")
             False
         """
-        edge_ids = self._graph.find_edge_ids(from_node, to_node)
+        edge_ids = self._graph.find_edge_ids(source, target)
         return len(edge_ids) > 0
     
     def delete_edge_by_id(self, edge_id: int):
@@ -194,19 +194,19 @@ class Graph:
     
     def delete_edge(
         self, 
-        from_node: str | None = None, 
-        to_node: str | None = None, 
+        source: str | None = None, 
+        target: str | None = None, 
         id: int | None = None
     ) -> "Graph":
         """Delete an edge from the graph.
                 
-        Specify either (from, to) pair OR edge id. For multigraphs with from/to,
+        Specify either (source, target) pair OR edge id. For multigraphs with source/target,
         only the first matching edge is deleted.
         
         Args:
-            from_node: Source node ID. Can use node labels if all nodes have distinct labels.
-            to_node: Target node ID. Can use node labels if all nodes have distinct labels.
-            id: Edge ID to delete (if provided, from_node and to_node are ignored)
+            source: Source node ID. Can use node labels if all nodes have distinct labels.
+            target: Target node ID. Can use node labels if all nodes have distinct labels.
+            id: Edge ID to delete (if provided, source and target are ignored)
             
         Returns:
             Self for method chaining
@@ -214,7 +214,7 @@ class Graph:
         Example:
             >>> G = Graph(directed=True)
             >>> G.add_edge("A", "B")
-            >>> G.delete_edge(from_node="A", to_node="B")
+            >>> G.delete_edge(source="A", target="B")
             
             >>> # Or delete by edge ID
             >>> G.delete_edge(id=1)
@@ -222,15 +222,15 @@ class Graph:
         if id is not None:
             # Delete by edge ID
             self._graph.delete_edge_by_id(id)
-        elif from_node is not None and to_node is not None:
+        elif source is not None and target is not None:
             # Find and delete first matching edge
-            edge_ids = self._graph.find_edge_ids(from_node, to_node)
+            edge_ids = self._graph.find_edge_ids(source, target)
             if len(edge_ids) > 0:
                 self._graph.delete_edge_by_id(edge_ids[0])
             else:
-                raise KeyError(f"No edge found from '{from_node}' to '{to_node}'")
+                raise KeyError(f"No edge found from '{source}' to '{target}'")
         else:
-            raise ValueError("Must specify either (from_node, to_node) or id")
+            raise ValueError("Must specify either (source, target) or id")
         
         return self
     
@@ -2335,15 +2335,15 @@ class Graph:
     def get_edge_attrs(
         self, 
         edge_attr: str, 
-        from_nodes: list[str] | None = None, 
-        to_nodes: list[str] | None = None
+        sources: list[str] | None = None, 
+        targets: list[str] | None = None
     ) -> dict[str, any]:
         """Get edge attribute values.
                 
         Args:
             edge_attr: The name of the attribute to get
-            from_nodes: Optional list of source node IDs to filter edges
-            to_nodes: Optional list of target node IDs to filter edges
+            sources: Optional list of source node IDs to filter edges
+            targets: Optional list of target node IDs to filter edges
             
         Returns:
             Dictionary mapping edge strings (e.g., "A->B") to attribute values
@@ -2355,19 +2355,19 @@ class Graph:
             >>> G.get_edge_attrs("weight")
             {'A->B': 1.5, 'B->C': 2.0}
             
-            >>> # Filter by from/to nodes
-            >>> G.get_edge_attrs("weight", from_nodes=["A"], to_nodes=["B"])
+            >>> # Filter by source/target nodes
+            >>> G.get_edge_attrs("weight", sources=["A"], targets=["B"])
             {'A->B': 1.5}
         """
         result = {}
         separator = "->" if self.directed else "--"
         
         # Determine which edges to check
-        if from_nodes is not None and to_nodes is not None:
-            # Filter by specific from/to pairs
-            for from_node in from_nodes:
-                for to_node in to_nodes:
-                    edge_ids = self._graph.find_edge_ids(from_node, to_node)
+        if sources is not None and targets is not None:
+            # Filter by specific source/target pairs
+            for source in sources:
+                for target in targets:
+                    edge_ids = self._graph.find_edge_ids(source, target)
                     for edge_id in edge_ids:
                         edge = self.get_edge(edge_id)
                         if edge:
@@ -2430,8 +2430,8 @@ class Graph:
         edge_attr: str, 
         values, 
         edges: list[tuple[str, str]] | None = None,
-        from_nodes: list[str] | None = None,
-        to_nodes: list[str] | None = None
+        sources: list[str] | None = None,
+        targets: list[str] | None = None
     ) -> "Graph":
         """Set attribute values for one or more edges.
         
@@ -2439,9 +2439,9 @@ class Graph:
             edge_attr: The name of the attribute to set
             values: The value(s) to set. Can be a single value (applied to all edges),
                    a list of values matching the edges, or a dict mapping edge IDs to values
-            edges: Optional list of (from, to) tuples specifying edges to set attributes for
-            from_nodes: Optional list of source node IDs to filter edges (used with to_nodes)
-            to_nodes: Optional list of target node IDs to filter edges (used with from_nodes)
+            edges: Optional list of (source, target) tuples specifying edges to set attributes for
+            sources: Optional list of source node IDs to filter edges (used with targets)
+            targets: Optional list of target node IDs to filter edges (used with sources)
             
         Returns:
             Self for method chaining
@@ -2460,8 +2460,8 @@ class Graph:
             >>> G.get_edge_attrs("status")
             {'A->B': 'active', 'B->C': 'active'}
             
-            >>> # Filter by from/to nodes
-            >>> G.set_edge_attrs("type", "friend", from_nodes=["A"], to_nodes=["B"])
+            >>> # Filter by source/target nodes
+            >>> G.set_edge_attrs("type", "friend", sources=["A"], targets=["B"])
             >>> G.get_edge_attrs("type")
             {'A->B': 'friend'}
         """
@@ -2469,15 +2469,15 @@ class Graph:
         target_edge_ids = []
         
         if edges is not None:
-            # Use specific (from, to) tuples
-            for from_node, to_node in edges:
-                edge_ids = self._graph.find_edge_ids(from_node, to_node)
+            # Use specific (source, target) tuples
+            for source, target in edges:
+                edge_ids = self._graph.find_edge_ids(source, target)
                 target_edge_ids.extend(edge_ids)
-        elif from_nodes is not None and to_nodes is not None:
-            # Filter by from/to node lists
-            for from_node in from_nodes:
-                for to_node in to_nodes:
-                    edge_ids = self._graph.find_edge_ids(from_node, to_node)
+        elif sources is not None and targets is not None:
+            # Filter by source/target node lists
+            for source in sources:
+                for target in targets:
+                    edge_ids = self._graph.find_edge_ids(source, target)
                     target_edge_ids.extend(edge_ids)
         else:
             # All edges
