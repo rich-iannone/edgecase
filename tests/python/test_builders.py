@@ -1,5 +1,5 @@
 """
-Tests for graph building functions inspired by DiagrammeR.
+Tests for graph building functions.
 """
 
 import pytest
