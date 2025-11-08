@@ -34,6 +34,7 @@ from edgecase.polars_integration import from_polars, to_polars
 from edgecase.analysis import NetworkAnalyzer
 from edgecase.tables import tbl_centrality, tbl_network_summary
 from edgecase.viz import plot_graph
+from edgecase.widget import GraphWidget, graph_widget
 from edgecase.bio import (
     protein_network,
     patient_similarity_network,
@@ -75,6 +76,8 @@ __all__ = [
     "NetworkAnalyzer",
     # Visualization
     "plot_graph",
+    "GraphWidget",
+    "graph_widget",
     # Tables
     "tbl_centrality",
     "tbl_network_summary",
