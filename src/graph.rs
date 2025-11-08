@@ -3749,66 +3749,43 @@ impl Graph {
                 let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
                 
                 if i == j {
-                    b_matrix[i][j] = b_ij - row_sum;
+                    b_matrix[(i, j)] = b_ij - row_sum;
                 } else {
-                    b_matrix[i][j] = b_ij;
+                    b_matrix[(i, j)] = b_ij;
                 }
             }
         }
 
-        // Power iteration
-        let max_iterations = 100;
-        let tolerance = 1e-6;
-
-        for _iteration in 0..max_iterations {
-            // Compute B^(g) * v
-            for i in 0..n {
-                v_new[i] = 0.0;
-                for j in 0..n {
-                    v_new[i] += b_matrix[i][j] * v[j];
-                }
+        // Compute eigenvalues and eigenvectors using nalgebra
+        // symmetric_eigen() is optimized for real symmetric matrices
+        let eigen = b_matrix.symmetric_eigen();
+        
+        // Find the eigenvalue with the largest value
+        let eigenvalues = eigen.eigenvalues;
+        let eigenvectors = eigen.eigenvectors;
+        
+        // Find index of maximum eigenvalue
+        let mut max_idx = 0;
+        let mut max_eigenvalue = eigenvalues[0];
+        
+        for (i, &val) in eigenvalues.iter().enumerate() {
+            if val > max_eigenvalue {
+                max_eigenvalue = val;
+                max_idx = i;
             }
-
-            // Normalize
-            let norm: f64 = v_new.iter().map(|x| x * x).sum::<f64>().sqrt();
-            if norm < 1e-10 {
-                // Eigenvector is zero, no clear split
-                return None;
-            }
-
-            for i in 0..n {
-                v_new[i] /= norm;
-            }
-
-            // Check convergence
-            let diff: f64 = v.iter().zip(v_new.iter())
-                .map(|(a, b)| (a - b).abs())
-                .sum();
-
-            if diff < tolerance {
-                break;
-            }
-
-            // Swap vectors
-            std::mem::swap(&mut v, &mut v_new);
         }
-
-        // Check if leading eigenvalue is positive using Rayleigh quotient
-        // λ ≈ v^T * B^(g) * v
-        let mut eigenvalue = 0.0;
-        for i in 0..n {
-            let mut bv_i = 0.0;
-            for j in 0..n {
-                bv_i += b_matrix[i][j] * v[j];
-            }
-            eigenvalue += v[i] * bv_i;
-        }
-
-        // Only split if leading eigenvalue is positive
-        if eigenvalue <= 1e-10 {
+        
+        // Check if largest eigenvalue is positive
+        if max_eigenvalue <= 1e-10 {
             return None;
         }
-
+        
+        // Extract the corresponding eigenvector
+        let eigenvector = eigenvectors.column(max_idx);
+        
+        // Convert to Vec<f64>
+        let v: Vec<f64> = eigenvector.iter().copied().collect();
+        
         Some(v)
     }
 
