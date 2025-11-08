@@ -304,61 +304,263 @@ function render({ model, el }) {
     return;
   }
   
+  // Create container for canvas and tooltip
+  const container = document.createElement('div');
+  container.style.position = 'relative';
+  container.style.display = 'inline-block';
+  el.appendChild(container);
+  
   const canvas = document.createElement('canvas');
   canvas.width = data.width || 800;
   canvas.height = data.height || 600;
   canvas.style.border = '1px solid #ccc';
-  el.appendChild(canvas);
+  canvas.style.cursor = 'grab';
+  container.appendChild(canvas);
+  
+  // Create tooltip
+  const tooltip = document.createElement('div');
+  tooltip.style.position = 'absolute';
+  tooltip.style.display = 'none';
+  tooltip.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+  tooltip.style.color = 'white';
+  tooltip.style.padding = '8px 12px';
+  tooltip.style.borderRadius = '4px';
+  tooltip.style.fontSize = '12px';
+  tooltip.style.pointerEvents = 'none';
+  tooltip.style.zIndex = '1000';
+  tooltip.style.maxWidth = '200px';
+  container.appendChild(tooltip);
   
   const ctx = canvas.getContext('2d');
   
-  // Draw function
-  ctx.fillStyle = data.background || '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Interactive state
+  let transform = {
+    offsetX: canvas.width / 2,
+    offsetY: canvas.height / 2,
+    scale: Math.min(canvas.width, canvas.height) / 2.5
+  };
   
-  // Transform to center and scale
-  ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  const scale = Math.min(canvas.width, canvas.height) / 2.5;
-  ctx.scale(scale, scale);
+  let dragState = {
+    isDragging: false,
+    dragNode: null,
+    startX: 0,
+    startY: 0,
+    isPanning: false
+  };
   
-  // Draw edges
-  if (data.edges && data.edges.length > 0) {
-    ctx.strokeStyle = '#cccccc';
-    ctx.lineWidth = (data.edge_width || 1) / scale;
-    data.edges.forEach(edge => {
-      const from = data.nodes.find(n => n.id === edge[0]);
-      const to = data.nodes.find(n => n.id === edge[1]);
-      if (from && to) {
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.stroke();
-      }
-    });
+  let hoveredNode = null;
+  
+  // Helper: Screen to world coordinates
+  function screenToWorld(screenX, screenY) {
+    return {
+      x: (screenX - transform.offsetX) / transform.scale,
+      y: (screenY - transform.offsetY) / transform.scale
+    };
   }
   
-  // Draw nodes
-  data.nodes.forEach(node => {
-    ctx.fillStyle = node.color || '#4285f4';
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, (node.size || 10) / scale, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5 / scale;
-    ctx.stroke();
+  // Helper: World to screen coordinates
+  function worldToScreen(worldX, worldY) {
+    return {
+      x: worldX * transform.scale + transform.offsetX,
+      y: worldY * transform.scale + transform.offsetY
+    };
+  }
+  
+  // Helper: Find node at position
+  function findNodeAt(worldX, worldY) {
+    for (let node of data.nodes) {
+      const dx = node.x - worldX;
+      const dy = node.y - worldY;
+      const radius = (node.size || 10) / transform.scale;
+      if (dx * dx + dy * dy < radius * radius) {
+        return node;
+      }
+    }
+    return null;
+  }
+  
+  // Draw function
+  function draw() {
+    // Clear canvas
+    ctx.fillStyle = data.background || '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.translate(transform.offsetX, transform.offsetY);
+    ctx.scale(transform.scale, transform.scale);
+    
+    // Draw edges
+    if (data.edges && data.edges.length > 0) {
+      ctx.strokeStyle = '#cccccc';
+      ctx.lineWidth = (data.edge_width || 1) / transform.scale;
+      data.edges.forEach(edge => {
+        const from = data.nodes.find(n => n.id === edge[0]);
+        const to = data.nodes.find(n => n.id === edge[1]);
+        if (from && to) {
+          ctx.beginPath();
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.stroke();
+        }
+      });
+    }
+    
+    // Draw nodes
+    data.nodes.forEach(node => {
+      const isHovered = hoveredNode === node;
+      
+      // Highlight hovered node
+      if (isHovered) {
+        ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, (node.size || 10) / transform.scale * 1.5, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      
+      ctx.fillStyle = node.color || '#4285f4';
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, (node.size || 10) / transform.scale, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = isHovered ? '#ffc800' : '#ffffff';
+      ctx.lineWidth = (isHovered ? 2.5 : 1.5) / transform.scale;
+      ctx.stroke();
+    });
+    
+    // Draw labels
+    ctx.font = `${12 / transform.scale}px sans-serif`;
+    ctx.fillStyle = '#333333';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    data.nodes.forEach(node => {
+      ctx.fillText(node.label || node.id, node.x, node.y);
+    });
+    
+    ctx.restore();
+  }
+  
+  // Mouse event handlers
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    const world = screenToWorld(screenX, screenY);
+    
+    const node = findNodeAt(world.x, world.y);
+    
+    if (node) {
+      // Start dragging node
+      dragState.isDragging = true;
+      dragState.dragNode = node;
+      dragState.startX = world.x;
+      dragState.startY = world.y;
+      canvas.style.cursor = 'grabbing';
+    } else {
+      // Start panning
+      dragState.isPanning = true;
+      dragState.startX = screenX;
+      dragState.startY = screenY;
+      canvas.style.cursor = 'grabbing';
+    }
   });
   
-  // Draw labels
-  ctx.font = `${12 / scale}px sans-serif`;
-  ctx.fillStyle = '#333333';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  data.nodes.forEach(node => {
-    ctx.fillText(node.label || node.id, node.x, node.y);
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    const world = screenToWorld(screenX, screenY);
+    
+    if (dragState.isDragging && dragState.dragNode) {
+      // Drag node
+      dragState.dragNode.x = world.x;
+      dragState.dragNode.y = world.y;
+      draw();
+    } else if (dragState.isPanning) {
+      // Pan view
+      const dx = screenX - dragState.startX;
+      const dy = screenY - dragState.startY;
+      transform.offsetX += dx;
+      transform.offsetY += dy;
+      dragState.startX = screenX;
+      dragState.startY = screenY;
+      draw();
+    } else {
+      // Check for hover
+      const node = findNodeAt(world.x, world.y);
+      if (node !== hoveredNode) {
+        hoveredNode = node;
+        
+        if (node) {
+          // Show tooltip
+          const screen = worldToScreen(node.x, node.y);
+          tooltip.innerHTML = `<strong>${node.label || node.id}</strong><br/>`;
+          
+          // Add node attributes to tooltip
+          const attrs = [];
+          for (let key in node) {
+            if (!['id', 'x', 'y', 'label', 'color', 'size'].includes(key)) {
+              attrs.push(`${key}: ${node[key]}`);
+            }
+          }
+          if (attrs.length > 0) {
+            tooltip.innerHTML += attrs.join('<br/>');
+          }
+          
+          tooltip.style.display = 'block';
+          tooltip.style.left = (screen.x + 15) + 'px';
+          tooltip.style.top = (screen.y - 15) + 'px';
+          canvas.style.cursor = 'pointer';
+        } else {
+          tooltip.style.display = 'none';
+          canvas.style.cursor = 'grab';
+        }
+        
+        draw();
+      }
+    }
   });
   
-  ctx.restore();
+  canvas.addEventListener('mouseup', () => {
+    dragState.isDragging = false;
+    dragState.dragNode = null;
+    dragState.isPanning = false;
+    canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+  });
+  
+  canvas.addEventListener('mouseleave', () => {
+    dragState.isDragging = false;
+    dragState.dragNode = null;
+    dragState.isPanning = false;
+    hoveredNode = null;
+    tooltip.style.display = 'none';
+    canvas.style.cursor = 'grab';
+    draw();
+  });
+  
+  // Zoom with mouse wheel
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    
+    // Zoom factor
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    
+    // Zoom towards mouse position
+    const worldBefore = screenToWorld(screenX, screenY);
+    transform.scale *= zoomFactor;
+    const worldAfter = screenToWorld(screenX, screenY);
+    
+    // Adjust offset to keep point under mouse stationary
+    transform.offsetX += (worldAfter.x - worldBefore.x) * transform.scale;
+    transform.offsetY += (worldAfter.y - worldBefore.y) * transform.scale;
+    
+    draw();
+  });
+  
+  // Initial draw
+  draw();
 }
 
 export default { render };
@@ -378,84 +580,211 @@ export default { render };
         return plot_graph(self.graph, open_browser=True)
     
     def to_html(self, path: str) -> str:
-        """Export to standalone HTML file."""
+        """Export to standalone interactive HTML file."""
         if self._data is None:
             self._data = self._prepare_data()
         
-        html = f"""
-<!DOCTYPE html>
+        # Read the interactive JavaScript code from the widget
+        js_code = """
+        const data = DATA_PLACEHOLDER;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let transform = {
+            offsetX: canvas.width / 2,
+            offsetY: canvas.height / 2,
+            scale: Math.min(canvas.width, canvas.height) / 2.5
+        };
+        
+        let dragState = { isDragging: false, dragNode: null, startX: 0, startY: 0, isPanning: false };
+        let hoveredNode = null;
+        
+        function screenToWorld(screenX, screenY) {
+            return {
+                x: (screenX - transform.offsetX) / transform.scale,
+                y: (screenY - transform.offsetY) / transform.scale
+            };
+        }
+        
+        function findNodeAt(worldX, worldY) {
+            for (let node of data.nodes) {
+                const dx = node.x - worldX;
+                const dy = node.y - worldY;
+                const radius = (node.size || 10) / transform.scale;
+                if (dx * dx + dy * dy < radius * radius) {
+                    return node;
+                }
+            }
+            return null;
+        }
+        
+        function draw() {
+            ctx.fillStyle = data.background || '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.translate(transform.offsetX, transform.offsetY);
+            ctx.scale(transform.scale, transform.scale);
+            
+            // Draw edges
+            if (data.edges && data.edges.length > 0) {
+                ctx.strokeStyle = '#cccccc';
+                ctx.lineWidth = (data.edge_width || 1) / transform.scale;
+                data.edges.forEach(edge => {
+                    const from = data.nodes.find(n => n.id === edge[0]);
+                    const to = data.nodes.find(n => n.id === edge[1]);
+                    if (from && to) {
+                        ctx.beginPath();
+                        ctx.moveTo(from.x, from.y);
+                        ctx.lineTo(to.x, to.y);
+                        ctx.stroke();
+                    }
+                });
+            }
+            
+            // Draw nodes
+            data.nodes.forEach(node => {
+                const isHovered = hoveredNode === node;
+                if (isHovered) {
+                    ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, (node.size || 10) / transform.scale * 1.5, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+                ctx.fillStyle = node.color || '#4285f4';
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, (node.size || 10) / transform.scale, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.strokeStyle = isHovered ? '#ffc800' : '#ffffff';
+                ctx.lineWidth = (isHovered ? 2.5 : 1.5) / transform.scale;
+                ctx.stroke();
+            });
+            
+            // Draw labels
+            ctx.font = `${12 / transform.scale}px sans-serif`;
+            ctx.fillStyle = '#333333';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            data.nodes.forEach(node => {
+                ctx.fillText(node.label || node.id, node.x, node.y);
+            });
+            
+            ctx.restore();
+        }
+        
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            const node = findNodeAt(world.x, world.y);
+            if (node) {
+                dragState.isDragging = true;
+                dragState.dragNode = node;
+                canvas.style.cursor = 'grabbing';
+            } else {
+                dragState.isPanning = true;
+                dragState.startX = e.clientX - rect.left;
+                dragState.startY = e.clientY - rect.top;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+            const world = screenToWorld(screenX, screenY);
+            
+            if (dragState.isDragging && dragState.dragNode) {
+                dragState.dragNode.x = world.x;
+                dragState.dragNode.y = world.y;
+                draw();
+            } else if (dragState.isPanning) {
+                transform.offsetX += screenX - dragState.startX;
+                transform.offsetY += screenY - dragState.startY;
+                dragState.startX = screenX;
+                dragState.startY = screenY;
+                draw();
+            } else {
+                const node = findNodeAt(world.x, world.y);
+                if (node !== hoveredNode) {
+                    hoveredNode = node;
+                    canvas.style.cursor = node ? 'pointer' : 'grab';
+                    draw();
+                }
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            dragState.isDragging = false;
+            dragState.dragNode = null;
+            dragState.isPanning = false;
+            canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            dragState.isDragging = false;
+            dragState.isPanning = false;
+            hoveredNode = null;
+            canvas.style.cursor = 'grab';
+            draw();
+        });
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            const worldBefore = screenToWorld(screenX, screenY);
+            transform.scale *= zoomFactor;
+            const worldAfter = screenToWorld(screenX, screenY);
+            transform.offsetX += (worldAfter.x - worldBefore.x) * transform.scale;
+            transform.offsetY += (worldAfter.y - worldBefore.y) * transform.scale;
+            draw();
+        });
+        
+        draw();
+        """
+        
+        js_code = js_code.replace('DATA_PLACEHOLDER', json.dumps(self._data))
+        
+        html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>EdgeCase Graph</title>
+    <title>EdgeCase Interactive Graph</title>
     <style>
         body {{
             margin: 0;
             padding: 20px;
             font-family: sans-serif;
             background: {self.background};
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }}
+        h1 {{
+            margin-bottom: 10px;
         }}
         #canvas {{
             border: 1px solid #ccc;
-            display: block;
-            margin: 0 auto;
+            cursor: grab;
+        }}
+        .instructions {{
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
         }}
     </style>
 </head>
 <body>
+    <h1>Interactive Graph Visualization</h1>
     <canvas id="canvas" width="{self.width}" height="{self.height}"></canvas>
+    <div class="instructions">
+        🖱️ Drag nodes to move • Drag background to pan • Scroll to zoom • Hover to highlight
+    </div>
     <script>
-        const data = {json.dumps(self._data)};
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        function draw() {{
-            ctx.fillStyle = data.background;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            const scale = Math.min(canvas.width, canvas.height) / 2.5;
-            ctx.scale(scale, scale);
-            
-            // Draw edges
-            ctx.strokeStyle = '#cccccc';
-            ctx.lineWidth = data.edge_width / scale;
-            data.edges.forEach(edge => {{
-                const from = data.nodes.find(n => n.id === edge[0]);
-                const to = data.nodes.find(n => n.id === edge[1]);
-                if (from && to) {{
-                    ctx.beginPath();
-                    ctx.moveTo(from.x, from.y);
-                    ctx.lineTo(to.x, to.y);
-                    ctx.stroke();
-                }}
-            }});
-            
-            // Draw nodes
-            data.nodes.forEach(node => {{
-                ctx.fillStyle = node.color || '#4285f4';
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, node.size / scale, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 1.5 / scale;
-                ctx.stroke();
-            }});
-            
-            // Draw labels
-            ctx.font = `${{12 / scale}}px sans-serif`;
-            ctx.fillStyle = '#333333';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            data.nodes.forEach(node => {{
-                ctx.fillText(node.label, node.x, node.y);
-            }});
-            
-            ctx.restore();
-        }}
-        
-        draw();
+        {js_code}
     </script>
 </body>
 </html>
