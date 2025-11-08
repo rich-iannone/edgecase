@@ -26,6 +26,7 @@ thiserror = "2.0"
 itertools = "0.14"
 rand = "0.8"  # Random number generation
 rand_chacha = "0.3"  # ChaCha RNG for reproducibility
+nalgebra = "0.33"  # Linear algebra with eigensolvers
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
