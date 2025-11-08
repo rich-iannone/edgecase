@@ -3265,6 +3265,122 @@ impl Graph {
 
         Ok(result)
     }
+
+    /// Get community membership using Leading Eigenvector (Newman) algorithm
+    /// 
+    /// Spectral optimization using recursive bisection based on the leading eigenvector
+    /// of the modularity matrix. Splits communities when modularity improves.
+    /// 
+    /// Algorithm:
+    /// 1. Start with all nodes in one community
+    /// 2. Compute modularity matrix B_ij = A_ij - (k_i * k_j) / 2m
+    /// 3. Find leading eigenvector using power iteration
+    /// 4. Split by sign: positive → community 1, negative → community 2
+    /// 5. Accept split if modularity improves
+    /// 6. Recursively split each community
+    /// 
+    /// Complexity: O(n²) per split, recursive
+    /// 
+    /// # Arguments
+    /// * None - automatically finds best hierarchical partition
+    /// 
+    /// # Returns
+    /// * HashMap mapping node_id -> community_id (0-indexed)
+    /// 
+    /// # Errors
+    /// * Returns error if graph is directed (requires undirected graph)
+    /// 
+    /// # References
+    /// Newman, M. E. J. "Finding community structure in networks using the
+    /// eigenvectors of matrices" (2006)
+    fn get_cmty_l_eigenvec(&self) -> PyResult<FxHashMap<String, usize>> {
+        // Require undirected graph
+        if self.is_directed() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Leading Eigenvector requires an undirected graph"
+            ));
+        }
+
+        let n = self.num_nodes();
+        if n == 0 {
+            return Ok(FxHashMap::default());
+        }
+
+        // Special case: single node
+        if n == 1 {
+            let mut result = FxHashMap::default();
+            if let Some(node_id) = self.nodes.keys().next() {
+                result.insert(node_id.clone(), 0);
+            }
+            return Ok(result);
+        }
+
+        // No edges: each node is its own community
+        if self.num_edges() == 0 {
+            let result: FxHashMap<String, usize> = self.nodes.keys()
+                .enumerate()
+                .map(|(idx, id)| (id.clone(), idx))
+                .collect();
+            return Ok(result);
+        }
+
+        // Start with all nodes in one community
+        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        let mut communities: FxHashMap<String, usize> = node_ids.iter()
+            .map(|id| (id.clone(), 0))
+            .collect();
+
+        // Recursive splitting
+        let mut next_community_id = 1;
+        let mut to_split: Vec<Vec<String>> = vec![node_ids];
+
+        while let Some(group) = to_split.pop() {
+            if group.len() <= 1 {
+                continue; // Can't split single node
+            }
+
+            // Try to split this group
+            if let Some((group1, group2)) = self.try_split_eigenvector(&group) {
+                // Assign new community IDs
+                let comm1_id = *communities.get(&group1[0]).unwrap();
+                let comm2_id = next_community_id;
+                next_community_id += 1;
+
+                // Update communities
+                for node_id in &group1 {
+                    communities.insert(node_id.clone(), comm1_id);
+                }
+                for node_id in &group2 {
+                    communities.insert(node_id.clone(), comm2_id);
+                }
+
+                // Add both groups for potential further splitting
+                if group1.len() > 1 {
+                    to_split.push(group1);
+                }
+                if group2.len() > 1 {
+                    to_split.push(group2);
+                }
+            }
+        }
+
+        // Renumber communities to be contiguous
+        let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
+        let mut next_id = 0;
+        
+        for comm_id in communities.values() {
+            if !community_map.contains_key(comm_id) {
+                community_map.insert(*comm_id, next_id);
+                next_id += 1;
+            }
+        }
+
+        let result: FxHashMap<String, usize> = communities.iter()
+            .map(|(node_id, old_comm)| (node_id.clone(), *community_map.get(old_comm).unwrap()))
+            .collect();
+
+        Ok(result)
+    }
 }
 
 
@@ -3312,6 +3428,226 @@ impl Graph {
         }
 
         communities
+    }
+
+    /// Try to split a group of nodes using eigenvector method
+    /// Returns Some((group1, group2)) if split improves modularity, None otherwise
+    fn try_split_eigenvector(&self, nodes: &[String]) -> Option<(Vec<String>, Vec<String>)> {
+        if nodes.len() <= 1 {
+            return None;
+        }
+
+        let m = self.num_edges() as f64;
+        if m == 0.0 {
+            return None;
+        }
+
+        // Create node index mapping
+        let node_to_idx: FxHashMap<String, usize> = nodes.iter()
+            .enumerate()
+            .map(|(idx, id)| (id.clone(), idx))
+            .collect();
+
+        let n = nodes.len();
+
+        // Compute leading eigenvector using power iteration
+        let eigenvector = self.compute_leading_eigenvector(nodes, &node_to_idx, m)?;
+
+        // Split by sign of eigenvector
+        let mut group1 = Vec::new();
+        let mut group2 = Vec::new();
+
+        for (idx, node_id) in nodes.iter().enumerate() {
+            if eigenvector[idx] >= 0.0 {
+                group1.push(node_id.clone());
+            } else {
+                group2.push(node_id.clone());
+            }
+        }
+
+        // Check if split is valid (both groups non-empty)
+        if group1.is_empty() || group2.is_empty() {
+            return None;
+        }
+
+        // Check if split improves modularity using the same method as igraph:
+        // Create split vector: +1 for group1, -1 for group2
+        let n = nodes.len();
+        let mut s: Vec<f64> = vec![0.0; n];
+        for (idx, node_id) in nodes.iter().enumerate() {
+            if group1.contains(node_id) {
+                s[idx] = 1.0;
+            } else {
+                s[idx] = -1.0;
+            }
+        }
+        
+        // Precompute degrees
+        let degrees: Vec<f64> = nodes.iter()
+            .map(|id| self.degree(id) as f64)
+            .collect();
+        
+        // Compute B^(g) matrix (same as used in eigenvector computation)
+        let mut b_matrix: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
+        
+        for (i, node_i) in nodes.iter().enumerate() {
+            // First compute row sum: Σ_k B_ik
+            let mut row_sum = 0.0;
+            for (k, node_k) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(node_i)
+                    .map(|neighbors| neighbors.contains(node_k))
+                    .unwrap_or(false);
+                let a_ik = if has_edge { 1.0 } else { 0.0 };
+                let b_ik = a_ik - (degrees[i] * degrees[k]) / (2.0 * m);
+                row_sum += b_ik;
+            }
+            
+            // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
+            for (j, node_j) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(node_i)
+                    .map(|neighbors| neighbors.contains(node_j))
+                    .unwrap_or(false);
+                let a_ij = if has_edge { 1.0 } else { 0.0 };
+                let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
+                
+                if i == j {
+                    b_matrix[i][j] = b_ij - row_sum;
+                } else {
+                    b_matrix[i][j] = b_ij;
+                }
+            }
+        }
+        
+        // Compute B^(g) * s
+        let mut bs: Vec<f64> = vec![0.0; n];
+        for i in 0..n {
+            for j in 0..n {
+                bs[i] += b_matrix[i][j] * s[j];
+            }
+        }
+        
+        // Compute s^T * B^(g) * s (the modularity contribution)
+        let mut mod_contribution = 0.0;
+        for i in 0..n {
+            mod_contribution += s[i] * bs[i];
+        }
+        
+        // Accept split if modularity contribution is positive (following igraph)
+        if mod_contribution > 1e-8 {
+            Some((group1, group2))
+        } else {
+            None
+        }
+    }
+
+    /// Compute leading eigenvector of modularity matrix using power iteration
+    /// For a subgraph, we use the generalized modularity matrix:
+    /// B^(g)_ij = B_ij - δ_ij * Σ_k B_ik
+    /// This modification is essential for correct bisection (Newman 2006, Eq. 5)
+    fn compute_leading_eigenvector(
+        &self,
+        nodes: &[String],
+        _node_to_idx: &FxHashMap<String, usize>,
+        m: f64,
+    ) -> Option<Vec<f64>> {
+        let n = nodes.len();
+        
+        // Initialize with alternating +1/-1 pattern (similar to igraph)
+        // This helps the power iteration converge to an eigenvector with mixed signs
+        let mut v: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let mut v_new: Vec<f64> = vec![0.0; n];
+
+        // Precompute degrees for efficiency
+        let degrees: Vec<f64> = nodes.iter()
+            .map(|id| self.degree(id) as f64)
+            .collect();
+
+        // Precompute B matrix for the subgraph
+        // B^(g)_ij = (A_ij - k_i*k_j/2m) - δ_ij * Σ_k (A_ik - k_i*k_k/2m)
+        let mut b_matrix: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
+        
+        for (i, node_i) in nodes.iter().enumerate() {
+            // First compute row sum: Σ_k B_ik
+            let mut row_sum = 0.0;
+            for (k, node_k) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(node_i)
+                    .map(|neighbors| neighbors.contains(node_k))
+                    .unwrap_or(false);
+                let a_ik = if has_edge { 1.0 } else { 0.0 };
+                let b_ik = a_ik - (degrees[i] * degrees[k]) / (2.0 * m);
+                row_sum += b_ik;
+            }
+            
+            // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
+            for (j, node_j) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(node_i)
+                    .map(|neighbors| neighbors.contains(node_j))
+                    .unwrap_or(false);
+                let a_ij = if has_edge { 1.0 } else { 0.0 };
+                let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
+                
+                if i == j {
+                    b_matrix[i][j] = b_ij - row_sum;
+                } else {
+                    b_matrix[i][j] = b_ij;
+                }
+            }
+        }
+
+        // Power iteration
+        let max_iterations = 100;
+        let tolerance = 1e-6;
+
+        for _iteration in 0..max_iterations {
+            // Compute B^(g) * v
+            for i in 0..n {
+                v_new[i] = 0.0;
+                for j in 0..n {
+                    v_new[i] += b_matrix[i][j] * v[j];
+                }
+            }
+
+            // Normalize
+            let norm: f64 = v_new.iter().map(|x| x * x).sum::<f64>().sqrt();
+            if norm < 1e-10 {
+                // Eigenvector is zero, no clear split
+                return None;
+            }
+
+            for i in 0..n {
+                v_new[i] /= norm;
+            }
+
+            // Check convergence
+            let diff: f64 = v.iter().zip(v_new.iter())
+                .map(|(a, b)| (a - b).abs())
+                .sum();
+
+            if diff < tolerance {
+                break;
+            }
+
+            // Swap vectors
+            std::mem::swap(&mut v, &mut v_new);
+        }
+
+        // Check if leading eigenvalue is positive using Rayleigh quotient
+        // λ ≈ v^T * B^(g) * v
+        let mut eigenvalue = 0.0;
+        for i in 0..n {
+            let mut bv_i = 0.0;
+            for j in 0..n {
+                bv_i += b_matrix[i][j] * v[j];
+            }
+            eigenvalue += v[i] * bv_i;
+        }
+
+        // Only split if leading eigenvalue is positive
+        if eigenvalue <= 1e-10 {
+            return None;
+        }
+
+        Some(v)
     }
 
     /// Compute edge betweenness using Brandes' algorithm

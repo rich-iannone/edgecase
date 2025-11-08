@@ -1269,6 +1269,80 @@ class Graph:
         """
         return self._graph.get_cmty_edge_btwns()
     
+    def get_cmty_l_eigenvec(self) -> dict[str, int]:
+        """Get community membership using Leading Eigenvector (Newman) algorithm.
+        
+        Spectral optimization method using recursive bisection based on the
+        leading eigenvector of the modularity matrix. Splits communities
+        hierarchically when modularity improves.
+        
+        Algorithm:
+            1. Start with all nodes in one community
+            2. Compute modularity matrix B_ij = A_ij - (k_i * k_j) / 2m
+            3. Find leading eigenvector using power iteration
+            4. Split by sign: positive → community 1, negative → community 2
+            5. Accept split only if modularity improves
+            6. Recursively split each community
+        
+        Best for:
+            - Medium-sized graphs (< 20K nodes)
+            - Hierarchical community structure
+            - When you want theoretically-grounded splits
+            - Graphs with clear 2-way divisions
+        
+        Complexity: O(n²) per split, recursive
+        
+        Returns:
+            Dictionary mapping node IDs to community IDs (0-indexed).
+            Community IDs are contiguous integers starting from 0.
+        
+        Raises:
+            ValueError: If graph is directed (requires undirected graph)
+        
+        Examples:
+            >>> import edgecase as ec
+            >>> G = ec.Graph(directed=False)
+            >>> 
+            >>> # Two cliques connected by a bridge
+            >>> for i in ['A', 'B', 'C']:
+            ...     for j in ['A', 'B', 'C']:
+            ...         if i < j:
+            ...             G.add_edge(i, j)
+            >>> 
+            >>> G.add_edge('C', 'D')  # Bridge
+            >>> 
+            >>> for i in ['D', 'E', 'F']:
+            ...     for j in ['D', 'E', 'F']:
+            ...         if i < j:
+            ...             G.add_edge(i, j)
+            >>> 
+            >>> communities = G.get_cmty_l_eigenvec()
+            >>> # Returns: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
+            >>> # Eigenvector method finds the natural split at the bridge
+        
+        References:
+            Newman, M. E. J. (2006). Finding community structure in networks
+            using the eigenvectors of matrices. Physical Review E, 74(3), 036104.
+            
+            Newman, M. E. J. (2006). Modularity and community structure in
+            networks. PNAS, 103(23), 8577-8582.
+        
+        Note:
+            This algorithm uses power iteration to find the leading eigenvector,
+            which is O(n²) per split. For very large graphs (> 50K nodes),
+            consider get_cmty_fast_greedy() or get_cmty_louvain() instead.
+            
+            The algorithm only splits when modularity improves, so it may
+            return fewer communities than other methods if the structure is
+            not hierarchically organized.
+            
+        See Also:
+            - get_cmty_fast_greedy(): Faster but less principled
+            - get_cmty_edge_btwns(): More accurate but slower
+            - get_cmty_louvain(): Best for very large graphs
+        """
+        return self._graph.get_cmty_l_eigenvec()
+    
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get HITS authority scores for directed graph.
         
