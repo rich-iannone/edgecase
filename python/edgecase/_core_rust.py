@@ -1418,6 +1418,92 @@ class Graph:
         """
         return self._graph.get_cmty_louvain(resolution)
     
+    def get_cmty_walktrap(self, steps: int = 4) -> dict[str, int]:
+        """Detect communities using the Walktrap random walk algorithm.
+        
+        The Walktrap algorithm exploits the property that random walks tend to stay
+        trapped within densely connected communities. It computes distances between
+        nodes based on random walk probabilities, then uses hierarchical clustering
+        to identify community structure.
+        
+        Algorithm:
+            1. Compute transition probability matrix P (P[i][j] = 1/deg(i) if edge exists)
+            2. Compute t-step transition probabilities P^t by matrix exponentiation
+            3. Calculate random walk distance between each pair of nodes:
+               d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
+            4. Apply Ward's hierarchical clustering on the distance matrix
+            5. Cut the dendrogram at the level that maximizes modularity
+        
+        The distance metric captures structural similarity: nodes in the same community
+        have similar random walk probabilities to all other nodes. Time complexity is
+        O(n²log n) for typical networks with small step parameter.
+        
+        Requires an undirected graph.
+        
+        Args:
+            steps: Number of random walk steps (default: 4). Higher values capture
+                  longer-range structural patterns. Typical values: 2-8.
+                  - steps=2: Local structure only
+                  - steps=4: Good balance (default, recommended)
+                  - steps=6+: Longer-range patterns, more computation
+        
+        Returns:
+            Dictionary mapping node ID to community ID (0-indexed, contiguous).
+            Nodes in the same community have the same ID.
+        
+        Raises:
+            ValueError: If called on a directed graph.
+        
+        Examples:
+            >>> G = ec.Graph(directed=False)
+            >>> # Two cliques connected by a bridge
+            >>> G.add_edges([('A', 'B'), ('B', 'C'), ('C', 'A')])  # Clique 1
+            >>> G.add_edges([('D', 'E'), ('E', 'F'), ('F', 'D')])  # Clique 2
+            >>> G.add_edge('C', 'D')  # Bridge
+            >>> communities = G.get_cmty_walktrap()
+            >>> communities['A'] == communities['B'] == communities['C']
+            True
+            >>> communities['D'] == communities['E'] == communities['F']
+            True
+            >>> communities['A'] != communities['D']  # Different communities
+            True
+            
+            >>> # Try different step lengths
+            >>> G.add_edges([('X', 'Y'), ('Y', 'Z')])  # Another component
+            >>> communities_2 = G.get_cmty_walktrap(steps=2)  # More local
+            >>> communities_6 = G.get_cmty_walktrap(steps=6)  # More global
+        
+        Notes:
+            - The step parameter controls the scale of community detection:
+              * Lower steps (2-3): Detect finer, more local communities
+              * Higher steps (5-8): Detect coarser, more global communities
+            - Algorithm is deterministic (no randomness despite the name)
+            - Works well on hierarchical community structures
+            - Handles disconnected components automatically
+            - Performance degrades on very large graphs (>10,000 nodes) due to
+              O(n²) distance matrix computation
+            - Self-loops and multi-edges are currently not supported
+        
+        References:
+            - Pons, P., & Latapy, M. (2005). "Computing communities in large networks
+              using random walks." In Computer and Information Sciences-ISCIS 2005
+              (pp. 284-293). Springer, Berlin, Heidelberg.
+            - Pons, P., & Latapy, M. (2006). "Computing communities in large networks
+              using random walks (long version)." arXiv preprint physics/0512106.
+        
+        Performance:
+            - Small graphs (<1000 nodes): <1 second
+            - Medium graphs (1000-5000 nodes): 1-30 seconds
+            - Large graphs (>5000 nodes): May be slow, consider Louvain instead
+        
+        See Also:
+            - get_cmty_louvain(): Faster for large graphs
+            - get_cmty_fast_greedy(): Alternative greedy approach
+            - get_cmty_edge_btwns(): Divisive hierarchical method
+            - get_cmty_l_eigenvec(): Spectral method
+        """
+        return self._graph.get_cmty_walktrap(steps)
+    
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get HITS authority scores for directed graph.
         

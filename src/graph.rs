@@ -3476,6 +3476,75 @@ impl Graph {
 
         Ok(result)
     }
+
+    /// Detect communities using the Walktrap algorithm.
+    ///
+    /// This method uses random walks to compute distances between nodes and applies
+    /// hierarchical clustering to find communities.
+    ///
+    /// # Arguments
+    /// * `steps` - Number of random walk steps (default: 4)
+    ///
+    /// # Returns
+    /// A mapping from node ID (String) to community ID (usize)
+    fn get_cmty_walktrap(&self, steps: usize) -> PyResult<FxHashMap<String, usize>> {
+        if self.is_directed() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Walktrap algorithm only works on undirected graphs"
+            ));
+        }
+
+        // Handle edge cases
+        if self.nodes.is_empty() {
+            return Ok(FxHashMap::default());
+        }
+
+        if self.nodes.len() == 1 {
+            let mut result = FxHashMap::default();
+            result.insert(self.nodes.keys().next().unwrap().clone(), 0);
+            return Ok(result);
+        }
+
+        // Create node index mapping
+        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        let n = node_ids.len();
+        let mut node_to_idx = FxHashMap::default();
+        for (idx, node_id) in node_ids.iter().enumerate() {
+            node_to_idx.insert(node_id.clone(), idx);
+        }
+
+        // Check for disconnected components first
+        let components = self.find_connected_components();
+        let num_components = components.values().copied().max().unwrap_or(0) + 1;
+        
+        if num_components > 1 {
+            // Return components as communities
+            return Ok(components);
+        }
+
+        // Compute transition probability matrix P
+        let P = self.compute_transition_matrix(&node_ids, &node_to_idx);
+        
+        // Compute t-step transition probabilities P^t
+        let P_t = self.matrix_power(&P, steps);
+        
+        // Compute distance matrix between nodes
+        let distances = self.compute_random_walk_distances(&P_t, &node_ids, &node_to_idx);
+        
+        // Hierarchical clustering using Ward's method
+        let dendrogram = self.ward_clustering(&distances, n);
+        
+        // Find best partition by maximizing modularity
+        let best_partition = self.find_best_partition(&dendrogram, &node_ids, &node_to_idx);
+        
+        // Convert to result format
+        let mut result = FxHashMap::default();
+        for (idx, node_id) in node_ids.iter().enumerate() {
+            result.insert(node_id.clone(), best_partition[idx]);
+        }
+
+        Ok(result)
+    }
 }
 
 
@@ -4049,6 +4118,368 @@ impl Graph {
         }
 
         q / two_m
+    }
+
+    // ===== Walktrap Helper Methods =====
+
+    /// Find connected components using BFS
+    fn find_connected_components(&self) -> FxHashMap<String, usize> {
+        let mut components = FxHashMap::default();
+        let mut visited = FxHashSet::default();
+        let mut component_id = 0;
+
+        for start_node in self.nodes.keys() {
+            if visited.contains(start_node) {
+                continue;
+            }
+
+            // BFS from this node
+            let mut queue = vec![start_node.clone()];
+            visited.insert(start_node.clone());
+            components.insert(start_node.clone(), component_id);
+
+            while let Some(node) = queue.pop() {
+                if let Some(neighbors) = self.adjacency_list.get(&node) {
+                    for neighbor in neighbors {
+                        if !visited.contains(neighbor) {
+                            visited.insert(neighbor.clone());
+                            components.insert(neighbor.clone(), component_id);
+                            queue.push(neighbor.clone());
+                        }
+                    }
+                }
+            }
+
+            component_id += 1;
+        }
+
+        components
+    }
+
+    /// Compute transition probability matrix P
+    /// P[i][j] = 1/deg(i) if edge (i,j) exists, 0 otherwise
+    fn compute_transition_matrix(
+        &self,
+        node_ids: &[String],
+        node_to_idx: &FxHashMap<String, usize>,
+    ) -> Vec<Vec<f64>> {
+        let n = node_ids.len();
+        let mut P = vec![vec![0.0; n]; n];
+
+        for (i, node_i) in node_ids.iter().enumerate() {
+            let degree = self.degree(node_i) as f64;
+            if degree == 0.0 {
+                continue;
+            }
+
+            if let Some(neighbors) = self.adjacency_list.get(node_i) {
+                for neighbor in neighbors {
+                    if let Some(&j) = node_to_idx.get(neighbor) {
+                        P[i][j] = 1.0 / degree;
+                    }
+                }
+            }
+        }
+
+        P
+    }
+
+    /// Compute P^t (matrix to the power of t)
+    fn matrix_power(&self, P: &[Vec<f64>], t: usize) -> Vec<Vec<f64>> {
+        let n = P.len();
+        let mut result = vec![vec![0.0; n]; n];
+        
+        // Initialize as identity matrix
+        for i in 0..n {
+            result[i][i] = 1.0;
+        }
+
+        // Repeated matrix multiplication
+        for _ in 0..t {
+            result = self.matrix_multiply(&result, P);
+        }
+
+        result
+    }
+
+    /// Matrix multiplication
+    fn matrix_multiply(&self, A: &[Vec<f64>], B: &[Vec<f64>]) -> Vec<Vec<f64>> {
+        let n = A.len();
+        let mut C = vec![vec![0.0; n]; n];
+
+        for i in 0..n {
+            for j in 0..n {
+                for k in 0..n {
+                    C[i][j] += A[i][k] * B[k][j];
+                }
+            }
+        }
+
+        C
+    }
+
+    /// Compute random walk distances between all pairs of nodes
+    /// d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
+    fn compute_random_walk_distances(
+        &self,
+        P_t: &[Vec<f64>],
+        node_ids: &[String],
+        node_to_idx: &FxHashMap<String, usize>,
+    ) -> Vec<Vec<f64>> {
+        let n = node_ids.len();
+        let mut distances = vec![vec![0.0; n]; n];
+
+        // Precompute degrees
+        let degrees: Vec<f64> = node_ids.iter()
+            .map(|node_id| self.degree(node_id) as f64)
+            .collect();
+
+        for i in 0..n {
+            for j in i..n {
+                let mut sum = 0.0;
+                for k in 0..n {
+                    if degrees[k] > 0.0 {
+                        let diff = P_t[i][k] - P_t[j][k];
+                        sum += diff * diff / degrees[k];
+                    }
+                }
+                let dist = sum.sqrt();
+                distances[i][j] = dist;
+                distances[j][i] = dist;
+            }
+        }
+
+        distances
+    }
+
+    /// Ward's hierarchical clustering
+    /// Returns dendrogram as Vec<(cluster1, cluster2, distance)>
+    fn ward_clustering(&self, distances: &[Vec<f64>], n: usize) -> Vec<(usize, usize, f64)> {
+        let mut dendrogram = Vec::new();
+        let mut active_clusters: FxHashSet<usize> = (0..n).collect();
+        let mut cluster_sizes = vec![1; n];
+        let mut next_cluster_id = n;
+
+        // Distance matrix (we'll update it as we merge)
+        let mut dist_matrix = distances.to_vec();
+
+        for _ in 0..(n - 1) {
+            // Find closest pair of clusters
+            let mut min_dist = f64::INFINITY;
+            let mut best_i = 0;
+            let mut best_j = 0;
+
+            let active_vec: Vec<usize> = active_clusters.iter().copied().collect();
+            for (idx_i, &i) in active_vec.iter().enumerate() {
+                for &j in active_vec.iter().skip(idx_i + 1) {
+                    let d = if i < dist_matrix.len() && j < dist_matrix[i].len() {
+                        dist_matrix[i][j]
+                    } else {
+                        f64::INFINITY
+                    };
+                    
+                    if d < min_dist {
+                        min_dist = d;
+                        best_i = i;
+                        best_j = j;
+                    }
+                }
+            }
+
+            // Merge clusters
+            dendrogram.push((best_i, best_j, min_dist));
+            active_clusters.remove(&best_i);
+            active_clusters.remove(&best_j);
+            
+            // Create new cluster
+            let new_size = cluster_sizes.get(best_i).copied().unwrap_or(1) 
+                         + cluster_sizes.get(best_j).copied().unwrap_or(1);
+            if cluster_sizes.len() <= next_cluster_id {
+                cluster_sizes.resize(next_cluster_id + 1, 0);
+            }
+            cluster_sizes[next_cluster_id] = new_size;
+
+            // Update distances to other clusters (Ward's method)
+            // Extend dist_matrix if needed
+            if dist_matrix.len() <= next_cluster_id {
+                dist_matrix.resize(next_cluster_id + 1, vec![]);
+                for row in dist_matrix.iter_mut() {
+                    if row.len() <= next_cluster_id {
+                        row.resize(next_cluster_id + 1, 0.0);
+                    }
+                }
+            }
+
+            for &k in &active_clusters {
+                if k == next_cluster_id {
+                    continue;
+                }
+                
+                let size_i = cluster_sizes.get(best_i).copied().unwrap_or(1) as f64;
+                let size_j = cluster_sizes.get(best_j).copied().unwrap_or(1) as f64;
+                let size_k = cluster_sizes.get(k).copied().unwrap_or(1) as f64;
+                let size_new = (size_i + size_j) as f64;
+
+                let d_ik = if best_i < dist_matrix.len() && k < dist_matrix[best_i].len() {
+                    dist_matrix[best_i][k]
+                } else {
+                    0.0
+                };
+                
+                let d_jk = if best_j < dist_matrix.len() && k < dist_matrix[best_j].len() {
+                    dist_matrix[best_j][k]
+                } else {
+                    0.0
+                };
+                
+                let d_ij = min_dist;
+
+                // Ward's formula
+                let new_dist = ((size_i + size_k) * d_ik + (size_j + size_k) * d_jk 
+                              - size_k * d_ij) / (size_new + size_k);
+                
+                dist_matrix[next_cluster_id][k] = new_dist;
+                dist_matrix[k][next_cluster_id] = new_dist;
+            }
+
+            active_clusters.insert(next_cluster_id);
+            next_cluster_id += 1;
+        }
+
+        dendrogram
+    }
+
+    /// Find best partition from dendrogram by maximizing modularity
+    fn find_best_partition(
+        &self,
+        dendrogram: &[(usize, usize, f64)],
+        node_ids: &[String],
+        node_to_idx: &FxHashMap<String, usize>,
+    ) -> Vec<usize> {
+        let n = node_ids.len();
+        
+        if dendrogram.is_empty() {
+            // No merges, each node is own community
+            return (0..n).collect();
+        }
+        
+        // Try all possible cuts of the dendrogram
+        let mut best_partition = (0..n).collect::<Vec<_>>();
+        let mut best_modularity = self.compute_modularity_from_partition(node_ids, &best_partition);
+
+        // Try each level of merging
+        for num_merges in 1..=dendrogram.len() {
+            // Build partition by applying merges using union-find
+            let mut parent: Vec<usize> = (0..n).collect();
+            
+            // Apply first num_merges from dendrogram
+            for i in 0..num_merges {
+                let (c1, c2, _) = dendrogram[i];
+                
+                // Get original nodes for these clusters
+                let nodes_c1 = self.get_cluster_nodes(c1, n, &dendrogram[..i]);
+                let nodes_c2 = self.get_cluster_nodes(c2, n, &dendrogram[..i]);
+                
+                // Union all nodes from c2 into c1's community
+                if let (Some(rep1), Some(rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next()) {
+                    let root1 = self.find_root(&mut parent, *rep1);
+                    for &node in &nodes_c2 {
+                        parent[node] = root1;
+                    }
+                }
+            }
+
+            // Compress paths and assign contiguous IDs
+            let mut partition = vec![0; n];
+            for i in 0..n {
+                partition[i] = self.find_root(&mut parent, i);
+            }
+            
+            // Renumber to be contiguous
+            let mut unique_comms: Vec<usize> = partition.iter().copied().collect();
+            unique_comms.sort_unstable();
+            unique_comms.dedup();
+
+            let mut comm_remap = FxHashMap::default();
+            for (new_id, &old_id) in unique_comms.iter().enumerate() {
+                comm_remap.insert(old_id, new_id);
+            }
+
+            let renumbered: Vec<usize> = partition.iter()
+                .map(|&c| comm_remap.get(&c).copied().unwrap_or(0))
+                .collect();
+
+            // Compute modularity for this partition
+            let Q = self.compute_modularity_from_partition(node_ids, &renumbered);
+            
+            if Q > best_modularity {
+                best_modularity = Q;
+                best_partition = renumbered;
+            }
+        }
+
+        best_partition
+    }
+
+    /// Get all original nodes that belong to a cluster
+    fn get_cluster_nodes(&self, cluster_id: usize, n: usize, merges: &[(usize, usize, f64)]) -> FxHashSet<usize> {
+        let mut nodes = FxHashSet::default();
+        
+        // If cluster_id < n, it's an original node
+        if cluster_id < n {
+            nodes.insert(cluster_id);
+            return nodes;
+        }
+        
+        // Otherwise, find which merge created this cluster
+        let merge_idx = cluster_id - n;
+        if merge_idx >= merges.len() {
+            return nodes;
+        }
+        
+        let (c1, c2, _) = merges[merge_idx];
+        
+        // Recursively get nodes from both children
+        nodes.extend(self.get_cluster_nodes(c1, n, merges));
+        nodes.extend(self.get_cluster_nodes(c2, n, merges));
+        
+        nodes
+    }
+
+    /// Union-Find helper: find root with path compression
+    fn find_root(&self, parent: &mut [usize], node: usize) -> usize {
+        if parent[node] != node {
+            parent[node] = self.find_root(parent, parent[node]);
+        }
+        parent[node]
+    }
+
+    /// Compute modularity for a given partition
+    fn compute_modularity_from_partition(&self, node_ids: &[String], partition: &[usize]) -> f64 {
+        let m = self.num_edges() as f64;
+        if m == 0.0 {
+            return 0.0;
+        }
+
+        let mut Q = 0.0;
+
+        for (i, node_i) in node_ids.iter().enumerate() {
+            for (j, node_j) in node_ids.iter().enumerate() {
+                if partition[i] == partition[j] {
+                    let has_edge = self.adjacency_list.get(node_i)
+                        .map(|neighbors| neighbors.contains(node_j))
+                        .unwrap_or(false);
+                    
+                    let A_ij = if has_edge { 1.0 } else { 0.0 };
+                    let k_i = self.degree(node_i) as f64;
+                    let k_j = self.degree(node_j) as f64;
+                    
+                    Q += A_ij - (k_i * k_j) / (2.0 * m);
+                }
+            }
+        }
+
+        Q / (2.0 * m)
     }
 }
 
