@@ -2290,6 +2290,80 @@ impl Graph {
         (authorities, hubs)
     }
 
+    /// Get eigenvector centrality
+    /// Standard eigenvector centrality: principal eigenvector of adjacency matrix
+    /// x = A * x (power iteration method)
+    /// Measures importance based on connections to other important nodes
+    fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> FxHashMap<String, f64> {
+        let n = self.num_nodes();
+        if n == 0 {
+            return FxHashMap::default();
+        }
+
+        // Special case: single node
+        if n == 1 {
+            return self.nodes.keys()
+                .map(|id| (id.clone(), 1.0))
+                .collect();
+        }
+
+        // Initialize centrality to 1.0 for all nodes
+        let mut centrality: FxHashMap<String, f64> = self.nodes.keys()
+            .map(|id| (id.clone(), 1.0))
+            .collect();
+
+        let mut converged = false;
+        
+        for _ in 0..max_iter {
+            let prev_centrality = centrality.clone();
+            let mut max_change: f64 = 0.0;
+
+            for node in self.nodes.keys() {
+                // For eigenvector centrality: sum of centralities of neighbors
+                let mut neighbor_sum = 0.0;
+                
+                // Consider all neighbors (incoming for directed, all for undirected)
+                if let Some(neighbors) = self.adjacency_list.get(node) {
+                    for neighbor in neighbors {
+                        neighbor_sum += prev_centrality.get(neighbor).unwrap_or(&0.0);
+                    }
+                }
+
+                centrality.insert(node.clone(), neighbor_sum);
+
+                let prev_val = prev_centrality.get(node).unwrap();
+                let change = if *prev_val > 0.0 {
+                    (neighbor_sum - prev_val).abs() / prev_val
+                } else {
+                    neighbor_sum.abs()
+                };
+                max_change = max_change.max(change);
+            }
+
+            // Normalize (L2 norm)
+            let norm: f64 = centrality.values().map(|&v| v * v).sum::<f64>().sqrt();
+            if norm > 1e-10 {
+                for val in centrality.values_mut() {
+                    *val /= norm;
+                }
+                converged = max_change < tol;
+            } else {
+                // If converged to zero (e.g., DAG), use uniform distribution
+                let uniform_value = 1.0 / (n as f64).sqrt();
+                for val in centrality.values_mut() {
+                    *val = uniform_value;
+                }
+                break;
+            }
+
+            if converged {
+                break;
+            }
+        }
+
+        centrality
+    }
+
     /// Get alpha centrality
     /// Generalization of eigenvector centrality with attenuation factor
     /// x = alpha * A * x + e

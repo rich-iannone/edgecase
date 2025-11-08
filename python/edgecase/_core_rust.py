@@ -1207,6 +1207,33 @@ class Graph:
         """
         return self._graph.get_hub_centrality(max_iter, tol)
     
+    def get_eigen_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
+        """Get eigenvector centrality for each node.
+        
+        Eigenvector centrality measures node importance based on connections
+        to other important nodes. It's the principal eigenvector of the
+        adjacency matrix, computed via power iteration: x = A * x
+        
+        A node has high eigenvector centrality if it's connected to other
+        nodes that themselves have high centrality. Unlike degree centrality,
+        it accounts for the importance of neighbors.
+        
+        Args:
+            max_iter: Maximum iterations (default: 100)
+            tol: Convergence tolerance (default: 1e-6)
+            
+        Returns:
+            Dictionary mapping node ID to eigenvector centrality score (normalized)
+            
+        Example:
+            >>> G = ec.Graph(directed=False)
+            >>> G.add_star_graph(5)
+            >>> eigen = G.get_eigen_centrality()
+            >>> # Hub has highest eigenvector centrality
+            >>> # All connected nodes have non-zero centrality
+        """
+        return self._graph.get_eigen_centrality(max_iter, tol)
+    
     def get_alpha_centrality(self, alpha: float = 0.1, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get alpha centrality for each node.
         
