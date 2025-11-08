@@ -1343,6 +1343,81 @@ class Graph:
         """
         return self._graph.get_cmty_l_eigenvec()
     
+    def get_cmty_louvain(self, resolution: float = 1.0) -> dict[str, int]:
+        """Detect communities using the Louvain multi-level optimization algorithm.
+        
+        The Louvain method is a hierarchical algorithm that maximizes modularity through
+        iterative optimization. It's the most widely-used community detection algorithm
+        in practice due to its speed and quality on large networks.
+        
+        Algorithm:
+            1. Phase 1 (Local optimization): Each node tries joining neighboring 
+               communities to maximize modularity gain ΔQ.
+            2. Phase 2 (Aggregation): Communities are coarsened into super-nodes,
+               creating a new network where each community becomes a single node.
+            3. Repeat until modularity converges (no further improvement).
+        
+        The method produces a dendrogram hierarchy, but returns the partition with
+        maximum modularity. Time complexity is O(n log n) for typical networks.
+        
+        Requires an undirected graph.
+        
+        Args:
+            resolution: Resolution parameter (default: 1.0). Higher values favor 
+                       smaller communities. Standard modularity uses resolution=1.0.
+        
+        Returns:
+            Dictionary mapping node ID to community ID (0-indexed, contiguous).
+            Nodes in the same community have the same ID.
+        
+        Raises:
+            RuntimeError: If called on a directed graph.
+        
+        Examples:
+            >>> G = ec.Graph(directed=False)
+            >>> # Two triangles connected by bridge
+            >>> for i in ['A', 'B', 'C']:
+            ...     for j in ['A', 'B', 'C']:
+            ...         if i < j:
+            ...             G.add_edge(i, j)
+            >>> for i in ['D', 'E', 'F']:
+            ...     for j in ['D', 'E', 'F']:
+            ...         if i < j:
+            ...             G.add_edge(i, j)
+            >>> G.add_edge('C', 'D')
+            >>> communities = G.get_cmty_louvain()
+            >>> communities['A'] == communities['B'] == communities['C']
+            True
+            >>> communities['D'] == communities['E'] == communities['F']
+            True
+            >>> communities['A'] != communities['D']  # Different communities
+            True
+        
+        Notes:
+            - The resolution parameter allows tuning community size:
+              * resolution < 1.0: Larger communities
+              * resolution = 1.0: Standard modularity optimization
+              * resolution > 1.0: Smaller communities
+            - The algorithm is deterministic but may produce different (equivalent)
+              partitions depending on node ordering.
+            - Handles disconnected components naturally.
+            - Self-loops and multi-edges are currently not supported.
+        
+        References:
+            - Blondel, V. D., Guillaume, J. L., Lambiotte, R., & Lefebvre, E. (2008).
+              "Fast unfolding of communities in large networks." Journal of Statistical
+              Mechanics: Theory and Experiment, 2008(10), P10008.
+            - Lambiotte, R., Delvenne, J. C., & Barahona, M. (2014). "Random walks,
+              Markov processes and the multiscale modular organization of complex
+              networks." IEEE Transactions on Network Science and Engineering, 1(2), 76-90.
+        
+        See Also:
+            - get_cmty_fast_greedy(): Simpler greedy optimization
+            - get_cmty_edge_btwns(): Divisive hierarchical method
+            - get_cmty_l_eigenvec(): Spectral bisection method
+        """
+        return self._graph.get_cmty_louvain(resolution)
+    
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get HITS authority scores for directed graph.
         

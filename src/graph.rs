@@ -3381,6 +3381,101 @@ impl Graph {
 
         Ok(result)
     }
+
+    /// Detect communities using the Louvain method (PyO3 wrapper).
+    /// 
+    /// The Louvain method is a hierarchical multi-level optimization algorithm.
+    /// It maximizes modularity through iterative local optimization and aggregation.
+    ///
+    /// # Arguments
+    /// * `resolution` - Resolution parameter (default 1.0). Higher values find smaller communities.
+    ///
+    /// # Returns
+    /// HashMap mapping node IDs to community IDs (0-indexed, contiguous).
+    ///
+    /// # Errors
+    /// * Returns error if graph is directed (requires undirected graph)
+    fn get_cmty_louvain(&self, resolution: f64) -> PyResult<FxHashMap<String, usize>> {
+        if self.is_directed() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Louvain algorithm requires an undirected graph"
+            ));
+        }
+
+        // Handle edge cases
+        if self.num_nodes() == 0 {
+            return Ok(FxHashMap::default());
+        }
+
+        if self.num_nodes() == 1 {
+            let mut result = FxHashMap::default();
+            if let Some(node_id) = self.nodes.keys().next() {
+                result.insert(node_id.clone(), 0);
+            }
+            return Ok(result);
+        }
+
+        let m = self.num_edges() as f64;
+        if m == 0.0 {
+            // No edges - each node is its own community
+            let mut result = FxHashMap::default();
+            for (idx, node_id) in self.nodes.keys().enumerate() {
+                result.insert(node_id.clone(), idx);
+            }
+            return Ok(result);
+        }
+
+        // Build node index mapping
+        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        let mut node_to_idx: FxHashMap<String, usize> = FxHashMap::default();
+        for (idx, node_id) in node_ids.iter().enumerate() {
+            node_to_idx.insert(node_id.clone(), idx);
+        }
+
+        // Initialize: each node in its own community
+        let mut node_to_comm: Vec<usize> = (0..node_ids.len()).collect();
+        let mut best_modularity = self.louvain_compute_modularity(&node_to_comm, &node_to_idx, m, resolution);
+        
+        let mut improved = true;
+        let max_iterations = 100;
+        let mut iteration = 0;
+
+        while improved && iteration < max_iterations {
+            improved = false;
+            iteration += 1;
+
+            // Phase 1: Local optimization
+            let phase1_improved = self.louvain_optimize(&mut node_to_comm, &node_to_idx, m, resolution);
+            if phase1_improved {
+                let current_mod = self.louvain_compute_modularity(&node_to_comm, &node_to_idx, m, resolution);
+                if current_mod > best_modularity + 1e-10 {
+                    best_modularity = current_mod;
+                    improved = true;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Convert to result format with contiguous IDs
+        let mut unique_comms: Vec<usize> = node_to_comm.iter().copied().collect();
+        unique_comms.sort_unstable();
+        unique_comms.dedup();
+
+        let mut comm_remap = FxHashMap::default();
+        for (new_id, &old_id) in unique_comms.iter().enumerate() {
+            comm_remap.insert(old_id, new_id);
+        }
+
+        let mut result = FxHashMap::default();
+        for (idx, node_id) in node_ids.iter().enumerate() {
+            let old_comm = node_to_comm[idx];
+            let new_comm = comm_remap.get(&old_comm).copied().unwrap_or(0);
+            result.insert(node_id.clone(), new_comm);
+        }
+
+        Ok(result)
+    }
 }
 
 
@@ -3801,6 +3896,160 @@ impl Graph {
 
         Vec::new() // No path found
     }
+
+    /// Louvain local optimization phase.
+    fn louvain_optimize(
+        &self,
+        node_to_comm: &mut Vec<usize>,
+        node_to_idx: &FxHashMap<String, usize>,
+        m: f64,
+        resolution: f64,
+    ) -> bool {
+        let mut improved = false;
+        let mut changed = true;
+        let max_passes = 10;
+        let mut pass = 0;
+
+        let node_ids: Vec<String> = node_to_idx.keys().cloned().collect();
+
+        while changed && pass < max_passes {
+            changed = false;
+            pass += 1;
+
+            for node_id in &node_ids {
+                let node_idx = node_to_idx[node_id];
+                let current_comm = node_to_comm[node_idx];
+
+                // Get neighboring communities
+                let mut neighbor_comms = FxHashSet::default();
+                if let Some(neighbors) = self.adjacency_list.get(node_id) {
+                    for neighbor_id in neighbors {
+                        if let Some(&neighbor_idx) = node_to_idx.get(neighbor_id) {
+                            neighbor_comms.insert(node_to_comm[neighbor_idx]);
+                        }
+                    }
+                }
+
+                // Try moving to each neighboring community
+                let mut best_comm = current_comm;
+                let mut best_gain = 0.0;
+
+                for &target_comm in &neighbor_comms {
+                    if target_comm == current_comm {
+                        continue;
+                    }
+
+                    let gain = self.louvain_modularity_gain(
+                        node_id,
+                        current_comm,
+                        target_comm,
+                        node_to_comm,
+                        node_to_idx,
+                        m,
+                        resolution,
+                    );
+
+                    if gain > best_gain {
+                        best_gain = gain;
+                        best_comm = target_comm;
+                    }
+                }
+
+                // Move if beneficial
+                if best_gain > 1e-10 && best_comm != current_comm {
+                    node_to_comm[node_idx] = best_comm;
+                    changed = true;
+                    improved = true;
+                }
+            }
+        }
+
+        improved
+    }
+
+    /// Calculate modularity gain for moving a node.
+    fn louvain_modularity_gain(
+        &self,
+        node_id: &str,
+        from_comm: usize,
+        to_comm: usize,
+        node_to_comm: &[usize],
+        node_to_idx: &FxHashMap<String, usize>,
+        m: f64,
+        resolution: f64,
+    ) -> f64 {
+        // Get node degree
+        let k_i = self.degree(node_id) as f64;
+
+        // Calculate sum of degrees in communities
+        let mut sigma_to = 0.0;
+        let mut sigma_from = 0.0;
+        for (nid, &idx) in node_to_idx {
+            let comm = node_to_comm[idx];
+            let deg = self.degree(nid) as f64;
+            if comm == to_comm {
+                sigma_to += deg;
+            } else if comm == from_comm {
+                sigma_from += deg;
+            }
+        }
+
+        // Calculate edges to communities
+        let mut k_i_in_to = 0.0;
+        let mut k_i_in_from = 0.0;
+        if let Some(neighbors) = self.adjacency_list.get(node_id) {
+            for neighbor_id in neighbors {
+                if let Some(&neighbor_idx) = node_to_idx.get(neighbor_id) {
+                    let neighbor_comm = node_to_comm[neighbor_idx];
+                    if neighbor_comm == to_comm {
+                        k_i_in_to += 1.0;
+                    } else if neighbor_comm == from_comm && neighbor_id != node_id {
+                        k_i_in_from += 1.0;
+                    }
+                }
+            }
+        }
+
+        // Modularity gain formula
+        let two_m = 2.0 * m;
+        let gain_to = k_i_in_to - resolution * sigma_to * k_i / two_m;
+        let gain_from = k_i_in_from - resolution * (sigma_from - k_i) * k_i / two_m;
+        gain_to - gain_from
+    }
+
+    /// Compute modularity for Louvain.
+    fn louvain_compute_modularity(
+        &self,
+        node_to_comm: &[usize],
+        node_to_idx: &FxHashMap<String, usize>,
+        m: f64,
+        resolution: f64,
+    ) -> f64 {
+        if m == 0.0 {
+            return 0.0;
+        }
+
+        let mut q = 0.0;
+        let two_m = 2.0 * m;
+
+        for (node_i_id, &idx_i) in node_to_idx {
+            for (node_j_id, &idx_j) in node_to_idx {
+                if node_to_comm[idx_i] == node_to_comm[idx_j] {
+                    // Check if edge exists via adjacency list
+                    let a_ij = if let Some(neighbors) = self.adjacency_list.get(node_i_id) {
+                        if neighbors.contains(node_j_id) { 1.0 } else { 0.0 }
+                    } else {
+                        0.0
+                    };
+                    let k_i = self.degree(node_i_id) as f64;
+                    let k_j = self.degree(node_j_id) as f64;
+                    q += a_ij - resolution * (k_i * k_j) / two_m;
+                }
+            }
+        }
+
+        q / two_m
+    }
 }
 
 #[cfg(test)]
@@ -3881,8 +4130,12 @@ mod tests {
         let b_neighbors = graph.neighbors("B").unwrap();
         assert_eq!(b_neighbors.len(), 0);
         
+        
         let a_neighbors = graph.neighbors("A").unwrap();
         assert_eq!(a_neighbors.len(), 1);
     }
 }
+
+
+
 
