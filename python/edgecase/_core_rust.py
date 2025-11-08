@@ -2425,6 +2425,85 @@ class Graph:
         
         return result
     
+    def set_edge_attrs(
+        self, 
+        edge_attr: str, 
+        values, 
+        edges: list[tuple[str, str]] | None = None,
+        from_nodes: list[str] | None = None,
+        to_nodes: list[str] | None = None
+    ) -> "Graph":
+        """Set attribute values for one or more edges.
+        
+        Args:
+            edge_attr: The name of the attribute to set
+            values: The value(s) to set. Can be a single value (applied to all edges),
+                   a list of values matching the edges, or a dict mapping edge IDs to values
+            edges: Optional list of (from, to) tuples specifying edges to set attributes for
+            from_nodes: Optional list of source node IDs to filter edges (used with to_nodes)
+            to_nodes: Optional list of target node IDs to filter edges (used with from_nodes)
+            
+        Returns:
+            Self for method chaining
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_edge("A", "B")
+            >>> G.add_edge("B", "C")
+            >>> # Set attribute for specific edges
+            >>> G.set_edge_attrs("weight", 2.5, edges=[("A", "B")])
+            >>> G.get_edge_attrs("weight")
+            {'A->B': 2.5}
+            
+            >>> # Set for all edges
+            >>> G.set_edge_attrs("status", "active")
+            >>> G.get_edge_attrs("status")
+            {'A->B': 'active', 'B->C': 'active'}
+            
+            >>> # Filter by from/to nodes
+            >>> G.set_edge_attrs("type", "friend", from_nodes=["A"], to_nodes=["B"])
+            >>> G.get_edge_attrs("type")
+            {'A->B': 'friend'}
+        """
+        # Determine which edges to update
+        target_edge_ids = []
+        
+        if edges is not None:
+            # Use specific (from, to) tuples
+            for from_node, to_node in edges:
+                edge_ids = self._graph.find_edge_ids(from_node, to_node)
+                target_edge_ids.extend(edge_ids)
+        elif from_nodes is not None and to_nodes is not None:
+            # Filter by from/to node lists
+            for from_node in from_nodes:
+                for to_node in to_nodes:
+                    edge_ids = self._graph.find_edge_ids(from_node, to_node)
+                    target_edge_ids.extend(edge_ids)
+        else:
+            # All edges
+            target_edge_ids = self.edge_ids()
+        
+        # Handle different value types
+        if isinstance(values, dict):
+            # Dict mapping edge IDs to values
+            for edge_id in target_edge_ids:
+                if edge_id in values:
+                    self._graph.set_edge_attr(edge_id, edge_attr, values[edge_id])
+        elif isinstance(values, list):
+            # List of values (must match length of target edges)
+            if len(values) != len(target_edge_ids):
+                raise ValueError(
+                    f"Length of values ({len(values)}) must match length of target edges ({len(target_edge_ids)})"
+                )
+            for edge_id, value in zip(target_edge_ids, values):
+                self._graph.set_edge_attr(edge_id, edge_attr, value)
+        else:
+            # Single value applied to all target edges
+            for edge_id in target_edge_ids:
+                self._graph.set_edge_attr(edge_id, edge_attr, values)
+        
+        return self
+    
     def get_node_df(self, include_degree: bool = True) -> "pl.DataFrame":
         """Get nodes as a Polars DataFrame.
         
