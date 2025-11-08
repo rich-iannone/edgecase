@@ -70,6 +70,15 @@ except ImportError:
     to_networkx = None
     from_networkx = None
 
+# igraph interoperability (optional)
+try:
+    from edgecase.igraph_interop import to_igraph, from_igraph
+    _HAS_IGRAPH = True
+except ImportError:
+    _HAS_IGRAPH = False
+    to_igraph = None
+    from_igraph = None
+
 __all__ = [
     # Version
     "__version__",
@@ -88,6 +97,8 @@ __all__ = [
     "to_polars",
     "to_networkx",
     "from_networkx",
+    "to_igraph",
+    "from_igraph",
     # Analysis
     "NetworkAnalyzer",
     # Visualization
