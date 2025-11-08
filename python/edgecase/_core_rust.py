@@ -497,7 +497,7 @@ class Graph:
     def count_loop_edges(self) -> int:
         """Count number of self-loops in the graph.
         
-        Alias for count_selfloops() for consistency with DiagrammeR API.
+        Alias for count_selfloops().
         
         Returns:
             Number of edges where source equals target
@@ -778,6 +778,74 @@ class Graph:
             {1: 4, 4: 1}
         """
         return self._graph.get_degree_histogram()
+    
+    def get_mean_distance(self) -> float | None:
+        """Get mean distance (average shortest path length).
+        
+        Computes the average of all shortest path lengths between all pairs
+        of reachable nodes in the graph. This is also known as the average
+        path length or characteristic path length.
+        
+        Returns None if the graph is disconnected (since infinite distances exist).
+        For directed graphs, only considers paths that exist.
+        
+        Returns:
+            Average shortest path length, or None if graph is disconnected
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(4)  # Linear: 0-1-2-3
+            >>> G.get_mean_distance()  # (1+2+3+1+2+1)/6 = 2.0
+            2.0
+            >>> G.add_cycle_graph(3)  # Disconnected
+            >>> G.get_mean_distance() is None
+            True
+        """
+        return self._graph.get_mean_distance()
+    
+    def get_min_eccentricity(self) -> int | None:
+        """Get minimum eccentricity (graph radius).
+        
+        This is an alias for get_graph_radius(). The minimum eccentricity
+        is the smallest maximum distance from any node to all other nodes.
+        
+        Returns None if the graph is disconnected.
+        
+        Returns:
+            Minimum eccentricity (radius), or None if disconnected
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_star_graph(5)  # Hub at center
+            >>> G.get_min_eccentricity()  # Hub has eccentricity 1
+            1
+            
+        See Also:
+            get_graph_radius(): Equivalent method
+        """
+        return self.get_graph_radius()
+    
+    def get_max_eccentricity(self) -> int | None:
+        """Get maximum eccentricity (graph diameter).
+        
+        This is an alias for get_graph_diameter(). The maximum eccentricity
+        is the longest shortest path between any two nodes in the graph.
+        
+        Returns None if the graph is disconnected.
+        
+        Returns:
+            Maximum eccentricity (diameter), or None if disconnected
+            
+        Example:
+            >>> G = ec.Graph()
+            >>> G.add_path_graph(5)  # Linear chain
+            >>> G.get_max_eccentricity()  # Distance from end to end
+            4
+            
+        See Also:
+            get_graph_diameter(): Equivalent method
+        """
+        return self.get_graph_diameter()
     
     def get_articulation_points(self) -> list[str]:
         """Find articulation points (cut vertices) in the graph.

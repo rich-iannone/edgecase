@@ -266,7 +266,7 @@ impl Graph {
 
     /// Get edges as "source->target" or "source--target" strings
     /// 
-    /// Returns edge definitions in DiagrammeR format.
+    /// Returns edge definitions.
     /// For directed graphs: "A->B"
     /// For undirected graphs: "A--B"
     pub fn get_edges(&self) -> Vec<String> {
@@ -1673,6 +1673,43 @@ impl Graph {
             .values()
             .filter_map(|&ecc| ecc)
             .min()
+    }
+
+    /// Get mean distance (average shortest path length)
+    /// Returns None if graph is disconnected
+    /// Computes the average of all pairwise shortest path lengths
+    fn get_mean_distance(&self) -> Option<f64> {
+        if self.num_nodes() == 0 {
+            return None;
+        }
+
+        let mut total_distance: usize = 0;
+        let mut path_count: usize = 0;
+
+        // Compute shortest paths from each node using BFS
+        for start_node in self.nodes.keys() {
+            let distances = self.bfs_distances(start_node);
+            
+            // Check if all nodes are reachable
+            if distances.len() != self.num_nodes() {
+                // Graph is disconnected
+                return None;
+            }
+            
+            // Sum all distances (excluding the distance to self, which is 0)
+            for (target, &dist) in distances.iter() {
+                if target != start_node {
+                    total_distance += dist;
+                    path_count += 1;
+                }
+            }
+        }
+
+        if path_count == 0 {
+            None
+        } else {
+            Some(total_distance as f64 / path_count as f64)
+        }
     }
 
     /// Get girth (length of shortest cycle)
