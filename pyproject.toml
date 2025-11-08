@@ -51,6 +51,9 @@ bio = [
     "scikit-learn>=1.3.0",  # for similarity metrics
     "scipy>=1.11.0",  # for scientific computing
 ]
+networkx = [
+    "networkx>=3.0",  # for graph interoperability and validation
+]
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.4.0",
@@ -59,7 +62,7 @@ docs = [
     "mkdocs-literate-nav>=0.6.0",
 ]
 all = [
-    "edgecase[dev,bio,docs]",
+    "edgecase[dev,bio,networkx,docs]",
 ]
 
 [project.urls]
