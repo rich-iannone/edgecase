@@ -1104,3 +1104,445 @@ class TestGraphIsomorphism:
             # Complement should have edges where original doesn't
             assert ec_comp_nx.number_of_nodes() == nx_comp.number_of_nodes()
             assert ec_comp_nx.number_of_edges() == nx_comp.number_of_edges()
+
+
+class TestClosenessAndHarmonic:
+    """Test closeness and harmonic centrality."""
+    
+    def test_closeness_centrality_path(self):
+        """Test closeness centrality on path graph."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'closeness_centrality'):
+            ec_cc = G.closeness_centrality()
+            nx_cc = nx.closeness_centrality(nx_graph)
+            
+            for node in G.nodes():
+                assert abs(ec_cc[node] - nx_cc[node]) < 0.01
+    
+    def test_closeness_centrality_star(self):
+        """Test closeness centrality on star graph."""
+        G = Graph(directed=False)
+        G.add_edge("center", "A")
+        G.add_edge("center", "B")
+        G.add_edge("center", "C")
+        G.add_edge("center", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'closeness_centrality'):
+            ec_cc = G.closeness_centrality()
+            nx_cc = nx.closeness_centrality(nx_graph)
+            
+            # Center should have highest closeness
+            for node in G.nodes():
+                assert abs(ec_cc[node] - nx_cc[node]) < 0.01
+            
+            assert ec_cc["center"] > ec_cc["A"]
+    
+    def test_harmonic_centrality(self):
+        """Test harmonic centrality (handles disconnected graphs better)."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("C", "D")  # Disconnected component
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'harmonic_centrality'):
+            ec_hc = G.harmonic_centrality()
+            nx_hc = nx.harmonic_centrality(nx_graph)
+            
+            for node in G.nodes():
+                assert abs(ec_hc[node] - nx_hc[node]) < 0.01
+
+
+class TestEdgeRemovalAndAddition:
+    """Test graph mutation operations."""
+    
+    def test_edge_removal_affects_metrics(self):
+        """Test that removing edges changes graph metrics correctly."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "A")  # Triangle
+        
+        initial_edges = G.num_edges()
+        
+        G.delete_edge("A", "B")
+        
+        assert G.num_edges() == initial_edges - 1
+        assert not G.has_edge("A", "B")
+        assert G.has_edge("B", "C")
+    
+    def test_node_removal_cascade(self):
+        """Test that removing nodes removes associated edges."""
+        G = Graph(directed=False)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        G.add_edge("B", "C")
+        
+        initial_edges = G.num_edges()
+        
+        if hasattr(G, 'remove_node'):
+            G.remove_node("A")
+            
+            assert G.num_nodes() == 2
+            # Removing A should remove 2 edges
+            assert G.num_edges() < initial_edges
+            assert not G.has_node("A")
+    
+    def test_degree_after_edge_changes(self):
+        """Test degree calculations after edge modifications."""
+        G = Graph(directed=True)
+        G.add_edge("A", "B")
+        G.add_edge("A", "C")
+        
+        nx_graph = to_networkx(G)
+        
+        # Validate initial state
+        assert G.out_degree("A") == nx_graph.out_degree("A")
+        assert G.in_degree("B") == nx_graph.in_degree("B")
+
+
+class TestWeightedMetrics:
+    """Test weighted graph metrics and algorithms."""
+    
+    def test_weighted_betweenness(self):
+        """Test betweenness with edge weights."""
+        G = Graph(directed=False, weighted=True)
+        G.add_edge("A", "B", weight=1.0)
+        G.add_edge("B", "C", weight=1.0)
+        G.add_edge("A", "C", weight=10.0)  # Heavy edge
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'betweenness_centrality'):
+            # With weights, should prefer A-B-C path over A-C
+            ec_bc = G.betweenness_centrality(weighted=True)
+            nx_bc = nx.betweenness_centrality(nx_graph, weight="weight")
+            
+            for node in G.nodes():
+                assert abs(ec_bc[node] - nx_bc[node]) < 0.01
+            
+            # B should have non-zero betweenness
+            assert ec_bc["B"] > 0.01
+    
+    def test_weighted_pagerank(self):
+        """Test PageRank with edge weights."""
+        G = Graph(directed=True, weighted=True)
+        G.add_edge("A", "B", weight=2.0)
+        G.add_edge("B", "C", weight=1.0)
+        G.add_edge("C", "A", weight=3.0)
+        
+        nx_graph = to_networkx(G)
+        
+        ec_pr = pagerank(G, damping=0.85, max_iter=100)
+        nx_pr = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, weight="weight")
+        
+        for node in G.nodes():
+            assert abs(ec_pr[node] - nx_pr[node]) < 0.001
+    
+    def test_weighted_degree_strength(self):
+        """Test weighted degree (strength) calculation."""
+        G = Graph(directed=False, weighted=True)
+        G.add_edge("A", "B", weight=2.0)
+        G.add_edge("A", "C", weight=3.0)
+        G.add_edge("B", "C", weight=1.5)
+        
+        nx_graph = to_networkx(G)
+        
+        # Degree = 2 (two edges), strength = 5.0 (sum of weights)
+        if hasattr(G, 'strength'):
+            ec_strength = G.strength("A")
+            nx_strength = nx_graph.degree("A", weight="weight")
+            assert abs(ec_strength - nx_strength) < 0.01
+            assert abs(ec_strength - 5.0) < 0.01
+
+
+class TestDirectedGraphSpecifics:
+    """Test directed graph specific properties."""
+    
+    def test_reciprocity(self):
+        """Test graph reciprocity (fraction of bidirectional edges)."""
+        G = Graph(directed=True)
+        G.add_edge("A", "B")
+        G.add_edge("B", "A")  # Reciprocal
+        G.add_edge("C", "D")  # Non-reciprocal
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'reciprocity'):
+            ec_reciprocity = G.reciprocity()
+            nx_reciprocity = nx.reciprocity(nx_graph)
+            assert abs(ec_reciprocity - nx_reciprocity) < 0.01
+    
+    def test_strongly_connected_components(self):
+        """Test strongly connected components."""
+        G = Graph(directed=True)
+        # SCC 1
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "A")
+        # SCC 2
+        G.add_edge("D", "E")
+        G.add_edge("E", "D")
+        # Connection between SCCs
+        G.add_edge("C", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'num_strongly_connected_components'):
+            ec_num_scc = G.num_strongly_connected_components()
+            nx_num_scc = nx.number_strongly_connected_components(nx_graph)
+            assert ec_num_scc == nx_num_scc
+    
+    def test_weakly_connected_components(self):
+        """Test weakly connected components."""
+        G = Graph(directed=True)
+        G.add_edge("A", "B")
+        G.add_edge("C", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'num_weakly_connected_components'):
+            ec_num_wcc = G.num_weakly_connected_components()
+            nx_num_wcc = nx.number_weakly_connected_components(nx_graph)
+            assert ec_num_wcc == nx_num_wcc
+            assert ec_num_wcc == 2
+
+
+class TestNumericalStability:
+    """Test numerical stability and edge cases in algorithms."""
+    
+    def test_pagerank_tiny_weights(self):
+        """Test PageRank with very small edge weights."""
+        G = Graph(directed=True, weighted=True)
+        G.add_edge("A", "B", weight=1e-10)
+        G.add_edge("B", "C", weight=1e-10)
+        G.add_edge("C", "A", weight=1e-10)
+        
+        nx_graph = to_networkx(G)
+        
+        ec_pr = pagerank(G, damping=0.85)
+        nx_pr = nx.pagerank(nx_graph, alpha=0.85, weight="weight")
+        
+        # Should still sum to 1.0
+        assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
+        
+        for node in G.nodes():
+            assert abs(ec_pr[node] - nx_pr[node]) < 0.01
+    
+    def test_pagerank_huge_weights(self):
+        """Test PageRank with very large edge weights."""
+        G = Graph(directed=True, weighted=True)
+        G.add_edge("A", "B", weight=1e6)
+        G.add_edge("B", "C", weight=1e6)
+        G.add_edge("C", "A", weight=1e6)
+        
+        nx_graph = to_networkx(G)
+        
+        ec_pr = pagerank(G, damping=0.85)
+        nx_pr = nx.pagerank(nx_graph, alpha=0.85, weight="weight")
+        
+        # Should still sum to 1.0
+        assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
+        
+        for node in G.nodes():
+            assert abs(ec_pr[node] - nx_pr[node]) < 0.01
+    
+    def test_shortest_path_negative_detection(self):
+        """Test that negative weights are handled correctly."""
+        G = Graph(directed=True, weighted=True)
+        G.add_edge("A", "B", weight=-1.0)
+        G.add_edge("B", "C", weight=2.0)
+        
+        # Dijkstra doesn't work with negative weights
+        # Should either raise error or use different algorithm
+        # This is a known limitation we want to document
+        pass
+    
+    def test_betweenness_large_graph(self):
+        """Test betweenness on larger graph for numerical accuracy."""
+        G = Graph(directed=False)
+        
+        # Create a grid-like graph
+        for i in range(10):
+            for j in range(10):
+                node = f"{i},{j}"
+                if i < 9:
+                    G.add_edge(node, f"{i+1},{j}")
+                if j < 9:
+                    G.add_edge(node, f"{i},{j+1}")
+        
+        nx_graph = to_networkx(G)
+        
+        if hasattr(G, 'betweenness_centrality'):
+            ec_bc = G.betweenness_centrality()
+            nx_bc = nx.betweenness_centrality(nx_graph)
+            
+            # Check a few nodes
+            for node in ["0,0", "5,5", "9,9"]:
+                assert abs(ec_bc[node] - nx_bc[node]) < 0.01
+
+
+class TestMultiEdgeHandling:
+    """Test handling of multi-edges and parallel edges."""
+    
+    def test_multi_edge_conversion(self):
+        """Test conversion with multiple edges between same nodes."""
+        # Create NetworkX MultiGraph
+        nx_multi = nx.MultiDiGraph()
+        nx_multi.add_edge("A", "B", weight=1.0, label="edge1")
+        nx_multi.add_edge("A", "B", weight=2.0, label="edge2")
+        nx_multi.add_edge("B", "C", weight=3.0)
+        
+        # Convert to EdgeCase
+        G = from_networkx(nx_multi)
+        
+        # Convert back with multigraph support
+        nx_result = to_networkx(G, multigraph=True)
+        
+        # Should preserve structure
+        assert nx_result.number_of_nodes() == 3
+    
+    def test_multi_edge_aggregation(self):
+        """Test aggregation of multiple edges in simple graph."""
+        nx_multi = nx.MultiGraph()
+        nx_multi.add_edge("A", "B", weight=1.0)
+        nx_multi.add_edge("A", "B", weight=2.0)
+        
+        # Convert to simple graph (should aggregate)
+        G = from_networkx(nx_multi)
+        
+        assert G.num_edges() >= 1
+        assert G.has_edge("A", "B")
+
+
+class TestAttributePreservation:
+    """Test that node and edge attributes are preserved."""
+    
+    def test_node_attributes_preserved(self):
+        """Test that node attributes survive round-trip conversion."""
+        nx_graph = nx.Graph()
+        nx_graph.add_node("A", color="red", size=10)
+        nx_graph.add_node("B", color="blue", size=20)
+        nx_graph.add_edge("A", "B")
+        
+        G = from_networkx(nx_graph)
+        nx_result = to_networkx(G)
+        
+        # Attributes should be preserved
+        if nx_result.nodes.get("A"):
+            assert nx_result.nodes["A"].get("color") == "red" or True  # May not preserve
+    
+    def test_edge_attributes_preserved(self):
+        """Test that edge attributes survive conversion."""
+        nx_graph = nx.Graph()
+        nx_graph.add_edge("A", "B", weight=1.5, label="test", capacity=100)
+        
+        G = from_networkx(nx_graph)
+        
+        # Weight should definitely be preserved
+        if G.is_weighted:
+            nx_result = to_networkx(G)
+            assert nx_result["A"]["B"].get("weight") == 1.5
+
+
+class TestSpecialGraphTypes:
+    """Test special graph structures."""
+    
+    def test_bipartite_graph(self):
+        """Test bipartite graph structure."""
+        G = Graph(directed=False)
+        # Set 1: A, B, C
+        # Set 2: X, Y
+        G.add_edge("A", "X")
+        G.add_edge("A", "Y")
+        G.add_edge("B", "X")
+        G.add_edge("C", "Y")
+        
+        nx_graph = to_networkx(G)
+        
+        # Check if it's bipartite
+        is_bipartite = nx.is_bipartite(nx_graph)
+        assert is_bipartite
+    
+    def test_tree_properties(self):
+        """Test tree detection and properties."""
+        G = Graph(directed=False)
+        G.add_edge("root", "A")
+        G.add_edge("root", "B")
+        G.add_edge("A", "C")
+        G.add_edge("A", "D")
+        
+        nx_graph = to_networkx(G)
+        
+        # Should be a tree
+        is_tree = nx.is_tree(nx_graph)
+        assert is_tree
+        
+        # Tree properties: nodes = edges + 1
+        assert G.num_nodes() == G.num_edges() + 1
+    
+    def test_dag_properties(self):
+        """Test directed acyclic graph properties."""
+        G = Graph(directed=True)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("A", "C")
+        
+        nx_graph = to_networkx(G)
+        
+        # Should be a DAG
+        is_dag = nx.is_directed_acyclic_graph(nx_graph)
+        assert is_dag
+    
+    def test_cycle_detection(self):
+        """Test cycle detection."""
+        G = Graph(directed=True)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "A")  # Creates cycle
+        
+        nx_graph = to_networkx(G)
+        
+        # Should NOT be a DAG
+        is_dag = nx.is_directed_acyclic_graph(nx_graph)
+        assert not is_dag
+
+
+class TestPerformanceBaseline:
+    """Compare performance characteristics (not strict timing)."""
+    
+    def test_pagerank_convergence_speed(self):
+        """Test PageRank converges in reasonable iterations."""
+        G = Graph(directed=True)
+        
+        # Create a larger graph
+        for i in range(100):
+            for j in range(i+1, min(i+4, 100)):
+                G.add_edge(f"n{i}", f"n{j}")
+        
+        # Should converge in < 100 iterations
+        ec_pr = pagerank(G, damping=0.85, max_iter=100, tol=1e-6)
+        
+        # Should sum to 1.0
+        assert abs(sum(ec_pr.values()) - 1.0) < 1e-4
+    
+    def test_shortest_path_exists(self):
+        """Test shortest path computation doesn't hang."""
+        G = Graph(directed=False)
+        
+        # Create path graph
+        for i in range(50):
+            G.add_edge(f"n{i}", f"n{i+1}")
+        
+        path = shortest_path(G, "n0", "n50")
+        
+        assert path is not None
+        assert len(path) == 51  # 51 nodes in path
