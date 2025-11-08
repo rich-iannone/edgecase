@@ -518,7 +518,6 @@ class TestNeighborsValidation:
 class TestBetweennessCentralityValidation:
     """Validate betweenness centrality against NetworkX."""
     
-    @pytest.mark.xfail(reason="Betweenness centrality not yet fully implemented")
     def test_betweenness_simple_path(self):
         """Test betweenness on simple path graph."""
         from edgecase import betweenness_centrality
@@ -537,7 +536,6 @@ class TestBetweennessCentralityValidation:
             assert abs(ec_bc[node] - nx_bc[node]) < 0.01, \
                 f"Betweenness mismatch for {node}: EC={ec_bc[node]}, NX={nx_bc[node]}"
     
-    @pytest.mark.xfail(reason="Betweenness centrality not yet fully implemented")
     def test_betweenness_star_graph(self):
         """Test betweenness on star graph (center has high betweenness)."""
         from edgecase import betweenness_centrality
