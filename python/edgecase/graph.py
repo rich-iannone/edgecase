@@ -1799,109 +1799,191 @@ class Graph:
     def get_mean_distance(self) -> float | None:
         """Get mean distance (average shortest path length).
         
-        Computes the average of all shortest path lengths between all pairs
-        of reachable nodes in the graph. This is also known as the average
-        path length or characteristic path length.
+        Computes average shortest path length between all reachable node pairs.
+        Also known as average path length or characteristic path length. Returns
+        None if graph is disconnected (infinite distances exist).
         
-        Returns None if the graph is disconnected (since infinite distances exist).
-        For directed graphs, only considers paths that exist.
+        Returns
+        -------
+        float | None
+            Average shortest path length, or None if graph is disconnected.
         
-        Returns:
-            Average shortest path length, or None if graph is disconnected
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(4)  # Linear: 0-1-2-3
-            >>> G.get_mean_distance()  # (1+2+3+1+2+1)/6 = 2.0
-            2.0
-            >>> G.add_cycle_graph(3)  # Disconnected
-            >>> G.get_mean_distance() is None
-            True
+        Examples
+        --------
+        Calculate mean distance in a path graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+        
+        mean_dist = graph.get_mean_distance()
+        # Paths: A-B(1), A-C(2), A-D(3), B-C(1), B-D(2), C-D(1)
+        # Average: (1+2+3+1+2+1)/6 = 1.67
+        print(mean_dist)
+        ```
+        
+        Notes
+        -----
+        Important network metric:
+        - Small-world networks: Low mean distance despite high clustering
+        - Scale-free networks: Mean distance grows logarithmically with size
+        - Used in epidemiology: Average infection spread time
+        
+        See Also
+        --------
+        get_graph_diameter : Maximum shortest path length
+        get_graph_radius : Minimum eccentricity
         """
         return self._graph.get_mean_distance()
     
     def get_min_eccentricity(self) -> int | None:
         """Get minimum eccentricity (graph radius).
         
-        This is an alias for get_graph_radius(). The minimum eccentricity
-        is the smallest maximum distance from any node to all other nodes.
+        Alias for `get_graph_radius()`. The minimum eccentricity is the smallest
+        maximum distance from any node to all other nodes. Returns None if graph
+        is disconnected.
         
-        Returns None if the graph is disconnected.
+        Returns
+        -------
+        int | None
+            Minimum eccentricity (radius), or None if disconnected.
         
-        Returns:
-            Minimum eccentricity (radius), or None if disconnected
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)  # Hub at center
-            >>> G.get_min_eccentricity()  # Hub has eccentricity 1
-            1
-            
-        See Also:
-            get_graph_radius(): Equivalent method
+        Examples
+        --------
+        Find the radius of a star graph:
+        
+        ```python
+        graph = Graph().add_star_graph(5, center_label="hub")
+        
+        radius = graph.get_min_eccentricity()
+        print(radius)  # 1 (hub reaches all nodes in 1 step)
+        ```
+        
+        See Also
+        --------
+        get_graph_radius : Equivalent method
+        get_max_eccentricity : Maximum eccentricity (diameter)
+        get_eccentricity : Eccentricity of each node
         """
         return self.get_graph_radius()
     
     def get_max_eccentricity(self) -> int | None:
         """Get maximum eccentricity (graph diameter).
         
-        This is an alias for get_graph_diameter(). The maximum eccentricity
-        is the longest shortest path between any two nodes in the graph.
+        Alias for `get_graph_diameter()`. The maximum eccentricity is the longest
+        shortest path between any two nodes. Returns None if graph is disconnected.
         
-        Returns None if the graph is disconnected.
+        Returns
+        -------
+        int | None
+            Maximum eccentricity (diameter), or None if disconnected.
         
-        Returns:
-            Maximum eccentricity (diameter), or None if disconnected
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(5)  # Linear chain
-            >>> G.get_max_eccentricity()  # Distance from end to end
-            4
-            
-        See Also:
-            get_graph_diameter(): Equivalent method
+        Examples
+        --------
+        Find the diameter of a path graph:
+        
+        ```python
+        graph = Graph().add_path_graph(5)
+        
+        diameter = graph.get_max_eccentricity()
+        print(diameter)  # 4 (end-to-end distance)
+        ```
+        
+        See Also
+        --------
+        get_graph_diameter : Equivalent method
+        get_min_eccentricity : Minimum eccentricity (radius)
+        get_eccentricity : Eccentricity of each node
         """
         return self.get_graph_diameter()
     
     def get_articulation_points(self) -> list[str]:
         """Find articulation points (cut vertices) in the graph.
         
-        An articulation point is a node whose removal would disconnect
-        the graph. Uses Tarjan's DFS-based algorithm.
+        An articulation point is a node whose removal disconnects the graph or
+        increases the number of connected components. Uses Tarjan's DFS-based
+        algorithm. Only defined for undirected graphs.
         
-        Only defined for undirected graphs.
+        Returns
+        -------
+        list[str]
+            List of node IDs that are articulation points.
         
-        Returns:
-            List of node IDs that are articulation points
-            
-        Raises:
-            ValueError: If graph is directed
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(5)  # Linear chain
-            >>> ap = G.get_articulation_points()
-            >>> len(ap)  # Middle 3 nodes are articulation points
-            3
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+        
+        Examples
+        --------
+        Find articulation points in a path graph:
+        
+        ```python
+        graph = Graph().add_path_graph(5)
+        
+        # In a path: A-B-C-D-E
+        # Middle nodes B, C, D are articulation points
+        cut_vertices = graph.get_articulation_points()
+        print(len(cut_vertices))  # 3
+        ```
+        
+        Notes
+        -----
+        Applications:
+        - Network vulnerability analysis: Critical infrastructure nodes
+        - Social networks: Key influencers whose removal fragments communities
+        - Communication networks: Single points of failure
+        
+        See Also
+        --------
+        get_min_cut_between : Edge-based connectivity measure
+        is_connected : Check if graph is connected
         """
         return self._graph.get_articulation_points()
     
     def get_periphery(self) -> list[str]:
         """Get periphery nodes (nodes with maximum eccentricity).
         
-        Periphery nodes are the farthest from the graph's center.
-        Eccentricity is the maximum distance to any other node.
+        Periphery nodes are farthest from the graph's center. These nodes have
+        the maximum eccentricity (longest shortest path to any other node).
+        Returns empty list if graph is disconnected.
         
-        Returns:
-            List of node IDs in the periphery, empty if graph is disconnected
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(5)  # Linear: 0-1-2-3-4
-            >>> periphery = G.get_periphery()
-            >>> sorted(periphery)  # End nodes are periphery
-            ['0', '4']
+        Returns
+        -------
+        list[str]
+            List of node IDs in the periphery, empty if disconnected.
+        
+        Examples
+        --------
+        Find periphery nodes in a path graph:
+        
+        ```python
+        graph = Graph().add_path_graph(5)
+        
+        # In path A-B-C-D-E, ends A and E are periphery
+        periphery = graph.get_periphery()
+        print(sorted(periphery))  # ['0', '4']
+        ```
+        
+        Notes
+        -----
+        Characteristics:
+        - Opposite of center: Peripheral vs central nodes
+        - In trees: Always leaf nodes
+        - Multiple nodes can have maximum eccentricity
+        
+        See Also
+        --------
+        get_max_eccentricity : Maximum eccentricity value (diameter)
+        get_eccentricity : Eccentricity of all nodes
         """
         return self._graph.get_periphery()
     
@@ -2479,302 +2561,374 @@ class Graph:
         return self._graph.get_cmty_fast_greedy()
     
     def get_cmty_edge_btwns(self) -> dict[str, int]:
-        """Get community membership using Edge Betweenness (Girvan-Newman) algorithm.
+        """Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
         
         Iteratively removes edges with highest betweenness centrality to reveal
         community structure. Uses Brandes' algorithm for efficient betweenness
-        calculation. More accurate than Fast Greedy but significantly slower.
+        calculation. More accurate than Fast Greedy but significantly slower
+        (O(m²n) complexity).
         
-        Algorithm:
-            1. Compute edge betweenness for all edges using Brandes' algorithm
-            2. Remove edge with highest betweenness
-            3. Recompute betweenness and check if modularity improved
-            4. Repeat until modularity stops improving
-            5. Return partition with maximum modularity
+        Best for small to medium graphs (< 5K nodes) with hierarchical community
+        structure and clear "bridge" edges between communities. When accuracy is
+        more important than speed.
         
-        Best for:
-            - Small to medium graphs (< 5K nodes)
-            - Hierarchical community structure
-            - When accuracy is more important than speed
-            - Graphs with clear "bridge" edges between communities
-        
-        Complexity: O(m²n) where m = edges, n = nodes
-        
-        Returns:
-            Dictionary mapping node IDs to community IDs (0-indexed).
-            Community IDs are contiguous integers starting from 0.
-        
-        Raises:
-            ValueError: If graph is directed (requires undirected graph)
-        
-        Examples:
-            >>> import edgecase as ec
-            >>> G = ec.Graph(directed=False)
-            >>> 
-            >>> # Two triangles connected by a bridge
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('B', 'C')
-            >>> G.add_edge('C', 'A')
-            >>> G.add_edge('C', 'D')  # Bridge edge
-            >>> G.add_edge('D', 'E')
-            >>> G.add_edge('E', 'F')
-            >>> G.add_edge('F', 'D')
-            >>> 
-            >>> communities = G.get_cmty_edge_btwns()
-            >>> # Returns: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
-            >>> # The bridge edge C-D has highest betweenness and is removed first
-        
-        References:
-            Girvan, M., & Newman, M. E. (2002). Community structure in social
-            and biological networks. PNAS, 99(12), 7821-7826.
+        Returns
+        -------
+        dict[str, int]
+            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
             
-            Brandes, U. (2001). A faster algorithm for betweenness centrality.
-            Journal of Mathematical Sociology, 25(2), 163-177.
+        Raises
+        ------
+        ValueError
+            If graph is directed (requires undirected graph).
         
-        Note:
-            This algorithm is O(m²n) and can be slow for large graphs.
-            For graphs with > 10K nodes, consider get_cmty_fast_greedy() or
-            get_cmty_louvain() instead.
-            
-        See Also:
-            - get_cmty_fast_greedy(): Faster greedy modularity optimization
-            - get_cmty_louvain(): Best for very large graphs
-            - get_cmty_walktrap(): Alternative hierarchical method
+        Examples
+        --------
+        Detect communities in bridged triangles:
+        
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Triangle 1
+            .add_edge("C", "D")  # Bridge edge
+            .add_edge("D", "E")
+            .add_edge("E", "F")
+            .add_edge("F", "D")  # Triangle 2
+        )
+        
+        communities = graph.get_cmty_edge_btwns()
+        # Bridge edge C-D has highest betweenness and is removed first
+        # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
+        ```
+        
+        Notes
+        -----
+        Algorithm steps:
+        1. Compute edge betweenness for all edges using Brandes' algorithm
+        2. Remove edge with highest betweenness
+        3. Recompute betweenness and check if modularity improved
+        4. Repeat until modularity stops improving
+        5. Return partition with maximum modularity
+        
+        Complexity: O(m²n) where m = edges, n = nodes. For graphs with > 10K nodes,
+        consider `get_cmty_fast_greedy()` or `get_cmty_louvain()` instead.
+        
+        References
+        ----------
+        Girvan, M., & Newman, M. E. (2002). "Community structure in social
+        and biological networks." PNAS, 99(12), 7821-7826.
+        
+        Brandes, U. (2001). "A faster algorithm for betweenness centrality."
+        Journal of Mathematical Sociology, 25(2), 163-177.
+        
+        See Also
+        --------
+        get_cmty_fast_greedy : Faster greedy modularity optimization
+        get_cmty_louvain : Best for very large graphs
+        get_cmty_walktrap : Alternative hierarchical method
         """
         return self._graph.get_cmty_edge_btwns()
     
     def get_cmty_l_eigenvec(self) -> dict[str, int]:
-        """Get community membership using Leading Eigenvector (Newman) algorithm.
+        """Detect communities using Leading Eigenvector (Newman) algorithm.
         
-        Spectral optimization method using recursive bisection based on the
-        leading eigenvector of the modularity matrix. Splits communities
-        hierarchically when modularity improves.
+        Spectral optimization method using recursive bisection based on the leading
+        eigenvector of the modularity matrix. Splits communities hierarchically when
+        modularity improves. Best for medium-sized graphs (< 20K nodes) with clear
+        2-way divisions and hierarchical structure.
         
-        Algorithm:
-            1. Start with all nodes in one community
-            2. Compute modularity matrix B_ij = A_ij - (k_i * k_j) / 2m
-            3. Find leading eigenvector using power iteration
-            4. Split by sign: positive → community 1, negative → community 2
-            5. Accept split only if modularity improves
-            6. Recursively split each community
-        
-        Best for:
-            - Medium-sized graphs (< 20K nodes)
-            - Hierarchical community structure
-            - When you want theoretically-grounded splits
-            - Graphs with clear 2-way divisions
-        
-        Complexity: O(n²) per split, recursive
-        
-        Returns:
-            Dictionary mapping node IDs to community IDs (0-indexed).
-            Community IDs are contiguous integers starting from 0.
-        
-        Raises:
-            ValueError: If graph is directed (requires undirected graph)
-        
-        Examples:
-            >>> import edgecase as ec
-            >>> G = ec.Graph(directed=False)
-            >>> 
-            >>> # Two cliques connected by a bridge
-            >>> for i in ['A', 'B', 'C']:
-            ...     for j in ['A', 'B', 'C']:
-            ...         if i < j:
-            ...             G.add_edge(i, j)
-            >>> 
-            >>> G.add_edge('C', 'D')  # Bridge
-            >>> 
-            >>> for i in ['D', 'E', 'F']:
-            ...     for j in ['D', 'E', 'F']:
-            ...         if i < j:
-            ...             G.add_edge(i, j)
-            >>> 
-            >>> communities = G.get_cmty_l_eigenvec()
-            >>> # Returns: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
-            >>> # Eigenvector method finds the natural split at the bridge
-        
-        References:
-            Newman, M. E. J. (2006). Finding community structure in networks
-            using the eigenvectors of matrices. Physical Review E, 74(3), 036104.
+        Returns
+        -------
+        dict[str, int]
+            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
             
-            Newman, M. E. J. (2006). Modularity and community structure in
-            networks. PNAS, 103(23), 8577-8582.
+        Raises
+        ------
+        ValueError
+            If graph is directed (requires undirected graph).
         
-        Note:
-            This algorithm uses power iteration to find the leading eigenvector,
-            which is O(n²) per split. For very large graphs (> 50K nodes),
-            consider get_cmty_fast_greedy() or get_cmty_louvain() instead.
-            
-            The algorithm only splits when modularity improves, so it may
-            return fewer communities than other methods if the structure is
-            not hierarchically organized.
-            
-        See Also:
-            - get_cmty_fast_greedy(): Faster but less principled
-            - get_cmty_edge_btwns(): More accurate but slower
-            - get_cmty_louvain(): Best for very large graphs
+        Examples
+        --------
+        Detect communities in bridged cliques:
+        
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+        )
+        
+        # Build two complete triangles
+        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
+            graph.add_edge(i, j)
+        
+        graph.add_edge("C", "D")  # Bridge
+        
+        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
+            graph.add_edge(i, j)
+        
+        communities = graph.get_cmty_l_eigenvec()
+        # Eigenvector method finds natural split at bridge
+        # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
+        ```
+        
+        Notes
+        -----
+        Algorithm steps:
+        1. Start with all nodes in one community
+        2. Compute modularity matrix: B_ij = A_ij - (k_i × k_j) / 2m
+        3. Find leading eigenvector using power iteration
+        4. Split by sign: positive → community 1, negative → community 2
+        5. Accept split only if modularity improves
+        6. Recursively split each community
+        
+        Complexity: O(n²) per split (recursive). For very large graphs (> 50K nodes),
+        consider `get_cmty_fast_greedy()` or `get_cmty_louvain()` instead.
+        
+        The algorithm only splits when modularity improves, so it may return fewer
+        communities than other methods if the structure is not hierarchically organized.
+        
+        References
+        ----------
+        Newman, M. E. J. (2006). "Finding community structure in networks using
+        the eigenvectors of matrices." Physical Review E, 74(3), 036104.
+        
+        Newman, M. E. J. (2006). "Modularity and community structure in networks."
+        PNAS, 103(23), 8577-8582.
+        
+        See Also
+        --------
+        get_cmty_fast_greedy : Faster but less principled
+        get_cmty_edge_btwns : More accurate but slower
+        get_cmty_louvain : Best for very large graphs
         """
         return self._graph.get_cmty_l_eigenvec()
     
     def get_cmty_louvain(self, resolution: float = 1.0) -> dict[str, int]:
-        """Detect communities using the Louvain multi-level optimization algorithm.
+        """Detect communities using Louvain multi-level optimization algorithm.
         
-        The Louvain method is a hierarchical algorithm that maximizes modularity through
-        iterative optimization. It's the most widely-used community detection algorithm
-        in practice due to its speed and quality on large networks.
+        The Louvain method is a hierarchical algorithm that maximizes modularity
+        through iterative optimization. It's the most widely-used community detection
+        algorithm in practice due to its speed (O(n log n)) and quality on large networks.
         
-        Algorithm:
-            1. Phase 1 (Local optimization): Each node tries joining neighboring 
-               communities to maximize modularity gain ΔQ.
-            2. Phase 2 (Aggregation): Communities are coarsened into super-nodes,
-               creating a new network where each community becomes a single node.
-            3. Repeat until modularity converges (no further improvement).
+        The method produces a dendrogram hierarchy but returns the partition with
+        maximum modularity. Works only with undirected graphs.
         
-        The method produces a dendrogram hierarchy, but returns the partition with
-        maximum modularity. Time complexity is O(n log n) for typical networks.
+        Parameters
+        ----------
+        resolution : float, default 1.0
+            Resolution parameter controlling community size. Higher values favor
+            smaller communities. Standard modularity uses resolution=1.0.
         
-        Requires an undirected graph.
+        Returns
+        -------
+        dict[str, int]
+            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            
+        Raises
+        ------
+        RuntimeError
+            If called on a directed graph.
         
-        Args:
-            resolution: Resolution parameter (default: 1.0). Higher values favor 
-                       smaller communities. Standard modularity uses resolution=1.0.
+        Examples
+        --------
+        Detect communities in bridged triangles:
         
-        Returns:
-            Dictionary mapping node ID to community ID (0-indexed, contiguous).
-            Nodes in the same community have the same ID.
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+        )
         
-        Raises:
-            RuntimeError: If called on a directed graph.
+        # Build two complete triangles connected by bridge
+        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
+            graph.add_edge(i, j)
         
-        Examples:
-            >>> G = ec.Graph(directed=False)
-            >>> # Two triangles connected by bridge
-            >>> for i in ['A', 'B', 'C']:
-            ...     for j in ['A', 'B', 'C']:
-            ...         if i < j:
-            ...             G.add_edge(i, j)
-            >>> for i in ['D', 'E', 'F']:
-            ...     for j in ['D', 'E', 'F']:
-            ...         if i < j:
-            ...             G.add_edge(i, j)
-            >>> G.add_edge('C', 'D')
-            >>> communities = G.get_cmty_louvain()
-            >>> communities['A'] == communities['B'] == communities['C']
-            True
-            >>> communities['D'] == communities['E'] == communities['F']
-            True
-            >>> communities['A'] != communities['D']  # Different communities
-            True
+        graph.add_edge("C", "D")  # Bridge
         
-        Notes:
-            - The resolution parameter allows tuning community size:
-              * resolution < 1.0: Larger communities
-              * resolution = 1.0: Standard modularity optimization
-              * resolution > 1.0: Smaller communities
-            - The algorithm is deterministic but may produce different (equivalent)
-              partitions depending on node ordering.
-            - Handles disconnected components naturally.
-            - Self-loops and multi-edges are currently not supported.
+        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
+            graph.add_edge(i, j)
         
-        References:
-            - Blondel, V. D., Guillaume, J. L., Lambiotte, R., & Lefebvre, E. (2008).
-              "Fast unfolding of communities in large networks." Journal of Statistical
-              Mechanics: Theory and Experiment, 2008(10), P10008.
-            - Lambiotte, R., Delvenne, J. C., & Barahona, M. (2014). "Random walks,
-              Markov processes and the multiscale modular organization of complex
-              networks." IEEE Transactions on Network Science and Engineering, 1(2), 76-90.
+        communities = graph.get_cmty_louvain()
+        # Nodes in same triangle have same community ID
+        assert communities["A"] == communities["B"] == communities["C"]
+        assert communities["D"] == communities["E"] == communities["F"]
+        assert communities["A"] != communities["D"]
+        ```
         
-        See Also:
-            - get_cmty_fast_greedy(): Simpler greedy optimization
-            - get_cmty_edge_btwns(): Divisive hierarchical method
-            - get_cmty_l_eigenvec(): Spectral bisection method
+        Control community granularity with resolution:
+        
+        ```python
+        # Smaller communities (higher resolution)
+        fine = graph.get_cmty_louvain(resolution=1.5)
+        
+        # Larger communities (lower resolution)
+        coarse = graph.get_cmty_louvain(resolution=0.5)
+        ```
+        
+        Notes
+        -----
+        Algorithm steps:
+        1. Phase 1 (Local optimization): Each node tries joining neighboring
+           communities to maximize modularity gain ΔQ
+        2. Phase 2 (Aggregation): Communities are coarsened into super-nodes,
+           creating a new network where each community becomes a single node
+        3. Repeat until modularity converges (no further improvement)
+        
+        The resolution parameter tunes community size:
+        - resolution < 1.0: Larger communities
+        - resolution = 1.0: Standard modularity optimization
+        - resolution > 1.0: Smaller communities
+        
+        The algorithm is deterministic but may produce different (equivalent)
+        partitions depending on node ordering. Handles disconnected components
+        naturally. Self-loops and multi-edges are currently not supported.
+        
+        References
+        ----------
+        Blondel, V. D., Guillaume, J. L., Lambiotte, R., & Lefebvre, E. (2008).
+        "Fast unfolding of communities in large networks." Journal of Statistical
+        Mechanics: Theory and Experiment, 2008(10), P10008.
+        
+        Lambiotte, R., Delvenne, J. C., & Barahona, M. (2014). "Random walks,
+        Markov processes and the multiscale modular organization of complex
+        networks." IEEE Transactions on Network Science and Engineering, 1(2), 76-90.
+        
+        See Also
+        --------
+        get_cmty_fast_greedy : Simpler greedy optimization
+        get_cmty_edge_btwns : Divisive hierarchical method
+        get_cmty_l_eigenvec : Spectral bisection method
         """
         return self._graph.get_cmty_louvain(resolution)
     
     def get_cmty_walktrap(self, steps: int = 4) -> dict[str, int]:
-        """Detect communities using the Walktrap random walk algorithm.
+        """Detect communities using Walktrap random walk algorithm.
         
         The Walktrap algorithm exploits the property that random walks tend to stay
         trapped within densely connected communities. It computes distances between
         nodes based on random walk probabilities, then uses hierarchical clustering
         to identify community structure.
         
-        Algorithm:
-            1. Compute transition probability matrix P (P[i][j] = 1/deg(i) if edge exists)
-            2. Compute t-step transition probabilities P^t by matrix exponentiation
-            3. Calculate random walk distance between each pair of nodes:
-               d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
-            4. Apply Ward's hierarchical clustering on the distance matrix
-            5. Cut the dendrogram at the level that maximizes modularity
+        Works only with undirected graphs. Time complexity is O(n²log n) for typical
+        networks with small step parameter.
         
-        The distance metric captures structural similarity: nodes in the same community
-        have similar random walk probabilities to all other nodes. Time complexity is
-        O(n²log n) for typical networks with small step parameter.
+        Parameters
+        ----------
+        steps : int, default 4
+            Number of random walk steps. Higher values capture longer-range
+            structural patterns. Typical values: 2-8.
+            - steps=2: Local structure only
+            - steps=4: Good balance (default, recommended)
+            - steps=6+: Longer-range patterns, more computation
         
-        Requires an undirected graph.
-        
-        Args:
-            steps: Number of random walk steps (default: 4). Higher values capture
-                  longer-range structural patterns. Typical values: 2-8.
-                  - steps=2: Local structure only
-                  - steps=4: Good balance (default, recommended)
-                  - steps=6+: Longer-range patterns, more computation
-        
-        Returns:
-            Dictionary mapping node ID to community ID (0-indexed, contiguous).
-            Nodes in the same community have the same ID.
-        
-        Raises:
-            ValueError: If called on a directed graph.
-        
-        Examples:
-            >>> G = ec.Graph(directed=False)
-            >>> # Two cliques connected by a bridge
-            >>> G.add_edges([('A', 'B'), ('B', 'C'), ('C', 'A')])  # Clique 1
-            >>> G.add_edges([('D', 'E'), ('E', 'F'), ('F', 'D')])  # Clique 2
-            >>> G.add_edge('C', 'D')  # Bridge
-            >>> communities = G.get_cmty_walktrap()
-            >>> communities['A'] == communities['B'] == communities['C']
-            True
-            >>> communities['D'] == communities['E'] == communities['F']
-            True
-            >>> communities['A'] != communities['D']  # Different communities
-            True
+        Returns
+        -------
+        dict[str, int]
+            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
             
-            >>> # Try different step lengths
-            >>> G.add_edges([('X', 'Y'), ('Y', 'Z')])  # Another component
-            >>> communities_2 = G.get_cmty_walktrap(steps=2)  # More local
-            >>> communities_6 = G.get_cmty_walktrap(steps=6)  # More global
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
         
-        Notes:
-            - The step parameter controls the scale of community detection:
-              * Lower steps (2-3): Detect finer, more local communities
-              * Higher steps (5-8): Detect coarser, more global communities
-            - Algorithm is deterministic (no randomness despite the name)
-            - Works well on hierarchical community structures
-            - Handles disconnected components automatically
-            - Performance degrades on very large graphs (>10,000 nodes) due to
-              O(n²) distance matrix computation
-            - Self-loops and multi-edges are currently not supported
+        Examples
+        --------
+        Detect communities with default parameters:
         
-        References:
-            - Pons, P., & Latapy, M. (2005). "Computing communities in large networks
-              using random walks." In Computer and Information Sciences-ISCIS 2005
-              (pp. 284-293). Springer, Berlin, Heidelberg.
-            - Pons, P., & Latapy, M. (2006). "Computing communities in large networks
-              using random walks (long version)." arXiv preprint physics/0512106.
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+        )
+        
+        # Two cliques connected by a bridge
+        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
+            graph.add_edge(i, j)
+        
+        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
+            graph.add_edge(i, j)
+        
+        graph.add_edge("C", "D")  # Bridge
+        
+        communities = graph.get_cmty_walktrap()
+        assert communities["A"] == communities["B"] == communities["C"]
+        assert communities["D"] == communities["E"] == communities["F"]
+        assert communities["A"] != communities["D"]
+        ```
+        
+        Try different step lengths for different scales:
+        
+        ```python
+        # More local communities
+        local_cmty = graph.get_cmty_walktrap(steps=2)
+        
+        # More global communities
+        global_cmty = graph.get_cmty_walktrap(steps=6)
+        ```
+        
+        Notes
+        -----
+        Algorithm steps:
+        1. Compute transition probability matrix P (P[i][j] = 1/deg(i) if edge exists)
+        2. Compute t-step transition probabilities P^t by matrix exponentiation
+        3. Calculate random walk distance between each pair of nodes:
+           d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
+        4. Apply Ward's hierarchical clustering on the distance matrix
+        5. Cut the dendrogram at the level that maximizes modularity
+        
+        The step parameter controls the scale of community detection:
+        - Lower steps (2-3): Detect finer, more local communities
+        - Higher steps (5-8): Detect coarser, more global communities
+        
+        The algorithm is deterministic (no randomness despite the name). Works well
+        on hierarchical community structures and handles disconnected components
+        automatically. Performance degrades on very large graphs (>10,000 nodes)
+        due to O(n²) distance matrix computation. Self-loops and multi-edges are
+        currently not supported.
         
         Performance:
-            - Small graphs (<1000 nodes): <1 second
-            - Medium graphs (1000-5000 nodes): 1-30 seconds
-            - Large graphs (>5000 nodes): May be slow, consider Louvain instead
+        - Small graphs (<1000 nodes): <1 second
+        - Medium graphs (1000-5000 nodes): 1-30 seconds
+        - Large graphs (>5000 nodes): May be slow, consider Louvain instead
         
-        See Also:
-            - get_cmty_louvain(): Faster for large graphs
-            - get_cmty_fast_greedy(): Alternative greedy approach
-            - get_cmty_edge_btwns(): Divisive hierarchical method
-            - get_cmty_l_eigenvec(): Spectral method
+        References
+        ----------
+        Pons, P., & Latapy, M. (2005). "Computing communities in large networks
+        using random walks." In Computer and Information Sciences-ISCIS 2005
+        (pp. 284-293). Springer, Berlin, Heidelberg.
+        
+        Pons, P., & Latapy, M. (2006). "Computing communities in large networks
+        using random walks (long version)." arXiv preprint physics/0512106.
+        
+        See Also
+        --------
+        get_cmty_louvain : Faster for large graphs
+        get_cmty_fast_greedy : Alternative greedy approach
+        get_cmty_edge_btwns : Divisive hierarchical method
+        get_cmty_l_eigenvec : Spectral method
         """
         return self._graph.get_cmty_walktrap(steps)
 
@@ -3100,33 +3254,55 @@ class Graph:
     def get_dice_similarity(self) -> dict[str, dict[str, float]]:
         """Get Dice similarity coefficient between all node pairs.
         
-        The Dice coefficient measures the similarity between two nodes based on
-        their neighborhood overlap:
+        The Dice coefficient measures similarity between two nodes based on their
+        neighborhood overlap:
         
-        Dice(A, B) = 2 * |neighbors(A) ∩ neighbors(B)| / (|neighbors(A)| + |neighbors(B)|)
+        Dice(A, B) = 2 × |neighbors(A) ∩ neighbors(B)| / (|neighbors(A)| + |neighbors(B)|)
         
-        Range: [0, 1]
-        - 0: No common neighbors
-        - 1: Identical neighborhoods (or same node)
+        Range: [0, 1] where 0 means no common neighbors and 1 means identical
+        neighborhoods (or same node). Self-similarity is always 1.0.
         
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+        
+        Examples
+        --------
+        Calculate Dice similarity for link prediction:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("D", "B")
+            .add_edge("D", "C")
+        )
+        
+        sim = graph.get_dice_similarity()
+        # A and D share neighbors B and C
+        print(sim["A"]["D"])  # 1.0 (perfect overlap)
+        ```
+        
+        Notes
+        -----
         Useful for:
+        
         - Link prediction (similar nodes likely to connect)
         - Community detection (nodes with similar neighborhoods)
         - Recommendation systems (find similar users/items)
         
-        Returns:
-            Nested dictionary: {node1: {node2: similarity_score}}
-            Self-similarity (node to itself) is always 1.0
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('A', 'C')
-            >>> G.add_edge('D', 'B')
-            >>> G.add_edge('D', 'C')
-            >>> sim = G.get_dice_similarity()
-            >>> sim['A']['D']  # A and D share neighbors B and C
-            1.0
+        See Also
+        --------
+        get_jaccard_similarity : More conservative similarity measure
+        get_cosine_similarity : Geometric similarity measure
+        get_overlap_similarity : Emphasizes subset relationships
         """
         result_ids = self._graph.get_dice_similarity()
         # Convert node IDs to labels in the result
@@ -3146,27 +3322,50 @@ class Graph:
         
         Jaccard(A, B) = |neighbors(A) ∩ neighbors(B)| / |neighbors(A) ∪ neighbors(B)|
         
-        Range: [0, 1]
-        - 0: No common neighbors
-        - 1: Identical neighborhoods (or same node)
+        Range: [0, 1] where 0 means no common neighbors and 1 means identical
+        neighborhoods (or same node). More conservative than Dice coefficient
+        (always ≤ Dice score). Self-similarity is always 1.0.
         
-        More conservative than Dice coefficient (always ≤ Dice score).
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+        
+        Examples
+        --------
+        Calculate Jaccard similarity in a star graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+        
+        sim = graph.get_jaccard_similarity()
+        # Leaves have no common neighbors
+        print(sim["A"]["B"])  # 0.0
+        ```
+        
+        Notes
+        -----
         Widely used in:
+
         - Document similarity (bag-of-words)
         - User similarity (common items/friends)
         - Biological networks (protein interactions)
         
-        Returns:
-            Nested dictionary: {node1: {node2: similarity_score}}
-            Self-similarity (node to itself) is always 1.0
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)  # Hub connected to 4 leaves
-            >>> sim = G.get_jaccard_similarity()
-            >>> # Leaves have zero Jaccard (no common neighbors)
-            >>> sim['2']['3']
-            0.0
+        See Also
+        --------
+        get_dice_similarity : Less conservative alternative
+        get_cosine_similarity : Geometric similarity measure
+        get_overlap_similarity : Emphasizes subset relationships
         """
         result_ids = self._graph.get_jaccard_similarity()
         # Convert node IDs to labels in the result
@@ -3180,33 +3379,55 @@ class Graph:
         return result
     
     def get_cosine_similarity(self) -> dict[str, dict[str, float]]:
-        """Get Cosine similarity between all node pairs.
+        """Get cosine similarity between all node pairs.
         
-        Cosine similarity treats nodes as vectors in the graph adjacency space:
+        Cosine similarity treats neighbors as vector components:
         
-        Cosine(A, B) = |A ∩ B| / (√|A| * √|B|)
+        Cosine(A, B) = |neighbors(A) ∩ neighbors(B)| / √(|neighbors(A)| × |neighbors(B)|)
         
-        Range: [0, 1]
-        - 0: No common neighbors
-        - 1: Identical neighborhoods (or same node)
+        Range: [0, 1] where 0 means no common neighbors and 1 means identical
+        neighborhoods. Geometric interpretation: cosine of angle between
+        neighbor vectors. Self-similarity is always 1.0.
         
-        Geometric interpretation: angle between adjacency vectors.
-        Useful for:
-        - High-dimensional graph embeddings
-        - Collaborative filtering (user-item matrices)
-        - Text analysis (TF-IDF vectors)
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
         
-        Returns:
-            Nested dictionary: {node1: {node2: similarity_score}}
-            Self-similarity (node to itself) is always 1.0
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_cycle_graph(5)
-            >>> sim = G.get_cosine_similarity()
-            >>> # Adjacent nodes in cycle share one neighbor
-            >>> sim['1']['2'] > 0
-            True
+        Examples
+        --------
+        Calculate cosine similarity in a triangle graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        
+        sim = graph.get_cosine_similarity()
+        # Each node shares 1 neighbor with the others
+        print(sim["A"]["B"])  # 0.5 (1 common / sqrt(2 * 2))
+        ```
+        
+        Notes
+        -----
+        Advantages:
+
+        - Scales well with high-degree nodes
+        - Balances degree differences
+        - Standard in text mining and recommendation systems
+        
+        See Also
+        --------
+        get_dice_similarity : Harmonic mean of degrees
+        get_jaccard_similarity : Set-theoretic similarity
+        get_overlap_similarity : Min-based similarity
         """
         result_ids = self._graph.get_cosine_similarity()
         # Convert node IDs to labels in the result
@@ -3220,35 +3441,55 @@ class Graph:
         return result
     
     def get_overlap_similarity(self) -> dict[str, dict[str, float]]:
-        """Get Overlap coefficient between all node pairs.
+        """Get overlap coefficient between all node pairs.
         
-        The Overlap coefficient emphasizes subset relationships:
+        The overlap coefficient emphasizes subset relationships:
         
         Overlap(A, B) = |neighbors(A) ∩ neighbors(B)| / min(|neighbors(A)|, |neighbors(B)|)
         
-        Range: [0, 1]
-        - 0: No common neighbors
-        - 1: One neighborhood is a subset of the other (or same node)
+        Range: [0, 1] where 0 means no common neighbors and 1 means one
+        neighborhood is a subset of the other. Asymmetric measure useful for
+        hierarchical patterns. Self-similarity is always 1.0.
         
-        Useful for:
-        - Detecting hierarchical relationships (parent-child)
-        - Finding hubs (nodes whose neighbors are subsets of others)
-        - Asymmetric similarity (specialization vs generalization)
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
         
-        Returns:
-            Nested dictionary: {node1: {node2: similarity_score}}
-            Self-similarity (node to itself) is always 1.0
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> # Create hub-spoke with one spoke having extra connection
-            >>> G.add_edge('hub', 'A')
-            >>> G.add_edge('hub', 'B')
-            >>> G.add_edge('A', 'X')
-            >>> sim = G.get_overlap_similarity()
-            >>> # hub's neighborhood is subset of A's neighborhood
-            >>> sim['hub']['A']
-            1.0
+        Examples
+        --------
+        Detect hierarchical relationships in a hub-spoke graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="spoke")
+            .add_node(label="extended")
+            .add_edge("hub", "spoke")
+            .add_edge("hub", "extended")
+            .add_edge("spoke", "extra")
+        )
+        
+        sim = graph.get_overlap_similarity()
+        # Hub's neighborhood is subset of spoke's
+        print(sim["hub"]["spoke"])  # 1.0
+        ```
+        
+        Notes
+        -----
+        Use cases:
+
+        - Detecting specialization/generalization
+        - Finding hubs whose neighbors are subsets of others
+        - Hierarchical community structure
+        
+        See Also
+        --------
+        get_jaccard_similarity : Symmetric set similarity
+        get_dice_similarity : Harmonic mean alternative
+        get_cosine_similarity : Geometric interpretation
         """
         result_ids = self._graph.get_overlap_similarity()
         # Convert node IDs to labels in the result
