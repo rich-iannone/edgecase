@@ -3,13 +3,7 @@
 from typing import Optional, List, Dict, Any
 import polars as pl
 
-# Import with fallback
-try:
-    from edgecase._core import Graph, find_cycles
-except ImportError:
-    from edgecase._core_simple import Graph
-    find_cycles = None
-
+from edgecase import Graph, find_cycles
 from edgecase.polars_integration import from_polars
 
 

@@ -3,13 +3,7 @@
 from typing import Optional, List, Dict, Any
 import polars as pl
 
-# Import with fallback
-try:
-    from edgecase._core import Graph, Node, Edge
-except ImportError:
-    from edgecase._core_simple import Graph
-    Node = None
-    Edge = None
+from edgecase import Graph, Node, Edge
 
 
 def protein_network(

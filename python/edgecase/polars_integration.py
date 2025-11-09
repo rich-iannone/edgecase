@@ -3,13 +3,7 @@
 from typing import Optional, Union, List
 import polars as pl
 
-# Import Graph from the wrapped module to ensure consistent API
-try:
-    from edgecase._core_rust import Graph
-    _USING_RUST = True
-except ImportError:
-    from edgecase._core_simple import Graph
-    _USING_RUST = False
+from edgecase._core_rust import Graph
 
 
 def from_polars(

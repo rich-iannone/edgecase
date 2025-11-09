@@ -1,9 +1,9 @@
 """
 Python wrapper for Rust core to provide a consistent API.
 
-This module wraps the raw Rust bindings to provide the same API
-as the pure Python implementation. After migration to u64 integer node IDs,
-this wrapper provides automatic label resolution for backwards compatibility.
+This module wraps the raw Rust bindings to provide automatic label resolution
+and backwards compatibility. After migration to u64 integer node IDs,
+this wrapper provides automatic label resolution for convenience.
 """
 
 from typing import Optional, Callable, Any, Union

@@ -529,10 +529,7 @@ def create_graph(
         >>> g = ec.create_graph(nodes_df=nodes, edges_df=edges, directed=True)
     """
     # Import here to avoid circular dependency
-    try:
-        from edgecase import Graph
-    except ImportError:
-        from edgecase._core_simple import Graph
+    from edgecase import Graph
     
     g = Graph(directed=directed)
     
