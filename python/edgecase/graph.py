@@ -3,12 +3,7 @@ from edgecase import _core as rust
 
 
 class Graph:
-    """Python wrapper around Rust Graph for consistent API.
-    
-    After the u64 migration, nodes are identified internally by integer IDs,
-    but this wrapper allows using string labels for convenience. The mapping
-    between labels and IDs is managed automatically.
-    """
+    """Python wrapper around Rust Graph for consistent API."""
     
     def __init__(self, directed: bool = False, weighted: bool = False):
         self._graph = rust.Graph(directed=directed, weighted=weighted)
