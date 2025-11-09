@@ -460,39 +460,92 @@ class Graph:
     def is_graph_simple(self) -> bool:
         """Check if the graph is simple (no self-loops or multi-edges).
         
-        A simple graph is one that does not contain any loops nor any multiple edges.
+        A simple graph contains no self-loops (edges from a node to itself) and
+        no multi-edges (multiple edges between the same pair of nodes). This is
+        a fundamental graph property used in many theoretical results.
         
-        Returns:
-            True if the graph is simple, False otherwise
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_edge("A", "B")
-            >>> G.is_graph_simple()
-            True
-            >>> G.add_edge("A", "B")  # Add multi-edge
-            >>> G.is_graph_simple()
-            False
+        Returns
+        -------
+        bool
+            `True` if the graph is simple, `False` if it has self-loops or multi-edges.
+        
+        Examples
+        --------
+        Check if a graph is simple:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+        )
+        
+        print(graph.is_graph_simple())  # True
+        
+        # Add a self-loop
+        graph.add_edge("A", "A")
+        print(graph.is_graph_simple())  # False
+        ```
+        
+        Multi-edges also make a graph non-simple:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B", edge_id=1)
+            .add_edge("A", "B", edge_id=2)  # Duplicate edge
+        )
+        
+        print(graph.is_graph_simple())  # False
+        ```
+        
+        See Also
+        --------
+        count_selfloops : Count self-loops in the graph
+        count_multi_edges : Count parallel edges
         """
         return self._graph.is_graph_simple()
     
     def has_cycles(self) -> bool:
         """Check if the graph contains any cycles.
         
-        Uses depth-first search to detect cycles in the graph.
+        Uses depth-first search to detect cycles. For directed graphs, looks for
+        back edges. For undirected graphs, checks for cycles excluding trivial
+        two-node back-and-forth paths.
         
-        Returns:
-            True if the graph contains at least one cycle, False otherwise
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "C")
-            >>> G.has_cycles()
-            False
-            >>> G.add_edge("C", "A")  # Creates a cycle
-            >>> G.has_cycles()
-            True
+        Returns
+        -------
+        bool
+            `True` if the graph contains at least one cycle, `False` if acyclic.
+        
+        Examples
+        --------
+        Check for cycles in a directed graph:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        print(graph.has_cycles())  # False
+        
+        # Add edge to create a cycle
+        graph.add_edge("C", "A")
+        print(graph.has_cycles())  # True
+        ```
+        
+        See Also
+        --------
+        is_dag : Check if directed graph is acyclic
+        get_girth : Get length of shortest cycle
         """
         return self._graph.has_cycles()
     
@@ -578,20 +631,55 @@ class Graph:
     def has_edge(self, source: Union[int, str], target: Union[int, str]) -> bool:
         """Check if an edge exists between two nodes.
         
-        Args:
-            source: Source node ID or label
-            target: Target node ID or label (for undirected graphs, order doesn't matter)
-            
-        Returns:
-            True if at least one edge exists between the nodes
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.has_edge("A", "B")
-            True
-            >>> G.has_edge("B", "A")
-            False
+        For undirected graphs, the order of source and target doesn't matter.
+        For directed graphs, checks specifically for an edge from source to target.
+        
+        Parameters
+        ----------
+        source : int | str
+            Source node ID or label.
+        target : int | str
+            Target node ID or label.
+        
+        Returns
+        -------
+        bool
+            `True` if at least one edge exists between the nodes, `False` otherwise.
+        
+        Examples
+        --------
+        Check edge existence in directed graph:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+        )
+        
+        print(graph.has_edge("A", "B"))  # True
+        print(graph.has_edge("B", "A"))  # False (directed)
+        ```
+        
+        For undirected graphs, order doesn't matter:
+        
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+        )
+        
+        print(graph.has_edge("A", "B"))  # True
+        print(graph.has_edge("B", "A"))  # True (undirected)
+        ```
+        
+        See Also
+        --------
+        add_edge : Add edges to the graph
+        delete_edge : Remove edges from the graph
         """
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
@@ -609,25 +697,64 @@ class Graph:
         id: int | None = None
     ) -> "Graph":
         """Delete an edge from the graph.
-                
-        Specify either (source, target) pair OR edge id. For multigraphs with source/target,
-        only the first matching edge is deleted.
         
-        Args:
-            source: Source node ID or label
-            target: Target node ID or label
-            id: Edge ID to delete (if provided, source and target are ignored)
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.delete_edge(source="A", target="B")
-            
-            >>> # Or delete by edge ID
-            >>> G.delete_edge(id=1)
+        Remove edges by specifying either the source and target nodes, or the
+        edge ID directly. For multigraphs with source/target, only the first
+        matching edge is deleted. Returns self for method chaining.
+        
+        Parameters
+        ----------
+        source : int | str | None, default None
+            Source node ID or label. Required if `id` is not provided.
+        target : int | str | None, default None
+            Target node ID or label. Required if `id` is not provided.
+        id : int | None, default None
+            Edge ID to delete. If provided, `source` and `target` are ignored.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Raises
+        ------
+        KeyError
+            If no edge exists matching the criteria.
+        ValueError
+            If neither (`source`, `target`) nor `id` is provided.
+        
+        Examples
+        --------
+        Delete edge by source and target:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .delete_edge(source="A", target="B")
+        )
+        
+        print(graph.has_edge("A", "B"))  # False
+        ```
+        
+        Delete edge by ID:
+        
+        ```python
+        graph = Graph().add_node(label="A").add_node(label="B")
+        edge_id = graph.add_edge("A", "B")
+        
+        graph.delete_edge(id=edge_id)
+        print(graph.has_edge("A", "B"))  # False
+        ```
+        
+        See Also
+        --------
+        add_edge : Add edges to the graph
+        has_edge : Check if edge exists
         """
         if id is not None:
             # Delete by edge ID
@@ -650,11 +777,57 @@ class Graph:
     def neighbors(self, node: Union[int, str]) -> list[int]:
         """Get neighbors of a node.
         
-        Args:
-            node: Node ID or label
-            
-        Returns:
-            List of neighbor node IDs
+        Returns the node IDs of all nodes directly connected to the specified node.
+        For directed graphs, returns only outgoing neighbors (nodes this node points to).
+        
+        Parameters
+        ----------
+        node : int | str
+            Node ID or label to get neighbors for.
+        
+        Returns
+        -------
+        list[int]
+            List of neighbor node IDs.
+        
+        Examples
+        --------
+        Get neighbors in an undirected graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+        )
+        
+        neighbors = graph.neighbors("A")
+        print(len(neighbors))  # 2
+        ```
+        
+        In directed graphs, only outgoing edges count:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")  # A -> B
+            .add_edge("C", "A")  # C -> A
+        )
+        
+        # A points to B, so B is a neighbor
+        print(len(graph.neighbors("A")))  # 1
+        ```
+        
+        See Also
+        --------
+        degree : Get node degree
+        has_edge : Check if edge exists
         """
         node_id = self._resolve_node_id(node)
         return self._graph.neighbors(node_id)
@@ -690,14 +863,57 @@ class Graph:
     def degree(self, node: Union[int, str]) -> int:
         """Get the degree of a node.
         
-        For directed graphs, returns total degree (in + out).
+        For directed graphs, returns total degree (in-degree + out-degree).
         For undirected graphs, returns the number of neighbors.
         
-        Args:
-            node: Node ID or label
-            
-        Returns:
-            Degree of the node
+        Parameters
+        ----------
+        node : int | str
+            Node ID or label.
+        
+        Returns
+        -------
+        int
+            Degree of the node.
+        
+        Examples
+        --------
+        Get node degree in undirected graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+        )
+        
+        print(graph.degree("A"))  # 2
+        print(graph.degree("B"))  # 1
+        ```
+        
+        In directed graphs, counts both incoming and outgoing:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")  # A -> B (out for A, in for B)
+            .add_edge("C", "A")  # C -> A (in for A)
+        )
+        
+        print(graph.degree("A"))  # 2 (1 in + 1 out)
+        ```
+        
+        See Also
+        --------
+        in_degree : Get in-degree for directed graphs
+        out_degree : Get out-degree for directed graphs
+        average_degree : Get average degree across all nodes
         """
         node_id = self._resolve_node_id(node)
         neighbors = self._graph.neighbors(node_id)
@@ -713,14 +929,46 @@ class Graph:
     def in_degree(self, node: Union[int, str]) -> int:
         """Get the in-degree of a node (directed graphs only).
         
-        Args:
-            node: Node ID or label
-            
-        Returns:
-            Number of incoming edges
-            
-        Raises:
-            ValueError: If graph is undirected
+        In-degree is the number of edges pointing into the node. Only meaningful
+        for directed graphs.
+        
+        Parameters
+        ----------
+        node : int | str
+            Node ID or label.
+        
+        Returns
+        -------
+        int
+            Number of incoming edges.
+        
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+        
+        Examples
+        --------
+        Get in-degrees in a directed graph:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")  # B has 1 incoming
+            .add_edge("C", "B")  # B has 2 incoming
+        )
+        
+        print(graph.in_degree("B"))  # 2
+        print(graph.in_degree("A"))  # 0
+        ```
+        
+        See Also
+        --------
+        out_degree : Get out-degree for directed graphs
+        degree : Get total degree
         """
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
@@ -731,14 +979,46 @@ class Graph:
     def out_degree(self, node: Union[int, str]) -> int:
         """Get the out-degree of a node (directed graphs only).
         
-        Args:
-            node: Node ID or label
-            
-        Returns:
-            Number of outgoing edges
-            
-        Raises:
-            ValueError: If graph is undirected
+        Out-degree is the number of edges pointing out from the node. Only meaningful
+        for directed graphs.
+        
+        Parameters
+        ----------
+        node : int | str
+            Node ID or label.
+        
+        Returns
+        -------
+        int
+            Number of outgoing edges.
+        
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+        
+        Examples
+        --------
+        Get out-degrees in a directed graph:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")  # A has 1 outgoing
+            .add_edge("A", "C")  # A has 2 outgoing
+        )
+        
+        print(graph.out_degree("A"))  # 2
+        print(graph.out_degree("B"))  # 0
+        ```
+        
+        See Also
+        --------
+        in_degree : Get in-degree for directed graphs
+        degree : Get total degree
         """
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
@@ -750,96 +1030,241 @@ class Graph:
     def density(self) -> float:
         """Calculate graph density (ratio of actual to possible edges).
         
-        For directed graphs: density = E / (N * (N-1))
-        For undirected graphs: density = 2E / (N * (N-1))
+        Density measures how complete a graph is. A complete graph has density 1.0,
+        while a graph with no edges has density 0.0.
         
-        Returns:
-            Graph density between 0.0 and 1.0
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('B', 'C')
-            >>> G.density()  # 2 edges, 3 nodes, undirected: 2/3 = 0.667
-            0.6666666666666666
+        For directed graphs: density = E / (N × (N-1))
+        For undirected graphs: density = 2E / (N × (N-1))
+        
+        Returns
+        -------
+        float
+            Graph density between 0.0 and 1.0.
+        
+        Examples
+        --------
+        Calculate density of a sparse graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
+        print(f"{graph.density():.3f}")  # 0.667
+        ```
+        
+        Compare sparse vs. dense graphs:
+        
+        ```python
+        # Complete graph (all possible edges)
+        complete = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("A", "C")
+        )
+        
+        print(f"{complete.density():.3f}")  # 1.000
+        ```
+        
+        See Also
+        --------
+        num_nodes : Get number of nodes
+        num_edges : Get number of edges
         """
         return self._graph.density()
     
     def is_connected(self) -> bool:
         """Check if graph is connected.
         
-        For undirected graphs: checks if all nodes are reachable from any node.
-        For directed graphs: checks weak connectivity (ignoring edge direction).
+        A graph is connected if there is a path between every pair of nodes.
+        For directed graphs, checks weak connectivity (treating edges as undirected).
         
-        Returns:
-            True if graph is connected, False otherwise
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('B', 'C')
-            >>> G.is_connected()
-            True
-            >>> G.add_node('D')  # Isolated node
-            >>> G.is_connected()
-            False
+        Returns
+        -------
+        bool
+            `True` if all nodes are reachable from any node, `False` if the graph
+            has disconnected components.
+        
+        Examples
+        --------
+        Check connectivity of a simple path:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        print(graph.is_connected())  # True
+        ```
+        
+        Adding isolated nodes breaks connectivity:
+        
+        ```python
+        graph.add_node(label="D")  # Isolated node
+        print(graph.is_connected())  # False
+        ```
+        
+        See Also
+        --------
+        count_weakly_connected_components : Count connected components
+        count_strongly_connected_components : For directed graphs
         """
         return self._graph.is_connected()
     
     def is_dag(self) -> bool:
         """Check if directed graph is a DAG (Directed Acyclic Graph).
         
-        Returns:
-            True if graph is a DAG, False if it contains cycles
-            
-        Raises:
-            ValueError: If graph is undirected
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('B', 'C')
-            >>> G.is_dag()
-            True
-            >>> G.add_edge('C', 'A')  # Creates cycle
-            >>> G.is_dag()
-            False
+        A DAG is a directed graph with no cycles - you cannot follow directed edges
+        and return to a starting node. DAGs are fundamental for dependency resolution,
+        scheduling, and topological sorting.
+        
+        Returns
+        -------
+        bool
+            `True` if the graph is acyclic, `False` if it contains cycles.
+        
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph.
+        
+        Examples
+        --------
+        Check if a directed graph is acyclic:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        print(graph.is_dag())  # True
+        ```
+        
+        Adding a cycle makes it not a DAG:
+        
+        ```python
+        graph.add_edge("C", "A")  # Creates cycle A->B->C->A
+        print(graph.is_dag())  # False
+        ```
+        
+        See Also
+        --------
+        has_cycles : Check for cycles in any graph
         """
         return self._graph.is_dag()
     
     def is_simple(self) -> bool:
         """Check if graph is simple (no self-loops or multi-edges).
         
-        Returns:
-            True if graph has no self-loops and no parallel edges
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_edge('A', 'B')
-            >>> G.is_simple()
-            True
-            >>> G.add_edge('A', 'A')  # Self-loop
-            >>> G.is_simple()
-            False
+        A simple graph has no self-loops (edges from a node to itself) and no
+        parallel edges (multiple edges between the same pair of nodes). This is
+        a fundamental property in graph theory.
+        
+        Returns
+        -------
+        bool
+            `True` if the graph has no self-loops and no parallel edges.
+        
+        Examples
+        --------
+        Check if a graph is simple:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+        )
+        
+        print(graph.is_simple())  # True
+        ```
+        
+        Self-loops make a graph non-simple:
+        
+        ```python
+        graph.add_edge("A", "A")  # Self-loop
+        print(graph.is_simple())  # False
+        ```
+        
+        See Also
+        --------
+        count_selfloops : Count self-loops
+        count_multi_edges : Count parallel edges
+        is_graph_simple : Alias for this method
         """
         return self._graph.is_simple()
     
     def is_bipartite(self) -> bool:
         """Check if graph is bipartite (2-colorable).
         
-        A graph is bipartite if its nodes can be divided into two sets
-        such that edges only connect nodes from different sets.
+        A graph is bipartite if its nodes can be divided into two independent sets
+        such that every edge connects nodes from different sets. Equivalently, the
+        graph can be colored with 2 colors such that no adjacent nodes share a color.
         
-        Returns:
-            True if graph is bipartite, False otherwise
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('B', 'C')
-            >>> G.add_edge('C', 'A')  # Triangle - not bipartite
-            >>> G.is_bipartite()
-            False
+        All trees and forests are bipartite. Graphs with odd-length cycles are not.
+        
+        Returns
+        -------
+        bool
+            `True` if the graph is bipartite, `False` otherwise.
+        
+        Examples
+        --------
+        A simple path is bipartite:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        print(graph.is_bipartite())  # True
+        ```
+        
+        Triangles are not bipartite (odd cycle):
+        
+        ```python
+        triangle = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Creates odd-length cycle
+        )
+        
+        print(triangle.is_bipartite())  # False
+        ```
+        
+        See Also
+        --------
+        get_girth : Get length of shortest cycle
         """
         return self._graph.is_bipartite()
     
