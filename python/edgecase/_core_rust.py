@@ -292,9 +292,20 @@ class Graph:
         """
         return self._graph.has_cycles()
     
-    def has_node(self, node_id: str) -> bool:
-        """Check if a node exists in the graph."""
-        return self._graph.has_node(node_id)
+    def has_node(self, node: Union[int, str]) -> bool:
+        """Check if a node exists in the graph.
+        
+        Args:
+            node: Node ID (int) or label (str)
+            
+        Returns:
+            True if the node exists
+        """
+        try:
+            node_id = self._resolve_node_id(node, auto_create=False)
+            return self._graph.has_node_id(node_id)
+        except (ValueError, TypeError):
+            return False
     
     def edges(self) -> list[tuple[int, str, str]]:
         """Return list of edges as (id, source, target) tuples."""
@@ -331,12 +342,12 @@ class Graph:
         """Check if an edge with given ID exists."""
         return self._graph.has_edge_id(edge_id)
     
-    def has_edge(self, source: str, target: str) -> bool:
+    def has_edge(self, source: Union[int, str], target: Union[int, str]) -> bool:
         """Check if an edge exists between two nodes.
         
         Args:
-            source: Source node ID
-            target: Target node ID (for undirected graphs, order doesn't matter)
+            source: Source node ID or label
+            target: Target node ID or label (for undirected graphs, order doesn't matter)
             
         Returns:
             True if at least one edge exists between the nodes
@@ -349,7 +360,9 @@ class Graph:
             >>> G.has_edge("B", "A")
             False
         """
-        edge_ids = self._graph.find_edge_ids(source, target)
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        edge_ids = self._graph.find_edge_ids(source_id, target_id)
         return len(edge_ids) > 0
     
     def delete_edge_by_id(self, edge_id: int):
@@ -358,8 +371,8 @@ class Graph:
     
     def delete_edge(
         self, 
-        source: str | None = None, 
-        target: str | None = None, 
+        source: Union[int, str, None] = None, 
+        target: Union[int, str, None] = None, 
         id: int | None = None
     ) -> "Graph":
         """Delete an edge from the graph.
@@ -368,8 +381,8 @@ class Graph:
         only the first matching edge is deleted.
         
         Args:
-            source: Source node ID. Can use node labels if all nodes have distinct labels.
-            target: Target node ID. Can use node labels if all nodes have distinct labels.
+            source: Source node ID or label
+            target: Target node ID or label
             id: Edge ID to delete (if provided, source and target are ignored)
             
         Returns:
@@ -387,8 +400,11 @@ class Graph:
             # Delete by edge ID
             self._graph.delete_edge_by_id(id)
         elif source is not None and target is not None:
+            # Resolve labels to IDs
+            source_id = self._resolve_node_id(source)
+            target_id = self._resolve_node_id(target)
             # Find and delete first matching edge
-            edge_ids = self._graph.find_edge_ids(source, target)
+            edge_ids = self._graph.find_edge_ids(source_id, target_id)
             if len(edge_ids) > 0:
                 self._graph.delete_edge_by_id(edge_ids[0])
             else:
@@ -398,8 +414,16 @@ class Graph:
         
         return self
     
-    def neighbors(self, node_id: str) -> list[str]:
-        """Get neighbors of a node."""
+    def neighbors(self, node: Union[int, str]) -> list[int]:
+        """Get neighbors of a node.
+        
+        Args:
+            node: Node ID or label
+            
+        Returns:
+            List of neighbor node IDs
+        """
+        node_id = self._resolve_node_id(node)
         return self._graph.neighbors(node_id)
     
     def num_nodes(self) -> int:
@@ -430,18 +454,19 @@ class Graph:
         """Check if graph is weighted (alias for weighted)."""
         return self._graph.is_weighted
     
-    def degree(self, node_id: str) -> int:
+    def degree(self, node: Union[int, str]) -> int:
         """Get the degree of a node.
         
         For directed graphs, returns total degree (in + out).
         For undirected graphs, returns the number of neighbors.
         
         Args:
-            node_id: Node ID
+            node: Node ID or label
             
         Returns:
             Degree of the node
         """
+        node_id = self._resolve_node_id(node)
         neighbors = self._graph.neighbors(node_id)
         if self._graph.is_directed:
             # For directed, count both in and out
@@ -452,11 +477,11 @@ class Graph:
         else:
             return len(neighbors)
     
-    def in_degree(self, node_id: str) -> int:
+    def in_degree(self, node: Union[int, str]) -> int:
         """Get the in-degree of a node (directed graphs only).
         
         Args:
-            node_id: Node ID
+            node: Node ID or label
             
         Returns:
             Number of incoming edges
@@ -466,14 +491,15 @@ class Graph:
         """
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
+        node_id = self._resolve_node_id(node)
         # edges() returns (edge_id, source, target) tuples
         return sum(1 for edge in self._graph.edges() if edge[2] == node_id)
     
-    def out_degree(self, node_id: str) -> int:
+    def out_degree(self, node: Union[int, str]) -> int:
         """Get the out-degree of a node (directed graphs only).
         
         Args:
-            node_id: Node ID
+            node: Node ID or label
             
         Returns:
             Number of outgoing edges
@@ -483,6 +509,7 @@ class Graph:
         """
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
+        node_id = self._resolve_node_id(node)
         return len(self._graph.neighbors(node_id))
     
     # ========== Structural Properties ==========
@@ -1886,7 +1913,16 @@ class Graph:
             >>> sim['A']['D']  # A and D share neighbors B and C
             1.0
         """
-        return self._graph.get_dice_similarity()
+        result_ids = self._graph.get_dice_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
     
     def get_jaccard_similarity(self) -> dict[str, dict[str, float]]:
         """Get Jaccard similarity index between all node pairs.
@@ -1917,7 +1953,16 @@ class Graph:
             >>> sim['2']['3']
             0.0
         """
-        return self._graph.get_jaccard_similarity()
+        result_ids = self._graph.get_jaccard_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
     
     def get_cosine_similarity(self) -> dict[str, dict[str, float]]:
         """Get Cosine similarity between all node pairs.
@@ -1948,7 +1993,16 @@ class Graph:
             >>> sim['1']['2'] > 0
             True
         """
-        return self._graph.get_cosine_similarity()
+        result_ids = self._graph.get_cosine_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
     
     def get_overlap_similarity(self) -> dict[str, dict[str, float]]:
         """Get Overlap coefficient between all node pairs.
@@ -1981,7 +2035,16 @@ class Graph:
             >>> sim['hub']['A']
             1.0
         """
-        return self._graph.get_overlap_similarity()
+        result_ids = self._graph.get_overlap_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
     
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
         """Select nodes by their IDs.
@@ -2260,15 +2323,16 @@ class Graph:
         self._graph.select_edges(predicate)
         return self
     
-    def get_node(self, node_id: str):
-        """Get a node object by ID.
+    def get_node(self, node: Union[int, str]):
+        """Get a node object by ID or label.
         
         Args:
-            node_id: Node ID to retrieve
+            node: Node ID (int) or label (str) to retrieve
             
         Returns:
             Node object or None if not found
         """
+        node_id = self._resolve_node_id(node, auto_create=False)
         return self._graph.get_node(node_id)
     
     def get_edge(self, edge_id: int):
@@ -2499,15 +2563,15 @@ class Graph:
     def get_edge_attrs(
         self, 
         edge_attr: str, 
-        sources: list[str] | None = None, 
-        targets: list[str] | None = None
+        sources: list[Union[int, str]] | None = None, 
+        targets: list[Union[int, str]] | None = None
     ) -> dict[str, any]:
         """Get edge attribute values.
                 
         Args:
             edge_attr: The name of the attribute to get
-            sources: Optional list of source node IDs to filter edges
-            targets: Optional list of target node IDs to filter edges
+            sources: Optional list of source node IDs/labels to filter edges
+            targets: Optional list of target node IDs/labels to filter edges
             
         Returns:
             Dictionary mapping edge strings (e.g., "A->B") to attribute values
@@ -2530,12 +2594,17 @@ class Graph:
         if sources is not None and targets is not None:
             # Filter by specific source/target pairs
             for source in sources:
+                source_id = self._resolve_node_id(source)
                 for target in targets:
-                    edge_ids = self._graph.find_edge_ids(source, target)
+                    target_id = self._resolve_node_id(target)
+                    edge_ids = self._graph.find_edge_ids(source_id, target_id)
                     for edge_id in edge_ids:
                         edge = self.get_edge(edge_id)
                         if edge:
-                            edge_key = f"{edge.source}{separator}{edge.target}"
+                            # Convert IDs to labels
+                            source_label = self.label_from_id(edge.source)
+                            target_label = self.label_from_id(edge.target)
+                            edge_key = f"{source_label}{separator}{target_label}"
                             # Check special weight attribute first
                             if edge_attr == "weight" and edge.weight is not None:
                                 result[edge_key] = edge.weight
@@ -2547,7 +2616,10 @@ class Graph:
             for edge_id in self.edge_ids():
                 edge = self.get_edge(edge_id)
                 if edge:
-                    edge_key = f"{edge.source}{separator}{edge.target}"
+                    # Convert IDs to labels
+                    source_label = self.label_from_id(edge.source)
+                    target_label = self.label_from_id(edge.target)
+                    edge_key = f"{source_label}{separator}{target_label}"
                     # Check special weight attribute first
                     if edge_attr == "weight" and edge.weight is not None:
                         result[edge_key] = edge.weight
@@ -2593,9 +2665,9 @@ class Graph:
         self, 
         edge_attr: str, 
         values, 
-        edges: list[tuple[str, str]] | None = None,
-        sources: list[str] | None = None,
-        targets: list[str] | None = None
+        edges: list[tuple[Union[int, str], Union[int, str]]] | None = None,
+        sources: list[Union[int, str]] | None = None,
+        targets: list[Union[int, str]] | None = None
     ) -> "Graph":
         """Set attribute values for one or more edges.
         
@@ -2604,8 +2676,8 @@ class Graph:
             values: The value(s) to set. Can be a single value (applied to all edges),
                    a list of values matching the edges, or a dict mapping edge IDs to values
             edges: Optional list of (source, target) tuples specifying edges to set attributes for
-            sources: Optional list of source node IDs to filter edges (used with targets)
-            targets: Optional list of target node IDs to filter edges (used with sources)
+            sources: Optional list of source node IDs/labels to filter edges (used with targets)
+            targets: Optional list of target node IDs/labels to filter edges (used with sources)
             
         Returns:
             Self for method chaining
@@ -2635,14 +2707,29 @@ class Graph:
         if edges is not None:
             # Use specific (source, target) tuples
             for source, target in edges:
-                edge_ids = self._graph.find_edge_ids(source, target)
-                target_edge_ids.extend(edge_ids)
+                try:
+                    source_id = self._resolve_node_id(source)
+                    target_id = self._resolve_node_id(target)
+                    edge_ids = self._graph.find_edge_ids(source_id, target_id)
+                    target_edge_ids.extend(edge_ids)
+                except ValueError:
+                    # Node doesn't exist - silently skip
+                    pass
         elif sources is not None and targets is not None:
             # Filter by source/target node lists
             for source in sources:
+                try:
+                    source_id = self._resolve_node_id(source)
+                except ValueError:
+                    continue
                 for target in targets:
-                    edge_ids = self._graph.find_edge_ids(source, target)
-                    target_edge_ids.extend(edge_ids)
+                    try:
+                        target_id = self._resolve_node_id(target)
+                        edge_ids = self._graph.find_edge_ids(source_id, target_id)
+                        target_edge_ids.extend(edge_ids)
+                    except ValueError:
+                        # Node doesn't exist - silently skip
+                        pass
         else:
             # All edges
             target_edge_ids = self.edge_ids()
@@ -4234,9 +4321,24 @@ Edge = rust.Edge
 
 
 # Algorithm functions - wrap Rust functions to accept our Graph wrapper
-def shortest_path(graph: Graph, source: str, target: str) -> list[str] | None:
-    """Find shortest path between two nodes."""
-    return rust.shortest_path(graph._graph, source, target)
+def shortest_path(graph: Graph, source: Union[int, str], target: Union[int, str]) -> list[str] | None:
+    """Find shortest path between two nodes.
+    
+    Args:
+        graph: The graph to search
+        source: Source node (integer ID or string label)
+        target: Target node (integer ID or string label)
+        
+    Returns:
+        List of node labels in the path, or None if no path exists
+    """
+    source_id = graph._resolve_node_id(source, auto_create=False)
+    target_id = graph._resolve_node_id(target, auto_create=False)
+    path_ids = rust.shortest_path(graph._graph, source_id, target_id)
+    if path_ids is None:
+        return None
+    # Convert node IDs to labels
+    return [graph.label_from_id(node_id) for node_id in path_ids]
 
 
 def pagerank(
@@ -4245,13 +4347,25 @@ def pagerank(
     max_iter: int = 100,
     tol: float = 1e-6
 ) -> dict[str, float]:
-    """Calculate PageRank for all nodes."""
-    return rust.pagerank(graph._graph, damping=damping, max_iter=max_iter, tol=tol)
+    """Calculate PageRank for all nodes.
+    
+    Returns:
+        Dictionary mapping node labels to PageRank scores
+    """
+    result_ids = rust.pagerank(graph._graph, damping=damping, max_iter=max_iter, tol=tol)
+    # Convert node IDs to labels
+    return {graph.label_from_id(node_id): score for node_id, score in result_ids.items()}
 
 
 def betweenness_centrality(graph: Graph) -> dict[str, float]:
-    """Calculate betweenness centrality for all nodes."""
-    return rust.betweenness_centrality(graph._graph)
+    """Calculate betweenness centrality for all nodes.
+    
+    Returns:
+        Dictionary mapping node labels to betweenness centrality scores
+    """
+    result_ids = rust.betweenness_centrality(graph._graph)
+    # Convert node IDs to labels
+    return {graph.label_from_id(node_id): score for node_id, score in result_ids.items()}
 
 
 def detect_communities(graph: Graph) -> dict[str, int]:
