@@ -201,10 +201,11 @@ class TestMethodChaining:
         """Chain generators with selection operations."""
         G = ec.Graph() \
             .add_full_graph(4) \
-            .select_nodes_by_id(['1', '2', '3', '4']) \
+            .select_nodes_by_id([1, 2, 3, 4]) \
             .set_node_attrs_ws(group='A')
         
         assert G.num_nodes() == 4
+        # get_node() takes a label, so use '1' string label
         assert G.get_node('1').attributes['group'] == 'A'
         
     def test_chain_random_and_deterministic(self):
