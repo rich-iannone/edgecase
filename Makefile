@@ -45,10 +45,10 @@ build-release:
 
 # Default test runs Python tests only (Rust core not yet compiling with PyO3 0.23)
 test: clean-pyc
-	python3 -m pytest tests/unit tests/integration -v
+	python3 -m pytest tests/unit tests/integration tests/python -v
 
 test-all: clean-pyc
-	python3 -m pytest tests/unit tests/integration tests/property -v
+	python3 -m pytest tests/unit tests/integration tests/python tests/property -v
 
 test-benchmarks:
 	python3 -m pytest tests/benchmarks/ --benchmark-only
