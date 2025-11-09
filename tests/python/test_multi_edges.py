@@ -137,7 +137,7 @@ class TestMultiEdgeGraphs:
             'rel': ['follows', 'follows', 'likes']
         })
         
-        g = ec.create_graph(nodes_df=nodes, edges_df=edges, directed=True)
+        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
         
         # Check edge IDs were preserved
         edge_ids = g.edge_ids()
@@ -156,7 +156,7 @@ class TestMultiEdgeGraphs:
             'to': ['B', 'C', 'B'],
         })
         
-        g = ec.create_graph(nodes_df=nodes, edges_df=edges)
+        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
         
         # Edge IDs should be auto-assigned starting from 1
         edge_ids = g.edge_ids()

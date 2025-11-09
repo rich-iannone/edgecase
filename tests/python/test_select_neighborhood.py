@@ -2,7 +2,6 @@
 
 import pytest
 import edgecase as ec
-from edgecase.builders import add_path, add_star
 
 
 class TestSelectNodesInNeighborhood:
@@ -11,7 +10,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_basic_1hop(self):
         """Test basic 1-hop neighborhood selection."""
         G = ec.Graph(directed=True)
-        add_path(G, 5)  # 1 -> 2 -> 3 -> 4 -> 5
+        G.add_path(5)  # 1 -> 2 -> 3 -> 4 -> 5
         
         G.select_nodes_in_neighborhood("1", k=1, mode="out")
         selected = G.get_selected_nodes()
@@ -24,7 +23,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_2hop_directed(self):
         """Test 2-hop neighborhood in directed graph."""
         G = ec.Graph(directed=True)
-        add_path(G, 6)  # 1 -> 2 -> 3 -> 4 -> 5 -> 6
+        G.add_path(6)  # 1 -> 2 -> 3 -> 4 -> 5 -> 6
         
         G.select_nodes_in_neighborhood("1", k=2, mode="out")
         selected = G.get_selected_nodes()
@@ -39,7 +38,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_undirected(self):
         """Test neighborhood selection in undirected graph."""
         G = ec.Graph(directed=False)
-        add_path(G, 5)  # 1 - 2 - 3 - 4 - 5
+        G.add_path(5)  # 1 - 2 - 3 - 4 - 5
         
         # From node 3, 1-hop should get 2 and 4
         G.select_nodes_in_neighborhood("3", k=1)
@@ -53,7 +52,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_multi_seed(self):
         """Test neighborhood selection with multiple seed nodes."""
         G = ec.Graph(directed=True)
-        add_path(G, 10)
+        G.add_path(10)
         
         # Select 1-hop from nodes 2 and 7
         G.select_nodes_in_neighborhood(["2", "7"], k=1, mode="out")
@@ -69,7 +68,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_mode_in(self):
         """Test incoming neighborhood selection."""
         G = ec.Graph(directed=True)
-        add_path(G, 5)  # 1 -> 2 -> 3 -> 4 -> 5
+        G.add_path(5)  # 1 -> 2 -> 3 -> 4 -> 5
         
         # From node 3, incoming should get 2 and 1
         G.select_nodes_in_neighborhood("3", k=2, mode="in")
@@ -100,7 +99,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_star_graph(self):
         """Test neighborhood on star topology."""
         G = ec.Graph(directed=False)
-        add_star(G, 10)  # Creates nodes 1-10, 1 is center
+        G.add_star(10)  # Creates nodes 1-10, 1 is center
         
         # From center (node 1), 1-hop should get all spokes
         G.select_nodes_in_neighborhood("1", k=1)
@@ -113,7 +112,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_zero_hops(self):
         """Test k=0 selects only seed nodes."""
         G = ec.Graph(directed=True)
-        add_path(G, 5)
+        G.add_path(5)
         
         G.select_nodes_in_neighborhood("3", k=0)
         selected = G.get_selected_nodes()
@@ -124,7 +123,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_nonexistent_node(self):
         """Test error when seed node doesn't exist."""
         G = ec.Graph(directed=True)
-        add_path(G, 5)
+        G.add_path(5)
         
         with pytest.raises(ValueError, match="does not exist"):
             G.select_nodes_in_neighborhood("999", k=1)
@@ -132,7 +131,7 @@ class TestSelectNodesInNeighborhood:
     def test_neighborhood_chaining(self):
         """Test chaining with other selection methods."""
         G = ec.Graph(directed=True)
-        add_path(G, 10)
+        G.add_path(10)
         
         # Select neighborhood then deselect some
         G.select_nodes_in_neighborhood("5", k=2, mode="out")
@@ -150,7 +149,7 @@ class TestSelectNodesByCentrality:
     def test_centrality_by_degree(self):
         """Test selection by degree centrality."""
         G = ec.Graph(directed=False)
-        add_star(G, 10)  # Node 1 is center with highest degree
+        G.add_star(10)  # Node 1 is center with highest degree
         
         # Center (node 1) has highest degree
         G.select_nodes_by_centrality("degree", k=1)
@@ -198,7 +197,7 @@ class TestSelectNodesByCentrality:
     def test_centrality_out_degree_directed(self):
         """Test selection by out-degree in directed graph."""
         G = ec.Graph(directed=True)
-        add_star(G, 10)  # Node 1 (center) has high out-degree
+        G.add_star(10)  # Node 1 (center) has high out-degree
         
         G.select_nodes_by_centrality("out_degree", k=1)
         selected = G.get_selected_nodes()
@@ -208,7 +207,7 @@ class TestSelectNodesByCentrality:
     def test_centrality_in_degree_undirected_error(self):
         """Test that in_degree fails on undirected graph."""
         G = ec.Graph(directed=False)
-        add_path(G, 5)
+        G.add_path(5)
         
         with pytest.raises(ValueError, match="only available for directed"):
             G.select_nodes_by_centrality("in_degree", k=1)
@@ -257,7 +256,7 @@ class TestSelectNodesByCentrality:
     def test_centrality_k_larger_than_nodes(self):
         """Test k larger than number of nodes."""
         G = ec.Graph(directed=False)
-        add_path(G, 3)
+        G.add_path(3)
         
         G.select_nodes_by_centrality("degree", k=100)
         selected = G.get_selected_nodes()
@@ -268,7 +267,7 @@ class TestSelectNodesByCentrality:
     def test_centrality_unknown_measure(self):
         """Test error with unknown centrality measure."""
         G = ec.Graph(directed=True)
-        add_path(G, 5)
+        G.add_path(5)
         
         with pytest.raises(ValueError, match="Unknown centrality measure"):
             G.select_nodes_by_centrality("unknown_measure", k=1)
@@ -276,7 +275,7 @@ class TestSelectNodesByCentrality:
     def test_centrality_chaining(self):
         """Test chaining centrality selection."""
         G = ec.Graph(directed=False)
-        add_path(G, 10)
+        G.add_path(10)
         
         # Select by degree, then add more by ID
         G.select_nodes_by_centrality("degree", k=3)
@@ -295,8 +294,8 @@ class TestCombinedNeighborhoodCentrality:
         """Test selecting neighborhood then filtering by centrality."""
         G = ec.Graph(directed=True)
         # Build a more complex graph
-        add_star(G, 10)  # Nodes 1-10, center is 1
-        add_star(G, 10)  # Nodes 11-20, center is 11
+        G.add_star(10)  # Nodes 1-10, center is 1
+        G.add_star(10)  # Nodes 11-20, center is 11
         G.add_edge("1", "11")  # Connect the two hubs
         
         # Get neighborhood of first hub
@@ -316,9 +315,9 @@ class TestCombinedNeighborhoodCentrality:
         G = ec.Graph(directed=True)
         
         # Create a network
-        add_star(G, 5)  # Nodes 1-5, center is 1
-        add_star(G, 5)  # Nodes 6-10, center is 6
-        add_star(G, 3)  # Nodes 11-13, center is 11
+        G.add_star(5)  # Nodes 1-5, center is 1
+        G.add_star(5)  # Nodes 6-10, center is 6
+        G.add_star(3)  # Nodes 11-13, center is 11
         G.add_edge("1", "6")
         G.add_edge("6", "11")
         
