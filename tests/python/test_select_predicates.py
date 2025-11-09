@@ -4,7 +4,7 @@ Tests for attribute-based selection methods.
 
 import pytest
 from edgecase import Graph
-from edgecase._core_rust import Node, Edge
+from edgecase.graph import Node, Edge
 
 
 class TestSelectNodesByPredicate:

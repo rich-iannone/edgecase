@@ -1,7 +1,7 @@
 __version__ = "0.1.0"
 
 # Import Rust core with Python wrapper for API compatibility
-from edgecase._core_rust import (
+from edgecase.graph import (
     Graph,
     Node,
     Edge,

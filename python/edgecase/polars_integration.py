@@ -3,7 +3,7 @@
 from typing import Optional, Union, List
 import polars as pl
 
-from edgecase._core_rust import Graph
+from edgecase.graph import Graph
 
 
 def from_polars(
