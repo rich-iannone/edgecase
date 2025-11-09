@@ -2,90 +2,254 @@
 Python wrapper for Rust core to provide a consistent API.
 
 This module wraps the raw Rust bindings to provide the same API
-as the pure Python implementation.
+as the pure Python implementation. After migration to u64 integer node IDs,
+this wrapper provides automatic label resolution for backwards compatibility.
 """
 
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, Union
 from edgecase import _core as rust
 
 
 class Graph:
-    """Python wrapper around Rust Graph for consistent API."""
+    """Python wrapper around Rust Graph for consistent API.
+    
+    After the u64 migration, nodes are identified internally by integer IDs,
+    but this wrapper allows using string labels for convenience. The mapping
+    between labels and IDs is managed automatically.
+    """
     
     def __init__(self, directed: bool = False, weighted: bool = False):
         self._graph = rust.Graph(directed=directed, weighted=weighted)
     
-    def add_node(self, node_id, **attributes):
-        """Add a node to the graph (convenience method).
+    def add_node(self, node_id: Optional[Union[int, str]] = None, label: Optional[str] = None, 
+                 from_node: Optional[Union[int, str]] = None, to_node: Optional[Union[int, str]] = None,
+                 **attributes) -> int:
+        """Add a node to the graph (optionally connected to existing nodes).
+        
+        Add isolated nodes or nodes with immediate connections.
         
         Args:
-            node_id: Either a string node ID or a Node object
-            **attributes: Optional node attributes (ignored if node_id is a Node)
+            node_id: Optional node identifier. Can be:
+                - None: Auto-generate a u64 ID (default)
+                - int: Use this as the node ID
+                - str: Use as label, auto-generate ID
+            label: Optional string label for the node
+            from_node: Optional source node (int ID or str label) to create edge FROM this new node TO
+            to_node: Optional target node (int ID or str label) to create edge FROM TO this new node
+            **attributes: Optional node attributes
+            
+        Returns:
+            The integer ID of the added node (u64)
+            
+        Examples:
+            >>> G = Graph()
+            >>> # Add isolated node with auto-generated ID
+            >>> id1 = G.add_node()  # Returns u64 like 1
+            >>> # Add node with label
+            >>> id2 = G.add_node(label="Alice")  # Returns u64, stores label
+            >>> # Add node connected from existing node
+            >>> id3 = G.add_node(label="Bob", from_node=id2)  # Creates edge id2->id3
+            >>> # Add node connected to existing node
+            >>> id4 = G.add_node(label="Charlie", to_node=id2)  # Creates edge id4->id2
+            >>> # Use string labels for connections
+            >>> id5 = G.add_node(label="Dave", from_node="Alice")  # Edge Alice->Dave
         """
-        # Handle both raw Node objects and string IDs
+        # Handle different input patterns for node_id
         if isinstance(node_id, rust.Node):
-            # Direct Rust Node object
-            self._graph.add_node(node_id)
+            # Direct Rust Node object - already has u64 ID
+            new_id = self._graph.add_node(node_id)
         else:
-            # String ID with attributes
-            if not self._graph.has_node(node_id):
-                node = rust.Node(id=node_id, attributes=attributes if attributes else None)
-                self._graph.add_node(node)
+            # Determine label and ID
+            final_label = None
+            final_id = None
+            
+            if isinstance(node_id, str):
+                # String node_id is treated as a label
+                final_label = node_id
+            elif isinstance(node_id, int):
+                # Integer node_id is used as the ID
+                final_id = node_id
+                final_label = label
+            elif node_id is None:
+                # Auto-generate ID
+                final_label = label
+            else:
+                raise TypeError(f"node_id must be int, str, or None, got {type(node_id)}")
+            
+            # Create the node with u64 ID and optional label
+            if final_id is not None:
+                node = rust.Node(id=final_id, label=final_label, attributes=attributes if attributes else None)
+            else:
+                # Let Rust auto-assign the ID (pass 0 to trigger auto-assignment)
+                node = rust.Node(id=0, label=final_label, attributes=attributes if attributes else None)
+            
+            new_id = self._graph.add_node(node)
+        
+        # Add edges if from_node or to_node specified
+        if from_node is not None:
+            # Create edge: new_node -> from_node
+            self.add_edge(new_id, from_node)
+        
+        if to_node is not None:
+            # Create edge: to_node -> new_node
+            self.add_edge(to_node, new_id)
+        
+        return new_id
     
-    def add_edge(self, source, target=None, weight: float | None = None, edge_id: int | None = None, **attributes):
-        """Add an edge to the graph (convenience method).
+    def add_edge(self, source: Union[int, str, rust.Edge], target: Optional[Union[int, str]] = None, 
+                 weight: Optional[float] = None, edge_id: Optional[int] = None, **attributes) -> int:
+        """Add an edge to the graph between existing nodes.
+        
+        Requires nodes to exist. Can use integer IDs or
+        string labels (if all labels are unique and non-empty).
         
         Args:
-            source: Either an Edge object or a source node ID
-            target: Target node ID (required if source is a string)
+            source: Either an Edge object, or a source node ID/label
+            target: Target node ID/label (required if source is not an Edge)
             weight: Optional edge weight
             edge_id: Optional edge ID (auto-assigned if None)
             **attributes: Optional edge attributes
             
         Returns:
             The ID of the added edge
-        """
-        # Handle both raw Edge objects and (source, target) pairs
-        if isinstance(source, rust.Edge):
-            # Direct Rust Edge object
-            return self._graph.add_edge(source)
-        else:
-            # String IDs with attributes
-            # Ensure nodes exist first (direct Rust hash lookup - O(1))
-            if not self._graph.has_node(source):
-                self.add_node(source)
-            if not self._graph.has_node(target):
-                self.add_node(target)
             
-            edge = rust.Edge(
-                id=edge_id if edge_id is not None else 0,  # 0 means auto-assign
-                source=source,
-                target=target,
-                weight=weight,
-                attributes=attributes if attributes else None
-            )
-            return self._graph.add_edge(edge)
-    
-    def get_node_ids(self) -> list[str]:
-        """Get all node IDs in the graph.
+        Raises:
+            ValueError: If a label is not found or nodes don't exist
+            
+        Examples:
+            >>> G = Graph()
+            >>> id1 = G.add_node(label="Alice")
+            >>> id2 = G.add_node(label="Bob")
+            >>> # By ID
+            >>> G.add_edge(id1, id2)
+            >>> # By label (only if all labels are unique)
+            >>> G.add_edge("Alice", "Bob")
+            >>> # Mixed
+            >>> G.add_edge(id1, "Bob")
+        """
+        # Handle direct Edge objects
+        if isinstance(source, rust.Edge):
+            return self._graph.add_edge(source)
         
+        # Resolve source and target to u64 IDs (DO NOT auto-create)
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        
+        # Verify nodes exist
+        if not self._graph.has_node_id(source_id):
+            raise ValueError(f"Source node {source} (ID {source_id}) does not exist. Add it with add_node() first.")
+        
+        if not self._graph.has_node_id(target_id):
+            raise ValueError(f"Target node {target} (ID {target_id}) does not exist. Add it with add_node() first.")
+        
+        # Create edge
+        edge = rust.Edge(
+            id=edge_id if edge_id is not None else 0,  # 0 means auto-assign
+            source=source_id,
+            target=target_id,
+            weight=weight,
+            attributes=attributes if attributes else None
+        )
+        return self._graph.add_edge(edge)
+    
+    def _resolve_node_id(self, node: Union[int, str], auto_create: bool = False) -> int:
+        """Resolve a node identifier (int or str) to a u64 ID.
+        
+        Args:
+            node: Either an integer ID or a string label
+            auto_create: If True and node is a string not in graph, create it
+            
         Returns:
-            List of node ID strings
+            The u64 node ID
+            
+        Raises:
+            ValueError: If label is not found and auto_create is False
+            TypeError: If node is neither int nor str
+        """
+        if isinstance(node, int):
+            return node
+        elif isinstance(node, str):
+            # Try to resolve label to ID
+            try:
+                node_id = self._graph.id_from_label(node)
+                return node_id
+            except (ValueError, Exception):
+                # Label not found
+                if auto_create:
+                    # Create a new node with this label
+                    return self.add_node(label=node)
+                else:
+                    raise ValueError(f"Node with label '{node}' not found in graph")
+        else:
+            raise TypeError(f"Node identifier must be int or str, got {type(node)}")
+    
+    def id_from_label(self, label: str) -> Optional[int]:
+        """Get the integer ID for a node by its label.
+        
+        Args:
+            label: The string label to look up
+            
+        Returns:
+            The u64 node ID, or None if not found
             
         Example:
             >>> G = Graph()
-            >>> G.add_node("A")
-            >>> G.add_node("B")
+            >>> G.add_node(label="Alice")
+            1
+            >>> G.id_from_label("Alice")
+            1
+            >>> G.id_from_label("Unknown")
+            None
+        """
+        try:
+            return self._graph.id_from_label(label)
+        except (ValueError, Exception):
+            return None
+    
+    def label_from_id(self, node_id: int) -> Optional[str]:
+        """Get the label for a node by its ID.
+        
+        Args:
+            node_id: The u64 node ID
+            
+        Returns:
+            The string label, or None if node has no label or doesn't exist
+            
+        Example:
+            >>> G = Graph()
+            >>> id1 = G.add_node(label="Alice")
+            >>> G.label_from_id(id1)
+            'Alice'
+            >>> G.label_from_id(999)
+            None
+        """
+        try:
+            return self._graph.label_from_id(node_id)
+        except (ValueError, Exception):
+            return None
+    
+    def get_node_ids(self) -> list[int]:
+        """Get all node IDs in the graph.
+        
+        Returns:
+            List of u64 node IDs
+            
+        Example:
+            >>> G = Graph()
+            >>> G.add_node(label="A")
+            1
+            >>> G.add_node(label="B")
+            2
             >>> G.get_node_ids()
-            ['A', 'B']
+            [1, 2]
         """
         return self._graph.get_node_ids()
     
-    def nodes(self) -> list[str]:
+    def nodes(self) -> list[int]:
         """Return list of node IDs (alias for get_node_ids)."""
         return self._graph.get_node_ids()
     
-    def node_ids(self) -> list[str]:
+    def node_ids(self) -> list[int]:
         """Return list of node IDs (alias for get_node_ids)."""
         return self._graph.get_node_ids()
     
