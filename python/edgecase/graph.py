@@ -329,20 +329,41 @@ class Graph:
     def id_from_label(self, label: str) -> Optional[int]:
         """Get the integer ID for a node by its label.
         
-        Args:
-            label: The string label to look up
-            
-        Returns:
-            The u64 node ID, or None if not found
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_node(label="Alice")
-            1
-            >>> G.id_from_label("Alice")
-            1
-            >>> G.id_from_label("Unknown")
-            None
+        Translates a human-readable string label to the internal u64 node ID.
+        Useful when you need the ID for operations that require integer identifiers.
+        
+        Parameters
+        ----------
+        label : str
+            The string label to look up.
+        
+        Returns
+        -------
+        int | None
+            The u64 node ID if found, or `None` if the label doesn't exist.
+        
+        Examples
+        --------
+        Look up node IDs by label:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+        )
+        
+        alice_id = graph.id_from_label("Alice")
+        print(alice_id)  # 1
+        
+        unknown_id = graph.id_from_label("Unknown")
+        print(unknown_id)  # None
+        ```
+        
+        See Also
+        --------
+        label_from_id : Get label from node ID
+        has_node : Check if node exists
         """
         try:
             return self._graph.id_from_label(label)
@@ -352,19 +373,42 @@ class Graph:
     def label_from_id(self, node_id: int) -> Optional[str]:
         """Get the label for a node by its ID.
         
-        Args:
-            node_id: The u64 node ID
-            
-        Returns:
-            The string label, or None if node has no label or doesn't exist
-            
-        Example:
-            >>> G = Graph()
-            >>> id1 = G.add_node(label="Alice")
-            >>> G.label_from_id(id1)
-            'Alice'
-            >>> G.label_from_id(999)
-            None
+        Translates an internal u64 node ID to its human-readable string label.
+        Returns `None` if the node doesn't exist or has no label assigned.
+        
+        Parameters
+        ----------
+        node_id : int
+            The u64 node ID to look up.
+        
+        Returns
+        -------
+        str | None
+            The string label if it exists, or `None` if the node has no label
+            or doesn't exist in the graph.
+        
+        Examples
+        --------
+        Retrieve labels for node IDs:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+        )
+        
+        label = graph.label_from_id(1)
+        print(label)  # "Alice"
+        
+        no_label = graph.label_from_id(999)
+        print(no_label)  # None
+        ```
+        
+        See Also
+        --------
+        id_from_label : Get node ID from label
+        get_node_ids : Get all node IDs in the graph
         """
         try:
             return self._graph.label_from_id(node_id)
@@ -374,17 +418,34 @@ class Graph:
     def get_node_ids(self) -> list[int]:
         """Get all node IDs in the graph.
         
-        Returns:
-            List of u64 node IDs
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_node(label="A")
-            1
-            >>> G.add_node(label="B")
-            2
-            >>> G.get_node_ids()
-            [1, 2]
+        Returns the complete list of u64 node IDs currently in the graph.
+        Useful for iterating over all nodes or checking graph size.
+        
+        Returns
+        -------
+        list[int]
+            List of u64 node IDs in the graph.
+        
+        Examples
+        --------
+        Get all node IDs:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+        )
+        
+        ids = graph.get_node_ids()
+        print(ids)  # [1, 2, 3]
+        ```
+        
+        See Also
+        --------
+        nodes : Alias for this method
+        num_nodes : Get the count of nodes
         """
         return self._graph.get_node_ids()
     
@@ -438,11 +499,40 @@ class Graph:
     def has_node(self, node: Union[int, str]) -> bool:
         """Check if a node exists in the graph.
         
-        Args:
-            node: Node ID (int) or label (str)
-            
-        Returns:
-            True if the node exists
+        Verifies whether a node (specified by ID or label) exists in the graph.
+        Returns `False` for invalid inputs or missing nodes.
+        
+        Parameters
+        ----------
+        node : int | str
+            Node ID (int) or label (str) to check.
+        
+        Returns
+        -------
+        bool
+            `True` if the node exists, `False` otherwise.
+        
+        Examples
+        --------
+        Check node existence:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+        )
+        
+        print(graph.has_node("Alice"))   # True
+        print(graph.has_node(1))         # True  
+        print(graph.has_node("Charlie")) # False
+        print(graph.has_node(999))       # False
+        ```
+        
+        See Also
+        --------
+        has_edge : Check if an edge exists
+        num_nodes : Get total node count
         """
         try:
             node_id = self._resolve_node_id(node, auto_create=False)
