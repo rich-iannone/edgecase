@@ -13,6 +13,10 @@ import random
 def benchmark_graph_small():
     """1K node graph for benchmarking"""
     G = Graph()
+    # Create nodes first
+    for i in range(1000):
+        G.add_node(f"n{i}")
+    # Then create edges
     for i in range(1000):
         G.add_edge(f"n{i}", f"n{(i+1) % 1000}")
     return G
@@ -54,6 +58,10 @@ def test_add_10000_edges(benchmark):
     """Benchmark adding 10000 edges"""
     def add_edges():
         G = Graph()
+        # Create nodes first
+        for i in range(1000):
+            G.add_node(f"n{i}")
+        # Then create edges
         for i in range(10000):
             G.add_edge(f"n{i % 1000}", f"n{(i+1) % 1000}")
         return G

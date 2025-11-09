@@ -110,8 +110,8 @@ class TestGraphConversion:
         """Test that node attributes are preserved during conversion."""
         # Create EdgeCase graph with node attributes
         G = ec.Graph(directed=True)
-        G.add_node("A", color="red", value=10, label="Node A")
-        G.add_node("B", color="blue", value=20, label="Node B")
+        G.add_node("A", color="red", value=10, description="Node A")
+        G.add_node("B", color="blue", value=20, description="Node B")
         
         # Convert to igraph
         ig_graph = to_igraph(G)
@@ -123,7 +123,7 @@ class TestGraphConversion:
         
         assert ig_graph.vs[idx_a]["color"] == "red"
         assert ig_graph.vs[idx_a]["value"] == 10
-        assert ig_graph.vs[idx_a]["label"] == "Node A"
+        assert ig_graph.vs[idx_a]["description"] == "Node A"
         assert ig_graph.vs[idx_b]["color"] == "blue"
         assert ig_graph.vs[idx_b]["value"] == 20
         
@@ -207,13 +207,13 @@ class TestBasicMetrics:
         
         ig_graph = to_igraph(G)
         
-        # In-degree
-        ec_in_degrees = {node: G.in_degree(node) for node in G.nodes()}
+        # In-degree - convert node IDs to labels for keys
+        ec_in_degrees = {G.label_from_id(node_id): G.in_degree(node_id) for node_id in G.nodes()}
         ig_in_degrees = {ig_graph.vs[i]["name"]: ig_graph.indegree(i) for i in range(ig_graph.vcount())}
         assert ec_in_degrees == ig_in_degrees
         
-        # Out-degree
-        ec_out_degrees = {node: G.out_degree(node) for node in G.nodes()}
+        # Out-degree - convert node IDs to labels for keys
+        ec_out_degrees = {G.label_from_id(node_id): G.out_degree(node_id) for node_id in G.nodes()}
         ig_out_degrees = {ig_graph.vs[i]["name"]: ig_graph.outdegree(i) for i in range(ig_graph.vcount())}
         assert ec_out_degrees == ig_out_degrees
     
@@ -228,7 +228,8 @@ class TestBasicMetrics:
         
         ig_graph = to_igraph(G)
         
-        ec_degrees = {node: G.degree(node) for node in G.nodes()}
+        # Convert node IDs to labels for keys
+        ec_degrees = {G.label_from_id(node_id): G.degree(node_id) for node_id in G.nodes()}
         ig_degrees = {ig_graph.vs[i]["name"]: ig_graph.degree(i) for i in range(ig_graph.vcount())}
         assert ec_degrees == ig_degrees
 
