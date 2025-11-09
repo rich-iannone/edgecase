@@ -1269,77 +1269,164 @@ class Graph:
         return self._graph.is_bipartite()
     
     def count_weakly_connected_components(self) -> int:
-        """Count weakly connected components.
+        """Count weakly connected components in the graph.
         
-        For undirected graphs, this counts regular connected components.
-        For directed graphs, treats edges as undirected (ignores direction).
+        For undirected graphs, counts regular connected components. For directed graphs,
+        treats all edges as undirected (ignoring direction) when finding components.
         
-        A weakly connected component is a maximal set of nodes where every
-        node is reachable from every other node when ignoring edge direction.
+        A weakly connected component is a maximal set of nodes where every node is
+        reachable from every other node when edge directions are ignored.
         
-        Returns:
-            Number of weakly connected components
-            
-        Example:
-            >>> G = ec.Graph(directed=False)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("X", "Y")
-            >>> G.count_weakly_connected_components()
-            2
+        Returns
+        -------
+        int
+            Number of weakly connected components.
+        
+        Examples
+        --------
+        Count components in a disconnected graph:
+        
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("X", "Y")
+        )
+        
+        print(graph.count_weakly_connected_components())  # 2
+        ```
+        
+        See Also
+        --------
+        is_connected : Check if graph is connected
+        count_strongly_connected_components : For directed graphs
         """
         return self._graph.count_weakly_connected_components()
     
     def count_strongly_connected_components(self) -> int:
         """Count strongly connected components (directed graphs only).
         
-        A strongly connected component is a maximal set of nodes where every
-        node is reachable from every other node following directed edges.
+        A strongly connected component is a maximal set of nodes where every node
+        is reachable from every other node following directed edges. Uses Kosaraju's
+        algorithm for efficient computation.
         
-        Uses Kosaraju's algorithm.
+        Returns
+        -------
+        int
+            Number of strongly connected components.
         
-        Returns:
-            Number of strongly connected components
-            
-        Raises:
-            ValueError: If called on an undirected graph
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "C")
-            >>> G.add_edge("C", "A")  # Cycle: all in same component
-            >>> G.add_edge("X", "Y")  # Separate component
-            >>> G.count_strongly_connected_components()
-            2
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph.
+        
+        Examples
+        --------
+        Count strongly connected components:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Cycle: all in same component
+            .add_edge("X", "Y")  # Separate component
+        )
+        
+        print(graph.count_strongly_connected_components())  # 2
+        ```
+        
+        See Also
+        --------
+        count_weakly_connected_components : For weak connectivity
+        is_connected : Check overall connectivity
         """
         return self._graph.count_strongly_connected_components()
     
     def degree_distribution(self) -> dict[int, int]:
         """Get degree distribution as a mapping from degree to count.
         
-        Returns:
-            Dictionary mapping degree values to the number of nodes with that degree
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(4)  # 1-2-2-1 degrees
-            >>> G.degree_distribution()
-            {1: 2, 2: 2}  # 2 nodes with degree 1, 2 nodes with degree 2
+        Returns a histogram of node degrees, showing how many nodes have each
+        degree value. Useful for analyzing network topology and identifying
+        hub nodes or scale-free properties.
+        
+        Returns
+        -------
+        dict[int, int]
+            Dictionary mapping degree values to the number of nodes with that degree.
+        
+        Examples
+        --------
+        Get degree distribution:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("Hub", "A")
+            .add_edge("Hub", "B")
+            .add_edge("Hub", "C")
+            .add_edge("Hub", "D")
+        )
+        
+        dist = graph.degree_distribution()
+        print(dist)  # {1: 4, 4: 1} - 4 nodes with degree 1, 1 node with degree 4
+        ```
+        
+        See Also
+        --------
+        degree : Get degree of a single node
+        average_degree : Get mean degree
+        get_degree_histogram : Alias for this method
         """
         return self._graph.degree_distribution()
     
     def count_selfloops(self) -> int:
         """Count number of self-loops in the graph.
         
-        Returns:
-            Number of edges where source equals target
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('A', 'A')  # Self-loop
-            >>> G.count_selfloops()
-            1
+        A self-loop is an edge where the source and target are the same node.
+        Self-loops are common in certain applications like state machines or
+        reflexive relationships.
+        
+        Returns
+        -------
+        int
+            Number of edges where source equals target.
+        
+        Examples
+        --------
+        Count self-loops:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+            .add_edge("A", "A")  # Self-loop
+            .add_edge("B", "B")  # Self-loop
+        )
+        
+        print(graph.count_selfloops())  # 2
+        ```
+        
+        See Also
+        --------
+        is_simple : Check if graph has no self-loops or multi-edges
+        count_loop_edges : Alias for this method
         """
         return self._graph.count_selfloops()
     
@@ -1365,18 +1452,36 @@ class Graph:
         
         Only counts edges beyond the first one for each node pair.
         For example, if there are 3 edges from A to B, this counts 2 of them.
+        Multi-edges are useful for modeling scenarios like multiple flights
+        between cities or repeated transactions.
         
-        Returns:
-            Number of duplicate edges (beyond first edge per pair)
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge('A', 'B', id=1)
-            >>> G.add_edge('A', 'B', id=2)  # Duplicate
-            >>> G.add_edge('A', 'B', id=3)  # Another duplicate
-            >>> G.add_edge('B', 'C', id=4)
-            >>> G.count_multi_edges()
-            2
+        Returns
+        -------
+        int
+            Number of duplicate edges (beyond first edge per pair).
+        
+        Examples
+        --------
+        Count multi-edges in a directed graph:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B", id=1)
+            .add_edge("A", "B", id=2)  # Multi-edge
+            .add_edge("A", "B", id=3)  # Another multi-edge
+            .add_edge("B", "A", id=4)  # Different direction
+        )
+        
+        print(graph.count_multi_edges())  # 2
+        ```
+        
+        See Also
+        --------
+        is_simple : Check if graph has no self-loops or multi-edges
+        count_selfloops : Count self-loop edges
         """
         return self._graph.count_multi_edges()
     
@@ -1384,21 +1489,41 @@ class Graph:
         """Count mutual node pairs (bidirectional edges) in directed graphs.
         
         Returns the number of node pairs (a,b) where both edges a->b and b->a exist.
-        Only works for directed graphs. Self-loops are excluded.
+        Only works for directed graphs. Self-loops are excluded. This metric is
+        useful for analyzing reciprocity in directed networks like social graphs.
         
-        Returns:
-            Number of node pairs with edges in both directions
+        Returns
+        -------
+        int
+            Number of node pairs with edges in both directions.
             
-        Raises:
-            ValueError: If graph is undirected
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('B', 'A')  # Mutual pair with A
-            >>> G.add_edge('A', 'C')  # One-way only
-            >>> G.count_mutual_node_pairs()
-            1
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+        
+        Examples
+        --------
+        Count mutual relationships:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Mutual with A
+            .add_edge("A", "C")  # One-way only
+        )
+        
+        print(graph.count_mutual_node_pairs())  # 1
+        ```
+        
+        See Also
+        --------
+        count_asymmetric_node_pairs : Count one-way relationships
+        reciprocity : Calculate reciprocity ratio
         """
         return self._graph.count_mutual_node_pairs()
     
@@ -1406,36 +1531,79 @@ class Graph:
         """Count asymmetric node pairs (one-way edges) in directed graphs.
         
         Returns the number of node pairs (a,b) where edge a->b exists but not b->a.
-        Only works for directed graphs. Self-loops are excluded.
+        Only works for directed graphs. Self-loops are excluded. This metric helps
+        analyze directional flow or hierarchy in directed networks.
         
-        Returns:
-            Number of node pairs with edges in only one direction
+        Returns
+        -------
+        int
+            Number of node pairs with edges in only one direction.
             
-        Raises:
-            ValueError: If graph is undirected
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('B', 'A')  # Mutual, not counted
-            >>> G.add_edge('A', 'C')  # Asymmetric
-            >>> G.add_edge('D', 'E')  # Asymmetric
-            >>> G.count_asymmetric_node_pairs()
-            2
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+        
+        Examples
+        --------
+        Count one-way relationships:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Mutual, not counted
+            .add_edge("A", "C")  # Asymmetric
+        )
+        
+        print(graph.count_asymmetric_node_pairs())  # 1
+        ```
+        
+        See Also
+        --------
+        count_mutual_node_pairs : Count bidirectional relationships
+        reciprocity : Calculate reciprocity ratio
         """
         return self._graph.count_asymmetric_node_pairs()
     
     def average_degree(self) -> float:
         """Calculate average degree across all nodes.
         
-        Returns:
-            Mean degree value
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_cycle_graph(4)  # All nodes have degree 2
-            >>> G.average_degree()
-            2.0
+        For directed graphs, this returns the average of (in-degree + out-degree).
+        For undirected graphs, each edge contributes to the degree of both endpoints.
+        
+        Returns
+        -------
+        float
+            Mean degree value across all nodes.
+        
+        Examples
+        --------
+        Calculate average degree:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+        
+        print(graph.average_degree())  # 2.0 (cycle graph)
+        ```
+        
+        See Also
+        --------
+        degree_distribution : Get full degree distribution
+        degree : Get degree of a specific node
         """
         return self._graph.average_degree()
     
@@ -1741,40 +1909,75 @@ class Graph:
         """Get graph diameter (maximum eccentricity).
         
         The diameter is the longest shortest path between any two nodes.
-        Returns None if the graph is disconnected.
+        Returns None if the graph is disconnected. This metric is useful
+        for understanding the "width" of a network.
         
-        Returns:
-            Maximum distance between any two nodes, or None if disconnected
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(5)  # Linear chain
-            >>> G.get_graph_diameter()
-            4
-            >>> G.add_cycle_graph(6)  # Disconnected components
-            >>> G.get_graph_diameter() is None
-            True
+        Returns
+        -------
+        int | None
+            Maximum distance between any two nodes, or None if disconnected.
+        
+        Examples
+        --------
+        Calculate diameter of a path:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+        
+        print(graph.get_graph_diameter())  # 3 (A to D)
+        ```
+        
+        See Also
+        --------
+        get_graph_radius : Get minimum eccentricity
+        eccentricity : Get eccentricity of a specific node
         """
         return self._graph.get_graph_diameter()
     
     def get_graph_radius(self) -> int | None:
         """Get graph radius (minimum eccentricity).
         
-        The radius is the minimum of all node eccentricities.
-        Nodes with eccentricity equal to the radius form the center.
+        The radius is the minimum of all node eccentricities. Nodes with
+        eccentricity equal to the radius form the center of the graph.
         Returns None if the graph is disconnected.
         
-        Returns:
-            Minimum eccentricity, or None if disconnected
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(5)  # Linear chain
-            >>> G.get_graph_radius()
-            2
-            >>> G.add_star_graph(5)  # Hub at center
-            >>> G.get_graph_radius()
-            1
+        Returns
+        -------
+        int | None
+            Minimum eccentricity, or None if disconnected.
+        
+        Examples
+        --------
+        Calculate radius of a star graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+        
+        print(graph.get_graph_radius())  # 1 (hub is center)
+        ```
+        
+        See Also
+        --------
+        get_graph_diameter : Get maximum eccentricity
+        eccentricity : Get eccentricity of a specific node
         """
         return self._graph.get_graph_radius()
     
@@ -1782,72 +1985,139 @@ class Graph:
         """Get girth (length of shortest cycle).
         
         The girth is the length of the shortest cycle in the graph.
-        Returns None if the graph is acyclic (a forest/tree).
+        Returns None if the graph is acyclic (a forest/tree). Uses BFS
+        from each node to detect shortest cycles efficiently.
         
-        Uses BFS from each node to detect shortest cycles.
+        Returns
+        -------
+        int | None
+            Length of shortest cycle, or None if acyclic.
         
-        Returns:
-            Length of shortest cycle, or None if acyclic
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_cycle_graph(6)  # Single 6-cycle
-            >>> G.get_girth()
-            6
-            >>> G_tree = ec.Graph()
-            >>> G_tree.add_balanced_tree(2, 3)  # Tree has no cycles
-            >>> G_tree.get_girth() is None
-            True
+        Examples
+        --------
+        Find girth of a cycle graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+        
+        print(graph.get_girth())  # 4 (cycle length)
+        ```
+        
+        Trees have no cycles:
+        
+        ```python
+        tree = Graph(directed=True).add_balanced_tree(k=2, h=3)
+        print(tree.get_girth())  # None
+        ```
+        
+        See Also
+        --------
+        has_cycles : Check if graph contains any cycles
+        is_dag : Check if directed graph is acyclic
         """
         return self._graph.get_girth()
     
     def get_adhesion(self) -> int:
         """Get adhesion (minimum edge cut size).
         
-        The adhesion is the minimum number of edges whose removal
-        would disconnect the graph. Also called edge connectivity.
+        The adhesion is the minimum number of edges whose removal would disconnect
+        the graph. Also called edge connectivity. Only defined for undirected graphs.
+        Returns 0 if already disconnected.
         
-        Only defined for undirected graphs. Returns 0 if already disconnected.
+        Note: Current implementation provides an upper bound (minimum degree) for
+        efficiency. Exact computation requires max-flow algorithms.
         
-        Note: Current implementation provides an upper bound (minimum degree)
-        for efficiency. Exact computation requires max-flow algorithms.
-        
-        Returns:
-            Minimum edge cut size
+        Returns
+        -------
+        int
+            Minimum edge cut size.
             
-        Raises:
-            ValueError: If graph is directed
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_cycle_graph(5)  # Need to remove 2 edges to disconnect
-            >>> G.get_adhesion()
-            2
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+        
+        Examples
+        --------
+        Calculate adhesion:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+        
+        print(graph.get_adhesion())  # 2
+        ```
+        
+        See Also
+        --------
+        get_cohesion : Get vertex connectivity
+        is_connected : Check if graph is connected
         """
         return self._graph.get_adhesion()
     
     def get_cohesion(self) -> int:
         """Get cohesion (minimum vertex cut size).
         
-        The cohesion is the minimum number of nodes whose removal
-        would disconnect the graph. Also called vertex connectivity.
+        The cohesion is the minimum number of nodes whose removal would disconnect
+        the graph. Also called vertex connectivity. Only defined for undirected graphs.
+        Returns 0 if already disconnected.
         
-        Only defined for undirected graphs. Returns 0 if already disconnected.
+        Note: Current implementation provides an upper bound (minimum degree) for
+        efficiency. Exact computation requires sophisticated algorithms.
         
-        Note: Current implementation provides an upper bound (minimum degree)
-        for efficiency. Exact computation requires sophisticated algorithms.
-        
-        Returns:
-            Minimum vertex cut size
+        Returns
+        -------
+        int
+            Minimum vertex cut size.
             
-        Raises:
-            ValueError: If graph is directed
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_cycle_graph(5)  # Need to remove 2 nodes to disconnect
-            >>> G.get_cohesion()
-            2
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+        
+        Examples
+        --------
+        Calculate cohesion:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+        
+        print(graph.get_cohesion())  # 2
+        ```
+        
+        See Also
+        --------
+        get_adhesion : Get edge connectivity
+        is_connected : Check if graph is connected
         """
         return self._graph.get_cohesion()
     
@@ -1855,128 +2125,246 @@ class Graph:
         """Get reciprocity (fraction of reciprocal edges).
         
         Reciprocity measures the proportion of edges that have a corresponding
-        reverse edge. Only defined for directed graphs.
+        reverse edge. Only defined for directed graphs. Returns a value between
+        0.0 (no reciprocal edges) and 1.0 (all edges are reciprocal). Self-loops
+        are excluded from the calculation.
         
-        Returns a value between 0.0 (no reciprocal edges) and 1.0 (all edges
-        are reciprocal). Self-loops are excluded from the calculation.
+        Returns
+        -------
+        float
+            Fraction of reciprocal edges (0.0 to 1.0).
+            
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
         
-        Returns:
-            Fraction of reciprocal edges (0.0 to 1.0)
-            
-        Raises:
-            ValueError: If graph is undirected
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "A")  # Reciprocal
-            >>> G.add_edge("A", "C")  # Not reciprocal
-            >>> G.get_reciprocity()  # 2/3 ≈ 0.667
-            0.6666666666666666
+        Examples
+        --------
+        Calculate reciprocity:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Reciprocal
+            .add_edge("A", "C")  # Not reciprocal
+        )
+        
+        print(f"{graph.get_reciprocity():.3f}")  # 0.667 (2/3 edges)
+        ```
+        
+        See Also
+        --------
+        count_mutual_node_pairs : Count bidirectional relationships
+        count_asymmetric_node_pairs : Count one-way relationships
         """
         return self._graph.get_reciprocity()
     
     def get_min_cut_between(self, source: str, sink: str) -> int:
         """Get minimum cut between source and sink nodes.
         
-        Computes the minimum number of edges that must be removed to
-        disconnect the source from the sink. Uses the Ford-Fulkerson
-        algorithm with BFS (Edmonds-Karp) to find maximum flow, which
-        equals the minimum cut by the max-flow min-cut theorem.
+        Computes the minimum number of edges that must be removed to disconnect
+        the source from the sink. Uses the Ford-Fulkerson algorithm with BFS
+        (Edmonds-Karp) to find maximum flow, which equals the minimum cut by
+        the max-flow min-cut theorem.
         
-        For unweighted graphs, each edge has capacity 1. For undirected
-        graphs, edges are treated as bidirectional.
+        For unweighted graphs, each edge has capacity 1. For undirected graphs,
+        edges are treated as bidirectional.
         
-        Args:
-            source: Source node ID
-            sink: Sink node ID
+        Parameters
+        ----------
+        source : str
+            Source node ID.
+        sink : str
+            Sink node ID.
             
-        Returns:
-            Size of minimum cut (number of edges to remove)
+        Returns
+        -------
+        int
+            Size of minimum cut (number of edges to remove).
             
-        Raises:
-            ValueError: If source or sink node doesn't exist, or if they're the same
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(4)  # 0-1-2-3
-            >>> G.get_min_cut_between("0", "3")  # Must cut at least 1 edge
-            1
-            >>> G.add_edge("1", "2")  # Add parallel edge
-            >>> G.get_min_cut_between("0", "3")  # Now need to cut 2 edges
-            2
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+        
+        Examples
+        --------
+        Find minimum cut:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+        
+        print(graph.get_min_cut_between("A", "D"))  # 1 (bottleneck)
+        ```
+        
+        See Also
+        --------
+        get_adhesion : Get minimum edge cut for entire graph
+        is_connected : Check if graph is connected
         """
         return self._graph.get_min_cut_between(source, sink)
     
     def get_eccentricity(self) -> dict[str, int | None]:
-        """Get eccentricity for each node.
+        """Get eccentricity for each node in the graph.
         
-        Eccentricity of a node is the maximum distance from that node to
-        any other node in the graph. Returns None for a node if the graph
-        is disconnected.
+        Eccentricity of a node is the maximum distance from that node to any
+        other reachable node in the graph. It measures how far a node is from
+        the most distant node it can reach. Returns None for nodes in disconnected
+        graphs where some nodes are unreachable.
         
-        Returns:
-            Dictionary mapping node ID to eccentricity (None if disconnected)
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(5)  # Linear chain
-            >>> ecc = G.get_eccentricity()
-            >>> ecc['3']  # Middle node has eccentricity 2
-            2
+        Returns
+        -------
+        dict[str, int | None]
+            Dictionary mapping node IDs to eccentricity values. Values are None
+            for nodes in disconnected components.
+        
+        Examples
+        --------
+        Calculate eccentricities in a path graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+        )
+        
+        ecc = graph.get_eccentricity()
+        # End nodes have max eccentricity (4)
+        # Middle node C has min eccentricity (2)
+        ```
+        
+        See Also
+        --------
+        get_graph_diameter : Get maximum eccentricity
+        get_graph_radius : Get minimum eccentricity
+        get_periphery : Get nodes with maximum eccentricity
         """
         return self._graph.get_eccentricity()
     
     def get_radiality(self) -> dict[str, float | None]:
-        """Get radiality centrality for each node.
+        """Get radiality centrality for each node in the graph.
         
-        Radiality measures how central a node is based on its eccentricity.
-        Formula: radiality = (diameter + 1 - eccentricity) / (n - 1)
+        Radiality measures how central a node is based on its eccentricity
+        relative to the graph diameter. The formula is:
         
-        Higher radiality means more central. Returns None if graph is disconnected.
+        radiality(v) = (diameter + 1 - eccentricity(v)) / (n - 1)
         
-        Returns:
-            Dictionary mapping node ID to radiality score (None if disconnected)
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)  # Hub at center
-            >>> rad = G.get_radiality()
-            >>> # Hub has highest radiality
+        where n is the number of nodes. Higher radiality indicates a more
+        central position in the network. Returns None for nodes in disconnected
+        graphs.
+        
+        Returns
+        -------
+        dict[str, float | None]
+            Dictionary mapping node IDs to radiality scores (0.0 to 1.0).
+            Values are None for nodes in disconnected components.
+        
+        Examples
+        --------
+        Calculate radiality in a star graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+        
+        rad = graph.get_radiality()
+        # Hub has highest radiality (most central)
+        # Leaves have lower radiality (peripheral)
+        ```
+        
+        See Also
+        --------
+        get_eccentricity : Get eccentricity values
+        get_graph_diameter : Get graph diameter
+        get_closeness_vitality : Alternative centrality measure
         """
         return self._graph.get_radiality()
     
     def get_closeness_vitality(self) -> dict[str, float]:
-        """Get closeness vitality for each node.
+        """Get closeness vitality centrality for each node.
         
-        Closeness vitality measures a node's importance by computing the
-        change in total graph distances when the node is removed.
+        Closeness vitality measures a node's importance by computing the change
+        in total graph distances when the node is removed:
         
         vitality(v) = sum_distances(G) - sum_distances(G - v)
         
-        Higher values indicate more important/central nodes.
+        Higher values indicate more important/central nodes whose removal would
+        significantly increase average path lengths. Uses parallel BFS with Rayon
+        for efficient computation.
         
-        Performance:
-            - Uses parallel BFS (Rayon) for ~linear speedup with CPU cores
-            - Preallocated data structures reduce memory allocations
-            - Complexity: O(V²E / num_cores) with parallelization
-            - Benchmarks (Apple M1, 8 cores):
-                * 50 nodes: ~2ms (23K nodes/sec)
-                * 200 nodes: ~120ms (1.6K nodes/sec)
-                * 500 nodes: ~1.8s (273 nodes/sec)
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to vitality scores. Higher scores indicate
+            more structurally important nodes.
         
-        Note: Computationally expensive for large graphs. Consider using
-        alternative centrality measures (degree, PageRank) for graphs
+        Examples
+        --------
+        Calculate closeness vitality in a star graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+        
+        vitality = graph.get_closeness_vitality()
+        # Hub has highest vitality (removal disconnects graph)
+        # Leaves have low vitality (removal has minimal impact)
+        ```
+        
+        Notes
+        -----
+        Computationally expensive for large graphs (O(V²E / num_cores) complexity).
+        Consider alternative centrality measures (degree, PageRank) for graphs
         with >1000 nodes unless high accuracy is required.
         
-        Returns:
-            Dictionary mapping node ID to vitality score
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)  # Hub should have high vitality
-            >>> vitality = G.get_closeness_vitality()
-            >>> # Hub removal greatly increases total distances
+        Performance benchmarks (Apple M1, 8 cores):
+        - 50 nodes: ~2ms (23K nodes/sec)
+        - 200 nodes: ~120ms (1.6K nodes/sec)
+        - 500 nodes: ~1.8s (273 nodes/sec)
+        
+        See Also
+        --------
+        pagerank : Faster alternative for large graphs
+        betweenness_centrality : Measures flow control
+        get_radiality : Eccentricity-based centrality
         """
         return self._graph.get_closeness_vitality()
     
@@ -1984,72 +2372,109 @@ class Graph:
         """Get k-core decomposition (coreness for each node).
         
         The k-core is the maximal subgraph where every node has degree >= k.
-        A node's coreness is the highest k for which it belongs to the k-core.
+        A node's coreness is the highest k-value for which it belongs to the k-core.
+        Uses iterative pruning: repeatedly removes nodes with degree < k until
+        all remaining nodes have degree >= k.
         
-        Uses iterative pruning algorithm. Higher coreness indicates nodes
-        in denser, more cohesive parts of the graph.
+        Higher coreness indicates nodes in denser, more cohesive parts of the graph.
+        The k-core decomposition is useful for finding the "nucleus" of a network.
         
-        Returns:
-            Dictionary mapping node ID to coreness value
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_full_graph(5)  # Complete graph
-            >>> coreness = G.get_coreness()
-            >>> # All nodes have coreness 4 (K5 is 4-core)
+        Returns
+        -------
+        dict[str, int]
+            Dictionary mapping node IDs to coreness values (non-negative integers).
+        
+        Examples
+        --------
+        Calculate coreness in a complete graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("A", "D")
+            .add_edge("B", "C")
+            .add_edge("B", "D")
+            .add_edge("C", "D")
+        )
+        
+        coreness = graph.get_coreness()
+        # All nodes in K4 have coreness 3
+        ```
+        
+        See Also
+        --------
+        degree : Get node degree
+        density : Get overall graph density
         """
         return self._graph.get_coreness()
     
     # ========== Community Detection Methods ==========
     
     def get_cmty_fast_greedy(self) -> dict[str, int]:
-        """
-        Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
+        """Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
         
         This is a greedy modularity optimization algorithm that merges communities
         to maximize modularity. It's efficient for medium to large graphs and provides
-        good quality communities.
+        good quality communities. Only works with undirected graphs.
         
         Algorithm:
-            1. Start with each node in its own community
-            2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
-            3. Repeatedly merge the pair with highest ΔQ until no improvement
-            4. Return the partition with maximum modularity
+        1. Start with each node in its own community
+        2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
+        3. Repeatedly merge the pair with highest ΔQ until no improvement
+        4. Return the partition with maximum modularity
         
-        Returns:
-            dict[str, int]: Mapping from node ID to community ID (0-indexed)
+        Returns
+        -------
+        dict[str, int]
+            Mapping from node ID to community ID (0-indexed).
             
-        Raises:
-            ValueError: If graph is directed (requires undirected graph)
-            
-        Complexity:
-            Time: O(n log²n) on sparse graphs
-            Space: O(n + m)
-            
-        Examples:
-            >>> G = ec.Graph(directed=False)
-            >>> # Two disconnected cliques
-            >>> G.add_edges([('A','B'), ('B','C'), ('C','A')])
-            >>> G.add_edges([('D','E'), ('E','F'), ('F','D')])
-            >>> communities = G.get_cmty_fast_greedy()
-            >>> # Should find 2 communities: {A,B,C} and {D,E,F}
-            >>> len(set(communities.values()))
-            2
-            
-            >>> # Karate club example
-            >>> G = ec.Graph(directed=False)
-            >>> G.add_edges([...])  # Add karate club edges
-            >>> communities = G.get_cmty_fast_greedy()
-            >>> # Modularity typically > 0.40 for karate club
-            
-        References:
-            Clauset, A., Newman, M. E., & Moore, C. (2004).
-            "Finding community structure in very large networks."
-            Physical review E, 70(6), 066111.
-            
-        See Also:
-            - get_cmty_louvain(): Faster for very large graphs
-            - get_cmty_edge_btwns(): More accurate but slower
+        Raises
+        ------
+        ValueError
+            If graph is directed (requires undirected graph).
+        
+        Examples
+        --------
+        Detect communities in disconnected cliques:
+        
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Clique 1
+            .add_edge("D", "E")  # Clique 2
+        )
+        
+        communities = graph.get_cmty_fast_greedy()
+        print(len(set(communities.values())))  # 2 communities
+        ```
+        
+        Notes
+        -----
+        Complexity: O(n log²n) on sparse graphs, O(n + m) space.
+        
+        References
+        ----------
+        Clauset, A., Newman, M. E., & Moore, C. (2004).
+        "Finding community structure in very large networks."
+        Physical review E, 70(6), 066111.
+        
+        See Also
+        --------
+        get_cmty_louvain : Faster for very large graphs
+        get_cmty_edge_btwns : More accurate but slower
         """
         return self._graph.get_cmty_fast_greedy()
     
@@ -2405,58 +2830,112 @@ class Graph:
         return set_node_attr_to_display(self, attr=attr)
     
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
-        """Get HITS authority scores for directed graph.
+        """Get HITS authority scores for each node (directed graphs only).
         
-        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores.
-        Authority score = sum of hub scores of nodes pointing to this node.
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores
+        for nodes in a directed graph. Authority score measures how much a node
+        is pointed to by good hubs:
         
-        Good authorities are pointed to by good hubs. Requires directed graph.
-        Uses power iteration until convergence.
+        authority(v) = sum of hub scores of nodes pointing to v
         
-        Args:
-            max_iter: Maximum iterations (default: 100)
-            tol: Convergence tolerance (default: 1e-6)
+        Uses power iteration until convergence. Good authorities are nodes that
+        are pointed to by many high-quality hubs. Requires a directed graph.
+        
+        Parameters
+        ----------
+        max_iter : int, default 100
+            Maximum number of iterations for convergence.
+        tol : float, default 1e-6
+            Convergence tolerance threshold.
+        
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to normalized authority scores.
             
-        Returns:
-            Dictionary mapping node ID to authority score
-            
-        Raises:
-            ValueError: If graph is undirected
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('A', 'C')
-            >>> auth = G.get_authority_centrality()
-            >>> # B and C have high authority (pointed to by A)
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+        
+        Examples
+        --------
+        Calculate authority scores in a citation network:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Paper1")
+            .add_node(label="Paper2")
+            .add_node(label="Paper3")
+            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
+            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
+        )
+        
+        auth = graph.get_authority_centrality()
+        # Paper2 and Paper3 have high authority (cited)
+        # Paper1 has low authority (not cited)
+        ```
+        
+        See Also
+        --------
+        get_hub_centrality : Get hub scores
+        pagerank : Alternative prestige measure
         """
         return self._graph.get_authority_centrality(max_iter, tol)
     
     def get_hub_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
-        """Get HITS hub scores for directed graph.
+        """Get HITS hub scores for each node (directed graphs only).
         
-        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores.
-        Hub score = sum of authority scores of nodes this node points to.
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores
+        for nodes in a directed graph. Hub score measures how much a node points
+        to good authorities:
         
-        Good hubs point to good authorities. Requires directed graph.
-        Uses power iteration until convergence.
+        hub(v) = sum of authority scores of nodes v points to
         
-        Args:
-            max_iter: Maximum iterations (default: 100)
-            tol: Convergence tolerance (default: 1e-6)
+        Uses power iteration until convergence. Good hubs are nodes that point
+        to many high-quality authorities. Requires a directed graph.
+        
+        Parameters
+        ----------
+        max_iter : int, default 100
+            Maximum number of iterations for convergence.
+        tol : float, default 1e-6
+            Convergence tolerance threshold.
+        
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to normalized hub scores.
             
-        Returns:
-            Dictionary mapping node ID to hub score
-            
-        Raises:
-            ValueError: If graph is undirected
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('A', 'C')
-            >>> hub = G.get_hub_centrality()
-            >>> # A has high hub score (points to many nodes)
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+        
+        Examples
+        --------
+        Calculate hub scores in a citation network:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Paper1")
+            .add_node(label="Paper2")
+            .add_node(label="Paper3")
+            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
+            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
+        )
+        
+        hub = graph.get_hub_centrality()
+        # Paper1 has high hub score (cites many papers)
+        # Paper2 and Paper3 have low hub scores
+        ```
+        
+        See Also
+        --------
+        get_authority_centrality : Get authority scores
+        pagerank : Alternative prestige measure
         """
         return self._graph.get_hub_centrality(max_iter, tol)
     
@@ -2464,77 +2943,155 @@ class Graph:
         """Get eigenvector centrality for each node.
         
         Eigenvector centrality measures node importance based on connections
-        to other important nodes. It's the principal eigenvector of the
-        adjacency matrix, computed via power iteration: x = A * x
+        to other important nodes. It's the principal eigenvector of the adjacency
+        matrix, computed via power iteration:
         
-        A node has high eigenvector centrality if it's connected to other
-        nodes that themselves have high centrality. Unlike degree centrality,
-        it accounts for the importance of neighbors.
+        x = λ⁻¹ · A · x
         
-        Args:
-            max_iter: Maximum iterations (default: 100)
-            tol: Convergence tolerance (default: 1e-6)
-            
-        Returns:
-            Dictionary mapping node ID to eigenvector centrality score (normalized)
-            
-        Example:
-            >>> G = ec.Graph(directed=False)
-            >>> G.add_star_graph(5)
-            >>> eigen = G.get_eigen_centrality()
-            >>> # Hub has highest eigenvector centrality
-            >>> # All connected nodes have non-zero centrality
+        A node has high eigenvector centrality if it's connected to other nodes
+        that themselves have high centrality. Unlike degree centrality, it accounts
+        for the quality (not just quantity) of connections.
+        
+        Parameters
+        ----------
+        max_iter : int, default 100
+            Maximum number of iterations for convergence.
+        tol : float, default 1e-6
+            Convergence tolerance threshold.
+        
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to normalized eigenvector centrality scores.
+        
+        Examples
+        --------
+        Calculate eigenvector centrality in a star graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+        
+        eigen = graph.get_eigen_centrality()
+        # Hub has highest eigenvector centrality
+        # All connected nodes have non-zero centrality
+        ```
+        
+        See Also
+        --------
+        pagerank : Alternative prestige measure
+        get_alpha_centrality : Generalization of eigenvector centrality
+        degree : Simple connectivity measure
         """
         return self._graph.get_eigen_centrality(max_iter, tol)
     
     def get_alpha_centrality(self, alpha: float = 0.1, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get alpha centrality for each node.
         
-        Alpha centrality is a generalization of eigenvector centrality:
-        x = alpha * A * x + e
+        Alpha centrality is a generalization of eigenvector centrality that adds
+        an exogenous factor:
         
-        where alpha is attenuation factor, A is adjacency matrix, 
-        e is exogenous factor (set to 1). Lower alpha emphasizes local
-        neighborhood, higher alpha considers global structure.
+        x = α · A · x + e
         
-        Args:
-            alpha: Attenuation factor (default: 0.1, range: 0-1)
-            max_iter: Maximum iterations (default: 100)
-            tol: Convergence tolerance (default: 1e-6)
-            
-        Returns:
-            Dictionary mapping node ID to alpha centrality score
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)
-            >>> alpha_cent = G.get_alpha_centrality(alpha=0.1)
-            >>> # Hub has highest alpha centrality
+        where α is the attenuation factor, A is the adjacency matrix, and e is
+        the exogenous factor (set to 1 for all nodes). Lower α emphasizes local
+        neighborhood structure, while higher α considers more global structure.
+        
+        Parameters
+        ----------
+        alpha : float, default 0.1
+            Attenuation factor (range: 0 to 1). Controls the balance between
+            local and global structure.
+        max_iter : int, default 100
+            Maximum number of iterations for convergence.
+        tol : float, default 1e-6
+            Convergence tolerance threshold.
+        
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to alpha centrality scores.
+        
+        Examples
+        --------
+        Calculate alpha centrality with different α values:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+        
+        alpha_local = graph.get_alpha_centrality(alpha=0.05)  # Local emphasis
+        alpha_global = graph.get_alpha_centrality(alpha=0.5)  # Global emphasis
+        ```
+        
+        See Also
+        --------
+        get_eigen_centrality : Special case with α → 1
+        pagerank : Alternative prestige measure
         """
         return self._graph.get_alpha_centrality(alpha, max_iter, tol)
     
     def get_leverage_centrality(self) -> dict[str, float]:
         """Get leverage centrality for each node.
         
-        Leverage centrality measures the degree connectivity of a node
-        relative to its neighbors:
+        Leverage centrality measures the degree connectivity of a node relative
+        to its neighbors:
         
-        leverage(v) = (1/k_v) * sum((k_v - k_n) / (k_v + k_n))
+        leverage(v) = (1/k_v) · Σ[(k_v - k_n) / (k_v + k_n)]
         
-        where k_v is degree of v, k_n is degree of neighbor n.
+        where k_v is the degree of node v, and k_n is the degree of each neighbor n.
         
-        Positive values: node has more connections than its neighbors (influential)
-        Negative values: node has fewer connections than its neighbors (peripheral)
+        Interpretation:
+        - Positive values: Node has more connections than its neighbors (influential)
+        - Negative values: Node has fewer connections than its neighbors (peripheral)
+        - Zero: Node has similar connectivity to its neighbors
         
-        Returns:
-            Dictionary mapping node ID to leverage score
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)
-            >>> leverage = G.get_leverage_centrality()
-            >>> # Hub has positive leverage (high degree)
-            >>> # Leaves have negative leverage (low degree)
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to leverage centrality scores.
+        
+        Examples
+        --------
+        Calculate leverage centrality in a star graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+        
+        leverage = graph.get_leverage_centrality()
+        # Hub has positive leverage (high degree, low-degree neighbors)
+        # Leaves have negative leverage (low degree, high-degree neighbor)
+        ```
+        
+        See Also
+        --------
+        degree : Get node degree
+        get_eigen_centrality : Alternative importance measure
         """
         return self._graph.get_leverage_centrality()
     
@@ -4217,24 +4774,40 @@ class Graph:
     ) -> "Graph":
         """Add a path graph (linear chain) to the current graph.
         
-        Creates a sequence of n nodes connected linearly: 1 → 2 → 3 → ... → n
+        Creates a sequence of n nodes connected linearly: 1 → 2 → 3 → ... → n.
+        End nodes have degree 1, internal nodes have degree 2.
         
-        Args:
-            n: Number of nodes in the path
-            type: Optional node type/category for all nodes
-            label: If True, label nodes with their IDs
-            rel: Optional relationship label for all edges
+        Parameters
+        ----------
+        n : int
+            Number of nodes in the path.
+        type : str, optional
+            Optional node type/category for all nodes.
+        label : bool, default=True
+            If True, label nodes with their IDs.
+        rel : str, optional
+            Optional relationship label for all edges.
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_path_graph(5)
-            >>> G.num_nodes()
-            5
-            >>> G.num_edges()
-            4
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Create a linear path:
+        
+        ```python
+        graph = Graph().add_path_graph(n=5)
+        
+        print(graph.num_nodes())  # 5
+        print(graph.num_edges())  # 4
+        ```
+        
+        See Also
+        --------
+        add_cycle_graph : Add a cycle (path with loop back)
+        add_star_graph : Add a hub-and-spoke graph
         """
         from edgecase.builders import add_path
         add_path(self, n, type=type, label=label, rel=rel)
@@ -4250,23 +4823,39 @@ class Graph:
         """Add a cycle graph (closed loop) to the current graph.
         
         Creates n nodes in a circular pattern where the last connects back to first.
+        Each node has exactly degree 2.
         
-        Args:
-            n: Number of nodes in the cycle (minimum 3)
-            type: Optional node type/category for all nodes
-            label: If True, label nodes with their IDs
-            rel: Optional relationship label for all edges
+        Parameters
+        ----------
+        n : int
+            Number of nodes in the cycle (minimum 3).
+        type : str, optional
+            Optional node type/category for all nodes.
+        label : bool, default=True
+            If True, label nodes with their IDs.
+        rel : str, optional
+            Optional relationship label for all edges.
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_cycle_graph(4)
-            >>> G.num_nodes()
-            4
-            >>> G.num_edges()
-            4
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Create a cycle:
+        
+        ```python
+        graph = Graph().add_cycle_graph(n=4)
+        
+        print(graph.num_nodes())  # 4
+        print(graph.num_edges())  # 4
+        ```
+        
+        See Also
+        --------
+        add_path_graph : Add a linear path (no cycle)
+        add_full_graph : Add a complete graph
         """
         from edgecase.builders import add_cycle
         add_cycle(self, n, type=type, label=label, rel=rel)
@@ -4282,23 +4871,39 @@ class Graph:
         """Add a star graph (hub-and-spoke) to the current graph.
         
         Creates a central hub node connected to n-1 peripheral nodes.
+        All edges connect the hub to spokes; no edges between spokes.
         
-        Args:
-            n: Total number of nodes (minimum 2)
-            type: Optional node type/category for all nodes
-            label: If True, label nodes with their IDs
-            rel: Optional relationship label for all edges
+        Parameters
+        ----------
+        n : int
+            Total number of nodes (minimum 2).
+        type : str, optional
+            Optional node type/category for all nodes.
+        label : bool, default=True
+            If True, label nodes with their IDs.
+        rel : str, optional
+            Optional relationship label for all edges.
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)  # 1 hub + 4 spokes
-            >>> G.num_nodes()
-            5
-            >>> G.num_edges()
-            4
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Create a star graph:
+        
+        ```python
+        graph = Graph().add_star_graph(n=5)  # 1 hub + 4 spokes
+        
+        print(graph.num_nodes())  # 5
+        print(graph.num_edges())  # 4
+        ```
+        
+        See Also
+        --------
+        add_full_graph : Add a complete graph (clique)
+        add_path_graph : Add a linear path
         """
         from edgecase.builders import add_star
         add_star(self, n, type=type, label=label, rel=rel)
@@ -4315,24 +4920,41 @@ class Graph:
         """Add a complete graph (clique) to the current graph.
         
         Creates n nodes where every node is connected to every other node.
+        In a complete graph with n nodes, there are n(n-1)/2 edges (without self-loops).
         
-        Args:
-            n: Number of nodes
-            type: Optional node type/category for all nodes
-            label: If True, label nodes with their IDs
-            rel: Optional relationship label for all edges
-            keep_loops: If True, include self-loops
+        Parameters
+        ----------
+        n : int
+            Number of nodes.
+        type : str, optional
+            Optional node type/category for all nodes.
+        label : bool, default=True
+            If True, label nodes with their IDs.
+        rel : str, optional
+            Optional relationship label for all edges.
+        keep_loops : bool, default=False
+            If True, include self-loops (adding n more edges).
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_full_graph(4)
-            >>> G.num_nodes()
-            4
-            >>> G.num_edges()
-            6
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Create a complete graph:
+        
+        ```python
+        graph = Graph().add_full_graph(n=4)
+        
+        print(graph.num_nodes())  # 4
+        print(graph.num_edges())  # 6
+        ```
+        
+        See Also
+        --------
+        add_star_graph : Add a hub-and-spoke graph
+        add_cycle_graph : Add a cycle
         """
         from edgecase.builders import add_full_graph
         add_full_graph(self, n, type=type, label=label, rel=rel, keep_loops=keep_loops)
@@ -4349,22 +4971,43 @@ class Graph:
         """Add a balanced k-ary tree to the current graph.
         
         Creates a tree where each internal node has exactly k children, with height h.
+        Total nodes = (k^(h+1) - 1) / (k - 1).
         
-        Args:
-            k: Number of children per node (branching factor)
-            h: Height of the tree (root has height 0)
-            type: Optional node type/category for all nodes
-            label: If True, label nodes with their IDs
-            rel: Optional relationship label for all edges
+        Parameters
+        ----------
+        k : int
+            Number of children per node (branching factor).
+        h : int
+            Height of the tree (root has height 0).
+        type : str, optional
+            Optional node type/category for all nodes.
+        label : bool, default=True
+            If True, label nodes with their IDs.
+        rel : str, optional
+            Optional relationship label for all edges.
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_balanced_tree(k=2, h=3)  # Binary tree of height 3
-            >>> G.num_nodes()
-            15
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Create a binary tree:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_balanced_tree(k=2, h=3)
+        )
+        
+        print(graph.num_nodes())  # 15 (1 + 2 + 4 + 8)
+        ```
+        
+        See Also
+        --------
+        add_star_graph : Add a hub-and-spoke graph
+        add_path_graph : Add a linear path
         """
         from edgecase.builders import add_balanced_tree
         add_balanced_tree(self, k, h, type=type, label=label, rel=rel)
@@ -4484,24 +5127,45 @@ class Graph:
     ) -> "Graph":
         """Add an Erdős-Rényi G(n,m) random graph to the current graph.
         
-        Graph with n nodes and exactly m randomly placed edges.
-        Uses fast Rust implementation for optimal performance.
+        Creates a graph with n nodes and exactly m randomly placed edges.
+        Uses fast Rust implementation for optimal performance. This model
+        is useful for generating random graphs with a fixed number of edges.
         
-        Args:
-            n: Number of nodes to add
-            m: Number of edges to create
-            directed: If provided and differs from graph's directed setting,
-                     creates temporary graph with specified directedness
-            seed: Random seed for reproducibility
+        Parameters
+        ----------
+        n : int
+            Number of nodes to add.
+        m : int
+            Number of edges to create.
+        directed : bool, optional
+            If provided and differs from graph's directed setting, creates
+            temporary graph with specified directedness.
+        seed : int, optional
+            Random seed for reproducibility.
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_gnm_graph(50, 100, seed=42)
-            >>> G.num_edges()
-            100
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Generate a random graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_gnm_graph(n=50, m=100, seed=42)
+        )
+        
+        print(graph.num_nodes())  # 50
+        print(graph.num_edges())  # 100
+        ```
+        
+        See Also
+        --------
+        add_pa_graph : Add preferential attachment graph
+        add_ws_graph : Add Watts-Strogatz small-world graph
         """
         if directed is not None and directed != self.directed:
             # Create temporary graph with desired directedness
@@ -4525,23 +5189,43 @@ class Graph:
     ) -> "Graph":
         """Add a Barabási-Albert preferential attachment graph.
         
-        Grows a graph by adding nodes one at a time, with each new node
-        connecting to m existing nodes with probability proportional to degree.
-        Uses fast Rust implementation for optimal performance.
+        Grows a graph by adding nodes one at a time, with each new node connecting
+        to m existing nodes with probability proportional to degree. This creates
+        scale-free networks with power-law degree distributions. Uses fast Rust
+        implementation for optimal performance.
         
-        Args:
-            n: Number of nodes to add
-            m: Number of edges to attach from new node (default 2)
-            seed: Random seed for reproducibility
+        Parameters
+        ----------
+        n : int
+            Number of nodes to add.
+        m : int, default=2
+            Number of edges to attach from each new node.
+        seed : int, optional
+            Random seed for reproducibility.
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_pa_graph(100, m=3, seed=42)
-            >>> G.num_nodes()
-            100
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Generate a scale-free network:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_pa_graph(n=100, m=3, seed=42)
+        )
+        
+        print(graph.num_nodes())  # 100
+        print(graph.num_edges())  # (100-m)*m = 294
+        ```
+        
+        See Also
+        --------
+        add_gnm_graph : Add Erdős-Rényi random graph
+        add_ws_graph : Add Watts-Strogatz small-world graph
         """
         self._graph.generate_pa_graph(n, m, seed)
         return self
@@ -4555,24 +5239,45 @@ class Graph:
     ) -> "Graph":
         """Add a Watts-Strogatz small-world graph.
         
-        Creates a ring lattice with rewiring probability p, producing
-        graphs with high clustering and short path lengths.
-        Uses fast Rust implementation for optimal performance.
+        Creates a ring lattice with rewiring probability p, producing graphs
+        with high clustering and short path lengths. Small-world networks model
+        many real-world phenomena. Uses fast Rust implementation for optimal
+        performance.
         
-        Args:
-            n: Number of nodes to add
-            k: Each node connected to k nearest neighbors (must be even)
-            p: Probability of rewiring each edge (0.0 to 1.0)
-            seed: Random seed for reproducibility
+        Parameters
+        ----------
+        n : int
+            Number of nodes to add.
+        k : int, default=6
+            Each node connected to k nearest neighbors (must be even).
+        p : float, default=0.1
+            Probability of rewiring each edge (0.0 to 1.0).
+        seed : int, optional
+            Random seed for reproducibility.
             
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_smallworld_graph(100, k=6, p=0.1, seed=42)
-            >>> G.num_nodes()
-            100
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Generate a small-world network:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_smallworld_graph(n=100, k=6, p=0.1, seed=42)
+        )
+        
+        print(graph.num_nodes())  # 100
+        ```
+        
+        See Also
+        --------
+        add_gnm_graph : Add Erdős-Rényi random graph
+        add_pa_graph : Add preferential attachment graph
+        add_ws_graph : Alias for this method
         """
         self._graph.generate_smallworld_graph(n, k, p, seed)
         return self
