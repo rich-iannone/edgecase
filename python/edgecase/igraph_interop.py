@@ -68,8 +68,9 @@ def to_igraph(graph):
     # Add vertices
     ig_graph.add_vertices(n_nodes)
     
-    # Set node names as vertex attribute
-    ig_graph.vs["name"] = node_ids
+    # Set node labels as vertex "name" attribute (converting IDs to labels)
+    node_labels = [graph.label_from_id(node_id) for node_id in node_ids]
+    ig_graph.vs["name"] = node_labels
     
     # Add node attributes
     # First, collect all unique attribute names
