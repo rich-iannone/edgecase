@@ -25,6 +25,9 @@ def empty_graph():
 def simple_graph():
     """Simple 3-node graph: A → B → C"""
     G = Graph(directed=True)
+    G.add_node("A")
+    G.add_node("B")
+    G.add_node("C")
     G.add_edge("A", "B", weight=1.0)
     G.add_edge("B", "C", weight=1.0)
     return G
@@ -35,6 +38,8 @@ def small_graph():
     """Small graph for quick tests (10 nodes, ring topology)"""
     G = Graph()
     for i in range(10):
+        G.add_node(f"node_{i}")
+    for i in range(10):
         G.add_edge(f"node_{i}", f"node_{(i+1)%10}")
     return G
 
@@ -43,6 +48,9 @@ def small_graph():
 def triangle_graph():
     """Triangle graph: A-B-C-A"""
     G = Graph()
+    G.add_node("A")
+    G.add_node("B")
+    G.add_node("C")
     G.add_edge("A", "B")
     G.add_edge("B", "C")
     G.add_edge("C", "A")
@@ -53,6 +61,9 @@ def triangle_graph():
 def star_graph():
     """Star graph: center connected to 5 outer nodes"""
     G = Graph()
+    G.add_node("center")
+    for i in range(5):
+        G.add_node(f"outer_{i}")
     for i in range(5):
         G.add_edge("center", f"outer_{i}")
     return G
