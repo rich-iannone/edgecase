@@ -6519,25 +6519,56 @@ class Graph:
     def add_reverse_edges_ws(self, **edge_attributes) -> "Graph":
         """Add reverse edges for all selected edges (directed graphs only).
         
-        For each selected edge (A → B), adds the reverse edge (B → A)
-        if it doesn't already exist.
+        For each selected edge (A → B), adds the reverse edge (B → A) if it
+        doesn't already exist. Useful for making directed graphs bidirectional
+        or adding reciprocal relationships.
         
-        Args:
-            **edge_attributes: Optional attributes for new reverse edges
+        Parameters
+        ---
+        **edge_attributes : keyword arguments
+            Optional attributes to set on the newly created reverse edges.
             
-        Returns:
-            Self for method chaining
+        Returns
+        ---
+        Graph
+            Self for method chaining.
             
-        Raises:
-            ValueError: If graph is undirected
+        Raises
+        ---
+        ValueError
+            If the graph is undirected.
             
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_edge('A', 'B')
-            >>> G.select_edges_by_id([1])
-            >>> G.add_reverse_edges_ws()
-            >>> G.num_edges()
-            2
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_edge('A', 'B', weight=1.0)
+        
+        # Add reverse edge
+        (graph
+            .select_edges_by_id([1])
+            .add_reverse_edges_ws(weight=1.0)
+        )
+        
+        print(graph.num_edges())  # 2 (A→B and B→A)
+        ```
+        
+        Make selected edges bidirectional:
+        
+        ```python
+        # Add reverse edges for all edges with high weight
+        (graph
+            .select_edges(lambda e: e.weight and e.weight > 5.0)
+            .add_reverse_edges_ws()
+        )
+        ```
+        
+        See Also
+        --------
+        rev_edge_dir_ws : Reverse direction of selected edges in place
+        trav_reverse_edge : Traverse to reverse edges
         """
         if not self.directed:
             raise ValueError("add_reverse_edges_ws() only works on directed graphs")
@@ -7299,24 +7330,54 @@ class Graph:
     def trav_reverse_edge(self, add_to_selection: bool = False) -> 'Graph':
         """Traverse to reverse edges.
         
-        From the currently selected edges, finds the reverse edges.
-        For each selected edge A→B, looks for the edge B→A.
+        From the currently selected edges, finds the reverse edges. For each
+        selected edge A→B, looks for the corresponding edge B→A. Only works
+        with directed graphs.
         
-        Args:
-            add_to_selection: If True, adds reverse edges to the current selection.
-                If False (default), replaces the selection with reverse edges.
+        Parameters
+        ---
+        add_to_selection : bool, default False
+            If `True`, adds reverse edges to the current selection. If `False`,
+            replaces the selection with reverse edges only.
         
-        Returns:
-            Self for method chaining
+        Returns
+        ---
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "A")  # Reverse edge
-            >>> G.select_edges_by_node_id("A", "B")
-            >>> G.trav_reverse_edge()
-            >>> edges = G.get_selected_edges()
-            >>> # Now selects the B→A edge
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "A")  # Reverse edge
+        
+        # Select A→B edge
+        graph.select_edges_by_node_id("A", "B")
+        
+        # Traverse to reverse edge (B→A)
+        graph.trav_reverse_edge()
+        edges = graph.get_selected_edges()
+        # Now selects only the B→A edge
+        ```
+        
+        Add reverse edges to selection:
+        
+        ```python
+        # Select both an edge and its reverse
+        (graph
+            .select_edges_by_id([1])
+            .trav_reverse_edge(add_to_selection=True)
+        )
+        # Selection now includes both A→B and B→A
+        ```
+        
+        See Also
+        --------
+        add_reverse_edges_ws : Add new reverse edges
+        rev_edge_dir_ws : Reverse edge directions in place
         """
         self._graph.trav_reverse_edge(add_to_selection)
         return self
@@ -7332,39 +7393,69 @@ class Graph:
         
         From the currently selected nodes, moves along outward edges to connected
         nodes, continuing until reaching nodes that satisfy the condition or until
-        max_steps is reached. The traversal proceeds in a breadth-first manner.
+        `max_steps` is reached. The traversal proceeds in a breadth-first manner.
         
-        Args:
-            conditions: A callable that takes a node ID (str) and returns True if
-                the stopping condition is met for that node. The callable can access
-                node attributes via graph.get_node(node_id).attributes
-            max_steps: Maximum number of traversal steps (node-to-node hops) before
-                stopping. Default is 30.
-            exclude_unmatched: If True (default), only nodes satisfying the conditions
-                are kept in the final selection. If False, all reached nodes are kept.
-            add_to_selection: If True, all traversed nodes are included in the final
-                selection. If False (default), only the final nodes are selected.
+        Parameters
+        ---
+        conditions : callable
+            A function that takes a node ID (str) and returns `True` if the stopping
+            condition is met for that node. The callable can access node attributes
+            via `graph.get_node(node_id).attributes`.
+        max_steps : int, default 30
+            Maximum number of traversal steps (node-to-node hops) before stopping.
+        exclude_unmatched : bool, default True
+            If `True`, only nodes satisfying the conditions are kept in the final
+            selection. If `False`, all reached nodes are kept.
+        add_to_selection : bool, default False
+            If `True`, all traversed nodes are included in the final selection.
+            If `False`, only the final nodes are selected.
         
-        Returns:
-            Self for method chaining
+        Returns
+        ---
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_path_graph(10)
-            >>> for i in range(1, 11):
-            ...     G.set_node_attrs("value", {str(i): i})
-            >>> G.select_nodes_by_id(["1"])
-            >>> G.trav_out_until(lambda nid: G.get_node(nid).attributes.get("value") == 8)
-            >>> G.get_selected_nodes()
-            ['8']
-            
-            >>> # Example with multiple starting points
-            >>> G.clear_selection().select_nodes_by_id(["1", "2"])
-            >>> G.trav_out_until(
-            ...     lambda nid: G.get_node(nid).attributes.get("value", 0) >= 5,
-            ...     max_steps=10
-            ... )
-            >>> # Returns first nodes >= 5 from each starting point
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_path_graph(10)
+        
+        # Set value attributes
+        for i in range(1, 11):
+            graph.set_node_attrs("value", {str(i): i})
+        
+        # Traverse from node 1 until reaching node with value 8
+        (graph
+            .select_nodes_by_id(["1"])
+            .trav_out_until(lambda nid: graph.get_node(nid).attributes.get("value") == 8)
+        )
+        
+        print(graph.get_selected_nodes())  # ['8']
+        ```
+        
+        Multiple starting points:
+        
+        ```python
+        # Traverse from multiple nodes
+        (graph
+            .clear_selection()
+            .select_nodes_by_id(["1", "2"])
+            .trav_out_until(
+                lambda nid: graph.get_node(nid).attributes.get("value", 0) >= 5,
+                max_steps=10
+            )
+        )
+        # Returns first nodes ≥ 5 from each starting point
+        ```
+        
+        See Also
+        --------
+        trav_in_until : Traverse inward with conditions
+        trav_out : Simple outward traversal (one step)
+        select_nodes : Select nodes with conditions
         """
         selected = self.get_selected_nodes()
         if not selected:
@@ -7454,38 +7545,68 @@ class Graph:
         
         From the currently selected nodes, moves along inward edges to connected
         nodes, continuing until reaching nodes that satisfy the condition or until
-        max_steps is reached. The traversal proceeds in a breadth-first manner.
+        `max_steps` is reached. The traversal proceeds in a breadth-first manner.
         
-        Args:
-            conditions: A callable that takes a node ID (str) and returns True if
-                the stopping condition is met for that node. The callable can access
-                node attributes via graph.get_node(node_id).attributes
-            max_steps: Maximum number of traversal steps (node-to-node hops) before
-                stopping. Default is 30.
-            exclude_unmatched: If True (default), only nodes satisfying the conditions
-                are kept in the final selection. If False, all reached nodes are kept.
-            add_to_selection: If True, all traversed nodes are included in the final
-                selection. If False (default), only the final nodes are selected.
+        Parameters
+        ---
+        conditions : callable
+            A function that takes a node ID (str) and returns `True` if the stopping
+            condition is met for that node. The callable can access node attributes
+            via `graph.get_node(node_id).attributes`.
+        max_steps : int, default 30
+            Maximum number of traversal steps (node-to-node hops) before stopping.
+        exclude_unmatched : bool, default True
+            If `True`, only nodes satisfying the conditions are kept in the final
+            selection. If `False`, all reached nodes are kept.
+        add_to_selection : bool, default False
+            If `True`, all traversed nodes are included in the final selection.
+            If `False`, only the final nodes are selected.
         
-        Returns:
-            Self for method chaining
+        Returns
+        ---
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_path_graph(10)
-            >>> for i in range(1, 11):
-            ...     G.set_node_attrs("value", {str(i): i})
-            >>> G.select_nodes_by_id(["10"])
-            >>> G.trav_in_until(lambda nid: G.get_node(nid).attributes.get("value") == 1)
-            >>> G.get_selected_nodes()
-            ['1']
-            
-            >>> # Example with condition checking multiple values
-            >>> G.clear_selection().select_nodes_by_id(["6", "12"])
-            >>> G.trav_in_until(
-            ...     lambda nid: G.get_node(nid).attributes.get("value", 0) in [1, 2, 10]
-            ... )
-            >>> # Returns nodes with value in [1, 2, 10]
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_path_graph(10)
+        
+        # Set value attributes
+        for i in range(1, 11):
+            graph.set_node_attrs("value", {str(i): i})
+        
+        # Traverse from node 10 inward until reaching node with value 1
+        (graph
+            .select_nodes_by_id(["10"])
+            .trav_in_until(lambda nid: graph.get_node(nid).attributes.get("value") == 1)
+        )
+        
+        print(graph.get_selected_nodes())  # ['1']
+        ```
+        
+        Multiple stopping conditions:
+        
+        ```python
+        # Find nodes with value in specific set
+        (graph
+            .clear_selection()
+            .select_nodes_by_id(["6", "12"])
+            .trav_in_until(
+                lambda nid: graph.get_node(nid).attributes.get("value", 0) in [1, 2, 10]
+            )
+        )
+        # Returns nodes with value in [1, 2, 10]
+        ```
+        
+        See Also
+        --------
+        trav_out_until : Traverse outward with conditions
+        trav_in : Simple inward traversal (one step)
+        select_nodes : Select nodes with conditions
         """
         selected = self.get_selected_nodes()
         if not selected:
@@ -7577,13 +7698,47 @@ Edge = rust.Edge
 def shortest_path(graph: Graph, source: Union[int, str], target: Union[int, str]) -> list[str] | None:
     """Find shortest path between two nodes.
     
-    Args:
-        graph: The graph to search
-        source: Source node (integer ID or string label)
-        target: Target node (integer ID or string label)
+    Uses breadth-first search (BFS) to find the shortest path by number of hops.
+    For weighted shortest paths, use Dijkstra's algorithm instead.
+    
+    Parameters
+    ---
+    graph : Graph
+        The graph to search. Can be directed or undirected.
+    source : int | str
+        Source node (integer ID or string label).
+    target : int | str
+        Target node (integer ID or string label).
         
-    Returns:
-        List of node labels in the path, or None if no path exists
+    Returns
+    ---
+    list of str | None
+        List of node labels in the path from source to target (inclusive), or
+        `None` if no path exists.
+        
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    from edgecase import shortest_path
+    
+    graph = ec.Graph()
+    graph.add_path_graph(5)  # 1-2-3-4-5
+    
+    # Find shortest path
+    path = shortest_path(graph, "1", "5")
+    print(path)  # ['1', '2', '3', '4', '5']
+    
+    # No path between disconnected components
+    graph.add_node("isolated")
+    path = shortest_path(graph, "1", "isolated")
+    print(path)  # None
+    ```
+    
+    See Also
+    --------
+    get_graph_diameter : Get longest shortest path in the graph
+    get_mean_distance : Get average shortest path length
     """
     source_id = graph._resolve_node_id(source, auto_create=False)
     target_id = graph._resolve_node_id(target, auto_create=False)
@@ -7759,55 +7914,73 @@ def find_cycles(graph: Graph) -> list[list[str]]:
 
 # Community detection algorithms
 def get_cmty_fast_greedy(graph: Graph) -> dict[str, int]:
-    """
-    Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
+    """Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
     
     This is a greedy modularity optimization algorithm that merges communities
     to maximize modularity. It's efficient for medium to large graphs and provides
     good quality communities.
     
-    Algorithm:
-        1. Start with each node in its own community
-        2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
-        3. Repeatedly merge the pair with highest ΔQ until no improvement
-        4. Return the partition with maximum modularity
+    Algorithm
+    ---
+    1. Start with each node in its own community
+    2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
+    3. Repeatedly merge the pair with highest ΔQ until no improvement
+    4. Return the partition with maximum modularity
     
-    Args:
-        graph: An undirected Graph instance
+    Parameters
+    ---
+    graph : Graph
+        An undirected Graph instance.
         
-    Returns:
-        dict[str, int]: Mapping from node ID to community ID (0-indexed)
+    Returns
+    ---
+    dict of str to int
+        Mapping from node ID to community ID (0-indexed).
         
-    Raises:
-        ValueError: If graph is directed (requires undirected graph)
+    Raises
+    ---
+    ValueError
+        If the graph is directed (requires undirected graph).
         
-    Complexity:
-        Time: O(n log²n) on sparse graphs
-        Space: O(n + m)
+    Complexity
+    ---
+    - Time: O(n log²n) on sparse graphs
+    - Space: O(n + m)
         
-    Examples:
-        >>> G = ec.Graph(directed=False)
-        >>> # Two disconnected cliques
-        >>> G.add_edges([('A','B'), ('B','C'), ('C','A')])
-        >>> G.add_edges([('D','E'), ('E','F'), ('F','D')])
-        >>> communities = G.get_cmty_fast_greedy()
-        >>> # Should find 2 communities: {A,B,C} and {D,E,F}
-        >>> len(set(communities.values()))
-        2
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    # Two disconnected cliques
+    graph = ec.Graph(directed=False)
+    graph.add_edges([('A','B'), ('B','C'), ('C','A')])
+    graph.add_edges([('D','E'), ('E','F'), ('F','D')])
+    
+    communities = graph.get_cmty_fast_greedy()
+    
+    # Should find 2 communities: {A,B,C} and {D,E,F}
+    print(len(set(communities.values())))  # 2
+    ```
+    
+    Karate club example:
+    
+    ```python
+    graph = ec.Graph(directed=False)
+    # Add karate club edges...
+    communities = graph.get_cmty_fast_greedy()
+    # Modularity typically > 0.40 for karate club
+    ```
         
-        >>> # Karate club example
-        >>> G = ec.Graph(directed=False)
-        >>> G.add_edges([...])  # Add karate club edges
-        >>> communities = G.get_cmty_fast_greedy()
-        >>> # Modularity typically > 0.40 for karate club
+    References
+    ---
+    Clauset, A., Newman, M. E., & Moore, C. (2004).
+    "Finding community structure in very large networks."
+    Physical review E, 70(6), 066111.
         
-    References:
-        Clauset, A., Newman, M. E., & Moore, C. (2004).
-        "Finding community structure in very large networks."
-        Physical review E, 70(6), 066111.
-        
-    See Also:
-        - get_cmty_louvain(): Faster for very large graphs
-        - get_cmty_edge_btwns(): More accurate but slower
+    See Also
+    --------
+    get_cmty_louvain : Faster for very large graphs
+    get_cmty_edge_btwns : More accurate but slower
     """
     return graph._graph.get_cmty_fast_greedy()
