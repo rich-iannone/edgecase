@@ -127,10 +127,10 @@ def patient_similarity_network(
     
     graph = Graph(directed=False, weighted=True)
     
-    # Add patient nodes
+    # Add patient nodes with integer IDs and string labels
     patient_ids = patients_df[patient_id_col].unique()
-    for pid in patient_ids:
-        node = Node(str(pid), None)
+    for i, pid in enumerate(patient_ids, start=1):
+        node = Node(i, str(pid))
         graph.add_node(node)
     
     # TODO: Calculate pairwise similarities and add edges

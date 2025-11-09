@@ -127,7 +127,9 @@ def find_suspicious_patterns(
     }
     
     # Find cycles (potential money laundering)
-    cycles = find_cycles(graph, min_amount=min_cycle_amount)
+    # Note: find_cycles() doesn't filter by amount, so get all cycles
+    cycles = find_cycles(graph)
+    # TODO: Filter cycles by min_cycle_amount if needed
     results['cycles'] = cycles
     
     # TODO: Add community detection for fraud rings
