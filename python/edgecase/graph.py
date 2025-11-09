@@ -3293,7 +3293,7 @@ class Graph:
         Notes
         -----
         Useful for:
-        
+
         - Link prediction (similar nodes likely to connect)
         - Community detection (nodes with similar neighborhoods)
         - Recommendation systems (find similar users/items)
@@ -3505,14 +3505,48 @@ class Graph:
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
         """Select nodes by their IDs.
         
-        Args:
-            node_ids: List of node IDs to select
-            
-        Returns:
-            Self for method chaining
-            
-        Raises:
-            KeyError: If any node ID doesn't exist
+        Marks specified nodes as selected for subsequent operations like building
+        subgraphs or filtering. Selection is cumulative unless cleared first.
+        
+        Parameters
+        ----------
+        node_ids : list[str]
+            List of node IDs to select.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Raises
+        ------
+        KeyError
+            If any node ID doesn't exist in the graph.
+        
+        Examples
+        --------
+        Select specific nodes and build a subgraph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .select_nodes_by_id(["A", "B"])
+        )
+        
+        selected = graph.get_selected_nodes()
+        print(selected)  # ['A', 'B']
+        ```
+        
+        See Also
+        --------
+        get_selected_nodes : Get list of currently selected nodes
+        clear_selection : Clear all selections
+        select_nodes : Select using predicate function
         """
         self._graph.select_nodes_by_id(node_ids)
         return self
@@ -3520,26 +3554,92 @@ class Graph:
     def select_edges_by_id(self, edge_ids: list[int]) -> "Graph":
         """Select edges by their IDs.
         
-        Args:
-            edge_ids: List of edge IDs to select
-            
-        Returns:
-            Self for method chaining
-            
-        Raises:
-            KeyError: If any edge ID doesn't exist
+        Marks specified edges as selected for subsequent operations. Edge IDs are
+        internal integer identifiers assigned when edges are created. Selection is
+        cumulative unless cleared first.
+        
+        Parameters
+        ----------
+        edge_ids : list[int]
+            List of edge IDs to select.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Raises
+        ------
+        KeyError
+            If any edge ID doesn't exist in the graph.
+        
+        Examples
+        --------
+        Select specific edges:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        
+        edge_ids = graph.edge_ids()
+        graph.select_edges_by_id([edge_ids[0], edge_ids[1]])
+        
+        selected_count = graph.count_selected_edges()
+        print(selected_count)  # 2
+        ```
+        
+        See Also
+        --------
+        get_selected_edges : Get list of currently selected edges
+        edge_ids : Get all edge IDs
+        select_edges : Select using predicate function
         """
         self._graph.select_edges_by_id(edge_ids)
         return self
     
     def select_edges_by_node_id(self, node_ids: list[str]) -> "Graph":
-        """Select all edges connected to the specified nodes.
+        """Select all edges connected to specified nodes.
         
-        Args:
-            node_ids: List of node IDs
-            
-        Returns:
-            Self for method chaining
+        Selects all edges where at least one endpoint is in the provided node list.
+        For directed graphs, includes both incoming and outgoing edges. Useful for
+        selecting the local connectivity around specific nodes.
+        
+        Parameters
+        ----------
+        node_ids : list[str]
+            List of node IDs whose incident edges should be selected.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select edges incident to a specific node:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .select_edges_by_node_id(["B"])
+        )
+        
+        # Selects A-B and B-C edges
+        selected = graph.count_selected_edges()
+        print(selected)  # 2
+        ```
+        
+        See Also
+        --------
+        select_nodes_by_id : Select specific nodes
+        neighbors : Get neighbors of a node
         """
         self._graph.select_edges_by_node_id(node_ids)
         return self
@@ -3552,17 +3652,58 @@ class Graph:
     ) -> "Graph":
         """Select nodes by degree criteria.
         
-        Args:
-            min_degree: Minimum degree (inclusive)
-            max_degree: Maximum degree (inclusive)
-            degree_type: Type of degree - "in", "out", or "total" (default: "total")
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G.select_nodes_by_degree(min_degree=5, degree_type="out")
-            >>> G.select_nodes_by_degree(max_degree=10)
+        Filters nodes based on their degree (number of connections). Useful for
+        finding hubs (high degree) or peripheral nodes (low degree). Can filter
+        by in-degree, out-degree, or total degree.
+        
+        Parameters
+        ----------
+        min_degree : int | None, default None
+            Minimum degree threshold (inclusive). None means no lower bound.
+        max_degree : int | None, default None
+            Maximum degree threshold (inclusive). None means no upper bound.
+        degree_type : str, default "total"
+            Type of degree to use: "in", "out", or "total".
+            For undirected graphs, only "total" is valid.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select high-degree hub nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_star_graph(10, center_label="hub")
+            .select_nodes_by_degree(min_degree=5)
+        )
+        
+        # Hub node has degree 10, all others have degree 1
+        hubs = graph.get_selected_nodes()
+        print(hubs)  # ['hub']
+        ```
+        
+        Filter by degree range:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_path_graph(10)
+            .select_nodes_by_degree(min_degree=1, max_degree=2, degree_type="out")
+        )
+        
+        # Selects nodes with 1-2 outgoing edges
+        ```
+        
+        See Also
+        --------
+        degree : Get degree of a node
+        in_degree : Get in-degree of a node
+        out_degree : Get out-degree of a node
         """
         self._graph.select_nodes_by_degree(
             min_degree=min_degree,
@@ -3574,11 +3715,40 @@ class Graph:
     def deselect_nodes(self, node_ids: list[str]) -> "Graph":
         """Remove nodes from selection.
         
-        Args:
-            node_ids: List of node IDs to deselect
-            
-        Returns:
-            Self for method chaining
+        Unmarks specified nodes, removing them from the current selection set.
+        Has no effect on nodes that aren't currently selected.
+        
+        Parameters
+        ----------
+        node_ids : list[str]
+            List of node IDs to deselect.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Refine a selection by removing specific nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_path_graph(5)
+            .select_nodes_by_id(["0", "1", "2", "3", "4"])
+            .deselect_nodes(["0", "4"])
+        )
+        
+        # Only middle nodes remain selected
+        selected = graph.get_selected_nodes()
+        print(selected)  # ['1', '2', '3']
+        ```
+        
+        See Also
+        --------
+        select_nodes_by_id : Select specific nodes
+        clear_selection : Clear all selections
         """
         self._graph.deselect_nodes(node_ids)
         return self
@@ -3586,11 +3756,40 @@ class Graph:
     def deselect_edges(self, edge_ids: list[int]) -> "Graph":
         """Remove edges from selection.
         
-        Args:
-            edge_ids: List of edge IDs to deselect
-            
-        Returns:
-            Self for method chaining
+        Unmarks specified edges, removing them from the current selection set.
+        Has no effect on edges that aren't currently selected.
+        
+        Parameters
+        ----------
+        edge_ids : list[int]
+            List of edge IDs to deselect.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Refine edge selection:
+        
+        ```python
+        graph = Graph().add_cycle_graph(5)
+        
+        all_edges = graph.edge_ids()
+        graph.select_edges_by_id(all_edges)
+        
+        # Remove first edge from selection
+        graph.deselect_edges([all_edges[0]])
+        
+        count = graph.count_selected_edges()
+        print(count)  # 4
+        ```
+        
+        See Also
+        --------
+        select_edges_by_id : Select specific edges
+        clear_selection : Clear all selections
         """
         self._graph.deselect_edges(edge_ids)
         return self
@@ -3598,8 +3797,35 @@ class Graph:
     def clear_selection(self) -> "Graph":
         """Clear all node and edge selections.
         
-        Returns:
-            Self for method chaining
+        Resets the selection state, unmarking all previously selected nodes and
+        edges. Useful for starting fresh with a new selection workflow.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Reset selection state:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_star_graph(5)
+            .select_nodes_by_degree(min_degree=3)
+            .clear_selection()
+        )
+        
+        # No nodes selected after clearing
+        count = graph.count_selected_nodes()
+        print(count)  # 0
+        ```
+        
+        See Also
+        --------
+        get_selected_nodes : Check current node selection
+        get_selected_edges : Check current edge selection
         """
         self._graph.clear_selection()
         return self
@@ -3607,8 +3833,35 @@ class Graph:
     def invert_node_selection(self) -> "Graph":
         """Invert node selection (select unselected, unselect selected).
         
-        Returns:
-            Self for method chaining
+        Toggles the selection state of all nodes: currently selected nodes become
+        unselected, and unselected nodes become selected. Useful for getting the
+        complement of a selection.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Get complement of a selection:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_path_graph(10)
+            .select_nodes_by_degree(max_degree=1)  # Select endpoints
+            .invert_node_selection()  # Select middle nodes
+        )
+        
+        # Middle 8 nodes now selected
+        count = graph.count_selected_nodes()
+        print(count)  # 8
+        ```
+        
+        See Also
+        --------
+        invert_edge_selection : Invert edge selection
         """
         self._graph.invert_node_selection()
         return self
@@ -3616,8 +3869,33 @@ class Graph:
     def invert_edge_selection(self) -> "Graph":
         """Invert edge selection (select unselected, unselect selected).
         
-        Returns:
-            Self for method chaining
+        Toggles the selection state of all edges: currently selected edges become
+        unselected, and unselected edges become selected. Useful for getting the
+        complement of an edge selection.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select all edges except specific ones:
+        
+        ```python
+        graph = Graph().add_cycle_graph(5)
+        
+        # Select one edge, then invert to select all others
+        first_edge = graph.edge_ids()[0]
+        graph.select_edges_by_id([first_edge]).invert_edge_selection()
+        
+        count = graph.count_selected_edges()
+        print(count)  # 4 (all except first)
+        ```
+        
+        See Also
+        --------
+        invert_node_selection : Invert node selection
         """
         self._graph.invert_edge_selection()
         return self
@@ -3625,53 +3903,184 @@ class Graph:
     def get_selected_nodes(self) -> list[str]:
         """Get currently selected node IDs.
         
-        Returns:
-            List of selected node IDs
+        Returns the list of node IDs that are currently marked as selected.
+        Order is not guaranteed.
+        
+        Returns
+        -------
+        list[str]
+            List of selected node IDs, empty if no nodes selected.
+        
+        Examples
+        --------
+        Query current selection:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_star_graph(5, center_label="hub")
+            .select_nodes_by_degree(min_degree=3)
+        )
+        
+        selected = graph.get_selected_nodes()
+        print(selected)  # ['hub']
+        ```
+        
+        See Also
+        --------
+        count_selected_nodes : Get count of selected nodes
+        select_nodes_by_id : Select specific nodes
         """
         return self._graph.get_selected_nodes()
     
     def get_selected_edges(self) -> list[int]:
         """Get currently selected edge IDs.
         
-        Returns:
-            List of selected edge IDs
+        Returns the list of edge IDs that are currently marked as selected.
+        Order is not guaranteed.
+        
+        Returns
+        -------
+        list[int]
+            List of selected edge IDs, empty if no edges selected.
+        
+        Examples
+        --------
+        Query edge selection:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_cycle_graph(4)
+            .select_edges(lambda e: e.weight and e.weight > 0.5)
+        )
+        
+        selected = graph.get_selected_edges()
+        print(len(selected))
+        ```
+        
+        See Also
+        --------
+        count_selected_edges : Get count of selected edges
+        select_edges_by_id : Select specific edges
         """
         return self._graph.get_selected_edges()
     
     def count_selected_nodes(self) -> int:
         """Get count of currently selected nodes.
         
-        Returns:
-            Number of selected nodes
+        Returns the number of nodes currently marked as selected. More efficient
+        than len(get_selected_nodes()) when you only need the count.
+        
+        Returns
+        -------
+        int
+            Number of selected nodes.
+        
+        Examples
+        --------
+        Count selected nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_full_graph(10)
+            .select_nodes_by_degree(min_degree=5)
+        )
+        
+        count = graph.count_selected_nodes()
+        print(f"{count} high-degree nodes")
+        ```
+        
+        See Also
+        --------
+        get_selected_nodes : Get list of selected node IDs
+        count_selected_edges : Count selected edges
         """
         return self._graph.count_selected_nodes()
     
     def count_selected_edges(self) -> int:
         """Get count of currently selected edges.
         
-        Returns:
-            Number of selected edges
+        Returns the number of edges currently marked as selected. More efficient
+        than len(get_selected_edges()) when you only need the count.
+        
+        Returns
+        -------
+        int
+            Number of selected edges.
+        
+        Examples
+        --------
+        Count selected edges:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_cycle_graph(10)
+            .select_edges(lambda e: e.weight and e.weight > 0.7)
+        )
+        
+        count = graph.count_selected_edges()
+        print(f"{count} high-weight edges")
+        ```
+        
+        See Also
+        --------
+        get_selected_edges : Get list of selected edge IDs
+        count_selected_nodes : Count selected nodes
         """
         return self._graph.count_selected_edges()
     
     def transform_to_subgraph_ws(self) -> "Graph":
         """Create a subgraph from current selection.
-                
-        Creates a new graph containing:
-        - If nodes are selected: those nodes and all edges between them
-        - If edges are selected: those edges and their endpoint nodes
-        - If both selected: uses node selection
         
-        Returns:
-            New Graph object containing the subgraph
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_path_graph(6)  # 1 → 2 → 3 → 4 → 5 → 6
-            >>> G.select_nodes(lambda n: int(n.id) > 2)
-            >>> subgraph = G.transform_to_subgraph_ws()
-            >>> subgraph.num_nodes()  # 4 nodes (3, 4, 5, 6)
-            4
+        Extracts the currently selected nodes and/or edges into a new Graph object.
+        The behavior depends on what's selected:
+        - Nodes selected: Include those nodes plus all edges between them
+        - Edges selected: Include those edges plus their endpoint nodes
+        - Both selected: Uses node selection (ignores edge selection)
+        
+        All node and edge attributes are preserved in the subgraph.
+        
+        Returns
+        -------
+        Graph
+            New Graph object containing the subgraph. Has same directedness as
+            original graph.
+        
+        Examples
+        --------
+        Extract a node-induced subgraph:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_path_graph(6)
+            .select_nodes_by_id(["2", "3", "4"])
+        )
+        
+        subgraph = graph.transform_to_subgraph_ws()
+        print(subgraph.num_nodes())  # 3
+        print(subgraph.num_edges())  # 2 (edges 2→3 and 3→4)
+        ```
+        
+        Extract an edge-induced subgraph:
+        
+        ```python
+        graph = Graph().add_cycle_graph(5)
+        
+        edges = graph.edge_ids()[:2]
+        graph.select_edges_by_id(edges)
+        
+        subgraph = graph.transform_to_subgraph_ws()
+        # Contains only selected edges and their endpoints
+        ```
+        
+        See Also
+        --------
+        select_nodes_by_id : Select specific nodes
+        select_edges_by_id : Select specific edges
         """
         selected_nodes = self.get_selected_nodes()
         selected_edges = self.get_selected_edges()
@@ -3738,21 +4147,48 @@ class Graph:
     def select_nodes(self, predicate) -> "Graph":
         """Select nodes using a predicate function.
         
-        The predicate function receives a Node object and should return True
-        for nodes to be selected.
+        Applies a custom filter function to all nodes, selecting those for which
+        the predicate returns True. The predicate receives a Node object with
+        properties: id, label, and attributes.
         
-        Args:
-            predicate: Callable that takes a Node and returns bool
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> # Select nodes with specific attribute
-            >>> G.select_nodes(lambda n: n.attributes and n.attributes.get('type') == 'hub')
-            >>> 
-            >>> # Select nodes by ID pattern
-            >>> G.select_nodes(lambda n: n.id.startswith('user_'))
+        Parameters
+        ----------
+        predicate : callable
+            Function that takes a Node object and returns bool. Return True to
+            select the node.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select nodes by attribute value:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A", type="hub", score=10)
+            .add_node(label="B", type="leaf", score=5)
+            .add_node(label="C", type="hub", score=8)
+            .select_nodes(lambda n: n.attributes.get("type") == "hub")
+        )
+        
+        selected = graph.get_selected_nodes()
+        print(selected)  # ['A', 'C']
+        ```
+        
+        Select nodes by ID pattern:
+        
+        ```python
+        graph.select_nodes(lambda n: n.id.startswith("user_"))
+        ```
+        
+        See Also
+        --------
+        select_nodes_by_id : Select by explicit ID list
+        select_edges : Select edges with predicate
         """
         self._graph.select_nodes(predicate)
         return self
@@ -3760,21 +4196,50 @@ class Graph:
     def select_edges(self, predicate) -> "Graph":
         """Select edges using a predicate function.
         
-        The predicate function receives an Edge object and should return True
-        for edges to be selected.
+        Applies a custom filter function to all edges, selecting those for which
+        the predicate returns True. The predicate receives an Edge object with
+        properties: id, source, target, weight, and attributes.
         
-        Args:
-            predicate: Callable that takes an Edge and returns bool
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> # Select edges with weight > 0.5
-            >>> G.select_edges(lambda e: e.weight and e.weight > 0.5)
-            >>> 
-            >>> # Select edges with specific relationship type
-            >>> G.select_edges(lambda e: e.attributes and e.attributes.get('rel') == 'friend')
+        Parameters
+        ----------
+        predicate : callable
+            Function that takes an Edge object and returns bool. Return True to
+            select the edge.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select edges by weight threshold:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", weight=0.3)
+            .add_edge("B", "C", weight=0.8)
+            .add_edge("C", "D", weight=0.6)
+            .select_edges(lambda e: e.weight and e.weight > 0.5)
+        )
+        
+        count = graph.count_selected_edges()
+        print(count)  # 2
+        ```
+        
+        Select edges by relationship type:
+        
+        ```python
+        graph.select_edges(
+            lambda e: e.attributes and e.attributes.get("rel") == "friend"
+        )
+        ```
+        
+        See Also
+        --------
+        select_edges_by_id : Select by explicit ID list
+        select_nodes : Select nodes with predicate
         """
         self._graph.select_edges(predicate)
         return self
@@ -3782,11 +4247,35 @@ class Graph:
     def get_node(self, node: Union[int, str]):
         """Get a node object by ID or label.
         
-        Args:
-            node: Node ID (int) or label (str) to retrieve
-            
-        Returns:
-            Node object or None if not found
+        Retrieves the Node object for the specified node. The Node object contains
+        id, label, and attributes properties. Returns None if node doesn't exist.
+        
+        Parameters
+        ----------
+        node : int | str
+            Node ID (str) or internal ID (int) to retrieve.
+        
+        Returns
+        -------
+        Node | None
+            Node object or None if not found.
+        
+        Examples
+        --------
+        Access node properties:
+        
+        ```python
+        graph = Graph().add_node(label="A", color="red", size=10)
+        
+        node = graph.get_node("A")
+        print(node.id)  # 'A'
+        print(node.attributes)  # {'color': 'red', 'size': 10}
+        ```
+        
+        See Also
+        --------
+        get_edge : Get edge object by ID
+        has_node : Check if node exists
         """
         node_id = self._resolve_node_id(node, auto_create=False)
         return self._graph.get_node(node_id)
@@ -3794,34 +4283,83 @@ class Graph:
     def get_edge(self, edge_id: int):
         """Get an edge object by ID.
         
-        Args:
-            edge_id: Edge ID to retrieve
-            
-        Returns:
-            Edge object or None if not found
+        Retrieves the Edge object for the specified edge ID. The Edge object
+        contains id, source, target, weight, and attributes properties. Returns
+        None if edge doesn't exist.
+        
+        Parameters
+        ----------
+        edge_id : int
+            Edge ID to retrieve.
+        
+        Returns
+        -------
+        Edge | None
+            Edge object or None if not found.
+        
+        Examples
+        --------
+        Access edge properties:
+        
+        ```python
+        graph = Graph().add_edge("A", "B", weight=1.5, type="friend")
+        
+        edge_ids = graph.edge_ids()
+        edge = graph.get_edge(edge_ids[0])
+        
+        print(edge.source)  # 'A'
+        print(edge.target)  # 'B'
+        print(edge.weight)  # 1.5
+        print(edge.attributes)  # {'type': 'friend'}
+        ```
+        
+        See Also
+        --------
+        get_node : Get node object by ID
+        edge_ids : Get all edge IDs
         """
         return self._graph.get_edge(edge_id)
     
     def select_last_nodes_created(self, n: int) -> "Graph":
         """Select the last N nodes that were created.
         
-        Useful for incremental graph building workflows where you want to
-        work with recently added nodes.
+        Selects nodes in reverse chronological order based on creation time.
+        Useful for incremental graph building workflows where you want to work
+        with recently added nodes.
         
-        Args:
-            n: Number of most recently created nodes to select
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_node("A")
-            >>> G.add_node("B")
-            >>> G.add_node("C")
-            >>> G.select_last_nodes_created(2)  # Selects B and C
-            >>> G.get_selected_nodes()
-            ['B', 'C']
+        Parameters
+        ----------
+        n : int
+            Number of most recently created nodes to select.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select recently added nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .select_last_nodes_created(2)
+        )
+        
+        # C and D are selected (most recent)
+        selected = graph.get_selected_nodes()
+        print(selected)  # ['C', 'D']
+        ```
+        
+        See Also
+        --------
+        select_last_edges_created : Select recently created edges
+        get_selected_nodes : Get currently selected nodes
         """
         self._graph.select_last_nodes_created(n)
         return self
@@ -3829,23 +4367,43 @@ class Graph:
     def select_last_edges_created(self, n: int) -> "Graph":
         """Select the last N edges that were created.
         
-        Useful for incremental graph building workflows where you want to
-        work with recently added edges.
+        Selects edges in reverse chronological order based on creation time.
+        Useful for incremental graph building workflows where you want to work
+        with recently added edges.
         
-        Args:
-            n: Number of most recently created edges to select
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "C")
-            >>> G.add_edge("C", "D")
-            >>> G.select_last_edges_created(2)  # Selects last 2 edges
-            >>> len(G.get_selected_edges())
-            2
+        Parameters
+        ----------
+        n : int
+            Number of most recently created edges to select.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select recently added edges:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+            .select_last_edges_created(2)
+        )
+        
+        # Last 2 edges selected
+        count = graph.count_selected_edges()
+        print(count)  # 2
+        ```
+        
+        See Also
+        --------
+        select_last_nodes_created : Select recently created nodes
+        get_selected_edges : Get currently selected edges
         """
         self._graph.select_last_edges_created(n)
         return self
@@ -3856,25 +4414,58 @@ class Graph:
         k: int = 1,
         mode: str = "out"
     ) -> "Graph":
-        """Select all nodes within K hops of the specified seed nodes.
+        """Select all nodes within K hops of specified seed nodes.
         
-        Uses breadth-first search to find neighbors at distance up to k.
-        Does not include the seed nodes themselves in the selection.
+        Uses breadth-first search to find neighbors at distance up to k from
+        the seed nodes. Does not include the seed nodes themselves in the
+        selection. Useful for extracting local neighborhoods.
         
-        Args:
-            node_ids: Seed node ID(s) to start from
-            k: Maximum number of hops/distance (default 1)
-            mode: Direction to traverse - "out", "in", or "all" (default "out")
-                  For undirected graphs, always uses "all" mode
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_path(10)
-            >>> G.select_nodes_in_neighborhood("1", k=2, mode="out")
-            >>> G.get_selected_nodes()  # Gets nodes 1, 2, 3
+        Parameters
+        ----------
+        node_ids : list[str] | str
+            Seed node ID(s) to start from. Can be a single ID string or list.
+        k : int, default 1
+            Maximum number of hops/distance to traverse.
+        mode : str, default "out"
+            Direction to traverse: "out", "in", or "all".
+            For undirected graphs, always uses "all" mode.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select 1-hop neighborhood:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_star_graph(5, center_label="hub")
+            .select_nodes_in_neighborhood("hub", k=1, mode="all")
+        )
+        
+        # Selects all neighbors of hub (not hub itself)
+        count = graph.count_selected_nodes()
+        print(count)  # 5
+        ```
+        
+        Select 2-hop neighborhood in directed graph:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_path_graph(10)
+            .select_nodes_in_neighborhood("0", k=2, mode="out")
+        )
+        
+        # Selects nodes 1 and 2 (reachable within 2 hops)
+        ```
+        
+        See Also
+        --------
+        neighbors : Get direct neighbors of a node
         """
         # Convert single string to list
         if isinstance(node_ids, str):
@@ -3892,24 +4483,58 @@ class Graph:
     ) -> "Graph":
         """Select top-K nodes by centrality measure.
         
-        Computes centrality scores and selects the highest-scoring nodes.
+        Computes centrality scores for all nodes and selects the k highest-scoring
+        nodes. Useful for identifying the most important or influential nodes by
+        various centrality metrics.
         
-        Args:
-            measure: Centrality measure - "degree", "in_degree", "out_degree",
-                    "pagerank", or "betweenness" (default "degree")
-            k: Number of top nodes to select (default 10)
-            include_ties: If True, include all nodes tied with k-th score (default False)
-            **kwargs: Additional arguments for centrality algorithms (e.g., damping for pagerank)
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_star(20, "hub")
-            >>> G.select_nodes_by_centrality("degree", k=5)
-            >>> "hub" in G.get_selected_nodes()  # Hub has highest degree
-            True
+        Parameters
+        ----------
+        measure : str, default "degree"
+            Centrality measure to use: "degree", "in_degree", "out_degree",
+            "pagerank", or "betweenness".
+        k : int, default 10
+            Number of top nodes to select.
+        include_ties : bool, default False
+            If True, include all nodes tied with the k-th highest score.
+        **kwargs
+            Additional arguments for centrality algorithms (e.g., damping for pagerank).
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Examples
+        --------
+        Select high-degree hub nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_star_graph(10, center_label="hub")
+            .add_path_graph(10)
+            .select_nodes_by_centrality("degree", k=3)
+        )
+        
+        # Selects top 3 nodes by degree
+        hubs = graph.get_selected_nodes()
+        ```
+        
+        Select by PageRank:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_path_graph(20)
+            .select_nodes_by_centrality("pagerank", k=5, damping=0.85)
+        )
+        ```
+        
+        See Also
+        --------
+        degree : Get node degree
+        pagerank : Compute PageRank scores
+        betweenness_centrality : Compute betweenness centrality
         """
         # Compute scores based on measure
         if measure == "degree":
@@ -3941,19 +4566,53 @@ class Graph:
     def get_node_attrs(self, attr: str, nodes: list[str] | None = None) -> dict[str, any]:
         """Get attribute values for nodes.
         
-        Args:
-            attr: Attribute name to extract
-            nodes: Optional list of node IDs (default: all nodes)
-            
-        Returns:
-            Dictionary mapping node IDs to attribute values
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_node("A", type="user", score=95)
-            >>> G.add_node("B", type="admin", score=88)
-            >>> G.get_node_attrs("score")
-            {'A': 95, 'B': 88}
+        Extracts a specific attribute from one or more nodes. Only returns entries
+        for nodes that have the specified attribute set. Useful for collecting
+        properties across the graph.
+        
+        Parameters
+        ----------
+        attr : str
+            Attribute name to extract.
+        nodes : list[str] | None, default None
+            Optional list of node IDs to query. If None, queries all nodes.
+        
+        Returns
+        -------
+        dict[str, any]
+            Dictionary mapping node IDs to attribute values. Only includes nodes
+            that have the attribute set.
+        
+        Examples
+        --------
+        Get specific attribute from all nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A", type="user", score=95)
+            .add_node(label="B", type="admin", score=88)
+            .add_node(label="C", type="user", score=92)
+        )
+        
+        scores = graph.get_node_attrs("score")
+        print(scores)  # {'A': 95, 'B': 88, 'C': 92}
+        
+        types = graph.get_node_attrs("type")
+        print(types)  # {'A': 'user', 'B': 'admin', 'C': 'user'}
+        ```
+        
+        Get attribute from specific nodes:
+        
+        ```python
+        user_scores = graph.get_node_attrs("score", nodes=["A", "C"])
+        print(user_scores)  # {'A': 95, 'C': 92}
+        ```
+        
+        See Also
+        --------
+        set_node_attrs : Set attribute values for nodes
+        get_node : Get full node object with all attributes
         """
         import polars as pl
         
@@ -3972,27 +4631,81 @@ class Graph:
     def set_node_attrs(self, node_attr: str, values, nodes: list[str] | None = None) -> "Graph":
         """Set attribute values for one or more nodes.
         
-        Args:
-            node_attr: The name of the attribute to set
-            values: The value(s) to set. Can be a single value (applied to all nodes)
-                   or a list/dict of values matching the nodes
-            nodes: Optional list of node IDs to set attributes for (default: all nodes)
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_node("A")
-            >>> G.add_node("B")
-            >>> G.set_node_attrs("color", "green", nodes=["A"])
-            >>> G.get_node_attrs("color")
-            {'A': 'green'}
-            
-            >>> # Set for all nodes
-            >>> G.set_node_attrs("status", "active")
-            >>> G.get_node_attrs("status")
-            {'A': 'active', 'B': 'active'}
+        Updates a specific attribute on nodes. Can set the same value for all nodes,
+        or provide different values via a list or dictionary. Creates the attribute
+        if it doesn't exist, overwrites if it does.
+        
+        Parameters
+        ----------
+        node_attr : str
+            The name of the attribute to set.
+        values : any | list | dict
+            The value(s) to set. Can be:
+            - Single value: Applied to all specified nodes
+            - List: Must match length of nodes (paired by position)
+            - Dict: Maps node IDs to values (only sets specified nodes)
+        nodes : list[str] | None, default None
+            Optional list of node IDs to update. If None, updates all nodes.
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Raises
+        ------
+        ValueError
+            If values is a list and length doesn't match nodes length.
+        
+        Examples
+        --------
+        Set same value for specific nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .set_node_attrs("color", "blue", nodes=["A", "B"])
+        )
+        
+        colors = graph.get_node_attrs("color")
+        print(colors)  # {'A': 'blue', 'B': 'blue'}
+        ```
+        
+        Set same value for all nodes:
+        
+        ```python
+        graph.set_node_attrs("status", "active")
+        
+        statuses = graph.get_node_attrs("status")
+        # All nodes have status='active'
+        ```
+        
+        Set different values using a list:
+        
+        ```python
+        graph.set_node_attrs(
+            "score",
+            [100, 85, 92],
+            nodes=["A", "B", "C"]
+        )
+        ```
+        
+        Set different values using a dictionary:
+        
+        ```python
+        graph.set_node_attrs(
+            "category",
+            {"A": "primary", "B": "secondary", "C": "primary"}
+        )
+        ```
+        
+        See Also
+        --------
+        get_node_attrs : Get attribute values from nodes
+        add_node : Add node with initial attributes
         """
         if nodes is None:
             nodes = self.node_ids()
@@ -4023,25 +4736,60 @@ class Graph:
         targets: list[Union[int, str]] | None = None
     ) -> dict[str, any]:
         """Get edge attribute values.
-                
-        Args:
-            edge_attr: The name of the attribute to get
-            sources: Optional list of source node IDs/labels to filter edges
-            targets: Optional list of target node IDs/labels to filter edges
-            
-        Returns:
-            Dictionary mapping edge strings (e.g., "A->B") to attribute values
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_edge("A", "B", weight=1.5, type="friend")
-            >>> G.add_edge("B", "C", weight=2.0, type="friend")
-            >>> G.get_edge_attrs("weight")
-            {'A->B': 1.5, 'B->C': 2.0}
-            
-            >>> # Filter by source/target nodes
-            >>> G.get_edge_attrs("weight", sources=["A"], targets=["B"])
-            {'A->B': 1.5}
+        
+        Extracts a specific attribute from edges. Can optionally filter by source
+        and/or target nodes. Edge keys in the result use the format "A->B" for
+        directed graphs or "A--B" for undirected graphs.
+        
+        Parameters
+        ----------
+        edge_attr : str
+            The name of the attribute to get.
+        sources : list[int | str] | None, default None
+            Optional list of source node IDs/labels to filter edges.
+        targets : list[int | str] | None, default None
+            Optional list of target node IDs/labels to filter edges.
+        
+        Returns
+        -------
+        dict[str, any]
+            Dictionary mapping edge strings (e.g., "A->B") to attribute values.
+            Only includes edges that have the attribute set.
+        
+        Examples
+        --------
+        Get attribute from all edges:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_edge("A", "B", weight=1.5, type="friend")
+            .add_edge("B", "C", weight=2.0, type="colleague")
+            .add_edge("C", "D", weight=1.0, type="friend")
+        )
+        
+        weights = graph.get_edge_attrs("weight")
+        print(weights)  # {'A->B': 1.5, 'B->C': 2.0, 'C->D': 1.0}
+        
+        types = graph.get_edge_attrs("type")
+        print(types)  # {'A->B': 'friend', 'B->C': 'colleague', ...}
+        ```
+        
+        Filter by source and target nodes:
+        
+        ```python
+        filtered = graph.get_edge_attrs(
+            "weight",
+            sources=["A", "B"],
+            targets=["B", "C"]
+        )
+        print(filtered)  # {'A->B': 1.5, 'B->C': 2.0}
+        ```
+        
+        See Also
+        --------
+        get_edge_attrs_by_id : Get attributes using edge IDs
+        set_edge_attrs : Set edge attribute values
         """
         result = {}
         separator = "->" if self.directed else "--"
@@ -4088,18 +4836,50 @@ class Graph:
     def get_edge_attrs_by_id(self, attr: str, edges: list[int] | None = None) -> dict[int, any]:
         """Get attribute values for edges by edge ID.
         
-        Args:
-            attr: Attribute name to extract
-            edges: Optional list of edge IDs (default: all edges)
-            
-        Returns:
-            Dictionary mapping edge IDs to attribute values
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_edge("A", "B", weight=1.5, type="friend")
-            >>> G.get_edge_attrs_by_id("weight")
-            {1: 1.5}
+        Similar to get_edge_attrs but uses internal edge IDs instead of node
+        pairs. Returns a dictionary keyed by integer edge IDs. Useful when
+        working directly with edge ID references.
+        
+        Parameters
+        ----------
+        attr : str
+            Attribute name to extract.
+        edges : list[int] | None, default None
+            Optional list of edge IDs to query. If None, queries all edges.
+        
+        Returns
+        -------
+        dict[int, any]
+            Dictionary mapping edge IDs to attribute values. Only includes edges
+            that have the attribute set.
+        
+        Examples
+        --------
+        Get attributes by edge ID:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", weight=1.5, type="friend")
+            .add_edge("B", "C", weight=2.0, type="colleague")
+        )
+        
+        edge_ids = graph.edge_ids()
+        weights_by_id = graph.get_edge_attrs_by_id("weight", edges=edge_ids[:1])
+        print(weights_by_id)  # {0: 1.5} or similar (edge ID varies)
+        ```
+        
+        Get all edge types:
+        
+        ```python
+        all_types = graph.get_edge_attrs_by_id("type")
+        # Maps each edge ID to its type value
+        ```
+        
+        See Also
+        --------
+        get_edge_attrs : Get attributes using node pairs
+        edge_ids : Get all edge IDs
         """
         if edges is None:
             edges = self.edge_ids()
@@ -4127,35 +4907,84 @@ class Graph:
     ) -> "Graph":
         """Set attribute values for one or more edges.
         
-        Args:
-            edge_attr: The name of the attribute to set
-            values: The value(s) to set. Can be a single value (applied to all edges),
-                   a list of values matching the edges, or a dict mapping edge IDs to values
-            edges: Optional list of (source, target) tuples specifying edges to set attributes for
-            sources: Optional list of source node IDs/labels to filter edges (used with targets)
-            targets: Optional list of target node IDs/labels to filter edges (used with sources)
-            
-        Returns:
-            Self for method chaining
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "C")
-            >>> # Set attribute for specific edges
-            >>> G.set_edge_attrs("weight", 2.5, edges=[("A", "B")])
-            >>> G.get_edge_attrs("weight")
-            {'A->B': 2.5}
-            
-            >>> # Set for all edges
-            >>> G.set_edge_attrs("status", "active")
-            >>> G.get_edge_attrs("status")
-            {'A->B': 'active', 'B->C': 'active'}
-            
-            >>> # Filter by source/target nodes
-            >>> G.set_edge_attrs("type", "friend", sources=["A"], targets=["B"])
-            >>> G.get_edge_attrs("type")
-            {'A->B': 'friend'}
+        Updates a specific attribute on edges. Can target edges by explicit
+        (source, target) pairs, by filtering via source/target node lists, or
+        apply to all edges. Supports various value input formats.
+        
+        Parameters
+        ----------
+        edge_attr : str
+            The name of the attribute to set.
+        values : any | list | dict
+            The value(s) to set. Can be:
+            - Single value: Applied to all targeted edges
+            - List: Must match length of targeted edges (paired by position)
+            - Dict: Maps edge IDs to values
+        edges : list[tuple[int | str, int | str]] | None, default None
+            Optional list of (source, target) tuples specifying edges to update.
+        sources : list[int | str] | None, default None
+            Optional list of source node IDs/labels to filter edges (use with targets).
+        targets : list[int | str] | None, default None
+            Optional list of target node IDs/labels to filter edges (use with sources).
+        
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+        
+        Raises
+        ------
+        ValueError
+            If values is a list and length doesn't match targeted edges length.
+        
+        Examples
+        --------
+        Set attribute for specific edges:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .set_edge_attrs("weight", 2.5, edges=[("A", "B"), ("B", "C")])
+        )
+        
+        weights = graph.get_edge_attrs("weight")
+        print(weights)  # {'A--B': 2.5, 'B--C': 2.5}
+        ```
+        
+        Set same value for all edges:
+        
+        ```python
+        graph.set_edge_attrs("status", "active")
+        
+        statuses = graph.get_edge_attrs("status")
+        # All edges have status='active'
+        ```
+        
+        Filter by source and target nodes:
+        
+        ```python
+        graph.set_edge_attrs(
+            "type",
+            "connection",
+            sources=["A", "B"],
+            targets=["B", "C"]
+        )
+        ```
+        
+        Set different values using a list:
+        
+        ```python
+        edge_list = [("A", "B"), ("B", "C")]
+        graph.set_edge_attrs("priority", [1, 2], edges=edge_list)
+        ```
+        
+        See Also
+        --------
+        get_edge_attrs : Get edge attribute values
+        add_edge : Add edge with initial attributes
         """
         # Determine which edges to update
         target_edge_ids = []
@@ -4214,19 +5043,70 @@ class Graph:
     def get_node_df(self, include_degree: bool = True) -> "pl.DataFrame":
         """Get nodes as a Polars DataFrame.
         
-        Args:
-            include_degree: If True, include degree column (default True)
+        Exports all nodes and their attributes to a Polars DataFrame for tabular
+        analysis. Each row represents a node, with columns for the node ID and
+        any attributes set on nodes. Requires the `polars` package.
+        
+        Parameters
+        ----------
+        include_degree : bool, default True
+            If True, adds a 'degree' column with the degree of each node.
+        
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with columns:
+            - 'id': Node ID (str)
+            - Attribute columns: One per unique attribute across all nodes
+            - 'degree': Node degree (int, if include_degree=True)
             
-        Returns:
-            DataFrame with node IDs and attributes
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_node("A", type="user", score=95)
-            >>> G.add_node("B", type="admin", score=88)
-            >>> df = G.get_node_df()
-            >>> df.columns
-            ['id', 'type', 'score', 'degree']
+            Empty DataFrame if graph has no nodes.
+        
+        Examples
+        --------
+        Export nodes to DataFrame:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A", type="user", score=95)
+            .add_node(label="B", type="admin", score=88)
+            .add_node(label="C", type="user", score=92)
+        )
+        
+        df = graph.get_node_df()
+        print(df.columns)  # ['id', 'score', 'type', 'degree']
+        print(df.shape)    # (3, 4)
+        ```
+        
+        Analyze node attributes:
+        
+        ```python
+        # Calculate statistics on node attributes
+        avg_score = df["score"].mean()
+        user_count = df.filter(pl.col("type") == "user").height
+        
+        # Find high-degree nodes
+        hubs = df.filter(pl.col("degree") > 5)
+        ```
+        
+        Exclude degree column:
+        
+        ```python
+        df_no_degree = graph.get_node_df(include_degree=False)
+        ```
+        
+        Notes
+        -----
+        - Attributes not present on a node will have `None` values
+        - Columns are sorted alphabetically (except 'id' and 'degree')
+        - Requires `polars` package: `pip install polars`
+        
+        See Also
+        --------
+        get_edge_df : Get edges as DataFrame
+        get_node_df_ws : Get selected nodes as DataFrame
+        get_node_attrs : Get specific attribute across nodes
         """
         import polars as pl
         
@@ -4260,18 +5140,75 @@ class Graph:
     def get_edge_df(self, include_endpoints: bool = True) -> "pl.DataFrame":
         """Get edges as a Polars DataFrame.
         
-        Args:
-            include_endpoints: If True, include source and target columns (default True)
+        Exports all edges and their attributes to a Polars DataFrame for tabular
+        analysis. Each row represents an edge, with columns for the edge ID,
+        endpoints, and any attributes. Requires the `polars` package.
+        
+        Parameters
+        ----------
+        include_endpoints : bool, default True
+            If True, includes 'source' and 'target' columns with node IDs.
+        
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with columns:
+            - 'id': Edge ID (int)
+            - 'source': Source node ID (str, if include_endpoints=True)
+            - 'target': Target node ID (str, if include_endpoints=True)
+            - Attribute columns: One per unique attribute across all edges
+            - 'weight': Edge weight (float, if any edge has weight set)
             
-        Returns:
-            DataFrame with edge IDs, endpoints, and attributes
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_edge("A", "B", weight=1.5)
-            >>> df = G.get_edge_df()
-            >>> df.columns
-            ['id', 'source', 'target', 'weight']
+            Empty DataFrame if graph has no edges.
+        
+        Examples
+        --------
+        Export edges to DataFrame:
+        
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_edge("A", "B", weight=1.5, type="friend")
+            .add_edge("B", "C", weight=2.0, type="colleague")
+            .add_edge("C", "D", weight=1.0, type="friend")
+        )
+        
+        df = graph.get_edge_df()
+        print(df.columns)  # ['id', 'source', 'target', 'type', 'weight']
+        print(df.shape)    # (3, 5)
+        ```
+        
+        Analyze edge properties:
+        
+        ```python
+        # Filter edges by weight
+        strong_edges = df.filter(pl.col("weight") > 1.5)
+        
+        # Count edge types
+        type_counts = df.group_by("type").count()
+        
+        # Average weight per source node
+        avg_by_source = df.group_by("source").agg(pl.col("weight").mean())
+        ```
+        
+        Exclude endpoint columns:
+        
+        ```python
+        df_no_endpoints = graph.get_edge_df(include_endpoints=False)
+        ```
+        
+        Notes
+        -----
+        - Attributes not present on an edge will have `None` values
+        - Weight is treated as a special attribute column
+        - Columns are sorted alphabetically (except 'id', 'source', 'target')
+        - Requires `polars` package: `pip install polars`
+        
+        See Also
+        --------
+        get_node_df : Get nodes as DataFrame
+        get_edge_df_ws : Get selected edges as DataFrame
+        get_edge_attrs : Get specific attribute across edges
         """
         import polars as pl
         
@@ -4315,20 +5252,64 @@ class Graph:
     def get_node_df_ws(self, include_degree: bool = True) -> "pl.DataFrame":
         """Get selected nodes as a Polars DataFrame.
         
-        Only includes nodes in the current selection.
+        Similar to get_node_df but only exports currently selected nodes. Useful
+        for analyzing subsets of nodes after filtering with selection methods.
+        Requires the `polars` package.
         
-        Args:
-            include_degree: If True, include degree column (default True)
+        Parameters
+        ----------
+        include_degree : bool, default True
+            If True, adds a 'degree' column with the degree of each node.
+        
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with columns:
+            - 'id': Node ID (str)
+            - Attribute columns: One per unique attribute across selected nodes
+            - 'degree': Node degree (int, if include_degree=True)
             
-        Returns:
-            DataFrame with selected node IDs and attributes
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_path(5)
-            >>> G.select_nodes_by_degree(min_degree=2)
-            >>> df = G.get_node_df_ws()
-            >>> len(df)  # Only selected nodes
+            Empty DataFrame if no nodes are selected.
+        
+        Examples
+        --------
+        Export filtered nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_star_graph(10, center_label="hub")
+            .add_path_graph(5)
+            .select_nodes_by_degree(min_degree=3)
+        )
+        
+        df = graph.get_node_df_ws()
+        # Only high-degree nodes in DataFrame
+        print(df.shape[0])  # Number of selected nodes
+        ```
+        
+        Combine selection with DataFrame analysis:
+        
+        ```python
+        graph.select_nodes_by_id(["A", "B", "C"])
+        selected_df = graph.get_node_df_ws()
+        
+        # Analyze just the selected nodes
+        avg_degree = selected_df["degree"].mean()
+        ```
+        
+        Notes
+        -----
+        - Returns empty DataFrame if no nodes are selected
+        - Use selection methods before calling this
+        - Same behavior as get_node_df but filtered to selection
+        
+        See Also
+        --------
+        get_node_df : Get all nodes as DataFrame
+        get_edge_df_ws : Get selected edges as DataFrame
+        get_selected_nodes : Get list of selected node IDs
+        select_nodes_by_id : Select specific nodes
         """
         import polars as pl
         
@@ -4359,21 +5340,67 @@ class Graph:
     def get_edge_df_ws(self, include_endpoints: bool = True) -> "pl.DataFrame":
         """Get selected edges as a Polars DataFrame.
         
-        Only includes edges in the current selection.
+        Similar to get_edge_df but only exports currently selected edges. Useful
+        for analyzing subsets of edges after filtering with selection methods.
+        Requires the `polars` package.
         
-        Args:
-            include_endpoints: If True, include source and target columns (default True)
+        Parameters
+        ----------
+        include_endpoints : bool, default True
+            If True, includes 'source' and 'target' columns with node IDs.
+        
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with columns:
+            - 'id': Edge ID (int)
+            - 'source': Source node ID (str, if include_endpoints=True)
+            - 'target': Target node ID (str, if include_endpoints=True)
+            - Attribute columns: One per unique attribute across selected edges
+            - 'weight': Edge weight (float, if any selected edge has weight)
             
-        Returns:
-            DataFrame with selected edge IDs, endpoints, and attributes
-            
-        Example:
-            >>> G = Graph()
-            >>> G.add_path(5)
-            >>> G.select_edges_by_id([1, 2])
-            >>> df = G.get_edge_df_ws()
-            >>> len(df)
-            2
+            Empty DataFrame if no edges are selected.
+        
+        Examples
+        --------
+        Export filtered edges:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", weight=1.5)
+            .add_edge("B", "C", weight=0.5)
+            .add_edge("C", "D", weight=2.0)
+            .select_edges(lambda e: e.weight and e.weight > 1.0)
+        )
+        
+        df = graph.get_edge_df_ws()
+        # Only high-weight edges in DataFrame
+        print(df["weight"].mean())
+        ```
+        
+        Combine selection with DataFrame analysis:
+        
+        ```python
+        edge_ids = graph.edge_ids()[:5]
+        graph.select_edges_by_id(edge_ids)
+        
+        selected_df = graph.get_edge_df_ws()
+        # Analyze just the first 5 edges
+        ```
+        
+        Notes
+        -----
+        - Returns empty DataFrame if no edges are selected
+        - Use selection methods before calling this
+        - Same behavior as get_edge_df but filtered to selection
+        
+        See Also
+        --------
+        get_edge_df : Get all edges as DataFrame
+        get_node_df_ws : Get selected nodes as DataFrame
+        get_selected_edges : Get list of selected edge IDs
+        select_edges_by_id : Select specific edges
         """
         import polars as pl
         
