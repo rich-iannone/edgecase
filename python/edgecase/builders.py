@@ -16,30 +16,45 @@ def add_path(
     label: bool = True,
     rel: Optional[str] = None,
 ) -> "Graph":
-    """
-    Add a path graph to an existing graph.
+    """Add a path graph to an existing graph.
     
-    A path graph is a sequence of nodes connected linearly:
-    1 → 2 → 3 → ... → n
+    A path graph is a sequence of nodes connected linearly: 1 → 2 → 3 → ... → n.
+    End nodes have degree 1, internal nodes have degree 2.
     
-    Args:
-        graph: The graph object to add nodes/edges to
-        n: Number of nodes in the path
-        type: Optional node type/category for all nodes in path
-        label: If True, label nodes with their IDs
-        rel: Optional relationship label for all edges in path
+    Parameters
+    ---
+    graph : Graph
+        The graph object to add nodes/edges to.
+    n : int
+        Number of nodes in the path.
+    type : str, optional
+        Optional node type/category for all nodes in path.
+    label : bool, default True
+        If `True`, label nodes with their IDs.
+    rel : str, optional
+        Optional relationship label for all edges in path.
         
-    Returns:
-        The graph object (for method chaining)
+    Returns
+    ---
+    Graph
+        The graph object (for method chaining).
         
-    Example:
-        >>> import edgecase as ec
-        >>> g = ec.Graph(directed=True)
-        >>> g = ec.add_path(g, n=5, type="step", rel="next")
-        >>> g.num_nodes()
-        5
-        >>> g.num_edges()
-        4
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    graph = ec.Graph(directed=True)
+    graph = ec.add_path(graph, n=5, type="step", rel="next")
+    
+    print(graph.num_nodes())  # 5
+    print(graph.num_edges())  # 4
+    ```
+    
+    See Also
+    --------
+    add_cycle : Add a cycle graph (closed loop)
+    add_star : Add a star graph
     """
     if n < 1:
         raise ValueError("Path must have at least 1 node")
@@ -76,29 +91,45 @@ def add_cycle(
     label: bool = True,
     rel: Optional[str] = None,
 ) -> "Graph":
-    """
-    Add a cycle graph to an existing graph.
+    """Add a cycle graph to an existing graph.
     
-    A cycle graph is a closed loop of nodes:
-    1 → 2 → 3 → ... → n → 1
+    A cycle graph is a closed loop of nodes: 1 → 2 → 3 → ... → n → 1.
+    Each node has exactly degree 2.
     
-    Args:
-        graph: The graph object to add nodes/edges to
-        n: Number of nodes in the cycle
-        type: Optional node type/category for all nodes in cycle
-        label: If True, label nodes with their IDs
-        rel: Optional relationship label for all edges in cycle
+    Parameters
+    ---
+    graph : Graph
+        The graph object to add nodes/edges to.
+    n : int
+        Number of nodes in the cycle (minimum 3).
+    type : str, optional
+        Optional node type/category for all nodes in cycle.
+    label : bool, default True
+        If `True`, label nodes with their IDs.
+    rel : str, optional
+        Optional relationship label for all edges in cycle.
         
-    Returns:
-        The graph object (for method chaining)
+    Returns
+    ---
+    Graph
+        The graph object (for method chaining).
         
-    Example:
-        >>> g = ec.Graph(directed=True)
-        >>> g = ec.add_cycle(g, n=4, type="state", rel="transitions_to")
-        >>> g.num_nodes()
-        4
-        >>> g.num_edges()
-        4
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    graph = ec.Graph(directed=True)
+    graph = ec.add_cycle(graph, n=4, type="state", rel="transitions_to")
+    
+    print(graph.num_nodes())  # 4
+    print(graph.num_edges())  # 4
+    ```
+    
+    See Also
+    --------
+    add_path : Add a path graph (linear, no cycle)
+    add_full_graph : Add a complete graph
     """
     if n < 3:
         raise ValueError("Cycle must have at least 3 nodes")
@@ -124,33 +155,45 @@ def add_star(
     label: bool = True,
     rel: Optional[str] = None,
 ) -> "Graph":
-    """
-    Add a star graph to an existing graph.
+    """Add a star graph to an existing graph.
     
-    A star graph has one central node connected to n-1 peripheral nodes:
-          2
-          |
-    3 -- 1 -- 4
-          |
-          5
+    A star graph has one central node connected to n-1 peripheral nodes.
+    The center node has degree n-1, all peripheral nodes have degree 1.
     
-    Args:
-        graph: The graph object to add nodes/edges to
-        n: Total number of nodes (including center)
-        type: Optional node type/category for all nodes in star
-        label: If True, label nodes with their IDs
-        rel: Optional relationship label for all edges from center
+    Parameters
+    ---
+    graph : Graph
+        The graph object to add nodes/edges to.
+    n : int
+        Total number of nodes (including center, minimum 2).
+    type : str, optional
+        Optional node type/category for all nodes in star.
+    label : bool, default True
+        If `True`, label nodes with their IDs.
+    rel : str, optional
+        Optional relationship label for all edges from center.
         
-    Returns:
-        The graph object (for method chaining)
+    Returns
+    ---
+    Graph
+        The graph object (for method chaining).
         
-    Example:
-        >>> g = ec.Graph(directed=False)
-        >>> g = ec.add_star(g, n=6, type="network", rel="connected_to")
-        >>> g.num_nodes()
-        6
-        >>> g.num_edges()
-        5
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    graph = ec.Graph(directed=False)
+    graph = ec.add_star(graph, n=6, type="network", rel="connected_to")
+    
+    print(graph.num_nodes())  # 6
+    print(graph.num_edges())  # 5
+    ```
+    
+    See Also
+    --------
+    add_full_graph : Add a complete graph (all-to-all connections)
+    add_path : Add a linear path
     """
     if n < 2:
         raise ValueError("Star must have at least 2 nodes")
@@ -187,29 +230,47 @@ def add_full_graph(
     rel: Optional[str] = None,
     keep_loops: bool = False,
 ) -> "Graph":
-    """
-    Add a complete graph (clique) to an existing graph.
+    """Add a complete graph (clique) to an existing graph.
     
-    A complete graph has edges between every pair of nodes.
+    A complete graph has edges between every pair of nodes. In a complete graph
+    with n nodes, there are n(n-1)/2 edges for undirected or n(n-1) for directed.
     
-    Args:
-        graph: The graph object to add nodes/edges to
-        n: Number of nodes in the complete graph
-        type: Optional node type/category for all nodes
-        label: If True, label nodes with their IDs
-        rel: Optional relationship label for all edges
-        keep_loops: If True, include self-loops (edges from node to itself)
+    Parameters
+    ---
+    graph : Graph
+        The graph object to add nodes/edges to.
+    n : int
+        Number of nodes in the complete graph.
+    type : str, optional
+        Optional node type/category for all nodes.
+    label : bool, default True
+        If `True`, label nodes with their IDs.
+    rel : str, optional
+        Optional relationship label for all edges.
+    keep_loops : bool, default False
+        If `True`, include self-loops (edges from node to itself).
         
-    Returns:
-        The graph object (for method chaining)
+    Returns
+    ---
+    Graph
+        The graph object (for method chaining).
         
-    Example:
-        >>> g = ec.Graph(directed=False)
-        >>> g = ec.add_full_graph(g, n=4, type="complete")
-        >>> g.num_nodes()
-        4
-        >>> g.num_edges()  # For undirected: n*(n-1)/2
-        6
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    graph = ec.Graph(directed=False)
+    graph = ec.add_full_graph(graph, n=4, type="complete")
+    
+    print(graph.num_nodes())  # 4
+    print(graph.num_edges())  # 6 (for undirected: n*(n-1)/2)
+    ```
+    
+    See Also
+    --------
+    add_star : Add a hub-and-spoke graph
+    add_cycle : Add a cycle
     """
     if n < 1:
         raise ValueError("Complete graph must have at least 1 node")
@@ -257,27 +318,46 @@ def add_balanced_tree(
     label: bool = True,
     rel: Optional[str] = None,
 ) -> "Graph":
-    """
-    Add a balanced tree to an existing graph.
+    """Add a balanced tree to an existing graph.
     
     A balanced k-ary tree of height h where each non-leaf node has exactly k children.
+    Total nodes = (k^(h+1) - 1) / (k - 1) for k > 1.
     
-    Args:
-        graph: The graph object to add nodes/edges to
-        k: Branching factor (number of children per node)
-        h: Height of the tree (root is at height 0)
-        type: Optional node type/category for all nodes
-        label: If True, label nodes with their IDs
-        rel: Optional relationship label for all edges
+    Parameters
+    ---
+    graph : Graph
+        The graph object to add nodes/edges to.
+    k : int
+        Branching factor (number of children per node, minimum 1).
+    h : int
+        Height of the tree (root is at height 0).
+    type : str, optional
+        Optional node type/category for all nodes.
+    label : bool, default True
+        If `True`, label nodes with their IDs.
+    rel : str, optional
+        Optional relationship label for all edges.
         
-    Returns:
-        The graph object (for method chaining)
+    Returns
+    ---
+    Graph
+        The graph object (for method chaining).
         
-    Example:
-        >>> g = ec.Graph(directed=True)
-        >>> g = ec.add_balanced_tree(g, k=2, h=3, type="tree_node", rel="parent_of")
-        >>> g.num_nodes()
-        15  # 1 + 2 + 4 + 8 = 15 nodes
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    graph = ec.Graph(directed=True)
+    graph = ec.add_balanced_tree(graph, k=2, h=3, type="tree_node", rel="parent_of")
+    
+    print(graph.num_nodes())  # 15 (1 + 2 + 4 + 8)
+    ```
+    
+    See Also
+    --------
+    add_star : Add a hub-and-spoke graph
+    add_path : Add a linear path
     """
     if k < 1:
         raise ValueError("Branching factor k must be at least 1")
@@ -329,29 +409,46 @@ def add_prism(
     label: bool = True,
     rel: Optional[str] = None,
 ) -> "Graph":
-    """
-    Add a prism graph to an existing graph.
+    """Add a prism graph to an existing graph.
     
     A prism graph consists of two parallel n-cycles connected by matching edges.
-    It's like taking two cycle graphs and connecting corresponding nodes.
+    It's like taking two cycle graphs and connecting corresponding nodes. Total
+    edges = 3n (n in each cycle + n connecting edges).
     
-    Args:
-        graph: The graph object to add nodes/edges to
-        n: Number of nodes in each cycle (must be >= 3)
-        type: Optional node type/category for all nodes
-        label: If True, label nodes with their IDs
-        rel: Optional relationship label for all edges
+    Parameters
+    ---
+    graph : Graph
+        The graph object to add nodes/edges to.
+    n : int
+        Number of nodes in each cycle (minimum 3).
+    type : str, optional
+        Optional node type/category for all nodes.
+    label : bool, default True
+        If `True`, label nodes with their IDs.
+    rel : str, optional
+        Optional relationship label for all edges.
         
-    Returns:
-        The graph object (for method chaining)
+    Returns
+    ---
+    Graph
+        The graph object (for method chaining).
         
-    Example:
-        >>> g = ec.Graph(directed=False)
-        >>> g = ec.add_prism(g, n=4, type="prism_node")
-        >>> g.num_nodes()
-        8  # 2 cycles of 4 nodes each
-        >>> g.num_edges()
-        12  # 4 + 4 + 4 edges
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    graph = ec.Graph(directed=False)
+    graph = ec.add_prism(graph, n=4, type="prism_node")
+    
+    print(graph.num_nodes())  # 8 (2 cycles of 4 nodes each)
+    print(graph.num_edges())  # 12 (4 + 4 + 4 edges)
+    ```
+    
+    See Also
+    --------
+    add_cycle : Add a single cycle
+    add_grid_2d : Add a 2D grid
     """
     if n < 3:
         raise ValueError("Prism must have at least 3 nodes per cycle")
@@ -412,30 +509,52 @@ def add_grid_2d(
     label: bool = True,
     rel: Optional[str] = None,
 ) -> "Graph":
-    """
-    Add a 2D grid graph to an existing graph.
+    """Add a 2D grid graph to an existing graph.
     
-    Creates a rectangular lattice where each node is connected to its
-    orthogonal neighbors (up, down, left, right).
+    Creates a rectangular lattice where each node is connected to its orthogonal
+    neighbors (up, down, left, right). Total edges = (x-1)·y + x·(y-1).
     
-    Args:
-        graph: The graph object to add nodes/edges to
-        x: Width of the grid
-        y: Height of the grid
-        type: Optional node type/category for all nodes
-        label: If True, label nodes with their grid coordinates
-        rel: Optional relationship label for all edges
+    Parameters
+    ---
+    graph : Graph
+        The graph object to add nodes/edges to.
+    x : int
+        Width of the grid (minimum 1).
+    y : int
+        Height of the grid (minimum 1).
+    type : str, optional
+        Optional node type/category for all nodes.
+    label : bool, default True
+        If `True`, label nodes with their grid coordinates "(i,j)".
+    rel : str, optional
+        Optional relationship label for all edges.
         
-    Returns:
-        The graph object (for method chaining)
+    Returns
+    ---
+    Graph
+        The graph object (for method chaining).
         
-    Example:
-        >>> g = ec.Graph(directed=False)
-        >>> g = ec.add_grid_2d(g, x=3, y=3, type="cell")
-        >>> g.num_nodes()
-        9
-        >>> g.num_edges()
-        12  # (x-1)*y + x*(y-1)
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    
+    graph = ec.Graph(directed=False)
+    graph = ec.add_grid_2d(graph, x=3, y=3, type="cell")
+    
+    print(graph.num_nodes())  # 9 (3 × 3 grid)
+    print(graph.num_edges())  # 12 ((3-1)·3 + 3·(3-1))
+    
+    # Access node at position (1,2)
+    nodes = graph.node_df()
+    node = nodes.filter((nodes["x"] == 1) & (nodes["y"] == 2))
+    ```
+    
+    See Also
+    --------
+    add_path : Add a linear path
+    add_cycle : Add a cycle
+    add_prism : Add a prism structure
     """
     if x < 1 or y < 1:
         raise ValueError("Grid dimensions must be at least 1x1")
@@ -490,43 +609,57 @@ def create_graph(
     edges_df: Optional[pl.DataFrame] = None,
     directed: bool = False,
 ) -> "Graph":
-    """
-    Create a graph from Polars DataFrames following an NDF/EDF pattern.
+    """Create a graph from Polars DataFrames following an NDF/EDF pattern.
     
-    Node DataFrame (NDF) should have:
-    - 'id': Unique node identifier (required)
-    - 'type': Node type/category (optional)
-    - 'label': Display label (optional)
-    - Additional columns for node attributes
+    Constructs a graph from structured tabular data. Node DataFrame (NDF) must
+    have 'id' column; Edge DataFrame (EDF) must have 'from'/'to' columns. Additional
+    columns become node/edge attributes.
     
-    Edge DataFrame (EDF) should have:
-    - 'id': Unique edge identifier (optional, auto-assigned if not provided)
-    - 'from': Source node ID (required)
-    - 'to': Target node ID (required)
-    - 'rel': Relationship type (optional)
-    - Additional columns for edge attributes
-    
-    Args:
-        nodes_df: Polars DataFrame with node data
-        edges_df: Polars DataFrame with edge data
-        directed: Whether the graph is directed
+    Parameters
+    ---
+    nodes_df : polars.DataFrame, optional
+        Node data with required 'id' column plus optional 'type', 'label', and
+        custom attribute columns.
+    edges_df : polars.DataFrame, optional
+        Edge data with required 'from'/'to' columns plus optional 'id', 'rel',
+        and custom attribute columns. If 'id' omitted, auto-assigned.
+    directed : bool, default False
+        Whether to create a directed graph.
         
-    Returns:
-        A new Graph object
+    Returns
+    ---
+    Graph
+        A new Graph object with nodes/edges from the DataFrames.
         
-    Example:
-        >>> nodes = pl.DataFrame({
-        ...     'id': ['A', 'B', 'C'],
-        ...     'type': ['user', 'user', 'admin'],
-        ...     'label': ['Alice', 'Bob', 'Charlie']
-        ... })
-        >>> edges = pl.DataFrame({
-        ...     'id': [1, 2],
-        ...     'from': ['A', 'B'],
-        ...     'to': ['B', 'C'],
-        ...     'rel': ['follows', 'follows']
-        ... })
-        >>> g = ec.create_graph(nodes_df=nodes, edges_df=edges, directed=True)
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    import polars as pl
+    
+    nodes = pl.DataFrame({
+        'id': ['A', 'B', 'C'],
+        'type': ['user', 'user', 'admin'],
+        'label': ['Alice', 'Bob', 'Charlie']
+    })
+    edges = pl.DataFrame({
+        'id': [1, 2],
+        'from': ['A', 'B'],
+        'to': ['B', 'C'],
+        'rel': ['follows', 'follows']
+    })
+    
+    graph = ec.create_graph(nodes_df=nodes, edges_df=edges, directed=True)
+    print(graph.num_nodes())  # 3
+    print(graph.num_edges())  # 2
+    ```
+    
+    See Also
+    --------
+    Graph.add_node : Add individual nodes
+    Graph.add_edge : Add individual edges
+    Graph.node_df : Extract node data as DataFrame
+    Graph.edge_df : Extract edge data as DataFrame
     """
     # Import here to avoid circular dependency
     from edgecase import Graph
