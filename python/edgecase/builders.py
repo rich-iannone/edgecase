@@ -285,34 +285,37 @@ def add_balanced_tree(
         raise ValueError("Height h must be non-negative")
     
     start_id = graph.num_nodes() + 1
-    node_counter = 0
     
-    # Add nodes level by level using BFS
+    # First, add all nodes
+    total_nodes = (k**(h + 1) - 1) // (k - 1) if k > 1 else h + 1
+    for i in range(total_nodes):
+        node_id = start_id + i
+        attrs = {}
+        if type:
+            attrs['type'] = type
+        if label:
+            attrs['label'] = str(node_id)
+        graph.add_node(str(node_id), **attrs)
+    
+    # Then, add edges level by level using BFS
     nodes_at_level = [start_id]  # Start with root
+    node_counter = 1  # Next node to assign as child
     
-    for level in range(h + 1):
+    for level in range(h):
         next_level = []
         
         for node_id in nodes_at_level:
-            # Add current node
-            attrs = {}
-            if type:
-                attrs['type'] = type
-            if label:
-                attrs['label'] = str(node_id)
-            graph.add_node(str(node_id), **attrs)
-            
-            # Add children if not at max height
-            if level < h:
-                for _ in range(k):
-                    child_id = start_id + graph.num_nodes()
-                    next_level.append(child_id)
-                    
-                    # Add edge from parent to child
-                    edge_attrs = {}
-                    if rel:
-                        edge_attrs['rel'] = rel
-                    graph.add_edge(str(node_id), str(child_id), **edge_attrs)
+            # Add children
+            for _ in range(k):
+                child_id = start_id + node_counter
+                node_counter += 1
+                next_level.append(child_id)
+                
+                # Add edge from parent to child
+                edge_attrs = {}
+                if rel:
+                    edge_attrs['rel'] = rel
+                graph.add_edge(str(node_id), str(child_id), **edge_attrs)
         
         nodes_at_level = next_level
     
