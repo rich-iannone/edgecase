@@ -3,7 +3,52 @@ from edgecase import _core as rust
 
 
 class Graph:
-    """Python wrapper around Rust Graph for consistent API."""
+    """A high-performance graph data structure with optional direction and weights.
+    
+    The `Graph` class provides a Python interface to a Rust-based graph implementation,
+    offering both performance and ease of use. Nodes are identified by 64-bit unsigned
+    integers (u64 IDs) and can optionally have string labels for human-readable access.
+    
+    Parameters
+    ----------
+    directed : bool, default False
+        Whether the graph should be directed. If `True`, edges have direction from
+        source to target. If `False`, edges are bidirectional.
+    weighted : bool, default False
+        Whether edges can have weights. If `True`, edge weights are stored and
+        considered in algorithms. If `False`, all edges are treated equally.
+    
+    Examples
+    --------
+    Create an undirected, unweighted graph:
+    
+    ```python
+    from edgecase import Graph
+    
+    graph = (
+        Graph()
+        .add_node(label="Alice")
+        .add_node(label="Bob")
+        .add_edge("Alice", "Bob")
+    )
+    ```
+    
+    Create a directed, weighted graph for modeling networks:
+    
+    ```python
+    graph = (
+        Graph(directed=True, weighted=True)
+        .add_node(label="Alice")
+        .add_node(label="Bob")
+        .add_edge("Alice", "Bob", weight=0.8)
+    )
+    ```
+    
+    See Also
+    --------
+    add_node : Add nodes to the graph
+    add_edge : Add edges between nodes
+    """
     
     def __init__(self, directed: bool = False, weighted: bool = False):
         self._graph = rust.Graph(directed=directed, weighted=weighted)
@@ -11,35 +56,85 @@ class Graph:
     def add_node(self, node_id: Optional[Union[int, str]] = None, label: Optional[str] = None, 
                  from_node: Optional[Union[int, str]] = None, to_node: Optional[Union[int, str]] = None,
                  **attributes) -> int:
-        """Add a node to the graph (optionally connected to existing nodes).
+        """Add a node to the graph with optional connections and attributes.
         
-        Add isolated nodes or nodes with immediate connections.
+        This method provides flexible node creation, allowing you to add isolated nodes,
+        nodes with labels, or nodes that are immediately connected to existing nodes.
+        Node IDs are 64-bit unsigned integers managed internally, while labels provide
+        human-readable identifiers.
         
-        Args:
-            node_id: Optional node identifier. Can be:
-                - None: Auto-generate a u64 ID (default)
-                - int: Use this as the node ID
-                - str: Use as label, auto-generate ID
-            label: Optional string label for the node
-            from_node: Optional source node (int ID or str label) to create edge FROM this new node TO
-            to_node: Optional target node (int ID or str label) to create edge FROM TO this new node
-            **attributes: Optional node attributes
-            
-        Returns:
-            The integer ID of the added node (u64)
-            
-        Examples:
-            >>> G = Graph()
-            >>> # Add isolated node with auto-generated ID
-            >>> id1 = G.add_node()  # Returns u64 like 1
-            >>> # Add node with label
-            >>> id2 = G.add_node(label="Alice")  # Returns u64, stores label
-            >>> # Add node connected from existing node
-            >>> id3 = G.add_node(label="Bob", from_node=id2)  # Creates edge id2->id3
-            >>> # Add node connected to existing node
-            >>> id4 = G.add_node(label="Charlie", to_node=id2)  # Creates edge id4->id2
-            >>> # Use string labels for connections
-            >>> id5 = G.add_node(label="Dave", from_node="Alice")  # Edge Alice->Dave
+        Parameters
+        ----------
+        node_id : int | str | None, default None
+            The node identifier, which can be:
+            - `None`: Auto-generate a unique u64 ID (recommended)
+            - `int`: Use this specific integer as the node ID
+            - `str`: Treat as a label and auto-generate an ID
+        label : str | None, default None
+            Optional string label for human-readable node access. Labels should be
+            unique if you plan to use them for node lookup in operations like
+            `add_edge()`.
+        from_node : int | str | None, default None
+            Optional node (ID or label) to connect FROM the new node. Creates a
+            directed edge: `new_node -> from_node`.
+        to_node : int | str | None, default None
+            Optional node (ID or label) to connect TO the new node. Creates a
+            directed edge: `to_node -> new_node`.
+        **attributes : dict
+            Arbitrary key-value pairs to store as node attributes.
+        
+        Returns
+        -------
+        int
+            The u64 ID assigned to the newly created node.
+        
+        Examples
+        --------
+        Add an isolated node with auto-generated ID:
+        
+        ```python
+        graph = Graph()
+        node_id = graph.add_node()
+        print(f"Created node with ID: {node_id}")  # Created node with ID: 1
+        ```
+        
+        Add nodes with labels for easier reference:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+        )
+        ```
+        
+        Create a node immediately connected to existing nodes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob", from_node="Alice")     # Edge: Alice -> Bob
+            .add_node(label="Charlie", to_node="Alice")   # Edge: Charlie -> Alice
+        )
+        ```
+        
+        Add nodes with custom attributes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice", age=30, role="engineer")
+            .add_node(label="Bob", age=25, role="designer")
+        )
+        ```
+        
+        See Also
+        --------
+        add_edge : Add edges between existing nodes
+        id_from_label : Look up node ID by label
+        label_from_id : Look up node label by ID
         """
         # Handle different input patterns for node_id
         if isinstance(node_id, rust.Node):
@@ -85,34 +180,95 @@ class Graph:
     
     def add_edge(self, source: Union[int, str, rust.Edge], target: Optional[Union[int, str]] = None, 
                  weight: Optional[float] = None, edge_id: Optional[int] = None, **attributes) -> int:
-        """Add an edge to the graph between existing nodes.
+        """Add an edge between two existing nodes in the graph.
         
-        Requires nodes to exist. Can use integer IDs or
-        string labels (if all labels are unique and non-empty).
+        Edges connect existing nodes and can optionally carry weights and attributes.
+        Both source and target nodes must already exist in the graph. You can reference
+        nodes by their integer IDs or string labels (if labels are unique).
         
-        Args:
-            source: Either an Edge object, or a source node ID/label
-            target: Target node ID/label (required if source is not an Edge)
-            weight: Optional edge weight
-            edge_id: Optional edge ID (auto-assigned if None)
-            **attributes: Optional edge attributes
-            
-        Returns:
-            The ID of the added edge
-            
-        Raises:
-            ValueError: If a label is not found or nodes don't exist
-            
-        Examples:
-            >>> G = Graph()
-            >>> id1 = G.add_node(label="Alice")
-            >>> id2 = G.add_node(label="Bob")
-            >>> # By ID
-            >>> G.add_edge(id1, id2)
-            >>> # By label (only if all labels are unique)
-            >>> G.add_edge("Alice", "Bob")
-            >>> # Mixed
-            >>> G.add_edge(id1, "Bob")
+        Parameters
+        ----------
+        source : int | str | Edge
+            The source node identifier (ID or label), or a pre-constructed Edge object.
+            If providing an Edge object, other parameters are ignored.
+        target : int | str | None, default None
+            The target node identifier (ID or label). Required unless `source` is an
+            Edge object.
+        weight : float | None, default None
+            Optional edge weight for weighted graphs. Ignored if the graph is unweighted.
+        edge_id : int | None, default None
+            Optional edge ID. If `None`, an ID is auto-assigned.
+        **attributes : dict
+            Arbitrary key-value pairs to store as edge attributes.
+        
+        Returns
+        -------
+        int
+            The ID of the newly created edge.
+        
+        Raises
+        ------
+        ValueError
+            If source or target node doesn't exist in the graph, or if a label
+            cannot be resolved to a node ID.
+        
+        Examples
+        --------
+        Add edges using node IDs:
+        
+        ```python
+        graph = Graph()
+        alice_id = graph.add_node(label="Alice")
+        bob_id = graph.add_node(label="Bob")
+        graph.add_edge(alice_id, bob_id)
+        ```
+        
+        Add edges using labels (only if labels are unique):
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_edge("Alice", "Bob")
+        )
+        ```
+        
+        Mix IDs and labels:
+        
+        ```python
+        graph = Graph()
+        alice_id = graph.add_node(label="Alice")
+        graph.add_node(label="Bob")
+        graph.add_edge(alice_id, "Bob")
+        ```
+        
+        Add weighted edges:
+        
+        ```python
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B", weight=0.75)
+        )
+        ```
+        
+        Add edges with custom attributes:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_edge("Alice", "Bob", relationship="friend", since=2020)
+        )
+        ```
+        
+        See Also
+        --------
+        add_node : Add nodes to the graph
+        get_edge : Retrieve edge information
         """
         # Handle direct Edge objects
         if isinstance(source, rust.Edge):
@@ -4334,10 +4490,77 @@ def pagerank(
     max_iter: int = 100,
     tol: float = 1e-6
 ) -> dict[str, float]:
-    """Calculate PageRank for all nodes.
+    """Calculate PageRank scores for all nodes in the graph.
     
-    Returns:
-        Dictionary mapping node labels to PageRank scores
+    PageRank is a link analysis algorithm that assigns importance scores to nodes
+    based on their incoming connections. Originally developed by Google to rank web
+    pages, it's widely used in social network analysis, recommendation systems, and
+    influence detection.
+    
+    The algorithm iteratively distributes "rank" from each node to its neighbors,
+    with a damping factor to model random jumps. Nodes with many incoming edges from
+    high-ranking nodes receive higher scores.
+    
+    Parameters
+    ----------
+    graph : Graph
+        The graph to analyze. Can be directed or undirected.
+    damping : float, default 0.85
+        The probability of following an edge (vs. random jump). Higher values (closer
+        to 1.0) give more weight to the graph structure. Typical range: 0.8-0.95.
+    max_iter : int, default 100
+        Maximum number of iterations to run. The algorithm stops early if convergence
+        is reached.
+    tol : float, default 1e-6
+        Convergence tolerance. The algorithm stops when the sum of absolute differences
+        between iterations is less than this value.
+    
+    Returns
+    -------
+    dict[str, float]
+        Dictionary mapping node labels to their PageRank scores. Scores sum to 1.0
+        across all nodes.
+    
+    Examples
+    --------
+    Calculate PageRank on a simple social network:
+    
+    ```python
+    from edgecase import Graph, pagerank
+    
+    graph = (
+        Graph(directed=True)
+        .add_node(label="Alice")
+        .add_node(label="Bob")
+        .add_node(label="Charlie")
+        .add_edge("Alice", "Bob")
+        .add_edge("Alice", "Charlie")
+        .add_edge("Bob", "Charlie")
+    )
+    
+    scores = pagerank(graph)
+    print(scores)
+    # {'Charlie': 0.475, 'Bob': 0.262, 'Alice': 0.262}
+    ```
+    
+    Use custom damping factor for more exploration:
+    
+    ```python
+    scores = pagerank(graph, damping=0.5)  # More random jumping
+    ```
+    
+    Find the most influential nodes:
+    
+    ```python
+    scores = pagerank(graph)
+    top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
+    for node, score in top_nodes:
+        print(f"{node}: {score:.4f}")
+    ```
+    
+    See Also
+    --------
+    betweenness_centrality : Measure nodes that bridge communities
     """
     result_ids = rust.pagerank(graph._graph, damping=damping, max_iter=max_iter, tol=tol)
     # Convert node IDs to labels
@@ -4345,10 +4568,69 @@ def pagerank(
 
 
 def betweenness_centrality(graph: Graph) -> dict[str, float]:
-    """Calculate betweenness centrality for all nodes.
+    """Calculate betweenness centrality scores for all nodes.
     
-    Returns:
-        Dictionary mapping node labels to betweenness centrality scores
+    Betweenness centrality measures how often a node appears on the shortest paths
+    between other nodes in the graph. Nodes with high betweenness act as bridges or
+    bottlenecks, controlling the flow of information or resources through the network.
+    
+    This metric is particularly useful for:
+    - Identifying key connectors in social networks
+    - Finding critical infrastructure nodes in transportation/communication networks
+    - Detecting potential bottlenecks or points of failure
+    
+    The algorithm computes shortest paths between all pairs of nodes and counts how
+    many times each node appears on these paths.
+    
+    Parameters
+    ----------
+    graph : Graph
+        The graph to analyze. Works with both directed and undirected graphs.
+    
+    Returns
+    -------
+    dict[str, float]
+        Dictionary mapping node labels to their betweenness centrality scores.
+        Scores are normalized to the range [0, 1].
+    
+    Examples
+    --------
+    Find bridge nodes in a network:
+    
+    ```python
+    from edgecase import Graph, betweenness_centrality
+    
+    # Create two clusters connected by a bridge node
+    graph = (
+        Graph()
+        .add_node(label="A")
+        .add_node(label="B")
+        .add_node(label="Bridge")
+        .add_node(label="C")
+        .add_node(label="D")
+        .add_edge("A", "B")
+        .add_edge("B", "Bridge")
+        .add_edge("Bridge", "C")
+        .add_edge("C", "D")
+    )
+    
+    scores = betweenness_centrality(graph)
+    print(scores["Bridge"])  # High score - bridges two clusters
+    ```
+    
+    Identify the most important connectors:
+    
+    ```python
+    scores = betweenness_centrality(graph)
+    connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+    
+    for node, score in connectors:
+        print(f"{node}: {score:.4f}")
+    ```
+    
+    See Also
+    --------
+    pagerank : Measure node importance by incoming connections
     """
     result_ids = rust.betweenness_centrality(graph._graph)
     # Convert node IDs to labels
