@@ -41,6 +41,9 @@ from edgecase.fraud import (
     find_suspicious_patterns,
     temporal_fraud_detection,
 )
+from edgecase.io import (
+    from_matrix_market,
+)
 from edgecase.datasets import (
     karate_club,
 )
@@ -104,5 +107,6 @@ __all__ = [
     "find_suspicious_patterns",
     "temporal_fraud_detection",
     # Datasets
+    "from_matrix_market",
     "karate_club",
 ]

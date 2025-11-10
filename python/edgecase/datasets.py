@@ -1,10 +1,3 @@
-"""
-Built-in network datasets for testing and examples.
-
-This module provides classic network datasets commonly used in graph analysis research.
-Each dataset is constructed from Polars DataFrames representing nodes and edges.
-"""
-
 import polars as pl
 from edgecase.graph import Graph
 
