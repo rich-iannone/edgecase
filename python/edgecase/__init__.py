@@ -15,18 +15,8 @@ from edgecase.aesthetics import (
     set_node_attr_to_display,
 )
 from edgecase.analysis import NetworkAnalyzer
-from edgecase.bio import (
-    pathway_analysis,
-    patient_similarity_network,
-    protein_network,
-)
 from edgecase.datasets import (
     karate_club,
-)
-from edgecase.fraud import (
-    find_suspicious_patterns,
-    temporal_fraud_detection,
-    transaction_network,
 )
 from edgecase.graph import (
     Edge,
@@ -101,13 +91,6 @@ __all__ = [
     # Tables
     "tbl_centrality",
     "tbl_network_summary",
-    # Domain-specific
-    "protein_network",
-    "patient_similarity_network",
-    "pathway_analysis",
-    "transaction_network",
-    "find_suspicious_patterns",
-    "temporal_fraud_detection",
     # Datasets
     "from_matrix_market",
     "karate_club",
