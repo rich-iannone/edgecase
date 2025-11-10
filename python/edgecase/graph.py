@@ -2750,6 +2750,291 @@ class Graph:
         """
         return self._graph.get_coreness()
     
+    def get_clustering_coefficient(self) -> dict[str, float]:
+        """Get local clustering coefficient for each node.
+        
+        The clustering coefficient measures the degree to which a node's neighbors
+        are connected to each other. For a node v:
+        
+        C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
+             = (2 × triangles through v) / (degree(v) × (degree(v) - 1))
+        
+        Returns 0.0 for nodes with degree < 2 (cannot form triangles).
+        
+        Range: [0, 1] where:
+        - 0 = neighbors are not connected at all
+        - 1 = neighbors form a complete graph (clique)
+        
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
+        
+        Examples
+        --------
+        Calculate clustering in a triangle:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        
+        clustering = graph.get_clustering_coefficient()
+        # All nodes have clustering coefficient 1.0 (complete triangle)
+        for node_id, coeff in clustering.items():
+            print(f"{node_id}: {coeff}")
+        ```
+        
+        Calculate clustering in a star graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("center", "A")
+            .add_edge("center", "B")
+            .add_edge("center", "C")
+        )
+        
+        clustering = graph.get_clustering_coefficient()
+        # Center has 0.0 (no edges between spokes)
+        # Spokes have 0.0 (degree 1, can't form triangles)
+        ```
+        
+        Notes
+        -----
+        High clustering coefficients indicate nodes in tightly-knit groups.
+        The clustering coefficient is a key measure of network transitivity
+        and is used to identify small-world networks.
+        
+        See Also
+        --------
+        get_avg_clustering_coefficient : Get graph-level average
+        get_coreness : K-core decomposition
+        """
+        return self._graph.get_clustering_coefficient()
+    
+    def get_avg_clustering_coefficient(self) -> float:
+        """Get average clustering coefficient for the graph.
+        
+        Returns the mean of all node clustering coefficients. This is a global
+        measure of how clustered the graph is overall.
+        
+        Returns
+        -------
+        float
+            Average clustering coefficient (0.0 to 1.0).
+        
+        Examples
+        --------
+        Compare clustering in different graph types:
+        
+        ```python
+        # Triangle graph - highly clustered
+        triangle = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        print(f"Triangle: {triangle.get_avg_clustering_coefficient():.2f}")
+        # Triangle: 1.00
+        
+        # Star graph - not clustered
+        star = (
+            Graph()
+            .add_node(label="center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("center", "A")
+            .add_edge("center", "B")
+            .add_edge("center", "C")
+        )
+        print(f"Star: {star.get_avg_clustering_coefficient():.2f}")
+        # Star: 0.00
+        ```
+        
+        Notes
+        -----
+        Values close to 1.0 indicate a highly clustered network (many triangles).
+        Values close to 0.0 indicate a tree-like or sparse network structure.
+        
+        Small-world networks typically have high clustering coefficients combined
+        with low average path lengths.
+        
+        See Also
+        --------
+        get_clustering_coefficient : Per-node clustering
+        get_mean_distance : Average path length
+        density : Overall graph density
+        """
+        return self._graph.get_avg_clustering_coefficient()
+    
+    def get_edge_clustering_coefficient(
+        self,
+        edge_ids: list[str] | None = None,
+        k: int = 3,
+        normalize: bool = True,
+        offset: bool = True,
+    ) -> dict[str, float]:
+        """Get edge clustering coefficient for specified edges.
+        
+        The edge clustering coefficient measures how "clustered" the neighborhood
+        around an edge is, based on k-cycles (cycles of length k) the edge participates in.
+        
+        For k=3 (triangles):
+            - Counts triangles containing the edge
+            - Maximum possible: min(d_i - 1, d_j - 1) where d_i, d_j are endpoint degrees
+            - Value of 1.0 means edge is in a complete subgraph
+        
+        For k=4 (4-cycles):
+            - Counts 4-cycles containing the edge
+            - Maximum possible: (d_i - 1)(d_j - 1)
+            - Measures "squareness" of edge neighborhood
+        
+        Parameters
+        ----------
+        edge_ids : list[str] | None, optional
+            List of edge IDs to compute coefficient for. If None, computes for all edges.
+        k : int, default=3
+            Cycle size to use. Must be 3 (triangles) or 4 (4-cycles).
+        normalize : bool, default=True
+            Whether to normalize by maximum possible cycles given endpoint degrees.
+            If False, returns raw cycle count.
+        offset : bool, default=True
+            Whether to add 1 to cycle count (original Radicchi et al. definition).
+            When offset=True: C(e) = (z + 1) / s
+            When offset=False: C(e) = z / s
+            
+        Returns
+        -------
+        dict[str, float]
+            Mapping from edge ID to clustering coefficient.
+            - With normalize=True: range [0, 1+] (can exceed 1 with offset)
+            - With normalize=False: raw cycle count
+            
+        Raises
+        ------
+        ValueError
+            If k is not 3 or 4.
+            
+        Examples
+        --------
+        Triangle graph (complete graph K3):
+        
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        
+        # All edges are in 1 triangle
+        ecc = graph.get_edge_clustering_coefficient(k=3, normalize=True, offset=True)
+        # Each edge: (1 triangle + 1) / min(2-1, 2-1) = 2/1 = 2.0
+        
+        # Without offset
+        ecc = graph.get_edge_clustering_coefficient(k=3, normalize=True, offset=False)
+        # Each edge: 1 / 1 = 1.0 (maximum clustering)
+        ```
+        
+        Square graph (4-cycle):
+        
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+        
+        # k=3: No triangles
+        ecc3 = graph.get_edge_clustering_coefficient(k=3, offset=False)
+        # All edges: 0.0 (no triangles)
+        
+        # k=4: Each edge participates in 1 four-cycle
+        ecc4 = graph.get_edge_clustering_coefficient(k=4, offset=False)
+        # Edge A-B: 1 / ((2-1)*(2-1)) = 1.0
+        ```
+        
+        Karate club network:
+        
+        ```python
+        from edgecase import karate_club
+        G = karate_club()
+        
+        # Get k=3 edge clustering for all edges
+        ecc = G.get_edge_clustering_coefficient(k=3, normalize=True, offset=False)
+        
+        # Find edges with highest clustering (most embedded in triangles)
+        sorted_edges = sorted(ecc.items(), key=lambda x: x[1], reverse=True)
+        print(f"Top 5 edges by clustering: {sorted_edges[:5]}")
+        ```
+        
+        Notes
+        -----
+        Complexity:
+        - k=3: O(|V| d log d + |E| d) where d is max degree
+        - k=4: O(|V| d log d + |E| d²)
+        
+        The original Radicchi et al. definition uses normalize=True and offset=True.
+        Setting offset=False allows the normalized metric to reach exactly 1.0 for
+        edges in complete subgraphs.
+        
+        See Also
+        --------
+        get_clustering_coefficient : Node clustering coefficient
+        get_avg_clustering_coefficient : Average node clustering
+        
+        References
+        ----------
+        Radicchi, F., Castellano, C., Cecconi, F., Loreto, V., & Parisi, D. (2004).
+        "Defining and identifying communities in networks."
+        Proceedings of the National Academy of Sciences, 101(9), 2658-2663.
+        https://doi.org/10.1073/pnas.0400054101
+        """
+        # Convert edge_ids from string labels to internal IDs
+        edge_id_list = []
+        if edge_ids is not None:
+            for edge_str_id in edge_ids:
+                # Find edge by string ID
+                found = False
+                for edge in self._graph.edges:
+                    if str(edge.id) == edge_str_id:
+                        edge_id_list.append(edge.id)
+                        found = True
+                        break
+                if not found:
+                    raise ValueError(f"Edge ID '{edge_str_id}' not found")
+        
+        # Call Rust implementation
+        result = self._graph.get_edge_clustering_coefficient(edge_id_list, k, normalize, offset)
+        
+        # Convert result keys back to string IDs
+        return {str(k): v for k, v in result.items()}
+    
     # ========== Community Detection Methods ==========
     
     def get_cmty_fast_greedy(self) -> dict[str, int]:

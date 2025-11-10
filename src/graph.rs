@@ -2294,6 +2294,222 @@ impl Graph {
         coreness
     }
 
+    /// Get local clustering coefficient for each node
+    /// Clustering coefficient measures the degree to which nodes cluster together
+    /// For a node: C(v) = (number of triangles through v) / (number of possible triangles)
+    /// = (number of edges between neighbors) / (k * (k-1) / 2)
+    /// where k is the degree of v
+    /// Returns 0.0 for nodes with degree < 2
+    fn get_clustering_coefficient(&self) -> FxHashMap<u64, f64> {
+        let mut clustering = FxHashMap::default();
+
+        for &node in self.nodes.keys() {
+            let degree = self.degree(node);
+            
+            // Nodes with degree < 2 have clustering coefficient 0
+            if degree < 2 {
+                clustering.insert(node, 0.0);
+                continue;
+            }
+
+            // Get neighbors
+            let neighbors: Vec<u64> = if let Some(neighs) = self.adjacency_list.get(&node) {
+                neighs.iter().copied().collect()
+            } else {
+                clustering.insert(node, 0.0);
+                continue;
+            };
+
+            // Count edges between neighbors
+            let mut edges_between_neighbors = 0;
+            for i in 0..neighbors.len() {
+                for j in (i + 1)..neighbors.len() {
+                    let n1 = neighbors[i];
+                    let n2 = neighbors[j];
+                    
+                    // Check if edge exists between n1 and n2
+                    if let Some(n1_neighbors) = self.adjacency_list.get(&n1) {
+                        if n1_neighbors.contains(&n2) {
+                            edges_between_neighbors += 1;
+                        }
+                    }
+                }
+            }
+
+            // Calculate clustering coefficient
+            let possible_edges = (degree * (degree - 1)) / 2;
+            let coeff = if possible_edges > 0 {
+                edges_between_neighbors as f64 / possible_edges as f64
+            } else {
+                0.0
+            };
+
+            clustering.insert(node, coeff);
+        }
+
+        clustering
+    }
+
+    /// Get average clustering coefficient for the graph
+    /// Returns the mean of all node clustering coefficients
+    fn get_avg_clustering_coefficient(&self) -> f64 {
+        let clustering = self.get_clustering_coefficient();
+        
+        if clustering.is_empty() {
+            return 0.0;
+        }
+
+        let sum: f64 = clustering.values().sum();
+        sum / clustering.len() as f64
+    }
+
+    /// Get edge clustering coefficient for specified edges
+    /// 
+    /// Edge clustering coefficient C^(k)_ij measures how clustered an edge's
+    /// neighborhood is based on k-cycles it participates in.
+    /// 
+    /// For k=3 (triangles):
+    ///   - z^(3)_ij = number of triangles containing edge (i,j)
+    ///   - s^(3)_ij = min(d_i - 1, d_j - 1) (maximum possible triangles)
+    ///   - C^(3)_ij = (z^(3)_ij + offset) / s^(3)_ij (if normalize=true)
+    /// 
+    /// For k=4 (4-cycles):
+    ///   - z^(4)_ij = number of 4-cycles containing edge (i,j)
+    ///   - s^(4)_ij = (d_i - 1)(d_j - 1) (maximum possible 4-cycles)
+    ///   - C^(4)_ij = (z^(4)_ij + offset) / s^(4)_ij (if normalize=true)
+    /// 
+    /// # Arguments
+    /// * edge_ids - Vector of edge IDs to compute coefficient for (empty = all edges)
+    /// * k - Cycle size (3 or 4)
+    /// * normalize - Whether to normalize by maximum possible cycles s^(k)
+    /// * offset - Whether to add 1 to cycle count (original definition uses offset=true)
+    /// 
+    /// # Returns
+    /// HashMap mapping edge_id -> clustering coefficient
+    /// 
+    /// # Reference
+    /// Radicchi et al. "Defining and identifying communities in networks" PNAS 101, 2658 (2004)
+    fn get_edge_clustering_coefficient(
+        &self,
+        edge_ids: Vec<u64>,
+        k: usize,
+        normalize: bool,
+        offset: bool,
+    ) -> PyResult<FxHashMap<u64, f64>> {
+        // Validate k parameter
+        if k != 3 && k != 4 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "k must be 3 or 4"
+            ));
+        }
+
+        // Build neighbor sets for efficient lookup
+        let neighbor_sets: FxHashMap<u64, FxHashSet<u64>> = self.adjacency_list
+            .iter()
+            .map(|(&node, neighbors)| (node, neighbors.iter().copied().collect()))
+            .collect();
+
+        // Determine which edges to process
+        let edges_to_process: Vec<&Edge> = if edge_ids.is_empty() {
+            self.edges.iter().collect()
+        } else {
+            let edge_id_set: FxHashSet<u64> = edge_ids.iter().copied().collect();
+            self.edges.iter()
+                .filter(|e| edge_id_set.contains(&e.id))
+                .collect()
+        };
+
+        let mut result = FxHashMap::default();
+
+        for edge in edges_to_process {
+            let i = edge.source;
+            let j = edge.target;
+
+            // Get degrees
+            let d_i = self.degree(i);
+            let d_j = self.degree(j);
+
+            // Get neighbors (excluding the edge endpoints from each other's neighbor list)
+            let neighbors_i = neighbor_sets.get(&i).cloned().unwrap_or_default();
+            let neighbors_j = neighbor_sets.get(&j).cloned().unwrap_or_default();
+
+            let coeff = if k == 3 {
+                // Count triangles: common neighbors of i and j
+                let common_neighbors: FxHashSet<_> = neighbors_i
+                    .intersection(&neighbors_j)
+                    .copied()
+                    .collect();
+                
+                let mut z = common_neighbors.len() as f64;
+                if offset {
+                    z += 1.0;
+                }
+
+                if normalize {
+                    // s^(3) = min(d_i - 1, d_j - 1)
+                    let s = (d_i.saturating_sub(1)).min(d_j.saturating_sub(1)) as f64;
+                    if s > 0.0 {
+                        z / s
+                    } else {
+                        0.0
+                    }
+                } else {
+                    z
+                }
+            } else {
+                // k == 4: Count 4-cycles
+                // A 4-cycle through edge (i,j) has form: i -> a -> j -> b -> i
+                // where a ∈ neighbors(i), b ∈ neighbors(j), and a != j, b != i
+                // We need a and b to be connected
+                
+                let mut cycle_count = 0;
+
+                // For each neighbor a of i (excluding j)
+                for &a in &neighbors_i {
+                    if a == j {
+                        continue;
+                    }
+
+                    // For each neighbor b of j (excluding i)
+                    for &b in &neighbors_j {
+                        if b == i || b == a {
+                            continue;
+                        }
+
+                        // Check if a and b are connected
+                        if let Some(a_neighbors) = neighbor_sets.get(&a) {
+                            if a_neighbors.contains(&b) {
+                                cycle_count += 1;
+                            }
+                        }
+                    }
+                }
+
+                // Each 4-cycle is counted once in the above loop
+                let mut z = cycle_count as f64;
+                if offset {
+                    z += 1.0;
+                }
+
+                if normalize {
+                    // s^(4) = (d_i - 1)(d_j - 1)
+                    let s = (d_i.saturating_sub(1) * d_j.saturating_sub(1)) as f64;
+                    if s > 0.0 {
+                        z / s
+                    } else {
+                        0.0
+                    }
+                } else {
+                    z
+                }
+            };
+
+            result.insert(edge.id, coeff);
+        }
+
+        Ok(result)
+    }
+
     /// Get HITS authority scores
     /// Hyperlink-Induced Topic Search algorithm for directed graphs
     /// Authority score: sum of hub scores of nodes pointing to this node
