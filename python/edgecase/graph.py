@@ -1132,11 +1132,8 @@ class Graph:
         )
         
         print(graph.is_connected())  # True
-        ```
         
-        Adding isolated nodes breaks connectivity:
-        
-        ```python
+        # Adding isolated nodes breaks connectivity
         graph.add_node(label="D")  # Isolated node
         print(graph.is_connected())  # False
         ```
@@ -1180,11 +1177,8 @@ class Graph:
         )
         
         print(graph.is_dag())  # True
-        ```
         
-        Adding a cycle makes it not a DAG:
-        
-        ```python
+        # Adding a cycle makes it not a DAG
         graph.add_edge("C", "A")  # Creates cycle A->B->C->A
         print(graph.is_dag())  # False
         ```
@@ -1220,11 +1214,8 @@ class Graph:
         )
         
         print(graph.is_simple())  # True
-        ```
         
-        Self-loops make a graph non-simple:
-        
-        ```python
+        # Self-loops make a graph non-simple
         graph.add_edge("A", "A")  # Self-loop
         print(graph.is_simple())  # False
         ```
