@@ -2238,17 +2238,49 @@ class Graph:
         """Get degree histogram for plotting.
         
         Returns a dictionary mapping degree values to their frequencies,
-        suitable for creating degree distribution plots.
+        suitable for creating degree distribution plots. This is an alias
+        for `degree_distribution()`.
         
-        Returns:
-            Dictionary where keys are degree values and values are counts
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_star_graph(5)  # 1 hub (degree 4) + 4 leaves (degree 1)
-            >>> hist = G.get_degree_histogram()
-            >>> hist
-            {1: 4, 4: 1}
+        Returns
+        -------
+        dict[int, int]
+            Dictionary where keys are degree values and values are counts of
+            nodes with that degree.
+        
+        Examples
+        --------
+        Get degree histogram from a star graph:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph()
+        graph.add_star_graph(5)  # 1 hub (degree 4) + 4 leaves (degree 1)
+        
+        hist = graph.get_degree_histogram()
+        print(hist)  # {1: 4, 4: 1}
+        ```
+        
+        Visualize degree distribution:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph()
+        graph.add_gnp_graph(100, 0.05, seed=23)
+        
+        hist = graph.get_degree_histogram()
+        
+        # Plot with your favorite library
+        for degree, count in sorted(hist.items()):
+            print(f"Degree {degree}: {count} nodes")
+        ```
+        
+        See Also
+        --------
+        degree_distribution : Equivalent method
+        average_degree : Get mean degree
+        degree : Get degree of a single node
         """
         return self._graph.get_degree_histogram()
     
@@ -7812,7 +7844,7 @@ class Graph:
         import edgecase as ec
         
         graph = Graph()
-        graph.add_gnp_graph(n=50, p=0.1, seed=42)
+        graph.add_gnp_graph(n=50, p=0.1, seed=23)
         
         print(graph.num_nodes())  # 50
         # Expected ~245 edges (50*49/2 * 0.1)
@@ -7874,7 +7906,7 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_gnm_graph(n=50, m=100, seed=42)
+            .add_gnm_graph(n=50, m=100, seed=23)
         )
         
         print(graph.num_nodes())  # 50
@@ -7934,7 +7966,7 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_pa_graph(n=100, m=3, seed=42)
+            .add_pa_graph(n=100, m=3, seed=23)
         )
         
         print(graph.num_nodes())  # 100
@@ -7986,7 +8018,7 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_smallworld_graph(n=100, k=6, p=0.1, seed=42)
+            .add_smallworld_graph(n=100, k=6, p=0.1, seed=23)
         )
         
         print(graph.num_nodes())  # 100
