@@ -185,7 +185,8 @@ def from_networkx(nx_graph, weighted: Optional[bool] = None):
     graph = from_networkx(nx_graph)
     print(graph.num_nodes())  # 2
     print(graph.num_edges())  # 1
-    print(graph.get_node_attr("A", "color"))  # 'red'
+    node = graph.get_node(graph.id_from_label("A"))
+    print(node.attributes["color"])  # 'red'
     
     # Works with MultiGraphs too
     nx_multi = nx.MultiGraph()

@@ -74,7 +74,10 @@ class GraphWidget:
     --------
     >>> import edgecase as ec
     >>> G = ec.Graph(directed=False)
-    >>> G.add_edges([('A','B'), ('B','C'), ('C','A')])
+    >>> for src, tgt in [('A','B'), ('B','C'), ('C','A')]:
+    ...     G.add_node(src)
+    ...     G.add_node(tgt)
+    ...     G.add_edge(src, tgt)
     >>> 
     >>> # Basic visualization
     >>> widget = ec.GraphWidget(G)
@@ -83,12 +86,12 @@ class GraphWidget:
     >>> # With community detection
     >>> communities = G.get_cmty_louvain()
     >>> G.set_node_attrs_ws(community=communities)
-    >>> widget = ec.GraphWidget(G, color_by='community')
+    >>> widget = ec.GraphWidget(G)
     >>> widget.show()
     >>> 
     >>> # Custom aesthetics
-    >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.nodes()})
-    >>> widget = ec.GraphWidget(G, size_by='size', size_scale=5.0)
+    >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.node_ids()})
+    >>> widget = ec.GraphWidget(G)
     >>> widget.show()
     """
     
@@ -817,7 +820,10 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     --------
     >>> import edgecase as ec
     >>> G = ec.Graph(directed=False)
-    >>> G.add_edges([('A','B'), ('B','C')])
+    >>> for src, tgt in [('A','B'), ('B','C')]:
+    ...     G.add_node(src)
+    ...     G.add_node(tgt)
+    ...     G.add_edge(src, tgt)
     >>> 
     >>> # Basic usage
     >>> widget = ec.graph_widget(G)
@@ -826,8 +832,8 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     >>> # With community detection
     >>> communities = G.get_cmty_louvain()
     >>> for node, comm in communities.items():
-    ...     G.set_node_attr(node, 'community', comm)
-    >>> widget = ec.graph_widget(G, color_by='community')
+    ...     G.set_node_attr(node, "community", comm)
+    >>> widget = ec.graph_widget(G)
     >>> widget.show()
     """
     return GraphWidget(graph, **kwargs)

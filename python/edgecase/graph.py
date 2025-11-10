@@ -628,6 +628,8 @@ class Graph:
             
         Example:
             >>> G = Graph(directed=True)
+            >>> for node in ["A", "B", "C"]:
+            ...     G.add_node(node)
             >>> G.add_edge("A", "B")
             >>> G.add_edge("B", "C")
             >>> G.get_edges()
@@ -4433,13 +4435,13 @@ class Graph:
         Access edge properties:
         
         ```python
-        graph = Graph().add_edge("A", "B", weight=1.5, type="friend")
+        graph = Graph().add_node("A").add_node("B").add_edge("A", "B", weight=1.5, type="friend")
         
         edge_ids = graph.edge_ids()
         edge = graph.get_edge(edge_ids[0])
         
-        print(edge.source)  # 'A'
-        print(edge.target)  # 'B'
+        print(edge.source)  # Node ID for 'A'
+        print(edge.target)  # Node ID for 'B'
         print(edge.weight)  # 1.5
         print(edge.attributes)  # {'type': 'friend'}
         ```
@@ -6614,6 +6616,8 @@ class Graph:
             
         Example:
             >>> G = Graph(directed=True)
+            >>> G.add_node('A')
+            >>> G.add_node('B')
             >>> G.add_edge('A', 'B', weight=1.5)
             >>> G.select_edges_by_id([1])
             >>> G.rev_edge_dir_ws()
@@ -8655,8 +8659,10 @@ def get_cmty_fast_greedy(graph: Graph) -> dict[str, int]:
     
     # Two disconnected cliques
     graph = ec.Graph(directed=False)
-    graph.add_edges([('A','B'), ('B','C'), ('C','A')])
-    graph.add_edges([('D','E'), ('E','F'), ('F','D')])
+    for node in ['A', 'B', 'C', 'D', 'E', 'F']:
+        graph.add_node(node)
+    for src, tgt in [('A','B'), ('B','C'), ('C','A'), ('D','E'), ('E','F'), ('F','D')]:
+        graph.add_edge(src, tgt)
     
     communities = graph.get_cmty_fast_greedy()
     
