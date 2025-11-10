@@ -114,7 +114,7 @@ def demo_dataframe_edge_ids():
         'rel': ['follows', 'follows', 'likes', 'mentions']
     })
     
-    g = ec.create_graph(nodes_df=nodes, edges_df=edges, directed=True)
+    g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
     
     print(f"Created graph from DataFrames")
     print(f"Nodes: {g.num_nodes()}, Edges: {g.num_edges()}")
