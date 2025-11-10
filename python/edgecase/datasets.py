@@ -15,7 +15,16 @@ def karate_club() -> Graph:
     - 34 nodes (club members)
     - 78 edges (friendships)
     - Undirected, unweighted
+    - Density: 0.139
     - 2 communities (corresponding to the actual club split)
+    
+    **Network Metrics** (from networkrepository.com):
+    - Degree: max=17, min=1, avg=4.588
+    - Assortativity: -0.476
+    - Triangles: 135 total, 3.97 avg per node, 18 max
+    - Clustering coefficient: 0.571 (average)
+    - Transitivity (fraction of closed triangles): 0.256
+    - Maximum k-core: 5
     
     **Node Attributes:**
     - `faction`: Which faction the member joined (1 = Mr. Hi, 2 = John A.)
@@ -36,6 +45,13 @@ def karate_club() -> Graph:
     print(f"Nodes: {G.num_nodes()}, Edges: {G.num_edges()}")
     # Nodes: 34, Edges: 78
     
+    # Check basic metrics
+    n = G.num_nodes()
+    e = G.num_edges()
+    density = e / (n * (n - 1) / 2)
+    print(f"Density: {density:.3f}")
+    # Density: 0.139
+    
     # Access node attributes by label
     node_id = G.id_from_label("0")
     node = G.get_node(node_id)
@@ -53,7 +69,19 @@ def karate_club() -> Graph:
     for node_id, score in top_nodes:
         label = G.label_from_id(node_id)
         print(f"Node {label}: {score:.3f}")
+    
+    # Check k-core decomposition
+    coreness = G.get_coreness()
+    max_core = max(coreness.values())
+    print(f"Maximum k-core: {max_core}")
     ```
+    
+    Notes
+    -----
+    This is one of the most well-studied networks in social network analysis.
+    The network split prediction problem has been validated multiple times,
+    and the dataset serves as a standard benchmark for community detection
+    algorithms.
     
     References
     ----------
