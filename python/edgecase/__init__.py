@@ -1,4 +1,12 @@
-__version__ = "0.1.0"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+except ImportError:  # pragma: no cover
+    from importlib_metadata import PackageNotFoundError, version
+
+try:  # pragma: no cover
+    __version__ = version("edgecase")
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "0.0.0"
 
 # Import Rust core with Python wrapper for API compatibility
 from edgecase.graph import (
