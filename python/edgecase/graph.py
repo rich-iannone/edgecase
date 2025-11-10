@@ -7912,17 +7912,26 @@ class Graph:
         For directed graphs, follows edges in the forward direction.
         For undirected graphs, follows edges in all directions (equivalent to trav_both).
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_node("A").add_node("B").add_node("C")
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "C")
-            >>> node_a_id = G.id_from_label("A")
-            >>> G.select_nodes_by_id([node_a_id]).trav_out().get_selected_nodes()
-            # Returns [node_id_for_B]
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_node("A").add_node("B").add_node("C")
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+        
+        node_a_id = graph.id_from_label("A")
+        graph.select_nodes_by_id([node_a_id]).trav_out()
+        selected = graph.get_selected_nodes()
+        # Returns [node_id_for_B]
+        ```
         """
         self._graph.trav_out()
         return self
@@ -7937,17 +7946,26 @@ class Graph:
         For directed graphs, follows edges in the reverse direction.
         For undirected graphs, follows edges in all directions (equivalent to trav_both).
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_node("A").add_node("B").add_node("C")
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "C")
-            >>> node_c_id = G.id_from_label("C")
-            >>> G.select_nodes_by_id([node_c_id]).trav_in().get_selected_nodes()
-            # Returns [node_id_for_B]
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_node("A").add_node("B").add_node("C")
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+        
+        node_c_id = graph.id_from_label("C")
+        graph.select_nodes_by_id([node_c_id]).trav_in()
+        selected = graph.get_selected_nodes()
+        # Returns [node_id_for_B]
+        ```
         """
         self._graph.trav_in()
         return self
@@ -7961,15 +7979,27 @@ class Graph:
         
         Works the same for directed and undirected graphs.
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("C", "B")
-            >>> G.select_nodes_by_id(["B"]).trav_both().get_selected_nodes()
-            ['A', 'C']
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_edge("A", "B")
+        graph.add_edge("C", "B")
+        
+        node_b_id = graph.id_from_label("B")
+        graph.select_nodes_by_id([node_b_id]).trav_both()
+        
+        # Get labels of selected nodes
+        labels = [graph.label_from_id(nid) for nid in graph.get_selected_nodes()]
+        # Returns ['A', 'C'] (or ['C', 'A'] - order may vary)
+        ```
         """
         self._graph.trav_both()
         return self
@@ -7984,16 +8014,25 @@ class Graph:
         For directed graphs, selects edges where from=selected_node.
         For undirected graphs, selects all edges incident to selected nodes.
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("A", "C")
-            >>> G.select_nodes_by_id(["A"]).trav_out_edge()
-            >>> len(G.get_selected_edges())
-            2
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "C")
+        
+        node_a_id = graph.id_from_label("A")
+        graph.select_nodes_by_id([node_a_id]).trav_out_edge()
+        
+        print(len(graph.get_selected_edges()))  # 2
+        ```
         """
         self._graph.trav_out_edge()
         return self
@@ -8008,16 +8047,25 @@ class Graph:
         For directed graphs, selects edges where to=selected_node.
         For undirected graphs, selects all edges incident to selected nodes.
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = ec.Graph(directed=True)
-            >>> G.add_edge("A", "C")
-            >>> G.add_edge("B", "C")
-            >>> G.select_nodes_by_id(["C"]).trav_in_edge()
-            >>> len(G.get_selected_edges())
-            2
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_edge("A", "C")
+        graph.add_edge("B", "C")
+        
+        node_c_id = graph.id_from_label("C")
+        graph.select_nodes_by_id([node_c_id]).trav_in_edge()
+        
+        print(len(graph.get_selected_edges()))  # 2
+        ```
         """
         self._graph.trav_in_edge()
         return self
