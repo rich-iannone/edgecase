@@ -9,48 +9,49 @@ except PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
 # Import Rust core with Python wrapper for API compatibility
-from edgecase.graph import (
-    Graph,
-    Node,
-    Edge,
-    shortest_path,
-    pagerank,
-    betweenness_centrality,
-    detect_communities,
-    find_cycles,
-)
-
-# Python-layer functionality
-from edgecase.polars_integration import from_polars, to_polars
-from edgecase.analysis import NetworkAnalyzer
-from edgecase.tables import tbl_centrality, tbl_network_summary
-from edgecase.viz import plot_graph
-from edgecase.widget import GraphWidget, graph_widget
 from edgecase.aesthetics import (
     colorize_node_attrs,
     rescale_node_attrs,
     set_node_attr_to_display,
 )
+from edgecase.analysis import NetworkAnalyzer
 from edgecase.bio import (
-    protein_network,
-    patient_similarity_network,
     pathway_analysis,
-)
-from edgecase.fraud import (
-    transaction_network,
-    find_suspicious_patterns,
-    temporal_fraud_detection,
-)
-from edgecase.io import (
-    from_matrix_market,
+    patient_similarity_network,
+    protein_network,
 )
 from edgecase.datasets import (
     karate_club,
 )
+from edgecase.fraud import (
+    find_suspicious_patterns,
+    temporal_fraud_detection,
+    transaction_network,
+)
+from edgecase.graph import (
+    Edge,
+    Graph,
+    Node,
+    betweenness_centrality,
+    detect_communities,
+    find_cycles,
+    pagerank,
+    shortest_path,
+)
+from edgecase.io import (
+    from_matrix_market,
+)
+
+# Python-layer functionality
+from edgecase.polars_integration import from_polars, to_polars
+from edgecase.tables import tbl_centrality, tbl_network_summary
+from edgecase.viz import plot_graph
+from edgecase.widget import GraphWidget, graph_widget
 
 # NetworkX interoperability (optional)
 try:
-    from edgecase.networkx import to_networkx, from_networkx
+    from edgecase.networkx import from_networkx, to_networkx
+
     _HAS_NETWORKX = True
 except ImportError:
     _HAS_NETWORKX = False
@@ -59,7 +60,8 @@ except ImportError:
 
 # igraph interoperability (optional)
 try:
-    from edgecase.igraph_interop import to_igraph, from_igraph
+    from edgecase.igraph_interop import from_igraph, to_igraph
+
     _HAS_IGRAPH = True
 except ImportError:
     _HAS_IGRAPH = False

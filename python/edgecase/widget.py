@@ -1,35 +1,67 @@
-"""
-Interactive graph visualization using AnyWidget.
-
-This module provides Jupyter-native graph rendering with automatic environment
-detection, node attribute aesthetics, and interactive tooltips.
-"""
-
-from typing import Optional, Dict, Any, List
 import json
-
+from typing import Any, Dict, List, Optional
 
 # Color palettes for categorical data
 COLOR_PALETTES = {
-    'default': [
-        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+    "default": [
+        "#1f77b4",
+        "#ff7f0e",
+        "#2ca02c",
+        "#d62728",
+        "#9467bd",
+        "#8c564b",
+        "#e377c2",
+        "#7f7f7f",
+        "#bcbd22",
+        "#17becf",
     ],
-    'vibrant': [
-        '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-        '#ffff33', '#a65628', '#f781bf', '#999999', '#66c2a5',
+    "vibrant": [
+        "#e41a1c",
+        "#377eb8",
+        "#4daf4a",
+        "#984ea3",
+        "#ff7f00",
+        "#ffff33",
+        "#a65628",
+        "#f781bf",
+        "#999999",
+        "#66c2a5",
     ],
-    'pastel': [
-        '#fbb4ae', '#b3cde3', '#ccebc5', '#decbe4', '#fed9a6',
-        '#ffffcc', '#e5d8bd', '#fddaec', '#f2f2f2', '#8dd3c7',
+    "pastel": [
+        "#fbb4ae",
+        "#b3cde3",
+        "#ccebc5",
+        "#decbe4",
+        "#fed9a6",
+        "#ffffcc",
+        "#e5d8bd",
+        "#fddaec",
+        "#f2f2f2",
+        "#8dd3c7",
     ],
-    'dark': [
-        '#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e',
-        '#e6ab02', '#a6761d', '#666666', '#8da0cb', '#fc8d62',
+    "dark": [
+        "#1b9e77",
+        "#d95f02",
+        "#7570b3",
+        "#e7298a",
+        "#66a61e",
+        "#e6ab02",
+        "#a6761d",
+        "#666666",
+        "#8da0cb",
+        "#fc8d62",
     ],
-    'tableau': [
-        '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
-        '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab',
+    "tableau": [
+        "#4e79a7",
+        "#f28e2c",
+        "#e15759",
+        "#76b7b2",
+        "#59a14f",
+        "#edc949",
+        "#af7aa1",
+        "#ff9da7",
+        "#9c755f",
+        "#bab0ab",
     ],
 }
 
@@ -38,12 +70,13 @@ def _is_notebook() -> bool:
     """Detect if running in a notebook environment."""
     try:
         from IPython import get_ipython
+
         if get_ipython() is None:
             return False
         shell = get_ipython().__class__.__name__
-        if shell == 'ZMQInteractiveShell':
+        if shell == "ZMQInteractiveShell":
             return True  # Jupyter notebook or qtconsole
-        elif shell == 'TerminalInteractiveShell':
+        elif shell == "TerminalInteractiveShell":
             return False  # Terminal running IPython
         else:
             return False
@@ -53,46 +86,46 @@ def _is_notebook() -> bool:
 
 class GraphWidget:
     """
-    Interactive graph visualization widget for Jupyter notebooks.
-    
-    Features:
-    - Auto-detects notebook environment
-    - Uses node attributes as aesthetics (color, size, shape)
-    - Interactive tooltips on hover
-    - Zoom, pan, and selection
-    - WebGL-accelerated for large graphs
-    - Static export to PNG/SVG
-    
-    Aesthetic Mappings:
-    - `color` attribute → node fill color (hex or category)
-    - `size` attribute → node radius
-    - `shape` attribute → node shape (circle, square, triangle)
-    - `label` attribute → tooltip text (defaults to node ID)
-    - `community` attribute → automatic color mapping
-    
-    Examples
-    --------
-    >>> from edgecase import Graph, GraphWidget
-    >>> G = Graph(directed=False)
-    >>> for src, tgt in [('A','B'), ('B','C'), ('C','A')]:
-    ...     G.add_node(src)
-    ...     G.add_node(tgt)
-    ...     G.add_edge(src, tgt)
-    >>> # Basic visualization
-    >>> widget = GraphWidget(G)
-    >>> widget.show()
-    >>> # With community detection
-    >>> communities = G.get_cmty_louvain()
-    >>> G.set_node_attrs_ws(community=communities)
-    >>> widget = GraphWidget(G)
-    >>> widget.show()
-    >>> # Custom aesthetics
-    >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.node_ids()})
-    >>> widget = GraphWidget(G)
-    >>> widget.show()
-```
+        Interactive graph visualization widget for Jupyter notebooks.
+
+        Features:
+        - Auto-detects notebook environment
+        - Uses node attributes as aesthetics (color, size, shape)
+        - Interactive tooltips on hover
+        - Zoom, pan, and selection
+        - WebGL-accelerated for large graphs
+        - Static export to PNG/SVG
+
+        Aesthetic Mappings:
+        - `color` attribute → node fill color (hex or category)
+        - `size` attribute → node radius
+        - `shape` attribute → node shape (circle, square, triangle)
+        - `label` attribute → tooltip text (defaults to node ID)
+        - `community` attribute → automatic color mapping
+
+        Examples
+        --------
+        >>> from edgecase import Graph, GraphWidget
+        >>> G = Graph(directed=False)
+        >>> for src, tgt in [('A','B'), ('B','C'), ('C','A')]:
+        ...     G.add_node(src)
+        ...     G.add_node(tgt)
+        ...     G.add_edge(src, tgt)
+        >>> # Basic visualization
+        >>> widget = GraphWidget(G)
+        >>> widget.show()
+        >>> # With community detection
+        >>> communities = G.get_cmty_louvain()
+        >>> G.set_node_attrs_ws(community=communities)
+        >>> widget = GraphWidget(G)
+        >>> widget.show()
+        >>> # Custom aesthetics
+        >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.node_ids()})
+        >>> widget = GraphWidget(G)
+        >>> widget.show()
+    ```
     """
-    
+
     def __init__(
         self,
         graph,
@@ -107,11 +140,11 @@ class GraphWidget:
         edge_width: float = 1.0,
         color_palette: str = "default",
         background: str = "#ffffff",
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize graph widget.
-        
+
         Parameters
         ----------
         graph : Graph
@@ -154,27 +187,27 @@ class GraphWidget:
         self.color_palette = color_palette
         self.background = background
         self.kwargs = kwargs
-        
+
         # Lazy initialization
         self._widget = None
         self._data = None
-    
+
     def _prepare_data(self) -> Dict[str, Any]:
         """Extract graph data and compute aesthetics."""
-        from edgecase.viz import _force_directed_layout, _circular_layout, _random_layout
-        
+        from edgecase.viz import _circular_layout, _force_directed_layout, _random_layout
+
         # Get nodes and edges
         nodes = self.graph.nodes()
         edges = []
         seen = set()
-        
+
         for node in nodes:
             for neighbor in self.graph.neighbors(node):
                 edge_key = tuple(sorted([node, neighbor]))
                 if edge_key not in seen:
                     edges.append(list(edge_key))
                     seen.add(edge_key)
-        
+
         # Compute layout
         if self.layout == "force":
             positions = _force_directed_layout(nodes, edges, iterations=100)
@@ -182,17 +215,17 @@ class GraphWidget:
             positions = _circular_layout(nodes)
         else:
             positions = _random_layout(nodes)
-        
+
         # Build node data with aesthetics
         node_data = []
         for node_id in nodes:
             node_info = {
-                'id': node_id,
-                'x': positions[node_id][0],
-                'y': positions[node_id][1],
-                'label': str(node_id),
+                "id": node_id,
+                "x": positions[node_id][0],
+                "y": positions[node_id][1],
+                "label": str(node_id),
             }
-            
+
             # Get node attributes
             try:
                 node = self.graph.get_node(node_id)
@@ -200,40 +233,40 @@ class GraphWidget:
                     node_info.update(node.attributes)
             except Exception:
                 pass
-            
+
             node_data.append(node_info)
-        
+
         # Compute aesthetic mappings
         node_data = self._apply_aesthetics(node_data)
-        
+
         return {
-            'nodes': node_data,
-            'edges': edges,
-            'width': self.width,
-            'height': self.height,
-            'edge_width': self.edge_width,
-            'background': self.background,
+            "nodes": node_data,
+            "edges": edges,
+            "width": self.width,
+            "height": self.height,
+            "edge_width": self.edge_width,
+            "background": self.background,
         }
-    
+
     def _apply_aesthetics(self, node_data: List[Dict]) -> List[Dict]:
         """Apply aesthetic mappings to node data.
-        
+
         Priority:
         1. Direct visual attributes ('color', 'size', 'shape') from nodes
         2. Legacy color_by/size_by parameters for backward compatibility
         3. Default values
         """
-        
+
         # Legacy: Color mapping via color_by parameter (for backward compatibility)
         if self.color_by:
             unique_values = list(set(n.get(self.color_by) for n in node_data if self.color_by in n))
             if unique_values:
                 color_map = self._create_color_map(unique_values)
                 for node in node_data:
-                    if self.color_by in node and 'color' not in node:
+                    if self.color_by in node and "color" not in node:
                         # Only apply if node doesn't already have a 'color' attribute
-                        node['color'] = color_map.get(node[self.color_by], '#cccccc')
-        
+                        node["color"] = color_map.get(node[self.color_by], "#cccccc")
+
         # Legacy: Size mapping via size_by parameter (for backward compatibility)
         if self.size_by:
             sizes = [n.get(self.size_by, 0) for n in node_data if self.size_by in n]
@@ -241,30 +274,30 @@ class GraphWidget:
                 min_size, max_size = min(sizes), max(sizes)
                 size_range = max_size - min_size if max_size > min_size else 1.0
                 for node in node_data:
-                    if self.size_by in node and 'size' not in node:
+                    if self.size_by in node and "size" not in node:
                         # Only apply if node doesn't already have a 'size' attribute
                         normalized = (node[self.size_by] - min_size) / size_range
-                        node['size'] = self.node_size * (0.5 + normalized * self.size_scale)
-        
+                        node["size"] = self.node_size * (0.5 + normalized * self.size_scale)
+
         # Apply defaults for nodes without visual attributes
         for node in node_data:
-            if 'size' not in node:
-                node['size'] = self.node_size
+            if "size" not in node:
+                node["size"] = self.node_size
             else:
                 # Scale existing size values to pixel units if they look normalized (0-1 range)
-                if isinstance(node['size'], (int, float)) and 0 <= node['size'] <= 1:
-                    node['size'] = self.node_size * (0.5 + node['size'] * self.size_scale)
-            
-            if 'color' not in node:
-                node['color'] = '#4285f4'  # Default blue
-        
+                if isinstance(node["size"], (int, float)) and 0 <= node["size"] <= 1:
+                    node["size"] = self.node_size * (0.5 + node["size"] * self.size_scale)
+
+            if "color" not in node:
+                node["color"] = "#4285f4"  # Default blue
+
         return node_data
-    
+
     def _create_color_map(self, categories: List[Any]) -> Dict[Any, str]:
-        """Create color mapping for categorical data using built-in palettes."""""
+        """Create color mapping for categorical data using built-in palettes.""" ""
         # Get the color palette
-        palette = COLOR_PALETTES.get(self.color_palette, COLOR_PALETTES['default'])
-        
+        palette = COLOR_PALETTES.get(self.color_palette, COLOR_PALETTES["default"])
+
         # Cycle through colors if we have more categories than colors
         n_categories = len(categories)
         if n_categories <= len(palette):
@@ -272,16 +305,16 @@ class GraphWidget:
         else:
             # Repeat palette to cover all categories
             colors = (palette * (n_categories // len(palette) + 1))[:n_categories]
-        
+
         return dict(zip(categories, colors))
-    
+
     def show(self):
         """Display the widget in a notebook or open in browser."""
         if _is_notebook():
             return self._show_widget()
         else:
             return self._show_browser()
-    
+
     def _show_widget(self):
         """Show as AnyWidget in notebook."""
         try:
@@ -291,10 +324,10 @@ class GraphWidget:
             print("AnyWidget not installed. Falling back to browser display.")
             print("Install with: pip install anywidget")
             return self._show_browser()
-        
+
         if self._data is None:
             self._data = self._prepare_data()
-        
+
         # Create widget class dynamically
         class GraphWidgetImpl(anywidget.AnyWidget):
             _esm = """
@@ -304,7 +337,7 @@ function render({ model, el }) {
     el.innerHTML = '<p>No graph data available</p>';
     return;
   }
-  
+
   // Create container for canvas and tooltip
   const container = document.createElement('div');
   container.style.position = 'relative';
@@ -317,7 +350,7 @@ function render({ model, el }) {
   canvas.style.border = '1px solid #ccc';
   canvas.style.cursor = 'grab';
   container.appendChild(canvas);
-  
+
   // Create tooltip
   const tooltip = document.createElement('div');
   tooltip.style.position = 'absolute';
@@ -331,16 +364,16 @@ function render({ model, el }) {
   tooltip.style.zIndex = '1000';
   tooltip.style.maxWidth = '200px';
   container.appendChild(tooltip);
-  
+
   const ctx = canvas.getContext('2d');
-  
+
   // Interactive state
   let transform = {
     offsetX: canvas.width / 2,
     offsetY: canvas.height / 2,
     scale: Math.min(canvas.width, canvas.height) / 2.5
   };
-  
+
   let dragState = {
     isDragging: false,
     dragNode: null,
@@ -348,9 +381,9 @@ function render({ model, el }) {
     startY: 0,
     isPanning: false
   };
-  
+
   let hoveredNode = null;
-  
+
   // Helper: Screen to world coordinates
   function screenToWorld(screenX, screenY) {
     return {
@@ -358,7 +391,7 @@ function render({ model, el }) {
       y: (screenY - transform.offsetY) / transform.scale
     };
   }
-  
+
   // Helper: World to screen coordinates
   function worldToScreen(worldX, worldY) {
     return {
@@ -366,7 +399,7 @@ function render({ model, el }) {
       y: worldY * transform.scale + transform.offsetY
     };
   }
-  
+
   // Helper: Find node at position
   function findNodeAt(worldX, worldY) {
     for (let node of data.nodes) {
@@ -379,17 +412,17 @@ function render({ model, el }) {
     }
     return null;
   }
-  
+
   // Draw function
   function draw() {
     // Clear canvas
     ctx.fillStyle = data.background || '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     ctx.save();
     ctx.translate(transform.offsetX, transform.offsetY);
     ctx.scale(transform.scale, transform.scale);
-    
+
     // Draw edges
     if (data.edges && data.edges.length > 0) {
       ctx.strokeStyle = '#cccccc';
@@ -405,11 +438,11 @@ function render({ model, el }) {
         }
       });
     }
-    
+
     // Draw nodes
     data.nodes.forEach(node => {
       const isHovered = hoveredNode === node;
-      
+
       // Highlight hovered node
       if (isHovered) {
         ctx.fillStyle = 'rgba(255, 200, 0, 0.3)';
@@ -417,7 +450,7 @@ function render({ model, el }) {
         ctx.arc(node.x, node.y, (node.size || 10) / transform.scale * 1.5, 0, 2 * Math.PI);
         ctx.fill();
       }
-      
+
       ctx.fillStyle = node.color || '#4285f4';
       ctx.beginPath();
       ctx.arc(node.x, node.y, (node.size || 10) / transform.scale, 0, 2 * Math.PI);
@@ -426,7 +459,7 @@ function render({ model, el }) {
       ctx.lineWidth = (isHovered ? 2.5 : 1.5) / transform.scale;
       ctx.stroke();
     });
-    
+
     // Draw labels
     ctx.font = `${12 / transform.scale}px sans-serif`;
     ctx.fillStyle = '#333333';
@@ -435,19 +468,19 @@ function render({ model, el }) {
     data.nodes.forEach(node => {
       ctx.fillText(node.label || node.id, node.x, node.y);
     });
-    
+
     ctx.restore();
   }
-  
+
   // Mouse event handlers
   canvas.addEventListener('mousedown', (e) => {
     const rect = canvas.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     const world = screenToWorld(screenX, screenY);
-    
+
     const node = findNodeAt(world.x, world.y);
-    
+
     if (node) {
       // Start dragging node
       dragState.isDragging = true;
@@ -463,13 +496,13 @@ function render({ model, el }) {
       canvas.style.cursor = 'grabbing';
     }
   });
-  
+
   canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     const world = screenToWorld(screenX, screenY);
-    
+
     if (dragState.isDragging && dragState.dragNode) {
       // Drag node
       dragState.dragNode.x = world.x;
@@ -489,12 +522,12 @@ function render({ model, el }) {
       const node = findNodeAt(world.x, world.y);
       if (node !== hoveredNode) {
         hoveredNode = node;
-        
+
         if (node) {
           // Show tooltip
           const screen = worldToScreen(node.x, node.y);
           tooltip.innerHTML = `<strong>${node.label || node.id}</strong><br/>`;
-          
+
           // Add node attributes to tooltip
           const attrs = [];
           for (let key in node) {
@@ -505,7 +538,7 @@ function render({ model, el }) {
           if (attrs.length > 0) {
             tooltip.innerHTML += attrs.join('<br/>');
           }
-          
+
           tooltip.style.display = 'block';
           tooltip.style.left = (screen.x + 15) + 'px';
           tooltip.style.top = (screen.y - 15) + 'px';
@@ -514,19 +547,19 @@ function render({ model, el }) {
           tooltip.style.display = 'none';
           canvas.style.cursor = 'grab';
         }
-        
+
         draw();
       }
     }
   });
-  
+
   canvas.addEventListener('mouseup', () => {
     dragState.isDragging = false;
     dragState.dragNode = null;
     dragState.isPanning = false;
     canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
   });
-  
+
   canvas.addEventListener('mouseleave', () => {
     dragState.isDragging = false;
     dragState.dragNode = null;
@@ -536,30 +569,30 @@ function render({ model, el }) {
     canvas.style.cursor = 'grab';
     draw();
   });
-  
+
   // Zoom with mouse wheel
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    
+
     const rect = canvas.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
-    
+
     // Zoom factor
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    
+
     // Zoom towards mouse position
     const worldBefore = screenToWorld(screenX, screenY);
     transform.scale *= zoomFactor;
     const worldAfter = screenToWorld(screenX, screenY);
-    
+
     // Adjust offset to keep point under mouse stationary
     transform.offsetX += (worldAfter.x - worldBefore.x) * transform.scale;
     transform.offsetY += (worldAfter.y - worldBefore.y) * transform.scale;
-    
+
     draw();
   });
-  
+
   // Initial draw
   draw();
 }
@@ -567,46 +600,48 @@ function render({ model, el }) {
 export default { render };
 """
             data = traitlets.Dict({}).tag(sync=True)
-        
+
         widget = GraphWidgetImpl(data=self._data)
         self._widget = widget
-        
+
         # Display in notebook (don't return to avoid double display)
         from IPython.display import display
+
         display(widget)
-    
+
     def _show_browser(self):
         """Fallback to opening in browser."""
         from edgecase.viz import plot_graph
+
         return plot_graph(self.graph, open_browser=True)
-    
+
     def to_html(self, path: str) -> str:
         """Export to standalone interactive HTML file."""
         if self._data is None:
             self._data = self._prepare_data()
-        
+
         # Read the interactive JavaScript code from the widget
         js_code = """
         const data = DATA_PLACEHOLDER;
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         let transform = {
             offsetX: canvas.width / 2,
             offsetY: canvas.height / 2,
             scale: Math.min(canvas.width, canvas.height) / 2.5
         };
-        
+
         let dragState = { isDragging: false, dragNode: null, startX: 0, startY: 0, isPanning: false };
         let hoveredNode = null;
-        
+
         function screenToWorld(screenX, screenY) {
             return {
                 x: (screenX - transform.offsetX) / transform.scale,
                 y: (screenY - transform.offsetY) / transform.scale
             };
         }
-        
+
         function findNodeAt(worldX, worldY) {
             for (let node of data.nodes) {
                 const dx = node.x - worldX;
@@ -618,15 +653,15 @@ export default { render };
             }
             return null;
         }
-        
+
         function draw() {
             ctx.fillStyle = data.background || '#ffffff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
             ctx.save();
             ctx.translate(transform.offsetX, transform.offsetY);
             ctx.scale(transform.scale, transform.scale);
-            
+
             // Draw edges
             if (data.edges && data.edges.length > 0) {
                 ctx.strokeStyle = '#cccccc';
@@ -642,7 +677,7 @@ export default { render };
                     }
                 });
             }
-            
+
             // Draw nodes
             data.nodes.forEach(node => {
                 const isHovered = hoveredNode === node;
@@ -660,7 +695,7 @@ export default { render };
                 ctx.lineWidth = (isHovered ? 2.5 : 1.5) / transform.scale;
                 ctx.stroke();
             });
-            
+
             // Draw labels
             ctx.font = `${12 / transform.scale}px sans-serif`;
             ctx.fillStyle = '#333333';
@@ -669,10 +704,10 @@ export default { render };
             data.nodes.forEach(node => {
                 ctx.fillText(node.label || node.id, node.x, node.y);
             });
-            
+
             ctx.restore();
         }
-        
+
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -688,13 +723,13 @@ export default { render };
                 canvas.style.cursor = 'grabbing';
             }
         });
-        
+
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const screenX = e.clientX - rect.left;
             const screenY = e.clientY - rect.top;
             const world = screenToWorld(screenX, screenY);
-            
+
             if (dragState.isDragging && dragState.dragNode) {
                 dragState.dragNode.x = world.x;
                 dragState.dragNode.y = world.y;
@@ -714,14 +749,14 @@ export default { render };
                 }
             }
         });
-        
+
         canvas.addEventListener('mouseup', () => {
             dragState.isDragging = false;
             dragState.dragNode = null;
             dragState.isPanning = false;
             canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
         });
-        
+
         canvas.addEventListener('mouseleave', () => {
             dragState.isDragging = false;
             dragState.isPanning = false;
@@ -729,7 +764,7 @@ export default { render };
             canvas.style.cursor = 'grab';
             draw();
         });
-        
+
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
@@ -743,12 +778,12 @@ export default { render };
             transform.offsetY += (worldAfter.y - worldBefore.y) * transform.scale;
             draw();
         });
-        
+
         draw();
         """
-        
-        js_code = js_code.replace('DATA_PLACEHOLDER', json.dumps(self._data))
-        
+
+        js_code = js_code.replace("DATA_PLACEHOLDER", json.dumps(self._data))
+
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -790,10 +825,10 @@ export default { render };
 </body>
 </html>
 """
-        
-        with open(path, 'w') as f:
+
+        with open(path, "w") as f:
             f.write(html)
-        
+
         return path
 
 
@@ -801,19 +836,19 @@ export default { render };
 def graph_widget(graph, **kwargs) -> GraphWidget:
     """
     Create an interactive graph widget.
-    
+
     Parameters
     ----------
     graph : Graph
         EdgeCase graph to visualize
     **kwargs
         Passed to GraphWidget constructor
-    
+
     Returns
     -------
     GraphWidget
         Widget instance (call .show() to display)
-    
+
     Examples
     --------
     >>> from edgecase import Graph, graph_widget

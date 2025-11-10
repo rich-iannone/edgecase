@@ -1,15 +1,8 @@
-"""
-Fast graph visualization using WebGL (deck.gl approach).
-
-This module provides GPU-accelerated graph rendering similar to deck.gl,
-generating standalone HTML that renders thousands of nodes/edges smoothly.
-"""
-
 import json
-from typing import Optional
 import tempfile
 import webbrowser
 from pathlib import Path
+from typing import Optional
 
 
 def plot_graph(
@@ -24,7 +17,7 @@ def plot_graph(
 ) -> str:
     """
     Render graph using WebGL (deck.gl-style approach).
-    
+
     Parameters
     ----------
     graph : Graph
@@ -43,12 +36,12 @@ def plot_graph(
         Edge line width in pixels
     layout : str, default "force"
         Layout algorithm: "force", "circular", "random"
-        
+
     Returns
     -------
     str
         Path to generated HTML file
-        
+
     Examples
     --------
     >>> from edgecase import Graph, plot_graph
@@ -60,7 +53,7 @@ def plot_graph(
     # Extract graph data (fast - direct from Rust)
     nodes = graph.nodes()
     edges = []
-    
+
     # Build edge list efficiently
     seen = set()
     for node in nodes:
@@ -69,7 +62,7 @@ def plot_graph(
             if edge_key not in seen:
                 edges.append([node, neighbor])
                 seen.add(edge_key)
-    
+
     # Compute layout
     if layout == "force":
         positions = _force_directed_layout(nodes, edges, iterations=50)
@@ -77,112 +70,117 @@ def plot_graph(
         positions = _circular_layout(nodes)
     else:
         positions = _random_layout(nodes)
-    
+
     # Generate HTML with embedded WebGL renderer
     html = _generate_webgl_html(
-        nodes, edges, positions,
-        width=width, height=height,
-        node_size=node_size, edge_width=edge_width
+        nodes,
+        edges,
+        positions,
+        width=width,
+        height=height,
+        node_size=node_size,
+        edge_width=edge_width,
     )
-    
+
     # Save and optionally open
     if output_path is None:
         fd, output_path = tempfile.mkstemp(suffix=".html", prefix="edgecase_")
-        with open(fd, 'w') as f:
+        with open(fd, "w") as f:
             f.write(html)
     else:
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             f.write(html)
-    
+
     if open_browser:
         webbrowser.open(f"file://{Path(output_path).absolute()}")
-    
+
     return output_path
 
 
 def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations: int = 50) -> dict:
     """Fast force-directed layout (Fruchterman-Reingold inspired)."""
-    import random
     import math
-    
+    import random
+
     # Initialize random positions
     positions = {node: [random.uniform(-1, 1), random.uniform(-1, 1)] for node in nodes}
-    
+
     # Build adjacency for fast lookup
     adj = {node: set() for node in nodes}
     for src, tgt in edges:
         adj[src].add(tgt)
         adj[tgt].add(src)
-    
+
     # Force-directed iterations
     k = math.sqrt(1.0 / len(nodes))  # optimal distance
-    
+
     for iteration in range(iterations):
         # Cooling schedule
         temp = 1.0 - (iteration / iterations)
-        
+
         # Calculate forces
         forces = {node: [0.0, 0.0] for node in nodes}
-        
+
         # Repulsive forces (all pairs)
         for i, n1 in enumerate(nodes):
-            for n2 in nodes[i+1:]:
+            for n2 in nodes[i + 1 :]:
                 dx = positions[n1][0] - positions[n2][0]
                 dy = positions[n1][1] - positions[n2][1]
-                dist = math.sqrt(dx*dx + dy*dy) + 0.01
-                
+                dist = math.sqrt(dx * dx + dy * dy) + 0.01
+
                 # Repulsion proportional to 1/dist
                 force = k * k / dist
                 fx = (dx / dist) * force
                 fy = (dy / dist) * force
-                
+
                 forces[n1][0] += fx
                 forces[n1][1] += fy
                 forces[n2][0] -= fx
                 forces[n2][1] -= fy
-        
+
         # Attractive forces (edges only)
         for src, tgt in edges:
             dx = positions[src][0] - positions[tgt][0]
             dy = positions[src][1] - positions[tgt][1]
-            dist = math.sqrt(dx*dx + dy*dy) + 0.01
-            
+            dist = math.sqrt(dx * dx + dy * dy) + 0.01
+
             # Attraction proportional to dist
             force = dist * dist / k
             fx = (dx / dist) * force
             fy = (dy / dist) * force
-            
+
             forces[src][0] -= fx
             forces[src][1] -= fy
             forces[tgt][0] += fx
             forces[tgt][1] += fy
-        
+
         # Update positions with cooling
         for node in nodes:
             fx, fy = forces[node]
-            disp = math.sqrt(fx*fx + fy*fy)
+            disp = math.sqrt(fx * fx + fy * fy)
             if disp > 0:
                 positions[node][0] += (fx / disp) * min(disp, temp)
                 positions[node][1] += (fy / disp) * min(disp, temp)
-    
+
     # Normalize to [-1, 1]
     all_x = [pos[0] for pos in positions.values()]
     all_y = [pos[1] for pos in positions.values()]
     min_x, max_x = min(all_x), max(all_x)
     min_y, max_y = min(all_y), max(all_y)
-    
+
     for node in nodes:
         if max_x > min_x:
             positions[node][0] = 2 * (positions[node][0] - min_x) / (max_x - min_x) - 1
         if max_y > min_y:
             positions[node][1] = 2 * (positions[node][1] - min_y) / (max_y - min_y) - 1
-    
+
     return positions
 
 
 def _circular_layout(nodes: list[str]) -> dict:
     """Arrange nodes in a circle."""
     import math
+
     n = len(nodes)
     positions = {}
     for i, node in enumerate(nodes):
@@ -194,6 +192,7 @@ def _circular_layout(nodes: list[str]) -> dict:
 def _random_layout(nodes: list[str]) -> dict:
     """Random node positions."""
     import random
+
     return {node: [random.uniform(-1, 1), random.uniform(-1, 1)] for node in nodes}
 
 
@@ -207,7 +206,7 @@ def _generate_webgl_html(
     edge_width: float,
 ) -> str:
     """Generate standalone HTML with WebGL renderer (deck.gl style)."""
-    
+
     # Convert to JSON-serializable format
     node_data = [
         {
@@ -217,7 +216,7 @@ def _generate_webgl_html(
         }
         for node in nodes
     ]
-    
+
     edge_data = [
         {
             "source": src,
@@ -229,7 +228,7 @@ def _generate_webgl_html(
         }
         for src, tgt in edges
     ]
-    
+
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -282,13 +281,13 @@ def _generate_webgl_html(
         const edges = {json.dumps(edge_data)};
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         // Viewport state
         let zoom = 1.0;
         let panX = 0, panY = 0;
         let isDragging = false;
         let lastMouseX = 0, lastMouseY = 0;
-        
+
         // Transform world coords to screen coords
         function toScreen(x, y) {{
             return [
@@ -296,11 +295,11 @@ def _generate_webgl_html(
                 (-y * zoom + panY) * canvas.height / 2 + canvas.height / 2
             ];
         }}
-        
+
         // Render function (60fps with requestAnimationFrame)
         function render() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             // Draw edges
             ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
             ctx.lineWidth = {edge_width};
@@ -312,31 +311,31 @@ def _generate_webgl_html(
                 ctx.lineTo(x2, y2);
             }}
             ctx.stroke();
-            
+
             // Draw nodes
             for (const node of nodes) {{
                 const [x, y] = toScreen(node.x, node.y);
-                
+
                 // Node circle
                 ctx.fillStyle = '#3b82f6';
                 ctx.beginPath();
                 ctx.arc(x, y, {node_size} * zoom, 0, 2 * Math.PI);
                 ctx.fill();
-                
+
                 // Node border
                 ctx.strokeStyle = '#60a5fa';
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
             }}
         }}
-        
+
         // Mouse interaction
         canvas.addEventListener('mousedown', (e) => {{
             isDragging = true;
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
         }});
-        
+
         canvas.addEventListener('mousemove', (e) => {{
             if (isDragging) {{
                 const dx = (e.clientX - lastMouseX) / canvas.width * 2;
@@ -348,11 +347,11 @@ def _generate_webgl_html(
                 render();
             }}
         }});
-        
+
         canvas.addEventListener('mouseup', () => {{
             isDragging = false;
         }});
-        
+
         canvas.addEventListener('wheel', (e) => {{
             e.preventDefault();
             const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
@@ -360,13 +359,13 @@ def _generate_webgl_html(
             zoom = Math.max(0.1, Math.min(10, zoom));
             render();
         }});
-        
+
         // Initial render
         render();
     </script>
 </body>
 </html>"""
-    
+
     return html
 
 

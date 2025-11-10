@@ -1,9 +1,8 @@
-"""Bioinformatics and pharmaceutical network analysis."""
+from typing import List, Optional
 
-from typing import Optional, List, Dict, Any
 import polars as pl
 
-from edgecase import Graph, Node, Edge
+from edgecase.graph import Graph, Node
 
 
 def protein_network(
@@ -15,7 +14,7 @@ def protein_network(
 ) -> Graph:
     """
     Create a protein-protein interaction network.
-    
+
     Parameters
     ----------
     interactions_df : pl.DataFrame
@@ -28,39 +27,37 @@ def protein_network(
         Column name for interaction confidence score
     min_confidence : float, default 0.4
         Minimum confidence threshold for including interactions
-        
+
     Returns
     -------
     Graph
         Protein interaction network
-        
+
     Examples
     --------
     >>> import polars as pl
     >>> from edgecase import protein_network, NetworkAnalyzer
-    >>> 
+    >>>
     >>> # Load protein interactions (e.g., from STRING database)
     >>> interactions = pl.read_csv("protein_interactions.csv")
-    >>> 
+    >>>
     >>> # Create network
     >>> G = protein_network(
     ...     interactions,
     ...     confidence_col="combined_score",
     ...     min_confidence=0.7
     ... )
-    >>> 
+    >>>
     >>> # Analyze
     >>> analyzer = NetworkAnalyzer(G)
     >>> results = analyzer.analyze()
     """
     from edgecase.polars_integration import from_polars
-    
+
     # Filter by confidence if specified
     if confidence_col and min_confidence > 0:
-        interactions_df = interactions_df.filter(
-            pl.col(confidence_col) >= min_confidence
-        )
-    
+        interactions_df = interactions_df.filter(pl.col(confidence_col) >= min_confidence)
+
     return from_polars(
         interactions_df,
         source_col=protein_a_col,
@@ -79,10 +76,10 @@ def patient_similarity_network(
 ) -> Graph:
     """
     Create a patient similarity network based on clinical features.
-    
+
     Useful for stratifying patients in clinical trials or identifying
     similar patient profiles.
-    
+
     Parameters
     ----------
     patients_df : pl.DataFrame
@@ -95,47 +92,47 @@ def patient_similarity_network(
         Minimum similarity for creating an edge
     method : str, default "cosine"
         Similarity method: 'cosine', 'euclidean', 'correlation'
-        
+
     Returns
     -------
     Graph
         Patient similarity network
-        
+
     Examples
     --------
     >>> import polars as pl
     >>> from edgecase import patient_similarity_network, tbl_network_summary
     >>> from edgecase.algorithms import detect_communities
-    >>> 
+    >>>
     >>> # Load trial data
     >>> patients = pl.read_csv("trial_data.csv")
-    >>> 
+    >>>
     >>> # Create similarity network
     >>> G = patient_similarity_network(
     ...     patients,
     ...     features=["age", "biomarker_1", "biomarker_2"],
     ...     similarity_threshold=0.8
     ... )
-    >>> 
+    >>>
     >>> # Find communities (patient subgroups)
     >>> communities = detect_communities(G)
-    >>> 
+    >>>
     >>> # Create publication table
     >>> summary = tbl_network_summary(G, by="treatment_arm")
     """
     # Placeholder implementation
     # TODO: Implement similarity calculation using sklearn or scipy
-    
+
     graph = Graph(directed=False, weighted=True)
-    
+
     # Add patient nodes with integer IDs and string labels
     patient_ids = patients_df[patient_id_col].unique()
     for i, pid in enumerate(patient_ids, start=1):
         node = Node(i, str(pid))
         graph.add_node(node)
-    
+
     # TODO: Calculate pairwise similarities and add edges
-    
+
     return graph
 
 
@@ -147,7 +144,7 @@ def pathway_analysis(
 ) -> Graph:
     """
     Create a gene-pathway bipartite network.
-    
+
     Parameters
     ----------
     genes_df : pl.DataFrame
@@ -158,14 +155,14 @@ def pathway_analysis(
         Column name for gene identifier
     pathway_col : str, default "pathway"
         Column name for pathway identifier
-        
+
     Returns
     -------
     Graph
         Bipartite network connecting genes and pathways
     """
     from edgecase.polars_integration import from_polars
-    
+
     return from_polars(
         pathways_df,
         source_col=gene_col,

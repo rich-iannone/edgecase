@@ -1,9 +1,8 @@
-"""Great Tables integration for network analysis reporting."""
+from typing import Any, Dict, List, Optional
 
-from typing import Optional, Dict, Any, List
 import polars as pl
 
-from edgecase import Graph
+from edgecase.graph import Graph
 
 
 def tbl_network_summary(
@@ -13,7 +12,7 @@ def tbl_network_summary(
 ) -> Dict[str, Any]:
     """
     Create a publication-ready summary table of network statistics.
-    
+
     Parameters
     ----------
     graph : Graph
@@ -22,12 +21,12 @@ def tbl_network_summary(
         Column to group by (for stratified analysis)
     include_centrality : bool, default True
         Whether to include centrality measures
-        
+
     Returns
     -------
     dict
         Summary statistics ready for Great Tables formatting
-        
+
     Examples
     --------
     >>> import edgecase as ec
@@ -41,13 +40,13 @@ def tbl_network_summary(
         "directed": graph.is_directed,
         "weighted": graph.is_weighted,
     }
-    
+
     # TODO: Add more network statistics
     # - Density
     # - Average degree
     # - Clustering coefficient
     # - Connected components
-    
+
     return stats
 
 
@@ -57,7 +56,7 @@ def tbl_centrality(
 ) -> pl.DataFrame:
     """
     Create a table of centrality measures for all nodes.
-    
+
     Parameters
     ----------
     graph : Graph
@@ -65,12 +64,12 @@ def tbl_centrality(
     measures : list of str, optional
         Centrality measures to compute. Options: 'betweenness', 'pagerank', 'degree'
         If None, computes all available measures.
-        
+
     Returns
     -------
     pl.DataFrame
         DataFrame with centrality measures for each node
-        
+
     Examples
     --------
     >>> import edgecase as ec
@@ -79,12 +78,14 @@ def tbl_centrality(
     >>> centrality_df = ec.tbl_centrality(G, measures=['pagerank', 'degree'])
     """
     if measures is None:
-        measures = ['betweenness', 'pagerank', 'degree']
-    
+        measures = ["betweenness", "pagerank", "degree"]
+
     # Placeholder implementation
-    return pl.DataFrame({
-        "node": [],
-        "betweenness": [],
-        "pagerank": [],
-        "degree": [],
-    })
+    return pl.DataFrame(
+        {
+            "node": [],
+            "betweenness": [],
+            "pagerank": [],
+            "degree": [],
+        }
+    )

@@ -43,8 +43,7 @@ dev = [
     "pytest-benchmark>=4.0.0",
     "pytest-xdist>=3.3.0",  # parallel test execution
     "hypothesis>=6.82.0",  # property-based testing
-    "ruff>=0.1.0",
-    "black>=23.7.0",
+    "ruff>=0.9.9",
     "maturin>=1.4.0",
 ]
 bio = [
@@ -132,6 +131,14 @@ target-version = "py39"
 [tool.ruff.lint]
 exclude = ["docs", ".venv", "tests/*", "target/*", "build/*"]
 
+# Select rule sets
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings  
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+]
+
 ignore = [
     "E402",  # module level import not at top of file
     "E501",  # line too long (handled by formatter)
@@ -141,15 +148,11 @@ ignore = [
     "E702",  # multiple statements on one line (semicolon)
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402"]
 "tests/*" = ["F401", "E402"]
-
-[tool.black]
-line-length = 100
-target-version = ["py39", "py310", "py311", "py312"]
-include = '\.pyi?$'
-
-[tool.isort]
-profile = "black"
-line_length = 100
