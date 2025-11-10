@@ -7085,19 +7085,54 @@ class Graph:
     def delete_edges_ws(self) -> "Graph":
         """Delete all selected edges.
         
-        Removes edges in the current selection from the graph.
-        Updates selection state.
+        Removes edges in the current selection from the graph. Node connectivity
+        may be affected, but nodes themselves remain in the graph. Updates
+        selection state automatically.
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = Graph()
-            >>> G.add_path(5)
-            >>> G.select_edges_by_id([1, 2])
-            >>> G.delete_edges_ws()
-            >>> G.num_edges()
-            2
+        Examples
+        --------
+        Delete specific edges from a path:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph()
+        graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
+        
+        # Select and delete middle edges
+        edge_ids = graph.edge_ids()[1:3]  # Get edges 1 and 2
+        graph.select_edges_by_id(edge_ids)
+        graph.delete_edges_ws()
+        
+        print(graph.num_nodes())  # 5 (all nodes remain)
+        print(graph.num_edges())  # 2 (only first and last edges remain)
+        ```
+        
+        Delete edges by filtering:
+        
+        ```python
+        graph = ec.Graph()
+        graph.add_edge("A", "B", weight=1.0)
+        graph.add_edge("B", "C", weight=5.0)
+        graph.add_edge("C", "D", weight=2.0)
+        
+        # Delete low-weight edges
+        graph.select_edges(lambda e: e.weight and e.weight < 2.0)
+        graph.delete_edges_ws()
+        
+        print(graph.num_edges())  # 2 (edges with weight >= 2.0 remain)
+        ```
+        
+        See Also
+        --------
+        delete_nodes_ws : Delete selected nodes and their incident edges
+        select_edges_by_id : Select edges for deletion
+        clear_selection : Clear selection without deleting
         """
         selected = self.get_selected_edges()
         
@@ -7116,13 +7151,13 @@ class Graph:
         node selection.
         
         Parameters
-        ---
+        ----------
         **attributes : keyword arguments
             Attribute name-value pairs to set on selected nodes. Each keyword
             becomes an attribute name, and its value becomes the attribute value.
             
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
             
