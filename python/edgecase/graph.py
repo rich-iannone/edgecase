@@ -18,6 +18,16 @@ class Graph:
     weighted : bool, default False
         Whether edges can have weights. If `True`, edge weights are stored and
         considered in algorithms. If `False`, all edges are treated equally.
+    nodes_df : pl.DataFrame, optional
+        Optional Polars DataFrame to initialize nodes. Should contain at minimum
+        an `id` column with node identifiers. Additional columns are treated as
+        node attributes.
+    edges_df : pl.DataFrame, optional
+        Optional Polars DataFrame to initialize edges. Should contain at minimum
+        `from` and `to` columns with node identifiers. Additional columns are treated
+        as edge attributes (including optional `weight` column).
+    graph_name : str, optional
+        Optional name for the graph (stored as a graph attribute).
     
     Examples
     --------
@@ -32,6 +42,31 @@ class Graph:
         .add_node(label="Bob")
         .add_edge("Alice", "Bob")
     )
+    ```
+    
+    Create a graph from DataFrames.
+    
+    ```python
+    import polars as pl
+    from edgecase import Graph
+    
+    # Create node data frame (NDF)
+    nodes_df = pl.DataFrame({
+        "id": ["A", "B", "C"],
+        "type": ["person", "person", "person"],
+        "value": [10, 20, 15]
+    })
+    
+    # Create edge data frame (EDF)
+    edges_df = pl.DataFrame({
+        "from": ["A", "B"],
+        "to": ["B", "C"],
+        "weight": [1.5, 2.0],
+        "relation": ["friend", "colleague"]
+    })
+    
+    # Initialize graph with both DataFrames
+    graph = Graph(nodes_df=nodes_df, edges_df=edges_df, directed=True, weighted=True)
     ```
     
     Create a directed, weighted graph for modeling networks:
@@ -49,10 +84,100 @@ class Graph:
     --------
     add_node : Add nodes to the graph
     add_edge : Add edges between nodes
+    from_polars : Create graph from edge DataFrame
     """
     
-    def __init__(self, directed: bool = False, weighted: bool = False):
+    def __init__(
+        self, 
+        directed: bool = False, 
+        weighted: bool = False,
+        nodes_df: Optional[pl.DataFrame] = None,
+        edges_df: Optional[pl.DataFrame] = None,
+        graph_name: Optional[str] = None
+    ):
         self._graph = rust.Graph(directed=directed, weighted=weighted)
+        self._graph_name = graph_name
+        self._nodes_df_provided = nodes_df is not None
+        
+        # Initialize from DataFrames if provided
+        if nodes_df is not None:
+            self._init_from_nodes_df(nodes_df)
+        
+        if edges_df is not None:
+            self._init_from_edges_df(edges_df)
+    
+    def _init_from_nodes_df(self, nodes_df: pl.DataFrame) -> None:
+        """Initialize nodes from a Polars DataFrame.
+        
+        Parameters
+        ----------
+        nodes_df : pl.DataFrame
+            DataFrame with at minimum an 'id' column. Other columns become node attributes.
+            The 'id' values are treated as labels (even if they're integers) to maintain
+            user-specified identifiers.
+        """
+        if "id" not in nodes_df.columns:
+            raise ValueError("nodes_df must contain an 'id' column")
+        
+        # Get attribute columns (everything except 'id')
+        attr_cols = [col for col in nodes_df.columns if col != "id"]
+        
+        # Add each node with its ID as a label (to preserve user-specified IDs)
+        for row in nodes_df.iter_rows(named=True):
+            node_id_value = row["id"]
+            # Convert ID to string to use as label (preserves integer IDs like 0, 1, 2...)
+            label = str(node_id_value)
+            attributes = {col: row[col] for col in attr_cols}
+            self.add_node(label=label, **attributes)
+    
+    def _init_from_edges_df(self, edges_df: pl.DataFrame) -> None:
+        """Initialize edges from a Polars DataFrame.
+        
+        Automatically creates nodes if they don't exist yet (only if nodes_df was not provided).
+        When nodes_df was provided, edge 'from' and 'to' values are treated as labels
+        to match the node IDs specified in nodes_df.
+        
+        Parameters
+        ----------
+        edges_df : pl.DataFrame
+            DataFrame with at minimum 'from' and 'to' columns. Other columns become edge attributes.
+        """
+        if "from" not in edges_df.columns or "to" not in edges_df.columns:
+            raise ValueError("edges_df must contain 'from' and 'to' columns")
+        
+        # If no nodes_df was provided, auto-create nodes from edges (as labels)
+        if not getattr(self, '_nodes_df_provided', False):
+            # Collect all unique nodes mentioned in edges
+            unique_nodes = set()
+            for row in edges_df.iter_rows(named=True):
+                unique_nodes.add(row["from"])
+                unique_nodes.add(row["to"])
+            
+            # Create nodes with these values as labels
+            for node_value in sorted(unique_nodes):
+                label = str(node_value)
+                self.add_node(label=label)
+        
+        # Get attribute columns (everything except 'from' and 'to')
+        attr_cols = [col for col in edges_df.columns if col not in ["from", "to"]]
+        
+        # Add each edge with its attributes
+        # When nodes_df was provided, from/to values are treated as labels
+        for row in edges_df.iter_rows(named=True):
+            source = str(row["from"])  # Treat as label to match nodes_df IDs
+            target = str(row["to"])    # Treat as label to match nodes_df IDs
+            
+            # Extract weight if present and graph is weighted
+            weight = None
+            other_attrs = {}
+            for col in attr_cols:
+                if col == "weight" and self.weighted:
+                    weight = row[col]
+                else:
+                    other_attrs[col] = row[col]
+            
+            self.add_edge(source, target, weight=weight, **other_attrs)
+
     
     def add_node(self, node_id: Optional[Union[int, str]] = None, label: Optional[str] = None, 
                  from_node: Optional[Union[int, str]] = None, to_node: Optional[Union[int, str]] = None,
@@ -881,6 +1006,11 @@ class Graph:
     def is_weighted(self) -> bool:
         """Check if graph is weighted (alias for weighted)."""
         return self._graph.is_weighted
+    
+    @property
+    def name(self) -> Optional[str]:
+        """Get the graph's name."""
+        return self._graph_name
     
     def degree(self, node: Union[int, str]) -> int:
         """Get the degree of a node.
