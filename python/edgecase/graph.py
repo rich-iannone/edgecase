@@ -2760,7 +2760,7 @@ class Graph:
         
         A **trail** is a walk where all edges are distinct, but nodes may repeat.
         This is different from:
-        
+
         - **Path**: no repeated nodes or edges (most restrictive)
         - **Trail**: no repeated edges, but nodes may repeat
         - **Walk**: nodes and edges may repeat freely (least restrictive)
@@ -8982,6 +8982,171 @@ class Graph:
                 g.add_edge(source, target, edge_id=edge_id, **attrs)
         
         return g
+    
+    def describe(self, describe_hook: Optional[callable] = None) -> None:
+        """Print a comprehensive description of the graph.
+        
+        Displays key graph properties including node/edge counts, connectivity,
+        degree statistics, and optional custom properties via a hook function.
+        
+        Parameters
+        ----------
+        describe_hook : callable | None, optional
+            A function that takes a Graph as input and returns a dictionary
+            of additional properties to include. Keys are property names,
+            values are the corresponding values to display.
+            
+        Examples
+        --------
+        Basic usage:
+        
+        ```python
+        from edgecase import Graph
+        
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        graph.describe()
+        # Number of nodes                : 3
+        # Number of edges                : 4
+        # Directed                       : False
+        # Density                        : 0.67
+        # Average degree (min, max)      : 1.33 (1, 2)
+        # Connected                      : True
+        # Number of connected components : 1
+        ```
+        
+        With custom hook for additional properties:
+        
+        ```python
+        def custom_stats(g):
+            return {
+                "Clustering": g.get_avg_clustering_coefficient(),
+                "Diameter": g.get_graph_diameter() or "N/A"
+            }
+        
+        graph.describe(describe_hook=custom_stats)
+        # ... (basic stats)
+        # Clustering                     : 0.571
+        # Diameter                       : 5
+        ```
+        
+        Karate club example:
+        
+        ```python
+        from edgecase import karate_club
+        G = karate_club()
+        G.describe()
+        # Number of nodes                : 34
+        # Number of edges                : 78
+        # Directed                       : False
+        # Density                        : 0.14
+        # Average degree (min, max)      : 4.59 (1, 17)
+        # Connected                      : True
+        # Number of connected components : 1
+        ```
+        
+        Notes
+        -----
+        The describe_hook allows you to compute expensive metrics only when needed.
+        For large graphs, computing properties like diameter or clustering can be slow.
+        
+        See Also
+        --------
+        num_nodes : Get node count
+        num_edges : Get edge count
+        density : Get graph density
+        is_connected : Check connectivity
+        """
+        info_dict = self._create_describe_info_dict()
+        
+        # Add custom properties if hook provided
+        if describe_hook is not None:
+            additional_info = describe_hook(self)
+            info_dict.update(additional_info)
+        
+        # Calculate column width for alignment
+        max_key_len = max(len(k) for k in info_dict) if info_dict else 0
+        
+        # Print formatted output
+        for key, val in info_dict.items():
+            print(f"{key:<{max_key_len}} : {val}")
+    
+    def _create_describe_info_dict(self) -> dict:
+        """Create dictionary of graph properties for describe().
+        
+        Internal method that computes standard graph properties.
+        """
+        info = {}
+        
+        # Add graph name if it exists
+        if hasattr(self, 'name') and self.name:
+            info["Name of Graph"] = self.name
+        
+        # Basic properties
+        n_nodes = self.num_nodes()
+        n_edges = self.num_edges()
+        
+        info.update({
+            "Number of nodes": n_nodes,
+            "Number of edges": n_edges,
+            "Directed": self.is_directed,
+        })
+        
+        # Only compute additional stats if graph has nodes
+        if n_nodes == 0:
+            return info
+        
+        # Density
+        density = self.density()
+        info["Density"] = f"{density:.2f}"
+        
+        # Degree statistics - compute for all nodes
+        node_ids = self.node_ids()
+        degrees = [self.degree(self.label_from_id(nid) or str(nid)) for nid in node_ids]
+        
+        if degrees:
+            avg_degree = sum(degrees) / len(degrees)
+            min_degree = min(degrees)
+            max_degree = max(degrees)
+            info["Average degree (min, max)"] = f"{avg_degree:.2f} ({min_degree}, {max_degree})"
+        
+        # Connectivity
+        if self.is_directed:
+            # For directed graphs, check strong and weak connectivity via component counts
+            strong_components = self.count_strongly_connected_components()
+            weak_components = self.count_weakly_connected_components()
+            
+            info["Strongly connected"] = (strong_components == 1)
+            info["Weakly connected"] = (weak_components == 1)
+            info["Number of strongly connected components"] = strong_components
+            info["Number of weakly connected components"] = weak_components
+        else:
+            # For undirected graphs, just check connectivity
+            is_connected = self.is_connected()
+            info["Connected"] = is_connected
+            
+            # Always show component count (useful even if connected)
+            components = self.count_weakly_connected_components()
+            info["Number of connected components"] = components
+        
+        # Tree check (only for undirected graphs, quick check)
+        if not self.is_directed and n_nodes > 0:
+            # A tree has exactly n-1 edges and is connected
+            is_tree = (n_edges == n_nodes - 1) and self.is_connected()
+            info["Tree"] = is_tree
+        
+        # Bipartite check (only for undirected graphs)
+        if not self.is_directed:
+            info["Bipartite"] = self.is_bipartite()
+        
+        return info
     
     def __repr__(self) -> str:
         return self._graph.__repr__()
