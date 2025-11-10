@@ -611,9 +611,7 @@ export default { render };
 
     def _show_browser(self):
         """Fallback to opening in browser."""
-        from edgecase.viz import plot_graph
-
-        return plot_graph(self.graph, open_browser=True)
+        return self.graph.show(target="browser")
 
     def to_html(self, path: str) -> str:
         """Export to standalone interactive HTML file."""

@@ -9372,6 +9372,111 @@ class Graph:
 
         return info
 
+    def show(
+        self,
+        target: str = "auto",
+        width: int = 800,
+        height: int = 600,
+        node_size: float = 5.0,
+        edge_width: float = 1.0,
+        layout: str = "force",
+    ) -> None:
+        """
+        Display the graph visualization in a notebook or web browser.
+
+        Parameters
+        ----------
+        target : str, default "auto"
+            Where to show the graph: "auto", "notebook", or "browser".
+            If "auto", infers whether to display inline (notebook) or open browser.
+        width : int, default 800
+            Canvas width in pixels
+        height : int, default 600
+            Canvas height in pixels
+        node_size : float, default 5.0
+            Node radius in pixels
+        edge_width : float, default 1.0
+            Edge line width in pixels
+        layout : str, default "force"
+            Layout algorithm: "force", "circular", "random"
+
+        Examples
+        --------
+        >>> from edgecase import Graph
+        >>> G = Graph()
+        >>> G.add_edge("A", "B")
+        >>> G.add_edge("B", "C")
+        >>> G.show()  # Auto-detects notebook vs browser
+
+        >>> G.show(target="browser")  # Force browser
+        >>> G.show(target="notebook")  # Force notebook display
+        """
+        from edgecase.viz import plot_graph
+
+        if target == "auto":
+            target = self._infer_render_target()
+
+        if target == "notebook":
+            # Display inline in notebook
+            try:
+                from IPython.core.display import display_html
+
+                html = plot_graph(
+                    self,
+                    output_path=None,
+                    open_browser=False,
+                    width=width,
+                    height=height,
+                    node_size=node_size,
+                    edge_width=edge_width,
+                    layout=layout,
+                )
+
+                # Read the generated HTML file
+                with open(html, "r") as f:
+                    html_content = f.read()
+
+                display_html(html_content, raw=True, metadata={"text/html": {"isolated": True}})
+            except ImportError:
+                # Fallback to browser if IPython not available
+                plot_graph(
+                    self,
+                    output_path=None,
+                    open_browser=True,
+                    width=width,
+                    height=height,
+                    node_size=node_size,
+                    edge_width=edge_width,
+                    layout=layout,
+                )
+        elif target == "browser":
+            # Open in browser
+            plot_graph(
+                self,
+                output_path=None,
+                open_browser=True,
+                width=width,
+                height=height,
+                node_size=node_size,
+                edge_width=edge_width,
+                layout=layout,
+            )
+        else:
+            raise ValueError(f"Unknown target display: {target}")
+
+    def _infer_render_target(self) -> str:
+        """Infer whether to render in notebook or browser."""
+        try:
+            # Check if we're in an IPython/Jupyter environment
+            from IPython import get_ipython
+
+            if get_ipython() is not None:
+                return "notebook"
+        except ImportError:
+            pass
+
+        return "browser"
+
     # ========== Spanning Tree Algorithms ==========
 
     def minimum_spanning_tree(
