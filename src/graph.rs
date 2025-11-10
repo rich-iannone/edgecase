@@ -3185,6 +3185,190 @@ impl Graph {
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
 
+    // ========== Trail Enumeration ==========
+
+    /// Count all trails (walks with distinct edges) from source to target
+    /// 
+    /// A trail is a walk where all edges are distinct, but nodes may repeat.
+    /// This is different from:
+    /// - Path: no repeated nodes or edges
+    /// - Walk: nodes and edges may repeat freely
+    /// 
+    /// Uses iterative DFS with edge tracking to avoid recursion limits.
+    /// 
+    /// # Arguments
+    /// * source - Starting node ID
+    /// * target - Ending node ID
+    /// * max_trails - Optional limit on number of trails to count (prevents explosion)
+    /// 
+    /// # Returns
+    /// * Number of distinct trails from source to target
+    /// * Returns None if max_trails exceeded
+    /// 
+    /// # Complexity
+    /// * Can grow exponentially with graph size
+    /// * Time: O(trails × avg_trail_length)
+    /// * Space: O(edges) per trail in stack
+    /// 
+    /// # Note
+    /// * For undirected graphs, edges are considered bidirectional
+    /// * Self-loops are traversed at most once per trail
+    fn count_trails(
+        &self,
+        source: u64,
+        target: u64,
+        max_trails: Option<usize>,
+    ) -> PyResult<Option<usize>> {
+        // Validate nodes exist
+        if !self.nodes.contains_key(&source) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Source node {} not found", source)
+            ));
+        }
+        if !self.nodes.contains_key(&target) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Target node {} not found", target)
+            ));
+        }
+
+        // If source == target, there's 1 trivial trail (empty path)
+        if source == target {
+            return Ok(Some(1));
+        }
+
+        let mut trail_count = 0usize;
+        let limit = max_trails.unwrap_or(usize::MAX);
+
+        // Stack stores: (current_node, visited_edges)
+        // For undirected graphs, we store edges as (min, max) to handle both directions
+        let mut stack: Vec<(u64, FxHashSet<(u64, u64)>)> = Vec::new();
+        stack.push((source, FxHashSet::default()));
+
+        while let Some((current, visited_edges)) = stack.pop() {
+            // Get neighbors
+            if let Some(neighbors) = self.adjacency_list.get(&current) {
+                for &neighbor in neighbors {
+                    // Create edge representation
+                    let edge = if self.directed {
+                        (current, neighbor)
+                    } else {
+                        // For undirected, normalize edge as (min, max)
+                        if current < neighbor {
+                            (current, neighbor)
+                        } else {
+                            (neighbor, current)
+                        }
+                    };
+
+                    // Check if edge not visited
+                    if !visited_edges.contains(&edge) {
+                        // If we reached target, count this trail
+                        if neighbor == target {
+                            trail_count += 1;
+                            if trail_count >= limit {
+                                return Ok(None); // Exceeded limit
+                            }
+                        } else {
+                            // Continue exploration
+                            let mut new_visited = visited_edges.clone();
+                            new_visited.insert(edge);
+                            stack.push((neighbor, new_visited));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(Some(trail_count))
+    }
+
+    /// Enumerate all trails (walks with distinct edges) from source to target
+    /// 
+    /// Returns a list of trails, where each trail is a sequence of node IDs.
+    /// 
+    /// # Arguments
+    /// * source - Starting node ID
+    /// * target - Ending node ID
+    /// * max_trails - Optional limit on number of trails to return
+    /// 
+    /// # Returns
+    /// * Vec of trails, where each trail is Vec<u64> of node IDs
+    /// * If max_trails exceeded, returns partial list
+    /// 
+    /// # Warning
+    /// * Can generate massive output for dense graphs
+    /// * Use max_trails to limit memory usage
+    fn enumerate_trails(
+        &self,
+        source: u64,
+        target: u64,
+        max_trails: Option<usize>,
+    ) -> PyResult<Vec<Vec<u64>>> {
+        // Validate nodes exist
+        if !self.nodes.contains_key(&source) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Source node {} not found", source)
+            ));
+        }
+        if !self.nodes.contains_key(&target) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Target node {} not found", target)
+            ));
+        }
+
+        let mut trails: Vec<Vec<u64>> = Vec::new();
+        let limit = max_trails.unwrap_or(usize::MAX);
+
+        // If source == target, return single empty trail
+        if source == target {
+            return Ok(vec![vec![source]]);
+        }
+
+        // Stack stores: (current_node, path, visited_edges)
+        let mut stack: Vec<(u64, Vec<u64>, FxHashSet<(u64, u64)>)> = Vec::new();
+        stack.push((source, vec![source], FxHashSet::default()));
+
+        while let Some((current, path, visited_edges)) = stack.pop() {
+            // Get neighbors
+            if let Some(neighbors) = self.adjacency_list.get(&current) {
+                for &neighbor in neighbors {
+                    // Create edge representation
+                    let edge = if self.directed {
+                        (current, neighbor)
+                    } else {
+                        // For undirected, normalize edge as (min, max)
+                        if current < neighbor {
+                            (current, neighbor)
+                        } else {
+                            (neighbor, current)
+                        }
+                    };
+
+                    // Check if edge not visited
+                    if !visited_edges.contains(&edge) {
+                        let mut new_path = path.clone();
+                        new_path.push(neighbor);
+
+                        // If we reached target, save this trail
+                        if neighbor == target {
+                            trails.push(new_path);
+                            if trails.len() >= limit {
+                                return Ok(trails); // Reached limit
+                            }
+                        } else {
+                            // Continue exploration
+                            let mut new_visited = visited_edges.clone();
+                            new_visited.insert(edge);
+                            stack.push((neighbor, new_path, new_visited));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(trails)
+    }
+
     // ========== Community Detection ==========
 
     /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm

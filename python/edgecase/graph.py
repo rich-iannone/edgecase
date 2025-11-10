@@ -2750,6 +2750,255 @@ class Graph:
         """
         return self._graph.get_coreness()
     
+    def count_trails(
+        self,
+        source: str,
+        target: str,
+        max_trails: int | None = None,
+    ) -> int | None:
+        """Count all trails (walks with distinct edges) from source to target.
+        
+        A **trail** is a walk where all edges are distinct, but nodes may repeat.
+        This is different from:
+        
+        - **Path**: no repeated nodes or edges (most restrictive)
+        - **Trail**: no repeated edges, but nodes may repeat
+        - **Walk**: nodes and edges may repeat freely (least restrictive)
+        
+        Uses iterative depth-first search with edge tracking. Can grow exponentially
+        for dense graphs, so use `max_trails` parameter to limit computation.
+        
+        Parameters
+        ----------
+        source : str
+            Starting node ID
+        target : str
+            Ending node ID
+        max_trails : int | None, optional
+            Maximum number of trails to count before stopping.
+            If None, counts all trails (may be very large).
+            If exceeded, returns None.
+            
+        Returns
+        -------
+        int | None
+            Number of distinct trails from source to target.
+            Returns None if max_trails exceeded.
+            Returns 1 if source == target (trivial empty trail).
+            
+        Raises
+        ------
+        ValueError
+            If source or target node not found in graph.
+            
+        Examples
+        --------
+        Count trails in a simple graph:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        
+        # Triangle: multiple trails from A to C
+        count = graph.count_trails("A", "C")
+        print(f"Trails from A to C: {count}")  # 2 trails: A→C and A→B→C
+        ```
+        
+        Count trails with limit to prevent explosion:
+        
+        ```python
+        from edgecase import karate_club
+        G = karate_club()
+        
+        # Limit to 10000 trails to avoid long computation
+        count = G.count_trails("1", "34", max_trails=10000)
+        if count is None:
+            print("More than 10,000 trails exist")
+        else:
+            print(f"Found {count} trails")
+        ```
+        
+        Compare paths vs trails:
+        
+        ```python
+        # Create graph with cycle
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("B", "D")  # Shortcut
+        )
+        
+        # Trails: can use different edges
+        trails = graph.count_trails("A", "D")
+        print(f"Trails: {trails}")  # 2: A→B→D and A→B→C→D
+        
+        # Simple paths would only count non-repeated nodes
+        ```
+        
+        Notes
+        -----
+        **Complexity**:
+        - Time: O(trails × avg_trail_length) - exponential in worst case
+        - Space: O(edges) per trail in exploration stack
+        
+        **Growth Rate**:
+        - Triangle (3 nodes): ~2 trails
+        - Complete K4 (4 nodes): ~12 trails
+        - Complete K5 (5 nodes): ~100+ trails
+        - Can easily exceed millions for dense graphs
+        
+        **Implementation**:
+        - Uses iterative DFS with explicit stack (avoids recursion limits)
+        - Tracks visited edges (not nodes) to allow node revisiting
+        - For undirected graphs, edges are bidirectional
+        
+        See Also
+        --------
+        enumerate_trails : Get the actual trail sequences
+        shortest_path : Find single shortest path
+        
+        References
+        ----------
+        Trail definition: https://en.wikipedia.org/wiki/Path_(graph_theory)#Walk,_trail,_and_path
+        """
+        # Convert string node IDs to internal IDs
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        
+        # Call Rust implementation
+        result = self._graph.count_trails(source_id, target_id, max_trails)
+        return result
+    
+    def enumerate_trails(
+        self,
+        source: str,
+        target: str,
+        max_trails: int | None = 1000,
+    ) -> list[list[str]]:
+        """Enumerate all trails (walks with distinct edges) from source to target.
+        
+        Returns the actual sequences of nodes for each trail. A trail is a walk
+        where all edges are distinct, though nodes may repeat.
+        
+        **Warning**: Can generate massive output for dense graphs. Always use
+        `max_trails` parameter to limit memory usage.
+        
+        Parameters
+        ----------
+        source : str
+            Starting node ID
+        target : str
+            Ending node ID
+        max_trails : int | None, optional
+            Maximum number of trails to return. Default is 1000.
+            If None, returns all trails (dangerous for large graphs).
+            If limit exceeded, returns partial list.
+            
+        Returns
+        -------
+        list[list[str]]
+            List of trails, where each trail is a sequence of node IDs.
+            If max_trails exceeded, returns first max_trails trails found.
+            
+        Raises
+        ------
+        ValueError
+            If source or target node not found in graph.
+            
+        Examples
+        --------
+        Enumerate trails in a triangle:
+        
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        
+        trails = graph.enumerate_trails("A", "C")
+        for i, trail in enumerate(trails, 1):
+            print(f"Trail {i}: {' → '.join(trail)}")
+        # Trail 1: A → C
+        # Trail 2: A → B → C
+        ```
+        
+        Enumerate with limit:
+        
+        ```python
+        graph = Graph()
+        # Add nodes and edges...
+        
+        # Get first 100 trails only
+        trails = graph.enumerate_trails("start", "end", max_trails=100)
+        print(f"Found {len(trails)} trails (may be more)")
+        ```
+        
+        Analyze trail lengths:
+        
+        ```python
+        from edgecase import karate_club
+        G = karate_club()
+        
+        # Get sample of trails
+        trails = G.enumerate_trails("1", "34", max_trails=100)
+        
+        # Analyze lengths
+        lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
+        print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
+        print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
+        ```
+        
+        Notes
+        -----
+        **Memory Warning**:
+        - Each trail stores full node sequence
+        - 1000 trails × 50 nodes each = ~50KB minimum
+        - Can quickly consume GB of memory for large graphs
+        - Always set max_trails to reasonable value
+        
+        **Use Cases**:
+        - Analyzing alternative routes in networks
+        - Finding redundant paths for reliability
+        - Network vulnerability analysis
+        - Understanding connectivity patterns
+        
+        See Also
+        --------
+        count_trails : Count trails without storing sequences (more efficient)
+        shortest_path : Find single shortest path
+        """
+        # Convert string node IDs to internal IDs
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        
+        # Call Rust implementation
+        trails = self._graph.enumerate_trails(source_id, target_id, max_trails)
+        
+        # Convert internal IDs back to string labels
+        result = []
+        for trail in trails:
+            result.append([self.label_from_id(node_id) or str(node_id) for node_id in trail])
+        
+        return result
+    
     def get_clustering_coefficient(self) -> dict[str, float]:
         """Get local clustering coefficient for each node.
         
