@@ -78,17 +78,14 @@ class GraphWidget:
     ...     G.add_node(src)
     ...     G.add_node(tgt)
     ...     G.add_edge(src, tgt)
-    >>> 
     >>> # Basic visualization
     >>> widget = GraphWidget(G)
     >>> widget.show()
-    >>> 
     >>> # With community detection
     >>> communities = G.get_cmty_louvain()
     >>> G.set_node_attrs_ws(community=communities)
     >>> widget = GraphWidget(G)
     >>> widget.show()
-    >>> 
     >>> # Custom aesthetics
     >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.node_ids()})
     >>> widget = GraphWidget(G)
@@ -825,11 +822,9 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     ...     G.add_node(src)
     ...     G.add_node(tgt)
     ...     G.add_edge(src, tgt)
-    >>> 
     >>> # Basic usage
     >>> widget = graph_widget(G)
     >>> widget.show()
-    >>> 
     >>> # With community detection
     >>> communities = G.get_cmty_louvain()
     >>> for node_id in G.node_ids():
