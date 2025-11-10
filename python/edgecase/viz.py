@@ -51,11 +51,11 @@ def plot_graph(
         
     Examples
     --------
-    >>> import edgecase as ec
-    >>> G = ec.Graph()
+    >>> from edgecase import Graph, plot_graph
+    >>> G = Graph()
     >>> G.add_edge("A", "B")
     >>> G.add_edge("B", "C")
-    >>> ec.plot_graph(G)
+    >>> plot_graph(G)
     """
     # Extract graph data (fast - direct from Rust)
     nodes = graph.nodes()

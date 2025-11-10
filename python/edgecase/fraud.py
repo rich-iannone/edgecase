@@ -41,22 +41,23 @@ def transaction_network(
     Examples
     --------
     >>> import polars as pl
-    >>> import edgecase as ec
+    >>> from edgecase import transaction_network
+    >>> from edgecase.algorithms import find_cycles, detect_communities
     >>> 
     >>> # Load transaction data
     >>> transactions = pl.scan_parquet("transactions/*.parquet")
     >>> 
     >>> # Create network
-    >>> G = ec.transaction_network(
+    >>> G = transaction_network(
     ...     transactions,
     ...     min_amount=10000
     ... )
     >>> 
     >>> # Find suspicious cycles (money laundering rings)
-    >>> cycles = ec.find_cycles(G, min_amount=10000)
+    >>> cycles = find_cycles(G, min_amount=10000)
     >>> 
     >>> # Detect communities (fraud rings)
-    >>> communities = ec.detect_communities(G)
+    >>> communities = detect_communities(G)
     """
     # Filter by amount
     if min_amount > 0:
@@ -107,10 +108,10 @@ def find_suspicious_patterns(
         
     Examples
     --------
-    >>> import edgecase as ec
+    >>> from edgecase import transaction_network, find_suspicious_patterns
     >>> 
-    >>> G = ec.transaction_network(transactions_df)
-    >>> suspicious = ec.find_suspicious_patterns(
+    >>> G = transaction_network(transactions_df)
+    >>> suspicious = find_suspicious_patterns(
     ...     G,
     ...     min_cycle_amount=50000,
     ...     min_community_size=10

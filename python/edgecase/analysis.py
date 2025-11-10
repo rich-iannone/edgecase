@@ -26,14 +26,14 @@ class NetworkAnalyzer:
     
     Examples
     --------
-    >>> import edgecase as ec
+    >>> from edgecase import NetworkAnalyzer
     >>> import polars as pl
     >>> 
     >>> # Load data
     >>> df = pl.read_csv("network_data.csv")
     >>> 
     >>> # Create analyzer
-    >>> analyzer = ec.NetworkAnalyzer.from_polars(
+    >>> analyzer = NetworkAnalyzer.from_polars(
     ...     df, source_col="from", target_col="to"
     ... )
     >>> 

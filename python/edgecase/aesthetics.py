@@ -8,8 +8,9 @@ This module provides functions to map node attributes to visual properties.
 3. Render with those visual attributes
 
 Example workflow:
-    >>> G = ec.Graph()
-    >>> G.add_path(10)
+    >>> from edgecase import Graph, GraphWidget
+    >>> G = Graph()
+    >>> G.add_path_graph(10)
     >>> 
     >>> # Compute attributes
     >>> communities = G.get_cmty_louvain()
@@ -21,7 +22,7 @@ Example workflow:
     ...                       attr_to='size', to_min=5, to_max=20)
     >>> 
     >>> # Render (widget automatically reads 'color' and 'size' attributes)
-    >>> widget = ec.GraphWidget(G)
+    >>> widget = GraphWidget(G)
     >>> widget.show()
 """
 

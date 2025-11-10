@@ -37,20 +37,20 @@ def protein_network(
     Examples
     --------
     >>> import polars as pl
-    >>> import edgecase as ec
+    >>> from edgecase import protein_network, NetworkAnalyzer
     >>> 
     >>> # Load protein interactions (e.g., from STRING database)
     >>> interactions = pl.read_csv("protein_interactions.csv")
     >>> 
     >>> # Create network
-    >>> G = ec.protein_network(
+    >>> G = protein_network(
     ...     interactions,
     ...     confidence_col="combined_score",
     ...     min_confidence=0.7
     ... )
     >>> 
     >>> # Analyze
-    >>> analyzer = ec.NetworkAnalyzer(G)
+    >>> analyzer = NetworkAnalyzer(G)
     >>> results = analyzer.analyze()
     """
     from edgecase.polars_integration import from_polars
@@ -104,23 +104,24 @@ def patient_similarity_network(
     Examples
     --------
     >>> import polars as pl
-    >>> import edgecase as ec
+    >>> from edgecase import patient_similarity_network, tbl_network_summary
+    >>> from edgecase.algorithms import detect_communities
     >>> 
     >>> # Load trial data
     >>> patients = pl.read_csv("trial_data.csv")
     >>> 
     >>> # Create similarity network
-    >>> G = ec.patient_similarity_network(
+    >>> G = patient_similarity_network(
     ...     patients,
     ...     features=["age", "biomarker_1", "biomarker_2"],
     ...     similarity_threshold=0.8
     ... )
     >>> 
     >>> # Find communities (patient subgroups)
-    >>> communities = ec.detect_communities(G)
+    >>> communities = detect_communities(G)
     >>> 
     >>> # Create publication table
-    >>> summary = ec.tbl_network_summary(G, by="treatment_arm")
+    >>> summary = tbl_network_summary(G, by="treatment_arm")
     """
     # Placeholder implementation
     # TODO: Implement similarity calculation using sklearn or scipy

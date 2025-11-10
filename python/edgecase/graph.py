@@ -1985,10 +1985,10 @@ class Graph:
         Find the radius of a star graph:
         
         ```python
-        graph = Graph().add_star_graph(5, center_label="hub")
+        graph = Graph().add_star_graph(5)
         
         radius = graph.get_min_eccentricity()
-        print(radius)  # 1 (hub reaches all nodes in 1 step)
+        print(radius)  # 1 (center reaches all nodes in 1 step)
         ```
         
         See Also
@@ -2892,19 +2892,16 @@ class Graph:
         
         communities = graph.get_cmty_louvain()
         # Nodes in same triangle have same community ID
-        assert communities["A"] == communities["B"] == communities["C"]
-        assert communities["D"] == communities["E"] == communities["F"]
-        assert communities["A"] != communities["D"]
-        ```
+        node_a = graph.id_from_label("A")
+        node_b = graph.id_from_label("B")
+        node_c = graph.id_from_label("C")
+        node_d = graph.id_from_label("D")
+        assert communities[node_a] == communities[node_b] == communities[node_c]
+        assert communities[node_d] == communities[graph.id_from_label("E")]
         
-        Control community granularity with resolution:
-        
-        ```python
-        # Smaller communities (higher resolution)
-        fine = graph.get_cmty_louvain(resolution=1.5)
-        
-        # Larger communities (lower resolution)
-        coarse = graph.get_cmty_louvain(resolution=0.5)
+        # Control community granularity with resolution
+        fine = graph.get_cmty_louvain(resolution=1.5)  # Smaller communities
+        coarse = graph.get_cmty_louvain(resolution=0.5)  # Larger communities
         ```
         
         Notes
@@ -2998,19 +2995,16 @@ class Graph:
         graph.add_edge("C", "D")  # Bridge
         
         communities = graph.get_cmty_walktrap()
-        assert communities["A"] == communities["B"] == communities["C"]
-        assert communities["D"] == communities["E"] == communities["F"]
-        assert communities["A"] != communities["D"]
-        ```
+        node_a = graph.id_from_label("A")
+        node_b = graph.id_from_label("B")
+        node_c = graph.id_from_label("C")
+        node_d = graph.id_from_label("D")
+        assert communities[node_a] == communities[node_b] == communities[node_c]
+        assert communities[node_d] == communities[graph.id_from_label("E")]
         
-        Try different step lengths for different scales:
-        
-        ```python
-        # More local communities
-        local_cmty = graph.get_cmty_walktrap(steps=2)
-        
-        # More global communities
-        global_cmty = graph.get_cmty_walktrap(steps=6)
+        # Try different step lengths for different scales
+        local_cmty = graph.get_cmty_walktrap(steps=2)   # More local communities
+        global_cmty = graph.get_cmty_walktrap(steps=6)  # More global communities
         ```
         
         Notes
@@ -3802,13 +3796,13 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_star_graph(10, center_label="hub")
+            .add_star_graph(10)
             .select_nodes_by_degree(min_degree=5)
         )
         
         # Hub node has degree 10, all others have degree 1
         hubs = graph.get_selected_nodes()
-        print(hubs)  # ['hub']
+        print(len(hubs))  # 1 (the center node)
         ```
         
         Filter by degree range:
@@ -4042,12 +4036,12 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_star_graph(5, center_label="hub")
+            .add_star_graph(5)
             .select_nodes_by_degree(min_degree=3)
         )
         
         selected = graph.get_selected_nodes()
-        print(selected)  # ['hub']
+        print(len(selected))  # 1 (the center node)
         ```
         
         See Also
@@ -4300,13 +4294,10 @@ class Graph:
         )
         
         selected = graph.get_selected_nodes()
-        print(selected)  # ['A', 'C']
-        ```
+        print(selected)  # Node IDs for 'A' and 'C'
         
-        Select nodes by ID pattern:
-        
-        ```python
-        graph.select_nodes(lambda n: n.id.startswith("user_"))
+        # Select nodes by ID pattern (if using integer IDs)
+        # graph.select_nodes(lambda n: n.id > 100)
         ```
         
         See Also
@@ -4342,6 +4333,10 @@ class Graph:
         ```python
         graph = (
             Graph()
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
             .add_edge("A", "B", weight=0.3)
             .add_edge("B", "C", weight=0.8)
             .add_edge("C", "D", weight=0.6)
@@ -4350,14 +4345,11 @@ class Graph:
         
         count = graph.count_selected_edges()
         print(count)  # 2
-        ```
         
-        Select edges by relationship type:
-        
-        ```python
-        graph.select_edges(
-            lambda e: e.attributes and e.attributes.get("rel") == "friend"
-        )
+        # Select edges by relationship type
+        # graph.select_edges(
+        #     lambda e: e.attributes and e.attributes.get("rel") == "friend"
+        # )
         ```
         
         See Also
@@ -4564,13 +4556,11 @@ class Graph:
         Select 1-hop neighborhood:
         
         ```python
-        graph = (
-            Graph()
-            .add_star_graph(5, center_label="hub")
-            .select_nodes_in_neighborhood("hub", k=1, mode="all")
-        )
+        graph = Graph().add_star_graph(5)
+        center_id = graph.id_from_label(0)
+        graph.select_nodes_in_neighborhood(center_id, k=1, mode="all")
         
-        # Selects all neighbors of hub (not hub itself)
+        # Selects all neighbors of center (not center itself)
         count = graph.count_selected_nodes()
         print(count)  # 5
         ```
@@ -4635,13 +4625,14 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_star_graph(10, center_label="hub")
+            .add_star_graph(10)
             .add_path_graph(10)
             .select_nodes_by_centrality("degree", k=3)
         )
         
         # Selects top 3 nodes by degree
         hubs = graph.get_selected_nodes()
+        print(len(hubs))  # 3
         ```
         
         Select by PageRank:
@@ -4791,39 +4782,24 @@ class Graph:
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .set_node_attrs("color", "blue", nodes=["A", "B"])
+            .set_node_attrs("color", "blue", nodes=[graph.id_from_label("A"), graph.id_from_label("B")])
         )
         
         colors = graph.get_node_attrs("color")
-        print(colors)  # {'A': 'blue', 'B': 'blue'}
-        ```
+        # Returns dict mapping node IDs to 'blue'
         
-        Set same value for all nodes:
-        
-        ```python
+        # Set same value for all nodes
         graph.set_node_attrs("status", "active")
         
-        statuses = graph.get_node_attrs("status")
-        # All nodes have status='active'
-        ```
+        # Set different values using a list
+        node_ids = [graph.id_from_label(l) for l in ["A", "B", "C"]]
+        graph.set_node_attrs("score", [100, 85, 92], nodes=node_ids)
         
-        Set different values using a list:
-        
-        ```python
-        graph.set_node_attrs(
-            "score",
-            [100, 85, 92],
-            nodes=["A", "B", "C"]
-        )
-        ```
-        
-        Set different values using a dictionary:
-        
-        ```python
-        graph.set_node_attrs(
-            "category",
-            {"A": "primary", "B": "secondary", "C": "primary"}
-        )
+        # Set different values using a dictionary
+        id_map = {graph.id_from_label("A"): "primary", 
+                  graph.id_from_label("B"): "secondary",
+                  graph.id_from_label("C"): "primary"}
+        graph.set_node_attrs("category", id_map)
         ```
         
         See Also
@@ -4887,27 +4863,20 @@ class Graph:
         ```python
         graph = (
             Graph(directed=True)
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
             .add_edge("A", "B", weight=1.5, type="friend")
             .add_edge("B", "C", weight=2.0, type="colleague")
             .add_edge("C", "D", weight=1.0, type="friend")
         )
         
         weights = graph.get_edge_attrs("weight")
-        print(weights)  # {'A->B': 1.5, 'B->C': 2.0, 'C->D': 1.0}
+        # Returns dict mapping edge representations to weights
         
         types = graph.get_edge_attrs("type")
-        print(types)  # {'A->B': 'friend', 'B->C': 'colleague', ...}
-        ```
-        
-        Filter by source and target nodes:
-        
-        ```python
-        filtered = graph.get_edge_attrs(
-            "weight",
-            sources=["A", "B"],
-            targets=["B", "C"]
-        )
-        print(filtered)  # {'A->B': 1.5, 'B->C': 2.0}
+        # Returns dict mapping edge representations to types
         ```
         
         See Also
@@ -4984,18 +4953,18 @@ class Graph:
         ```python
         graph = (
             Graph()
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
             .add_edge("A", "B", weight=1.5, type="friend")
             .add_edge("B", "C", weight=2.0, type="colleague")
         )
         
         edge_ids = graph.edge_ids()
         weights_by_id = graph.get_edge_attrs_by_id("weight", edges=edge_ids[:1])
-        print(weights_by_id)  # {0: 1.5} or similar (edge ID varies)
-        ```
+        # Returns {edge_id: 1.5} for first edge
         
-        Get all edge types:
-        
-        ```python
+        # Get all edge types
         all_types = graph.get_edge_attrs_by_id("type")
         # Maps each edge ID to its type value
         ```
@@ -5068,41 +5037,24 @@ class Graph:
         ```python
         graph = (
             Graph()
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
             .add_edge("A", "B")
             .add_edge("B", "C")
             .add_edge("C", "D")
-            .set_edge_attrs("weight", 2.5, edges=[("A", "B"), ("B", "C")])
         )
         
-        weights = graph.get_edge_attrs("weight")
-        print(weights)  # {'A--B': 2.5, 'B--C': 2.5}
-        ```
+        # Set edge attributes for specific edges
+        edge_ids = graph.edge_ids()[:2]  # First two edges
+        graph.set_edge_attrs("weight", 2.5, edges=edge_ids)
         
-        Set same value for all edges:
-        
-        ```python
+        # Set same value for all edges
         graph.set_edge_attrs("status", "active")
         
-        statuses = graph.get_edge_attrs("status")
-        # All edges have status='active'
-        ```
-        
-        Filter by source and target nodes:
-        
-        ```python
-        graph.set_edge_attrs(
-            "type",
-            "connection",
-            sources=["A", "B"],
-            targets=["B", "C"]
-        )
-        ```
-        
-        Set different values using a list:
-        
-        ```python
-        edge_list = [("A", "B"), ("B", "C")]
-        graph.set_edge_attrs("priority", [1, 2], edges=edge_list)
+        # Set different values using a list
+        graph.set_edge_attrs("priority", [1, 2, 3], edges=graph.edge_ids())
         ```
         
         See Also
@@ -5201,22 +5153,16 @@ class Graph:
         df = graph.get_node_df()
         print(df.columns)  # ['id', 'score', 'type', 'degree']
         print(df.shape)    # (3, 4)
-        ```
         
-        Analyze node attributes:
-        
-        ```python
         # Calculate statistics on node attributes
+        import polars as pl
         avg_score = df["score"].mean()
         user_count = df.filter(pl.col("type") == "user").height
         
         # Find high-degree nodes
         hubs = df.filter(pl.col("degree") > 5)
-        ```
         
-        Exclude degree column:
-        
-        ```python
+        # Exclude degree column
         df_no_degree = graph.get_node_df(include_degree=False)
         ```
         
@@ -5292,6 +5238,10 @@ class Graph:
         ```python
         graph = (
             Graph(directed=True)
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
             .add_edge("A", "B", weight=1.5, type="friend")
             .add_edge("B", "C", weight=2.0, type="colleague")
             .add_edge("C", "D", weight=1.0, type="friend")
@@ -5300,12 +5250,9 @@ class Graph:
         df = graph.get_edge_df()
         print(df.columns)  # ['id', 'source', 'target', 'type', 'weight']
         print(df.shape)    # (3, 5)
-        ```
         
-        Analyze edge properties:
-        
-        ```python
         # Filter edges by weight
+        import polars as pl
         strong_edges = df.filter(pl.col("weight") > 1.5)
         
         # Count edge types
@@ -5313,11 +5260,8 @@ class Graph:
         
         # Average weight per source node
         avg_by_source = df.group_by("source").agg(pl.col("weight").mean())
-        ```
         
-        Exclude endpoint columns:
-        
-        ```python
+        # Exclude endpoint columns
         df_no_endpoints = graph.get_edge_df(include_endpoints=False)
         ```
         
@@ -5402,7 +5346,7 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_star_graph(10, center_label="hub")
+            .add_star_graph(10)
             .add_path_graph(5)
             .select_nodes_by_degree(min_degree=3)
         )
@@ -5908,9 +5852,7 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_node("A", value=5.0)
         graph.add_node("B", value=5.5)
         graph.add_node("C", value=10.0)
@@ -6011,21 +5953,21 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         
         # Create two separate components
-        graph.add_path_graph(3)  # Component 1: 1-2-3
-        graph.add_path_graph(2)  # Component 2: 4-5
+        graph.add_path_graph(3)  # Component 1: nodes 0-1-2
+        graph.add_path_graph(2)  # Component 2: nodes 3-4
         
-        # Find all nodes reachable from node 1
-        connected = graph.get_all_connected_nodes("1")
-        print(connected)  # ['2', '3']
+        # Find all nodes reachable from node 0
+        node_0 = graph.id_from_label(0)
+        connected = graph.get_all_connected_nodes(node_0)
+        print(len(connected))  # 2 (nodes 1 and 2)
         
-        # Node 4 is in a separate component
-        connected_4 = graph.get_all_connected_nodes("4")
-        print(connected_4)  # ['5']
+        # Node 3 is in a separate component
+        node_3 = graph.id_from_label(3)
+        connected_3 = graph.get_all_connected_nodes(node_3)
+        print(len(connected_3))  # 1 (node 4)
         ```
         
         Component size analysis:
@@ -6167,21 +6109,21 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_node('A', value=10)
         graph.add_node('B', value=20)
         
         # Select nodes and set attributes
+        id_a = graph.id_from_label('A')
+        id_b = graph.id_from_label('B')
         (graph
-            .select_nodes_by_id(['A', 'B'])
+            .select_nodes_by_id([id_a, id_b])
             .set_node_attrs_ws(color='red', importance=0.9)
         )
         
         # Check updated attributes
-        print(graph.get_node('A').attributes['color'])  # 'red'
-        print(graph.get_node('A').attributes['value'])  # 10 (preserved)
+        print(graph.get_node(id_a).attributes['color'])  # 'red'
+        print(graph.get_node(id_a).attributes['value'])  # 10 (preserved)
         ```
         
         Bulk attribute updates with filtering:
@@ -6231,19 +6173,18 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
-        graph.add_path( 3)
+        graph = Graph()
+        graph.add_path_graph(3)
         
         # Select and update edge attributes
+        edge_ids = graph.edge_ids()
         (graph
-            .select_edges_by_id([1])
+            .select_edges_by_id([edge_ids[0]])
             .set_edge_attrs_ws(weight=5.0, type='strong')
         )
         
         # Check updated attributes
-        edge = graph.get_edge(1)
+        edge = graph.get_edge(edge_ids[0])
         print(edge.weight)  # 5.0
         print(edge.attributes['type'])  # 'strong'
         ```
@@ -6297,22 +6238,23 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_node('A', score=10)
         graph.add_node('B', score=20)
         graph.add_node('C', score=30)
         
         # Double the score for selected nodes
+        id_a = graph.id_from_label('A')
+        id_b = graph.id_from_label('B')
+        id_c = graph.id_from_label('C')
         (graph
-            .select_nodes_by_id(['A', 'B'])
+            .select_nodes_by_id([id_a, id_b])
             .mutate_node_attrs_ws('score', lambda x: x * 2)
         )
         
-        print(graph.get_node('A').attributes['score'])  # 20
-        print(graph.get_node('B').attributes['score'])  # 40
-        print(graph.get_node('C').attributes['score'])  # 30 (unchanged)
+        print(graph.get_node(id_a).attributes['score'])  # 20
+        print(graph.get_node(id_b).attributes['score'])  # 40
+        print(graph.get_node(id_c).attributes['score'])  # 30 (unchanged)
         ```
         
         Conditional transformations:
@@ -6371,20 +6313,19 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_edge('A', 'B', weight=1.5)
         graph.add_edge('B', 'C', weight=2.0)
         
         # Double the weight of selected edges
+        edge_ids = graph.edge_ids()
         (graph
-            .select_edges_by_id([1])
+            .select_edges_by_id([edge_ids[0]])
             .mutate_edge_attrs_ws('weight', lambda x: x * 2)
         )
         
-        print(graph.get_edge(1).weight)  # 3.0
-        print(graph.get_edge(2).weight)  # 2.0 (unchanged)
+        print(graph.get_edge(edge_ids[0]).weight)  # 3.0
+        print(graph.get_edge(edge_ids[1]).weight)  # 2.0 (unchanged)
         ```
         
         Normalize edge weights:
@@ -6445,16 +6386,17 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_node('A')
         graph.add_node('B')
         graph.add_node('C')
         
         # Create clique among selected nodes
+        id_a = graph.id_from_label('A')
+        id_b = graph.id_from_label('B')
+        id_c = graph.id_from_label('C')
         (graph
-            .select_nodes_by_id(['A', 'B', 'C'])
+            .select_nodes_by_id([id_a, id_b, id_c])
             .fully_connect_nodes_ws(type='clique', weight=1.0)
         )
         
@@ -6907,9 +6849,7 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_grid_2d(3, 4)  # 3×4 grid
         
         print(graph.num_nodes())  # 12
@@ -6955,9 +6895,7 @@ class Graph:
         Examples
         --------
         ```python
-        import edgecase as ec
-        
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_prism_graph(5)
         
         print(graph.num_nodes())  # 10 (2 cycles of 5)
@@ -7007,7 +6945,7 @@ class Graph:
         ```python
         import edgecase as ec
         
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_gnp_graph(n=50, p=0.1, seed=42)
         
         print(graph.num_nodes())  # 50
@@ -7215,13 +7153,13 @@ class Graph:
             Self for method chaining
             
         Example:
-            >>> G = ec.Graph(directed=True)
+            >>> G = Graph(directed=True)
+            >>> G.add_node("A").add_node("B").add_node("C")
             >>> G.add_edge("A", "B")
             >>> G.add_edge("B", "C")
-            >>> G.select_nodes_by_id(["A"]).trav_out().get_selected_nodes()
-            ['B']
-            >>> G.clear_selection().select_nodes_by_id(["A"]).trav_out().trav_out().get_selected_nodes()
-            ['C']
+            >>> node_a_id = G.id_from_label("A")
+            >>> G.select_nodes_by_id([node_a_id]).trav_out().get_selected_nodes()
+            # Returns [node_id_for_B]
         """
         self._graph.trav_out()
         return self
@@ -7240,13 +7178,13 @@ class Graph:
             Self for method chaining
             
         Example:
-            >>> G = ec.Graph(directed=True)
+            >>> G = Graph(directed=True)
+            >>> G.add_node("A").add_node("B").add_node("C")
             >>> G.add_edge("A", "B")
             >>> G.add_edge("B", "C")
-            >>> G.select_nodes_by_id(["C"]).trav_in().get_selected_nodes()
-            ['B']
-            >>> G.clear_selection().select_nodes_by_id(["C"]).trav_in().trav_in().get_selected_nodes()
-            ['A']
+            >>> node_c_id = G.id_from_label("C")
+            >>> G.select_nodes_by_id([node_c_id]).trav_in().get_selected_nodes()
+            # Returns [node_id_for_B]
         """
         self._graph.trav_in()
         return self
