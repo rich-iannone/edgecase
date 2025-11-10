@@ -738,40 +738,227 @@ class Graph:
             return False
     
     def edges(self) -> list[tuple[int, str, str]]:
-        """Return list of edges as (id, source, target) tuples."""
+        """Return list of edges as (id, source, target) tuples.
+        
+        Returns all edges in the graph as tuples containing the edge ID and the
+        source and target node IDs. Useful for iterating over all edges or
+        analyzing edge structure.
+        
+        Returns
+        -------
+        list[tuple[int, str, str]]
+            List of tuples where each tuple is (edge_id, source_id, target_id).
+        
+        Examples
+        --------
+        Get all edges in a graph:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        for edge_id, source, target in graph.edges():
+            print(f"Edge {edge_id}: {source} -> {target}")
+        ```
+        
+        See Also
+        --------
+        get_edges : Get edges as formatted strings
+        edge_ids : Get list of edge IDs only
+        num_edges : Get count of edges
+        """
         return self._graph.edges()
     
     def get_edges(self) -> list[str]:
         """Get edges as formatted strings.
         
-        Returns edge definitions:
-        - Directed graphs: "A->B"
-        - Undirected graphs: "A--B"
+        Returns human-readable edge representations using node labels.
+        The format depends on whether the graph is directed or undirected:
+        - Directed graphs: "source->target"
+        - Undirected graphs: "source--target"
         
-        Returns:
-            List of edge strings
-            
-        Example:
-            >>> G = Graph(directed=True)
-            >>> for node in ["A", "B", "C"]:
-            ...     G.add_node(node)
-            >>> G.add_edge("A", "B")
-            >>> G.add_edge("B", "C")
-            >>> G.get_edges()
-            ['A->B', 'B->C']
+        Returns
+        -------
+        list[str]
+            List of edge strings with arrow notation indicating direction.
+        
+        Examples
+        --------
+        Get formatted edges in a directed graph:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        print(graph.get_edges())  # ['A->B', 'B->C']
+        ```
+        
+        Undirected graphs use double dashes:
+        
+        ```python
+        graph = (
+            ec.Graph(directed=False)
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("X", "Y")
+        )
+        
+        print(graph.get_edges())  # ['X--Y']
+        ```
+        
+        See Also
+        --------
+        edges : Get edges as (id, source, target) tuples
+        num_edges : Get count of edges
         """
         return self._graph.get_edges()
     
     def edge_ids(self) -> list[int]:
-        """Return list of edge IDs."""
+        """Return list of edge IDs.
+        
+        Returns all edge IDs in the graph. Edge IDs are unique integers assigned
+        to each edge, useful for direct edge access and manipulation.
+        
+        Returns
+        -------
+        list[int]
+            List of all edge IDs in the graph.
+        
+        Examples
+        --------
+        Get all edge IDs:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+        
+        ids = graph.edge_ids()
+        print(f"Graph has {len(ids)} edges with IDs: {ids}")
+        ```
+        
+        See Also
+        --------
+        edges : Get edges with full details
+        get_edge_by_id : Get edge details by ID
+        has_edge_id : Check if edge ID exists
+        """
         return self._graph.edge_ids()
     
     def get_edge_by_id(self, edge_id: int) -> tuple[str, str] | None:
-        """Get edge (source, target) by ID."""
+        """Get edge (source, target) by ID.
+        
+        Retrieves the source and target node IDs for a specific edge using its
+        edge ID. Returns None if the edge ID doesn't exist.
+        
+        Parameters
+        ----------
+        edge_id : int
+            The edge ID to look up.
+        
+        Returns
+        -------
+        tuple[str, str] | None
+            A tuple of (source_id, target_id) if the edge exists, None otherwise.
+        
+        Examples
+        --------
+        Look up an edge by its ID:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+        )
+        
+        # Get first edge ID
+        edge_id = graph.edge_ids()[0]
+        
+        # Look up the edge
+        source, target = graph.get_edge_by_id(edge_id)
+        print(f"Edge {edge_id} goes from {source} to {target}")
+        
+        # Non-existent edge returns None
+        result = graph.get_edge_by_id(9999)
+        print(result)  # None
+        ```
+        
+        See Also
+        --------
+        has_edge_id : Check if edge ID exists
+        edges : Get all edges
+        edge_ids : Get all edge IDs
+        """
         return self._graph.get_edge_by_id(edge_id)
     
     def has_edge_id(self, edge_id: int) -> bool:
-        """Check if an edge with given ID exists."""
+        """Check if an edge with given ID exists.
+        
+        Verifies whether a specific edge ID is present in the graph. Useful for
+        validating edge IDs before performing operations.
+        
+        Parameters
+        ----------
+        edge_id : int
+            The edge ID to check.
+        
+        Returns
+        -------
+        bool
+            True if an edge with this ID exists, False otherwise.
+        
+        Examples
+        --------
+        Check if edge IDs exist:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+        )
+        
+        edge_id = graph.edge_ids()[0]
+        print(graph.has_edge_id(edge_id))  # True
+        print(graph.has_edge_id(9999))     # False
+        ```
+        
+        See Also
+        --------
+        get_edge_by_id : Get edge details by ID
+        has_edge : Check if edge exists between two nodes
+        edge_ids : Get all edge IDs
+        """
         return self._graph.has_edge_id(edge_id)
     
     def has_edge(self, source: Union[int, str], target: Union[int, str]) -> bool:
