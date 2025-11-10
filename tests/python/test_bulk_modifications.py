@@ -15,12 +15,12 @@ class TestDeleteNodesWS:
         assert G.num_nodes() == 5
         assert G.num_edges() == 4
         
-        # Select and delete middle nodes
-        G.select_nodes_by_id(['2', '3'])
+        # Select and delete middle nodes (use integer IDs)
+        G.select_nodes_by_id([2, 3])
         G.delete_nodes_ws()
         
         assert G.num_nodes() == 3
-        assert set(G.node_ids()) == {'1', '4', '5'}
+        assert set(G.node_ids()) == {1, 4, 5}  # Returns integer IDs
         # Edges incident to deleted nodes should also be removed
         assert G.num_edges() == 1  # Only 4-5 edge remains
         
@@ -29,7 +29,7 @@ class TestDeleteNodesWS:
         G = ec.Graph()
         G.add_path(3)
         
-        G.select_nodes_by_id(['1', '2'])
+        G.select_nodes_by_id([1, 2])  # Integer IDs
         assert G.count_selected_nodes() == 2
         
         G.delete_nodes_ws()
@@ -42,20 +42,22 @@ class TestDeleteNodesWS:
         G.add_node('B')
         G.add_node('C')
         
-        G.select_nodes_by_id(['B'])
+        G.select_nodes_by_id([2])  # B = node ID 2
         G.delete_nodes_ws()
         
         assert G.num_nodes() == 2
-        assert set(G.node_ids()) == {'A', 'C'}
+        assert set(G.node_ids()) == {1, 3}  # A=1, C=3
         
     def test_delete_nodes_in_directed_graph(self):
         """Delete nodes in directed graph."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('C', 'A')
         
-        G.select_nodes_by_id(['B'])
+        G.select_nodes_by_id([2])  # B = node ID 2
         G.delete_nodes_ws()
         
         assert G.num_nodes() == 2
@@ -143,34 +145,34 @@ class TestSelectionCleanup:
         G = ec.Graph()
         G.add_path(5)
         
-        # Select multiple nodes
-        G.select_nodes_by_id(['1', '2', '3'])
+        # Select multiple nodes (integer IDs)
+        G.select_nodes_by_id([1, 2, 3])
         assert G.count_selected_nodes() == 3
         
-        # Delete node '2' directly via Rust method
-        G._graph.delete_node('2')
+        # Delete node 2 directly via Rust method (use integer ID)
+        G._graph.delete_node(2)
         
         # Node should be removed from selection
         assert G.count_selected_nodes() == 2
-        assert '2' not in G.get_selected_nodes()
-        assert set(G.get_selected_nodes()) == {'1', '3'}
+        assert 2 not in G.get_selected_nodes()
+        assert set(G.get_selected_nodes()) == {1, 3}
     
     def test_delete_multiple_nodes_updates_selection(self):
         """Deleting multiple nodes removes them all from selection."""
         G = ec.Graph()
         G.add_path(6)
         
-        # Select nodes 1-5
-        G.select_nodes_by_id(['1', '2', '3', '4', '5'])
+        # Select nodes 1-5 (integer IDs)
+        G.select_nodes_by_id([1, 2, 3, 4, 5])
         assert G.count_selected_nodes() == 5
         
-        # Delete nodes 2 and 4
-        G._graph.delete_node('2')
-        G._graph.delete_node('4')
+        # Delete nodes 2 and 4 (use integer IDs)
+        G._graph.delete_node(2)
+        G._graph.delete_node(4)
         
         # Only 1, 3, 5 should remain selected
         assert G.count_selected_nodes() == 3
-        assert set(G.get_selected_nodes()) == {'1', '3', '5'}
+        assert set(G.get_selected_nodes()) == {1, 3, 5}
     
     def test_delete_multiple_edges_updates_selection(self):
         """Deleting multiple edges removes them all from selection."""
@@ -198,23 +200,23 @@ class TestSetNodeAttrsWS:
         G = ec.Graph()
         G.add_path(3)
         
-        G.select_nodes_by_id(['1', '2'])
+        G.select_nodes_by_id([1, 2])  # Integer IDs
         G.set_node_attrs_ws(color='red')
         
-        assert G.get_node('1').attributes['color'] == 'red'
-        assert G.get_node('2').attributes['color'] == 'red'
-        assert G.get_node('3').attributes is None or 'color' not in G.get_node('3').attributes
+        assert G.get_node(1).attributes['color'] == 'red'
+        assert G.get_node(2).attributes['color'] == 'red'
+        assert G.get_node(3).attributes is None or 'color' not in G.get_node(3).attributes
         
     def test_set_multiple_attributes(self):
         """Set multiple attributes at once."""
         G = ec.Graph()
         G.add_star(4)
         
-        # Center node is '1' (first node created)
-        G.select_nodes_by_id(['1'])
+        # Center node is 1 (first node created)
+        G.select_nodes_by_id([1])  # Integer ID
         G.set_node_attrs_ws(importance=0.9, color='blue', hub=True)
         
-        node = G.get_node('1')
+        node = G.get_node(1)
         assert node.attributes['importance'] == 0.9
         assert node.attributes['color'] == 'blue'
         assert node.attributes['hub'] is True
@@ -224,20 +226,20 @@ class TestSetNodeAttrsWS:
         G = ec.Graph()
         G.add_node('A', score=10)
         
-        G.select_nodes_by_id(['A'])
+        G.select_nodes_by_id([1])  # A = node ID 1
         G.set_node_attrs_ws(score=20)
         
-        assert G.get_node('A').attributes['score'] == 20
+        assert G.get_node(1).attributes['score'] == 20
         
     def test_set_attrs_preserves_other_attrs(self):
         """Setting attributes preserves other existing attributes."""
         G = ec.Graph()
         G.add_node('A', name='Alice', age=30)
         
-        G.select_nodes_by_id(['A'])
+        G.select_nodes_by_id([1])  # A = node ID 1
         G.set_node_attrs_ws(city='NYC')
         
-        node = G.get_node('A')
+        node = G.get_node(1)
         assert node.attributes['name'] == 'Alice'
         assert node.attributes['age'] == 30
         assert node.attributes['city'] == 'NYC'
@@ -252,7 +254,7 @@ class TestSetNodeAttrsWS:
         
         assert result is G  # Returns self
         # Middle nodes have degree 2
-        assert G.get_node('2').attributes['type'] == 'internal'
+        assert G.get_node(2).attributes['type'] == 'internal'
 
 
 class TestSetEdgeAttrsWS:
@@ -284,6 +286,8 @@ class TestSetEdgeAttrsWS:
     def test_set_weight_and_attrs_together(self):
         """Set weight and other attributes simultaneously."""
         G = ec.Graph()
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         
         G.select_edges_by_id([1])
@@ -305,12 +309,12 @@ class TestMutateNodeAttrsWS:
         G.add_node('B', score=20)
         G.add_node('C', score=30)
         
-        G.select_nodes_by_id(['A', 'B'])
+        G.select_nodes_by_id([1, 2])  # A=1, B=2
         G.mutate_node_attrs_ws('score', lambda x: x * 2)
         
-        assert G.get_node('A').attributes['score'] == 20
-        assert G.get_node('B').attributes['score'] == 40
-        assert G.get_node('C').attributes['score'] == 30  # Unchanged
+        assert G.get_node(1).attributes['score'] == 20
+        assert G.get_node(2).attributes['score'] == 40
+        assert G.get_node(3).attributes['score'] == 30  # Unchanged
         
     def test_mutate_string_attribute(self):
         """Transform string attribute."""
@@ -318,11 +322,11 @@ class TestMutateNodeAttrsWS:
         G.add_node('A', name='alice')
         G.add_node('B', name='bob')
         
-        G.select_nodes_by_id(['A', 'B'])
+        G.select_nodes_by_id([1, 2])  # A=1, B=2
         G.mutate_node_attrs_ws('name', str.upper)
         
-        assert G.get_node('A').attributes['name'] == 'ALICE'
-        assert G.get_node('B').attributes['name'] == 'BOB'
+        assert G.get_node(1).attributes['name'] == 'ALICE'
+        assert G.get_node(2).attributes['name'] == 'BOB'
         
     def test_mutate_with_complex_function(self):
         """Use complex transformation function."""
@@ -333,11 +337,11 @@ class TestMutateNodeAttrsWS:
         def normalize(x):
             return x / 15.0  # Normalize by sum
         
-        G.select_nodes_by_id(['A', 'B'])
+        G.select_nodes_by_id([1, 2])  # A=1, B=2
         G.mutate_node_attrs_ws('value', normalize)
         
-        assert abs(G.get_node('A').attributes['value'] - 0.333) < 0.01
-        assert abs(G.get_node('B').attributes['value'] - 0.667) < 0.01
+        assert abs(G.get_node(1).attributes['value'] - 0.333) < 0.01
+        assert abs(G.get_node(2).attributes['value'] - 0.667) < 0.01
         
     def test_mutate_missing_attribute_ignored(self):
         """Mutating missing attribute has no effect."""
@@ -345,11 +349,11 @@ class TestMutateNodeAttrsWS:
         G.add_node('A', score=10)
         G.add_node('B')  # No score attribute
         
-        G.select_nodes_by_id(['A', 'B'])
+        G.select_nodes_by_id([1, 2])  # A=1, B=2
         G.mutate_node_attrs_ws('score', lambda x: x * 2)
         
-        assert G.get_node('A').attributes['score'] == 20
-        assert G.get_node('B').attributes is None or 'score' not in G.get_node('B').attributes
+        assert G.get_node(1).attributes['score'] == 20
+        assert G.get_node(2).attributes is None or 'score' not in G.get_node(2).attributes
 
 
 class TestMutateEdgeAttrsWS:
@@ -358,6 +362,8 @@ class TestMutateEdgeAttrsWS:
     def test_mutate_edge_weight(self):
         """Transform edge weight."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B', weight=1.5)
         G.add_edge('B', 'C', weight=2.5)
         
@@ -370,6 +376,8 @@ class TestMutateEdgeAttrsWS:
     def test_mutate_edge_regular_attribute(self):
         """Transform non-weight edge attribute."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B', strength=10)
         G.add_edge('B', 'C', strength=20)
         
@@ -390,7 +398,7 @@ class TestFullyConnectNodesWS:
         G.add_node('B')
         G.add_node('C')
         
-        G.select_nodes_by_id(['A', 'B', 'C'])
+        G.select_nodes_by_id([1, 2, 3])  # A=1, B=2, C=3
         G.fully_connect_nodes_ws()
         
         # Should have 3 edges for 3 nodes: A-B, B-C, A-C
@@ -403,7 +411,7 @@ class TestFullyConnectNodesWS:
         G.add_node('B')
         G.add_node('C')
         
-        G.select_nodes_by_id(['A', 'B', 'C'])
+        G.select_nodes_by_id([1, 2, 3])  # A=1, B=2, C=3
         G.fully_connect_nodes_ws()
         
         # Should have 6 edges (both directions for each pair)
@@ -415,7 +423,7 @@ class TestFullyConnectNodesWS:
         G.add_node('A')
         G.add_node('B')
         
-        G.select_nodes_by_id(['A', 'B'])
+        G.select_nodes_by_id([1, 2])  # A=1, B=2
         G.fully_connect_nodes_ws(type='clique', weight=1.0)
         
         edge = G.get_edge(1)
@@ -425,11 +433,12 @@ class TestFullyConnectNodesWS:
     def test_fully_connect_preserves_existing_edges(self):
         """Fully connecting doesn't duplicate existing edges."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
-        G.add_node('C')
         
         initial_edges = G.num_edges()
-        G.select_nodes_by_id(['A', 'B', 'C'])
+        G.select_nodes_by_id([1, 2, 3])  # A=1, B=2, C=3
         G.fully_connect_nodes_ws()
         
         # Should add A-C and B-C (A-B already exists)
@@ -442,6 +451,8 @@ class TestAddReverseEdgesWS:
     def test_add_reverse_edges_basic(self):
         """Add reverse edges for selected edges."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         
@@ -450,22 +461,24 @@ class TestAddReverseEdgesWS:
         
         # Should have original 2 + 1 reverse = 3 edges
         assert G.num_edges() == 3
-        # Check reverse edge exists
+        # Check reverse edge exists (edges() returns (id, source, target) as IDs now)
         edges = [(s, t) for _, s, t in G.edges()]
-        assert ('B', 'A') in edges
+        assert (2, 1) in edges  # B->A (reverse of A->B)
         
     def test_add_reverse_with_attributes(self):
         """Add reverse edges with attributes."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B', weight=1.0)
         
         G.select_edges_by_id([1])
         G.add_reverse_edges_ws(weight=2.0, type='reverse')
         
-        # Find the reverse edge
+        # Find the reverse edge (source/target are now IDs)
         reverse_edge = None
         for edge_id, s, t in G.edges():
-            if s == 'B' and t == 'A':
+            if s == 2 and t == 1:  # B=2, A=1
                 reverse_edge = G.get_edge(edge_id)
                 break
         
@@ -476,6 +489,8 @@ class TestAddReverseEdgesWS:
     def test_add_reverse_undirected_error(self):
         """Adding reverse edges on undirected graph raises error."""
         G = ec.Graph(directed=False)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         
         G.select_edges_by_id([1])
@@ -485,6 +500,8 @@ class TestAddReverseEdgesWS:
     def test_add_reverse_skips_existing(self):
         """Don't add reverse edge if it already exists."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'A')  # Reverse already exists
         
@@ -500,19 +517,23 @@ class TestRevEdgeDirWS:
     def test_reverse_edge_direction(self):
         """Reverse direction of selected edges."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         
         G.select_edges_by_id([1])
         G.rev_edge_dir_ws()
         
-        # Edge 1 should now be B->A
+        # Edge 1 should now be B->A (returns IDs: 2, 1)
         edge_tuple = G.get_edge_by_id(1)
-        assert edge_tuple == ('B', 'A')
+        assert edge_tuple == (2, 1)  # B=2, A=1
         
     def test_reverse_preserves_attributes(self):
         """Reversing preserves edge attributes."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B', weight=1.5, type='link')
         
         G.select_edges_by_id([1])
@@ -521,12 +542,14 @@ class TestRevEdgeDirWS:
         edge = G.get_edge(1)
         assert edge.weight == 1.5
         assert edge.attributes['type'] == 'link'
-        assert edge.source == 'B'
-        assert edge.target == 'A'
+        assert edge.source == 2  # B
+        assert edge.target == 1  # A
         
     def test_reverse_undirected_error(self):
         """Reversing on undirected graph raises error."""
         G = ec.Graph(directed=False)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         
         G.select_edges_by_id([1])
@@ -536,6 +559,8 @@ class TestRevEdgeDirWS:
     def test_reverse_multiple_edges(self):
         """Reverse multiple edges at once."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C', 'D']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('C', 'D')
@@ -543,9 +568,10 @@ class TestRevEdgeDirWS:
         G.select_edges_by_id([1, 3])
         G.rev_edge_dir_ws()
         
-        assert G.get_edge_by_id(1) == ('B', 'A')
-        assert G.get_edge_by_id(2) == ('B', 'C')  # Unchanged
-        assert G.get_edge_by_id(3) == ('D', 'C')
+        # Returns IDs: B=2, A=1, C=3, D=4
+        assert G.get_edge_by_id(1) == (2, 1)  # B->A
+        assert G.get_edge_by_id(2) == (2, 3)  # B->C (Unchanged)
+        assert G.get_edge_by_id(3) == (4, 3)  # D->C
 
 
 class TestBulkModificationWorkflows:
@@ -567,6 +593,8 @@ class TestBulkModificationWorkflows:
     def test_workflow_transform_weights(self):
         """Select edges and normalize their weights."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C', 'D']:
+            G.add_node(label)
         G.add_edge('A', 'B', weight=10)
         G.add_edge('B', 'C', weight=20)
         G.add_edge('C', 'D', weight=30)
@@ -594,8 +622,8 @@ class TestBulkModificationWorkflows:
         G = ec.Graph()
         G.add_cycle(6)
         
-        # Delete every other node
-        G.select_nodes_by_id(['1', '3', '5'])
+        # Delete every other node (use integer IDs)
+        G.select_nodes_by_id([1, 3, 5])
         G.delete_nodes_ws()
         
         # Fully connect remaining nodes

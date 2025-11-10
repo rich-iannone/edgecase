@@ -84,6 +84,8 @@ class TestIsConnected:
     def test_disconnected_with_isolated_node(self):
         """Graph with isolated node is not connected."""
         G = ec.Graph()
+        G.add_node('A')
+        G.add_node('B')
         G.add_edge('A', 'B')
         G.add_node('C')  # Isolated
         assert not G.is_connected()
@@ -91,6 +93,8 @@ class TestIsConnected:
     def test_disconnected_two_components(self):
         """Graph with two separate components is not connected."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C', 'D', 'E', 'F']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('D', 'E')
@@ -100,6 +104,8 @@ class TestIsConnected:
     def test_weakly_connected_directed(self):
         """Directed graph checks weak connectivity."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         # Weakly connected (would be connected if undirected)
@@ -123,6 +129,8 @@ class TestIsDAG:
     def test_dag_simple_path(self):
         """Simple directed path is a DAG."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C', 'D']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('C', 'D')
@@ -131,6 +139,8 @@ class TestIsDAG:
     def test_dag_tree_structure(self):
         """Tree structure is a DAG."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C', 'D', 'E']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('A', 'C')
         G.add_edge('B', 'D')
@@ -140,6 +150,8 @@ class TestIsDAG:
     def test_not_dag_simple_cycle(self):
         """Simple cycle is not a DAG."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('C', 'A')
@@ -148,6 +160,8 @@ class TestIsDAG:
     def test_not_dag_self_loop(self):
         """Self-loop makes it not a DAG."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'B')  # Self-loop
         assert not G.is_dag()
@@ -155,6 +169,8 @@ class TestIsDAG:
     def test_dag_undirected_raises_error(self):
         """Calling is_dag on undirected graph raises error."""
         G = ec.Graph(directed=False)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         with pytest.raises(ValueError, match="only works on directed graphs"):
             G.is_dag()
@@ -177,6 +193,8 @@ class TestIsSimple:
     def test_not_simple_with_self_loop(self):
         """Graph with self-loop is not simple."""
         G = ec.Graph()
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('A', 'A')  # Self-loop
         assert not G.is_simple()
@@ -184,6 +202,8 @@ class TestIsSimple:
     def test_not_simple_with_multi_edges(self):
         """Graph with parallel edges is not simple."""
         G = ec.Graph()
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('A', 'B')  # Duplicate edge
         assert not G.is_simple()
@@ -191,6 +211,8 @@ class TestIsSimple:
     def test_simple_directed_graph(self):
         """Simple directed graph."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'A')  # Reverse edge is OK
         assert G.is_simple()
@@ -207,6 +229,8 @@ class TestIsBipartite:
     def test_bipartite_single_edge(self):
         """Single edge is bipartite."""
         G = ec.Graph()
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         assert G.is_bipartite()
     
@@ -231,6 +255,8 @@ class TestIsBipartite:
     def test_not_bipartite_triangle(self):
         """Triangle is not bipartite."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('C', 'A')
@@ -293,6 +319,8 @@ class TestCountSelfloops:
     def test_count_selfloops_single(self):
         """Graph with one self-loop."""
         G = ec.Graph()
+        for label in ['A', 'B']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('A', 'A')
         assert G.count_selfloops() == 1
@@ -300,6 +328,8 @@ class TestCountSelfloops:
     def test_count_selfloops_multiple(self):
         """Graph with multiple self-loops."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'A')
         G.add_edge('B', 'B')
         G.add_edge('C', 'C')
@@ -364,6 +394,8 @@ class TestStructuralPropertiesIntegration:
     def test_dag_properties(self):
         """Test DAG-specific properties."""
         G = ec.Graph(directed=True)
+        for label in ['A', 'B', 'C']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('A', 'C')
@@ -376,9 +408,9 @@ class TestStructuralPropertiesIntegration:
     def test_disconnected_graph_properties(self):
         """Test properties on disconnected graph."""
         G = ec.Graph()
+        for label in ['A', 'B', 'C', 'D']:
+            G.add_node(label)
         G.add_edge('A', 'B')
-        G.add_node('C')
-        G.add_node('D')
         
         assert not G.is_connected()
         assert G.is_simple()
