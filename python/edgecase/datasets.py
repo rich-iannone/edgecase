@@ -20,11 +20,11 @@ def karate_club() -> Graph:
     
     **Network Metrics** (from networkrepository.com):
     - Degree: max=17, min=1, avg=4.588
-    - Assortativity: -0.476
-    - Triangles: 135 total, 3.97 avg per node, 18 max
-    - Clustering coefficient: 0.571 (average)
-    - Transitivity (fraction of closed triangles): 0.256
-    - Maximum k-core: 5
+    - Assortativity: -0.476 (not yet implemented)
+    - Triangles: 135 total, 3.97 avg per node, 18 max (not yet implemented)
+    - Clustering coefficient: 0.571 (average) ✓ implemented
+    - Transitivity (fraction of closed triangles): 0.256 (not yet implemented)
+    - Maximum k-core: 5 (currently reports 4)
     
     **Node Attributes:**
     - `faction`: Which faction the member joined (1 = Mr. Hi, 2 = John A.)
@@ -74,6 +74,11 @@ def karate_club() -> Graph:
     coreness = G.get_coreness()
     max_core = max(coreness.values())
     print(f"Maximum k-core: {max_core}")
+    
+    # Analyze clustering
+    avg_clustering = G.get_avg_clustering_coefficient()
+    print(f"Average clustering coefficient: {avg_clustering:.3f}")
+    # Average clustering coefficient: 0.571
     ```
     
     Notes
