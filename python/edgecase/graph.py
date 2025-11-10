@@ -56,7 +56,7 @@ class Graph:
     
     def add_node(self, node_id: Optional[Union[int, str]] = None, label: Optional[str] = None, 
                  from_node: Optional[Union[int, str]] = None, to_node: Optional[Union[int, str]] = None,
-                 **attributes) -> int:
+                 **attributes) -> "Graph":
         """Add a node to the graph with optional connections and attributes.
         
         This method provides flexible node creation, allowing you to add isolated nodes,
@@ -86,8 +86,8 @@ class Graph:
         
         Returns
         -------
-        int
-            The u64 ID assigned to the newly created node.
+        Graph
+            Returns self to enable method chaining.
         
         Examples
         --------
@@ -95,8 +95,9 @@ class Graph:
         
         ```python
         graph = Graph()
-        node_id = graph.add_node()
-        print(f"Created node with ID: {node_id}")  # Created node with ID: 1
+        graph.add_node(label="Node1")
+        node_id = graph.id_from_label("Node1")
+        print(f"Created node with ID: {node_id}")
         ```
         
         Add nodes with labels for easier reference:
@@ -177,10 +178,10 @@ class Graph:
             # Create edge: to_node -> new_node
             self.add_edge(to_node, new_id)
         
-        return new_id
+        return self
     
     def add_edge(self, source: Union[int, str, rust.Edge], target: Optional[Union[int, str]] = None, 
-                 weight: Optional[float] = None, edge_id: Optional[int] = None, **attributes) -> int:
+                 weight: Optional[float] = None, edge_id: Optional[int] = None, **attributes) -> "Graph":
         """Add an edge between two existing nodes in the graph.
         
         Edges connect existing nodes and can optionally carry weights and attributes.
@@ -204,8 +205,8 @@ class Graph:
         
         Returns
         -------
-        int
-            The ID of the newly created edge.
+        Graph
+            Returns self to enable method chaining.
         
         Raises
         ------
@@ -219,8 +220,10 @@ class Graph:
         
         ```python
         graph = Graph()
-        alice_id = graph.add_node(label="Alice")
-        bob_id = graph.add_node(label="Bob")
+        graph.add_node(label="Alice")
+        graph.add_node(label="Bob")
+        alice_id = graph.id_from_label("Alice")
+        bob_id = graph.id_from_label("Bob")
         graph.add_edge(alice_id, bob_id)
         ```
         
@@ -239,8 +242,9 @@ class Graph:
         
         ```python
         graph = Graph()
-        alice_id = graph.add_node(label="Alice")
+        graph.add_node(label="Alice")
         graph.add_node(label="Bob")
+        alice_id = graph.id_from_label("Alice")
         graph.add_edge(alice_id, "Bob")
         ```
         
@@ -273,7 +277,8 @@ class Graph:
         """
         # Handle direct Edge objects
         if isinstance(source, rust.Edge):
-            return self._graph.add_edge(source)
+            self._graph.add_edge(source)
+            return self
         
         # Resolve source and target to u64 IDs (DO NOT auto-create)
         source_id = self._resolve_node_id(source, auto_create=False)
@@ -294,7 +299,8 @@ class Graph:
             weight=weight,
             attributes=attributes if attributes else None
         )
-        return self._graph.add_edge(edge)
+        self._graph.add_edge(edge)
+        return self
     
     def _resolve_node_id(self, node: Union[int, str], auto_create: bool = False) -> int:
         """Resolve a node identifier (int or str) to a u64 ID.
@@ -757,8 +763,9 @@ class Graph:
         Delete edge by ID:
         
         ```python
-        graph = Graph().add_node(label="A").add_node(label="B")
-        edge_id = graph.add_edge("A", "B")
+        graph = Graph().add_node(label="A").add_node(label="B").add_edge("A", "B")
+        edges = graph.get_edges()
+        edge_id = edges[0].id
         
         graph.delete_edge(id=edge_id)
         print(graph.has_edge("A", "B"))  # False
