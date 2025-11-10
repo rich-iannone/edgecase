@@ -7717,7 +7717,31 @@ class Graph:
         add_cycle_graph : Add a cycle (path with loop back)
         add_star_graph : Add a hub-and-spoke graph
         """
-        self.add_path( n, type=type, label=label, rel=rel)
+        if n < 1:
+            raise ValueError("Path must have at least 1 node")
+        
+        # Get starting node ID (continue from existing nodes)
+        start_id = self.num_nodes() + 1
+        
+        # Add nodes
+        for i in range(n):
+            node_id = str(start_id + i)
+            attrs = {}
+            if type:
+                attrs['type'] = type
+            if label:
+                attrs['label'] = node_id
+            self.add_node(node_id, **attrs)
+        
+        # Add edges (path has n-1 edges)
+        for i in range(n - 1):
+            source = str(start_id + i)
+            target = str(start_id + i + 1)
+            edge_attrs = {}
+            if rel:
+                edge_attrs['rel'] = rel
+            self.add_edge(source, target, **edge_attrs)
+        
         return self
     
     def add_cycle_graph(
@@ -7764,7 +7788,20 @@ class Graph:
         add_path_graph : Add a linear path (no cycle)
         add_full_graph : Add a complete graph
         """
-        self.add_cycle( n, type=type, label=label, rel=rel)
+        if n < 3:
+            raise ValueError("Cycle must have at least 3 nodes")
+        
+        # Add path first
+        self.add_path_graph(n, type=type, label=label, rel=rel)
+        
+        # Close the cycle with final edge
+        start_id = self.num_nodes() - n + 1
+        end_id = self.num_nodes()
+        edge_attrs = {}
+        if rel:
+            edge_attrs['rel'] = rel
+        self.add_edge(str(end_id), str(start_id), **edge_attrs)
+        
         return self
     
     def add_star_graph(
@@ -7811,7 +7848,30 @@ class Graph:
         add_full_graph : Add a complete graph (clique)
         add_path_graph : Add a linear path
         """
-        self.add_star( n, type=type, label=label, rel=rel)
+        if n < 2:
+            raise ValueError("Star must have at least 2 nodes")
+        
+        start_id = self.num_nodes() + 1
+        center_id = str(start_id)
+        
+        # Add all nodes
+        for i in range(n):
+            node_id = str(start_id + i)
+            attrs = {}
+            if type:
+                attrs['type'] = type
+            if label:
+                attrs['label'] = node_id
+            self.add_node(node_id, **attrs)
+        
+        # Add edges from center to all other nodes
+        for i in range(1, n):
+            peripheral_id = str(start_id + i)
+            edge_attrs = {}
+            if rel:
+                edge_attrs['rel'] = rel
+            self.add_edge(center_id, peripheral_id, **edge_attrs)
+        
         return self
     
     def add_full_graph(
@@ -7861,7 +7921,40 @@ class Graph:
         add_star_graph : Add a hub-and-spoke graph
         add_cycle_graph : Add a cycle
         """
-        self.add_full_graph( n, type=type, label=label, rel=rel, keep_loops=keep_loops)
+        if n < 1:
+            raise ValueError("Complete graph must have at least 1 node")
+        
+        start_id = self.num_nodes() + 1
+        
+        # Add nodes
+        for i in range(n):
+            node_id = str(start_id + i)
+            attrs = {}
+            if type:
+                attrs['type'] = type
+            if label:
+                attrs['label'] = node_id
+            self.add_node(node_id, **attrs)
+        
+        # Add edges between all pairs
+        edge_attrs = {}
+        if rel:
+            edge_attrs['rel'] = rel
+        
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    # Self-loop
+                    if keep_loops:
+                        source = str(start_id + i)
+                        self.add_edge(source, source, **edge_attrs)
+                elif i < j or self.directed:
+                    # For undirected, only add each edge once (i < j)
+                    # For directed, add both directions
+                    source = str(start_id + i)
+                    target = str(start_id + j)
+                    self.add_edge(source, target, **edge_attrs)
+        
         return self
     
     def add_balanced_tree(
@@ -7913,7 +8006,56 @@ class Graph:
         add_star_graph : Add a hub-and-spoke graph
         add_path_graph : Add a linear path
         """
-        self.add_balanced_tree( k, h, type=type, label=label, rel=rel)
+        if k < 1:
+            raise ValueError("Branching factor k must be at least 1")
+        if h < 0:
+            raise ValueError("Height h cannot be negative")
+        
+        start_id = self.num_nodes() + 1
+        node_count = 0
+        
+        # Calculate total nodes: sum of k^i for i from 0 to h
+        # For k=1: total = h+1 (linear chain)
+        # For k>1: total = (k^(h+1) - 1) / (k - 1)
+        
+        # Add nodes level by level
+        edge_attrs = {}
+        if rel:
+            edge_attrs['rel'] = rel
+        
+        # Use a queue to track parent nodes and their children
+        from collections import deque
+        queue = deque()
+        
+        # Add root
+        root_id = str(start_id + node_count)
+        attrs = {}
+        if type:
+            attrs['type'] = type
+        if label:
+            attrs['label'] = root_id
+        self.add_node(root_id, **attrs)
+        queue.append((root_id, 0))  # (node_id, level)
+        node_count += 1
+        
+        # Build tree level by level
+        while queue:
+            parent_id, level = queue.popleft()
+            
+            if level < h:
+                # Add k children for this parent
+                for _ in range(k):
+                    child_id = str(start_id + node_count)
+                    attrs = {}
+                    if type:
+                        attrs['type'] = type
+                    if label:
+                        attrs['label'] = child_id
+                    self.add_node(child_id, **attrs)
+                    self.add_edge(parent_id, child_id, **edge_attrs)
+                    queue.append((child_id, level + 1))
+                    node_count += 1
+        
         return self
     
     def add_grid_2d(
@@ -7962,7 +8104,41 @@ class Graph:
         add_balanced_tree : Add a tree structure
         add_cycle_graph : Add a cycle
         """
-        self.add_grid_2d( rows, cols, type=type, label=label, rel=rel)
+        if rows < 1 or cols < 1:
+            raise ValueError("Grid must have at least 1 row and 1 column")
+        
+        start_id = self.num_nodes() + 1
+        
+        # Add nodes in grid layout
+        for i in range(rows):
+            for j in range(cols):
+                node_id = str(start_id + i * cols + j)
+                attrs = {}
+                if type:
+                    attrs['type'] = type
+                if label:
+                    attrs['label'] = f"({i},{j})"
+                self.add_node(node_id, **attrs)
+        
+        # Add edges
+        edge_attrs = {}
+        if rel:
+            edge_attrs['rel'] = rel
+        
+        for i in range(rows):
+            for j in range(cols):
+                current = str(start_id + i * cols + j)
+                
+                # Connect to right neighbor (if exists)
+                if j < cols - 1:
+                    right = str(start_id + i * cols + (j + 1))
+                    self.add_edge(current, right, **edge_attrs)
+                
+                # Connect to bottom neighbor (if exists)
+                if i < rows - 1:
+                    bottom = str(start_id + (i + 1) * cols + j)
+                    self.add_edge(current, bottom, **edge_attrs)
+        
         return self
     
     def add_prism_graph(
@@ -8008,7 +8184,54 @@ class Graph:
         add_cycle_graph : Add a single cycle
         add_grid_2d : Add a 2D grid
         """
-        self.add_prism( n, type=type, label=label, rel=rel)
+        if n < 3:
+            raise ValueError("Prism must have at least 3 nodes per cycle")
+        
+        start_id = self.num_nodes() + 1
+        
+        # Add first cycle
+        cycle1_start = start_id
+        for i in range(n):
+            node_id = str(cycle1_start + i)
+            attrs = {}
+            if type:
+                attrs['type'] = type
+            if label:
+                attrs['label'] = f"{node_id}_top"
+            self.add_node(node_id, **attrs)
+        
+        # Connect first cycle
+        edge_attrs = {}
+        if rel:
+            edge_attrs['rel'] = rel
+        for i in range(n):
+            source = str(cycle1_start + i)
+            target = str(cycle1_start + ((i + 1) % n))
+            self.add_edge(source, target, **edge_attrs)
+        
+        # Add second cycle
+        cycle2_start = cycle1_start + n
+        for i in range(n):
+            node_id = str(cycle2_start + i)
+            attrs = {}
+            if type:
+                attrs['type'] = type
+            if label:
+                attrs['label'] = f"{node_id}_bottom"
+            self.add_node(node_id, **attrs)
+        
+        # Connect second cycle
+        for i in range(n):
+            source = str(cycle2_start + i)
+            target = str(cycle2_start + ((i + 1) % n))
+            self.add_edge(source, target, **edge_attrs)
+        
+        # Connect corresponding nodes between cycles
+        for i in range(n):
+            top_node = str(cycle1_start + i)
+            bottom_node = str(cycle2_start + i)
+            self.add_edge(top_node, bottom_node, **edge_attrs)
+        
         return self
     
     def add_gnp_graph(
@@ -8862,611 +9085,6 @@ class Graph:
         
         if nodes_to_select:
             self.select_nodes_by_id(list(nodes_to_select))
-        
-        return self
-    
-    # Graph Builder Methods
-    
-    def add_path(
-        self,
-        n: int,
-        type: Optional[str] = None,
-        label: bool = True,
-        rel: Optional[str] = None,
-    ) -> "Graph":
-        """Add a path graph to this graph.
-        
-        A path graph is a sequence of nodes connected linearly: 1 → 2 → 3 → ... → n.
-        End nodes have degree 1, internal nodes have degree 2.
-        
-        Parameters
-        ---
-        n : int
-            Number of nodes in the path.
-        type : str, optional
-            Optional node type/category for all nodes in path.
-        label : bool, default True
-            If `True`, label nodes with their IDs.
-        rel : str, optional
-            Optional relationship label for all edges in path.
-            
-        Returns
-        ---
-        Graph
-            The graph object (for method chaining).
-            
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-        
-        graph = (
-            ec.Graph(directed=True)
-            .add_path(n=5, type="step", rel="next")
-        )
-        
-        print(graph.num_nodes())  # 5
-        print(graph.num_edges())  # 4
-        
-        # Chain multiple paths
-        graph = (
-            ec.Graph()
-            .add_path(n=3)
-            .add_path(n=4)
-        )
-        print(graph.num_nodes())  # 7
-        ```
-        
-        See Also
-        --------
-        add_cycle : Add a cycle graph (closed loop)
-        add_star : Add a star graph
-        """
-        if n < 1:
-            raise ValueError("Path must have at least 1 node")
-        
-        # Get starting node ID (continue from existing nodes)
-        start_id = self.num_nodes() + 1
-        
-        # Add nodes
-        for i in range(n):
-            node_id = str(start_id + i)
-            attrs = {}
-            if type:
-                attrs['type'] = type
-            if label:
-                attrs['label'] = node_id
-            self.add_node(node_id, **attrs)
-        
-        # Add edges (path has n-1 edges)
-        for i in range(n - 1):
-            source = str(start_id + i)
-            target = str(start_id + i + 1)
-            edge_attrs = {}
-            if rel:
-                edge_attrs['rel'] = rel
-            self.add_edge(source, target, **edge_attrs)
-        
-        return self
-    
-    def add_cycle(
-        self,
-        n: int,
-        type: Optional[str] = None,
-        label: bool = True,
-        rel: Optional[str] = None,
-    ) -> "Graph":
-        """Add a cycle graph to this graph.
-        
-        A cycle graph is a closed loop of nodes: 1 → 2 → 3 → ... → n → 1.
-        Each node has exactly degree 2.
-        
-        Parameters
-        ---
-        n : int
-            Number of nodes in the cycle (minimum 3).
-        type : str, optional
-            Optional node type/category for all nodes in cycle.
-        label : bool, default True
-            If `True`, label nodes with their IDs.
-        rel : str, optional
-            Optional relationship label for all edges in cycle.
-            
-        Returns
-        ---
-        Graph
-            The graph object (for method chaining).
-            
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-        
-        graph = (
-            ec.Graph(directed=True)
-            .add_cycle(n=4, type="state", rel="transitions_to")
-        )
-        
-        print(graph.num_nodes())  # 4
-        print(graph.num_edges())  # 4
-        
-        # Combine structures
-        graph = (
-            ec.Graph()
-            .add_cycle(n=5)
-            .add_path(n=3)
-        )
-        ```
-        
-        See Also
-        --------
-        add_path : Add a path graph (linear, no cycle)
-        add_full_graph : Add a complete graph
-        """
-        if n < 3:
-            raise ValueError("Cycle must have at least 3 nodes")
-        
-        # Add path first
-        self.add_path(n, type=type, label=label, rel=rel)
-        
-        # Close the cycle with final edge
-        start_id = self.num_nodes() - n + 1
-        end_id = self.num_nodes()
-        edge_attrs = {}
-        if rel:
-            edge_attrs['rel'] = rel
-        self.add_edge(str(end_id), str(start_id), **edge_attrs)
-        
-        return self
-    
-    def add_star(
-        self,
-        n: int,
-        type: Optional[str] = None,
-        label: bool = True,
-        rel: Optional[str] = None,
-    ) -> "Graph":
-        """Add a star graph to this graph.
-        
-        A star graph has one central node connected to n-1 peripheral nodes.
-        The center node has degree n-1, all peripheral nodes have degree 1.
-        
-        Parameters
-        ---
-        n : int
-            Total number of nodes (including center, minimum 2).
-        type : str, optional
-            Optional node type/category for all nodes in star.
-        label : bool, default True
-            If `True`, label nodes with their IDs.
-        rel : str, optional
-            Optional relationship label for all edges from center.
-            
-        Returns
-        ---
-        Graph
-            The graph object (for method chaining).
-            
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-        
-        graph = (
-            ec.Graph(directed=False)
-            .add_star(n=6, type="network", rel="connected_to")
-        )
-        
-        print(graph.num_nodes())  # 6
-        print(graph.num_edges())  # 5
-        ```
-        
-        See Also
-        --------
-        add_full_graph : Add a complete graph (all-to-all connections)
-        add_path : Add a linear path
-        """
-        if n < 2:
-            raise ValueError("Star must have at least 2 nodes")
-        
-        start_id = self.num_nodes() + 1
-        center_id = str(start_id)
-        
-        # Add all nodes
-        for i in range(n):
-            node_id = str(start_id + i)
-            attrs = {}
-            if type:
-                attrs['type'] = type
-            if label:
-                attrs['label'] = node_id
-            self.add_node(node_id, **attrs)
-        
-        # Add edges from center to all other nodes
-        for i in range(1, n):
-            peripheral_id = str(start_id + i)
-            edge_attrs = {}
-            if rel:
-                edge_attrs['rel'] = rel
-            self.add_edge(center_id, peripheral_id, **edge_attrs)
-        
-        return self
-    
-    def add_full_graph(
-        self,
-        n: int,
-        type: Optional[str] = None,
-        label: bool = True,
-        rel: Optional[str] = None,
-        keep_loops: bool = False,
-    ) -> "Graph":
-        """Add a complete graph (clique) to this graph.
-        
-        A complete graph has edges between every pair of nodes. In a complete graph
-        with n nodes, there are n(n-1)/2 edges for undirected or n(n-1) for directed.
-        
-        Parameters
-        ---
-        n : int
-            Number of nodes in the complete graph.
-        type : str, optional
-            Optional node type/category for all nodes.
-        label : bool, default True
-            If `True`, label nodes with their IDs.
-        rel : str, optional
-            Optional relationship label for all edges.
-        keep_loops : bool, default False
-            If `True`, include self-loops (edges from node to itself).
-            
-        Returns
-        ---
-        Graph
-            The graph object (for method chaining).
-            
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-        
-        graph = (
-            ec.Graph(directed=False)
-            .add_full_graph(n=4, type="complete")
-        )
-        
-        print(graph.num_nodes())  # 4
-        print(graph.num_edges())  # 6 (for undirected: n*(n-1)/2)
-        ```
-        
-        See Also
-        --------
-        add_star : Add a hub-and-spoke graph
-        add_cycle : Add a cycle
-        """
-        if n < 1:
-            raise ValueError("Complete graph must have at least 1 node")
-        
-        start_id = self.num_nodes() + 1
-        
-        # Add all nodes
-        for i in range(n):
-            node_id = str(start_id + i)
-            attrs = {}
-            if type:
-                attrs['type'] = type
-            if label:
-                attrs['label'] = node_id
-            self.add_node(node_id, **attrs)
-        
-        # Add edges between all pairs
-        edge_attrs = {}
-        if rel:
-            edge_attrs['rel'] = rel
-        
-        for i in range(n):
-            for j in range(n):
-                source_id = str(start_id + i)
-                target_id = str(start_id + j)
-                
-                # Skip self-loops unless explicitly requested
-                if i == j and not keep_loops:
-                    continue
-                
-                # For undirected graphs, avoid duplicate edges
-                if not self.is_directed and i > j:
-                    continue
-                
-                self.add_edge(source_id, target_id, **edge_attrs)
-        
-        return self
-    
-    def add_balanced_tree(
-        self,
-        k: int,
-        h: int,
-        type: Optional[str] = None,
-        label: bool = True,
-        rel: Optional[str] = None,
-    ) -> "Graph":
-        """Add a balanced tree to this graph.
-        
-        A balanced k-ary tree of height h where each non-leaf node has exactly k children.
-        Total nodes = (k^(h+1) - 1) / (k - 1) for k > 1.
-        
-        Parameters
-        ---
-        k : int
-            Branching factor (number of children per node, minimum 1).
-        h : int
-            Height of the tree (root is at height 0).
-        type : str, optional
-            Optional node type/category for all nodes.
-        label : bool, default True
-            If `True`, label nodes with their IDs.
-        rel : str, optional
-            Optional relationship label for all edges.
-            
-        Returns
-        ---
-        Graph
-            The graph object (for method chaining).
-            
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-        
-        graph = (
-            ec.Graph(directed=True)
-            .add_balanced_tree(k=2, h=3, type="tree_node", rel="parent_of")
-        )
-        
-        print(graph.num_nodes())  # 15 (1 + 2 + 4 + 8)
-        ```
-        
-        See Also
-        --------
-        add_star : Add a hub-and-spoke graph
-        add_path : Add a linear path
-        """
-        if k < 1:
-            raise ValueError("Branching factor k must be at least 1")
-        if h < 0:
-            raise ValueError("Height h must be non-negative")
-        
-        start_id = self.num_nodes() + 1
-        
-        # First, add all nodes
-        total_nodes = (k**(h + 1) - 1) // (k - 1) if k > 1 else h + 1
-        for i in range(total_nodes):
-            node_id = start_id + i
-            attrs = {}
-            if type:
-                attrs['type'] = type
-            if label:
-                attrs['label'] = str(node_id)
-            self.add_node(str(node_id), **attrs)
-        
-        # Then, add edges level by level using BFS
-        nodes_at_level = [start_id]  # Start with root
-        node_counter = 1  # Next node to assign as child
-        
-        for level in range(h):
-            next_level = []
-            
-            for node_id in nodes_at_level:
-                # Add children
-                for _ in range(k):
-                    child_id = start_id + node_counter
-                    node_counter += 1
-                    next_level.append(child_id)
-                    
-                    # Add edge from parent to child
-                    edge_attrs = {}
-                    if rel:
-                        edge_attrs['rel'] = rel
-                    self.add_edge(str(node_id), str(child_id), **edge_attrs)
-            
-            nodes_at_level = next_level
-        
-        return self
-    
-    def add_prism(
-        self,
-        n: int,
-        type: Optional[str] = None,
-        label: bool = True,
-        rel: Optional[str] = None,
-    ) -> "Graph":
-        """Add a prism graph to this graph.
-        
-        A prism graph consists of two parallel n-cycles connected by matching edges.
-        It's like taking two cycle graphs and connecting corresponding nodes. Total
-        edges = 3n (n in each cycle + n connecting edges).
-        
-        Parameters
-        ---
-        n : int
-            Number of nodes in each cycle (minimum 3).
-        type : str, optional
-            Optional node type/category for all nodes.
-        label : bool, default True
-            If `True`, label nodes with their IDs.
-        rel : str, optional
-            Optional relationship label for all edges.
-            
-        Returns
-        ---
-        Graph
-            The graph object (for method chaining).
-            
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-        
-        graph = (
-            ec.Graph(directed=False)
-            .add_prism(n=4, type="prism_node")
-        )
-        
-        print(graph.num_nodes())  # 8 (2 cycles of 4 nodes each)
-        print(graph.num_edges())  # 12 (4 + 4 + 4 edges)
-        ```
-        
-        See Also
-        --------
-        add_cycle : Add a single cycle
-        add_grid_2d : Add a 2D grid
-        """
-        if n < 3:
-            raise ValueError("Prism must have at least 3 nodes per cycle")
-        
-        start_id = self.num_nodes() + 1
-        
-        # Add first cycle
-        cycle1_start = start_id
-        for i in range(n):
-            node_id = str(cycle1_start + i)
-            attrs = {}
-            if type:
-                attrs['type'] = type
-            if label:
-                attrs['label'] = f"{node_id}_top"
-            self.add_node(node_id, **attrs)
-        
-        # Connect first cycle
-        edge_attrs = {}
-        if rel:
-            edge_attrs['rel'] = rel
-        for i in range(n):
-            source = str(cycle1_start + i)
-            target = str(cycle1_start + ((i + 1) % n))
-            self.add_edge(source, target, **edge_attrs)
-        
-        # Add second cycle
-        cycle2_start = cycle1_start + n
-        for i in range(n):
-            node_id = str(cycle2_start + i)
-            attrs = {}
-            if type:
-                attrs['type'] = type
-            if label:
-                attrs['label'] = f"{node_id}_bottom"
-            self.add_node(node_id, **attrs)
-        
-        # Connect second cycle
-        for i in range(n):
-            source = str(cycle2_start + i)
-            target = str(cycle2_start + ((i + 1) % n))
-            self.add_edge(source, target, **edge_attrs)
-        
-        # Connect corresponding nodes between cycles
-        for i in range(n):
-            top_node = str(cycle1_start + i)
-            bottom_node = str(cycle2_start + i)
-            self.add_edge(top_node, bottom_node, **edge_attrs)
-        
-        return self
-    
-    def add_grid_2d(
-        self,
-        x: int,
-        y: int,
-        type: Optional[str] = None,
-        label: bool = True,
-        rel: Optional[str] = None,
-    ) -> "Graph":
-        """Add a 2D grid graph to this graph.
-        
-        Creates a rectangular lattice where each node is connected to its orthogonal
-        neighbors (up, down, left, right). Total edges = (x-1)·y + x·(y-1).
-        
-        Parameters
-        ---
-        x : int
-            Width of the grid (minimum 1).
-        y : int
-            Height of the grid (minimum 1).
-        type : str, optional
-            Optional node type/category for all nodes.
-        label : bool, default True
-            If `True`, label nodes with their grid coordinates "(i,j)".
-        rel : str, optional
-            Optional relationship label for all edges.
-            
-        Returns
-        ---
-        Graph
-            The graph object (for method chaining).
-            
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-        
-        graph = (
-            ec.Graph(directed=False)
-            .add_grid_2d(x=3, y=3, type="cell")
-        )
-        
-        print(graph.num_nodes())  # 9 (3 × 3 grid)
-        print(graph.num_edges())  # 12 ((3-1)·3 + 3·(3-1))
-        
-        # Access node at position (1,2)
-        nodes = graph.node_df()
-        node = nodes.filter((nodes["x"] == 1) & (nodes["y"] == 2))
-        ```
-        
-        See Also
-        --------
-        add_path : Add a linear path
-        add_cycle : Add a cycle
-        add_prism : Add a prism structure
-        """
-        if x < 1 or y < 1:
-            raise ValueError("Grid dimensions must be at least 1x1")
-        
-        start_id = self.num_nodes() + 1
-        
-        # Create mapping from (i, j) to node_id
-        node_map = {}
-        node_counter = 0
-        
-        # Add all nodes
-        for j in range(y):
-            for i in range(x):
-                node_id = str(start_id + node_counter)
-                node_map[(i, j)] = node_id
-                
-                attrs = {}
-                if type:
-                    attrs['type'] = type
-                if label:
-                    attrs['label'] = f"({i},{j})"
-                attrs['x'] = i
-                attrs['y'] = j
-                
-                self.add_node(node_id, **attrs)
-                node_counter += 1
-        
-        # Add edges to neighbors
-        edge_attrs = {}
-        if rel:
-            edge_attrs['rel'] = rel
-        
-        for j in range(y):
-            for i in range(x):
-                current = node_map[(i, j)]
-                
-                # Connect to right neighbor
-                if i + 1 < x:
-                    right = node_map[(i + 1, j)]
-                    self.add_edge(current, right, **edge_attrs)
-                
-                # Connect to bottom neighbor
-                if j + 1 < y:
-                    bottom = node_map[(i, j + 1)]
-                    self.add_edge(current, bottom, **edge_attrs)
         
         return self
     

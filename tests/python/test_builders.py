@@ -9,9 +9,9 @@ import edgecase as ec
 class TestGraphBuilders:
     """Test graph construction functions."""
     
-    def test_add_path(self):
+    def test_add_path_graph(self):
         """Test creating a path graph."""
-        g = ec.Graph(directed=True).add_path(n=5)
+        g = ec.Graph(directed=True).add_path_graph(n=5)
         
         assert g.num_nodes() == 5
         assert g.num_edges() == 4
@@ -22,16 +22,16 @@ class TestGraphBuilders:
         # Neighbor could be returned as int or string
         assert "2" in neighbors_1 or 2 in neighbors_1
     
-    def test_add_path_with_attributes(self):
+    def test_add_path_graph_with_attributes(self):
         """Test path graph with node types and edge relationships."""
-        g = ec.Graph(directed=True).add_path(n=3, type="step", rel="next")
+        g = ec.Graph(directed=True).add_path_graph(n=3, type="step", rel="next")
         
         assert g.num_nodes() == 3
         assert g.num_edges() == 2
     
-    def test_add_cycle(self):
+    def test_add_cycle_graph(self):
         """Test creating a cycle graph."""
-        g = ec.Graph(directed=True).add_cycle(n=4)
+        g = ec.Graph(directed=True).add_cycle_graph(n=4)
         
         assert g.num_nodes() == 4
         assert g.num_edges() == 4  # n edges for a cycle
@@ -40,15 +40,15 @@ class TestGraphBuilders:
         for node_id in g.node_ids():
             assert len(g.neighbors(node_id)) == 1
     
-    def test_add_cycle_minimum(self):
+    def test_add_cycle_graph_minimum(self):
         """Test cycle graph must have at least 3 nodes."""
         g = ec.Graph(directed=True)
         with pytest.raises(ValueError, match="at least 3 nodes"):
-            g.add_cycle(n=2)
+            g.add_cycle_graph(n=2)
     
-    def test_add_star(self):
+    def test_add_star_graph(self):
         """Test creating a star graph."""
-        g = ec.Graph(directed=False).add_star(n=6)
+        g = ec.Graph(directed=False).add_star_graph(n=6)
         
         assert g.num_nodes() == 6
         assert g.num_edges() == 5  # n-1 edges
@@ -99,23 +99,23 @@ class TestGraphBuilders:
         assert g.num_nodes() == 4
         assert g.num_edges() == 3
     
-    def test_add_prism(self):
+    def test_add_prism_graph(self):
         """Test creating a prism graph."""
-        g = ec.Graph(directed=False).add_prism(n=4)
+        g = ec.Graph(directed=False).add_prism_graph(n=4)
         
         assert g.num_nodes() == 8  # 2 cycles of 4
         # 4 edges per cycle + 4 connecting edges
         assert g.num_edges() == 12
     
-    def test_add_prism_minimum(self):
+    def test_add_prism_graph_minimum(self):
         """Test prism must have at least 3 nodes per cycle."""
         g = ec.Graph(directed=False)
         with pytest.raises(ValueError, match="at least 3 nodes"):
-            g.add_prism(n=2)
+            g.add_prism_graph(n=2)
     
     def test_add_grid_2d(self):
         """Test creating a 2D grid graph."""
-        g = ec.Graph(directed=False).add_grid_2d(x=3, y=3)
+        g = ec.Graph(directed=False).add_grid_2d(3, 3)
         
         assert g.num_nodes() == 9
         # For 3x3 grid: (3-1)*3 + 3*(3-1) = 6 + 6 = 12 edges
@@ -123,7 +123,7 @@ class TestGraphBuilders:
     
     def test_add_grid_2d_rectangular(self):
         """Test rectangular grid."""
-        g = ec.Graph(directed=False).add_grid_2d(x=4, y=2)
+        g = ec.Graph(directed=False).add_grid_2d(4, 2)
         
         assert g.num_nodes() == 8
         # (4-1)*2 + 4*(2-1) = 6 + 4 = 10 edges
@@ -134,9 +134,9 @@ class TestGraphBuilders:
         # Using method chaining to add multiple structures
         g = (
             ec.Graph(directed=False)
-            .add_path(n=3)
-            .add_cycle(n=4)
-            .add_star(n=3)
+            .add_path_graph(n=3)
+            .add_cycle_graph(n=4)
+            .add_star_graph(n=3)
         )
         
         assert g.num_nodes() == 10  # 3 + 4 + 3
@@ -228,7 +228,7 @@ class TestGraphBuildersIntegration:
     
     def test_path_and_analyze(self):
         """Test creating path and analyzing it."""
-        g = ec.Graph(directed=True).add_path(n=10)
+        g = ec.Graph(directed=True).add_path_graph(n=10)
         
         # Path should have exactly 2 leaf nodes (endpoints)
         leaf_count = sum(1 for nid in g.node_ids() if len(g.neighbors(nid)) == 0)
@@ -236,7 +236,7 @@ class TestGraphBuildersIntegration:
     
     def test_star_centrality(self):
         """Test that center of star has highest degree."""
-        g = ec.Graph(directed=False).add_star(n=10)
+        g = ec.Graph(directed=False).add_star_graph(n=10)
         
         # Center node should have degree n-1
         center_degree = len(g.neighbors("1"))
@@ -248,7 +248,7 @@ class TestGraphBuildersIntegration:
     
     def test_grid_neighbors(self):
         """Test that grid nodes have correct neighbor counts."""
-        g = ec.Graph(directed=False).add_grid_2d(x=3, y=3)
+        g = ec.Graph(directed=False).add_grid_2d(3, 3)
         
         # Count nodes by degree
         degree_2 = 0  # Corners

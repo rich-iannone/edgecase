@@ -131,7 +131,7 @@ class TestGetNodeDF:
     def test_get_node_df_with_edges(self):
         """Test that degree column is correct."""
         G = ec.Graph(directed=False)
-        G.add_path(5)
+        G.add_path_graph(5)
         
         df = G.get_node_df()
         
@@ -192,7 +192,7 @@ class TestGetDFWithSelection:
     def test_get_node_df_ws(self):
         """Test getting selected nodes as DataFrame."""
         G = ec.Graph()
-        G.add_path(5)
+        G.add_path_graph(5)
         
         # Select specific nodes (by integer IDs)
         G.select_nodes_by_id([1, 3, 5])
@@ -204,7 +204,7 @@ class TestGetDFWithSelection:
     def test_get_edge_df_ws(self):
         """Test getting selected edges as DataFrame."""
         G = ec.Graph()
-        G.add_path(5)
+        G.add_path_graph(5)
         
         # Select specific edges
         G.select_edges_by_id([1, 3])
@@ -216,7 +216,7 @@ class TestGetDFWithSelection:
     def test_get_node_df_ws_empty_selection(self):
         """Test with no selection."""
         G = ec.Graph()
-        G.add_path(5)
+        G.add_path_graph(5)
         
         df = G.get_node_df_ws()
         
@@ -225,7 +225,7 @@ class TestGetDFWithSelection:
     def test_get_df_ws_workflow(self):
         """Test realistic workflow with selection and DataFrame."""
         G = ec.Graph(directed=False)
-        G.add_star(10)
+        G.add_star_graph(10)
         
         # Select high-degree nodes
         G.select_nodes_by_degree(min_degree=5)
@@ -389,7 +389,7 @@ class TestGetPredecessorsSuccessors:
     def test_predecessors_undirected_error(self):
         """Test that predecessors fails on undirected graph."""
         G = ec.Graph(directed=False)
-        G.add_path(5)
+        G.add_path_graph(5)
         
         with pytest.raises(ValueError, match="only available for directed"):
             G.get_predecessors("3")
@@ -397,7 +397,7 @@ class TestGetPredecessorsSuccessors:
     def test_successors_undirected_error(self):
         """Test that successors fails on undirected graph."""
         G = ec.Graph(directed=False)
-        G.add_path(5)
+        G.add_path_graph(5)
         
         with pytest.raises(ValueError, match="only available for directed"):
             G.get_successors("3")
@@ -678,7 +678,7 @@ class TestGetAllConnectedNodes:
     def test_connected_nodes_star_graph(self):
         """Test on star graph."""
         G = ec.Graph()
-        G.add_star(5)  # Center node 1 connected to 2-5
+        G.add_star_graph(5)  # Center node 1 connected to 2-5
         
         # From center, all spokes are connected
         connected_center = G.get_all_connected_nodes(1)
@@ -737,7 +737,7 @@ class TestQueryWorkflows:
     def test_workflow_selected_subgraph_analysis(self):
         """Test analyzing a selected subgraph."""
         G = ec.Graph(directed=True)
-        G.add_star(10)
+        G.add_star_graph(10)
         
         # Select high-degree nodes and their neighbors
         G.select_nodes_by_degree(min_degree=5)

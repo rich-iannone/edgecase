@@ -10,7 +10,7 @@ class TestDeleteNodesWS:
     def test_delete_nodes_basic(self):
         """Delete selected nodes and their edges."""
         G = ec.Graph()
-        G.add_path(5)  # Creates nodes 1,2,3,4,5
+        G.add_path_graph(5)  # Creates nodes 1,2,3,4,5
         
         assert G.num_nodes() == 5
         assert G.num_edges() == 4
@@ -27,7 +27,7 @@ class TestDeleteNodesWS:
     def test_delete_nodes_clears_selection(self):
         """Deleting nodes clears the selection."""
         G = ec.Graph()
-        G.add_path(3)
+        G.add_path_graph(3)
         
         G.select_nodes_by_id([1, 2])  # Integer IDs
         assert G.count_selected_nodes() == 2
@@ -66,7 +66,7 @@ class TestDeleteNodesWS:
     def test_delete_all_nodes(self):
         """Delete all nodes in graph."""
         G = ec.Graph()
-        G.add_star(5)
+        G.add_star_graph(5)
         
         all_nodes = G.node_ids()
         G.select_nodes_by_id(all_nodes)
@@ -82,7 +82,7 @@ class TestDeleteEdgesWS:
     def test_delete_edges_basic(self):
         """Delete selected edges."""
         G = ec.Graph()
-        G.add_path(4)  # 3 edges
+        G.add_path_graph(4)  # 3 edges
         
         assert G.num_edges() == 3
         
@@ -96,7 +96,7 @@ class TestDeleteEdgesWS:
     def test_delete_edges_clears_selection(self):
         """Deleting edges clears edge selection."""
         G = ec.Graph()
-        G.add_cycle(4)
+        G.add_cycle_graph(4)
         
         G.select_edges_by_id([1, 2])
         assert G.count_selected_edges() == 2
@@ -126,7 +126,7 @@ class TestSelectionCleanup:
     def test_delete_single_edge_removes_from_selection(self):
         """Deleting an edge via delete_edge_by_id removes it from selection."""
         G = ec.Graph()
-        G.add_path(4)  # Creates edges 1, 2, 3
+        G.add_path_graph(4)  # Creates edges 1, 2, 3
         
         # Select all edges
         G.select_edges_by_id([1, 2, 3])
@@ -143,7 +143,7 @@ class TestSelectionCleanup:
     def test_delete_single_node_removes_from_selection(self):
         """Deleting a node via Rust method removes it from selection."""
         G = ec.Graph()
-        G.add_path(5)
+        G.add_path_graph(5)
         
         # Select multiple nodes (integer IDs)
         G.select_nodes_by_id([1, 2, 3])
@@ -160,7 +160,7 @@ class TestSelectionCleanup:
     def test_delete_multiple_nodes_updates_selection(self):
         """Deleting multiple nodes removes them all from selection."""
         G = ec.Graph()
-        G.add_path(6)
+        G.add_path_graph(6)
         
         # Select nodes 1-5 (integer IDs)
         G.select_nodes_by_id([1, 2, 3, 4, 5])
@@ -177,7 +177,7 @@ class TestSelectionCleanup:
     def test_delete_multiple_edges_updates_selection(self):
         """Deleting multiple edges removes them all from selection."""
         G = ec.Graph()
-        G.add_path(6)  # Creates edges 1-5
+        G.add_path_graph(6)  # Creates edges 1-5
         
         # Select edges 1-5
         G.select_edges_by_id([1, 2, 3, 4, 5])
@@ -198,7 +198,7 @@ class TestSetNodeAttrsWS:
     def test_set_single_attribute(self):
         """Set one attribute on selected nodes."""
         G = ec.Graph()
-        G.add_path(3)
+        G.add_path_graph(3)
         
         G.select_nodes_by_id([1, 2])  # Integer IDs
         G.set_node_attrs_ws(color='red')
@@ -210,7 +210,7 @@ class TestSetNodeAttrsWS:
     def test_set_multiple_attributes(self):
         """Set multiple attributes at once."""
         G = ec.Graph()
-        G.add_star(4)
+        G.add_star_graph(4)
         
         # Center node is 1 (first node created)
         G.select_nodes_by_id([1])  # Integer ID
@@ -247,7 +247,7 @@ class TestSetNodeAttrsWS:
     def test_set_attrs_with_chaining(self):
         """Use set_node_attrs_ws in method chain."""
         G = ec.Graph()
-        G.add_path(5)
+        G.add_path_graph(5)
         
         result = G.select_nodes_by_degree(min_degree=2) \
                   .set_node_attrs_ws(type='internal')
@@ -263,7 +263,7 @@ class TestSetEdgeAttrsWS:
     def test_set_edge_weight(self):
         """Set weight on selected edges."""
         G = ec.Graph()
-        G.add_path(3)
+        G.add_path_graph(3)
         
         G.select_edges_by_id([1])
         G.set_edge_attrs_ws(weight=5.0)
@@ -274,7 +274,7 @@ class TestSetEdgeAttrsWS:
     def test_set_edge_regular_attributes(self):
         """Set non-weight attributes on edges."""
         G = ec.Graph()
-        G.add_cycle(3)
+        G.add_cycle_graph(3)
         
         G.select_edges_by_id([1, 2])
         G.set_edge_attrs_ws(type='strong', color='red')
@@ -609,7 +609,7 @@ class TestBulkModificationWorkflows:
     def test_workflow_bidirectional_network(self):
         """Create directed network and make selected edges bidirectional."""
         G = ec.Graph(directed=True)
-        G.add_path(4)  # A->B->C->D
+        G.add_path_graph(4)  # A->B->C->D
         
         # Make first two edges bidirectional
         G.select_edges_by_id([1, 2]) \
@@ -620,7 +620,7 @@ class TestBulkModificationWorkflows:
     def test_workflow_delete_and_reconnect(self):
         """Delete nodes and reconnect remaining ones."""
         G = ec.Graph()
-        G.add_cycle(6)
+        G.add_cycle_graph(6)
         
         # Delete every other node (use integer IDs)
         G.select_nodes_by_id([1, 3, 5])
