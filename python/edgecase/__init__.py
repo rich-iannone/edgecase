@@ -14,7 +14,6 @@ from edgecase.aesthetics import (
     rescale_node_attrs,
     set_node_attr_to_display,
 )
-from edgecase.analysis import NetworkAnalyzer
 from edgecase.datasets import (
     karate_club,
 )
@@ -78,8 +77,6 @@ __all__ = [
     "from_networkx",
     "to_igraph",
     "from_igraph",
-    # Analysis
-    "NetworkAnalyzer",
     # Visualization
     "plot_graph",
     "GraphWidget",
