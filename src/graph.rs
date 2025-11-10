@@ -1359,6 +1359,89 @@ impl Graph {
         Ok(())
     }
 
+    /// Generate Johnson graph J(n, k)
+    /// 
+    /// Creates a graph where vertices are k-subsets of {0, 1, ..., n-1},
+    /// and two vertices are adjacent if their subsets intersect in exactly k-1 elements
+    /// (i.e., they differ by exactly one element).
+    /// 
+    /// # Properties
+    /// - Regular graph: each vertex has degree k(n-k)
+    /// - Distance-regular
+    /// C(n,k) vertices where C is binomial coefficient
+    /// - Undirected, no self-loops
+    /// 
+    /// # Arguments
+    /// * `n` - Size of the base set (must be >= 0)
+    /// * `k` - Size of each subset (must satisfy 0 <= k <= n)
+    /// 
+    /// # Returns
+    /// PyResult<()> - Ok if successful, Err if parameters invalid
+    /// 
+    /// # Algorithm
+    /// 1. Generate all k-combinations of {0, 1, ..., n-1}
+    /// 2. For each pair of combinations, check if intersection size = k-1
+    /// 3. Add edge if condition satisfied
+    /// 
+    /// Time complexity: O(C(n,k)^2 * k) where C(n,k) is binomial coefficient
+    #[pyo3(signature = (n, k))]
+    fn generate_johnson_graph(&mut self, n: usize, k: usize) -> PyResult<()> {
+        if k > n {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "k must be between 0 and n"
+            ));
+        }
+
+        // Generate all k-combinations of {0, 1, ..., n-1}
+        let elements: Vec<usize> = (0..n).collect();
+        let combinations = Self::generate_combinations(&elements, k);
+
+        // Add nodes for each combination
+        // Node IDs are assigned sequentially, labels are comma-separated subsets
+        let mut node_ids = Vec::new();
+        for combo in &combinations {
+            let node_id = self.next_node_id;
+            self.next_node_id += 1;
+            node_ids.push(node_id);
+            
+            // Label as comma-separated sorted elements
+            let label = combo.iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            
+            let node = Node::new(node_id, Some(label), None);
+            self.add_node(node)?;
+        }
+
+        // Add edges between combinations that differ by exactly one element
+        // Two k-subsets are adjacent if they intersect in k-1 elements
+        for i in 0..combinations.len() {
+            for j in (i + 1)..combinations.len() {
+                let set_i: FxHashSet<_> = combinations[i].iter().copied().collect();
+                let set_j: FxHashSet<_> = combinations[j].iter().copied().collect();
+                
+                // Intersection size
+                let intersection_size = set_i.intersection(&set_j).count();
+                
+                if intersection_size == k.saturating_sub(1) {
+                    let edge = Edge::new(
+                        0,
+                        node_ids[i],
+                        node_ids[j],
+                        None,
+                        None,
+                    );
+                    self.add_edge(edge)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    // ========== Community Detection ==========
+
     // ========== Structural Properties ==========
 
     /// Calculate graph density
@@ -4205,6 +4288,46 @@ impl Graph {
     /// Get edges vector (internal method for algorithms)
     pub fn get_edges_internal(&self) -> &Vec<Edge> {
         &self.edges
+    }
+
+    /// Generate all k-combinations of elements
+    /// Helper function for Johnson graph generation
+    fn generate_combinations<T: Clone>(elements: &[T], k: usize) -> Vec<Vec<T>> {
+        if k == 0 {
+            return vec![vec![]];
+        }
+        if k > elements.len() {
+            return vec![];
+        }
+        if k == elements.len() {
+            return vec![elements.to_vec()];
+        }
+
+        let mut result = Vec::new();
+        
+        // Generate combinations recursively
+        fn combine<T: Clone>(
+            elements: &[T],
+            k: usize,
+            start: usize,
+            current: &mut Vec<T>,
+            result: &mut Vec<Vec<T>>,
+        ) {
+            if current.len() == k {
+                result.push(current.clone());
+                return;
+            }
+
+            for i in start..elements.len() {
+                current.push(elements[i].clone());
+                combine(elements, k, i + 1, current, result);
+                current.pop();
+            }
+        }
+
+        let mut current = Vec::new();
+        combine(elements, k, 0, &mut current, &mut result);
+        result
     }
 
     /// Find connected components using BFS

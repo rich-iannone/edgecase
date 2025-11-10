@@ -7799,6 +7799,105 @@ class Graph:
         self._graph.generate_smallworld_graph(n, k, p, seed)
         return self
     
+    def add_johnson_graph(self, n: int, k: int) -> "Graph":
+        """Add a Johnson graph J(n, k) to this graph.
+        
+        Creates a graph where vertices represent k-subsets of {0, 1, ..., n-1},
+        and two vertices are adjacent if their subsets intersect in exactly k-1 elements
+        (i.e., they differ by exactly one element).
+        
+        Johnson graphs are distance-regular and k(n-k)-regular. They generalize to
+        the family J(n,k,s) where s is the intersection size; this method implements
+        the standard case where s = k-1. When k=0 or k=n, the graph is trivial
+        (single vertex, no edges).
+        
+        Parameters
+        ----------
+        n : int
+            Size of the base set. Must be non-negative.
+        k : int
+            Size of each subset. Must satisfy 0 <= k <= n.
+            
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+            
+        Raises
+        ------
+        ValueError
+            If k > n.
+            
+        Properties
+        ----------
+        - **Vertices**: C(n,k) nodes where C is the binomial coefficient "n choose k"
+        - **Degree**: Each vertex has degree k(n-k) (regular graph)
+        - **Distance-regular**: Distances between vertices follow regular pattern
+        - **Undirected**: All edges are bidirectional
+        - **Node labels**: Comma-separated sorted elements (e.g., "0,1,2")
+        
+        Relationship to Other Graphs
+        -----------------------------
+        - **Kneser graphs K(n,k)**: Vertices adjacent if subsets are disjoint.
+          Johnson J(n,k) and Kneser K(n,k) are complementary for certain parameters.
+        - **Hamming graphs**: Johnson graphs are a special case of Hamming graphs.
+        - **Petersen graph**: J(5,2) is the Petersen graph (10 vertices, degree 3).
+        
+        Complexity
+        ----------
+        - Time: O(C(n,k)² × k) where C(n,k) is "n choose k"
+        - Space: O(C(n,k) + edges)
+        
+        Examples
+        --------
+        Create J(4,2) - the graph of 2-subsets of {0,1,2,3}:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=False).add_johnson_graph(n=4, k=2)
+        print(graph.num_nodes())  # 6 (C(4,2) = 6)
+        print(graph.num_edges())  # 12
+        
+        # Each node is a 2-subset
+        nodes = [graph.label_from_id(nid) for nid in graph.nodes()]
+        print(nodes)  # ['0,1', '0,2', '0,3', '1,2', '1,3', '2,3']
+        
+        # Verify regularity: each node has degree k(n-k) = 2*2 = 4
+        degrees = [graph.degree(nid) for nid in graph.nodes()]
+        print(set(degrees))  # {4}
+        ```
+        
+        Create the Petersen graph J(5,2):
+        
+        ```python
+        johnson_5_2 = ec.Graph(directed=False).add_johnson_graph(n=5, k=2)
+        print(johnson_5_2.num_nodes())  # 10 (C(5,2) = 10)
+        print(johnson_5_2.num_edges())  # 30
+        
+        # Verify regularity: degree = k(n-k) = 2*(5-2) = 6
+        degrees = [johnson_5_2.degree(nid) for nid in johnson_5_2.nodes()]
+        print(f"Degree: {degrees[0]}")  # 6
+        
+        # Note: The Petersen graph is actually the Kneser graph K(5,2),
+        # not Johnson J(5,2). J(5,2) has 10 vertices and is 6-regular,
+        # while Petersen has 10 vertices but is 3-regular.
+        ```
+        
+        See Also
+        --------
+        add_gnp_graph : Add Erdős-Rényi random graph
+        add_pa_graph : Add preferential attachment graph
+        add_smallworld_graph : Add Watts-Strogatz small-world graph
+        
+        References
+        ----------
+        Brouwer, A. E., Cohen, A. M., & Neumaier, A. (1989).
+        "Distance-Regular Graphs." Springer-Verlag.
+        """
+        self._graph.generate_johnson_graph(n, k)
+        return self
+    
     # ========================================
     # TRAVERSAL OPERATIONS
     # ========================================
