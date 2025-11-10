@@ -18,13 +18,13 @@ class TestSelectLastNodesCreated:
         G.add_node("D")
         G.add_node("E")
         
-        # Select last 2 nodes
+        # Select last 2 nodes (D=4, E=5)
         G.select_last_nodes_created(2)
         
         selected = G.get_selected_nodes()
         assert len(selected) == 2
-        assert "D" in selected
-        assert "E" in selected
+        assert 4 in selected  # D
+        assert 5 in selected  # E
     
     def test_select_last_nodes_order_preserved(self):
         """Verify creation order is preserved."""
@@ -33,18 +33,18 @@ class TestSelectLastNodesCreated:
         for node in nodes:
             G.add_node(node)
         
-        # Get creation order
+        # Get creation order - returns node IDs
         order = G.get_node_creation_order()
-        assert order == nodes
+        assert order == [1, 2, 3, 4, 5]  # Integer node IDs
         
-        # Select last 3
+        # Select last 3 (Node_3=3, Node_4=4, Node_5=5)
         G.select_last_nodes_created(3)
         selected = G.get_selected_nodes()
         
         assert len(selected) == 3
-        assert "Node_3" in selected
-        assert "Node_4" in selected
-        assert "Node_5" in selected
+        assert 3 in selected  # Node_3
+        assert 4 in selected  # Node_4
+        assert 5 in selected  # Node_5
     
     def test_select_last_nodes_more_than_exist(self):
         """Requesting more nodes than exist selects all."""
@@ -58,7 +58,7 @@ class TestSelectLastNodesCreated:
         
         selected = G.get_selected_nodes()
         assert len(selected) == 3
-        assert set(selected) == {"A", "B", "C"}
+        assert set(selected) == {1, 2, 3}  # Integer node IDs
     
     def test_select_last_nodes_zero(self):
         """Selecting 0 nodes selects nothing."""
@@ -75,18 +75,19 @@ class TestSelectLastNodesCreated:
         """Creation order tracks nodes even when edges are added."""
         G = Graph()
         G.add_node("A")
-        G.add_edge("A", "B")  # This creates node B
+        G.add_node("B")
+        G.add_edge("A", "B")
         G.add_node("C")
         
         order = G.get_node_creation_order()
-        assert order == ["A", "B", "C"]
+        assert order == [1, 2, 3]  # Integer node IDs for A, B, C
         
-        G.select_last_nodes_created(2)
+        G.select_last_nodes_created(2)  # Last 2: B=2, C=3
         selected = G.get_selected_nodes()
         
         assert len(selected) == 2
-        assert "B" in selected
-        assert "C" in selected
+        assert 2 in selected  # B
+        assert 3 in selected  # C
     
     def test_select_last_nodes_chaining(self):
         """Chain with other selection methods."""
@@ -97,17 +98,17 @@ class TestSelectLastNodesCreated:
         G.add_node("D", priority=4)
         
         # Select last 2, then add one more by ID
-        G.select_last_nodes_created(2)
+        G.select_last_nodes_created(2)  # C=3, D=4
         first_count = G.count_selected_nodes()
         assert first_count == 2
         
-        G.select_nodes_by_id(["A"])
+        G.select_nodes_by_id([1])  # A = node ID 1
         
         selected = G.get_selected_nodes()
         assert len(selected) == 3
-        assert "A" in selected
-        assert "C" in selected
-        assert "D" in selected
+        assert 1 in selected  # A
+        assert 3 in selected  # C
+        assert 4 in selected  # D
     
     def test_select_last_nodes_incremental_building(self):
         """Test incremental graph building workflow."""
@@ -122,12 +123,15 @@ class TestSelectLastNodesCreated:
         G.add_node("Batch2_B")
         G.add_node("Batch2_C")
         
-        # Select only second batch
+        # Select only second batch (nodes 3, 4, 5)
         G.select_last_nodes_created(3)
         
         selected = G.get_selected_nodes()
         assert len(selected) == 3
-        assert all("Batch2" in node for node in selected)
+        # Nodes 3, 4, 5 are the Batch2 nodes
+        assert 3 in selected
+        assert 4 in selected
+        assert 5 in selected
 
 
 class TestSelectLastEdgesCreated:
@@ -136,6 +140,8 @@ class TestSelectLastEdgesCreated:
     def test_select_last_edges_basic(self):
         """Select the last N edges created."""
         G = Graph()
+        for label in ["A", "B", "C", "D", "E"]:
+            G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -155,6 +161,8 @@ class TestSelectLastEdgesCreated:
     def test_select_last_edges_order_preserved(self):
         """Verify edge creation order is preserved."""
         G = Graph()
+        for label in ["A", "B", "C", "D", "E"]:
+            G.add_node(label)
         edges = [
             ("A", "B"),
             ("B", "C"),
@@ -183,6 +191,8 @@ class TestSelectLastEdgesCreated:
     def test_select_last_edges_more_than_exist(self):
         """Requesting more edges than exist selects all."""
         G = Graph()
+        for label in ["A", "B", "C"]:
+            G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -195,6 +205,8 @@ class TestSelectLastEdgesCreated:
     def test_select_last_edges_zero(self):
         """Selecting 0 edges selects nothing."""
         G = Graph()
+        for label in ["A", "B", "C"]:
+            G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -206,6 +218,8 @@ class TestSelectLastEdgesCreated:
     def test_select_last_edges_with_weights(self):
         """Creation order works with weighted edges."""
         G = Graph()
+        for label in ["A", "B", "C", "D"]:
+            G.add_node(label)
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("B", "C", weight=2.0)
         G.add_edge("C", "D", weight=3.0)
@@ -229,6 +243,8 @@ class TestSelectLastEdgesCreated:
     def test_select_last_edges_chaining(self):
         """Chain with other edge selection methods."""
         G = Graph()
+        for label in ["A", "B", "C", "D", "E"]:
+            G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -237,8 +253,8 @@ class TestSelectLastEdgesCreated:
         # Select last 2 edges
         G.select_last_edges_created(2)
         
-        # Then select edges connected to A
-        G.select_edges_by_node_id(["A"])
+        # Then select edges connected to A (node ID 1)
+        G.select_edges_by_node_id([1])  # A = node ID 1
         
         selected = G.get_selected_edges()
         # Should have 3 edges: last 2 + A-B
@@ -247,6 +263,8 @@ class TestSelectLastEdgesCreated:
     def test_select_last_edges_incremental_building(self):
         """Test incremental edge building workflow."""
         G = Graph()
+        for label in ["A", "B", "C", "D", "E", "F"]:
+            G.add_node(label)
         
         # Build initial structure
         G.add_edge("A", "B")
@@ -263,18 +281,19 @@ class TestSelectLastEdgesCreated:
         selected = G.get_selected_edges()
         assert len(selected) == 3
         
-        # Verify these are edges involving C, D, E, F
+        # Verify these are edges involving C, D, E, F (node IDs 3, 4, 5, 6)
         edges_info = G.edges()
         selected_nodes = set()
         for eid, src, tgt in edges_info:
             if eid in selected:
-                selected_nodes.add(src)
+                selected_nodes.add(src)  # Integer node IDs
                 selected_nodes.add(tgt)
         
-        assert "C" in selected_nodes
-        assert "D" in selected_nodes
-        assert "E" in selected_nodes
-        assert "F" in selected_nodes
+        # C=3, D=4, E=5, F=6
+        assert 3 in selected_nodes  # C
+        assert 4 in selected_nodes  # D
+        assert 5 in selected_nodes  # E
+        assert 6 in selected_nodes  # F
 
 
 class TestCreationOrderHelpers:
@@ -295,7 +314,7 @@ class TestCreationOrderHelpers:
             G.add_node(node)
         
         order = G.get_node_creation_order()
-        assert order == nodes
+        assert order == [1, 2, 3, 4]  # Integer node IDs
     
     def test_get_edge_creation_order_empty(self):
         """Empty graph returns empty order."""
@@ -306,6 +325,8 @@ class TestCreationOrderHelpers:
     def test_get_edge_creation_order_sequence(self):
         """Edge creation order matches addition sequence."""
         G = Graph()
+        for label in ["A", "B", "C", "D"]:
+            G.add_node(label)
         
         G.add_edge("A", "B")  # Edge ID 1
         G.add_edge("B", "C")  # Edge ID 2
@@ -317,10 +338,12 @@ class TestCreationOrderHelpers:
     def test_creation_order_with_explicit_edge_ids(self):
         """Creation order works with user-specified edge IDs."""
         G = Graph()
+        for label in ["A", "B", "C", "D"]:
+            G.add_node(label)
         
         G.add_edge("A", "B", edge_id=100)
         G.add_edge("B", "C", edge_id=200)
-        G.add_edge("C", "D")  # Auto-assigned
+        G.add_edge("C", "D")  # Auto-assigned (likely 201)
         
         order = G.get_edge_creation_order()
         assert order == [100, 200, 201]
@@ -344,12 +367,12 @@ class TestCombinedWorkflows:
         G.add_edge("Server2", "Server3", latency=15)
         G.add_edge("Server3", "Server4", latency=20)
         
-        # Select nodes from Batch 2
+        # Select nodes from Batch 2 (Server3=3, Server4=4)
         G.select_last_nodes_created(2)
         batch2_nodes = G.get_selected_nodes()
         assert len(batch2_nodes) == 2
-        assert "Server3" in batch2_nodes
-        assert "Server4" in batch2_nodes
+        assert 3 in batch2_nodes  # Server3
+        assert 4 in batch2_nodes  # Server4
         
         # Select edges from Batch 2
         G.clear_selection()
@@ -381,8 +404,8 @@ class TestCombinedWorkflows:
         
         final_selection = G.get_selected_nodes()
         assert len(final_selection) == 2
-        assert "Node3" in final_selection
-        assert "Node4" in final_selection
+        assert 3 in final_selection  # Node3 = node ID 3
+        assert 4 in final_selection  # Node4 = node ID 4
     
     def test_streaming_data_scenario(self):
         """Simulate streaming data where we only care about recent entries."""
@@ -399,14 +422,14 @@ class TestCombinedWorkflows:
         for i in range(1, 10):
             G.add_edge(f"Event_{i}", f"Event_{i+1}")
         
-        # Select only last 3 events (most recent)
+        # Select only last 3 events (most recent) - Event_8=8, Event_9=9, Event_10=10
         G.select_last_nodes_created(3)
         recent_events = G.get_selected_nodes()
         
         assert len(recent_events) == 3
-        assert "Event_8" in recent_events
-        assert "Event_9" in recent_events
-        assert "Event_10" in recent_events
+        assert 8 in recent_events  # Event_8
+        assert 9 in recent_events  # Event_9
+        assert 10 in recent_events  # Event_10
         
         # Select last 2 edges (connections between recent events)
         G.clear_selection()
@@ -444,12 +467,12 @@ class TestEdgeCases:
         G.select_last_nodes_created(2)
         G.clear_selection()
         
-        # Select again
+        # Select again (C = node ID 3)
         G.select_last_nodes_created(1)
         selected = G.get_selected_nodes()
         
         assert len(selected) == 1
-        assert "C" in selected
+        assert 3 in selected  # C
     
     def test_creation_order_persists(self):
         """Creation order is maintained throughout graph lifetime."""
@@ -462,18 +485,19 @@ class TestEdgeCases:
         # Do various operations
         G.select_last_nodes_created(2)
         G.clear_selection()
-        G.select_nodes_by_id(["Node_0"])
+        G.select_nodes_by_id([1])  # Node_0 = node ID 1
         G.invert_node_selection()
         
-        # Creation order should still be intact
+        # Creation order should still be intact (integer IDs)
         order = G.get_node_creation_order()
-        assert order == [f"Node_{i}" for i in range(5)]
+        assert order == [1, 2, 3, 4, 5]  # Integer node IDs
     
     def test_method_chaining_with_last_created(self):
         """Verify method chaining returns Graph object."""
         G = Graph()
         G.add_node("A")
         G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         

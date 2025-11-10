@@ -12,6 +12,10 @@ class TestSetEdgeAttrsBasic:
     def test_set_edge_attr_all_edges_single_value(self):
         """Set same value for all edges."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -24,6 +28,10 @@ class TestSetEdgeAttrsBasic:
     def test_set_edge_attr_specific_edges(self):
         """Set attribute for specific edges only."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -38,6 +46,10 @@ class TestSetEdgeAttrsBasic:
     def test_set_edge_attr_from_to_filtering(self):
         """Set attribute using from/to node filtering."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "C")
@@ -52,6 +64,10 @@ class TestSetEdgeAttrsBasic:
     def test_set_edge_attr_list_values(self):
         """Set different values using a list."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -66,6 +82,9 @@ class TestSetEdgeAttrsBasic:
     def test_set_edge_attr_dict_values(self):
         """Set values using a dict mapping edge IDs to values."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -85,6 +104,9 @@ class TestSetEdgeAttrsWeight:
     def test_set_weight_all_edges(self):
         """Set weight for all edges."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -96,6 +118,10 @@ class TestSetEdgeAttrsWeight:
     def test_set_weight_specific_edges(self):
         """Set weight for specific edges."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("B", "C", weight=2.0)
         G.add_edge("C", "D", weight=3.0)
@@ -110,6 +136,9 @@ class TestSetEdgeAttrsWeight:
     def test_set_weight_list_values(self):
         """Set different weights using a list."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -126,6 +155,8 @@ class TestSetEdgeAttrsMultigraph:
     def test_set_attr_multigraph_all_parallel_edges(self):
         """Set attribute on all parallel edges."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B", type="friend")
         G.add_edge("A", "B", type="colleague")
         G.add_edge("A", "B", type="family")
@@ -141,6 +172,8 @@ class TestSetEdgeAttrsMultigraph:
     def test_set_attr_by_edge_id_multigraph(self):
         """Set attribute on specific parallel edge by ID."""
         G = ec.Graph()
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B", type="friend")
         G.add_edge("A", "B", type="colleague")
         
@@ -162,6 +195,8 @@ class TestSetEdgeAttrsChaining:
     def test_chaining_returns_self(self):
         """Verify set_edge_attrs returns self for chaining."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B")
         
         result = G.set_edge_attrs("color", "red")
@@ -170,6 +205,9 @@ class TestSetEdgeAttrsChaining:
     def test_chaining_multiple_operations(self):
         """Chain multiple set_edge_attrs calls."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -186,6 +224,9 @@ class TestSetEdgeAttrsDirected:
     def test_directed_graph_from_to_filtering(self):
         """Test source/target filtering respects direction."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "A")  # Reverse edge
         G.add_edge("A", "C")
@@ -205,6 +246,9 @@ class TestSetEdgeAttrsUndirected:
     def test_undirected_graph_basic(self):
         """Set attributes on undirected graph."""
         G = ec.Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -220,6 +264,9 @@ class TestSetEdgeAttrsErrors:
     def test_error_list_length_mismatch(self):
         """Raise error if list length doesn't match edges."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -229,6 +276,8 @@ class TestSetEdgeAttrsErrors:
     def test_error_nonexistent_edge(self):
         """Handle nonexistent edges gracefully."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B")
         
         # Trying to set attribute on nonexistent edge should just not find it
@@ -254,6 +303,8 @@ class TestSetEdgeAttrsEmptyGraph:
     def test_single_edge(self):
         """Set attribute on graph with single edge."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B")
         
         G.set_edge_attrs("important", True)
@@ -268,6 +319,8 @@ class TestSetEdgeAttrsOverwrite:
     def test_overwrite_existing_attr(self):
         """Overwrite existing attribute value."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B", color="red")
         
         G.set_edge_attrs("color", "blue")
@@ -278,6 +331,8 @@ class TestSetEdgeAttrsOverwrite:
     def test_overwrite_weight(self):
         """Overwrite existing weight."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B", weight=1.0)
         
         G.set_edge_attrs("weight", 5.0)
@@ -288,6 +343,10 @@ class TestSetEdgeAttrsOverwrite:
     def test_partial_overwrite(self):
         """Overwrite some edges but not all."""
         G = ec.Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B", status="old")
         G.add_edge("B", "C", status="old")
         G.add_edge("C", "D", status="old")

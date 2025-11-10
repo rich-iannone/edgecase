@@ -32,9 +32,9 @@ impl PartialOrd for State {
 
 /// Find shortest path between two nodes
 #[pyfunction]
-pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Option<Vec<String>>> {
+pub fn shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option<Vec<u64>>> {
     // Check if nodes exist
-    if !graph.has_node(source) || !graph.has_node(target) {
+    if !graph.has_node_id(source) || !graph.has_node_id(target) {
         return Ok(None);
     }
     
@@ -47,19 +47,19 @@ pub fn shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Opti
 }
 
 /// Dijkstra's algorithm for weighted graphs
-fn dijkstra_shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Option<Vec<String>>> {
+fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option<Vec<u64>>> {
     let node_ids = graph.get_node_ids();
-    let mut node_to_idx: FxHashMap<String, usize> = FxHashMap::default();
-    let mut idx_to_node: Vec<String> = Vec::new();
+    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
+    let mut idx_to_node: Vec<u64> = Vec::new();
     
     // Build node index mappings
-    for (idx, node_id) in node_ids.iter().enumerate() {
-        node_to_idx.insert(node_id.clone(), idx);
-        idx_to_node.push(node_id.clone());
+    for (idx, &node_id) in node_ids.iter().enumerate() {
+        node_to_idx.insert(node_id, idx);
+        idx_to_node.push(node_id);
     }
     
-    let source_idx = *node_to_idx.get(source).unwrap();
-    let target_idx = *node_to_idx.get(target).unwrap();
+    let source_idx = *node_to_idx.get(&source).unwrap();
+    let target_idx = *node_to_idx.get(&target).unwrap();
     
     // Initialize distances and predecessors
     let n = node_ids.len();
@@ -82,12 +82,12 @@ fn dijkstra_shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult
         }
         
         // Explore neighbors
-        let node_id = &idx_to_node[node];
+        let node_id = idx_to_node[node];
         if let Ok(neighbors) = graph.neighbors(node_id) {
             for neighbor_id in neighbors {
                 if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
                     // Get edge weight
-                    let weight = graph.get_edge_weight(node_id, &neighbor_id);
+                    let weight = graph.get_edge_weight(node_id, neighbor_id);
                     let new_cost = cost + weight;
                     
                     // Relaxation step
@@ -110,45 +110,45 @@ fn dijkstra_shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult
     let mut current = target_idx;
     
     while let Some(p) = prev[current] {
-        path.push(idx_to_node[current].clone());
+        path.push(idx_to_node[current]);
         current = p;
     }
-    path.push(idx_to_node[current].clone());
+    path.push(idx_to_node[current]);
     path.reverse();
     
     Ok(Some(path))
 }
 
 /// BFS for unweighted graphs
-fn bfs_shortest_path(graph: &Graph, source: &str, target: &str) -> PyResult<Option<Vec<String>>> {
+fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option<Vec<u64>>> {
     // Simple BFS for unweighted graphs
     let mut queue = VecDeque::new();
     let mut visited = FxHashMap::default();
-    let mut parent: FxHashMap<String, String> = FxHashMap::default();
+    let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
     
-    queue.push_back(source.to_string());
-    visited.insert(source.to_string(), true);
+    queue.push_back(source);
+    visited.insert(source, true);
     
     while let Some(current) = queue.pop_front() {
         if current == target {
             // Reconstruct path
-            let mut path = vec![current.clone()];
+            let mut path = vec![current];
             let mut node = current;
             
-            while let Some(p) = parent.get(&node) {
-                path.push(p.clone());
-                node = p.clone();
+            while let Some(&p) = parent.get(&node) {
+                path.push(p);
+                node = p;
             }
             
             path.reverse();
             return Ok(Some(path));
         }
         
-        if let Ok(neighbors) = graph.neighbors(&current) {
+        if let Ok(neighbors) = graph.neighbors(current) {
             for neighbor in neighbors {
                 if !visited.contains_key(&neighbor) {
-                    visited.insert(neighbor.clone(), true);
-                    parent.insert(neighbor.clone(), current.clone());
+                    visited.insert(neighbor, true);
+                    parent.insert(neighbor, current);
                     queue.push_back(neighbor);
                 }
             }

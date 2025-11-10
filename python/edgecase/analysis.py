@@ -5,7 +5,8 @@ from typing import Optional, Dict, Any, List, TYPE_CHECKING
 import polars as pl
 
 if TYPE_CHECKING:
-    from edgecase._core_rust import Graph
+    from typing import List, Dict, Optional, Any
+    from edgecase.graph import Graph
 
 # Import algorithm functions - these get imported from the main module
 # to ensure we get the correct versions (Rust or Python)
@@ -25,14 +26,14 @@ class NetworkAnalyzer:
     
     Examples
     --------
-    >>> import edgecase as ec
+    >>> from edgecase import NetworkAnalyzer
     >>> import polars as pl
     >>> 
     >>> # Load data
     >>> df = pl.read_csv("network_data.csv")
     >>> 
     >>> # Create analyzer
-    >>> analyzer = ec.NetworkAnalyzer.from_polars(
+    >>> analyzer = NetworkAnalyzer.from_polars(
     ...     df, source_col="from", target_col="to"
     ... )
     >>> 

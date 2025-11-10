@@ -12,8 +12,10 @@ use nalgebra as na;
 #[pyclass]
 #[derive(Debug)]
 pub struct Node {
+    #[pyo3(get)]
+    pub id: u64,
     #[pyo3(get, set)]
-    pub id: String,
+    pub label: Option<String>,
     #[pyo3(get, set)]
     pub attributes: Option<Py<PyDict>>,
 }
@@ -21,7 +23,8 @@ pub struct Node {
 impl Clone for Node {
     fn clone(&self) -> Self {
         Python::with_gil(|py| Node {
-            id: self.id.clone(),
+            id: self.id,
+            label: self.label.clone(),
             attributes: self.attributes.as_ref().map(|d| d.clone_ref(py)),
         })
     }
@@ -30,13 +33,17 @@ impl Clone for Node {
 #[pymethods]
 impl Node {
     #[new]
-    #[pyo3(signature = (id, attributes=None))]
-    fn new(id: String, attributes: Option<Py<PyDict>>) -> Self {
-        Node { id, attributes }
+    #[pyo3(signature = (id, label=None, attributes=None))]
+    fn new(id: u64, label: Option<String>, attributes: Option<Py<PyDict>>) -> Self {
+        Node { id, label, attributes }
     }
 
     fn __repr__(&self) -> String {
-        format!("Node(id='{}')", self.id)
+        if let Some(ref label) = self.label {
+            format!("Node(id={}, label='{}')", self.id, label)
+        } else {
+            format!("Node(id={})", self.id)
+        }
     }
 
     fn __str__(&self) -> String {
@@ -50,10 +57,10 @@ impl Node {
 pub struct Edge {
     #[pyo3(get, set)]
     pub id: u64,
-    #[pyo3(get, set)]
-    pub source: String,
-    #[pyo3(get, set)]
-    pub target: String,
+    #[pyo3(get)]
+    pub source: u64,
+    #[pyo3(get)]
+    pub target: u64,
     #[pyo3(get, set)]
     pub weight: Option<f64>,
     #[pyo3(get, set)]
@@ -64,8 +71,8 @@ impl Clone for Edge {
     fn clone(&self) -> Self {
         Python::with_gil(|py| Edge {
             id: self.id,
-            source: self.source.clone(),
-            target: self.target.clone(),
+            source: self.source,
+            target: self.target,
             weight: self.weight,
             attributes: self.attributes.as_ref().map(|d| d.clone_ref(py)),
         })
@@ -78,8 +85,8 @@ impl Edge {
     #[pyo3(signature = (id, source, target, weight=None, attributes=None))]
     fn new(
         id: u64,
-        source: String,
-        target: String,
+        source: u64,
+        target: u64,
         weight: Option<f64>,
         attributes: Option<Py<PyDict>>,
     ) -> Self {
@@ -94,26 +101,38 @@ impl Edge {
 
     fn __repr__(&self) -> String {
         format!(
-            "Edge(id={}, source='{}', target='{}', weight={:?})",
-            self.id, self.source, self.target, self.weight
+            "Edge(id={}, {} -> {})",
+            self.id, self.source, self.target
         )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
     }
 }
 
 /// Main graph structure
 #[pyclass]
 pub struct Graph {
-    nodes: FxHashMap<String, Node>,
+    // Node system
+    next_node_id: u64,
+    nodes: FxHashMap<u64, Node>,
+    node_labels: FxHashMap<String, u64>,
+    deleted_node_ids: FxHashSet<u64>,
+    // Edge system
     edges: Vec<Edge>,
-    adjacency_list: FxHashMap<String, Vec<String>>,
     next_edge_id: u64,
+    deleted_edge_ids: FxHashSet<u64>,
+    // Adjacency
+    adjacency_list: FxHashMap<u64, Vec<u64>>,
+    // Graph properties
     directed: bool,
     weighted: bool,
     // Selection state
-    selected_nodes: FxHashSet<String>,
+    selected_nodes: FxHashSet<u64>,
     selected_edges: FxHashSet<u64>,
     // Creation order tracking
-    node_creation_order: Vec<String>,
+    node_creation_order: Vec<u64>,
     edge_creation_order: Vec<u64>,
 }
 
@@ -123,10 +142,14 @@ impl Graph {
     #[pyo3(signature = (directed=false, weighted=false))]
     fn new(directed: bool, weighted: bool) -> Self {
         Graph {
+            next_node_id: 1,
             nodes: FxHashMap::default(),
+            node_labels: FxHashMap::default(),
+            deleted_node_ids: FxHashSet::default(),
             edges: Vec::new(),
-            adjacency_list: FxHashMap::default(),
             next_edge_id: 1,
+            deleted_edge_ids: FxHashSet::default(),
+            adjacency_list: FxHashMap::default(),
             directed,
             weighted,
             selected_nodes: FxHashSet::default(),
@@ -137,19 +160,37 @@ impl Graph {
     }
 
     /// Add a node to the graph
-    fn add_node(&mut self, node: Node) -> PyResult<()> {
-        let node_id = node.id.clone();
+    fn add_node(&mut self, mut node: Node) -> PyResult<u64> {
+        // Auto-assign node ID if it's 0 (default/unset)
+        let node_id = if node.id == 0 {
+            let new_id = self.next_node_id;
+            self.next_node_id += 1;
+            node.id = new_id;
+            new_id
+        } else {
+            // If user provided an ID, make sure next_node_id is beyond it
+            if node.id >= self.next_node_id {
+                self.next_node_id = node.id + 1;
+            }
+            node.id
+        };
+        
+        // Add to label index if label exists
+        if let Some(ref label) = node.label {
+            self.node_labels.insert(label.clone(), node_id);
+        }
         
         // Track creation order only if this is a new node
         if !self.nodes.contains_key(&node_id) {
-            self.node_creation_order.push(node_id.clone());
+            self.node_creation_order.push(node_id);
         }
         
-        self.nodes.insert(node_id.clone(), node);
+        self.nodes.insert(node_id, node);
         self.adjacency_list
             .entry(node_id)
             .or_default();
-        Ok(())
+        
+        Ok(node_id)
     }
 
     /// Add an edge to the graph
@@ -157,13 +198,13 @@ impl Graph {
         // Ensure nodes exist
         if !self.nodes.contains_key(&edge.source) {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Source node '{}' does not exist",
+                "Source node {} does not exist",
                 edge.source
             )));
         }
         if !self.nodes.contains_key(&edge.target) {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Target node '{}' does not exist",
+                "Target node {} does not exist",
                 edge.target
             )));
         }
@@ -181,15 +222,15 @@ impl Graph {
 
         // Add to adjacency list (multi-edges allowed)
         self.adjacency_list
-            .entry(edge.source.clone())
+            .entry(edge.source)
             .or_default()
-            .push(edge.target.clone());
+            .push(edge.target);
 
         if !self.directed {
             self.adjacency_list
-                .entry(edge.target.clone())
+                .entry(edge.target)
                 .or_default()
-                .push(edge.source.clone());
+                .push(edge.source);
         }
 
         // Track creation order
@@ -212,6 +253,69 @@ impl Graph {
         self.edges.len()
     }
 
+    /// Get node ID from label
+    /// 
+    /// # Arguments
+    /// * `label` - The label to look up
+    /// 
+    /// # Returns
+    /// The node ID associated with the label, or an error if not found
+    pub fn id_from_label(&self, label: &str) -> PyResult<u64> {
+        self.node_labels
+            .get(label)
+            .copied()
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
+                format!("No node with label '{}'", label)
+            ))
+    }
+
+    /// Get node label from ID
+    /// 
+    /// # Arguments
+    /// * `node_id` - The node ID to look up
+    /// 
+    /// # Returns
+    /// The label associated with the node ID, or None if the node has no label
+    pub fn label_from_id(&self, node_id: u64) -> PyResult<Option<String>> {
+        Ok(self.nodes.get(&node_id).and_then(|n| n.label.clone()))
+    }
+
+    /// Check if a node with the given ID exists
+    /// 
+    /// # Arguments
+    /// * `node_id` - The node ID to check
+    /// 
+    /// # Returns
+    /// True if the node exists, false otherwise
+    pub fn has_node_id(&self, node_id: u64) -> bool {
+        self.nodes.contains_key(&node_id)
+    }
+
+    /// Check if a node with the given label exists
+    /// 
+    /// # Arguments
+    /// * `label` - The label to check
+    /// 
+    /// # Returns
+    /// True if a node with this label exists, false otherwise
+    pub fn has_node_label(&self, label: &str) -> bool {
+        self.node_labels.contains_key(label)
+    }
+
+    /// Get all node labels as a dictionary mapping ID -> label
+    /// 
+    /// # Returns
+    /// A Python dict mapping node IDs to their labels (only for nodes that have labels)
+    pub fn get_all_labels(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new(py);
+        for (node_id, node) in &self.nodes {
+            if let Some(ref label) = node.label {
+                dict.set_item(node_id, label)?;
+            }
+        }
+        Ok(dict.into())
+    }
+
     /// Check if the graph is simple (no self-loops or multi-edges)
     /// 
     /// A simple graph is one that does not contain any loops nor any multiple edges.
@@ -227,13 +331,13 @@ impl Graph {
     }
 
     /// Get neighbors of a node
-    pub fn neighbors(&self, node_id: &str) -> PyResult<Vec<String>> {
+    pub fn neighbors(&self, node_id: u64) -> PyResult<Vec<u64>> {
         self.adjacency_list
-            .get(node_id)
+            .get(&node_id)
             .cloned()
             .ok_or_else(|| {
                 pyo3::exceptions::PyKeyError::new_err(format!(
-                    "Node '{}' does not exist",
+                    "Node {} does not exist",
                     node_id
                 ))
             })
@@ -252,16 +356,15 @@ impl Graph {
     }
 
     /// Get all node IDs
-    /// Get all node IDs
-    pub fn get_node_ids(&self) -> Vec<String> {
-        self.nodes.keys().cloned().collect()
+    pub fn get_node_ids(&self) -> Vec<u64> {
+        self.nodes.keys().copied().collect()
     }
 
     /// Get all edges as (id, source, target) tuples
-    pub fn edges(&self) -> Vec<(u64, String, String)> {
+    pub fn edges(&self) -> Vec<(u64, u64, u64)> {
         self.edges
             .iter()
-            .map(|e| (e.id, e.source.clone(), e.target.clone()))
+            .map(|e| (e.id, e.source, e.target))
             .collect()
     }
 
@@ -284,11 +387,11 @@ impl Graph {
     }
 
     /// Get edge by ID
-    pub fn get_edge_by_id(&self, edge_id: u64) -> Option<(String, String)> {
+    pub fn get_edge_by_id(&self, edge_id: u64) -> Option<(u64, u64)> {
         self.edges
             .iter()
             .find(|e| e.id == edge_id)
-            .map(|e| (e.source.clone(), e.target.clone()))
+            .map(|e| (e.source, e.target))
     }
 
     /// Check if an edge exists by ID
@@ -298,7 +401,7 @@ impl Graph {
 
     /// Find edge IDs by from/to node IDs
     /// Returns all matching edges (supports multi-edges)
-    pub fn find_edge_ids(&self, from: &str, to: &str) -> Vec<u64> {
+    pub fn find_edge_ids(&self, from: u64, to: u64) -> Vec<u64> {
         self.edges
             .iter()
             .filter(|e| {
@@ -314,7 +417,7 @@ impl Graph {
     }
     
     /// Get weight of edge between two nodes (for internal use in algorithms)
-    pub(crate) fn get_edge_weight(&self, from: &str, to: &str) -> f64 {
+    pub(crate) fn get_edge_weight(&self, from: u64, to: u64) -> f64 {
         self.edges
             .iter()
             .find(|e| e.source == from && e.target == to)
@@ -358,57 +461,37 @@ impl Graph {
         }
     }
 
-    /// Check if a node exists (O(1) hash lookup)
-    pub fn has_node(&self, node_id: &str) -> bool {
-        self.nodes.contains_key(node_id)
-    }
-
     /// Delete a node and all its incident edges
-    pub fn delete_node(&mut self, node_id: &str) -> PyResult<()> {
-        if !self.nodes.contains_key(node_id) {
-            return Err(pyo3::exceptions::PyKeyError::new_err(format!(
-                "Node '{}' does not exist",
+    pub fn delete_node(&mut self, node_id: u64) -> PyResult<()> {
+        let node = self.nodes.remove(&node_id)
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(format!(
+                "Node {} does not exist",
                 node_id
-            )));
+            )))?;
+        
+        // Remove from label index if it has a label
+        if let Some(ref label) = node.label {
+            self.node_labels.remove(label);
         }
-
-        // First, find and delete all edges incident to this node
-        let mut edges_to_delete = Vec::new();
-        for edge in &self.edges {
-            if edge.source == node_id || edge.target == node_id {
-                edges_to_delete.push(edge.id);
-            }
-        }
-
-        // Delete the edges
-        for edge_id in edges_to_delete {
-            // Use delete_edge_by_id but ignore errors if edge was already deleted
-            let _ = self.delete_edge_by_id(edge_id);
-        }
-
-        // Remove node from nodes HashMap
-        self.nodes.remove(node_id);
-
+        
+        // Add to tombstones
+        self.deleted_node_ids.insert(node_id);
+        
         // Remove from adjacency list
-        self.adjacency_list.remove(node_id);
-
-        // Remove this node from other nodes' adjacency lists
-        for neighbors in self.adjacency_list.values_mut() {
-            neighbors.retain(|n| n != node_id);
-        }
-
-        // Remove from creation order
-        self.node_creation_order.retain(|n| n != node_id);
-
-        // Remove from selection if selected
-        self.selected_nodes.remove(node_id);
-
+        self.adjacency_list.remove(&node_id);
+        
+        // Remove all incident edges
+        self.edges.retain(|e| e.source != node_id && e.target != node_id);
+        
+        // Clean up selection state
+        self.selected_nodes.remove(&node_id);
+        
         Ok(())
     }
 
     /// Set or update an attribute on a node
-    pub fn set_node_attr(&mut self, py: Python, node_id: &str, key: &str, value: PyObject) -> PyResult<()> {
-        let node = self.nodes.get_mut(node_id).ok_or_else(|| {
+    pub fn set_node_attr(&mut self, py: Python, node_id: u64, key: &str, value: PyObject) -> PyResult<()> {
+        let node = self.nodes.get_mut(&node_id).ok_or_else(|| {
             pyo3::exceptions::PyKeyError::new_err(format!("Node '{}' does not exist", node_id))
         })?;
 
@@ -492,11 +575,11 @@ impl Graph {
     // ========== Selection Methods ==========
 
     /// Select nodes by their IDs
-    pub fn select_nodes_by_id(&mut self, node_ids: Vec<String>) -> PyResult<()> {
+    pub fn select_nodes_by_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
         for node_id in node_ids {
             if !self.nodes.contains_key(&node_id) {
                 return Err(pyo3::exceptions::PyKeyError::new_err(format!(
-                    "Node '{}' does not exist",
+                    "Node {} does not exist",
                     node_id
                 )));
             }
@@ -520,8 +603,8 @@ impl Graph {
     }
 
     /// Select edges connected to specified nodes
-    pub fn select_edges_by_node_id(&mut self, node_ids: Vec<String>) -> PyResult<()> {
-        let node_set: FxHashSet<String> = node_ids.into_iter().collect();
+    pub fn select_edges_by_node_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
+        let node_set: FxHashSet<u64> = node_ids.into_iter().collect();
         
         for edge in &self.edges {
             if node_set.contains(&edge.source) || node_set.contains(&edge.target) {
@@ -539,7 +622,7 @@ impl Graph {
         max_degree: Option<usize>,
         degree_type: &str,
     ) -> PyResult<()> {
-        for node_id in self.nodes.keys() {
+        for &node_id in self.nodes.keys() {
             let degree = match degree_type {
                 "in" => self.in_degree(node_id),
                 "out" => self.out_degree(node_id),
@@ -560,46 +643,46 @@ impl Graph {
             };
 
             if matches {
-                self.selected_nodes.insert(node_id.clone());
+                self.selected_nodes.insert(node_id);
             }
         }
         Ok(())
     }
 
     /// Get the degree of a node (total neighbors)
-    fn degree(&self, node_id: &str) -> usize {
+    fn degree(&self, node_id: u64) -> usize {
         self.adjacency_list
-            .get(node_id)
+            .get(&node_id)
             .map(|v| v.len())
             .unwrap_or(0)
     }
 
     /// Get in-degree of a node (for directed graphs)
-    fn in_degree(&self, node_id: &str) -> usize {
+    fn in_degree(&self, node_id: u64) -> usize {
         if !self.directed {
             return self.degree(node_id);
         }
         
         self.edges
             .iter()
-            .filter(|e| &e.target == node_id)
+            .filter(|e| e.target == node_id)
             .count()
     }
 
     /// Get out-degree of a node (for directed graphs)
-    fn out_degree(&self, node_id: &str) -> usize {
+    fn out_degree(&self, node_id: u64) -> usize {
         if !self.directed {
             return self.degree(node_id);
         }
         
         self.edges
             .iter()
-            .filter(|e| &e.source == node_id)
+            .filter(|e| e.source == node_id)
             .count()
     }
 
     /// Deselect specific nodes
-    pub fn deselect_nodes(&mut self, node_ids: Vec<String>) -> PyResult<()> {
+    pub fn deselect_nodes(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
         for node_id in node_ids {
             self.selected_nodes.remove(&node_id);
         }
@@ -623,10 +706,10 @@ impl Graph {
 
     /// Invert node selection
     pub fn invert_node_selection(&mut self) -> PyResult<()> {
-        let all_nodes: FxHashSet<String> = self.nodes.keys().cloned().collect();
+        let all_nodes: FxHashSet<u64> = self.nodes.keys().copied().collect();
         self.selected_nodes = all_nodes
             .difference(&self.selected_nodes)
-            .cloned()
+            .copied()
             .collect();
         Ok(())
     }
@@ -642,8 +725,8 @@ impl Graph {
     }
 
     /// Get currently selected node IDs
-    pub fn get_selected_nodes(&self) -> Vec<String> {
-        self.selected_nodes.iter().cloned().collect()
+    pub fn get_selected_nodes(&self) -> Vec<u64> {
+        self.selected_nodes.iter().copied().collect()
     }
 
     /// Get currently selected edge IDs
@@ -664,13 +747,13 @@ impl Graph {
     /// Select nodes using a Python callable/predicate function
     /// The predicate receives a Node object and should return True/False
     pub fn select_nodes(&mut self, py: Python, predicate: PyObject) -> PyResult<()> {
-        for (node_id, node) in &self.nodes {
+        for (&node_id, node) in &self.nodes {
             // Call the predicate with the node
             let result = predicate.call1(py, (node.clone(),))?;
             let matches: bool = result.extract(py)?;
             
             if matches {
-                self.selected_nodes.insert(node_id.clone());
+                self.selected_nodes.insert(node_id);
             }
         }
         Ok(())
@@ -692,8 +775,8 @@ impl Graph {
     }
 
     /// Get a node object by ID (for use with selection predicates)
-    pub fn get_node(&self, node_id: &str) -> Option<Node> {
-        self.nodes.get(node_id).cloned()
+    pub fn get_node(&self, node_id: u64) -> Option<Node> {
+        self.nodes.get(&node_id).cloned()
     }
 
     /// Get an edge object by ID (for use with selection predicates)
@@ -707,8 +790,8 @@ impl Graph {
         let total = self.node_creation_order.len();
         let start_idx = if n >= total { 0 } else { total - n };
         
-        for node_id in &self.node_creation_order[start_idx..] {
-            self.selected_nodes.insert(node_id.clone());
+        for &node_id in &self.node_creation_order[start_idx..] {
+            self.selected_nodes.insert(node_id);
         }
         Ok(())
     }
@@ -726,7 +809,7 @@ impl Graph {
     }
 
     /// Get the creation order of all nodes
-    pub fn get_node_creation_order(&self) -> Vec<String> {
+    pub fn get_node_creation_order(&self) -> Vec<u64> {
         self.node_creation_order.clone()
     }
 
@@ -739,7 +822,7 @@ impl Graph {
     #[pyo3(signature = (node_ids, k=1, mode="out"))]
     pub fn select_nodes_in_neighborhood(
         &mut self,
-        node_ids: Vec<String>,
+        node_ids: Vec<u64>,
         k: usize,
         mode: &str,
     ) -> PyResult<()> {
@@ -761,7 +844,7 @@ impl Graph {
         for node_id in node_ids {
             if !self.nodes.contains_key(&node_id) {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Node '{}' does not exist", node_id)
+                    format!("Node {} does not exist", node_id)
                 ));
             }
             current_level.insert(node_id);
@@ -771,17 +854,17 @@ impl Graph {
         for _ in 0..k {
             let mut next_level = FxHashSet::default();
             
-            for node_id in &current_level {
-                visited.insert(node_id.clone());
+            for &node_id in &current_level {
+                visited.insert(node_id);
                 
                 // Get neighbors based on mode
                 match effective_mode {
                     "out" => {
                         // Outgoing neighbors
-                        if let Some(neighbors) = self.adjacency_list.get(node_id) {
-                            for neighbor in neighbors {
-                                if !visited.contains(neighbor) {
-                                    next_level.insert(neighbor.clone());
+                        if let Some(neighbors) = self.adjacency_list.get(&node_id) {
+                            for &neighbor in neighbors {
+                                if !visited.contains(&neighbor) {
+                                    next_level.insert(neighbor);
                                 }
                             }
                         }
@@ -789,24 +872,24 @@ impl Graph {
                     "in" => {
                         // Incoming neighbors - need to search all edges
                         for edge in &self.edges {
-                            if &edge.target == node_id && !visited.contains(&edge.source) {
-                                next_level.insert(edge.source.clone());
+                            if edge.target == node_id && !visited.contains(&edge.source) {
+                                next_level.insert(edge.source);
                             }
                         }
                     }
                     "all" => {
                         // Outgoing neighbors from adjacency list
-                        if let Some(neighbors) = self.adjacency_list.get(node_id) {
-                            for neighbor in neighbors {
-                                if !visited.contains(neighbor) {
-                                    next_level.insert(neighbor.clone());
+                        if let Some(neighbors) = self.adjacency_list.get(&node_id) {
+                            for &neighbor in neighbors {
+                                if !visited.contains(&neighbor) {
+                                    next_level.insert(neighbor);
                                 }
                             }
                         }
                         // Incoming neighbors from edge list
                         for edge in &self.edges {
-                            if &edge.target == node_id && !visited.contains(&edge.source) {
-                                next_level.insert(edge.source.clone());
+                            if edge.target == node_id && !visited.contains(&edge.source) {
+                                next_level.insert(edge.source);
                             }
                         }
                     }
@@ -832,7 +915,7 @@ impl Graph {
     #[pyo3(signature = (scores, k, include_ties=false))]
     pub fn select_nodes_by_scores(
         &mut self,
-        scores: FxHashMap<String, f64>,
+        scores: FxHashMap<u64, f64>,
         k: usize,
         include_ties: bool,
     ) -> PyResult<()> {
@@ -841,7 +924,7 @@ impl Graph {
         }
         
         // Convert to vector and sort by score (descending)
-        let mut scored_nodes: Vec<(String, f64)> = scores.into_iter().collect();
+        let mut scored_nodes: Vec<(u64, f64)> = scores.into_iter().collect();
         scored_nodes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         
         if k == 0 {
@@ -862,7 +945,7 @@ impl Graph {
         } else {
             // Just take the top k
             for (node_id, _score) in scored_nodes.iter().take(actual_k) {
-                self.selected_nodes.insert(node_id.clone());
+                self.selected_nodes.insert(*node_id);
             }
         }
         
@@ -899,14 +982,17 @@ impl Graph {
             None => ChaCha8Rng::from_entropy(),
         };
 
-        // Add nodes
-        let start_id = self.nodes.len() + 1;
-        let node_ids: Vec<String> = (0..n)
-            .map(|i| (start_id + i).to_string())
+        // Add nodes with integer IDs
+        let node_ids: Vec<u64> = (0..n)
+            .map(|_| {
+                let id = self.next_node_id;
+                self.next_node_id += 1;
+                id
+            })
             .collect();
 
-        for node_id in &node_ids {
-            self.add_node(Node::new(node_id.clone(), None))?;
+        for &node_id in &node_ids {
+            self.add_node(Node::new(node_id, None, None))?;
         }
 
         // Add edges with probability p
@@ -917,8 +1003,8 @@ impl Graph {
                     if i != j && rng.gen::<f64>() < p {
                         self.add_edge(Edge::new(
                             0, // edge_id will be auto-assigned
-                            node_ids[i].clone(),
-                            node_ids[j].clone(),
+                            node_ids[i],
+                            node_ids[j],
                             None,
                             None,
                         ))?;
@@ -932,8 +1018,8 @@ impl Graph {
                     if rng.gen::<f64>() < p {
                         self.add_edge(Edge::new(
                             0,
-                            node_ids[i].clone(),
-                            node_ids[j].clone(),
+                            node_ids[i],
+                            node_ids[j],
                             None,
                             None,
                         ))?;
@@ -972,39 +1058,42 @@ impl Graph {
             )));
         }
 
-        // Add nodes
-        let start_id = self.nodes.len() + 1;
-        let node_ids: Vec<String> = (0..n)
-            .map(|i| (start_id + i).to_string())
+        // Add nodes using next_node_id counter
+        let node_ids: Vec<u64> = (0..n)
+            .map(|_| {
+                let id = self.next_node_id;
+                self.next_node_id += 1;
+                id
+            })
             .collect();
 
-        for node_id in &node_ids {
-            self.add_node(Node::new(node_id.clone(), None))?;
+        for &node_id in &node_ids {
+            self.add_node(Node::new(node_id, None, None))?;
         }
 
         // Generate all possible edges
-        let mut possible_edges: Vec<(String, String)> = Vec::with_capacity(max_edges);
+        let mut possible_edges: Vec<(u64, u64)> = Vec::with_capacity(max_edges);
         
         if self.directed {
             for i in 0..n {
                 for j in 0..n {
                     if i != j {
-                        possible_edges.push((node_ids[i].clone(), node_ids[j].clone()));
+                        possible_edges.push((node_ids[i], node_ids[j]));
                     }
                 }
             }
         } else {
             for i in 0..n {
                 for j in (i + 1)..n {
-                    possible_edges.push((node_ids[i].clone(), node_ids[j].clone()));
+                    possible_edges.push((node_ids[i], node_ids[j]));
                 }
             }
         }
 
         // Randomly select m edges
         possible_edges.shuffle(&mut rng);
-        for (u, v) in possible_edges.iter().take(m) {
-            self.add_edge(Edge::new(0, u.clone(), v.clone(), None, None))?;
+        for &(u, v) in possible_edges.iter().take(m) {
+            self.add_edge(Edge::new(0, u, v, None, None))?;
         }
 
         Ok(())
@@ -1034,22 +1123,26 @@ impl Graph {
             None => ChaCha8Rng::from_entropy(),
         };
 
-        let start_id = self.nodes.len() + 1;
-        let node_ids: Vec<String> = (0..n)
-            .map(|i| (start_id + i).to_string())
+        // Generate node IDs using next_node_id counter
+        let node_ids: Vec<u64> = (0..n)
+            .map(|_| {
+                let id = self.next_node_id;
+                self.next_node_id += 1;
+                id
+            })
             .collect();
 
         // Add first m+1 nodes in a clique
         for i in 0..=m {
-            self.add_node(Node::new(node_ids[i].clone(), None))?;
+            self.add_node(Node::new(node_ids[i], None, None))?;
         }
 
         for i in 0..=m {
             for j in (i + 1)..=m {
                 self.add_edge(Edge::new(
                     0,
-                    node_ids[i].clone(),
-                    node_ids[j].clone(),
+                    node_ids[i],
+                    node_ids[j],
                     None,
                     None,
                 ))?;
@@ -1057,45 +1150,45 @@ impl Graph {
         }
 
         // Track degree for preferential attachment
-        let mut degrees: FxHashMap<String, usize> = FxHashMap::default();
+        let mut degrees: FxHashMap<u64, usize> = FxHashMap::default();
         for i in 0..=m {
-            degrees.insert(node_ids[i].clone(), m);
+            degrees.insert(node_ids[i], m);
         }
 
         // Add remaining nodes with preferential attachment
         for i in (m + 1)..n {
-            self.add_node(Node::new(node_ids[i].clone(), None))?;
+            self.add_node(Node::new(node_ids[i], None, None))?;
 
             // Select m targets with probability proportional to degree
-            let mut targets: FxHashSet<String> = FxHashSet::default();
+            let mut targets: FxHashSet<u64> = FxHashSet::default();
             let total_degree: usize = degrees.values().sum();
 
             while targets.len() < m {
                 let r = rng.gen::<f64>() * total_degree as f64;
                 let mut cumsum = 0.0;
 
-                for (node, &deg) in &degrees {
+                for (&node, &deg) in &degrees {
                     cumsum += deg as f64;
                     if cumsum >= r {
-                        targets.insert(node.clone());
+                        targets.insert(node);
                         break;
                     }
                 }
             }
 
             // Add edges to selected targets
-            for target in &targets {
+            for &target in &targets {
                 self.add_edge(Edge::new(
                     0,
-                    node_ids[i].clone(),
-                    target.clone(),
+                    node_ids[i],
+                    target,
                     None,
                     None,
                 ))?;
-                *degrees.get_mut(target).unwrap() += 1;
+                *degrees.get_mut(&target).unwrap() += 1;
             }
 
-            degrees.insert(node_ids[i].clone(), m);
+            degrees.insert(node_ids[i], m);
         }
 
         Ok(())
@@ -1131,14 +1224,18 @@ impl Graph {
             None => ChaCha8Rng::from_entropy(),
         };
 
-        let start_id = self.nodes.len() + 1;
-        let node_ids: Vec<String> = (0..n)
-            .map(|i| (start_id + i).to_string())
+        // Generate node IDs using next_node_id counter
+        let node_ids: Vec<u64> = (0..n)
+            .map(|_| {
+                let id = self.next_node_id;
+                self.next_node_id += 1;
+                id
+            })
             .collect();
 
         // Add nodes
-        for node_id in &node_ids {
-            self.add_node(Node::new(node_id.clone(), None))?;
+        for &node_id in &node_ids {
+            self.add_node(Node::new(node_id, None, None))?;
         }
 
         // Create ring lattice: connect each node to k/2 neighbors on each side
@@ -1170,8 +1267,8 @@ impl Graph {
                 if attempts < 100 {
                     self.add_edge(Edge::new(
                         0,
-                        node_ids[u_idx].clone(),
-                        node_ids[new_v_idx].clone(),
+                        node_ids[u_idx],
+                        node_ids[new_v_idx],
                         None,
                         None,
                     ))?;
@@ -1180,8 +1277,8 @@ impl Graph {
                     // Fallback: keep original edge
                     self.add_edge(Edge::new(
                         0,
-                        node_ids[u_idx].clone(),
-                        node_ids[v_idx].clone(),
+                        node_ids[u_idx],
+                        node_ids[v_idx],
                         None,
                         None,
                     ))?;
@@ -1190,8 +1287,8 @@ impl Graph {
             } else {
                 self.add_edge(Edge::new(
                     0,
-                    node_ids[u_idx].clone(),
-                    node_ids[v_idx].clone(),
+                    node_ids[u_idx],
+                    node_ids[v_idx],
                     None,
                     None,
                 ))?;
@@ -1234,20 +1331,20 @@ impl Graph {
 
         // BFS from first node
         let start_node = match self.nodes.keys().next() {
-            Some(node) => node.clone(),
+            Some(&node) => node,
             None => return true,
         };
 
-        let mut visited: FxHashSet<String> = FxHashSet::default();
-        let mut queue: Vec<String> = vec![start_node.clone()];
+        let mut visited: FxHashSet<u64> = FxHashSet::default();
+        let mut queue: Vec<u64> = vec![start_node];
         visited.insert(start_node);
 
         while let Some(current) = queue.pop() {
             if let Some(neighbors) = self.adjacency_list.get(&current) {
-                for neighbor in neighbors {
-                    if !visited.contains(neighbor) {
-                        visited.insert(neighbor.clone());
-                        queue.push(neighbor.clone());
+                for &neighbor in neighbors {
+                    if !visited.contains(&neighbor) {
+                        visited.insert(neighbor);
+                        queue.push(neighbor);
                     }
                 }
             }
@@ -1255,9 +1352,9 @@ impl Graph {
             // For directed graphs, also check reverse edges (weak connectivity)
             if self.directed {
                 for edge in &self.edges {
-                    if &edge.target == &current && !visited.contains(&edge.source) {
-                        visited.insert(edge.source.clone());
-                        queue.push(edge.source.clone());
+                    if edge.target == current && !visited.contains(&edge.source) {
+                        visited.insert(edge.source);
+                        queue.push(edge.source);
                     }
                 }
             }
@@ -1275,21 +1372,21 @@ impl Graph {
         }
 
         // Use DFS with coloring: white (unvisited), gray (visiting), black (visited)
-        let mut color: FxHashMap<String, u8> = FxHashMap::default();
-        for node_id in self.nodes.keys() {
-            color.insert(node_id.clone(), 0); // white
+        let mut color: FxHashMap<u64, u8> = FxHashMap::default();
+        for &node_id in self.nodes.keys() {
+            color.insert(node_id, 0); // white
         }
 
         fn has_cycle(
-            node: &str,
-            color: &mut FxHashMap<String, u8>,
-            adj_list: &FxHashMap<String, Vec<String>>,
+            node: u64,
+            color: &mut FxHashMap<u64, u8>,
+            adj_list: &FxHashMap<u64, Vec<u64>>,
         ) -> bool {
-            color.insert(node.to_string(), 1); // gray
+            color.insert(node, 1); // gray
 
-            if let Some(neighbors) = adj_list.get(node) {
-                for neighbor in neighbors {
-                    let neighbor_color = *color.get(neighbor).unwrap_or(&0);
+            if let Some(neighbors) = adj_list.get(&node) {
+                for &neighbor in neighbors {
+                    let neighbor_color = *color.get(&neighbor).unwrap_or(&0);
                     if neighbor_color == 1 {
                         // Back edge found - cycle detected
                         return true;
@@ -1300,12 +1397,12 @@ impl Graph {
                 }
             }
 
-            color.insert(node.to_string(), 2); // black
+            color.insert(node, 2); // black
             false
         }
 
-        for node_id in self.nodes.keys() {
-            if *color.get(node_id).unwrap() == 0 {
+        for &node_id in self.nodes.keys() {
+            if *color.get(&node_id).unwrap() == 0 {
                 if has_cycle(node_id, &mut color, &self.adjacency_list) {
                     return Ok(false);
                 }
@@ -1325,16 +1422,16 @@ impl Graph {
         }
 
         // Check for multi-edges
-        let mut seen_edges: FxHashSet<(String, String)> = FxHashSet::default();
+        let mut seen_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
         for edge in &self.edges {
             let edge_key = if self.directed {
-                (edge.source.clone(), edge.target.clone())
+                (edge.source, edge.target)
             } else {
                 // Normalize undirected edge
                 if edge.source <= edge.target {
-                    (edge.source.clone(), edge.target.clone())
+                    (edge.source, edge.target)
                 } else {
-                    (edge.target.clone(), edge.source.clone())
+                    (edge.target, edge.source)
                 }
             };
 
@@ -1351,7 +1448,7 @@ impl Graph {
     fn degree_distribution(&self) -> FxHashMap<usize, usize> {
         let mut distribution: FxHashMap<usize, usize> = FxHashMap::default();
 
-        for node_id in self.nodes.keys() {
+        for &node_id in self.nodes.keys() {
             let deg = self.degree(node_id);
             *distribution.entry(deg).or_insert(0) += 1;
         }
@@ -1365,31 +1462,31 @@ impl Graph {
             return true;
         }
 
-        let mut color: FxHashMap<String, i8> = FxHashMap::default();
+        let mut color: FxHashMap<u64, i8> = FxHashMap::default();
 
         // Check all connected components
-        for start_node in self.nodes.keys() {
-            if color.contains_key(start_node) {
+        for &start_node in self.nodes.keys() {
+            if color.contains_key(&start_node) {
                 continue;
             }
 
             // BFS coloring
-            let mut queue: Vec<String> = vec![start_node.clone()];
-            color.insert(start_node.clone(), 0);
+            let mut queue: Vec<u64> = vec![start_node];
+            color.insert(start_node, 0);
 
             while let Some(current) = queue.pop() {
                 let current_color = *color.get(&current).unwrap();
                 let next_color = 1 - current_color;
 
                 if let Some(neighbors) = self.adjacency_list.get(&current) {
-                    for neighbor in neighbors {
-                        if let Some(&neighbor_color) = color.get(neighbor) {
+                    for &neighbor in neighbors {
+                        if let Some(&neighbor_color) = color.get(&neighbor) {
                             if neighbor_color == current_color {
                                 return false; // Same color as current - not bipartite
                             }
                         } else {
-                            color.insert(neighbor.clone(), next_color);
-                            queue.push(neighbor.clone());
+                            color.insert(neighbor, next_color);
+                            queue.push(neighbor);
                         }
                     }
                 }
@@ -1410,10 +1507,10 @@ impl Graph {
     /// Count multi-edges (multiple edges between same node pair)
     /// Only counts parallel edges beyond the first one
     fn count_multi_edges(&self) -> usize {
-        let mut edge_pairs: FxHashMap<(&String, &String), usize> = FxHashMap::default();
+        let mut edge_pairs: FxHashMap<(u64, u64), usize> = FxHashMap::default();
         
         for edge in &self.edges {
-            *edge_pairs.entry((&edge.source, &edge.target)).or_insert(0) += 1;
+            *edge_pairs.entry((edge.source, edge.target)).or_insert(0) += 1;
         }
         
         // Count edges beyond the first for each pair
@@ -1429,7 +1526,7 @@ impl Graph {
             ));
         }
 
-        let mut forward_edges: FxHashSet<(&String, &String)> = FxHashSet::default();
+        let mut forward_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
         let mut mutual_count = 0;
 
         for edge in &self.edges {
@@ -1438,14 +1535,14 @@ impl Graph {
                 continue;
             }
 
-            let reverse_pair = (&edge.target, &edge.source);
+            let reverse_pair = (edge.target, edge.source);
             
             // If we've seen the reverse edge, this is a mutual pair
             if forward_edges.contains(&reverse_pair) {
                 mutual_count += 1;
             } else {
                 // Add this edge to the set
-                forward_edges.insert((&edge.source, &edge.target));
+                forward_edges.insert((edge.source, edge.target));
             }
         }
 
@@ -1461,19 +1558,19 @@ impl Graph {
             ));
         }
 
-        let mut edge_pairs: FxHashSet<(&String, &String)> = FxHashSet::default();
+        let mut edge_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
         
         // Collect all edges
         for edge in &self.edges {
             // Skip self-loops
             if edge.source != edge.target {
-                edge_pairs.insert((&edge.source, &edge.target));
+                edge_pairs.insert((edge.source, edge.target));
             }
         }
 
         // Count edges without reverse
         let mut asymmetric_count = 0;
-        for (src, tgt) in &edge_pairs {
+        for &(src, tgt) in &edge_pairs {
             if !edge_pairs.contains(&(tgt, src)) {
                 asymmetric_count += 1;
             }
@@ -1489,7 +1586,7 @@ impl Graph {
             return 0.0;
         }
 
-        let total_degree: usize = self.nodes.keys().map(|id| self.degree(id)).sum();
+        let total_degree: usize = self.nodes.keys().map(|&id| self.degree(id)).sum();
         total_degree as f64 / n as f64
     }
 
@@ -1504,7 +1601,7 @@ impl Graph {
     /// Find articulation points (cut vertices) in an undirected graph
     /// Returns list of node IDs whose removal would disconnect the graph
     /// Uses Tarjan's algorithm with DFS
-    fn get_articulation_points(&self) -> PyResult<Vec<String>> {
+    fn get_articulation_points(&self) -> PyResult<Vec<u64>> {
         if self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "Articulation points only defined for undirected graphs",
@@ -1519,56 +1616,56 @@ impl Graph {
         let mut visited = FxHashSet::default();
         let mut disc = FxHashMap::default(); // Discovery time
         let mut low = FxHashMap::default(); // Lowest reachable ancestor
-        let mut parent: FxHashMap<String, Option<String>> = FxHashMap::default();
+        let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::default();
         let mut ap = FxHashSet::default(); // Articulation points
         let mut time = 0usize;
 
         // DFS helper function
         fn dfs_ap(
-            node: &str,
-            visited: &mut FxHashSet<String>,
-            disc: &mut FxHashMap<String, usize>,
-            low: &mut FxHashMap<String, usize>,
-            parent: &mut FxHashMap<String, Option<String>>,
-            ap: &mut FxHashSet<String>,
+            node: u64,
+            visited: &mut FxHashSet<u64>,
+            disc: &mut FxHashMap<u64, usize>,
+            low: &mut FxHashMap<u64, usize>,
+            parent: &mut FxHashMap<u64, Option<u64>>,
+            ap: &mut FxHashSet<u64>,
             time: &mut usize,
-            adj_list: &FxHashMap<String, Vec<String>>,
+            adj_list: &FxHashMap<u64, Vec<u64>>,
         ) {
             let mut children = 0;
-            visited.insert(node.to_string());
+            visited.insert(node);
             *time += 1;
-            disc.insert(node.to_string(), *time);
-            low.insert(node.to_string(), *time);
+            disc.insert(node, *time);
+            low.insert(node, *time);
 
-            if let Some(neighbors) = adj_list.get(node) {
-                for neighbor in neighbors {
-                    if !visited.contains(neighbor) {
+            if let Some(neighbors) = adj_list.get(&node) {
+                for &neighbor in neighbors {
+                    if !visited.contains(&neighbor) {
                         children += 1;
-                        parent.insert(neighbor.clone(), Some(node.to_string()));
+                        parent.insert(neighbor, Some(node));
                         dfs_ap(neighbor, visited, disc, low, parent, ap, time, adj_list);
 
                         // Check if subtree rooted at neighbor has connection back to ancestors
                         low.insert(
-                            node.to_string(),
-                            (*low.get(node).unwrap()).min(*low.get(neighbor).unwrap()),
+                            node,
+                            (*low.get(&node).unwrap()).min(*low.get(&neighbor).unwrap()),
                         );
 
                         // If node is root and has 2+ children, it's an AP
-                        if parent.get(node).unwrap().is_none() && children > 1 {
-                            ap.insert(node.to_string());
+                        if parent.get(&node).unwrap().is_none() && children > 1 {
+                            ap.insert(node);
                         }
 
                         // If node is not root and low[neighbor] >= disc[node], it's an AP
-                        if parent.get(node).unwrap().is_some()
-                            && *low.get(neighbor).unwrap() >= *disc.get(node).unwrap()
+                        if parent.get(&node).unwrap().is_some()
+                            && *low.get(&neighbor).unwrap() >= *disc.get(&node).unwrap()
                         {
-                            ap.insert(node.to_string());
+                            ap.insert(node);
                         }
-                    } else if Some(neighbor.clone()) != *parent.get(node).unwrap() {
+                    } else if Some(neighbor) != *parent.get(&node).unwrap() {
                         // Update low value for back edge
                         low.insert(
-                            node.to_string(),
-                            (*low.get(node).unwrap()).min(*disc.get(neighbor).unwrap()),
+                            node,
+                            (*low.get(&node).unwrap()).min(*disc.get(&neighbor).unwrap()),
                         );
                     }
                 }
@@ -1576,9 +1673,9 @@ impl Graph {
         }
 
         // Run DFS from each unvisited node (handles disconnected components)
-        for start_node in self.nodes.keys() {
-            if !visited.contains(start_node) {
-                parent.insert(start_node.clone(), None);
+        for &start_node in self.nodes.keys() {
+            if !visited.contains(&start_node) {
+                parent.insert(start_node, None);
                 dfs_ap(
                     start_node,
                     &mut visited,
@@ -1598,28 +1695,28 @@ impl Graph {
     /// Compute eccentricity for each node (max distance to any other node)
     /// Returns HashMap of node -> eccentricity
     /// Eccentricity is infinity if graph is disconnected
-    fn compute_eccentricities(&self) -> FxHashMap<String, Option<usize>> {
+    fn compute_eccentricities(&self) -> FxHashMap<u64, Option<usize>> {
         let mut eccentricities = FxHashMap::default();
 
-        for node in self.nodes.keys() {
+        for &node in self.nodes.keys() {
             // BFS to find max distance from this node
             let mut visited = FxHashSet::default();
             let mut queue = std::collections::VecDeque::new();
-            let mut distances: FxHashMap<String, usize> = FxHashMap::default();
+            let mut distances: FxHashMap<u64, usize> = FxHashMap::default();
 
-            visited.insert(node.clone());
-            queue.push_back(node.clone());
-            distances.insert(node.clone(), 0);
+            visited.insert(node);
+            queue.push_back(node);
+            distances.insert(node, 0);
 
             while let Some(current) = queue.pop_front() {
                 let current_dist = *distances.get(&current).unwrap();
 
                 if let Some(neighbors) = self.adjacency_list.get(&current) {
-                    for neighbor in neighbors {
-                        if !visited.contains(neighbor) {
-                            visited.insert(neighbor.clone());
-                            distances.insert(neighbor.clone(), current_dist + 1);
-                            queue.push_back(neighbor.clone());
+                    for &neighbor in neighbors {
+                        if !visited.contains(&neighbor) {
+                            visited.insert(neighbor);
+                            distances.insert(neighbor, current_dist + 1);
+                            queue.push_back(neighbor);
                         }
                     }
                 }
@@ -1628,10 +1725,10 @@ impl Graph {
             // Check if all nodes are reachable
             if visited.len() == self.num_nodes() {
                 let max_dist = distances.values().max().copied().unwrap_or(0);
-                eccentricities.insert(node.clone(), Some(max_dist));
+                eccentricities.insert(node, Some(max_dist));
             } else {
                 // Graph is disconnected from this node's perspective
-                eccentricities.insert(node.clone(), None);
+                eccentricities.insert(node, None);
             }
         }
 
@@ -1641,13 +1738,13 @@ impl Graph {
     /// Get periphery nodes (nodes with maximum eccentricity)
     /// Returns list of node IDs
     /// Returns empty list if graph is disconnected
-    fn get_periphery(&self) -> Vec<String> {
+    fn get_periphery(&self) -> Vec<u64> {
         let eccentricities = self.compute_eccentricities();
 
         // Filter out None values (disconnected nodes)
         let valid_eccentricities: Vec<_> = eccentricities
             .iter()
-            .filter_map(|(node, ecc)| ecc.map(|e| (node.clone(), e)))
+            .filter_map(|(&node, ecc)| ecc.map(|e| (node, e)))
             .collect();
 
         if valid_eccentricities.is_empty() {
@@ -1697,7 +1794,7 @@ impl Graph {
         let mut path_count: usize = 0;
 
         // Compute shortest paths from each node using BFS
-        for start_node in self.nodes.keys() {
+        for &start_node in self.nodes.keys() {
             let distances = self.bfs_distances(start_node);
             
             // Check if all nodes are reachable
@@ -1707,7 +1804,7 @@ impl Graph {
             }
             
             // Sum all distances (excluding the distance to self, which is 0)
-            for (target, &dist) in distances.iter() {
+            for (&target, &dist) in distances.iter() {
                 if target != start_node {
                     total_distance += dist;
                     path_count += 1;
@@ -1733,26 +1830,26 @@ impl Graph {
         let mut min_cycle: Option<usize> = None;
 
         // Try BFS from each node to find shortest cycle
-        for start_node in self.nodes.keys() {
-            let mut distances: FxHashMap<String, usize> = FxHashMap::default();
-            let mut parent: FxHashMap<String, Option<String>> = FxHashMap::default();
+        for &start_node in self.nodes.keys() {
+            let mut distances: FxHashMap<u64, usize> = FxHashMap::default();
+            let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::default();
             let mut queue = std::collections::VecDeque::new();
 
-            distances.insert(start_node.clone(), 0);
-            parent.insert(start_node.clone(), None);
-            queue.push_back(start_node.clone());
+            distances.insert(start_node, 0);
+            parent.insert(start_node, None);
+            queue.push_back(start_node);
 
             while let Some(current) = queue.pop_front() {
                 let current_dist = *distances.get(&current).unwrap();
-                let current_parent = parent.get(&current).unwrap().clone();
+                let current_parent = *parent.get(&current).unwrap();
 
                 if let Some(neighbors) = self.adjacency_list.get(&current) {
-                    for neighbor in neighbors {
-                        if let Some(&neighbor_dist) = distances.get(neighbor) {
+                    for &neighbor in neighbors {
+                        if let Some(&neighbor_dist) = distances.get(&neighbor) {
                             // Already visited - potential cycle
                             // In undirected graphs, skip if neighbor is parent (back edge)
-                            if !self.directed || Some(neighbor.clone()) != current_parent {
-                                if Some(neighbor.clone()) != current_parent {
+                            if !self.directed || Some(neighbor) != current_parent {
+                                if Some(neighbor) != current_parent {
                                     // Found a cycle
                                     let cycle_length = current_dist + neighbor_dist + 1;
                                     min_cycle = Some(match min_cycle {
@@ -1762,9 +1859,9 @@ impl Graph {
                                 }
                             }
                         } else {
-                            distances.insert(neighbor.clone(), current_dist + 1);
-                            parent.insert(neighbor.clone(), Some(current.clone()));
-                            queue.push_back(neighbor.clone());
+                            distances.insert(neighbor, current_dist + 1);
+                            parent.insert(neighbor, Some(current));
+                            queue.push_back(neighbor);
                         }
                     }
                 }
@@ -1797,7 +1894,7 @@ impl Graph {
         // For small graphs, try edge removal
         // For a complete graph, adhesion = minimum degree
         let min_degree = self.nodes.keys()
-            .map(|id| self.degree(id))
+            .map(|&id| self.degree(id))
             .min()
             .unwrap_or(0);
 
@@ -1829,7 +1926,7 @@ impl Graph {
         // For complete graphs, cohesion = n - 1
         // For others, cohesion <= min_degree
         let min_degree = self.nodes.keys()
-            .map(|id| self.degree(id))
+            .map(|&id| self.degree(id))
             .min()
             .unwrap_or(0);
 
@@ -1841,7 +1938,7 @@ impl Graph {
     /// Get eccentricity for each node
     /// Eccentricity is the maximum distance from a node to any other node
     /// Returns HashMap mapping node ID to eccentricity (None if disconnected)
-    fn get_eccentricity(&self) -> FxHashMap<String, Option<usize>> {
+    fn get_eccentricity(&self) -> FxHashMap<u64, Option<usize>> {
         self.compute_eccentricities()
     }
 
@@ -1849,11 +1946,11 @@ impl Graph {
     /// Radiality = (diameter + 1 - eccentricity) / (n - 1)
     /// Measures how central a node is based on eccentricity
     /// Returns HashMap mapping node ID to radiality (None if graph disconnected)
-    fn get_radiality(&self) -> FxHashMap<String, Option<f64>> {
+    fn get_radiality(&self) -> FxHashMap<u64, Option<f64>> {
         let n = self.num_nodes();
         if n <= 1 {
             return self.nodes.keys()
-                .map(|id| (id.clone(), Some(0.0)))
+                .map(|&id| (id, Some(0.0)))
                 .collect();
         }
 
@@ -1888,7 +1985,7 @@ impl Graph {
     /// 
     /// Performance: Uses parallel BFS (via Rayon) for ~linear speedup with cores
     /// Complexity: O(V²E / num_cores) with parallelization
-    fn get_closeness_vitality(&self) -> FxHashMap<String, f64> {
+    fn get_closeness_vitality(&self) -> FxHashMap<u64, f64> {
         use rayon::prelude::*;
         
         let n = self.num_nodes();
@@ -1900,18 +1997,18 @@ impl Graph {
         let original_total = self.compute_total_distances_parallel();
 
         // Collect node IDs to iterate over
-        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
 
         // Compute vitality for each node in parallel
-        let vitality_vec: Vec<(String, f64)> = node_ids
+        let vitality_vec: Vec<(u64, f64)> = node_ids
             .par_iter()
-            .map(|node| {
+            .map(|&node| {
                 // Compute total distances without this node
                 let total_without = self.compute_total_distances_without_node(node);
                 
                 // Vitality is the difference (higher = more important)
                 let vital = original_total - total_without;
-                (node.clone(), vital)
+                (node, vital)
             })
             .collect();
 
@@ -1938,10 +2035,10 @@ impl Graph {
         let mut reciprocal_count = 0;
 
         // Build a set of edges for fast lookup
-        let edge_set: FxHashSet<(&str, &str)> = self
+        let edge_set: FxHashSet<(u64, u64)> = self
             .edges
             .iter()
-            .map(|e| (e.source.as_str(), e.target.as_str()))
+            .map(|e| (e.source, e.target))
             .collect();
 
         // Check each edge for a reverse edge
@@ -1952,7 +2049,7 @@ impl Graph {
             }
 
             // Check if reverse edge exists
-            if edge_set.contains(&(edge.target.as_str(), edge.source.as_str())) {
+            if edge_set.contains(&(edge.target, edge.source)) {
                 reciprocal_count += 1;
             }
         }
@@ -1968,15 +2065,15 @@ impl Graph {
     /// Get minimum cut between two nodes using Ford-Fulkerson with BFS (Edmonds-Karp)
     /// Returns the size of the minimum cut that separates source from sink
     /// This is equivalent to the maximum flow from source to sink
-    fn get_min_cut_between(&self, source: &str, sink: &str) -> PyResult<usize> {
-        if !self.nodes.contains_key(source) {
+    fn get_min_cut_between(&self, source: u64, sink: u64) -> PyResult<usize> {
+        if !self.nodes.contains_key(&source) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node '{}' does not exist", source),
+                format!("Source node {} does not exist", source),
             ));
         }
-        if !self.nodes.contains_key(sink) {
+        if !self.nodes.contains_key(&sink) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Sink node '{}' does not exist", sink),
+                format!("Sink node {} does not exist", sink),
             ));
         }
         if source == sink {
@@ -1987,15 +2084,15 @@ impl Graph {
 
         // Build capacity matrix (using adjacency list representation for efficiency)
         // For unweighted graphs, each edge has capacity 1
-        let mut capacity: FxHashMap<(String, String), usize> = FxHashMap::default();
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::default();
 
         for edge in &self.edges {
-            let key = (edge.source.clone(), edge.target.clone());
+            let key = (edge.source, edge.target);
             *capacity.entry(key).or_insert(0) += 1;
 
             // For undirected graphs, add reverse edge
             if !self.directed {
-                let rev_key = (edge.target.clone(), edge.source.clone());
+                let rev_key = (edge.target, edge.source);
                 *capacity.entry(rev_key).or_insert(0) += 1;
             }
         }
@@ -2017,15 +2114,15 @@ impl Graph {
             // Find minimum capacity along the path
             let mut path_flow = usize::MAX;
             for i in 0..path.len() - 1 {
-                let edge_key = (path[i].clone(), path[i + 1].clone());
+                let edge_key = (path[i], path[i + 1]);
                 let cap = residual.get(&edge_key).copied().unwrap_or(0);
                 path_flow = path_flow.min(cap);
             }
 
             // Update residual capacities
             for i in 0..path.len() - 1 {
-                let forward_key = (path[i].clone(), path[i + 1].clone());
-                let backward_key = (path[i + 1].clone(), path[i].clone());
+                let forward_key = (path[i], path[i + 1]);
+                let backward_key = (path[i + 1], path[i]);
 
                 // Decrease forward capacity
                 *residual.entry(forward_key).or_insert(0) -= path_flow;
@@ -2044,11 +2141,11 @@ impl Graph {
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;
         
-        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
         
         node_ids
             .par_iter()
-            .map(|start| {
+            .map(|&start| {
                 let distances = self.bfs_distances_optimized(start);
                 distances.values().sum::<usize>() as f64
             })
@@ -2059,7 +2156,7 @@ impl Graph {
     fn compute_total_distances(&self) -> f64 {
         let mut total = 0.0;
         
-        for start in self.nodes.keys() {
+        for &start in self.nodes.keys() {
             let distances = self.bfs_distances_optimized(start);
             total += distances.values().sum::<usize>() as f64;
         }
@@ -2068,10 +2165,10 @@ impl Graph {
     }
 
     /// Helper: compute total distances excluding a specific node
-    fn compute_total_distances_without_node(&self, excluded: &str) -> f64 {
+    fn compute_total_distances_without_node(&self, excluded: u64) -> f64 {
         let mut total = 0.0;
 
-        for start in self.nodes.keys() {
+        for &start in self.nodes.keys() {
             if start == excluded {
                 continue;
             }
@@ -2085,22 +2182,22 @@ impl Graph {
 
     /// Helper: Optimized BFS to compute distances from a start node
     /// Preallocates capacity for better performance
-    fn bfs_distances_optimized(&self, start: &str) -> FxHashMap<String, usize> {
+    fn bfs_distances_optimized(&self, start: u64) -> FxHashMap<u64, usize> {
         let n = self.num_nodes();
         let mut distances = FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut queue = std::collections::VecDeque::with_capacity(n);
 
-        distances.insert(start.to_string(), 0);
-        queue.push_back(start.to_string());
+        distances.insert(start, 0);
+        queue.push_back(start);
 
         while let Some(current) = queue.pop_front() {
             let current_dist = *distances.get(&current).unwrap();
 
             if let Some(neighbors) = self.adjacency_list.get(&current) {
-                for neighbor in neighbors {
-                    if !distances.contains_key(neighbor) {
-                        distances.insert(neighbor.clone(), current_dist + 1);
-                        queue.push_back(neighbor.clone());
+                for &neighbor in neighbors {
+                    if !distances.contains_key(&neighbor) {
+                        distances.insert(neighbor, current_dist + 1);
+                        queue.push_back(neighbor);
                     }
                 }
             }
@@ -2110,30 +2207,30 @@ impl Graph {
     }
 
     /// Helper: BFS to compute distances from a start node
-    fn bfs_distances(&self, start: &str) -> FxHashMap<String, usize> {
+    fn bfs_distances(&self, start: u64) -> FxHashMap<u64, usize> {
         self.bfs_distances_optimized(start)
     }
 
     /// Helper: Optimized BFS excluding a specific node
-    fn bfs_distances_excluding_optimized(&self, start: &str, excluded: &str) -> FxHashMap<String, usize> {
+    fn bfs_distances_excluding_optimized(&self, start: u64, excluded: u64) -> FxHashMap<u64, usize> {
         let n = self.num_nodes();
         let mut distances = FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut queue = std::collections::VecDeque::with_capacity(n);
 
-        distances.insert(start.to_string(), 0);
-        queue.push_back(start.to_string());
+        distances.insert(start, 0);
+        queue.push_back(start);
 
         while let Some(current) = queue.pop_front() {
             let current_dist = *distances.get(&current).unwrap();
 
             if let Some(neighbors) = self.adjacency_list.get(&current) {
-                for neighbor in neighbors {
+                for &neighbor in neighbors {
                     if neighbor == excluded {
                         continue;
                     }
-                    if !distances.contains_key(neighbor) {
-                        distances.insert(neighbor.clone(), current_dist + 1);
-                        queue.push_back(neighbor.clone());
+                    if !distances.contains_key(&neighbor) {
+                        distances.insert(neighbor, current_dist + 1);
+                        queue.push_back(neighbor);
                     }
                 }
             }
@@ -2143,20 +2240,20 @@ impl Graph {
     }
 
     /// Helper: BFS excluding a specific node
-    fn bfs_distances_excluding(&self, start: &str, excluded: &str) -> FxHashMap<String, usize> {
+    fn bfs_distances_excluding(&self, start: u64, excluded: u64) -> FxHashMap<u64, usize> {
         self.bfs_distances_excluding_optimized(start, excluded)
     }
 
     /// Get k-core decomposition (coreness for each node)
     /// k-core is maximal subgraph where all nodes have degree >= k
     /// Coreness is the highest k for which a node belongs to the k-core
-    fn get_coreness(&self) -> FxHashMap<String, usize> {
+    fn get_coreness(&self) -> FxHashMap<u64, usize> {
         let mut coreness = FxHashMap::default();
-        let mut degrees: FxHashMap<String, usize> = self.nodes.keys()
-            .map(|id| (id.clone(), self.degree(id)))
+        let mut degrees: FxHashMap<u64, usize> = self.nodes.keys()
+            .map(|&id| (id, self.degree(id)))
             .collect();
 
-        let mut remaining: FxHashSet<String> = self.nodes.keys().cloned().collect();
+        let mut remaining: FxHashSet<u64> = self.nodes.keys().copied().collect();
         let mut k = 0;
 
         while !remaining.is_empty() {
@@ -2171,21 +2268,21 @@ impl Graph {
 
             // Remove all nodes with degree <= min_deg
             let mut to_remove = Vec::new();
-            for node in &remaining {
-                if *degrees.get(node).unwrap() <= min_deg {
-                    to_remove.push(node.clone());
+            for &node in &remaining {
+                if *degrees.get(&node).unwrap() <= min_deg {
+                    to_remove.push(node);
                 }
             }
 
-            for node in &to_remove {
-                coreness.insert(node.clone(), k);
-                remaining.remove(node);
+            for &node in &to_remove {
+                coreness.insert(node, k);
+                remaining.remove(&node);
 
                 // Update degrees of neighbors
-                if let Some(neighbors) = self.adjacency_list.get(node) {
-                    for neighbor in neighbors {
-                        if remaining.contains(neighbor) {
-                            if let Some(deg) = degrees.get_mut(neighbor) {
+                if let Some(neighbors) = self.adjacency_list.get(&node) {
+                    for &neighbor in neighbors {
+                        if remaining.contains(&neighbor) {
+                            if let Some(deg) = degrees.get_mut(&neighbor) {
                                 *deg = deg.saturating_sub(1);
                             }
                         }
@@ -2201,7 +2298,7 @@ impl Graph {
     /// Hyperlink-Induced Topic Search algorithm for directed graphs
     /// Authority score: sum of hub scores of nodes pointing to this node
     /// Returns HashMap of node -> authority score
-    fn get_authority_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<String, f64>> {
+    fn get_authority_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<u64, f64>> {
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "HITS algorithm requires a directed graph",
@@ -2215,7 +2312,7 @@ impl Graph {
     /// Get HITS hub scores
     /// Hub score: sum of authority scores of nodes this node points to
     /// Returns HashMap of node -> hub score
-    fn get_hub_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<String, f64>> {
+    fn get_hub_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<u64, f64>> {
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "HITS algorithm requires a directed graph",
@@ -2228,18 +2325,18 @@ impl Graph {
 
     /// Helper: compute HITS (Hyperlink-Induced Topic Search) scores
     /// Returns (authorities, hubs)
-    fn compute_hits(&self, max_iter: usize, tol: f64) -> (FxHashMap<String, f64>, FxHashMap<String, f64>) {
+    fn compute_hits(&self, max_iter: usize, tol: f64) -> (FxHashMap<u64, f64>, FxHashMap<u64, f64>) {
         let n = self.num_nodes();
         if n == 0 {
             return (FxHashMap::default(), FxHashMap::default());
         }
 
         // Initialize all scores to 1.0
-        let mut authorities: FxHashMap<String, f64> = self.nodes.keys()
-            .map(|id| (id.clone(), 1.0))
+        let mut authorities: FxHashMap<u64, f64> = self.nodes.keys()
+            .map(|&id| (id, 1.0))
             .collect();
-        let mut hubs: FxHashMap<String, f64> = self.nodes.keys()
-            .map(|id| (id.clone(), 1.0))
+        let mut hubs: FxHashMap<u64, f64> = self.nodes.keys()
+            .map(|&id| (id, 1.0))
             .collect();
 
         for _ in 0..max_iter {
@@ -2247,26 +2344,26 @@ impl Graph {
             let prev_hubs = hubs.clone();
 
             // Update authority scores: sum of hub scores of incoming neighbors
-            for node in self.nodes.keys() {
+            for &node in self.nodes.keys() {
                 let mut auth_score = 0.0;
                 // Find all nodes that point to this node
-                for (source, targets) in &self.adjacency_list {
-                    if targets.contains(node) {
-                        auth_score += prev_hubs.get(source).unwrap_or(&0.0);
+                for (&source, targets) in &self.adjacency_list {
+                    if targets.contains(&node) {
+                        auth_score += prev_hubs.get(&source).unwrap_or(&0.0);
                     }
                 }
-                authorities.insert(node.clone(), auth_score);
+                authorities.insert(node, auth_score);
             }
 
             // Update hub scores: sum of authority scores of outgoing neighbors
-            for node in self.nodes.keys() {
+            for &node in self.nodes.keys() {
                 let mut hub_score = 0.0;
-                if let Some(neighbors) = self.adjacency_list.get(node) {
-                    for neighbor in neighbors {
-                        hub_score += prev_authorities.get(neighbor).unwrap_or(&0.0);
+                if let Some(neighbors) = self.adjacency_list.get(&node) {
+                    for &neighbor in neighbors {
+                        hub_score += prev_authorities.get(&neighbor).unwrap_or(&0.0);
                     }
                 }
-                hubs.insert(node.clone(), hub_score);
+                hubs.insert(node, hub_score);
             }
 
             // Normalize
@@ -2286,10 +2383,10 @@ impl Graph {
 
             // Check convergence
             let auth_diff: f64 = authorities.iter()
-                .map(|(k, &v)| (v - prev_authorities.get(k).unwrap()).abs())
+                .map(|(&k, &v)| (v - prev_authorities.get(&k).unwrap()).abs())
                 .sum();
             let hub_diff: f64 = hubs.iter()
-                .map(|(k, &v)| (v - prev_hubs.get(k).unwrap()).abs())
+                .map(|(&k, &v)| (v - prev_hubs.get(&k).unwrap()).abs())
                 .sum();
 
             if auth_diff < tol && hub_diff < tol {
@@ -2304,7 +2401,7 @@ impl Graph {
     /// Standard eigenvector centrality: principal eigenvector of adjacency matrix
     /// x = A * x (power iteration method)
     /// Measures importance based on connections to other important nodes
-    fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> FxHashMap<String, f64> {
+    fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
             return FxHashMap::default();
@@ -2313,13 +2410,13 @@ impl Graph {
         // Special case: single node
         if n == 1 {
             return self.nodes.keys()
-                .map(|id| (id.clone(), 1.0))
+                .map(|&id| (id, 1.0))
                 .collect();
         }
 
         // Initialize centrality to 1.0 for all nodes
-        let mut centrality: FxHashMap<String, f64> = self.nodes.keys()
-            .map(|id| (id.clone(), 1.0))
+        let mut centrality: FxHashMap<u64, f64> = self.nodes.keys()
+            .map(|&id| (id, 1.0))
             .collect();
 
         let mut converged = false;
@@ -2328,20 +2425,20 @@ impl Graph {
             let prev_centrality = centrality.clone();
             let mut max_change: f64 = 0.0;
 
-            for node in self.nodes.keys() {
+            for &node in self.nodes.keys() {
                 // For eigenvector centrality: sum of centralities of neighbors
                 let mut neighbor_sum = 0.0;
                 
                 // Consider all neighbors (incoming for directed, all for undirected)
-                if let Some(neighbors) = self.adjacency_list.get(node) {
-                    for neighbor in neighbors {
-                        neighbor_sum += prev_centrality.get(neighbor).unwrap_or(&0.0);
+                if let Some(neighbors) = self.adjacency_list.get(&node) {
+                    for &neighbor in neighbors {
+                        neighbor_sum += prev_centrality.get(&neighbor).unwrap_or(&0.0);
                     }
                 }
 
-                centrality.insert(node.clone(), neighbor_sum);
+                centrality.insert(node, neighbor_sum);
 
-                let prev_val = prev_centrality.get(node).unwrap();
+                let prev_val = prev_centrality.get(&node).unwrap();
                 let change = if *prev_val > 0.0 {
                     (neighbor_sum - prev_val).abs() / prev_val
                 } else {
@@ -2378,35 +2475,35 @@ impl Graph {
     /// Generalization of eigenvector centrality with attenuation factor
     /// x = alpha * A * x + e
     /// where alpha is attenuation, A is adjacency matrix, e is exogenous factor
-    fn get_alpha_centrality(&self, alpha: f64, max_iter: usize, tol: f64) -> FxHashMap<String, f64> {
+    fn get_alpha_centrality(&self, alpha: f64, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
             return FxHashMap::default();
         }
 
         // Initialize centrality to 1.0 for all nodes
-        let mut centrality: FxHashMap<String, f64> = self.nodes.keys()
-            .map(|id| (id.clone(), 1.0))
+        let mut centrality: FxHashMap<u64, f64> = self.nodes.keys()
+            .map(|&id| (id, 1.0))
             .collect();
 
         for _ in 0..max_iter {
             let prev_centrality = centrality.clone();
             let mut max_change: f64 = 0.0;
 
-            for node in self.nodes.keys() {
+            for &node in self.nodes.keys() {
                 // Sum of centralities of neighbors
                 let mut neighbor_sum = 0.0;
-                if let Some(neighbors) = self.adjacency_list.get(node) {
-                    for neighbor in neighbors {
-                        neighbor_sum += prev_centrality.get(neighbor).unwrap_or(&0.0);
+                if let Some(neighbors) = self.adjacency_list.get(&node) {
+                    for &neighbor in neighbors {
+                        neighbor_sum += prev_centrality.get(&neighbor).unwrap_or(&0.0);
                     }
                 }
 
                 // alpha * (sum of neighbor centralities) + 1.0 (exogenous)
                 let new_value = alpha * neighbor_sum + 1.0;
-                centrality.insert(node.clone(), new_value);
+                centrality.insert(node, new_value);
 
-                let change = (new_value - prev_centrality.get(node).unwrap()).abs();
+                let change = (new_value - prev_centrality.get(&node).unwrap()).abs();
                 max_change = max_change.max(change);
             }
 
@@ -2430,20 +2527,20 @@ impl Graph {
     /// Measures the degree connectivity of a node relative to its neighbors
     /// leverage(v) = (1/k_v) * sum((k_v - k_n) / (k_v + k_n))
     /// where k_v is degree of v, k_n is degree of neighbor n
-    fn get_leverage_centrality(&self) -> FxHashMap<String, f64> {
+    fn get_leverage_centrality(&self) -> FxHashMap<u64, f64> {
         let mut leverage = FxHashMap::default();
 
-        for node in self.nodes.keys() {
+        for &node in self.nodes.keys() {
             let k_v = self.degree(node) as f64;
             
             if k_v == 0.0 {
-                leverage.insert(node.clone(), 0.0);
+                leverage.insert(node, 0.0);
                 continue;
             }
 
             let mut sum = 0.0;
-            if let Some(neighbors) = self.adjacency_list.get(node) {
-                for neighbor in neighbors {
+            if let Some(neighbors) = self.adjacency_list.get(&node) {
+                for &neighbor in neighbors {
                     let k_n = self.degree(neighbor) as f64;
                     if k_v + k_n > 0.0 {
                         sum += (k_v - k_n) / (k_v + k_n);
@@ -2452,7 +2549,7 @@ impl Graph {
             }
 
             let lev = sum / k_v;
-            leverage.insert(node.clone(), lev);
+            leverage.insert(node, lev);
         }
 
         leverage
@@ -2462,25 +2559,25 @@ impl Graph {
     /// Dice coefficient: 2 * |A ∩ B| / (|A| + |B|)
     /// Measures neighborhood overlap, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
-    fn get_dice_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+    fn get_dice_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
         let mut similarities = FxHashMap::default();
-        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
 
-        for node1 in &nodes {
+        for &node1 in &nodes {
             let mut node1_sims = FxHashMap::default();
-            let neighbors1: FxHashSet<&String> = self.adjacency_list
-                .get(node1)
+            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+                .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
 
-            for node2 in &nodes {
+            for &node2 in &nodes {
                 if node1 == node2 {
-                    node1_sims.insert(node2.clone(), 1.0);
+                    node1_sims.insert(node2, 1.0);
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&String> = self.adjacency_list
-                    .get(node2)
+                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                    .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
 
@@ -2494,10 +2591,10 @@ impl Graph {
                     0.0
                 };
 
-                node1_sims.insert(node2.clone(), dice);
+                node1_sims.insert(node2, dice);
             }
 
-            similarities.insert(node1.clone(), node1_sims);
+            similarities.insert(node1, node1_sims);
         }
 
         similarities
@@ -2507,25 +2604,25 @@ impl Graph {
     /// Jaccard index: |A ∩ B| / |A ∪ B|
     /// Classic set similarity measure, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
-    fn get_jaccard_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+    fn get_jaccard_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
         let mut similarities = FxHashMap::default();
-        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
 
-        for node1 in &nodes {
+        for &node1 in &nodes {
             let mut node1_sims = FxHashMap::default();
-            let neighbors1: FxHashSet<&String> = self.adjacency_list
-                .get(node1)
+            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+                .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
 
-            for node2 in &nodes {
+            for &node2 in &nodes {
                 if node1 == node2 {
-                    node1_sims.insert(node2.clone(), 1.0);
+                    node1_sims.insert(node2, 1.0);
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&String> = self.adjacency_list
-                    .get(node2)
+                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                    .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
 
@@ -2538,10 +2635,10 @@ impl Graph {
                     0.0
                 };
 
-                node1_sims.insert(node2.clone(), jaccard);
+                node1_sims.insert(node2, jaccard);
             }
 
-            similarities.insert(node1.clone(), node1_sims);
+            similarities.insert(node1, node1_sims);
         }
 
         similarities
@@ -2551,25 +2648,25 @@ impl Graph {
     /// Cosine similarity: A·B / (||A|| ||B||)
     /// Normalized dot product of adjacency vectors, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
-    fn get_cosine_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+    fn get_cosine_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
         let mut similarities = FxHashMap::default();
-        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
 
-        for node1 in &nodes {
+        for &node1 in &nodes {
             let mut node1_sims = FxHashMap::default();
-            let neighbors1: FxHashSet<&String> = self.adjacency_list
-                .get(node1)
+            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+                .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
 
-            for node2 in &nodes {
+            for &node2 in &nodes {
                 if node1 == node2 {
-                    node1_sims.insert(node2.clone(), 1.0);
+                    node1_sims.insert(node2, 1.0);
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&String> = self.adjacency_list
-                    .get(node2)
+                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                    .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
 
@@ -2583,10 +2680,10 @@ impl Graph {
                     0.0
                 };
 
-                node1_sims.insert(node2.clone(), cosine);
+                node1_sims.insert(node2, cosine);
             }
 
-            similarities.insert(node1.clone(), node1_sims);
+            similarities.insert(node1, node1_sims);
         }
 
         similarities
@@ -2596,25 +2693,25 @@ impl Graph {
     /// Overlap coefficient: |A ∩ B| / min(|A|, |B|)
     /// Subset-based similarity measure, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
-    fn get_overlap_similarity(&self) -> FxHashMap<String, FxHashMap<String, f64>> {
+    fn get_overlap_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
         let mut similarities = FxHashMap::default();
-        let nodes: Vec<String> = self.nodes.keys().cloned().collect();
+        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
 
-        for node1 in &nodes {
+        for &node1 in &nodes {
             let mut node1_sims = FxHashMap::default();
-            let neighbors1: FxHashSet<&String> = self.adjacency_list
-                .get(node1)
+            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+                .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
 
-            for node2 in &nodes {
+            for &node2 in &nodes {
                 if node1 == node2 {
-                    node1_sims.insert(node2.clone(), 1.0);
+                    node1_sims.insert(node2, 1.0);
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&String> = self.adjacency_list
-                    .get(node2)
+                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                    .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
 
@@ -2629,10 +2726,10 @@ impl Graph {
                     0.0
                 };
 
-                node1_sims.insert(node2.clone(), overlap);
+                node1_sims.insert(node2, overlap);
             }
 
-            similarities.insert(node1.clone(), node1_sims);
+            similarities.insert(node1, node1_sims);
         }
 
         similarities
@@ -2647,7 +2744,7 @@ impl Graph {
     /// For directed graphs, this follows edges where selected nodes are sources.
     pub fn trav_out(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
         
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
@@ -2660,7 +2757,7 @@ impl Graph {
             // For undirected graphs, get all neighbors
             for node_id in current_selection {
                 if let Some(neighbors) = self.adjacency_list.get(&node_id) {
-                    new_selection.extend(neighbors.iter().cloned());
+                    new_selection.extend(neighbors.iter().copied());
                 }
             }
         } else {
@@ -2668,7 +2765,7 @@ impl Graph {
             for node_id in current_selection {
                 for edge in &self.edges {
                     if edge.source == node_id {
-                        new_selection.insert(edge.target.clone());
+                        new_selection.insert(edge.target);
                     }
                 }
             }
@@ -2684,7 +2781,7 @@ impl Graph {
     /// For directed graphs, this follows edges where selected nodes are targets.
     pub fn trav_in(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
         
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
@@ -2697,7 +2794,7 @@ impl Graph {
             // For undirected graphs, get all neighbors
             for node_id in current_selection {
                 if let Some(neighbors) = self.adjacency_list.get(&node_id) {
-                    new_selection.extend(neighbors.iter().cloned());
+                    new_selection.extend(neighbors.iter().copied());
                 }
             }
         } else {
@@ -2705,7 +2802,7 @@ impl Graph {
             for node_id in current_selection {
                 for edge in &self.edges {
                     if edge.target == node_id {
-                        new_selection.insert(edge.source.clone());
+                        new_selection.insert(edge.source);
                     }
                 }
             }
@@ -2721,7 +2818,7 @@ impl Graph {
     /// Works the same for directed and undirected graphs.
     pub fn trav_both(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
         
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
@@ -2732,14 +2829,14 @@ impl Graph {
         for node_id in current_selection {
             // For all graphs, get neighbors from adjacency list (handles undirected)
             if let Some(neighbors) = self.adjacency_list.get(&node_id) {
-                new_selection.extend(neighbors.iter().cloned());
+                new_selection.extend(neighbors.iter().copied());
             }
             
             // For directed graphs, also get predecessors
             if self.directed {
                 for edge in &self.edges {
                     if edge.target == node_id {
-                        new_selection.insert(edge.source.clone());
+                        new_selection.insert(edge.source);
                     }
                 }
             }
@@ -2754,7 +2851,7 @@ impl Graph {
     /// Replaces the current node selection with an edge selection of outbound edges.
     pub fn trav_out_edge(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
         
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
@@ -2790,7 +2887,7 @@ impl Graph {
     /// Replaces the current node selection with an edge selection of inbound edges.
     pub fn trav_in_edge(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<String> = self.selected_nodes.iter().cloned().collect();
+        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
         
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
@@ -2898,7 +2995,7 @@ impl Graph {
     /// 
     /// # References
     /// Clauset, Newman, Moore. "Finding community structure in very large networks" (2004)
-    fn get_cmty_fast_greedy(&self) -> PyResult<FxHashMap<String, usize>> {
+    fn get_cmty_fast_greedy(&self) -> PyResult<FxHashMap<u64, usize>> {
         // Require undirected graph
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -2914,17 +3011,17 @@ impl Graph {
         // Special case: single node
         if n == 1 {
             let mut result = FxHashMap::default();
-            if let Some(node_id) = self.nodes.keys().next() {
-                result.insert(node_id.clone(), 0);
+            if let Some(&node_id) = self.nodes.keys().next() {
+                result.insert(node_id, 0);
             }
             return Ok(result);
         }
 
         // Initialize: each node in own community
-        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
-        let mut communities: FxHashMap<String, usize> = node_ids.iter()
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let mut communities: FxHashMap<u64, usize> = node_ids.iter()
             .enumerate()
-            .map(|(idx, id)| (id.clone(), idx))
+            .map(|(idx, &id)| (id, idx))
             .collect();
 
         // Calculate total edge weight (m)
@@ -2936,7 +3033,7 @@ impl Graph {
 
         // Calculate degrees for all nodes
         let degrees: Vec<f64> = node_ids.iter()
-            .map(|id| self.degree(id) as f64)
+            .map(|&id| self.degree(id) as f64)
             .collect();
 
         // Track edges between communities (sparse representation)
@@ -2944,10 +3041,10 @@ impl Graph {
         let mut edge_weights: FxHashMap<(usize, usize), f64> = FxHashMap::default();
         
         // Initialize edge weights from graph edges
-        for (from_id, neighbors) in &self.adjacency_list {
-            let from_comm = *communities.get(from_id).unwrap();
-            for to_id in neighbors {
-                let to_comm = *communities.get(to_id).unwrap();
+        for (&from_id, neighbors) in &self.adjacency_list {
+            let from_comm = *communities.get(&from_id).unwrap();
+            for &to_id in neighbors {
+                let to_comm = *communities.get(&to_id).unwrap();
                 if from_comm != to_comm {
                     let key = if from_comm < to_comm {
                         (from_comm, to_comm)
@@ -3130,8 +3227,8 @@ impl Graph {
             }
         }
 
-        let result: FxHashMap<String, usize> = best_partition.iter()
-            .map(|(node_id, old_comm)| (node_id.clone(), *community_map.get(old_comm).unwrap()))
+        let result: FxHashMap<u64, usize> = best_partition.iter()
+            .map(|(&node_id, old_comm)| (node_id, *community_map.get(old_comm).unwrap()))
             .collect();
 
         Ok(result)
@@ -3163,7 +3260,7 @@ impl Graph {
     /// # References
     /// Girvan & Newman. "Community structure in social and biological networks" (2002)
     /// Brandes. "A faster algorithm for betweenness centrality" (2001)
-    fn get_cmty_edge_btwns(&self) -> PyResult<FxHashMap<String, usize>> {
+    fn get_cmty_edge_btwns(&self) -> PyResult<FxHashMap<u64, usize>> {
         // Require undirected graph
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -3179,25 +3276,25 @@ impl Graph {
         // Special case: single node
         if n == 1 {
             let mut result = FxHashMap::default();
-            if let Some(node_id) = self.nodes.keys().next() {
-                result.insert(node_id.clone(), 0);
+            if let Some(&node_id) = self.nodes.keys().next() {
+                result.insert(node_id, 0);
             }
             return Ok(result);
         }
 
         // No edges: each node is its own community
         if self.num_edges() == 0 {
-            let result: FxHashMap<String, usize> = self.nodes.keys()
+            let result: FxHashMap<u64, usize> = self.nodes.keys()
                 .enumerate()
-                .map(|(idx, id)| (id.clone(), idx))
+                .map(|(idx, &id)| (id, idx))
                 .collect();
             return Ok(result);
         }
 
         // Create mutable working graph (adjacency list that we'll modify)
-        let mut working_adj: FxHashMap<String, FxHashSet<String>> = self.adjacency_list
+        let mut working_adj: FxHashMap<u64, FxHashSet<u64>> = self.adjacency_list
             .iter()
-            .map(|(k, v)| (k.clone(), v.iter().cloned().collect()))
+            .map(|(&k, v)| (k, v.iter().copied().collect()))
             .collect();
 
         // Track best partition and modularity
@@ -3269,8 +3366,8 @@ impl Graph {
             }
         }
 
-        let result: FxHashMap<String, usize> = best_partition.iter()
-            .map(|(node_id, old_comm)| (node_id.clone(), *community_map.get(old_comm).unwrap()))
+        let result: FxHashMap<u64, usize> = best_partition.iter()
+            .map(|(&node_id, old_comm)| (node_id, *community_map.get(old_comm).unwrap()))
             .collect();
 
         Ok(result)
@@ -3303,7 +3400,7 @@ impl Graph {
     /// # References
     /// Newman, M. E. J. "Finding community structure in networks using the
     /// eigenvectors of matrices" (2006)
-    fn get_cmty_l_eigenvec(&self) -> PyResult<FxHashMap<String, usize>> {
+    fn get_cmty_l_eigenvec(&self) -> PyResult<FxHashMap<u64, usize>> {
         // Require undirected graph
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -3319,30 +3416,30 @@ impl Graph {
         // Special case: single node
         if n == 1 {
             let mut result = FxHashMap::default();
-            if let Some(node_id) = self.nodes.keys().next() {
-                result.insert(node_id.clone(), 0);
+            if let Some(&node_id) = self.nodes.keys().next() {
+                result.insert(node_id, 0);
             }
             return Ok(result);
         }
 
         // No edges: each node is its own community
         if self.num_edges() == 0 {
-            let result: FxHashMap<String, usize> = self.nodes.keys()
+            let result: FxHashMap<u64, usize> = self.nodes.keys()
                 .enumerate()
-                .map(|(idx, id)| (id.clone(), idx))
+                .map(|(idx, &id)| (id, idx))
                 .collect();
             return Ok(result);
         }
 
         // Start with all nodes in one community
-        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
-        let mut communities: FxHashMap<String, usize> = node_ids.iter()
-            .map(|id| (id.clone(), 0))
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let mut communities: FxHashMap<u64, usize> = node_ids.iter()
+            .map(|&id| (id, 0))
             .collect();
 
         // Recursive splitting
         let mut next_community_id = 1;
-        let mut to_split: Vec<Vec<String>> = vec![node_ids];
+        let mut to_split: Vec<Vec<u64>> = vec![node_ids];
 
         while let Some(group) = to_split.pop() {
             if group.len() <= 1 {
@@ -3357,11 +3454,11 @@ impl Graph {
                 next_community_id += 1;
 
                 // Update communities
-                for node_id in &group1 {
-                    communities.insert(node_id.clone(), comm1_id);
+                for &node_id in &group1 {
+                    communities.insert(node_id, comm1_id);
                 }
-                for node_id in &group2 {
-                    communities.insert(node_id.clone(), comm2_id);
+                for &node_id in &group2 {
+                    communities.insert(node_id, comm2_id);
                 }
 
                 // Add both groups for potential further splitting
@@ -3385,8 +3482,8 @@ impl Graph {
             }
         }
 
-        let result: FxHashMap<String, usize> = communities.iter()
-            .map(|(node_id, old_comm)| (node_id.clone(), *community_map.get(old_comm).unwrap()))
+        let result: FxHashMap<u64, usize> = communities.iter()
+            .map(|(&node_id, old_comm)| (node_id, *community_map.get(old_comm).unwrap()))
             .collect();
 
         Ok(result)
@@ -3405,7 +3502,7 @@ impl Graph {
     ///
     /// # Errors
     /// * Returns error if graph is directed (requires undirected graph)
-    fn get_cmty_louvain(&self, resolution: f64) -> PyResult<FxHashMap<String, usize>> {
+    fn get_cmty_louvain(&self, resolution: f64) -> PyResult<FxHashMap<u64, usize>> {
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "Louvain algorithm requires an undirected graph"
@@ -3419,8 +3516,8 @@ impl Graph {
 
         if self.num_nodes() == 1 {
             let mut result = FxHashMap::default();
-            if let Some(node_id) = self.nodes.keys().next() {
-                result.insert(node_id.clone(), 0);
+            if let Some(&node_id) = self.nodes.keys().next() {
+                result.insert(node_id, 0);
             }
             return Ok(result);
         }
@@ -3429,17 +3526,17 @@ impl Graph {
         if m == 0.0 {
             // No edges - each node is its own community
             let mut result = FxHashMap::default();
-            for (idx, node_id) in self.nodes.keys().enumerate() {
-                result.insert(node_id.clone(), idx);
+            for (idx, &node_id) in self.nodes.keys().enumerate() {
+                result.insert(node_id, idx);
             }
             return Ok(result);
         }
 
         // Build node index mapping
-        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
-        let mut node_to_idx: FxHashMap<String, usize> = FxHashMap::default();
-        for (idx, node_id) in node_ids.iter().enumerate() {
-            node_to_idx.insert(node_id.clone(), idx);
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
+        for (idx, &node_id) in node_ids.iter().enumerate() {
+            node_to_idx.insert(node_id, idx);
         }
 
         // Initialize: each node in its own community
@@ -3497,7 +3594,7 @@ impl Graph {
     ///
     /// # Returns
     /// A mapping from node ID (String) to community ID (usize)
-    fn get_cmty_walktrap(&self, steps: usize) -> PyResult<FxHashMap<String, usize>> {
+    fn get_cmty_walktrap(&self, steps: usize) -> PyResult<FxHashMap<u64, usize>> {
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "Walktrap algorithm only works on undirected graphs"
@@ -3511,16 +3608,16 @@ impl Graph {
 
         if self.nodes.len() == 1 {
             let mut result = FxHashMap::default();
-            result.insert(self.nodes.keys().next().unwrap().clone(), 0);
+            result.insert(*self.nodes.keys().next().unwrap(), 0);
             return Ok(result);
         }
 
         // Create node index mapping
-        let node_ids: Vec<String> = self.nodes.keys().cloned().collect();
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
         let n = node_ids.len();
         let mut node_to_idx = FxHashMap::default();
-        for (idx, node_id) in node_ids.iter().enumerate() {
-            node_to_idx.insert(node_id.clone(), idx);
+        for (idx, &node_id) in node_ids.iter().enumerate() {
+            node_to_idx.insert(node_id, idx);
         }
 
         // Check for disconnected components first
@@ -3549,8 +3646,8 @@ impl Graph {
         
         // Convert to result format
         let mut result = FxHashMap::default();
-        for (idx, node_id) in node_ids.iter().enumerate() {
-            result.insert(node_id.clone(), best_partition[idx]);
+        for (idx, &node_id) in node_ids.iter().enumerate() {
+            result.insert(node_id, best_partition[idx]);
         }
 
         Ok(result)
@@ -3560,7 +3657,7 @@ impl Graph {
 
 impl Graph {
     /// Get the adjacency list (internal method)
-    pub fn get_adjacency_list(&self) -> &FxHashMap<String, Vec<String>> {
+    pub fn get_adjacency_list(&self) -> &FxHashMap<u64, Vec<u64>> {
         &self.adjacency_list
     }
 
@@ -3570,29 +3667,29 @@ impl Graph {
     }
 
     /// Find connected components using BFS
-    fn find_components(&self, adj_list: &FxHashMap<String, FxHashSet<String>>) -> FxHashMap<String, usize> {
-        let mut communities: FxHashMap<String, usize> = FxHashMap::default();
-        let mut visited: FxHashSet<String> = FxHashSet::default();
+    fn find_components(&self, adj_list: &FxHashMap<u64, FxHashSet<u64>>) -> FxHashMap<u64, usize> {
+        let mut communities: FxHashMap<u64, usize> = FxHashMap::default();
+        let mut visited: FxHashSet<u64> = FxHashSet::default();
         let mut current_community = 0;
 
-        for start_node in self.nodes.keys() {
-            if visited.contains(start_node) {
+        for &start_node in self.nodes.keys() {
+            if visited.contains(&start_node) {
                 continue;
             }
 
             // BFS to find all nodes in this component
             let mut queue = std::collections::VecDeque::new();
-            queue.push_back(start_node.clone());
-            visited.insert(start_node.clone());
+            queue.push_back(start_node);
+            visited.insert(start_node);
 
             while let Some(node) = queue.pop_front() {
-                communities.insert(node.clone(), current_community);
+                communities.insert(node, current_community);
 
                 if let Some(neighbors) = adj_list.get(&node) {
-                    for neighbor in neighbors {
-                        if !visited.contains(neighbor) {
-                            visited.insert(neighbor.clone());
-                            queue.push_back(neighbor.clone());
+                    for &neighbor in neighbors {
+                        if !visited.contains(&neighbor) {
+                            visited.insert(neighbor);
+                            queue.push_back(neighbor);
                         }
                     }
                 }
@@ -3606,7 +3703,7 @@ impl Graph {
 
     /// Try to split a group of nodes using eigenvector method
     /// Returns Some((group1, group2)) if split improves modularity, None otherwise
-    fn try_split_eigenvector(&self, nodes: &[String]) -> Option<(Vec<String>, Vec<String>)> {
+    fn try_split_eigenvector(&self, nodes: &[u64]) -> Option<(Vec<u64>, Vec<u64>)> {
         if nodes.len() <= 1 {
             return None;
         }
@@ -3617,9 +3714,9 @@ impl Graph {
         }
 
         // Create node index mapping
-        let node_to_idx: FxHashMap<String, usize> = nodes.iter()
+        let node_to_idx: FxHashMap<u64, usize> = nodes.iter()
             .enumerate()
-            .map(|(idx, id)| (id.clone(), idx))
+            .map(|(idx, &id)| (id, idx))
             .collect();
 
         let n = nodes.len();
@@ -3631,11 +3728,11 @@ impl Graph {
         let mut group1 = Vec::new();
         let mut group2 = Vec::new();
 
-        for (idx, node_id) in nodes.iter().enumerate() {
+        for (idx, &node_id) in nodes.iter().enumerate() {
             if eigenvector[idx] >= 0.0 {
-                group1.push(node_id.clone());
+                group1.push(node_id);
             } else {
-                group2.push(node_id.clone());
+                group2.push(node_id);
             }
         }
 
@@ -3648,8 +3745,8 @@ impl Graph {
         // Create split vector: +1 for group1, -1 for group2
         let n = nodes.len();
         let mut s: Vec<f64> = vec![0.0; n];
-        for (idx, node_id) in nodes.iter().enumerate() {
-            if group1.contains(node_id) {
+        for (idx, &node_id) in nodes.iter().enumerate() {
+            if group1.contains(&node_id) {
                 s[idx] = 1.0;
             } else {
                 s[idx] = -1.0;
@@ -3658,18 +3755,18 @@ impl Graph {
         
         // Precompute degrees
         let degrees: Vec<f64> = nodes.iter()
-            .map(|id| self.degree(id) as f64)
+            .map(|&id| self.degree(id) as f64)
             .collect();
         
         // Compute B^(g) matrix (same as used in eigenvector computation)
         let mut b_matrix: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
         
-        for (i, node_i) in nodes.iter().enumerate() {
+        for (i, &node_i) in nodes.iter().enumerate() {
             // First compute row sum: Σ_k B_ik
             let mut row_sum = 0.0;
-            for (k, node_k) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(node_i)
-                    .map(|neighbors| neighbors.contains(node_k))
+            for (k, &node_k) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(&node_i)
+                    .map(|neighbors| neighbors.contains(&node_k))
                     .unwrap_or(false);
                 let a_ik = if has_edge { 1.0 } else { 0.0 };
                 let b_ik = a_ik - (degrees[i] * degrees[k]) / (2.0 * m);
@@ -3677,9 +3774,9 @@ impl Graph {
             }
             
             // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
-            for (j, node_j) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(node_i)
-                    .map(|neighbors| neighbors.contains(node_j))
+            for (j, &node_j) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(&node_i)
+                    .map(|neighbors| neighbors.contains(&node_j))
                     .unwrap_or(false);
                 let a_ij = if has_edge { 1.0 } else { 0.0 };
                 let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
@@ -3723,26 +3820,26 @@ impl Graph {
     /// specifically targeting the largest real eigenvalue (most positive).
     fn compute_leading_eigenvector(
         &self,
-        nodes: &[String],
-        _node_to_idx: &FxHashMap<String, usize>,
+        nodes: &[u64],
+        _node_to_idx: &FxHashMap<u64, usize>,
         m: f64,
     ) -> Option<Vec<f64>> {
         let n = nodes.len();
         
         // Precompute degrees for efficiency
         let degrees: Vec<f64> = nodes.iter()
-            .map(|id| self.degree(id) as f64)
+            .map(|&id| self.degree(id) as f64)
             .collect();
 
         // Build B^(g) matrix for the subgraph using nalgebra DMatrix
         let mut b_matrix = na::DMatrix::<f64>::zeros(n, n);
         
-        for (i, node_i) in nodes.iter().enumerate() {
+        for (i, &node_i) in nodes.iter().enumerate() {
             // First compute row sum: Σ_k B_ik
             let mut row_sum = 0.0;
-            for (k, node_k) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(node_i)
-                    .map(|neighbors| neighbors.contains(node_k))
+            for (k, &node_k) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(&node_i)
+                    .map(|neighbors| neighbors.contains(&node_k))
                     .unwrap_or(false);
                 let a_ik = if has_edge { 1.0 } else { 0.0 };
                 let b_ik = a_ik - (degrees[i] * degrees[k]) / (2.0 * m);
@@ -3750,9 +3847,9 @@ impl Graph {
             }
             
             // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
-            for (j, node_j) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(node_i)
-                    .map(|neighbors| neighbors.contains(node_j))
+            for (j, &node_j) in nodes.iter().enumerate() {
+                let has_edge = self.adjacency_list.get(&node_i)
+                    .map(|neighbors| neighbors.contains(&node_j))
                     .unwrap_or(false);
                 let a_ij = if has_edge { 1.0 } else { 0.0 };
                 let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
@@ -3799,69 +3896,69 @@ impl Graph {
     }
 
     /// Compute edge betweenness using Brandes' algorithm
-    fn compute_edge_betweenness(&self, adj_list: &FxHashMap<String, FxHashSet<String>>) -> FxHashMap<(String, String), f64> {
-        let mut betweenness: FxHashMap<(String, String), f64> = FxHashMap::default();
+    fn compute_edge_betweenness(&self, adj_list: &FxHashMap<u64, FxHashSet<u64>>) -> FxHashMap<(u64, u64), f64> {
+        let mut betweenness: FxHashMap<(u64, u64), f64> = FxHashMap::default();
 
         // Initialize all edges with 0
-        for (u, neighbors) in adj_list {
-            for v in neighbors {
-                let edge_key = if u < v { (u.clone(), v.clone()) } else { (v.clone(), u.clone()) };
+        for (&u, neighbors) in adj_list {
+            for &v in neighbors {
+                let edge_key = if u < v { (u, v) } else { (v, u) };
                 betweenness.entry(edge_key).or_insert(0.0);
             }
         }
 
         // Run BFS from each node
-        for source in self.nodes.keys() {
+        for &source in self.nodes.keys() {
             // BFS to find shortest paths
-            let mut distance: FxHashMap<String, usize> = FxHashMap::default();
-            let mut num_paths: FxHashMap<String, f64> = FxHashMap::default();
-            let mut predecessors: FxHashMap<String, Vec<String>> = FxHashMap::default();
-            let mut stack: Vec<String> = Vec::new();
+            let mut distance: FxHashMap<u64, usize> = FxHashMap::default();
+            let mut num_paths: FxHashMap<u64, f64> = FxHashMap::default();
+            let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+            let mut stack: Vec<u64> = Vec::new();
             
             let mut queue = std::collections::VecDeque::new();
-            queue.push_back(source.clone());
-            distance.insert(source.clone(), 0);
-            num_paths.insert(source.clone(), 1.0);
+            queue.push_back(source);
+            distance.insert(source, 0);
+            num_paths.insert(source, 1.0);
 
             // Forward BFS
             while let Some(node) = queue.pop_front() {
-                stack.push(node.clone());
+                stack.push(node);
                 let node_dist = *distance.get(&node).unwrap();
 
                 if let Some(neighbors) = adj_list.get(&node) {
-                    for neighbor in neighbors {
+                    for &neighbor in neighbors {
                         // First time seeing this node
-                        if !distance.contains_key(neighbor) {
-                            distance.insert(neighbor.clone(), node_dist + 1);
-                            queue.push_back(neighbor.clone());
+                        if !distance.contains_key(&neighbor) {
+                            distance.insert(neighbor, node_dist + 1);
+                            queue.push_back(neighbor);
                         }
 
                         // Shortest path to neighbor via node
-                        if *distance.get(neighbor).unwrap() == node_dist + 1 {
+                        if *distance.get(&neighbor).unwrap() == node_dist + 1 {
                             let node_paths = *num_paths.get(&node).unwrap();
-                            *num_paths.entry(neighbor.clone()).or_insert(0.0) += node_paths;
-                            predecessors.entry(neighbor.clone()).or_insert_with(Vec::new).push(node.clone());
+                            *num_paths.entry(neighbor).or_insert(0.0) += node_paths;
+                            predecessors.entry(neighbor).or_insert_with(Vec::new).push(node);
                         }
                     }
                 }
             }
 
             // Backward accumulation
-            let mut dependency: FxHashMap<String, f64> = FxHashMap::default();
-            for node in self.nodes.keys() {
-                dependency.insert(node.clone(), 0.0);
+            let mut dependency: FxHashMap<u64, f64> = FxHashMap::default();
+            for &node in self.nodes.keys() {
+                dependency.insert(node, 0.0);
             }
 
             // Process nodes in reverse order of distance from source
             while let Some(w) = stack.pop() {
                 if let Some(preds) = predecessors.get(&w) {
-                    for v in preds {
-                        let coeff = (num_paths.get(v).unwrap() / num_paths.get(&w).unwrap()) 
+                    for &v in preds {
+                        let coeff = (num_paths.get(&v).unwrap() / num_paths.get(&w).unwrap()) 
                                     * (1.0 + dependency.get(&w).unwrap());
-                        *dependency.get_mut(v).unwrap() += coeff;
+                        *dependency.get_mut(&v).unwrap() += coeff;
 
                         // Accumulate edge betweenness
-                        let edge_key = if v < &w { (v.clone(), w.clone()) } else { (w.clone(), v.clone()) };
+                        let edge_key = if v < w { (v, w) } else { (w, v) };
                         *betweenness.entry(edge_key).or_insert(0.0) += coeff;
                     }
                 }
@@ -3877,19 +3974,19 @@ impl Graph {
     }
 
     /// Compute modularity for a given partition
-    fn compute_modularity_for_partition(&self, partition: &FxHashMap<String, usize>, m: f64) -> f64 {
+    fn compute_modularity_for_partition(&self, partition: &FxHashMap<u64, usize>, m: f64) -> f64 {
         if m == 0.0 {
             return 0.0;
         }
 
         let mut Q = 0.0;
 
-        for (node_i, comm_i) in partition {
-            for (node_j, comm_j) in partition {
+        for (&node_i, comm_i) in partition {
+            for (&node_j, comm_j) in partition {
                 if comm_i == comm_j {
                     // Check if edge exists
-                    let has_edge = self.adjacency_list.get(node_i)
-                        .map(|neighbors| neighbors.contains(node_j))
+                    let has_edge = self.adjacency_list.get(&node_i)
+                        .map(|neighbors| neighbors.contains(&node_j))
                         .unwrap_or(false);
                     
                     let A_ij = if has_edge { 1.0 } else { 0.0 };
@@ -3908,26 +4005,26 @@ impl Graph {
     /// Helper: BFS to find augmenting path in residual graph (for min cut)
     fn bfs_augmenting_path(
         &self,
-        source: &str,
-        sink: &str,
-        residual: &FxHashMap<(String, String), usize>,
-    ) -> Vec<String> {
+        source: u64,
+        sink: u64,
+        residual: &FxHashMap<(u64, u64), usize>,
+    ) -> Vec<u64> {
         let mut visited = FxHashSet::default();
-        let mut parent: FxHashMap<String, String> = FxHashMap::default();
+        let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
         let mut queue = std::collections::VecDeque::new();
 
-        visited.insert(source.to_string());
-        queue.push_back(source.to_string());
+        visited.insert(source);
+        queue.push_back(source);
 
         while let Some(current) = queue.pop_front() {
             if current == sink {
                 // Reconstruct path
-                let mut path = vec![current.clone()];
+                let mut path = vec![current];
                 let mut node = current;
 
-                while let Some(p) = parent.get(&node) {
-                    path.push(p.clone());
-                    node = p.clone();
+                while let Some(&p) = parent.get(&node) {
+                    path.push(p);
+                    node = p;
                 }
 
                 path.reverse();
@@ -3935,14 +4032,14 @@ impl Graph {
             }
 
             // Explore neighbors with residual capacity > 0
-            for other_node in self.nodes.keys() {
-                let edge_key = (current.clone(), other_node.clone());
+            for &other_node in self.nodes.keys() {
+                let edge_key = (current, other_node);
                 let capacity = residual.get(&edge_key).copied().unwrap_or(0);
 
-                if capacity > 0 && !visited.contains(other_node) {
-                    visited.insert(other_node.clone());
-                    parent.insert(other_node.clone(), current.clone());
-                    queue.push_back(other_node.clone());
+                if capacity > 0 && !visited.contains(&other_node) {
+                    visited.insert(other_node);
+                    parent.insert(other_node, current);
+                    queue.push_back(other_node);
                 }
             }
         }
@@ -3954,7 +4051,7 @@ impl Graph {
     fn louvain_optimize(
         &self,
         node_to_comm: &mut Vec<usize>,
-        node_to_idx: &FxHashMap<String, usize>,
+        node_to_idx: &FxHashMap<u64, usize>,
         m: f64,
         resolution: f64,
     ) -> bool {
@@ -3963,7 +4060,7 @@ impl Graph {
         let max_passes = 10;
         let mut pass = 0;
 
-        let mut node_ids: Vec<String> = node_to_idx.keys().cloned().collect();
+        let mut node_ids: Vec<u64> = node_to_idx.keys().copied().collect();
 
         while changed && pass < max_passes {
             changed = false;
@@ -3976,8 +4073,8 @@ impl Graph {
             let mut rng = rand::rngs::StdRng::seed_from_u64(42 + pass as u64);
             node_ids.shuffle(&mut rng);
 
-            for node_id in &node_ids {
-                let node_idx = node_to_idx[node_id];
+            for &node_id in &node_ids {
+                let node_idx = node_to_idx[&node_id];
                 let current_comm = node_to_comm[node_idx];
                 let k_i = self.degree(node_id) as f64;
 
@@ -3987,9 +4084,9 @@ impl Graph {
                 // Calculate edges from this node to each community
                 let mut comm_weights: FxHashMap<usize, f64> = FxHashMap::default();
                 
-                if let Some(neighbors) = self.adjacency_list.get(node_id) {
-                    for neighbor_id in neighbors {
-                        if let Some(&neighbor_idx) = node_to_idx.get(neighbor_id) {
+                if let Some(neighbors) = self.adjacency_list.get(&node_id) {
+                    for &neighbor_id in neighbors {
+                        if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
                             let neighbor_comm = node_to_comm[neighbor_idx];
                             if neighbor_id != node_id { // Don't count self-loops for community detection
                                 *comm_weights.entry(neighbor_comm).or_insert(0.0) += 1.0;
@@ -4000,7 +4097,7 @@ impl Graph {
 
                 // Calculate sum of degrees for each community (BEFORE removing current node)
                 let mut comm_degree_sum: FxHashMap<usize, f64> = FxHashMap::default();
-                for (nid, &idx) in node_to_idx {
+                for (&nid, &idx) in node_to_idx {
                     let comm = node_to_comm[idx];
                     let deg = self.degree(nid) as f64;
                     *comm_degree_sum.entry(comm).or_insert(0.0) += deg;
@@ -4049,7 +4146,7 @@ impl Graph {
     fn louvain_compute_modularity(
         &self,
         node_to_comm: &[usize],
-        node_to_idx: &FxHashMap<String, usize>,
+        node_to_idx: &FxHashMap<u64, usize>,
         m: f64,
         resolution: f64,
     ) -> f64 {
@@ -4060,12 +4157,12 @@ impl Graph {
         let mut q = 0.0;
         let two_m = 2.0 * m;
 
-        for (node_i_id, &idx_i) in node_to_idx {
-            for (node_j_id, &idx_j) in node_to_idx {
+        for (&node_i_id, &idx_i) in node_to_idx {
+            for (&node_j_id, &idx_j) in node_to_idx {
                 if node_to_comm[idx_i] == node_to_comm[idx_j] {
                     // Check if edge exists via adjacency list
-                    let a_ij = if let Some(neighbors) = self.adjacency_list.get(node_i_id) {
-                        if neighbors.contains(node_j_id) { 1.0 } else { 0.0 }
+                    let a_ij = if let Some(neighbors) = self.adjacency_list.get(&node_i_id) {
+                        if neighbors.contains(&node_j_id) { 1.0 } else { 0.0 }
                     } else {
                         0.0
                     };
@@ -4082,28 +4179,28 @@ impl Graph {
     // ===== Walktrap Helper Methods =====
 
     /// Find connected components using BFS
-    fn find_connected_components(&self) -> FxHashMap<String, usize> {
+    fn find_connected_components(&self) -> FxHashMap<u64, usize> {
         let mut components = FxHashMap::default();
         let mut visited = FxHashSet::default();
         let mut component_id = 0;
 
-        for start_node in self.nodes.keys() {
-            if visited.contains(start_node) {
+        for &start_node in self.nodes.keys() {
+            if visited.contains(&start_node) {
                 continue;
             }
 
             // BFS from this node
-            let mut queue = vec![start_node.clone()];
-            visited.insert(start_node.clone());
-            components.insert(start_node.clone(), component_id);
+            let mut queue = vec![start_node];
+            visited.insert(start_node);
+            components.insert(start_node, component_id);
 
             while let Some(node) = queue.pop() {
                 if let Some(neighbors) = self.adjacency_list.get(&node) {
-                    for neighbor in neighbors {
-                        if !visited.contains(neighbor) {
-                            visited.insert(neighbor.clone());
-                            components.insert(neighbor.clone(), component_id);
-                            queue.push(neighbor.clone());
+                    for &neighbor in neighbors {
+                        if !visited.contains(&neighbor) {
+                            visited.insert(neighbor);
+                            components.insert(neighbor, component_id);
+                            queue.push(neighbor);
                         }
                     }
                 }
@@ -4119,21 +4216,21 @@ impl Graph {
     /// P[i][j] = 1/deg(i) if edge (i,j) exists, 0 otherwise
     fn compute_transition_matrix(
         &self,
-        node_ids: &[String],
-        node_to_idx: &FxHashMap<String, usize>,
+        node_ids: &[u64],
+        node_to_idx: &FxHashMap<u64, usize>,
     ) -> Vec<Vec<f64>> {
         let n = node_ids.len();
         let mut P = vec![vec![0.0; n]; n];
 
-        for (i, node_i) in node_ids.iter().enumerate() {
+        for (i, &node_i) in node_ids.iter().enumerate() {
             let degree = self.degree(node_i) as f64;
             if degree == 0.0 {
                 continue;
             }
 
-            if let Some(neighbors) = self.adjacency_list.get(node_i) {
-                for neighbor in neighbors {
-                    if let Some(&j) = node_to_idx.get(neighbor) {
+            if let Some(neighbors) = self.adjacency_list.get(&node_i) {
+                for &neighbor in neighbors {
+                    if let Some(&j) = node_to_idx.get(&neighbor) {
                         P[i][j] = 1.0 / degree;
                     }
                 }
@@ -4182,15 +4279,15 @@ impl Graph {
     fn compute_random_walk_distances(
         &self,
         P_t: &[Vec<f64>],
-        node_ids: &[String],
-        node_to_idx: &FxHashMap<String, usize>,
+        node_ids: &[u64],
+        node_to_idx: &FxHashMap<u64, usize>,
     ) -> Vec<Vec<f64>> {
         let n = node_ids.len();
         let mut distances = vec![vec![0.0; n]; n];
 
         // Precompute degrees
         let degrees: Vec<f64> = node_ids.iter()
-            .map(|node_id| self.degree(node_id) as f64)
+            .map(|&node_id| self.degree(node_id) as f64)
             .collect();
 
         for i in 0..n {
@@ -4312,8 +4409,8 @@ impl Graph {
     fn find_best_partition(
         &self,
         dendrogram: &[(usize, usize, f64)],
-        node_ids: &[String],
-        node_to_idx: &FxHashMap<String, usize>,
+        node_ids: &[u64],
+        node_to_idx: &FxHashMap<u64, usize>,
     ) -> Vec<usize> {
         let n = node_ids.len();
         
@@ -4414,7 +4511,7 @@ impl Graph {
     }
 
     /// Compute modularity for a given partition
-    fn compute_modularity_from_partition(&self, node_ids: &[String], partition: &[usize]) -> f64 {
+    fn compute_modularity_from_partition(&self, node_ids: &[u64], partition: &[usize]) -> f64 {
         let m = self.num_edges() as f64;
         if m == 0.0 {
             return 0.0;
@@ -4422,11 +4519,11 @@ impl Graph {
 
         let mut Q = 0.0;
 
-        for (i, node_i) in node_ids.iter().enumerate() {
-            for (j, node_j) in node_ids.iter().enumerate() {
+        for (i, &node_i) in node_ids.iter().enumerate() {
+            for (j, &node_j) in node_ids.iter().enumerate() {
                 if partition[i] == partition[j] {
-                    let has_edge = self.adjacency_list.get(node_i)
-                        .map(|neighbors| neighbors.contains(node_j))
+                    let has_edge = self.adjacency_list.get(&node_i)
+                        .map(|neighbors| neighbors.contains(&node_j))
                         .unwrap_or(false);
                     
                     let A_ij = if has_edge { 1.0 } else { 0.0 };

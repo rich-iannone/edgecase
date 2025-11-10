@@ -16,39 +16,45 @@ from typing import Optional
 def to_igraph(graph):
     """Convert an EdgeCase Graph to an igraph graph.
     
-    This function creates an igraph graph from an EdgeCase graph, preserving:
-    - Graph directionality (directed/undirected)
-    - Node attributes
-    - Edge attributes (including weights)
-    - Node names (stored as 'name' vertex attribute)
+    Creates an igraph graph preserving directionality, node/edge attributes, and
+    weights. Node names are stored as 'name' vertex attribute since igraph uses
+    integer vertex indices internally.
     
-    Note: igraph uses integer vertex indices internally, but node names are preserved
-    as the 'name' vertex attribute for compatibility.
+    Parameters
+    ---
+    graph : Graph
+        The EdgeCase Graph object to convert.
     
-    Args:
-        graph: An EdgeCase Graph object
-    
-    Returns:
-        An igraph.Graph object
+    Returns
+    ---
+    igraph.Graph
+        An igraph.Graph object with the same structure and attributes.
         
-    Raises:
-        ImportError: If igraph is not installed
+    Raises
+    ---
+    ImportError
+        If igraph is not installed.
         
-    Examples:
-        >>> import edgecase as ec
-        >>> from edgecase.igraph_interop import to_igraph
-        >>> 
-        >>> # Create an EdgeCase graph
-        >>> G = ec.Graph(directed=True)
-        >>> G.add_node("A", color="red", value=10)
-        >>> G.add_node("B", color="blue", value=20)
-        >>> G.add_edge("A", "B", weight=1.5, label="edge1")
-        >>> 
-        >>> # Convert to igraph
-        >>> ig_graph = to_igraph(G)
-        >>> print(ig_graph.vs["name"])  # ['A', 'B']
-        >>> print(ig_graph.vs["color"])  # ['red', 'blue']
-        >>> print(ig_graph.es["weight"])  # [1.5]
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    from edgecase.igraph_interop import to_igraph
+    
+    graph = ec.Graph(directed=True)
+    graph.add_node("A", color="red", value=10)
+    graph.add_node("B", color="blue", value=20)
+    graph.add_edge("A", "B", weight=1.5, label="edge1")
+    
+    ig_graph = to_igraph(graph)
+    print(ig_graph.vs["name"])    # ['A', 'B']
+    print(ig_graph.vs["color"])   # ['red', 'blue']
+    print(ig_graph.es["weight"])  # [1.5]
+    ```
+    
+    See Also
+    --------
+    from_igraph : Convert igraph graph to EdgeCase
     """
     try:
         import igraph as ig
@@ -68,8 +74,9 @@ def to_igraph(graph):
     # Add vertices
     ig_graph.add_vertices(n_nodes)
     
-    # Set node names as vertex attribute
-    ig_graph.vs["name"] = node_ids
+    # Set node labels as vertex "name" attribute (converting IDs to labels)
+    node_labels = [graph.label_from_id(node_id) for node_id in node_ids]
+    ig_graph.vs["name"] = node_labels
     
     # Add node attributes
     # First, collect all unique attribute names
@@ -156,39 +163,50 @@ def to_igraph(graph):
 def from_igraph(ig_graph, weighted: Optional[bool] = None):
     """Convert an igraph graph to an EdgeCase Graph.
     
-    This function creates an EdgeCase graph from an igraph graph, preserving:
-    - Graph directionality (directed/undirected)
-    - Node attributes (vertex attributes)
-    - Edge attributes (including weights)
-    - Node names (from 'name' vertex attribute if present, otherwise use indices)
+    Creates an EdgeCase graph from igraph, preserving directionality, vertex/edge
+    attributes, and weights. Node names are taken from 'name' vertex attribute if
+    present, otherwise vertex indices are used.
     
-    Args:
-        ig_graph: An igraph.Graph object
-        weighted: If True, create a weighted graph. If None (default), auto-detect
-                 by checking if edges have a 'weight' attribute.
+    Parameters
+    ---
+    ig_graph : igraph.Graph
+        The igraph.Graph object to convert.
+    weighted : bool, optional
+        If `True`, create a weighted graph. If `None` (default), auto-detect
+        by checking if edges have a 'weight' attribute.
     
-    Returns:
-        An EdgeCase Graph object
+    Returns
+    ---
+    Graph
+        An EdgeCase Graph object with the same structure and attributes.
         
-    Raises:
-        ImportError: If igraph is not installed
+    Raises
+    ---
+    ImportError
+        If igraph is not installed.
         
-    Examples:
-        >>> import igraph as ig
-        >>> from edgecase.igraph_interop import from_igraph
-        >>> 
-        >>> # Create an igraph graph
-        >>> ig_graph = ig.Graph(directed=True)
-        >>> ig_graph.add_vertices(2)
-        >>> ig_graph.vs["name"] = ["A", "B"]
-        >>> ig_graph.vs["color"] = ["red", "blue"]
-        >>> ig_graph.add_edge(0, 1, weight=1.5, label="edge1")
-        >>> 
-        >>> # Convert to EdgeCase
-        >>> G = from_igraph(ig_graph)
-        >>> print(G.num_nodes())  # 2
-        >>> print(G.num_edges())  # 1
-        >>> print(G.get_node_attr("A", "color"))  # 'red'
+    Examples
+    --------
+    ```python
+    import igraph as ig
+    from edgecase.igraph_interop import from_igraph
+    
+    ig_graph = ig.Graph(directed=True)
+    ig_graph.add_vertices(2)
+    ig_graph.vs["name"] = ["A", "B"]
+    ig_graph.vs["color"] = ["red", "blue"]
+    ig_graph.add_edge(0, 1, weight=1.5, label="edge1")
+    
+    graph = from_igraph(ig_graph)
+    print(graph.num_nodes())  # 2
+    print(graph.num_edges())  # 1
+    node = graph.get_node(graph.id_from_label("A"))
+    print(node.attributes["color"])  # 'red'
+    ```
+    
+    See Also
+    --------
+    to_igraph : Convert EdgeCase Graph to igraph
     """
     try:
         import igraph  # noqa: F401

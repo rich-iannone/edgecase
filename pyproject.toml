@@ -144,7 +144,6 @@ ignore = [
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401", "E402"]
 "tests/*" = ["F401", "E402"]
-"*_simple.py" = ["F401"]  # Allow unused imports in fallback implementations
 
 [tool.black]
 line-length = 100

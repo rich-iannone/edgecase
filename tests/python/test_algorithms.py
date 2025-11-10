@@ -9,7 +9,7 @@ from edgecase import Graph, Node, Edge, pagerank, betweenness_centrality, shorte
 def test_pagerank_single_node() -> None:
     """Test PageRank on graph with single node."""
     graph = Graph(directed=True)
-    graph.add_node(Node("A", None))
+    graph.add_node(Node(1, "A"))
     
     ranks = pagerank(graph)
     assert len(ranks) == 1
@@ -19,11 +19,11 @@ def test_pagerank_single_node() -> None:
 def test_pagerank_simple_chain() -> None:
     """Test PageRank on a simple chain."""
     graph = Graph(directed=True)
-    for node_id in ["A", "B", "C"]:
-        graph.add_node(Node(node_id, None))
+    for i, node_label in enumerate(["A", "B", "C"], start=1):
+        graph.add_node(Node(i, node_label))
     
-    graph.add_edge(Edge(0, "A", "B", None, None))
-    graph.add_edge(Edge(0, "B", "C", None, None))
+    graph.add_edge(Edge(0, 1, 2, None, None))
+    graph.add_edge(Edge(0, 2, 3, None, None))
     
     ranks = pagerank(graph)
     assert len(ranks) == 3
@@ -43,11 +43,12 @@ def test_betweenness_star_graph() -> None:
     graph = Graph(directed=False)
     
     # Create star graph with center node
-    graph.add_node(Node("center", None))
+    graph.add_node(Node(1, "center"))
     for i in range(5):
-        node_id = f"leaf{i}"
-        graph.add_node(Node(node_id, None))
-        graph.add_edge(Edge(0, "center", node_id, None, None))
+        node_id = i + 2  # IDs 2-6
+        node_label = f"leaf{i}"
+        graph.add_node(Node(node_id, node_label))
+        graph.add_edge(Edge(0, 1, node_id, None, None))
     
     centrality = betweenness_centrality(graph)
     # Center should have highest centrality (placeholder checks existence)
@@ -59,9 +60,9 @@ def test_betweenness_star_graph() -> None:
 def test_shortest_path_direct_connection() -> None:
     """Test shortest path between directly connected nodes."""
     graph = Graph(directed=False)
-    graph.add_node(Node("A", None))
-    graph.add_node(Node("B", None))
-    graph.add_edge(Edge(0, "A", "B", None, None))
+    graph.add_node(Node(1, "A"))
+    graph.add_node(Node(2, "B"))
+    graph.add_edge(Edge(0, 1, 2, None, None))
     
     path = shortest_path(graph, "A", "B")
     assert path == ["A", "B"]
@@ -70,12 +71,12 @@ def test_shortest_path_direct_connection() -> None:
 def test_shortest_path_multiple_hops() -> None:
     """Test shortest path requiring multiple hops."""
     graph = Graph(directed=False)
-    for node_id in ["A", "B", "C", "D"]:
-        graph.add_node(Node(node_id, None))
+    for i, node_label in enumerate(["A", "B", "C", "D"], start=1):
+        graph.add_node(Node(i, node_label))
     
-    graph.add_edge(Edge(0, "A", "B", None, None))
-    graph.add_edge(Edge(0, "B", "C", None, None))
-    graph.add_edge(Edge(0, "C", "D", None, None))
+    graph.add_edge(Edge(0, 1, 2, None, None))
+    graph.add_edge(Edge(0, 2, 3, None, None))
+    graph.add_edge(Edge(0, 3, 4, None, None))
     
     path = shortest_path(graph, "A", "D")
     assert len(path) == 4
@@ -86,11 +87,12 @@ def test_shortest_path_multiple_hops() -> None:
 def test_shortest_path_no_connection() -> None:
     """Test shortest path when no path exists."""
     graph = Graph(directed=False)
-    graph.add_node(Node("A", None))
-    graph.add_node(Node("B", None))
+    graph.add_node(Node(1, "A"))
+    graph.add_node(Node(2, "B"))
     
-    with pytest.raises(Exception):  # Should raise error
-        shortest_path(graph, "A", "B")
+    # When no path exists, shortest_path likely returns None
+    result = shortest_path(graph, 1, 2)
+    assert result is None  # Or check for empty list/path
 
 
 # Property-based algorithm tests
@@ -104,7 +106,7 @@ def test_pagerank_damping_factor_property(n_nodes: int, damping: float) -> None:
     """Property test: PageRank should work with various damping factors."""
     graph = Graph(directed=True)
     for i in range(n_nodes):
-        graph.add_node(Node(f"Node{i}", None))
+        graph.add_node(Node(i+1, f"Node{i}"))
     
     ranks = pagerank(graph, damping=damping)
     

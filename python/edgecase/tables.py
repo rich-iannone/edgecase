@@ -3,11 +3,7 @@
 from typing import Optional, Dict, Any, List
 import polars as pl
 
-# Import with fallback
-try:
-    from edgecase._core import Graph
-except ImportError:
-    from edgecase._core_simple import Graph
+from edgecase import Graph
 
 
 def tbl_network_summary(

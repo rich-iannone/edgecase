@@ -9,8 +9,8 @@ use rustc_hash::FxHashMap;
 /// Brandes, U. (2001). A faster algorithm for betweenness centrality.
 /// Journal of Mathematical Sociology, 25(2), 163-177.
 #[pyfunction]
-pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<String, f64>> {
-    use std::collections::{VecDeque, HashSet};
+pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
+    use std::collections::VecDeque;
     
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
@@ -20,77 +20,77 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<String, f64>>
     }
     
     // Initialize betweenness centrality for all nodes
-    let mut betweenness: FxHashMap<String, f64> = FxHashMap::default();
-    for node_id in &node_ids {
-        betweenness.insert(node_id.clone(), 0.0);
+    let mut betweenness: FxHashMap<u64, f64> = FxHashMap::default();
+    for &node_id in &node_ids {
+        betweenness.insert(node_id, 0.0);
     }
     
     // For each node as source
-    for source in &node_ids {
+    for &source in &node_ids {
         // Stack to store nodes in order of non-increasing distance from source
-        let mut stack: Vec<String> = Vec::new();
+        let mut stack: Vec<u64> = Vec::new();
         
         // Predecessors on shortest paths from source
-        let mut predecessors: FxHashMap<String, Vec<String>> = FxHashMap::default();
-        for node_id in &node_ids {
-            predecessors.insert(node_id.clone(), Vec::new());
+        let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+        for &node_id in &node_ids {
+            predecessors.insert(node_id, Vec::new());
         }
         
         // Number of shortest paths from source to each node
-        let mut sigma: FxHashMap<String, f64> = FxHashMap::default();
-        for node_id in &node_ids {
-            sigma.insert(node_id.clone(), 0.0);
+        let mut sigma: FxHashMap<u64, f64> = FxHashMap::default();
+        for &node_id in &node_ids {
+            sigma.insert(node_id, 0.0);
         }
-        sigma.insert(source.clone(), 1.0);
+        sigma.insert(source, 1.0);
         
         // Distance from source
-        let mut distance: FxHashMap<String, i32> = FxHashMap::default();
-        for node_id in &node_ids {
-            distance.insert(node_id.clone(), -1);
+        let mut distance: FxHashMap<u64, i32> = FxHashMap::default();
+        for &node_id in &node_ids {
+            distance.insert(node_id, -1);
         }
-        distance.insert(source.clone(), 0);
+        distance.insert(source, 0);
         
         // BFS to find shortest paths
-        let mut queue: VecDeque<String> = VecDeque::new();
-        queue.push_back(source.clone());
+        let mut queue: VecDeque<u64> = VecDeque::new();
+        queue.push_back(source);
         
         while let Some(v) = queue.pop_front() {
-            stack.push(v.clone());
+            stack.push(v);
             
             // Get neighbors of v
-            if let Ok(neighbors) = graph.neighbors(&v) {
+            if let Ok(neighbors) = graph.neighbors(v) {
                 for w in neighbors {
                     // First time we see w?
                     if distance[&w] < 0 {
-                        queue.push_back(w.clone());
-                        distance.insert(w.clone(), distance[&v] + 1);
+                        queue.push_back(w);
+                        distance.insert(w, distance[&v] + 1);
                     }
                     
                     // Shortest path to w via v?
                     if distance[&w] == distance[&v] + 1 {
                         let sigma_w = sigma[&w] + sigma[&v];
-                        sigma.insert(w.clone(), sigma_w);
-                        predecessors.get_mut(&w).unwrap().push(v.clone());
+                        sigma.insert(w, sigma_w);
+                        predecessors.get_mut(&w).unwrap().push(v);
                     }
                 }
             }
         }
         
         // Accumulation: back-propagation of dependencies
-        let mut delta: FxHashMap<String, f64> = FxHashMap::default();
-        for node_id in &node_ids {
-            delta.insert(node_id.clone(), 0.0);
+        let mut delta: FxHashMap<u64, f64> = FxHashMap::default();
+        for &node_id in &node_ids {
+            delta.insert(node_id, 0.0);
         }
         
         // S returns vertices in order of non-increasing distance from source
         while let Some(w) = stack.pop() {
-            for v in &predecessors[&w] {
-                let contribution = (sigma[v] / sigma[&w]) * (1.0 + delta[&w]);
-                let delta_v = delta[v] + contribution;
-                delta.insert(v.clone(), delta_v);
+            for &v in &predecessors[&w] {
+                let contribution = (sigma[&v] / sigma[&w]) * (1.0 + delta[&w]);
+                let delta_v = delta[&v] + contribution;
+                delta.insert(v, delta_v);
             }
             
-            if w != *source {
+            if w != source {
                 let betweenness_w = betweenness[&w] + delta[&w];
                 betweenness.insert(w, betweenness_w);
             }
@@ -132,30 +132,30 @@ pub fn pagerank(
     damping: f64,
     max_iter: usize,
     tol: f64,
-) -> PyResult<FxHashMap<String, f64>> {
+) -> PyResult<FxHashMap<u64, f64>> {
     let n = graph.num_nodes();
     if n == 0 {
         return Ok(FxHashMap::default());
     }
     
-    let node_ids: Vec<String> = graph.get_node_ids();
+    let node_ids: Vec<u64> = graph.get_node_ids();
     let mut ranks = FxHashMap::default();
     let initial_rank = 1.0 / n as f64;
     
     // Initialize all ranks
-    for node_id in &node_ids {
-        ranks.insert(node_id.clone(), initial_rank);
+    for &node_id in &node_ids {
+        ranks.insert(node_id, initial_rank);
     }
     
     // Use the adjacency list to get out-degree (number of neighbors each node points to)
     // For incoming edges, we need to traverse all nodes and see who points to each node
-    let mut out_degree: FxHashMap<String, usize> = FxHashMap::default();
+    let mut out_degree: FxHashMap<u64, usize> = FxHashMap::default();
     
-    for node_id in &node_ids {
+    for &node_id in &node_ids {
         if let Ok(neighbors) = graph.neighbors(node_id) {
-            out_degree.insert(node_id.clone(), neighbors.len());
+            out_degree.insert(node_id, neighbors.len());
         } else {
-            out_degree.insert(node_id.clone(), 0);
+            out_degree.insert(node_id, 0);
         }
     }
     
@@ -164,16 +164,16 @@ pub fn pagerank(
         let mut new_ranks = FxHashMap::default();
         let mut converged = true;
         
-        for node_id in &node_ids {
+        for &node_id in &node_ids {
             let mut rank_sum = 0.0;
             
             // Sum contributions from all nodes that have node_id as a neighbor
-            for other_node in &node_ids {
+            for &other_node in &node_ids {
                 if let Ok(neighbors) = graph.neighbors(other_node) {
-                    if neighbors.contains(node_id) {
+                    if neighbors.contains(&node_id) {
                         // other_node points to node_id
-                        if let Some(other_rank) = ranks.get(other_node) {
-                            if let Some(&out_deg) = out_degree.get(other_node) {
+                        if let Some(other_rank) = ranks.get(&other_node) {
+                            if let Some(&out_deg) = out_degree.get(&other_node) {
                                 if out_deg > 0 {
                                     rank_sum += other_rank / out_deg as f64;
                                 }
@@ -184,9 +184,9 @@ pub fn pagerank(
             }
             
             let new_rank = (1.0 - damping) / n as f64 + damping * rank_sum;
-            new_ranks.insert(node_id.clone(), new_rank);
+            new_ranks.insert(node_id, new_rank);
             
-            if let Some(old_rank) = ranks.get(node_id) {
+            if let Some(old_rank) = ranks.get(&node_id) {
                 if (new_rank - old_rank).abs() > tol {
                     converged = false;
                 }

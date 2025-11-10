@@ -7,10 +7,10 @@ use rustc_hash::FxHashSet;
 /// Find all cycles in the graph
 #[pyfunction]
 #[pyo3(signature = (_graph, _min_amount=None))]
-pub fn find_cycles(_graph: &Graph, _min_amount: Option<f64>) -> PyResult<Vec<Vec<String>>> {
+pub fn find_cycles(_graph: &Graph, _min_amount: Option<f64>) -> PyResult<Vec<Vec<u64>>> {
     // Placeholder implementation
     // TODO: Implement Johnson's algorithm for finding all cycles
-    let cycles: Vec<Vec<String>> = Vec::new();
+    let cycles: Vec<Vec<u64>> = Vec::new();
     Ok(cycles)
 }
 
@@ -21,7 +21,7 @@ pub fn has_cycle(graph: &Graph) -> bool {
     
     for node_id in graph.get_node_ids() {
         if !visited.contains(&node_id)
-            && has_cycle_util(graph, &node_id, &mut visited, &mut rec_stack) {
+            && has_cycle_util(graph, node_id, &mut visited, &mut rec_stack) {
                 return true;
             }
     }
@@ -31,17 +31,17 @@ pub fn has_cycle(graph: &Graph) -> bool {
 
 fn has_cycle_util(
     graph: &Graph,
-    node: &str,
-    visited: &mut FxHashSet<String>,
-    rec_stack: &mut FxHashSet<String>,
+    node: u64,
+    visited: &mut FxHashSet<u64>,
+    rec_stack: &mut FxHashSet<u64>,
 ) -> bool {
-    visited.insert(node.to_string());
-    rec_stack.insert(node.to_string());
+    visited.insert(node);
+    rec_stack.insert(node);
     
     if let Ok(neighbors) = graph.neighbors(node) {
         for neighbor in neighbors {
             if !visited.contains(&neighbor) {
-                if has_cycle_util(graph, &neighbor, visited, rec_stack) {
+                if has_cycle_util(graph, neighbor, visited, rec_stack) {
                     return true;
                 }
             } else if rec_stack.contains(&neighbor) {
@@ -50,7 +50,7 @@ fn has_cycle_util(
         }
     }
     
-    rec_stack.remove(node);
+    rec_stack.remove(&node);
     false
 }
 

@@ -42,13 +42,14 @@ class TestMultiEdgeGraphs:
         edge_ids = g.edge_ids()
         assert edge_ids == [1, 2, 3, 4]
         
-        # Check edges returns (id, source, target)
+        # Check edges returns (id, source_id, target_id) - IDs not labels
         edges = g.edges()
         assert len(edges) == 4
-        assert edges[0] == (1, 'A', 'B')
-        assert edges[1] == (2, 'A', 'B')
-        assert edges[2] == (3, 'B', 'C')
-        assert edges[3] == (4, 'A', 'B')
+        # Nodes get auto-assigned integer IDs (A=1, B=2, C=3)
+        assert edges[0] == (1, 1, 2)  # edge 1: A->B
+        assert edges[1] == (2, 1, 2)  # edge 2: A->B
+        assert edges[2] == (3, 2, 3)  # edge 3: B->C
+        assert edges[3] == (4, 1, 2)  # edge 4: A->B
     
     def test_delete_edge_by_id(self):
         """Test deleting specific edges by ID."""
@@ -85,13 +86,14 @@ class TestMultiEdgeGraphs:
         
         edge_ids = g.edge_ids()
         
-        # Get first edge
+        # Get first edge - returns (source_id, target_id)
         edge1 = g.get_edge_by_id(edge_ids[0])
-        assert edge1 == ('Alice', 'Bob')
+        # Alice=1, Bob=2, Charlie=3
+        assert edge1 == (1, 2)
         
         # Get second edge
         edge2 = g.get_edge_by_id(edge_ids[1])
-        assert edge2 == ('Bob', 'Charlie')
+        assert edge2 == (2, 3)
         
         # Non-existent ID
         assert g.get_edge_by_id(999) is None
@@ -137,7 +139,7 @@ class TestMultiEdgeGraphs:
             'rel': ['follows', 'follows', 'likes']
         })
         
-        g = ec.create_graph(nodes_df=nodes, edges_df=edges, directed=True)
+        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
         
         # Check edge IDs were preserved
         edge_ids = g.edge_ids()
@@ -156,7 +158,7 @@ class TestMultiEdgeGraphs:
             'to': ['B', 'C', 'B'],
         })
         
-        g = ec.create_graph(nodes_df=nodes, edges_df=edges)
+        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
         
         # Edge IDs should be auto-assigned starting from 1
         edge_ids = g.edge_ids()

@@ -3,13 +3,7 @@
 from typing import Optional, List, Dict, Any
 import polars as pl
 
-# Import with fallback
-try:
-    from edgecase._core import Graph, find_cycles
-except ImportError:
-    from edgecase._core_simple import Graph
-    find_cycles = None
-
+from edgecase import Graph, find_cycles
 from edgecase.polars_integration import from_polars
 
 
@@ -47,22 +41,23 @@ def transaction_network(
     Examples
     --------
     >>> import polars as pl
-    >>> import edgecase as ec
+    >>> from edgecase import transaction_network
+    >>> from edgecase.algorithms import find_cycles, detect_communities
     >>> 
     >>> # Load transaction data
     >>> transactions = pl.scan_parquet("transactions/*.parquet")
     >>> 
     >>> # Create network
-    >>> G = ec.transaction_network(
+    >>> G = transaction_network(
     ...     transactions,
     ...     min_amount=10000
     ... )
     >>> 
     >>> # Find suspicious cycles (money laundering rings)
-    >>> cycles = ec.find_cycles(G, min_amount=10000)
+    >>> cycles = find_cycles(G, min_amount=10000)
     >>> 
     >>> # Detect communities (fraud rings)
-    >>> communities = ec.detect_communities(G)
+    >>> communities = detect_communities(G)
     """
     # Filter by amount
     if min_amount > 0:
@@ -113,10 +108,10 @@ def find_suspicious_patterns(
         
     Examples
     --------
-    >>> import edgecase as ec
+    >>> from edgecase import transaction_network, find_suspicious_patterns
     >>> 
-    >>> G = ec.transaction_network(transactions_df)
-    >>> suspicious = ec.find_suspicious_patterns(
+    >>> G = transaction_network(transactions_df)
+    >>> suspicious = find_suspicious_patterns(
     ...     G,
     ...     min_cycle_amount=50000,
     ...     min_community_size=10
@@ -133,7 +128,9 @@ def find_suspicious_patterns(
     }
     
     # Find cycles (potential money laundering)
-    cycles = find_cycles(graph, min_amount=min_cycle_amount)
+    # Note: find_cycles() doesn't filter by amount, so get all cycles
+    cycles = find_cycles(graph)
+    # TODO: Filter cycles by min_cycle_amount if needed
     results['cycles'] = cycles
     
     # TODO: Add community detection for fraud rings

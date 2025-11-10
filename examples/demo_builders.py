@@ -15,7 +15,7 @@ def demo_path_graph():
     print("=" * 60)
     
     g = ec.Graph(directed=True)
-    g = ec.add_path(g, n=5, type="step", label=True, rel="next")
+    g = g.add_path( n=5, type="step", label=True, rel="next")
     
     print(f"Created path graph: {g}")
     print(f"Nodes: {g.node_ids()}")
@@ -31,7 +31,7 @@ def demo_cycle_graph():
     print("=" * 60)
     
     g = ec.Graph(directed=True)
-    g = ec.add_cycle(g, n=4, type="state", rel="transitions_to")
+    g = g.add_cycle( n=4, type="state", rel="transitions_to")
     
     print(f"Created cycle graph: {g}")
     print(f"Each node has exactly 1 neighbor (directed cycle):")
@@ -47,7 +47,7 @@ def demo_star_graph():
     print("=" * 60)
     
     g = ec.Graph(directed=False)
-    g = ec.add_star(g, n=6, type="network")
+    g = g.add_star( n=6, type="network")
     
     print(f"Created star graph: {g}")
     center = g.node_ids()[0]  # First node is center
@@ -138,15 +138,15 @@ def demo_sequential_building():
     g = ec.Graph(directed=False)
     
     print("Step 1: Add a path")
-    g = ec.add_path(g, n=3)
+    g = g.add_path( n=3)
     print(f"  {g}")
     
     print("Step 2: Add a star")
-    g = ec.add_star(g, n=4)
+    g = g.add_star( n=4)
     print(f"  {g}")
     
     print("Step 3: Add a cycle")
-    g = ec.add_cycle(g, n=5)
+    g = g.add_cycle( n=5)
     print(f"  {g}")
     
     print("\nFinal combined graph has multiple disconnected components")
@@ -183,7 +183,7 @@ def demo_dataframe_creation():
     print(edges)
     print()
     
-    g = ec.create_graph(nodes_df=nodes, edges_df=edges, directed=True)
+    g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
     
     print(f"Created graph from DataFrames: {g}")
     print(f"Alice follows: {g.neighbors('Alice')}")

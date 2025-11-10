@@ -17,44 +17,53 @@ import warnings
 def to_networkx(graph, multigraph: bool = False):
     """Convert an EdgeCase Graph to a NetworkX graph.
     
-    This function creates a NetworkX graph from an EdgeCase graph, preserving:
-    - Graph directionality (directed/undirected)
-    - Node attributes
-    - Edge attributes (including weights)
-    - Multiple edges between nodes (if multigraph=True)
+    Creates a NetworkX graph preserving directionality, node/edge attributes,
+    and optionally multiple edges between nodes. Useful for validation against
+    NetworkX algorithms and leveraging the NetworkX ecosystem.
     
-    Args:
-        graph: An EdgeCase Graph object
-        multigraph: If True, create a MultiGraph/MultiDiGraph to preserve edge IDs
-                   and multiple edges. If False (default), create a Graph/DiGraph.
-                   Note: When False and multiple edges exist, only the last edge
-                   is preserved.
+    Parameters
+    ---
+    graph : Graph
+        The EdgeCase Graph object to convert.
+    multigraph : bool, default False
+        If `True`, create a MultiGraph/MultiDiGraph preserving edge IDs and
+        multiple edges. If `False`, create a Graph/DiGraph. When `False` and
+        multiple edges exist, only the last edge is preserved.
     
-    Returns:
-        A NetworkX Graph, DiGraph, MultiGraph, or MultiDiGraph object
+    Returns
+    ---
+    networkx.Graph or networkx.DiGraph or networkx.MultiGraph or networkx.MultiDiGraph
+        A NetworkX graph with the same structure and attributes.
         
-    Raises:
-        ImportError: If NetworkX is not installed
+    Raises
+    ---
+    ImportError
+        If NetworkX is not installed.
         
-    Examples:
-        >>> import edgecase as ec
-        >>> from edgecase.networkx import to_networkx
-        >>> 
-        >>> # Create an EdgeCase graph
-        >>> G = ec.Graph(directed=True)
-        >>> G.add_node("A", color="red", value=10)
-        >>> G.add_node("B", color="blue", value=20)
-        >>> G.add_edge("A", "B", weight=1.5, label="edge1")
-        >>> 
-        >>> # Convert to NetworkX
-        >>> nx_graph = to_networkx(G)
-        >>> print(nx_graph.nodes["A"])  # {'color': 'red', 'value': 10}
-        >>> print(nx_graph["A"]["B"])  # {'weight': 1.5, 'label': 'edge1'}
-        
-        >>> # For graphs with multiple edges, use multigraph=True
-        >>> G.add_edge("A", "B", weight=2.0, label="edge2")
-        >>> nx_multi = to_networkx(G, multigraph=True)
-        >>> len(nx_multi["A"]["B"])  # 2 edges
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    from edgecase.networkx import to_networkx
+    
+    graph = ec.Graph(directed=True)
+    graph.add_node("A", color="red", value=10)
+    graph.add_node("B", color="blue", value=20)
+    graph.add_edge("A", "B", weight=1.5, label="edge1")
+    
+    nx_graph = to_networkx(graph)
+    print(nx_graph.nodes["A"])  # {'color': 'red', 'value': 10}
+    print(nx_graph["A"]["B"])   # {'weight': 1.5, 'label': 'edge1'}
+    
+    # For graphs with multiple edges, use multigraph=True
+    graph.add_edge("A", "B", weight=2.0, label="edge2")
+    nx_multi = to_networkx(graph, multigraph=True)
+    print(len(nx_multi["A"]["B"]))  # 2 edges
+    ```
+    
+    See Also
+    --------
+    from_networkx : Convert NetworkX graph to EdgeCase
     """
     try:
         import networkx as nx
@@ -77,7 +86,10 @@ def to_networkx(graph, multigraph: bool = False):
         if node and node.attributes:
             # Convert PyDict to regular dict
             node_attrs = dict(node.attributes)
-        nx_graph.add_node(node_id, **node_attrs)
+        
+        # Use label as NetworkX node ID if it exists, otherwise use the numeric ID
+        nx_node_id = graph.label_from_id(node_id) or node_id
+        nx_graph.add_node(nx_node_id, **node_attrs)
     
     # Add edges with attributes
     edges = graph.edges()  # Returns list of (id, source, target) tuples
@@ -97,7 +109,10 @@ def to_networkx(graph, multigraph: bool = False):
             # Add edge ID as metadata
             edge_attrs["edgecase_edge_id"] = edge_id
             
-            nx_graph.add_edge(source, target, key=edge_id, **edge_attrs)
+            # Use labels if available, otherwise use IDs
+            nx_source = graph.label_from_id(source) or source
+            nx_target = graph.label_from_id(target) or target
+            nx_graph.add_edge(nx_source, nx_target, key=edge_id, **edge_attrs)
     else:
         # Simple Graph: warn if multiple edges exist
         edge_counts = {}
@@ -123,7 +138,10 @@ def to_networkx(graph, multigraph: bool = False):
             if edge and edge.weight is not None:
                 edge_attrs["weight"] = edge.weight
             
-            nx_graph.add_edge(source, target, **edge_attrs)
+            # Use labels if available, otherwise use IDs
+            nx_source = graph.label_from_id(source) or source
+            nx_target = graph.label_from_id(target) or target
+            nx_graph.add_edge(nx_source, nx_target, **edge_attrs)
     
     return nx_graph
 
@@ -131,45 +149,56 @@ def to_networkx(graph, multigraph: bool = False):
 def from_networkx(nx_graph, weighted: Optional[bool] = None):
     """Convert a NetworkX graph to an EdgeCase Graph.
     
-    This function creates an EdgeCase graph from a NetworkX graph, preserving:
-    - Graph directionality (directed/undirected)
-    - Node attributes
-    - Edge attributes (including weights)
-    - Multiple edges (for MultiGraph/MultiDiGraph)
+    Creates an EdgeCase graph from NetworkX, preserving directionality, node/edge
+    attributes, and multiple edges (for MultiGraph/MultiDiGraph). Auto-detects
+    weighted graphs unless explicitly specified.
     
-    Args:
-        nx_graph: A NetworkX Graph, DiGraph, MultiGraph, or MultiDiGraph object
-        weighted: If True, create a weighted graph. If None (default), auto-detect
-                 by checking if any edge has a 'weight' attribute.
+    Parameters
+    ---
+    nx_graph : networkx.Graph or networkx.DiGraph or networkx.MultiGraph or networkx.MultiDiGraph
+        The NetworkX graph to convert.
+    weighted : bool, optional
+        If `True`, create a weighted graph. If `None` (default), auto-detect
+        by checking if any edge has a 'weight' attribute.
     
-    Returns:
-        An EdgeCase Graph object
+    Returns
+    ---
+    Graph
+        An EdgeCase Graph object with the same structure and attributes.
         
-    Raises:
-        ImportError: If NetworkX is not installed
+    Raises
+    ---
+    ImportError
+        If NetworkX is not installed.
         
-    Examples:
-        >>> import networkx as nx
-        >>> from edgecase.networkx import from_networkx
-        >>> 
-        >>> # Create a NetworkX graph
-        >>> nx_graph = nx.DiGraph()
-        >>> nx_graph.add_node("A", color="red", value=10)
-        >>> nx_graph.add_node("B", color="blue", value=20)
-        >>> nx_graph.add_edge("A", "B", weight=1.5, label="edge1")
-        >>> 
-        >>> # Convert to EdgeCase
-        >>> G = from_networkx(nx_graph)
-        >>> print(G.num_nodes())  # 2
-        >>> print(G.num_edges())  # 1
-        >>> print(G.get_node_attr("A", "color"))  # 'red'
-        
-        >>> # Works with MultiGraphs too
-        >>> nx_multi = nx.MultiGraph()
-        >>> nx_multi.add_edge("X", "Y", weight=1.0)
-        >>> nx_multi.add_edge("X", "Y", weight=2.0)
-        >>> G = from_networkx(nx_multi)
-        >>> print(G.num_edges())  # 2
+    Examples
+    --------
+    ```python
+    import networkx as nx
+    from edgecase.networkx import from_networkx
+    
+    nx_graph = nx.DiGraph()
+    nx_graph.add_node("A", color="red", value=10)
+    nx_graph.add_node("B", color="blue", value=20)
+    nx_graph.add_edge("A", "B", weight=1.5, label="edge1")
+    
+    graph = from_networkx(nx_graph)
+    print(graph.num_nodes())  # 2
+    print(graph.num_edges())  # 1
+    node = graph.get_node(graph.id_from_label("A"))
+    print(node.attributes["color"])  # 'red'
+    
+    # Works with MultiGraphs too
+    nx_multi = nx.MultiGraph()
+    nx_multi.add_edge("X", "Y", weight=1.0)
+    nx_multi.add_edge("X", "Y", weight=2.0)
+    graph = from_networkx(nx_multi)
+    print(graph.num_edges())  # 2
+    ```
+    
+    See Also
+    --------
+    to_networkx : Convert EdgeCase Graph to NetworkX
     """
     try:
         import networkx as nx

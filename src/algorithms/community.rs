@@ -6,12 +6,12 @@ use rustc_hash::FxHashMap;
 
 /// Detect communities using Louvain algorithm (placeholder)
 #[pyfunction]
-pub fn detect_communities(graph: &Graph) -> PyResult<FxHashMap<String, usize>> {
+pub fn detect_communities(graph: &Graph) -> PyResult<FxHashMap<u64, usize>> {
     // Placeholder: Assign each node to its own community
     let mut communities = FxHashMap::default();
     
-    for (idx, node_id) in graph.get_node_ids().iter().enumerate() {
-        communities.insert(node_id.clone(), idx);
+    for (idx, &node_id) in graph.get_node_ids().iter().enumerate() {
+        communities.insert(node_id, idx);
     }
     
     Ok(communities)

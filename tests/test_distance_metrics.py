@@ -277,7 +277,7 @@ class TestDistanceMetricsEdgeCases:
         G.add_path_graph(4)
         
         # Add self-loop
-        from edgecase._core_rust import Edge
+        from edgecase.graph import Edge
         G._graph.add_edge(Edge(id=0, source="1", target="1", weight=None, attributes=None))
         
         # Should still compute same distances

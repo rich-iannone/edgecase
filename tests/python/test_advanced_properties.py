@@ -101,6 +101,10 @@ class TestArticulationPoints:
         """Graph with bridge has bridge endpoints as APs."""
         G = ec.Graph()
         # Create two triangles connected by a bridge
+        # Create nodes first
+        for label in ['A', 'B', 'C', 'D', 'E', 'F']:
+            G.add_node(label)
+        
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
         G.add_edge('C', 'A')
@@ -110,12 +114,16 @@ class TestArticulationPoints:
         G.add_edge('F', 'D')
         
         ap = G.get_articulation_points()
-        assert 'C' in ap
-        assert 'D' in ap
+        # get_articulation_points returns node IDs (integers)
+        # C is node 3, D is node 4
+        assert 3 in ap
+        assert 4 in ap
     
     def test_ap_directed_raises_error(self):
         """Articulation points only defined for undirected graphs."""
         G = ec.Graph(directed=True)
+        G.add_node('A')
+        G.add_node('B')
         G.add_edge('A', 'B')
         
         with pytest.raises(ValueError):
@@ -136,7 +144,8 @@ class TestPeriphery:
         G = ec.Graph()
         G.add_node('A')
         periphery = G.get_periphery()
-        assert periphery == ['A']
+        # Returns node ID (1), not label
+        assert periphery == [1]
     
     def test_periphery_path_graph(self):
         """Path graph has end nodes as periphery."""
@@ -144,8 +153,9 @@ class TestPeriphery:
         G.add_path_graph(5)
         periphery = G.get_periphery()
         assert len(periphery) == 2
-        assert '1' in periphery
-        assert '5' in periphery
+        # Path nodes are IDs 1-5, periphery is nodes 1 and 5
+        assert 1 in periphery
+        assert 5 in periphery
     
     def test_periphery_star_graph(self):
         """Star graph has leaves as periphery."""
@@ -257,6 +267,9 @@ class TestGraphRadius:
     def test_radius_disconnected_graph(self):
         """Disconnected graph has no radius."""
         G = ec.Graph()
+        # Create nodes first
+        for label in ['A', 'B', 'C', 'D']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('C', 'D')
         radius = G.get_graph_radius()
@@ -303,6 +316,9 @@ class TestGirth:
     def test_girth_complex_graph(self):
         """Graph with multiple cycles has shortest cycle as girth."""
         G = ec.Graph()
+        # Create nodes first
+        for label in ['A', 'B', 'C', 'D', 'E', 'F']:
+            G.add_node(label)
         # Create a graph with a triangle and a square
         G.add_edge('A', 'B')
         G.add_edge('B', 'C')
@@ -328,6 +344,9 @@ class TestAdhesion:
     def test_adhesion_disconnected_graph(self):
         """Disconnected graph has adhesion 0."""
         G = ec.Graph()
+        # Create nodes first
+        for label in ['A', 'B', 'C', 'D']:
+            G.add_node(label)
         G.add_edge('A', 'B')
         G.add_edge('C', 'D')
         adhesion = G.get_adhesion()
@@ -357,6 +376,8 @@ class TestAdhesion:
     def test_adhesion_directed_raises_error(self):
         """Adhesion only defined for undirected graphs."""
         G = ec.Graph(directed=True)
+        G.add_node('A')
+        G.add_node('B')
         G.add_edge('A', 'B')
         
         with pytest.raises(ValueError):
@@ -411,6 +432,8 @@ class TestCohesion:
     def test_cohesion_directed_raises_error(self):
         """Cohesion only defined for undirected graphs."""
         G = ec.Graph(directed=True)
+        G.add_node('A')
+        G.add_node('B')
         G.add_edge('A', 'B')
         
         with pytest.raises(ValueError):

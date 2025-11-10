@@ -17,6 +17,12 @@ try:
 except ImportError:
     HAS_NETWORKX = False
 
+
+def node_to_nx(graph, node_id):
+    """Convert EdgeCase node ID to NetworkX node identifier (label if exists, else ID)."""
+    return graph.label_from_id(node_id) or node_id
+
+
 pytestmark = pytest.mark.skipif(
     not HAS_NETWORKX,
     reason="NetworkX is not installed"
@@ -48,6 +54,9 @@ def create_test_graphs():
     
     # Simple directed graph
     G1 = Graph(directed=True)
+    G1.add_node("A")  # Add nodes first with labels
+    G1.add_node("B")
+    G1.add_node("C")
     G1.add_edge("A", "B", weight=1.0)
     G1.add_edge("B", "C", weight=1.0)
     G1.add_edge("C", "A", weight=1.0)
@@ -55,6 +64,10 @@ def create_test_graphs():
     
     # Simple undirected graph
     G2 = Graph(directed=False)
+    G2.add_node("A")
+    G2.add_node("B")
+    G2.add_node("C")
+    G2.add_node("D")
     G2.add_edge("A", "B", weight=1.0)
     G2.add_edge("B", "C", weight=1.0)
     G2.add_edge("C", "D", weight=1.0)
@@ -63,6 +76,11 @@ def create_test_graphs():
     
     # Star graph
     G3 = Graph(directed=False)
+    G3.add_node("center")
+    G3.add_node("A")
+    G3.add_node("B")
+    G3.add_node("C")
+    G3.add_node("D")
     G3.add_edge("center", "A", weight=1.0)
     G3.add_edge("center", "B", weight=1.0)
     G3.add_edge("center", "C", weight=1.0)
@@ -71,6 +89,10 @@ def create_test_graphs():
     
     # Weighted directed graph
     G4 = Graph(directed=True, weighted=True)
+    G4.add_node("A")
+    G4.add_node("B")
+    G4.add_node("C")
+    G4.add_node("D")
     G4.add_edge("A", "B", weight=1.0)
     G4.add_edge("A", "C", weight=2.0)
     G4.add_edge("B", "C", weight=1.0)
@@ -81,6 +103,8 @@ def create_test_graphs():
     # Complete graph K5
     G5 = Graph(directed=False)
     nodes = ["A", "B", "C", "D", "E"]
+    for node in nodes:
+        G5.add_node(node)
     for i, u in enumerate(nodes):
         for v in nodes[i+1:]:
             G5.add_edge(u, v, weight=1.0)
@@ -95,6 +119,9 @@ class TestPageRankValidation:
     def test_pagerank_simple_directed(self):
         """Compare PageRank on simple directed graph."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")
@@ -107,9 +134,11 @@ class TestPageRankValidation:
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, tol=1e-6)
         
         # Compare results (should be very close)
-        for node in G.nodes():
-            assert abs(ec_ranks[node] - nx_ranks[node]) < 0.01, \
-                f"PageRank mismatch for node {node}: EC={ec_ranks[node]}, NX={nx_ranks[node]}"
+        # Both NetworkX and EdgeCase now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            assert abs(ec_ranks[label] - nx_ranks[label]) < 0.01, \
+                f"PageRank mismatch for node {label}: EC={ec_ranks[label]}, NX={nx_ranks[label]}"
     
     @pytest.mark.parametrize("name,graph", create_test_graphs())
     def test_pagerank_various_graphs(self, name, graph):
@@ -128,13 +157,19 @@ class TestPageRankValidation:
         # Note: Some graphs like weighted_dag may show ~3% difference due to 
         # different convergence behavior - this is acceptable for most use cases
         tolerance = 0.05 if name == "weighted_dag" else 0.015
-        for node in graph.nodes():
-            assert abs(ec_ranks[node] - nx_ranks[node]) < tolerance, \
-                f"{name}: PageRank mismatch for node {node}: EC={ec_ranks[node]:.6f}, NX={nx_ranks[node]:.6f}"
+        # Both NetworkX and EdgeCase now use labels as keys
+        for node_id in graph.nodes():
+            label = graph.label_from_id(node_id)
+            assert abs(ec_ranks[label] - nx_ranks[label]) < tolerance, \
+                f"{name}: PageRank mismatch for node {label}: EC={ec_ranks[label]:.6f}, NX={nx_ranks[label]:.6f}"
     
     def test_pagerank_normalization(self):
         """Verify PageRank scores sum to 1.0."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -155,6 +190,9 @@ class TestShortestPathValidation:
     def test_shortest_path_simple(self):
         """Compare shortest path on simple graph."""
         G = Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("B", "C", weight=1.0)
         G.add_edge("A", "C", weight=3.0)
@@ -166,12 +204,19 @@ class TestShortestPathValidation:
         nx_graph = to_networkx(G)
         nx_path = nx.shortest_path(nx_graph, "A", "C", weight="weight")
         
+        # Convert EdgeCase path (IDs) to labels for comparison
+        ec_path_labels = [node_to_nx(G, node_id) for node_id in ec_path] if ec_path else None
+        
         # Both should find optimal path (A->B->C with weight 2.0, not A->C with weight 3.0)
-        assert ec_path == nx_path
+        assert ec_path_labels == nx_path
     
     def test_shortest_path_weighted(self):
         """Compare shortest path on weighted graph."""
         G = Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("B", "C", weight=2.0)
         G.add_edge("A", "D", weight=1.0)
@@ -184,8 +229,11 @@ class TestShortestPathValidation:
         nx_graph = to_networkx(G)
         nx_path = nx.shortest_path(nx_graph, "A", "C", weight="weight")
         
+        # Convert EdgeCase path to labels
+        ec_path_labels = [node_to_nx(G, node_id) for node_id in ec_path] if ec_path else None
+        
         # Both should find the same path
-        assert ec_path == nx_path
+        assert ec_path_labels == nx_path
     
     @pytest.mark.parametrize("name,graph", create_test_graphs())
     def test_shortest_path_various_graphs(self, name, graph):
@@ -203,10 +251,12 @@ class TestShortestPathValidation:
         except:
             ec_path = None
         
-        # NetworkX shortest path
+        # NetworkX shortest path (use labels)
         nx_graph = to_networkx(graph)
+        nx_source = node_to_nx(graph, source)
+        nx_target = node_to_nx(graph, target)
         try:
-            nx_path = nx.shortest_path(nx_graph, source, target, weight="weight")
+            nx_path = nx.shortest_path(nx_graph, nx_source, nx_target, weight="weight")
         except nx.NetworkXNoPath:
             nx_path = None
         
@@ -249,6 +299,9 @@ class TestGraphPropertiesValidation:
     def test_density(self):
         """Verify graph density calculation."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")  # Triangle
@@ -264,6 +317,10 @@ class TestGraphPropertiesValidation:
     def test_degree_sequence(self):
         """Verify degree sequences match."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -273,11 +330,12 @@ class TestGraphPropertiesValidation:
         nx_graph = to_networkx(G)
         
         # Get degree for each node
-        for node in G.nodes():
-            ec_degree = G.degree(node)
-            nx_degree = nx_graph.degree[node]
+        for node_id in G.nodes():
+            ec_degree = G.degree(node_id)
+            nx_node = node_to_nx(G, node_id)
+            nx_degree = nx_graph.degree[nx_node]
             assert ec_degree == nx_degree, \
-                f"Degree mismatch for node {node}: EC={ec_degree}, NX={nx_degree}"
+                f"Degree mismatch for node {nx_node}: EC={ec_degree}, NX={nx_degree}"
 
 
 class TestConversionConsistency:
@@ -387,6 +445,10 @@ class TestNeighborsValidation:
     def test_neighbors_directed(self):
         """Verify neighbors in directed graph."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "C")
@@ -395,15 +457,22 @@ class TestNeighborsValidation:
         nx_graph = to_networkx(G)
         
         # Check neighbors for each node
-        for node in G.nodes():
-            ec_neighbors = set(G.neighbors(node))
-            nx_neighbors = set(nx_graph.neighbors(node))
-            assert ec_neighbors == nx_neighbors, \
-                f"Neighbors mismatch for {node}: EC={ec_neighbors}, NX={nx_neighbors}"
+        for node_id in G.nodes():
+            ec_neighbors = set(G.neighbors(node_id))
+            # Convert to labels for comparison
+            ec_neighbors_labels = {node_to_nx(G, n) for n in ec_neighbors}
+            nx_node = node_to_nx(G, node_id)
+            nx_neighbors = set(nx_graph.neighbors(nx_node))
+            assert ec_neighbors_labels == nx_neighbors, \
+                f"Neighbors mismatch for {nx_node}: EC={ec_neighbors_labels}, NX={nx_neighbors}"
     
     def test_neighbors_undirected(self):
         """Verify neighbors in undirected graph."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "C")
@@ -411,15 +480,21 @@ class TestNeighborsValidation:
         
         nx_graph = to_networkx(G)
         
-        for node in G.nodes():
-            ec_neighbors = set(G.neighbors(node))
-            nx_neighbors = set(nx_graph.neighbors(node))
-            assert ec_neighbors == nx_neighbors, \
-                f"Neighbors mismatch for {node}: EC={ec_neighbors}, NX={nx_neighbors}"
+        for node_id in G.nodes():
+            ec_neighbors = set(G.neighbors(node_id))
+            ec_neighbors_labels = {node_to_nx(G, n) for n in ec_neighbors}
+            nx_node = node_to_nx(G, node_id)
+            nx_neighbors = set(nx_graph.neighbors(nx_node))
+            assert ec_neighbors_labels == nx_neighbors, \
+                f"Neighbors mismatch for {nx_node}: EC={ec_neighbors_labels}, NX={nx_neighbors}"
     
     def test_in_degree_directed(self):
         """Verify in-degree in directed graph."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "C")
@@ -427,15 +502,20 @@ class TestNeighborsValidation:
         
         nx_graph = to_networkx(G)
         
-        for node in G.nodes():
-            ec_in_deg = G.in_degree(node)
-            nx_in_deg = nx_graph.in_degree(node)
+        for node_id in G.nodes():
+            ec_in_deg = G.in_degree(node_id)
+            nx_node = node_to_nx(G, node_id)
+            nx_in_deg = nx_graph.in_degree(nx_node)
             assert ec_in_deg == nx_in_deg, \
-                f"In-degree mismatch for {node}: EC={ec_in_deg}, NX={nx_in_deg}"
+                f"In-degree mismatch for {nx_node}: EC={ec_in_deg}, NX={nx_in_deg}"
     
     def test_out_degree_directed(self):
         """Verify out-degree in directed graph."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "C")
@@ -443,15 +523,19 @@ class TestNeighborsValidation:
         
         nx_graph = to_networkx(G)
         
-        for node in G.nodes():
-            ec_out_deg = G.out_degree(node)
-            nx_out_deg = nx_graph.out_degree(node)
+        for node_id in G.nodes():
+            ec_out_deg = G.out_degree(node_id)
+            nx_node = node_to_nx(G, node_id)
+            nx_out_deg = nx_graph.out_degree(nx_node)
             assert ec_out_deg == nx_out_deg, \
-                f"Out-degree mismatch for {node}: EC={ec_out_deg}, NX={nx_out_deg}"
+                f"Out-degree mismatch for {nx_node}: EC={ec_out_deg}, NX={nx_out_deg}"
     
     def test_has_edge(self):
         """Verify has_edge works correctly."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -471,6 +555,9 @@ class TestNeighborsValidation:
     def test_has_node(self):
         """Verify has_node works correctly."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -487,6 +574,11 @@ class TestNeighborsValidation:
     def test_degree_sequence_star_graph(self):
         """Verify degree sequence on star graph."""
         G = Graph(directed=False)
+        G.add_node("center")
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("center", "A")
         G.add_edge("center", "B")
         G.add_edge("center", "C")
@@ -508,11 +600,13 @@ class TestNeighborsValidation:
         """Verify neighbors match on all test graphs."""
         nx_graph = to_networkx(graph)
         
-        for node in graph.nodes():
-            ec_neighbors = set(graph.neighbors(node))
-            nx_neighbors = set(nx_graph.neighbors(node))
-            assert ec_neighbors == nx_neighbors, \
-                f"{name}: Neighbors mismatch for {node}"
+        for node_id in graph.nodes():
+            ec_neighbors = set(graph.neighbors(node_id))
+            ec_neighbors_labels = {node_to_nx(graph, n) for n in ec_neighbors}
+            nx_node = node_to_nx(graph, node_id)
+            nx_neighbors = set(nx_graph.neighbors(nx_node))
+            assert ec_neighbors_labels == nx_neighbors, \
+                f"{name}: Neighbors mismatch for {nx_node}"
 
 
 class TestBetweennessCentralityValidation:
@@ -523,6 +617,10 @@ class TestBetweennessCentralityValidation:
         from edgecase import betweenness_centrality
         
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -532,15 +630,23 @@ class TestBetweennessCentralityValidation:
         nx_graph = to_networkx(G)
         nx_bc = nx.betweenness_centrality(nx_graph)
         
-        for node in G.nodes():
-            assert abs(ec_bc[node] - nx_bc[node]) < 0.01, \
-                f"Betweenness mismatch for {node}: EC={ec_bc[node]}, NX={nx_bc[node]}"
+        # Both EdgeCase and NetworkX now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01, \
+                f"Betweenness mismatch for {nx_node}: EC={ec_bc[label]}, NX={nx_bc[nx_node]}"
     
     def test_betweenness_star_graph(self):
         """Test betweenness on star graph (center has high betweenness)."""
         from edgecase import betweenness_centrality
         
         G = Graph(directed=False)
+        G.add_node("center")
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("center", "A")
         G.add_edge("center", "B")
         G.add_edge("center", "C")
@@ -552,11 +658,14 @@ class TestBetweennessCentralityValidation:
         nx_bc = nx.betweenness_centrality(nx_graph)
         
         # Center should have highest betweenness
+        # Both EdgeCase and NetworkX now use labels as keys
         assert ec_bc["center"] > ec_bc["A"]
         
-        for node in G.nodes():
-            assert abs(ec_bc[node] - nx_bc[node]) < 0.01, \
-                f"Betweenness mismatch for {node}: EC={ec_bc[node]}, NX={nx_bc[node]}"
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01, \
+                f"Betweenness mismatch for {nx_node}: EC={ec_bc[label]}, NX={nx_bc[nx_node]}"
     
     def test_betweenness_complete_graph(self):
         """Test betweenness on complete graph (all equal)."""
@@ -564,6 +673,10 @@ class TestBetweennessCentralityValidation:
         
         G = Graph(directed=False)
         nodes = ["A", "B", "C", "D"]
+        # Add nodes first
+        for node in nodes:
+            G.add_node(node)
+        # Then edges
         for i, u in enumerate(nodes):
             for v in nodes[i+1:]:
                 G.add_edge(u, v)
@@ -574,10 +687,12 @@ class TestBetweennessCentralityValidation:
         nx_bc = nx.betweenness_centrality(nx_graph)
         
         # In complete graph, all nodes should have equal betweenness (0)
-        # This test passes even with placeholder implementation
-        for node in G.nodes():
-            assert abs(ec_bc[node]) < 0.01
-            assert abs(ec_bc[node] - nx_bc[node]) < 0.01
+        # Both EdgeCase and NetworkX now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            assert abs(ec_bc[label]) < 0.01
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01
 
 
 class TestComplexAlgorithmsValidation:
@@ -587,6 +702,8 @@ class TestComplexAlgorithmsValidation:
         """Test Dijkstra with multiple possible paths."""
         G = Graph(directed=False, weighted=True)
         # Create a grid-like structure
+        for node in ["A", "B", "C", "D", "E"]:
+            G.add_node(node)
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("A", "C", weight=1.0)
         G.add_edge("B", "D", weight=1.0)
@@ -606,6 +723,8 @@ class TestComplexAlgorithmsValidation:
     def test_pagerank_with_dangling_nodes(self):
         """Test PageRank with dangling nodes (no outgoing edges)."""
         G = Graph(directed=True)
+        for node in ["A", "B", "C", "D"]:
+            G.add_node(node)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")
@@ -617,9 +736,12 @@ class TestComplexAlgorithmsValidation:
         nx_graph = to_networkx(G)
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=100)
         
-        for node in G.nodes():
-            assert abs(ec_ranks[node] - nx_ranks[node]) < 0.01, \
-                f"PageRank mismatch for {node}: EC={ec_ranks[node]}, NX={nx_ranks[node]}"
+        # Both EdgeCase and NetworkX now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_ranks[label] - nx_ranks[nx_node]) < 0.01, \
+                f"PageRank mismatch for {nx_node}: EC={ec_ranks[label]}, NX={nx_ranks[nx_node]}"
         
         # Verify normalization
         assert abs(sum(ec_ranks.values()) - 1.0) < 0.001
@@ -628,9 +750,13 @@ class TestComplexAlgorithmsValidation:
         """Test shortest path with disconnected components."""
         G = Graph(directed=True)
         # Component 1
+        for node in ["A", "B", "C"]:
+            G.add_node(node)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         # Component 2 (disconnected)
+        for node in ["D", "E", "F"]:
+            G.add_node(node)
         G.add_edge("D", "E")
         G.add_edge("E", "F")
         
@@ -654,6 +780,8 @@ class TestComplexAlgorithmsValidation:
     def test_pagerank_on_cycle(self):
         """Test PageRank on simple cycle (should be uniform)."""
         G = Graph(directed=True)
+        for node in ["A", "B", "C", "D"]:
+            G.add_node(node)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -668,9 +796,12 @@ class TestComplexAlgorithmsValidation:
         ec_values = list(ec_ranks.values())
         assert max(ec_values) - min(ec_values) < 0.01, "PageRank not uniform on cycle"
         
-        for node in G.nodes():
-            assert abs(ec_ranks[node] - nx_ranks[node]) < 0.01
-            assert abs(ec_ranks[node] - 0.25) < 0.01  # Should be ~1/4 for 4 nodes
+        # Both EdgeCase and NetworkX now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_ranks[label] - nx_ranks[nx_node]) < 0.01
+            assert abs(ec_ranks[label] - 0.25) < 0.01  # Should be ~1/4 for 4 nodes
 
 
 class TestEdgeCases:
@@ -684,13 +815,17 @@ class TestEdgeCases:
         nx_graph = to_networkx(G)
         
         assert G.num_nodes() == nx_graph.number_of_nodes()
-        assert G.degree("A") == nx_graph.degree["A"]
-        assert G.degree("A") == 0
-        assert list(G.neighbors("A")) == list(nx_graph.neighbors("A"))
+        a_id = G.id_from_label("A")
+        assert G.degree(a_id) == nx_graph.degree["A"]
+        assert G.degree(a_id) == 0
+        ec_neighbors = list(G.neighbors(a_id))
+        assert ec_neighbors == list(nx_graph.neighbors("A"))
     
     def test_self_loop(self):
         """Test self-loop handling."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "A")
         G.add_edge("A", "B")
         
@@ -703,6 +838,8 @@ class TestEdgeCases:
     def test_isolated_nodes(self):
         """Test graph with isolated nodes."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
         G.add_edge("A", "B")
         G.add_node("C")  # Isolated
         G.add_node("D")  # Isolated
@@ -710,18 +847,23 @@ class TestEdgeCases:
         nx_graph = to_networkx(G)
         
         assert G.num_nodes() == nx_graph.number_of_nodes()
-        assert G.degree("C") == nx_graph.degree["C"]
-        assert G.degree("C") == 0
-        assert list(G.neighbors("C")) == []
+        c_id = G.id_from_label("C")
+        assert G.degree(c_id) == nx_graph.degree["C"]
+        assert G.degree(c_id) == 0
+        assert list(G.neighbors(c_id)) == []
     
     def test_weighted_vs_unweighted_paths(self):
         """Test that weighted and unweighted paths can differ."""
         G = Graph(directed=True, weighted=True)
+        for node in ["A", "B", "C"]:
+            G.add_node(node)
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("B", "C", weight=1.0)
         G.add_edge("A", "C", weight=1.5)  # Direct path is more expensive
         
-        ec_path = shortest_path(G, "A", "C")
+        ec_path_ids = shortest_path(G, "A", "C")
+        # Convert IDs to labels for comparison
+        ec_path = [node_to_nx(G, node_id) for node_id in ec_path_ids]
         
         nx_graph = to_networkx(G)
         nx_path = nx.shortest_path(nx_graph, "A", "C", weight="weight")
@@ -739,6 +881,10 @@ class TestConnectedComponents:
     def test_single_component(self):
         """Test graph with single connected component."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -756,9 +902,14 @@ class TestConnectedComponents:
         """Test graph with multiple connected components."""
         G = Graph(directed=False)
         # Component 1
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         # Component 2
+        G.add_node("D")
+        G.add_node("E")
         G.add_edge("D", "E")
         # Isolated node
         G.add_node("F")
@@ -775,9 +926,14 @@ class TestConnectedComponents:
         """Test connected component sizes."""
         G = Graph(directed=False)
         # Component 1: 3 nodes
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         # Component 2: 2 nodes
+        G.add_node("D")
+        G.add_node("E")
         G.add_edge("D", "E")
         # Component 3: 1 node
         G.add_node("F")
@@ -796,6 +952,11 @@ class TestGraphTraversal:
     def test_bfs_order(self):
         """Test BFS traversal order."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
+        G.add_node("E")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "D")
@@ -815,6 +976,11 @@ class TestGraphTraversal:
     def test_dfs_order(self):
         """Test DFS traversal order."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
+        G.add_node("E")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "D")
@@ -838,6 +1004,10 @@ class TestShortestPathLengths:
     def test_shortest_path_length_unweighted(self):
         """Test shortest path length in unweighted graph."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -855,6 +1025,9 @@ class TestShortestPathLengths:
     def test_shortest_path_length_weighted(self):
         """Test shortest path length in weighted graph."""
         G = Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("B", "C", weight=2.0)
         G.add_edge("A", "C", weight=5.0)
@@ -875,6 +1048,10 @@ class TestDiameter:
     def test_diameter_path_graph(self):
         """Test diameter of path graph."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -892,6 +1069,8 @@ class TestDiameter:
         """Test diameter of complete graph."""
         G = Graph(directed=False)
         nodes = ["A", "B", "C", "D"]
+        for node in nodes:
+            G.add_node(node)
         for i, u in enumerate(nodes):
             for v in nodes[i+1:]:
                 G.add_edge(u, v)
@@ -912,6 +1091,9 @@ class TestClustering:
     def test_clustering_triangle(self):
         """Test clustering on triangle graph."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")
@@ -920,15 +1102,20 @@ class TestClustering:
         
         # All nodes should have clustering coefficient 1.0
         if hasattr(G, 'clustering_coefficient'):
-            for node in G.nodes():
-                ec_cc = G.clustering_coefficient(node)
-                nx_cc = nx.clustering(nx_graph, node)
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                ec_cc = G.clustering_coefficient(node_id)
+                nx_cc = nx.clustering(nx_graph, nx_node)
                 assert abs(ec_cc - nx_cc) < 0.01
                 assert abs(ec_cc - 1.0) < 0.01
     
     def test_clustering_star(self):
         """Test clustering on star graph."""
         G = Graph(directed=False)
+        G.add_node("center")
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("center", "A")
         G.add_edge("center", "B")
         G.add_edge("center", "C")
@@ -937,14 +1124,19 @@ class TestClustering:
         
         # Center has clustering 0, spokes have clustering 0
         if hasattr(G, 'clustering_coefficient'):
-            for node in G.nodes():
-                ec_cc = G.clustering_coefficient(node)
-                nx_cc = nx.clustering(nx_graph, node)
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                ec_cc = G.clustering_coefficient(node_id)
+                nx_cc = nx.clustering(nx_graph, nx_node)
                 assert abs(ec_cc - nx_cc) < 0.01
     
     def test_average_clustering(self):
         """Test average clustering coefficient."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")
@@ -964,6 +1156,10 @@ class TestGraphDistance:
     def test_eccentricity(self):
         """Test node eccentricity."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -972,14 +1168,19 @@ class TestGraphDistance:
         
         # Eccentricity: max distance from node to any other node
         if hasattr(G, 'eccentricity'):
-            for node in G.nodes():
-                ec_ecc = G.eccentricity(node)
-                nx_ecc = nx.eccentricity(nx_graph, node)
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                ec_ecc = G.eccentricity(node_id)
+                nx_ecc = nx.eccentricity(nx_graph, nx_node)
                 assert ec_ecc == nx_ecc
     
     def test_radius(self):
         """Test graph radius."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -999,6 +1200,10 @@ class TestDegreeMetrics:
     def test_degree_centrality(self):
         """Test degree centrality."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("A", "D")
@@ -1010,12 +1215,17 @@ class TestDegreeMetrics:
             ec_dc = G.degree_centrality()
             nx_dc = nx.degree_centrality(nx_graph)
             
-            for node in G.nodes():
-                assert abs(ec_dc[node] - nx_dc[node]) < 0.01
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                assert abs(ec_dc[node_id] - nx_dc[nx_node]) < 0.01
     
     def test_average_degree(self):
         """Test average degree."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -1037,6 +1247,9 @@ class TestTriangles:
     def test_triangle_count_simple(self):
         """Test counting triangles."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")
@@ -1054,6 +1267,10 @@ class TestTriangles:
         """Test triangles per node."""
         G = Graph(directed=False)
         # Create two triangles sharing an edge
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")
@@ -1066,8 +1283,9 @@ class TestTriangles:
             ec_tri = G.triangles()
             nx_tri = nx.triangles(nx_graph)
             
-            for node in G.nodes():
-                assert ec_tri[node] == nx_tri[node]
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                assert ec_tri[node_id] == nx_tri[nx_node]
 
 
 class TestGraphIsomorphism:
@@ -1076,10 +1294,16 @@ class TestGraphIsomorphism:
     def test_same_structure_different_labels(self):
         """Test graphs with same structure but different labels."""
         G1 = Graph(directed=False)
+        G1.add_node("A")
+        G1.add_node("B")
+        G1.add_node("C")
         G1.add_edge("A", "B")
         G1.add_edge("B", "C")
         
         G2 = Graph(directed=False)
+        G2.add_node("X")
+        G2.add_node("Y")
+        G2.add_node("Z")
         G2.add_edge("X", "Y")
         G2.add_edge("Y", "Z")
         
@@ -1090,6 +1314,9 @@ class TestGraphIsomorphism:
     def test_graph_complement(self):
         """Test graph complement."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
@@ -1112,6 +1339,10 @@ class TestClosenessAndHarmonic:
     def test_closeness_centrality_path(self):
         """Test closeness centrality on path graph."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "D")
@@ -1122,12 +1353,18 @@ class TestClosenessAndHarmonic:
             ec_cc = G.closeness_centrality()
             nx_cc = nx.closeness_centrality(nx_graph)
             
-            for node in G.nodes():
-                assert abs(ec_cc[node] - nx_cc[node]) < 0.01
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                assert abs(ec_cc[node_id] - nx_cc[nx_node]) < 0.01
     
     def test_closeness_centrality_star(self):
         """Test closeness centrality on star graph."""
         G = Graph(directed=False)
+        G.add_node("center")
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("center", "A")
         G.add_edge("center", "B")
         G.add_edge("center", "C")
@@ -1140,14 +1377,21 @@ class TestClosenessAndHarmonic:
             nx_cc = nx.closeness_centrality(nx_graph)
             
             # Center should have highest closeness
-            for node in G.nodes():
-                assert abs(ec_cc[node] - nx_cc[node]) < 0.01
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                assert abs(ec_cc[node_id] - nx_cc[nx_node]) < 0.01
             
-            assert ec_cc["center"] > ec_cc["A"]
+            center_id = G.id_from_label("center")
+            a_id = G.id_from_label("A")
+            assert ec_cc[center_id] > ec_cc[a_id]
     
     def test_harmonic_centrality(self):
         """Test harmonic centrality (handles disconnected graphs better)."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("C", "D")  # Disconnected component
         
@@ -1157,8 +1401,9 @@ class TestClosenessAndHarmonic:
             ec_hc = G.harmonic_centrality()
             nx_hc = nx.harmonic_centrality(nx_graph)
             
-            for node in G.nodes():
-                assert abs(ec_hc[node] - nx_hc[node]) < 0.01
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                assert abs(ec_hc[node_id] - nx_hc[nx_node]) < 0.01
 
 
 class TestEdgeRemovalAndAddition:
@@ -1167,6 +1412,9 @@ class TestEdgeRemovalAndAddition:
     def test_edge_removal_affects_metrics(self):
         """Test that removing edges changes graph metrics correctly."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")  # Triangle
@@ -1182,6 +1430,9 @@ class TestEdgeRemovalAndAddition:
     def test_node_removal_cascade(self):
         """Test that removing nodes removes associated edges."""
         G = Graph(directed=False)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         G.add_edge("B", "C")
@@ -1199,6 +1450,9 @@ class TestEdgeRemovalAndAddition:
     def test_degree_after_edge_changes(self):
         """Test degree calculations after edge modifications."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("A", "C")
         
@@ -1215,6 +1469,9 @@ class TestWeightedMetrics:
     def test_weighted_betweenness(self):
         """Test betweenness with edge weights."""
         G = Graph(directed=False, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=1.0)
         G.add_edge("B", "C", weight=1.0)
         G.add_edge("A", "C", weight=10.0)  # Heavy edge
@@ -1226,15 +1483,20 @@ class TestWeightedMetrics:
             ec_bc = G.betweenness_centrality(weighted=True)
             nx_bc = nx.betweenness_centrality(nx_graph, weight="weight")
             
-            for node in G.nodes():
-                assert abs(ec_bc[node] - nx_bc[node]) < 0.01
+            for node_id in G.nodes():
+                nx_node = node_to_nx(G, node_id)
+                assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01
             
             # B should have non-zero betweenness
-            assert ec_bc["B"] > 0.01
+            b_id = G.id_from_label("B")
+            assert ec_bc[b_id] > 0.01
     
     def test_weighted_pagerank(self):
         """Test PageRank with edge weights."""
         G = Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=2.0)
         G.add_edge("B", "C", weight=1.0)
         G.add_edge("C", "A", weight=3.0)
@@ -1244,12 +1506,18 @@ class TestWeightedMetrics:
         ec_pr = pagerank(G, damping=0.85, max_iter=100)
         nx_pr = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, weight="weight")
         
-        for node in G.nodes():
-            assert abs(ec_pr[node] - nx_pr[node]) < 0.001
+        # Both EdgeCase and NetworkX now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.001
     
     def test_weighted_degree_strength(self):
         """Test weighted degree (strength) calculation."""
         G = Graph(directed=False, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=2.0)
         G.add_edge("A", "C", weight=3.0)
         G.add_edge("B", "C", weight=1.5)
@@ -1270,6 +1538,10 @@ class TestDirectedGraphSpecifics:
     def test_reciprocity(self):
         """Test graph reciprocity (fraction of bidirectional edges)."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("B", "A")  # Reciprocal
         G.add_edge("C", "D")  # Non-reciprocal
@@ -1285,10 +1557,15 @@ class TestDirectedGraphSpecifics:
         """Test strongly connected components."""
         G = Graph(directed=True)
         # SCC 1
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")
         # SCC 2
+        G.add_node("D")
+        G.add_node("E")
         G.add_edge("D", "E")
         G.add_edge("E", "D")
         # Connection between SCCs
@@ -1304,6 +1581,10 @@ class TestDirectedGraphSpecifics:
     def test_weakly_connected_components(self):
         """Test weakly connected components."""
         G = Graph(directed=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
         G.add_edge("A", "B")
         G.add_edge("C", "D")
         
@@ -1322,6 +1603,9 @@ class TestNumericalStability:
     def test_pagerank_tiny_weights(self):
         """Test PageRank with very small edge weights."""
         G = Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=1e-10)
         G.add_edge("B", "C", weight=1e-10)
         G.add_edge("C", "A", weight=1e-10)
@@ -1334,12 +1618,18 @@ class TestNumericalStability:
         # Should still sum to 1.0
         assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
         
-        for node in G.nodes():
-            assert abs(ec_pr[node] - nx_pr[node]) < 0.01
+        # Both EdgeCase and NetworkX now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.01
     
     def test_pagerank_huge_weights(self):
         """Test PageRank with very large edge weights."""
         G = Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=1e6)
         G.add_edge("B", "C", weight=1e6)
         G.add_edge("C", "A", weight=1e6)
@@ -1352,12 +1642,18 @@ class TestNumericalStability:
         # Should still sum to 1.0
         assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
         
-        for node in G.nodes():
-            assert abs(ec_pr[node] - nx_pr[node]) < 0.01
+        # Both EdgeCase and NetworkX now use labels as keys
+        for node_id in G.nodes():
+            label = G.label_from_id(node_id)
+            nx_node = node_to_nx(G, node_id)
+            assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.01
     
     def test_shortest_path_negative_detection(self):
         """Test that negative weights are handled correctly."""
         G = Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
         G.add_edge("A", "B", weight=-1.0)
         G.add_edge("B", "C", weight=2.0)
         
@@ -1369,6 +1665,12 @@ class TestNumericalStability:
     def test_betweenness_large_graph(self):
         """Test betweenness on larger graph for numerical accuracy."""
         G = Graph(directed=False)
+        
+        # Create nodes first
+        for i in range(10):
+            for j in range(10):
+                node = f"{i},{j}"
+                G.add_node(node)
         
         # Create a grid-like graph
         for i in range(10):
@@ -1386,8 +1688,9 @@ class TestNumericalStability:
             nx_bc = nx.betweenness_centrality(nx_graph)
             
             # Check a few nodes
-            for node in ["0,0", "5,5", "9,9"]:
-                assert abs(ec_bc[node] - nx_bc[node]) < 0.01
+            for label in ["0,0", "5,5", "9,9"]:
+                node_id = G.id_from_label(label)
+                assert abs(ec_bc[node_id] - nx_bc[label]) < 0.01
 
 
 class TestMultiEdgeHandling:
@@ -1418,6 +1721,12 @@ class TestMultiEdgeHandling:
         
         # Convert to simple graph (should aggregate)
         G = from_networkx(nx_multi)
+        
+        # Ensure nodes exist first
+        if not G.has_node("A"):
+            G.add_node("A")
+        if not G.has_node("B"):
+            G.add_node("B")
         
         assert G.num_edges() >= 1
         assert G.has_edge("A", "B")
@@ -1461,6 +1770,8 @@ class TestSpecialGraphTypes:
         G = Graph(directed=False)
         # Set 1: A, B, C
         # Set 2: X, Y
+        for node in ["A", "B", "C", "X", "Y"]:
+            G.add_node(node)
         G.add_edge("A", "X")
         G.add_edge("A", "Y")
         G.add_edge("B", "X")
@@ -1475,6 +1786,8 @@ class TestSpecialGraphTypes:
     def test_tree_properties(self):
         """Test tree detection and properties."""
         G = Graph(directed=False)
+        for node in ["root", "A", "B", "C", "D"]:
+            G.add_node(node)
         G.add_edge("root", "A")
         G.add_edge("root", "B")
         G.add_edge("A", "C")
@@ -1492,6 +1805,8 @@ class TestSpecialGraphTypes:
     def test_dag_properties(self):
         """Test directed acyclic graph properties."""
         G = Graph(directed=True)
+        for node in ["A", "B", "C"]:
+            G.add_node(node)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("A", "C")
@@ -1505,6 +1820,8 @@ class TestSpecialGraphTypes:
     def test_cycle_detection(self):
         """Test cycle detection."""
         G = Graph(directed=True)
+        for node in ["A", "B", "C"]:
+            G.add_node(node)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         G.add_edge("C", "A")  # Creates cycle
@@ -1523,6 +1840,10 @@ class TestPerformanceBaseline:
         """Test PageRank converges in reasonable iterations."""
         G = Graph(directed=True)
         
+        # Create nodes first
+        for i in range(100):
+            G.add_node(f"n{i}")
+        
         # Create a larger graph
         for i in range(100):
             for j in range(i+1, min(i+4, 100)):
@@ -1537,6 +1858,10 @@ class TestPerformanceBaseline:
     def test_shortest_path_exists(self):
         """Test shortest path computation doesn't hang."""
         G = Graph(directed=False)
+        
+        # Create nodes first
+        for i in range(51):
+            G.add_node(f"n{i}")
         
         # Create path graph
         for i in range(50):
