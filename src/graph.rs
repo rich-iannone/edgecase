@@ -111,6 +111,66 @@ impl Edge {
     }
 }
 
+/// Union-Find data structure with path-halving and union-by-rank
+/// Used for efficient cycle detection in Kruskal's MST algorithm
+struct UnionFind {
+    parent: FxHashMap<u64, u64>,
+    rank: FxHashMap<u64, usize>,
+}
+
+impl UnionFind {
+    fn new() -> Self {
+        UnionFind {
+            parent: FxHashMap::default(),
+            rank: FxHashMap::default(),
+        }
+    }
+
+    /// Find the root of element x with path-halving
+    fn find(&mut self, mut x: u64) -> u64 {
+        // Initialize if not seen
+        if !self.parent.contains_key(&x) {
+            self.parent.insert(x, x);
+            self.rank.insert(x, 0);
+            return x;
+        }
+
+        // Path-halving: make every node point to its grandparent
+        while self.parent[&x] != x {
+            let parent = self.parent[&x];
+            let grandparent = self.parent[&parent];
+            self.parent.insert(x, grandparent);
+            x = parent;
+        }
+        x
+    }
+
+    /// Union two sets. Returns true if they were merged (not already connected)
+    fn union(&mut self, a: u64, b: u64) -> bool {
+        let ra = self.find(a);
+        let rb = self.find(b);
+
+        if ra == rb {
+            return false; // Already in same set - would create cycle
+        }
+
+        // Union by rank
+        let rank_a = self.rank[&ra];
+        let rank_b = self.rank[&rb];
+
+        if rank_a < rank_b {
+            self.parent.insert(ra, rb);
+        } else if rank_a > rank_b {
+            self.parent.insert(rb, ra);
+        } else {
+            self.parent.insert(rb, ra);
+            self.rank.insert(ra, rank_a + 1);
+        }
+
+        true
+    }
+}
+
 /// Main graph structure
 #[pyclass]
 pub struct Graph {
@@ -4052,6 +4112,87 @@ impl Graph {
 
         Ok(result)
     }
+
+    // ========== Spanning Tree Algorithms ==========
+
+    /// Find minimum or maximum spanning tree using Kruskal's algorithm
+    /// 
+    /// Returns a vector of edge IDs that form the spanning tree.
+    /// For a graph with n nodes, the MST will have exactly n-1 edges (if connected).
+    /// 
+    /// # Arguments
+    /// * `minimum` - If true, find minimum spanning tree; if false, find maximum
+    /// * `weight_attr` - Optional attribute name for edge weights (default: uses edge.weight)
+    /// 
+    /// # Returns
+    /// Vector of edge IDs in the spanning tree, or empty vector if graph has < 2 nodes
+    /// 
+    /// # Algorithm
+    /// Time complexity: O(E log E) for sorting edges
+    /// Space complexity: O(V) for union-find structure
+    #[pyo3(signature = (minimum=true, weight_attr=None))]
+    fn kruskal_mst_edges(
+        &self,
+        py: Python,
+        minimum: bool,
+        weight_attr: Option<&str>,
+    ) -> PyResult<Vec<u64>> {
+        let num_nodes = self.nodes.len();
+        
+        if num_nodes < 2 {
+            return Ok(Vec::new());
+        }
+
+        let edges_needed = num_nodes - 1;
+
+        // Collect all edges with their weights
+        let mut weighted_edges: Vec<(f64, u64, u64, u64)> = Vec::new(); // (weight, edge_id, source, target)
+        
+        for edge in &self.edges {
+            let weight = if let Some(attr) = weight_attr {
+                // Get weight from custom attribute
+                if let Some(ref attrs) = edge.attributes {
+                    let dict = attrs.bind(py).downcast::<PyDict>()?;
+                    if let Some(val) = dict.get_item(attr)? {
+                        val.extract::<f64>().unwrap_or(1.0)
+                    } else {
+                        1.0
+                    }
+                } else {
+                    1.0
+                }
+            } else {
+                // Use edge.weight field, default to 1.0
+                edge.weight.unwrap_or(1.0)
+            };
+
+            weighted_edges.push((weight, edge.id, edge.source, edge.target));
+        }
+
+        // Sort edges by weight
+        weighted_edges.sort_by(|a, b| {
+            if minimum {
+                a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+            } else {
+                b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+            }
+        });
+
+        // Run Kruskal's algorithm with union-find
+        let mut uf = UnionFind::new();
+        let mut mst_edges = Vec::new();
+
+        for (_, edge_id, source, target) in weighted_edges {
+            if uf.union(source, target) {
+                mst_edges.push(edge_id);
+                if mst_edges.len() == edges_needed {
+                    break;
+                }
+            }
+        }
+
+        Ok(mst_edges)
+    }
 }
 
 
@@ -5022,6 +5163,12 @@ mod tests {
         assert_eq!(a_neighbors.len(), 1);
     }
 }
+
+
+
+
+
+
 
 
 

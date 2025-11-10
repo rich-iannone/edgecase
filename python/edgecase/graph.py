@@ -9148,6 +9148,193 @@ class Graph:
         
         return info
     
+    # ========== Spanning Tree Algorithms ==========
+    
+    def minimum_spanning_tree(
+        self,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[str]":
+        """Find the minimum spanning tree using Kruskal's algorithm.
+        
+        A minimum spanning tree (MST) is a subset of edges that connects all nodes
+        with the minimum total edge weight. Uses the optimized union-find data
+        structure with path-halving for efficient cycle detection.
+        
+        Parameters
+        ----------
+        weight_attr : str, optional
+            Name of edge attribute to use for weights. If None (default), uses
+            the edge's weight field. If the attribute doesn't exist on an edge,
+            defaults to 1.0.
+        return_subgraph : bool, default True
+            If True, returns a new Graph containing only the MST edges.
+            If False, returns a list of edge IDs as strings.
+        
+        Returns
+        -------
+        Graph or list[str]
+            Either a new Graph with MST edges or a list of edge ID strings,
+            depending on `return_subgraph` parameter.
+        
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+        
+        g = Graph(weighted=True)
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_node("D")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=2.0)
+        g.add_edge("C", "D", weight=3.0)
+        g.add_edge("D", "A", weight=4.0)
+        g.add_edge("A", "C", weight=5.0)
+        
+        mst = g.minimum_spanning_tree()
+        print(mst.num_edges())  # 3
+        
+        # Calculate total weight
+        total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.edges()] 
+                    if e and e.weight is not None)
+        print(total)  # 6.0
+        ```
+        
+        Notes
+        -----
+        - Time complexity: O(E log E) for sorting edges
+        - Space complexity: O(V) for union-find structure
+        - For disconnected graphs, finds a minimum spanning forest
+        - If graph has < 2 nodes, returns empty graph or list
+        
+        References
+        ----------
+        .. [1] Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph
+               and the traveling salesman problem". Proceedings of the American
+               Mathematical Society. 7: 48–50.
+        """
+        edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
+        
+        if return_subgraph:
+            # Create a new graph with the MST edges
+            mst = Graph(directed=self.is_directed, weighted=True)
+            
+            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
+            for node_id in self.nodes():
+                label = self.label_from_id(node_id)
+                # Try to get node attributes if they exist
+                try:
+                    node_obj = self._graph.get_node(label)
+                    mst.add_node(label, attributes=node_obj.attributes if hasattr(node_obj, 'attributes') else None)
+                except Exception:
+                    mst.add_node(label)
+            
+            # Add MST edges
+            for edge_id in edge_ids:
+                edge = self.get_edge(edge_id)
+                if edge:
+                    mst.add_edge(
+                        self.label_from_id(edge.source),
+                        self.label_from_id(edge.target),
+                        weight=edge.weight,
+                        attributes=edge.attributes,
+                    )
+            
+            return mst
+        else:
+            return [str(eid) for eid in edge_ids]
+    
+    def maximum_spanning_tree(
+        self,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[str]":
+        """Find the maximum spanning tree using Kruskal's algorithm.
+        
+        A maximum spanning tree is a subset of edges that connects all nodes
+        with the maximum total edge weight. Essentially finds the MST of the
+        negated edge weights.
+        
+        Parameters
+        ----------
+        weight_attr : str, optional
+            Name of edge attribute to use for weights. If None (default), uses
+            the edge's weight field. If the attribute doesn't exist on an edge,
+            defaults to 1.0.
+        return_subgraph : bool, default True
+            If True, returns a new Graph containing only the spanning tree edges.
+            If False, returns a list of edge IDs as strings.
+        
+        Returns
+        -------
+        Graph or list[str]
+            Either a new Graph with spanning tree edges or a list of edge ID
+            strings, depending on `return_subgraph` parameter.
+        
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+        
+        g = Graph(weighted=True)
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=3.0)
+        g.add_edge("C", "A", weight=2.0)
+        
+        max_st = g.maximum_spanning_tree()
+        
+        # Calculate total weight
+        total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.edges()] 
+                    if e and e.weight is not None)
+        print(total)  # 5.0 (chooses edges with weights 3.0 and 2.0)
+        ```
+        
+        Notes
+        -----
+        - Time complexity: O(E log E) for sorting edges
+        - Space complexity: O(V) for union-find structure
+        - Useful for finding most important connections in a network
+        
+        See Also
+        --------
+        minimum_spanning_tree : Find minimum spanning tree
+        """
+        edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
+        
+        if return_subgraph:
+            # Create a new graph with the spanning tree edges
+            st = Graph(directed=self.is_directed, weighted=True)
+            
+            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
+            for node_id in self.nodes():
+                label = self.label_from_id(node_id)
+                # Try to get node attributes if they exist
+                try:
+                    node_obj = self._graph.get_node(label)
+                    st.add_node(label, attributes=node_obj.attributes if hasattr(node_obj, 'attributes') else None)
+                except Exception:
+                    st.add_node(label)
+            
+            # Add spanning tree edges
+            for edge_id in edge_ids:
+                edge = self.get_edge(edge_id)
+                if edge:
+                    st.add_edge(
+                        self.label_from_id(edge.source),
+                        self.label_from_id(edge.target),
+                        weight=edge.weight,
+                        attributes=edge.attributes,
+                    )
+            
+            return st
+        else:
+            return [str(eid) for eid in edge_ids]
+    
     def __repr__(self) -> str:
         return self._graph.__repr__()
 
