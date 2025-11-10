@@ -41,6 +41,9 @@ from edgecase.fraud import (
     find_suspicious_patterns,
     temporal_fraud_detection,
 )
+from edgecase.datasets import (
+    karate_club,
+)
 
 # NetworkX interoperability (optional)
 try:
@@ -100,4 +103,6 @@ __all__ = [
     "transaction_network",
     "find_suspicious_patterns",
     "temporal_fraud_detection",
+    # Datasets
+    "karate_club",
 ]
