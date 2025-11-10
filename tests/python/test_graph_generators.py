@@ -84,7 +84,7 @@ class TestRandomGenerators:
     def test_add_gnp_graph_basic(self):
         """Generate Erdős-Rényi G(n,p) graph."""
         G = ec.Graph()
-        G.add_gnp_graph(50, 0.1, seed=42)
+        G.add_gnp_graph(50, 0.1, seed=23)
         
         assert G.num_nodes() == 50
         # With p=0.1, expect roughly 0.1 * 50*49/2 ≈ 122 edges
@@ -104,18 +104,18 @@ class TestRandomGenerators:
         """G(n,p) respects probability bounds."""
         # p=0 should create no edges
         G_empty = ec.Graph()
-        G_empty.add_gnp_graph(20, 0.0, seed=42)
+        G_empty.add_gnp_graph(20, 0.0, seed=23)
         assert G_empty.num_edges() == 0
         
         # p=1 should create complete graph
         G_complete = ec.Graph()
-        G_complete.add_gnp_graph(10, 1.0, seed=42)
+        G_complete.add_gnp_graph(10, 1.0, seed=23)
         assert G_complete.num_edges() == 45  # 10*9/2
         
     def test_add_gnm_graph_basic(self):
         """Generate Erdős-Rényi G(n,m) graph."""
         G = ec.Graph()
-        G.add_gnm_graph(50, 100, seed=42)
+        G.add_gnm_graph(50, 100, seed=23)
         
         assert G.num_nodes() == 50
         assert G.num_edges() == 100
@@ -123,7 +123,7 @@ class TestRandomGenerators:
     def test_add_gnm_graph_directed(self):
         """G(n,m) works with directed graphs."""
         G = ec.Graph(directed=True)
-        G.add_gnm_graph(20, 50, directed=True, seed=42)
+        G.add_gnm_graph(20, 50, directed=True, seed=23)
         
         assert G.num_nodes() == 20
         assert G.num_edges() == 50
@@ -133,12 +133,12 @@ class TestRandomGenerators:
         G = ec.Graph()
         
         with pytest.raises(ValueError, match="Cannot create"):
-            G.add_gnm_graph(10, 100, seed=42)  # max is 45
+            G.add_gnm_graph(10, 100, seed=23)  # max is 45
             
     def test_add_pa_graph_basic(self):
         """Generate Barabási-Albert graph."""
         G = ec.Graph()
-        G.add_pa_graph(100, m=3, seed=42)
+        G.add_pa_graph(100, m=3, seed=23)
         
         assert G.num_nodes() == 100
         # Initial clique of m+1 nodes has m+1 choose 2 edges
@@ -160,7 +160,7 @@ class TestRandomGenerators:
     def test_add_smallworld_graph_basic(self):
         """Generate Watts-Strogatz small-world graph."""
         G = ec.Graph()
-        G.add_smallworld_graph(100, k=6, p=0.1, seed=42)
+        G.add_smallworld_graph(100, k=6, p=0.1, seed=23)
         
         assert G.num_nodes() == 100
         # Should have roughly n*k/2 edges (some may be rewired)
@@ -169,7 +169,7 @@ class TestRandomGenerators:
     def test_add_smallworld_graph_no_rewiring(self):
         """Small-world with p=0 creates ring lattice."""
         G = ec.Graph()
-        G.add_smallworld_graph(20, k=4, p=0.0, seed=42)
+        G.add_smallworld_graph(20, k=4, p=0.0, seed=23)
         
         assert G.num_nodes() == 20
         assert G.num_edges() == 40  # 20 * 4 / 2
@@ -212,7 +212,7 @@ class TestMethodChaining:
         """Chain random and deterministic generators."""
         G = ec.Graph() \
             .add_path_graph(10) \
-            .add_gnp_graph(20, 0.1, seed=42)
+            .add_gnp_graph(20, 0.1, seed=23)
         
         assert G.num_nodes() == 30
 
@@ -297,13 +297,13 @@ class TestPerformance:
         
     def test_large_gnp(self):
         """Generate large random graph."""
-        G = ec.Graph().add_gnp_graph(500, 0.01, seed=42)
+        G = ec.Graph().add_gnp_graph(500, 0.01, seed=23)
         
         assert G.num_nodes() == 500
         # Should complete quickly
         
     def test_large_pa(self):
         """Generate large scale-free graph."""
-        G = ec.Graph().add_pa_graph(1000, m=3, seed=42)
+        G = ec.Graph().add_pa_graph(1000, m=3, seed=23)
         
         assert G.num_nodes() == 1000

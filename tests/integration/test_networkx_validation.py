@@ -364,7 +364,7 @@ class TestConversionConsistency:
     def test_erdos_renyi_graph(self):
         """Test on random Erdős-Rényi graph."""
         # Generate random graph with NetworkX
-        nx_graph = nx.erdos_renyi_graph(n=20, p=0.3, seed=42)
+        nx_graph = nx.erdos_renyi_graph(n=20, p=0.3, seed=23)
         
         # Convert to EdgeCase
         G = from_networkx(nx_graph)

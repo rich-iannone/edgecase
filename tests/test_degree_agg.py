@@ -160,7 +160,7 @@ class TestDegreeAggregationWithConditions:
     def test_conditions_all_filtered(self):
         """Test when all nodes are filtered out."""
         G = ec.Graph(directed=True)
-        G.add_gnm_graph(10, 15, seed=42)
+        G.add_gnm_graph(10, 15, seed=23)
         
         # Filter that matches no nodes
         result = G.get_agg_degree_in(

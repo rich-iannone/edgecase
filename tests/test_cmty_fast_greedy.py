@@ -321,7 +321,7 @@ class TestFastGreedyPerformance:
     def test_medium_graph(self):
         """Test with medium-sized graph (100 nodes)."""
         G = ec.Graph(directed=False)
-        G.add_pa_graph(n=100, m=3, seed=42)
+        G.add_pa_graph(n=100, m=3, seed=23)
         
         communities = G.get_cmty_fast_greedy()
         
@@ -332,7 +332,7 @@ class TestFastGreedyPerformance:
     def test_sparse_graph(self):
         """Test with sparse graph."""
         G = ec.Graph(directed=False)
-        G.add_gnp_graph(n=50, p=0.05, seed=42)
+        G.add_gnp_graph(n=50, p=0.05, seed=23)
         
         communities = G.get_cmty_fast_greedy()
         
@@ -342,7 +342,7 @@ class TestFastGreedyPerformance:
     def test_dense_graph(self):
         """Test with dense graph."""
         G = ec.Graph(directed=False)
-        G.add_gnp_graph(n=30, p=0.8, seed=42)
+        G.add_gnp_graph(n=30, p=0.8, seed=23)
         
         communities = G.get_cmty_fast_greedy()
         

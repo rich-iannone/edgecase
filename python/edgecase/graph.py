@@ -6914,19 +6914,104 @@ class Graph:
         
         return sorted(list(visited))
     
-    def get_node_creation_order(self) -> list[str]:
-        """Get the creation order of all nodes.
+    def get_node_creation_order(self) -> list[int]:
+        """Get nodes in their creation order.
         
-        Returns:
-            List of node IDs in the order they were created
+        Returns node IDs ordered by when they were added to the graph. The first
+        node created appears first, the most recently created node appears last.
+        Useful for temporal analysis or recreating graph construction history.
+        
+        Returns
+        -------
+        list[int]
+            Node IDs in chronological creation order.
+        
+        Examples
+        --------
+        Track node creation order:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        
+        creation_order = graph.get_node_creation_order()
+        print(creation_order)  # [<id_A>, <id_B>, <id_C>]
+        
+        # Get labels in creation order
+        labels = [graph.get_node(nid).label for nid in creation_order]
+        print(labels)  # ['A', 'B', 'C']
+        ```
+        
+        Select recently created nodes:
+        
+        ```python
+        # Select the last 5 nodes created
+        recent = graph.get_node_creation_order()[-5:]
+        graph.select_nodes_by_id(recent)
+        ```
+        
+        See Also
+        --------
+        get_edge_creation_order : Get edges in creation order
+        select_last_nodes_created : Select most recently created nodes
+        node_ids : Get all node IDs (unordered)
         """
         return self._graph.get_node_creation_order()
     
     def get_edge_creation_order(self) -> list[int]:
-        """Get the creation order of all edges.
+        """Get edges in their creation order.
         
-        Returns:
-            List of edge IDs in the order they were created
+        Returns edge IDs ordered by when they were added to the graph. The first
+        edge created appears first, the most recently created edge appears last.
+        Useful for temporal analysis or understanding edge addition patterns.
+        
+        Returns
+        -------
+        list[int]
+            Edge IDs in chronological creation order.
+        
+        Examples
+        --------
+        Track edge creation order:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph()
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+        graph.add_edge("C", "A")
+        
+        creation_order = graph.get_edge_creation_order()
+        print(len(creation_order))  # 3
+        
+        # Get endpoints in creation order
+        for eid in creation_order:
+            source, target = graph.get_edge_by_id(eid)
+            print(f"Edge {eid}: {source} -> {target}")
+        ```
+        
+        Analyze edge addition patterns:
+        
+        ```python
+        # Select first 10 edges added
+        early_edges = graph.get_edge_creation_order()[:10]
+        graph.select_edges_by_id(early_edges)
+        
+        # Check if edges were added chronologically by weight
+        order = graph.get_edge_creation_order()
+        weights = [graph.get_edge(eid).weight for eid in order]
+        ```
+        
+        See Also
+        --------
+        get_node_creation_order : Get nodes in creation order
+        select_last_edges_created : Select most recently created edges
+        edge_ids : Get all edge IDs (unordered)
         """
         return self._graph.get_edge_creation_order()
     
@@ -6936,18 +7021,55 @@ class Graph:
         """Delete all selected nodes and their incident edges.
         
         Removes nodes in the current selection from the graph, along with
-        all edges connected to those nodes. Updates selection state.
+        all edges connected to those nodes. Updates selection state and
+        removes the selected nodes from the graph structure.
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Example:
-            >>> G = Graph()
-            >>> G.add_path( 5)
-            >>> G.select_nodes_by_id(['2', '3'])
-            >>> G.delete_nodes_ws()
-            >>> G.num_nodes()
-            3
+        Examples
+        --------
+        Delete specific nodes from a path:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph()
+        graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
+        
+        # Select and delete middle nodes
+        node_ids = [graph.id_from_label(2), graph.id_from_label(3)]
+        graph.select_nodes_by_id(node_ids)
+        graph.delete_nodes_ws()
+        
+        print(graph.num_nodes())  # 3 (nodes 0, 1, 4 remain)
+        print(graph.num_edges())  # 1 (only edge 0-1 remains)
+        ```
+        
+        Delete nodes by filtering:
+        
+        ```python
+        graph = ec.Graph()
+        graph.add_node("A", value=10)
+        graph.add_node("B", value=25)
+        graph.add_node("C", value=30)
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+        
+        # Delete high-value nodes
+        graph.select_nodes(lambda n: n.attributes.get("value", 0) > 20)
+        graph.delete_nodes_ws()
+        
+        print(graph.num_nodes())  # 1 (only A remains)
+        ```
+        
+        See Also
+        --------
+        delete_edges_ws : Delete selected edges
+        select_nodes_by_id : Select nodes for deletion
+        clear_selection : Clear selection without deleting
         """
         selected = self.get_selected_nodes()
         
@@ -7436,24 +7558,70 @@ class Graph:
     def rev_edge_dir_ws(self) -> "Graph":
         """Reverse the direction of all selected edges (directed graphs only).
         
-        For each selected edge (A → B), changes it to (B → A).
-        Preserves edge ID and attributes.
+        For each selected edge (A → B), changes it to (B → A). Edge IDs and
+        all attributes (including weights) are preserved during reversal. Only
+        the direction is changed.
         
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        Graph
+            Self for method chaining.
             
-        Raises:
-            ValueError: If graph is undirected
+        Raises
+        ------
+        ValueError
+            If the graph is undirected (undirected edges have no direction to reverse).
             
-        Example:
-            >>> G = Graph(directed=True)
-            >>> G.add_node('A')
-            >>> G.add_node('B')
-            >>> G.add_edge('A', 'B', weight=1.5)
-            >>> G.select_edges_by_id([1])
-            >>> G.rev_edge_dir_ws()
-            >>> G.get_edge_by_id(1)
-            ('B', 'A')
+        Examples
+        --------
+        Reverse specific edges:
+        
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph(directed=True)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_edge("A", "B", weight=1.5)
+        
+        # Reverse the edge direction
+        edge_ids = graph.edge_ids()
+        graph.select_edges_by_id([edge_ids[0]])
+        graph.rev_edge_dir_ws()
+        
+        # Edge now goes B → A
+        source, target = graph.get_edge_by_id(edge_ids[0])
+        print(f"{source} -> {target}")  # B -> A
+        
+        # Weight is preserved
+        edge = graph.get_edge(edge_ids[0])
+        print(edge.weight)  # 1.5
+        ```
+        
+        Reverse all edges in a subgraph:
+        
+        ```python
+        graph = ec.Graph(directed=True)
+        graph.add_path_graph(4)  # 0→1→2→3
+        
+        # Reverse middle edges
+        edge_ids = graph.edge_ids()[1:3]
+        graph.select_edges_by_id(edge_ids)
+        graph.rev_edge_dir_ws()
+        
+        # Path is now: 0→1←2←3
+        ```
+        
+        Notes
+        -----
+        - Only works on directed graphs
+        - Edge attributes and IDs remain unchanged
+        - Selection state is preserved after reversal
+        
+        See Also
+        --------
+        add_reverse_edges_ws : Add reverse edges instead of reversing in place
+        trav_reverse_edge : Traverse to reverse edges
         """
         if not self.directed:
             raise ValueError("rev_edge_dir_ws() only works on directed graphs")
