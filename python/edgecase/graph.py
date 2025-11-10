@@ -1763,17 +1763,32 @@ class Graph:
     def count_loop_edges(self) -> int:
         """Count number of self-loops in the graph.
         
-        Alias for count_selfloops().
+        Alias for count_selfloops(). A self-loop is an edge where the source
+        and target are the same node.
         
-        Returns:
-            Number of edges where source equals target
-            
-        Example:
-            >>> G = ec.Graph()
-            >>> G.add_edge('A', 'B')
-            >>> G.add_edge('A', 'A')  # Self-loop
-            >>> G.count_loop_edges()
-            1
+        Returns
+        -------
+        int
+            Number of edges where source equals target.
+        
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        
+        graph = ec.Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "A")  # Self-loop
+        
+        print(graph.count_loop_edges())  # 1
+        ```
+        
+        See Also
+        --------
+        count_selfloops : Primary method (this is an alias)
+        is_simple : Check if graph has no self-loops or multi-edges
         """
         return self._graph.count_selfloops()
     
