@@ -43,11 +43,14 @@ def test_add_single_node(empty_graph):
 
 def test_add_duplicate_node(empty_graph):
     """Adding duplicate label creates nodes with different IDs"""
-    id1 = empty_graph.add_node("A")
-    id2 = empty_graph.add_node("A")
+    empty_graph.add_node("A")
+    empty_graph.add_node("A")
     # Two nodes with same label but different IDs
     assert empty_graph.num_nodes() == 2
-    assert id1 != id2
+    # Both nodes have label "A", but different internal IDs
+    node_ids = empty_graph.node_ids()
+    assert len(node_ids) == 2
+    assert node_ids[0] != node_ids[1]
 
 
 def test_add_multiple_nodes(empty_graph):
