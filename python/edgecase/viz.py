@@ -1050,8 +1050,11 @@ def _generate_graphviz_svg_html(
     num_nodes = len(graph.nodes())
     num_edges = graph.num_edges()
 
-    # Convert edges to JSON for JavaScript
+    # Generate unique ID suffix for this graph instance to avoid conflicts in notebooks
     import json
+    import time
+
+    unique_id = str(int(time.time() * 1000000) % 1000000)  # Use microseconds modulo 1M
 
     edges_json = json.dumps(edges)
     is_directed = "true" if graph.is_directed else "false"
@@ -1062,7 +1065,7 @@ def _generate_graphviz_svg_html(
     <meta charset="UTF-8">
     <title>EdgeCase Graph - {layout_engine}</title>
     <style>
-        #edgecase-viz-wrapper {{
+        #edgecase-viz-wrapper-{unique_id} {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 50%, #80cbc4 100%);
             display: flex;
@@ -1073,7 +1076,7 @@ def _generate_graphviz_svg_html(
             margin: 0;
         }}
 
-        #edgecase-viz-wrapper #viz-container {{
+        #edgecase-viz-wrapper-{unique_id} #viz-container-{unique_id} {{
             background: linear-gradient(to bottom, #f1f8f7 0%, #e8f5f3 100%);
             border-radius: 12px;
             box-shadow: 0 4px 16px rgba(0, 77, 64, 0.15);
@@ -1082,7 +1085,7 @@ def _generate_graphviz_svg_html(
             border: 1px solid #b2dfdb;
         }}
 
-        #edgecase-viz-wrapper #info {{
+        #edgecase-viz-wrapper-{unique_id} #info-{unique_id} {{
             text-align: center;
             padding: 12px;
             color: #00695c;
@@ -1093,7 +1096,7 @@ def _generate_graphviz_svg_html(
             border-radius: 6px;
         }}
 
-        #edgecase-viz-wrapper #svg-container {{
+        #edgecase-viz-wrapper-{unique_id} #svg-container-{unique_id} {{
             width: {width}px;
             height: {height}px;
             overflow: auto;
@@ -1104,7 +1107,7 @@ def _generate_graphviz_svg_html(
         }}
 
         /* Ambient smoke effect background */
-        #edgecase-viz-wrapper #svg-container::before {{
+        #edgecase-viz-wrapper-{unique_id} #svg-container-{unique_id}::before {{
             content: '';
             position: absolute;
             top: 0;
@@ -1119,10 +1122,10 @@ def _generate_graphviz_svg_html(
                 white;
             pointer-events: none;
             z-index: 0;
-            animation: smokeMove 60s ease-in-out infinite;
+            animation: smokeMove-{unique_id} 60s ease-in-out infinite;
         }}
 
-        @keyframes smokeMove {{
+        @keyframes smokeMove-{unique_id} {{
             0%, 100% {{
                 background-position: 0% 0%, 100% 100%, 50% 100%, 100% 0%;
                 background-size: 150% 150%, 140% 140%, 160% 160%, 130% 130%;
@@ -1141,19 +1144,19 @@ def _generate_graphviz_svg_html(
             }}
         }}
 
-        #edgecase-viz-wrapper #svg-container svg {{
+        #edgecase-viz-wrapper-{unique_id} #svg-container-{unique_id} svg {{
             width: 100%;
             height: 100%;
             position: relative;
             z-index: 1;
         }}
 
-        #edgecase-viz-wrapper .controls {{
+        #edgecase-viz-wrapper-{unique_id} .controls {{
             margin-top: 16px;
             text-align: center;
         }}
 
-        #edgecase-viz-wrapper button {{
+        #edgecase-viz-wrapper-{unique_id} button {{
             background: linear-gradient(to bottom, #4db6ac 0%, #26a69a 100%);
             color: white;
             border: none;
@@ -1166,19 +1169,19 @@ def _generate_graphviz_svg_html(
             transition: all 0.2s ease;
         }}
 
-        #edgecase-viz-wrapper button:hover {{
+        #edgecase-viz-wrapper-{unique_id} button:hover {{
             background: linear-gradient(to bottom, #26a69a 0%, #00897b 100%);
             box-shadow: 0 3px 6px rgba(0, 77, 64, 0.3);
             transform: translateY(-1px);
         }}
 
-        #edgecase-viz-wrapper button:active {{
+        #edgecase-viz-wrapper-{unique_id} button:active {{
             transform: translateY(0);
             box-shadow: 0 1px 2px rgba(0, 77, 64, 0.2);
         }}
 
         /* Custom tooltip styling */
-        #edgecase-viz-wrapper #custom-tooltip {{
+        #edgecase-viz-wrapper-{unique_id} #custom-tooltip-{unique_id} {{
             position: fixed;
             background: rgba(0, 77, 64, 0.95);
             color: white;
@@ -1193,24 +1196,24 @@ def _generate_graphviz_svg_html(
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }}
 
-        #edgecase-viz-wrapper #custom-tooltip.visible {{
+        #edgecase-viz-wrapper-{unique_id} #custom-tooltip-{unique_id}.visible {{
             opacity: 1;
         }}
     </style>
 </head>
 <body>
-    <div id="edgecase-viz-wrapper">
-    <div id="viz-container">
-        <div id="info">
+    <div id="edgecase-viz-wrapper-{unique_id}">
+    <div id="viz-container-{unique_id}">
+        <div id="info-{unique_id}">
             EdgeCase Graph | {graph_type} | {num_nodes} nodes, {num_edges} edges | Layout: {layout_engine}
         </div>
-        <div id="svg-container"></div>
+        <div id="svg-container-{unique_id}"></div>
         <div class="controls">
-            <button id="zoom-in-btn">Zoom In</button>
-            <button id="reset-btn">Reset</button>
-            <button id="zoom-out-btn">Zoom Out</button>
+            <button id="zoom-in-btn-{unique_id}">Zoom In</button>
+            <button id="reset-btn-{unique_id}">Reset</button>
+            <button id="zoom-out-btn-{unique_id}">Zoom Out</button>
         </div>
-        <div id="custom-tooltip"></div>
+        <div id="custom-tooltip-{unique_id}"></div>
     </div>
 
     <script>
@@ -1244,13 +1247,13 @@ def _generate_graphviz_svg_html(
 
             if (!VizFunc) {{
                 console.error('ERROR: Viz still not available after neutralizing AMD');
-                document.getElementById('svg-container').innerHTML = '<p style="color: red;">Error: Could not load Graphviz renderer</p>';
+                document.getElementById('svg-container-{unique_id}').innerHTML = '<p style="color: red;">Error: Could not load Graphviz renderer</p>';
                 return;
             }}
 
             const dotString = `{dot_string}`;
             const layoutEngine = '{layout_engine}';
-            const svgContainer = document.getElementById('svg-container');
+            const svgContainer = document.getElementById('svg-container-{unique_id}');
 
             // Edge data for tooltips: [[source, target], ...]
             const edgesData = {edges_json};
@@ -1282,7 +1285,7 @@ def _generate_graphviz_svg_html(
                 );
 
                 const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-                filter.setAttribute('id', 'glassEffect');
+                filter.setAttribute('id', 'glassEffect-{unique_id}');
                 filter.setAttribute('x', '-50%');
                 filter.setAttribute('y', '-50%');
                 filter.setAttribute('width', '200%');
@@ -1318,7 +1321,7 @@ def _generate_graphviz_svg_html(
                         // Make node fill semi-transparent for glassy effect (start at 0.7 for 2.5x)
                         ellipse.setAttribute('fill-opacity', '0.7');
                         // Apply custom filter to node group (soft blur)
-                        nodeGroup.style.filter = 'url(#glassEffect)';
+                        nodeGroup.style.filter = 'url(#glassEffect-{unique_id})';
                         // Keep stroke opaque for definition
                         ellipse.setAttribute('stroke-opacity', '1');
                     }}
@@ -1332,7 +1335,7 @@ def _generate_graphviz_svg_html(
             let startY = 0;
 
             // Custom tooltip element
-            const customTooltip = document.getElementById('custom-tooltip');
+            const customTooltip = document.getElementById('custom-tooltip-{unique_id}');
 
             // Function to setup custom tooltips
             function setupCustomTooltips(svg) {{
@@ -1460,21 +1463,21 @@ def _generate_graphviz_svg_html(
             }}
 
             // Zoom controls - smooth button zoom centered on viewport
-            document.getElementById('zoom-in-btn').addEventListener('click', () => {{
+            document.getElementById('zoom-in-btn-{unique_id}').addEventListener('click', () => {{
                 const rect = svgContainer.getBoundingClientRect();
                 const centerX = rect.left + rect.width / 2;
                 const centerY = rect.top + rect.height / 2;
                 zoomAt(centerX, centerY, 1.2);
             }});
 
-            document.getElementById('zoom-out-btn').addEventListener('click', () => {{
+            document.getElementById('zoom-out-btn-{unique_id}').addEventListener('click', () => {{
                 const rect = svgContainer.getBoundingClientRect();
                 const centerX = rect.left + rect.width / 2;
                 const centerY = rect.top + rect.height / 2;
                 zoomAt(centerX, centerY, 1 / 1.2);
             }});
 
-            document.getElementById('reset-btn').addEventListener('click', () => {{
+            document.getElementById('reset-btn-{unique_id}').addEventListener('click', () => {{
                 scale = 1;
                 panX = 0;
                 panY = 0;
@@ -1517,7 +1520,7 @@ def _generate_graphviz_svg_html(
             }}
         }})(); // End of IIFE
     </script>
-    </div> <!-- end edgecase-viz-wrapper -->
+    </div> <!-- end edgecase-viz-wrapper-{unique_id} -->
 </body>
 </html>"""
 
