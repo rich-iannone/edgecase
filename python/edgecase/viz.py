@@ -1050,23 +1050,18 @@ def _generate_graphviz_svg_html(
     <meta charset="UTF-8">
     <title>EdgeCase Graph - {layout_engine}</title>
     <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-
-        body {{
+        #edgecase-viz-wrapper {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 50%, #80cbc4 100%);
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            min-height: {height + 100}px;
             padding: 20px;
+            margin: 0;
         }}
 
-        #viz-container {{
+        #edgecase-viz-wrapper #viz-container {{
             background: linear-gradient(to bottom, #f1f8f7 0%, #e8f5f3 100%);
             border-radius: 12px;
             box-shadow: 0 4px 16px rgba(0, 77, 64, 0.15);
@@ -1075,7 +1070,7 @@ def _generate_graphviz_svg_html(
             border: 1px solid #b2dfdb;
         }}
 
-        #info {{
+        #edgecase-viz-wrapper #info {{
             text-align: center;
             padding: 12px;
             color: #00695c;
@@ -1086,7 +1081,7 @@ def _generate_graphviz_svg_html(
             border-radius: 6px;
         }}
 
-        #svg-container {{
+        #edgecase-viz-wrapper #svg-container {{
             width: {width}px;
             height: {height}px;
             overflow: auto;
@@ -1096,17 +1091,17 @@ def _generate_graphviz_svg_html(
             box-shadow: inset 0 1px 3px rgba(0, 77, 64, 0.1);
         }}
 
-        #svg-container svg {{
+        #edgecase-viz-wrapper #svg-container svg {{
             width: 100%;
             height: 100%;
         }}
 
-        .controls {{
+        #edgecase-viz-wrapper .controls {{
             margin-top: 16px;
             text-align: center;
         }}
 
-        button {{
+        #edgecase-viz-wrapper button {{
             background: linear-gradient(to bottom, #4db6ac 0%, #26a69a 100%);
             color: white;
             border: none;
@@ -1119,19 +1114,20 @@ def _generate_graphviz_svg_html(
             transition: all 0.2s ease;
         }}
 
-        button:hover {{
+        #edgecase-viz-wrapper button:hover {{
             background: linear-gradient(to bottom, #26a69a 0%, #00897b 100%);
             box-shadow: 0 3px 6px rgba(0, 77, 64, 0.3);
             transform: translateY(-1px);
         }}
 
-        button:active {{
+        #edgecase-viz-wrapper button:active {{
             transform: translateY(0);
             box-shadow: 0 1px 2px rgba(0, 77, 64, 0.2);
         }}
     </style>
 </head>
 <body>
+    <div id="edgecase-viz-wrapper">
     <div id="viz-container">
         <div id="info">
             EdgeCase Graph | {graph_type} | {num_nodes} nodes, {num_edges} edges | Layout: {layout_engine}
@@ -1202,37 +1198,74 @@ def _generate_graphviz_svg_html(
             let startX = 0;
             let startY = 0;
 
-            function updateTransform() {{
+            // Smooth transform with transition
+            function updateTransform(smooth = false) {{
+                if (smooth) {{
+                    svgElement.style.transition = 'transform 0.3s ease-out';
+                }} else {{
+                    svgElement.style.transition = 'none';
+                }}
+                svgElement.style.transformOrigin = '0 0';
                 svgElement.style.transform = `translate(${{panX}}px, ${{panY}}px) scale(${{scale}})`;
             }}
 
-            // Zoom controls
+            // Zoom centered on a specific point
+            function zoomAt(clientX, clientY, delta) {{
+                const rect = svgContainer.getBoundingClientRect();
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+
+                // Point in SVG space before zoom
+                const svgX = (x - panX) / scale;
+                const svgY = (y - panY) / scale;
+
+                // Apply zoom
+                const newScale = scale * delta;
+
+                // Clamp zoom between 0.1x and 10x
+                if (newScale < 0.1 || newScale > 10) {{
+                    return;
+                }}
+
+                scale = newScale;
+
+                // Adjust pan to keep the point under cursor
+                panX = x - svgX * scale;
+                panY = y - svgY * scale;
+
+                updateTransform(true);
+            }}
+
+            // Zoom controls - smooth button zoom centered on viewport
             document.getElementById('zoom-in-btn').addEventListener('click', () => {{
-                scale *= 1.1;
-                updateTransform();
+                const rect = svgContainer.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                zoomAt(centerX, centerY, 1.2);
             }});
 
             document.getElementById('zoom-out-btn').addEventListener('click', () => {{
-                scale /= 1.1;
-                updateTransform();
+                const rect = svgContainer.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                zoomAt(centerX, centerY, 1 / 1.2);
             }});
 
             document.getElementById('reset-btn').addEventListener('click', () => {{
                 scale = 1;
                 panX = 0;
                 panY = 0;
-                updateTransform();
+                updateTransform(true);
             }});
 
-            // Mouse wheel zoom - very slow, gradual changes
+            // Mouse wheel zoom - centered on cursor, gentle sensitivity
             svgContainer.addEventListener('wheel', (e) => {{
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? 0.98 : 1.02;  // Only 2% increment per scroll
-                scale *= delta;
-                updateTransform();
+                const delta = e.deltaY > 0 ? 0.97 : 1.03;  // 3% per scroll (gentle zoom)
+                zoomAt(e.clientX, e.clientY, delta);
             }});
 
-            // Pan with mouse drag
+            // Pan with mouse drag - smooth dragging
             svgContainer.addEventListener('mousedown', (e) => {{
                 isDragging = true;
                 startX = e.clientX - panX;
@@ -1244,7 +1277,7 @@ def _generate_graphviz_svg_html(
                 if (isDragging) {{
                     panX = e.clientX - startX;
                     panY = e.clientY - startY;
-                    updateTransform();
+                    updateTransform(false);  // No smooth transition while dragging
                 }}
             }});
 
@@ -1261,6 +1294,7 @@ def _generate_graphviz_svg_html(
             }}
         }})(); // End of IIFE
     </script>
+    </div> <!-- end edgecase-viz-wrapper -->
 </body>
 </html>"""
 
