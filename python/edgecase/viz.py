@@ -95,6 +95,8 @@ def plot_graph(
         viz_js_code = _load_viz_js()
         html = _generate_graphviz_svg_html(
             graph,
+            nodes,
+            edges,
             dot_string,
             viz_js_code,
             layout,
@@ -1005,6 +1007,8 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
 
 def _generate_graphviz_svg_html(
     graph,
+    nodes: list[str],
+    edges: list[list[str]],
     dot_string: str,
     viz_js_code: str,
     layout_engine: str,
@@ -1043,6 +1047,12 @@ def _generate_graphviz_svg_html(
     graph_type = "Directed" if graph.is_directed else "Undirected"
     num_nodes = len(graph.nodes())
     num_edges = graph.num_edges()
+
+    # Convert edges to JSON for JavaScript
+    import json
+
+    edges_json = json.dumps(edges)
+    is_directed = "true" if graph.is_directed else "false"
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1200,6 +1210,10 @@ def _generate_graphviz_svg_html(
             const layoutEngine = '{layout_engine}';
             const svgContainer = document.getElementById('svg-container');
 
+            // Edge data for tooltips: [[source, target], ...]
+            const edgesData = {edges_json};
+            const isDirected = {is_directed};
+
             try {{
                 // Generate SVG with Graphviz
                 const svg = VizFunc(dotString, {{
@@ -1251,17 +1265,43 @@ def _generate_graphviz_svg_html(
 
                 // Setup custom tooltips for edges
                 const edges = svg.querySelectorAll('g.edge');
-                edges.forEach(edge => {{
-                    // Try to get edge info from the id attribute or text
-                    const edgeId = edge.getAttribute('id') || '';
-                    // Edge IDs are typically like "edge1" or contain source-target info
-                    const textElement = edge.querySelector('text');
-                    let edgeLabel = 'Edge';
+                edges.forEach((edge, index) => {{
+                    // Get edge data (source -> target)
+                    let source = '';
+                    let target = '';
+                    let edgeId = index;  // Use index as edge ID
 
-                    if (textElement) {{
-                        edgeLabel = `Edge: ${{textElement.textContent.trim()}}`;
-                    }} else if (edgeId) {{
-                        edgeLabel = `Edge: ${{edgeId}}`;
+                    if (index < edgesData.length) {{
+                        source = edgesData[index][0];
+                        target = edgesData[index][1];
+                    }}
+
+                    // Format: Edge: <edge_id> (<source> → <target>) or (<source> — <target>)
+                    // Use → (U+2192) for directed, — (U+2014 em dash) for undirected
+                    const separator = isDirected ? '→' : '—';
+                    const edgeLabel = `Edge: ${{edgeId}} (${{source}} ${{separator}} ${{target}})`;
+
+                    // Create a wider invisible hit area for easier hovering
+                    const visiblePath = edge.querySelector('path');
+                    if (visiblePath) {{
+                        const hitArea = visiblePath.cloneNode(true);
+                        hitArea.setAttribute('stroke', 'transparent');
+                        hitArea.setAttribute('stroke-width', '12');  // Much wider hit area
+                        hitArea.setAttribute('fill', 'none');
+                        hitArea.setAttribute('pointer-events', 'stroke');
+                        // Insert the hit area before the visible path
+                        visiblePath.parentNode.insertBefore(hitArea, visiblePath);
+
+                        // Add hover effect to visible path
+                        hitArea.addEventListener('mouseenter', () => {{
+                            visiblePath.style.strokeWidth = '2';
+                            visiblePath.style.stroke = '#00897b';  // Teal highlight
+                        }});
+
+                        hitArea.addEventListener('mouseleave', () => {{
+                            visiblePath.style.strokeWidth = '';
+                            visiblePath.style.stroke = '';
+                        }});
                     }}
 
                     edge.addEventListener('mouseenter', (e) => {{
