@@ -973,19 +973,21 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
 
     lines = [f"{graph_type} {{"]
 
-    # Graph-level attributes for better defaults
-    lines.append('  graph [bgcolor="white"];')
+    # Graph-level attributes (DiagrammeR defaults)
+    lines.append("  graph [outputorder=edgesfirst, bgcolor=white];")
 
-    # Node defaults: circular shape, better colors, much larger size
+    # Node defaults (DiagrammeR style)
     lines.append(
-        '  node [shape=circle, style=filled, fillcolor="#4A90E2", color="#2E5C8A", fontcolor=white, fontsize=14, width=1.0, fixedsize=true];'
+        "  node [fontname=Helvetica, fontsize=10, shape=circle, fixedsize=true, width=0.5, style=filled, fillcolor=aliceblue, color=gray70, fontcolor=gray50];"
     )
 
-    # Edge defaults: better colors and arrows
+    # Edge defaults (DiagrammeR style)
     if is_directed:
-        lines.append('  edge [color="#666666", arrowsize=0.7];')
+        lines.append(
+            "  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray80, arrowsize=0.5];"
+        )
     else:
-        lines.append('  edge [color="#666666"];')
+        lines.append("  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray80];")
 
     # Add nodes
     for node in nodes:
@@ -1056,7 +1058,7 @@ def _generate_graphviz_svg_html(
 
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f5f5f5;
+            background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 50%, #80cbc4 100%);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -1065,29 +1067,33 @@ def _generate_graphviz_svg_html(
         }}
 
         #viz-container {{
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            padding: 20px;
-            max-width: {width + 40}px;
+            background: linear-gradient(to bottom, #f1f8f7 0%, #e8f5f3 100%);
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0, 77, 64, 0.15);
+            padding: 24px;
+            max-width: {width + 48}px;
+            border: 1px solid #b2dfdb;
         }}
 
         #info {{
             text-align: center;
-            padding: 10px;
-            color: #666;
+            padding: 12px;
+            color: #00695c;
             font-size: 14px;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #b2dfdb;
+            background: rgba(178, 223, 219, 0.2);
+            border-radius: 6px;
         }}
 
         #svg-container {{
             width: {width}px;
             height: {height}px;
             overflow: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            border: 2px solid #80cbc4;
+            border-radius: 6px;
             background: white;
+            box-shadow: inset 0 1px 3px rgba(0, 77, 64, 0.1);
         }}
 
         #svg-container svg {{
@@ -1096,23 +1102,32 @@ def _generate_graphviz_svg_html(
         }}
 
         .controls {{
-            margin-top: 15px;
+            margin-top: 16px;
             text-align: center;
         }}
 
         button {{
-            background: #007bff;
+            background: linear-gradient(to bottom, #4db6ac 0%, #26a69a 100%);
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
-            margin: 0 5px;
+            margin: 0 6px;
+            box-shadow: 0 2px 4px rgba(0, 77, 64, 0.2);
+            transition: all 0.2s ease;
         }}
 
         button:hover {{
-            background: #0056b3;
+            background: linear-gradient(to bottom, #26a69a 0%, #00897b 100%);
+            box-shadow: 0 3px 6px rgba(0, 77, 64, 0.3);
+            transform: translateY(-1px);
+        }}
+
+        button:active {{
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(0, 77, 64, 0.2);
         }}
     </style>
 </head>
