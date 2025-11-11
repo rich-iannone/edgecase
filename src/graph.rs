@@ -4328,6 +4328,219 @@ impl Graph {
         Ok(numerator / denominator)
     }
 
+    // ========== Node Similarity ==========
+
+    /// Calculate pairwise similarity between nodes based on their neighborhoods
+    ///
+    /// Computes structural similarity using various metrics that compare the neighborhoods
+    /// (adjacent nodes) of node pairs. Higher values indicate more similar neighborhood
+    /// structure, useful for link prediction and community detection.
+    ///
+    /// # Arguments
+    /// * `nodes` - List of node labels to compute similarities for. If empty, computes for all nodes.
+    /// * `method` - Similarity metric: "jaccard", "dice", "invlogweighted", "cosine"
+    ///
+    /// # Returns
+    /// * Vec<Vec<f64>> - Similarity matrix where entry (i,j) is similarity between nodes[i] and nodes[j]
+    ///
+    /// # Similarity Metrics
+    ///
+    /// ## Jaccard Similarity
+    /// ```text
+    /// sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
+    /// ```
+    /// - Range: [0, 1]
+    /// - 1 = identical neighborhoods, 0 = no common neighbors
+    ///
+    /// ## Dice Similarity
+    /// ```text
+    /// sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
+    /// ```
+    /// - Range: [0, 1]
+    /// - Gives more weight to common neighbors than Jaccard
+    ///
+    /// ## Inverse Log-Weighted Similarity
+    /// ```text
+    /// sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1 / log(|N(w)|)
+    /// ```
+    /// - Higher weight for rare neighbors (low degree)
+    /// - Used in link prediction (Adamic-Adar index)
+    ///
+    /// ## Cosine Similarity
+    /// ```text
+    /// sim(u,v) = |N(u) ∩ N(v)| / sqrt(|N(u)| × |N(v)|)
+    /// ```
+    /// - Range: [0, 1]
+    /// - Normalized dot product of adjacency vectors
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// # Link prediction: find similar nodes
+    /// g = Graph(directed=False)
+    /// g.add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D")])
+    ///
+    /// sim = g.similarity(["A", "B"], method="jaccard")
+    /// # A and B have identical neighborhoods → high similarity
+    /// ```
+    ///
+    /// # References
+    /// - Liben-Nowell & Kleinberg (2007). "The link-prediction problem for social networks"
+    /// - Adamic & Adar (2003). "Friends and neighbors on the Web"
+    pub fn similarity(
+        &self,
+        nodes: Vec<String>,
+        method: &str,
+    ) -> PyResult<Vec<Vec<f64>>> {
+        // Resolve node labels to IDs
+        let node_ids: Vec<u64> = if nodes.is_empty() {
+            // Use all nodes
+            self.nodes.keys().copied().collect()
+        } else {
+            nodes
+                .iter()
+                .map(|label| {
+                    self.node_labels
+                        .get(label)
+                        .copied()
+                        .ok_or_else(|| {
+                            pyo3::exceptions::PyValueError::new_err(format!(
+                                "Node with label '{}' not found",
+                                label
+                            ))
+                        })
+                })
+                .collect::<PyResult<Vec<u64>>>()?
+        };
+
+        let n = node_ids.len();
+        let mut sim_matrix = vec![vec![0.0; n]; n];
+
+        // Build neighborhood sets for each node
+        let mut neighborhoods: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::default();
+
+        for &node_id in &node_ids {
+            let mut neighbors = FxHashSet::default();
+
+            for edge in &self.edges {
+                if edge.source == node_id {
+                    neighbors.insert(edge.target);
+                }
+                if !self.directed && edge.target == node_id {
+                    neighbors.insert(edge.source);
+                }
+            }
+
+            neighborhoods.insert(node_id, neighbors);
+        }
+
+        // Compute pairwise similarities
+        match method {
+            "jaccard" => {
+                for i in 0..n {
+                    for j in 0..n {
+                        if i == j {
+                            sim_matrix[i][j] = 1.0;
+                        } else {
+                            let n_i = &neighborhoods[&node_ids[i]];
+                            let n_j = &neighborhoods[&node_ids[j]];
+
+                            let intersection: usize = n_i.intersection(n_j).count();
+                            let union: usize = n_i.union(n_j).count();
+
+                            sim_matrix[i][j] = if union > 0 {
+                                intersection as f64 / union as f64
+                            } else {
+                                0.0
+                            };
+                        }
+                    }
+                }
+            }
+            "dice" => {
+                for i in 0..n {
+                    for j in 0..n {
+                        if i == j {
+                            sim_matrix[i][j] = 1.0;
+                        } else {
+                            let n_i = &neighborhoods[&node_ids[i]];
+                            let n_j = &neighborhoods[&node_ids[j]];
+
+                            let intersection: usize = n_i.intersection(n_j).count();
+                            let sum_sizes = n_i.len() + n_j.len();
+
+                            sim_matrix[i][j] = if sum_sizes > 0 {
+                                (2.0 * intersection as f64) / sum_sizes as f64
+                            } else {
+                                0.0
+                            };
+                        }
+                    }
+                }
+            }
+            "invlogweighted" => {
+                // Compute degree for all nodes (needed for weighting)
+                let mut degrees: FxHashMap<u64, usize> = FxHashMap::default();
+                for edge in &self.edges {
+                    *degrees.entry(edge.source).or_insert(0) += 1;
+                    if !self.directed {
+                        *degrees.entry(edge.target).or_insert(0) += 1;
+                    }
+                }
+
+                for i in 0..n {
+                    for j in 0..n {
+                        if i == j {
+                            sim_matrix[i][j] = 1.0;
+                        } else {
+                            let n_i = &neighborhoods[&node_ids[i]];
+                            let n_j = &neighborhoods[&node_ids[j]];
+
+                            let mut weighted_sum = 0.0;
+                            for common_neighbor in n_i.intersection(n_j) {
+                                let degree = *degrees.get(common_neighbor).unwrap_or(&1);
+                                if degree > 1 {
+                                    weighted_sum += 1.0 / (degree as f64).ln();
+                                }
+                            }
+
+                            sim_matrix[i][j] = weighted_sum;
+                        }
+                    }
+                }
+            }
+            "cosine" => {
+                for i in 0..n {
+                    for j in 0..n {
+                        if i == j {
+                            sim_matrix[i][j] = 1.0;
+                        } else {
+                            let n_i = &neighborhoods[&node_ids[i]];
+                            let n_j = &neighborhoods[&node_ids[j]];
+
+                            let intersection: usize = n_i.intersection(n_j).count();
+                            let denominator = ((n_i.len() * n_j.len()) as f64).sqrt();
+
+                            sim_matrix[i][j] = if denominator > 0.0 {
+                                intersection as f64 / denominator
+                            } else {
+                                0.0
+                            };
+                        }
+                    }
+                }
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Unknown similarity method '{}'. Choose from: jaccard, dice, invlogweighted, cosine",
+                    method
+                )));
+            }
+        }
+
+        Ok(sim_matrix)
+    }
+
     /// Calculate assortativity coefficient for nominal (categorical) node attributes
     ///
     /// Measures the tendency of nodes with the same attribute value to connect.

@@ -2675,6 +2675,153 @@ class Graph:
         """
         return self._graph.assortativity_degree()
 
+    def similarity(self, nodes: list[str] = None, method: str = "jaccard") -> list[list[float]]:
+        """Calculate pairwise similarity between nodes based on neighborhoods.
+
+        Computes structural similarity using various metrics that compare the
+        neighborhoods (adjacent nodes) of node pairs. Returns a similarity matrix
+        where higher values indicate more similar neighborhood structures.
+
+        Parameters
+        ----------
+        nodes : list[str], optional
+            List of node labels to compute similarities for.
+            If None or empty, computes for all nodes in the graph.
+        method : str, default="jaccard"
+            Similarity metric to use. Options:
+            - "jaccard": Jaccard coefficient (intersection over union)
+            - "dice": Dice coefficient (2× intersection over sum of sizes)
+            - "invlogweighted": Inverse log-weighted (Adamic-Adar index)
+            - "cosine": Cosine similarity
+
+        Returns
+        -------
+        list[list[float]]
+            Similarity matrix where entry (i,j) is the similarity between
+            nodes[i] and nodes[j]. Diagonal entries are always 1.0.
+
+        Raises
+        ------
+        ValueError
+            If a node label is not found or method is invalid.
+
+        Examples
+        --------
+        **Link Prediction in Social Network**
+
+        ```python
+        # Find similar users for recommendation
+        g = Graph(directed=False)
+        g.add_edge("Alice", "Bob")
+        g.add_edge("Alice", "Carol")
+        g.add_edge("Bob", "Carol")
+        g.add_edge("Dave", "Eve")
+        g.add_edge("Dave", "Frank")
+        g.add_edge("Eve", "Frank")
+
+        # Alice and Dave have similar patterns (both connect to 2 people)
+        sim = g.similarity(["Alice", "Dave"], method="jaccard")
+        # sim[0][1] = similarity between Alice and Dave
+        ```
+
+        **Comparing Similarity Metrics**
+
+        ```python
+        # Bipartite-like structure
+        g = Graph(directed=False)
+        g.add_edge("A", "X")
+        g.add_edge("A", "Y")
+        g.add_edge("B", "X")
+        g.add_edge("B", "Y")
+
+        # A and B have identical neighborhoods
+        jaccard = g.similarity(["A", "B"], method="jaccard")
+        dice = g.similarity(["A", "B"], method="dice")
+        cosine = g.similarity(["A", "B"], method="cosine")
+
+        # All should show high similarity (≈ 1.0)
+        assert jaccard[0][1] == 1.0
+        assert dice[0][1] == 1.0
+        assert cosine[0][1] == 1.0
+        ```
+
+        **Link Prediction with Inverse Log-Weighted**
+
+        ```python
+        # Protein interaction network
+        g = Graph(directed=False)
+        g.add_edge("P1", "Hub")
+        g.add_edge("P2", "Hub")
+        g.add_edge("Hub", "P3")
+        g.add_edge("Hub", "P4")
+
+        # P1 and P2 connected through high-degree hub
+        # Inverse log-weighted gives lower weight to high-degree nodes
+        sim = g.similarity(["P1", "P2"], method="invlogweighted")
+        # Lower similarity due to common high-degree neighbor
+        ```
+
+        **Community Detection Helper**
+
+        ```python
+        # Identify similar nodes within network
+        g = Graph(directed=False)
+        # Add edges for a community structure
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(f"C1_{i}", f"C1_{j}")
+
+        # Get all pairwise similarities
+        all_sim = g.similarity(method="jaccard")
+        # Nodes in same dense community have high similarity
+        ```
+
+        Notes
+        -----
+        **Jaccard Similarity**:
+        - Most common metric
+        - Range: [0, 1]
+        - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
+
+        **Dice Similarity**:
+        - Gives more weight to common neighbors than Jaccard
+        - Range: [0, 1]
+        - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
+
+        **Inverse Log-Weighted (Adamic-Adar)**:
+        - Weights common neighbors by inverse log of their degree
+        - Rare neighbors contribute more
+        - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
+        - Popular for link prediction
+
+        **Cosine Similarity**:
+        - Normalized dot product
+        - Range: [0, 1]
+        - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
+
+        **Use Cases**:
+        - Link prediction: Which edges are likely to form?
+        - Recommendation: Find similar users/items
+        - Community detection: Group similar nodes
+        - Network embedding: Similarity-based features
+
+        See Also
+        --------
+        assortativity : Attribute-based mixing patterns
+        pagerank : Node importance ranking
+
+        References
+        ----------
+        Liben-Nowell, D., & Kleinberg, J. (2007). "The link-prediction
+        problem for social networks." CAIS, 58(7), 1019-1031.
+
+        Adamic, L. A., & Adar, E. (2003). "Friends and neighbors on
+        the Web." Social Networks, 25(3), 211-230.
+        """
+        if nodes is None:
+            nodes = []
+        return self._graph.similarity(nodes, method)
+
     def assortativity_nominal(self, attribute: str) -> float:
         """Calculate assortativity for categorical (nominal) node attributes.
 
