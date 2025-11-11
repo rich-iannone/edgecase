@@ -9379,7 +9379,7 @@ class Graph:
         height: int = 600,
         node_size: float = 20.0,
         edge_width: float = 2.0,
-        layout: str = "force",
+        layout: str = "neato",
     ) -> None:
         """
         Display the graph visualization in a notebook or web browser.
@@ -9397,8 +9397,9 @@ class Graph:
             Node radius in pixels
         edge_width : float, default 2.0
             Edge line width in pixels
-        layout : str, default "force"
-            Layout algorithm: "force", "circular", "random"
+        layout : str, default "neato"
+            Layout algorithm: "neato" (Graphviz spring), "dot" (hierarchical),
+            "fdp" (force-directed), "circo" (circular), "twopi" (radial), or "force" (simple FR)
 
         Examples
         --------
