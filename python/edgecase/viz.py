@@ -1124,6 +1124,26 @@ def _generate_graphviz_svg_html(
             transform: translateY(0);
             box-shadow: 0 1px 2px rgba(0, 77, 64, 0.2);
         }}
+
+        /* Custom tooltip styling */
+        #edgecase-viz-wrapper #custom-tooltip {{
+            position: fixed;
+            background: rgba(0, 77, 64, 0.95);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }}
+
+        #edgecase-viz-wrapper #custom-tooltip.visible {{
+            opacity: 1;
+        }}
     </style>
 </head>
 <body>
@@ -1138,6 +1158,7 @@ def _generate_graphviz_svg_html(
             <button id="reset-btn">Reset</button>
             <button id="zoom-out-btn">Zoom Out</button>
         </div>
+        <div id="custom-tooltip"></div>
     </div>
 
     <script>
@@ -1197,6 +1218,70 @@ def _generate_graphviz_svg_html(
             let isDragging = false;
             let startX = 0;
             let startY = 0;
+
+            // Custom tooltip element
+            const customTooltip = document.getElementById('custom-tooltip');
+
+            // Function to setup custom tooltips
+            function setupCustomTooltips(svg) {{
+                // Remove ALL native SVG title elements (including background)
+                svg.querySelectorAll('title').forEach(title => title.remove());
+
+                // Setup custom tooltips for nodes
+                const nodes = svg.querySelectorAll('g.node');
+                nodes.forEach(node => {{
+                    // The first text element usually contains the node label
+                    const textElement = node.querySelector('text');
+                    const nodeId = textElement ? textElement.textContent.trim() : 'Unknown';
+
+                    node.addEventListener('mouseenter', (e) => {{
+                        customTooltip.textContent = `Node: ${{nodeId}}`;
+                        customTooltip.classList.add('visible');
+                    }});
+
+                    node.addEventListener('mousemove', (e) => {{
+                        customTooltip.style.left = (e.clientX + 10) + 'px';
+                        customTooltip.style.top = (e.clientY + 10) + 'px';
+                    }});
+
+                    node.addEventListener('mouseleave', () => {{
+                        customTooltip.classList.remove('visible');
+                    }});
+                }});
+
+                // Setup custom tooltips for edges
+                const edges = svg.querySelectorAll('g.edge');
+                edges.forEach(edge => {{
+                    // Try to get edge info from the id attribute or text
+                    const edgeId = edge.getAttribute('id') || '';
+                    // Edge IDs are typically like "edge1" or contain source-target info
+                    const textElement = edge.querySelector('text');
+                    let edgeLabel = 'Edge';
+
+                    if (textElement) {{
+                        edgeLabel = `Edge: ${{textElement.textContent.trim()}}`;
+                    }} else if (edgeId) {{
+                        edgeLabel = `Edge: ${{edgeId}}`;
+                    }}
+
+                    edge.addEventListener('mouseenter', (e) => {{
+                        customTooltip.textContent = edgeLabel;
+                        customTooltip.classList.add('visible');
+                    }});
+
+                    edge.addEventListener('mousemove', (e) => {{
+                        customTooltip.style.left = (e.clientX + 10) + 'px';
+                        customTooltip.style.top = (e.clientY + 10) + 'px';
+                    }});
+
+                    edge.addEventListener('mouseleave', () => {{
+                        customTooltip.classList.remove('visible');
+                    }});
+                }});
+            }}
+
+            // Setup custom tooltips
+            setupCustomTooltips(svgElement);
 
             // Smooth transform with transition
             function updateTransform(smooth = false) {{
