@@ -16,14 +16,15 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<graph::Graph>()?;
     m.add_class::<graph::Node>()?;
     m.add_class::<graph::Edge>()?;
-    
+
     // Algorithm functions
     m.add_function(wrap_pyfunction!(algorithms::centrality::betweenness_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::pagerank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community::detect_communities, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::cycles::find_cycles, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::domirank::domirank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::shortest_path, m)?)?;
-    
+
     Ok(())
 }
 

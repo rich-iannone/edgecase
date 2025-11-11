@@ -4,6 +4,7 @@ pub mod centrality;
 pub mod community;
 pub mod connectivity;
 pub mod cycles;
+pub mod domirank;
 pub mod paths;
 
 #[cfg(test)]

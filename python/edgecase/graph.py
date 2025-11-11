@@ -4515,6 +4515,173 @@ class Graph:
         """
         return self._graph.get_leverage_centrality()
 
+    def get_domirank_centrality(
+        self,
+        sigma: float | None = None,
+        alpha: float = 0.95,
+        method: str = "iterative",
+        tolerance: float = 1e-5,
+        max_iter: int = 1000,
+        patience: int = 10,
+        max_depth: int = 50,
+        return_sigma: bool = False,
+    ) -> dict[str, float] | tuple[dict[str, float], float]:
+        """Get DomiRank centrality for each node.
+
+        DomiRank centrality quantifies node dominance in their neighborhoods.
+        The competition parameter sigma (or alpha) provides a tunable trade-off
+        between local and global topological information:
+
+        d𝚪ᵢ(t)/dt = σ(dᵢ - Σⱼ Aᵢⱼ 𝚪ⱼ(t)) - 𝚪ᵢ(t)
+
+        Where:
+        - 𝚪ᵢ is the dominance score for node i
+        - σ is the competition parameter
+        - dᵢ is the degree of node i
+        - A is the adjacency matrix
+
+        Unlike eigenvector-type centralities (where being connected to important
+        nodes makes you important), DomiRank identifies nodes that dominate their
+        local structure. Being close to a dominant node can suppress your own
+        dominance in high-competition contexts.
+
+        For σ → 0: Converges to degree centrality (only local information)
+        For large σ: Identifies globally dominant nodes
+
+        Parameters
+        ----------
+        sigma : float, optional
+            Competition parameter. If None (default), automatically computed
+            from smallest eigenvalue and alpha. Higher values increase global
+            competition for dominance.
+        alpha : float, default 0.95
+            Alpha parameter for auto-computing sigma (sigma = alpha / |λ_min|).
+            Only used if sigma is None. Must be positive.
+        method : str, default "iterative"
+            Solution method. Currently only "iterative" is implemented.
+            (Analytical method may be added in future for small graphs)
+        tolerance : float, default 1e-5
+            Convergence tolerance for iterative solver.
+        max_iter : int, default 1000
+            Maximum iterations for Newton's method.
+        patience : int, default 10
+            Number of steps between convergence checks. Must satisfy
+            max_iter > 3 * patience.
+        max_depth : int, default 50
+            Maximum bisection steps for finding smallest eigenvalue
+            (when auto-computing sigma).
+        return_sigma : bool, default False
+            If True, return (centrality_dict, sigma) tuple instead of just dict.
+
+        Returns
+        -------
+        dict[str, float] or tuple[dict[str, float], float]
+            Dictionary mapping node labels to dominance scores. Nodes with positive
+            scores are dominant in their neighborhoods. Nodes with negative scores
+            are submissive (give up resources to neighbors). If return_sigma=True,
+            returns tuple of (centrality dict, sigma value).
+
+        Raises
+        ------
+        ValueError
+            If alpha <= 0, dt not in (0, 1), tolerance <= 0, or max_iter <= 3*patience.
+
+        Examples
+        --------
+        Auto-optimized DomiRank for a path graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Cycle
+        )
+
+        # Auto-optimize sigma based on graph structure
+        domirank = graph.get_domirank_centrality()
+        # Middle nodes often have high dominance scores
+
+        # Get sigma value used
+        domirank, sigma = graph.get_domirank_centrality(return_sigma=True)
+        print(f"Used sigma={sigma:.3f}")
+        ```
+
+        Manual sigma for specific competition level:
+
+        ```python
+        # High competition (more global)
+        dr_high = graph.get_domirank_centrality(sigma=2.0)
+
+        # Low competition (more local, like degree)
+        dr_low = graph.get_domirank_centrality(sigma=0.1)
+        ```
+
+        Notes
+        -----
+        - Computational complexity: O(E × iterations) where E is edges
+        - Suitable for large graphs (tested on millions of nodes)
+        - Works for directed, undirected, weighted, and unweighted graphs
+        - Negative values indicate submissive nodes that yield to neighbors
+        - Joint dominance: Multiple nodes can co-dominate a neighborhood
+
+        Algorithm notes:
+        - Uses Newton iteration with adaptive convergence detection
+        - Automatically finds optimal sigma via smallest eigenvalue
+        - Detects divergence via monotonic increase in updates
+
+        References
+        ----------
+        .. [1] Engsig, M., Tejedor, A., Moreno, Y. et al. "DomiRank Centrality
+               reveals structural fragility of complex networks via node dominance."
+               Nat Commun 15, 56 (2024). https://doi.org/10.1038/s41467-023-44257-0
+
+        See Also
+        --------
+        get_eigen_centrality : Traditional eigenvector centrality
+        pagerank : Google's PageRank algorithm
+        get_alpha_centrality : Generalized eigenvector centrality
+        degree : Simple degree-based importance
+        """
+        if method != "iterative":
+            raise ValueError("Only method='iterative' is currently supported")
+
+        # Import the Rust function
+        from edgecase._core import domirank as rust_domirank
+
+        # Call Rust implementation
+        scores_by_id, final_sigma, converged = rust_domirank(
+            self._graph,
+            sigma,
+            alpha,
+            0.1,  # dt fixed at 0.1 for stability
+            tolerance,
+            max_iter,
+            patience,
+            max_depth,
+        )
+
+        if not converged:
+            import warnings
+
+            warnings.warn(
+                "DomiRank did not converge within max_iter iterations. "
+                "Consider increasing max_iter or adjusting tolerance.",
+                RuntimeWarning,
+            )
+
+        # Convert node IDs to labels
+        scores_by_label = {
+            self.label_from_id(node_id): score for node_id, score in scores_by_id.items()
+        }
+
+        if return_sigma:
+            return scores_by_label, final_sigma
+        return scores_by_label
+
     # ========== Selection Methods ==========
 
     def get_dice_similarity(self) -> dict[str, dict[str, float]]:
