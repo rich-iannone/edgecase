@@ -2582,6 +2582,350 @@ class Graph:
         """
         return self._graph.count_loops()
 
+    def assortativity_degree(self) -> float:
+        """Calculate degree assortativity coefficient.
+
+        Measures the tendency of nodes to connect to other nodes with similar degrees.
+        Returns the Pearson correlation coefficient of node degrees across edges,
+        quantifying whether high-degree nodes preferentially connect to other
+        high-degree nodes (assortative) or to low-degree nodes (disassortative).
+
+        For directed graphs, uses out-degree for source nodes and in-degree for
+        target nodes. For undirected graphs, uses total degree.
+
+        Returns
+        -------
+        float
+            Assortativity coefficient in range [-1, 1]:
+            - r > 0: assortative mixing (similar degrees connect)
+            - r < 0: disassortative mixing (different degrees connect)
+            - r ≈ 0: no degree correlation
+
+        Raises
+        ------
+        ValueError
+            If graph has no edges or insufficient degree variance.
+
+        Examples
+        --------
+        **Social Network: Assortative Mixing**
+
+        ```python
+        # High-status users connect to high-status users
+        g = Graph(directed=False)
+        g.add_edge("Influencer1", "Influencer2")
+        g.add_edge("Influencer1", "Influencer3")
+        g.add_edge("Influencer2", "Influencer3")
+        g.add_edge("User1", "User2")
+        g.add_edge("User3", "User4")
+
+        r = g.assortativity_degree()
+        # r > 0: hubs connect to hubs, periphery to periphery
+        ```
+
+        **Technology Network: Disassortative Mixing**
+
+        ```python
+        # Client-server architecture: high-degree servers connect to low-degree clients
+        g = Graph(directed=False)
+        g.add_edge("Server1", "Client1")
+        g.add_edge("Server1", "Client2")
+        g.add_edge("Server1", "Client3")
+        g.add_edge("Server2", "Client4")
+        g.add_edge("Server2", "Client5")
+
+        r = g.assortativity_degree()
+        # r < 0: high-degree nodes connect to low-degree nodes
+        ```
+
+        **Random Network**
+
+        ```python
+        # Erdős-Rényi random graph typically shows no correlation
+        import random
+        random.seed(42)
+
+        g = Graph(directed=False)
+        nodes = [f"N{i}" for i in range(20)]
+        for i in range(30):
+            u, v = random.sample(nodes, 2)
+            g.add_edge(u, v)
+
+        r = g.assortativity_degree()
+        # r ≈ 0: no systematic degree correlation
+        ```
+
+        Notes
+        -----
+        - Uses Newman's formula for assortativity coefficient
+        - Most real-world social networks are assortative (r > 0)
+        - Many technological/biological networks are disassortative (r < 0)
+        - Perfect assortativity (r = 1) means only equal-degree nodes connect
+        - Requires at least one edge and variance in node degrees
+
+        See Also
+        --------
+        assortativity : Numeric attribute assortativity
+        assortativity_nominal : Categorical attribute assortativity
+
+        References
+        ----------
+        Newman, M.E.J. (2002). "Assortative mixing in networks."
+        Physical Review Letters, 89(20), 208701.
+        """
+        return self._graph.assortativity_degree()
+
+    def assortativity_nominal(self, attribute: str) -> float:
+        """Calculate assortativity for categorical (nominal) node attributes.
+
+        Measures the tendency of nodes with the same attribute value to connect,
+        also known as homophily. Uses Newman's formula for categorical mixing patterns.
+
+        Parameters
+        ----------
+        attribute : str
+            Name of the categorical node attribute to analyze.
+            Must exist on all nodes as a node attribute.
+
+        Returns
+        -------
+        float
+            Assortativity coefficient in range [-1, 1]:
+            - r = 1: perfect assortativity (only same-type connections)
+            - r > 0: assortative (same types prefer to connect)
+            - r = 0: random mixing
+            - r < 0: disassortative (different types prefer to connect)
+
+        Raises
+        ------
+        ValueError
+            If attribute doesn't exist on all nodes, graph has no edges,
+            or there are fewer than 2 different attribute values.
+
+        Examples
+        --------
+        **Homophily in Social Networks**
+
+        ```python
+        # People tend to befriend similar people
+        g = Graph(directed=False)
+        g.add_node("Alice", group="students")
+        g.add_node("Bob", group="students")
+        g.add_node("Carol", group="students")
+        g.add_node("Prof1", group="faculty")
+        g.add_node("Prof2", group="faculty")
+
+        # Mostly within-group friendships
+        g.add_edge("Alice", "Bob")
+        g.add_edge("Bob", "Carol")
+        g.add_edge("Prof1", "Prof2")
+        g.add_edge("Alice", "Prof1")  # One cross-group edge
+
+        r = g.assortativity_nominal("group")
+        # r > 0: since students connect to students, faculty to faculty
+        ```
+
+        **Mixing Patterns by Gender**
+
+        ```python
+        # Collaboration network
+        g = Graph(directed=False)
+        g.add_node("Alice", gender="F")
+        g.add_node("Bob", gender="M")
+        g.add_node("Carol", gender="F")
+        g.add_node("Dave", gender="M")
+
+        g.add_edge("Alice", "Bob")
+        g.add_edge("Bob", "Dave")
+        g.add_edge("Carol", "Dave")
+        g.add_edge("Alice", "Carol")
+
+        r = g.assortativity_nominal("gender")
+        # Measures gender homophily in collaboration
+        ```
+
+        **Biological Networks: Species Interactions**
+
+        ```python
+        # Predator-prey relationships are disassortative
+        g = Graph(directed=True)
+        g.add_node("Wolf", type="predator")
+        g.add_node("Lion", type="predator")
+        g.add_node("Deer", type="prey")
+        g.add_node("Rabbit", type="prey")
+
+        g.add_edge("Wolf", "Deer")
+        g.add_edge("Wolf", "Rabbit")
+        g.add_edge("Lion", "Deer")
+
+        r = g.assortativity_nominal("type")
+        # r < 0: predators connect to prey, not to each other
+        ```
+
+        **Network Segregation Analysis**
+
+        ```python
+        # Measure segregation in communication network
+        g = Graph(directed=False)
+        g.add_node("A", dept="Engineering")
+        g.add_node("B", dept="Engineering")
+        g.add_node("C", dept="Marketing")
+        g.add_node("D", dept="Marketing")
+
+        # All edges within departments
+        g.add_edge("A", "B")
+        g.add_edge("C", "D")
+
+        r = g.assortativity_nominal("dept")
+        # r = 1.0: perfect segregation by department
+        ```
+
+        Notes
+        -----
+        - Also called "modularity by attribute" or "homophily coefficient"
+        - r = 1 means complete segregation (no cross-type edges)
+        - Common in social networks where "birds of a feather flock together"
+        - Can be used to detect and measure community structure by attribute
+        - For undirected graphs, the mixing matrix is symmetric
+
+        See Also
+        --------
+        assortativity : Numeric attribute assortativity
+        assortativity_degree : Degree assortativity
+
+        References
+        ----------
+        Newman, M.E.J. (2003). "Mixing patterns in networks."
+        Physical Review E, 67(2), 026126.
+        """
+        return self._graph.assortativity_nominal(attribute)
+
+    def assortativity(self, attribute: str) -> float:
+        """Calculate assortativity for numeric node attributes.
+
+        Measures the tendency of nodes with similar numeric attribute values to
+        connect. Returns the Pearson correlation coefficient of attribute values
+        across edges, indicating whether similar values tend to be connected.
+
+        Parameters
+        ----------
+        attribute : str
+            Name of the numeric node attribute to analyze.
+            Must exist on all nodes and be convertible to float.
+
+        Returns
+        -------
+        float
+            Assortativity coefficient in range [-1, 1]:
+            - r = 1: perfect positive correlation (identical values connect)
+            - r > 0: assortative (similar values prefer to connect)
+            - r = 0: no correlation
+            - r < 0: disassortative (dissimilar values prefer to connect)
+            - r = -1: perfect negative correlation
+
+        Raises
+        ------
+        ValueError
+            If attribute doesn't exist on all nodes, isn't numeric,
+            graph has no edges, or attribute has no variance.
+
+        Examples
+        --------
+        **Age-Based Friendship Networks**
+
+        ```python
+        # People befriend others of similar age
+        g = Graph(directed=False)
+        g.add_node("Alice", age=25)
+        g.add_node("Bob", age=27)
+        g.add_node("Carol", age=26)
+        g.add_node("Dave", age=55)
+        g.add_node("Eve", age=53)
+
+        g.add_edge("Alice", "Bob")  # Similar ages (25-27)
+        g.add_edge("Bob", "Carol")  # Similar ages (27-26)
+        g.add_edge("Dave", "Eve")   # Similar ages (55-53)
+        g.add_edge("Alice", "Carol")  # Similar ages (25-26)
+
+        r = g.assortativity("age")
+        # r > 0: people tend to befriend similar-aged people
+        ```
+
+        **Academic Collaboration by Experience**
+
+        ```python
+        # Citation network by publication count
+        g = Graph(directed=False)
+        g.add_node("Junior1", papers=5)
+        g.add_node("Junior2", papers=7)
+        g.add_node("Senior1", papers=50)
+        g.add_node("Senior2", papers=45)
+
+        # Cross-level mentorship
+        g.add_edge("Senior1", "Junior1")
+        g.add_edge("Senior1", "Junior2")
+        g.add_edge("Senior2", "Junior1")
+
+        r = g.assortativity("papers")
+        # r < 0: experienced researchers often collaborate with juniors
+        ```
+
+        **Wealth Inequality in Trade Networks**
+
+        ```python
+        # Economic network with GDP
+        g = Graph(directed=False)
+        g.add_node("USA", gdp=21.0)
+        g.add_node("China", gdp=14.7)
+        g.add_node("Germany", gdp=3.8)
+        g.add_node("India", gdp=2.9)
+        g.add_node("Brazil", gdp=1.8)
+
+        g.add_edge("USA", "China")
+        g.add_edge("Germany", "India")
+        g.add_edge("USA", "Germany")
+
+        r = g.assortativity("gdp")
+        # Measures if similar-wealth countries trade more
+        ```
+
+        **Protein Interaction Networks**
+
+        ```python
+        # Proteins by molecular weight
+        g = Graph(directed=False)
+        g.add_node("P1", weight=25.5)
+        g.add_node("P2", weight=27.3)
+        g.add_node("P3", weight=52.1)
+        g.add_node("P4", weight=51.8)
+
+        g.add_edge("P1", "P2")  # Similar weights
+        g.add_edge("P3", "P4")  # Similar weights
+
+        r = g.assortativity("weight")
+        # r > 0: similar-sized proteins tend to interact
+        ```
+
+        Notes
+        -----
+        - Uses Pearson correlation coefficient formula
+        - Common in social networks (homophily by age, income, education)
+        - Can reveal hierarchical structures when negative
+        - Sensitive to outliers: considers data normalization
+        - Requires variance in attribute values (all same value will error)
+
+        See Also
+        --------
+        assortativity_degree : Degree assortativity
+        assortativity_nominal : Categorical attribute assortativity
+
+        References
+        ----------
+        Newman, M.E.J. (2002). "Assortative mixing in networks."
+        Physical Review Letters, 89(20), 208701.
+        """
+        return self._graph.assortativity(attribute)
+
     def count_weakly_connected_components(self) -> int:
         """Count weakly connected components in the graph.
 
@@ -5471,9 +5815,6 @@ class Graph:
         .. [2] Rodan, S. (2011). "Choosing the 'β' parameter when using the Bonacich
                power measure." Journal of Social Structure, 12(1), 1-23.
                https://www.exeley.com/journal_of_social_structure/doi/10.21307/joss-2019-032
-
-        .. [3] igraph documentation: "Find Bonacich Power Centrality Scores"
-               https://igraph.org/r/html/1.2.6/power_centrality.html
 
         See Also
         --------

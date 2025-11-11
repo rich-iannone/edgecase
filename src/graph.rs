@@ -4195,6 +4195,442 @@ impl Graph {
         Ok(result)
     }
 
+    // ========== Assortativity ==========
+
+    /// Calculate degree assortativity coefficient
+    ///
+    /// Measures the tendency of nodes to connect to other nodes with similar degrees.
+    /// Returns Pearson correlation coefficient of node degrees across edges.
+    ///
+    /// This implementation follows igraph's approach: compute node degrees and use
+    /// them as numeric attributes in the assortativity() function.
+    ///
+    /// # Returns
+    /// * f64 - Assortativity coefficient in range [-1, 1]
+    ///   - r > 0: assortative (high-degree nodes connect to high-degree nodes)
+    ///   - r < 0: disassortative (high-degree nodes connect to low-degree nodes)
+    ///   - r ≈ 0: no degree correlation
+    ///
+    /// # Errors
+    /// * Returns error if graph has no edges or insufficient variance
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// # Assortative network (similar degrees connect)
+    /// g = Graph(directed=False)
+    /// g.add_edge("Hub1", "Hub2")  # High-degree hubs connect
+    /// g.add_edge("Hub1", "Hub3")
+    /// g.add_edge("Hub2", "Hub3")
+    /// g.add_edge("Leaf1", "Leaf2")  # Low-degree leaves connect
+    ///
+    /// r = g.assortativity_degree()
+    /// # Returns positive value (assortative)
+    /// ```
+    ///
+    /// # References
+    /// Newman, M.E.J. "Assortative mixing in networks" (2002)
+    /// igraph mixing.c lines 439-457
+    pub fn assortativity_degree(&self) -> PyResult<f64> {
+        let m = self.edges.len();
+        if m == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Cannot calculate assortativity for graph with no edges"
+            ));
+        }
+
+        // Calculate degrees for all nodes (following igraph's igraph_strength approach)
+        // For undirected graphs, this is total degree
+        // For directed graphs, we use out-degree for source and in-degree for target
+
+        let (degree_source, degree_target): (Vec<f64>, Vec<f64>) = if self.directed {
+            // Directed: out-degree for source, in-degree for target
+            let mut out_degrees: FxHashMap<u64, usize> = FxHashMap::default();
+            let mut in_degrees: FxHashMap<u64, usize> = FxHashMap::default();
+
+            for edge in &self.edges {
+                *out_degrees.entry(edge.source).or_insert(0) += 1;
+                *in_degrees.entry(edge.target).or_insert(0) += 1;
+            }
+
+            let sources: Vec<f64> = self.edges.iter()
+                .map(|e| *out_degrees.get(&e.source).unwrap_or(&0) as f64)
+                .collect();
+            let targets: Vec<f64> = self.edges.iter()
+                .map(|e| *in_degrees.get(&e.target).unwrap_or(&0) as f64)
+                .collect();
+
+            (sources, targets)
+        } else {
+            // Undirected: total degree for both ends
+            let mut degrees: FxHashMap<u64, usize> = FxHashMap::default();
+            for edge in &self.edges {
+                *degrees.entry(edge.source).or_insert(0) += 1;
+                *degrees.entry(edge.target).or_insert(0) += 1;
+            }
+
+            let sources: Vec<f64> = self.edges.iter()
+                .map(|e| *degrees.get(&e.source).unwrap_or(&0) as f64)
+                .collect();
+            let targets: Vec<f64> = self.edges.iter()
+                .map(|e| *degrees.get(&e.target).unwrap_or(&0) as f64)
+                .collect();
+
+            (sources, targets)
+        };
+
+        // Use the numeric assortativity function with degree values
+        // This matches igraph's implementation (mixing.c lines 439-457)
+        let m_f64 = m as f64;
+
+        let mut num1: f64 = 0.0;  // Σ(x*y)
+        let mut sum_x: f64 = 0.0;  // Σx
+        let mut sum_y: f64 = 0.0;  // Σy
+        let mut sum_x2: f64 = 0.0; // Σ(x²)
+        let mut sum_y2: f64 = 0.0; // Σ(y²)
+
+        for (x, y) in degree_source.iter().zip(degree_target.iter()) {
+            num1 += x * y;
+            sum_x += x;
+            sum_y += y;
+            sum_x2 += x * x;
+            sum_y2 += y * y;
+        }
+
+        // Apply undirected/directed normalization (same as assortativity())
+        let (numerator, denominator) = if !self.directed {
+            // Undirected: special formula (igraph mixing.c lines 240-266)
+            let num2 = (sum_x + sum_y) / (m_f64 * 2.0);
+            let den1 = (sum_x2 + sum_y2) / (m_f64 * 2.0);
+            num1 /= m_f64;
+
+            let num = num1 - num2 * num2;
+            let den = den1 - num2 * num2;
+            (num, den)
+        } else {
+            // Directed: standard Pearson correlation (igraph mixing.c lines 268-308)
+            let mean_x = sum_x / m_f64;
+            let mean_y = sum_y / m_f64;
+
+            let num = num1 / m_f64 - mean_x * mean_y;
+            let var_x = sum_x2 / m_f64 - mean_x * mean_x;
+            let var_y = sum_y2 / m_f64 - mean_y * mean_y;
+            let den = (var_x * var_y).sqrt();
+
+            (num, den)
+        };
+
+        // Handle zero variance case (all nodes have same degree) - return NaN like igraph
+        if denominator.abs() < 1e-10 {
+            return Ok(f64::NAN);
+        }
+
+        Ok(numerator / denominator)
+    }
+
+    /// Calculate assortativity coefficient for nominal (categorical) node attributes
+    ///
+    /// Measures the tendency of nodes with the same attribute value to connect.
+    /// Uses Newman's formula for categorical attributes.
+    ///
+    /// Formula:
+    /// r = (Σᵢ eᵢᵢ - Σᵢ aᵢbᵢ) / (1 - Σᵢ aᵢbᵢ)
+    ///
+    /// where:
+    /// - eᵢⱼ = fraction of edges connecting attribute i to attribute j
+    /// - aᵢ = fraction of edges with source node having attribute i
+    /// - bᵢ = fraction of edges with target node having attribute i
+    ///
+    /// # Arguments
+    /// * `attribute` - Name of the categorical node attribute to analyze
+    ///
+    /// # Returns
+    /// * f64 - Assortativity coefficient in range [-1, 1]
+    ///   - r > 0: assortative (same types connect)
+    ///   - r < 0: disassortative (different types connect)
+    ///   - r = 1: perfect assortativity (only same-type connections)
+    ///
+    /// # Errors
+    /// * Returns error if attribute doesn't exist on nodes or graph has no edges
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// # Social network with user types
+    /// g = Graph(directed=False)
+    /// g.add_node("Alice", type="student")
+    /// g.add_node("Bob", type="student")
+    /// g.add_node("Prof1", type="professor")
+    ///
+    /// g.add_edge("Alice", "Bob")  # student-student
+    /// g.add_edge("Alice", "Prof1")  # student-professor
+    ///
+    /// r = g.assortativity_nominal("type")
+    /// # Positive if students mostly connect to students
+    /// ```
+    ///
+    /// # References
+    /// Newman, M.E.J. "Mixing patterns in networks" (2003)
+    pub fn assortativity_nominal(&self, attribute: &str) -> PyResult<f64> {
+        let m = self.edges.len();
+        if m == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Cannot calculate assortativity for graph with no edges"
+            ));
+        }
+
+        Python::with_gil(|py| {
+            // Extract attribute values for all nodes
+            let mut node_attrs: FxHashMap<u64, String> = FxHashMap::default();
+
+            for (node_id, node) in &self.nodes {
+                if let Some(ref attrs) = node.attributes {
+                    let dict = attrs.bind(py);
+                    if let Ok(Some(value)) = dict.get_item(attribute) {
+                        let attr_str = value.to_string();
+                        node_attrs.insert(*node_id, attr_str);
+                    } else {
+                        return Err(pyo3::exceptions::PyValueError::new_err(
+                            format!("Attribute '{}' not found on node {}", attribute, node_id)
+                        ));
+                    }
+                } else {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        format!("Node {} has no attributes", node_id)
+                    ));
+                }
+            }
+
+            // Build mixing matrix: count edges between attribute types
+            let mut attribute_types: Vec<String> = node_attrs.values().cloned().collect();
+            attribute_types.sort();
+            attribute_types.dedup();
+
+            let n_types = attribute_types.len();
+            if n_types < 2 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Need at least 2 different attribute values to calculate assortativity"
+                ));
+            }
+
+            // Map attribute values to indices
+            let attr_to_idx: FxHashMap<String, usize> = attribute_types.iter()
+                .enumerate()
+                .map(|(idx, attr)| (attr.clone(), idx))
+                .collect();
+
+            // Count edges for mixing matrix
+            let mut e_matrix = vec![vec![0usize; n_types]; n_types];
+
+            for edge in &self.edges {
+                let src_attr = node_attrs.get(&edge.source)
+                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
+                        format!("Missing attribute for node {}", edge.source)
+                    ))?;
+                let tgt_attr = node_attrs.get(&edge.target)
+                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
+                        format!("Missing attribute for node {}", edge.target)
+                    ))?;
+
+                let i = attr_to_idx[src_attr];
+                let j = attr_to_idx[tgt_attr];
+
+                // For undirected graphs, each edge contributes to both (i,j) and (j,i)
+                // This makes the mixing matrix symmetric
+                e_matrix[i][j] += 1;
+                if !self.directed {
+                    e_matrix[j][i] += 1;
+                }
+            }
+
+            // Calculate assortativity using Newman's formula
+            let m_f64 = m as f64;
+
+            // Calculate eᵢⱼ (edge fractions)
+            // For undirected: each edge counted twice in e_matrix, so divide by 2*m
+            // For directed: edges counted once, so divide by m
+            let normalization = if self.directed { m_f64 } else { 2.0 * m_f64 };
+            let e_ij: Vec<Vec<f64>> = e_matrix.iter()
+                .map(|row| row.iter().map(|&count| count as f64 / normalization).collect())
+                .collect();
+
+            // Calculate aᵢ and bᵢ (marginal sums)
+            let a_i: Vec<f64> = (0..n_types)
+                .map(|i| (0..n_types).map(|j| e_ij[i][j]).sum())
+                .collect();
+
+            let b_i: Vec<f64> = (0..n_types)
+                .map(|j| (0..n_types).map(|i| e_ij[i][j]).sum())
+                .collect();
+
+            // Σᵢ eᵢᵢ (trace - same-type connections)
+            let trace: f64 = (0..n_types).map(|i| e_ij[i][i]).sum();
+
+            // Σᵢ aᵢbᵢ (expected same-type connections)
+            let sum_ab: f64 = (0..n_types).map(|i| a_i[i] * b_i[i]).sum();
+
+            let numerator = trace - sum_ab;
+            let denominator = 1.0 - sum_ab;
+
+            if denominator.abs() < 1e-10 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Insufficient mixing to calculate assortativity"
+                ));
+            }
+
+            Ok(numerator / denominator)
+        })
+    }
+
+    /// Calculate assortativity coefficient for numeric node attributes
+    ///
+    /// Measures the tendency of nodes with similar numeric attribute values to connect.
+    /// Returns Pearson correlation coefficient of attribute values across edges.
+    ///
+    /// Formula:
+    /// r = (Σᵢ xᵢyᵢ - Σᵢ xᵢ Σᵢ yᵢ / M) / √[(Σᵢ xᵢ² - (Σᵢ xᵢ)² / M)(Σᵢ yᵢ² - (Σᵢ yᵢ)² / M)]
+    ///
+    /// where:
+    /// - xᵢ, yᵢ = attribute values of nodes at ends of edge i
+    /// - M = number of edges
+    ///
+    /// # Arguments
+    /// * `attribute` - Name of the numeric node attribute to analyze
+    ///
+    /// # Returns
+    /// * f64 - Assortativity coefficient in range [-1, 1]
+    ///   - r > 0: assortative (similar values connect)
+    ///   - r < 0: disassortative (dissimilar values connect)
+    ///   - r ≈ 0: no correlation
+    ///
+    /// # Errors
+    /// * Returns error if attribute doesn't exist, isn't numeric, or has no variance
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// # Network with age-based connections
+    /// g = Graph(directed=False)
+    /// g.add_node("Alice", age=25)
+    /// g.add_node("Bob", age=27)
+    /// g.add_node("Carol", age=55)
+    ///
+    /// g.add_edge("Alice", "Bob")  # Similar ages
+    /// g.add_edge("Carol", "Carol")  # Self-loop
+    ///
+    /// r = g.assortativity("age")
+    /// # Positive if similar ages tend to connect
+    /// ```
+    ///
+    /// # References
+    /// Newman, M.E.J. "Assortative mixing in networks" (2002)
+    pub fn assortativity(&self, attribute: &str) -> PyResult<f64> {
+        let m = self.edges.len();
+        if m == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Cannot calculate assortativity for graph with no edges"
+            ));
+        }
+
+        Python::with_gil(|py| {
+            // Extract numeric attribute values for all nodes
+            let mut node_attrs: FxHashMap<u64, f64> = FxHashMap::default();
+
+            for (node_id, node) in &self.nodes {
+                if let Some(ref attrs) = node.attributes {
+                    let dict = attrs.bind(py);
+                    if let Ok(Some(value)) = dict.get_item(attribute) {
+                        // Try to extract as float
+                        let attr_val: f64 = value.extract()
+                            .map_err(|_| pyo3::exceptions::PyValueError::new_err(
+                                format!("Attribute '{}' on node {} is not numeric", attribute, node_id)
+                            ))?;
+                        node_attrs.insert(*node_id, attr_val);
+                    } else {
+                        return Err(pyo3::exceptions::PyValueError::new_err(
+                            format!("Attribute '{}' not found on node {}", attribute, node_id)
+                        ));
+                    }
+                } else {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        format!("Node {} has no attributes", node_id)
+                    ));
+                }
+            }
+
+            // Extract attribute values for source and target of each edge
+            let mut x_vals: Vec<f64> = Vec::with_capacity(m);
+            let mut y_vals: Vec<f64> = Vec::with_capacity(m);
+
+            for edge in &self.edges {
+                let x = *node_attrs.get(&edge.source)
+                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
+                        format!("Missing attribute for node {}", edge.source)
+                    ))?;
+                let y = *node_attrs.get(&edge.target)
+                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
+                        format!("Missing attribute for node {}", edge.target)
+                    ))?;
+
+                x_vals.push(x);
+                y_vals.push(y);
+            }
+
+            // Calculate Pearson correlation coefficient
+            // Following igraph implementation (mixing.c lines 219-310)
+            let m_f64 = m as f64;
+
+            if !self.directed {
+                // Undirected graph - special handling per igraph
+                let mut num1 = 0.0;
+                let mut num2 = 0.0;
+                let mut den1 = 0.0;
+
+                for (x, y) in x_vals.iter().zip(y_vals.iter()) {
+                    num1 += x * y;
+                    num2 += x + y;
+                    den1 += x * x + y * y;
+                }
+
+                num1 /= m_f64;
+                den1 /= m_f64 * 2.0;
+                num2 /= m_f64 * 2.0;
+                let num2_sq = num2 * num2;
+
+                let numerator = num1 - num2_sq;
+                let denominator = den1 - num2_sq;
+
+                if denominator.abs() < 1e-10 {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        "Insufficient variance in attribute values to calculate assortativity"
+                    ));
+                }
+
+                Ok(numerator / denominator)
+            } else {
+                // Directed graph
+                let sum_x: f64 = x_vals.iter().sum();
+                let sum_y: f64 = y_vals.iter().sum();
+                let sum_xy: f64 = x_vals.iter().zip(y_vals.iter()).map(|(x, y)| x * y).sum();
+                let sum_x2: f64 = x_vals.iter().map(|x| x * x).sum();
+                let sum_y2: f64 = y_vals.iter().map(|y| y * y).sum();
+
+                let numerator = sum_xy - (sum_x * sum_y) / m_f64;
+                let denominator_x = sum_x2 - (sum_x * sum_x) / m_f64;
+                let denominator_y = sum_y2 - (sum_y * sum_y) / m_f64;
+                let denominator = (denominator_x * denominator_y).sqrt();
+
+                if denominator.abs() < 1e-10 {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        "Insufficient variance in attribute values to calculate assortativity"
+                    ));
+                }
+
+                Ok(numerator / denominator)
+            }
+        })
+    }
+
     // ========== Community Detection ==========
 
     /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm
