@@ -128,8 +128,8 @@ def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations:
         adj[tgt].add(src)
 
     # Layout parameters (igraph FR algorithm)
-    # Use a large area to avoid cramping
-    area = n * 50.0  # Much larger area for natural spreading
+    # Use moderate area for good spacing without excessive spread
+    area = n * 10.0  # Increased from 5.0 to give more breathing room
     k = math.sqrt(area / n)  # Optimal distance between nodes
 
     # Initial temperature (controls movement magnitude)
@@ -190,7 +190,7 @@ def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations:
         # Cool down (exponential cooling for better convergence)
         temp *= 0.99
 
-    # Normalize positions to maintain consistent edge lengths while fitting in viewport
+    # Iterative scaling approach to balance spacing, overlap prevention, and viewport fitting
     if positions:
         all_x = [pos[0] for pos in positions.values()]
         all_y = [pos[1] for pos in positions.values()]
@@ -204,22 +204,86 @@ def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations:
         center_x = (max_x + min_x) / 2.0
         center_y = (max_y + min_y) / 2.0
 
-        # Target scale: normalize k (optimal distance) to a standard viewport distance
-        # k = sqrt(area / n) = sqrt(50), so we want k to map to ~0.25 in viewport coords
-        target_k_in_viewport = 0.25
-        scale_by_k = target_k_in_viewport / k if k > 0 else 1.0
+        # Calculate average edge length in layout coordinates
+        total_edge_length = 0.0
+        for src, tgt in edges:
+            dx = positions[src][0] - positions[tgt][0]
+            dy = positions[src][1] - positions[tgt][1]
+            total_edge_length += math.sqrt(dx * dx + dy * dy)
+        avg_edge_length = total_edge_length / len(edges) if edges else k
 
-        # Also calculate scale needed to fit in viewport (with padding)
-        max_range = max(range_x, range_y)
-        scale_to_fit = 1.6 / max_range if max_range > 0 else 1.0  # 1.6 leaves 20% padding
+        # Debug output
+        print("\\n=== Layout Scaling Debug (Python) ===")
+        print(f"Number of nodes: {n}")
+        print(f"Area: {area:.2f}")
+        print(f"k (optimal distance): {k:.4f}")
+        print(f"Average edge length in layout: {avg_edge_length:.4f}")
+        print(f"Before scaling - X range: [{min_x:.4f}, {max_x:.4f}] = {range_x:.4f}")
+        print(f"Before scaling - Y range: [{min_y:.4f}, {max_y:.4f}] = {range_y:.4f}")
 
-        # Use the smaller scale (more zoomed out) to ensure it fits while respecting edge length
-        scale = min(scale_by_k, scale_to_fit)
+        # Target: edges should be about 5 node diameters long in viewport
+        # Node size will be 20px, so in viewport coords (assuming 800px canvas),
+        # one node diameter ≈ 0.05 viewport units (20/400)
+        node_diameter_in_viewport = 0.05
+        target_edge_length_in_viewport = node_diameter_in_viewport * 5  # 5 node diameters
+        
+        # Minimum readable edge length: 2.5 node diameters (prevent node overlap)
+        min_edge_length_in_viewport = node_diameter_in_viewport * 2.5
+        
+        # Calculate scale to achieve target edge length
+        scale_by_edges = target_edge_length_in_viewport / avg_edge_length if avg_edge_length > 0 else 1.0
 
-        # Apply scaling and centering
+        print(f"target_edge_length_in_viewport: {target_edge_length_in_viewport:.4f}")
+        print(f"scale_by_edges: {scale_by_edges:.4f}")
+
+        # Apply edge-based scaling and centering
         for node in nodes:
-            positions[node][0] = (positions[node][0] - center_x) * scale
-            positions[node][1] = (positions[node][1] - center_y) * scale
+            positions[node][0] = (positions[node][0] - center_x) * scale_by_edges
+            positions[node][1] = (positions[node][1] - center_y) * scale_by_edges
+
+        # Check if graph fits in viewport with padding
+        all_x_scaled = [positions[node][0] for node in nodes]
+        all_y_scaled = [positions[node][1] for node in nodes]
+        scaled_range_x = max(all_x_scaled) - min(all_x_scaled)
+        scaled_range_y = max(all_y_scaled) - min(all_y_scaled)
+        max_scaled_range = max(scaled_range_x, scaled_range_y)
+        
+        # Calculate what the edge length would be after shrinking
+        potential_shrink = 1.6 / max_scaled_range if max_scaled_range > 1.6 else 1.0
+        edge_length_after_shrink = target_edge_length_in_viewport * potential_shrink
+        
+        # Only shrink if we can maintain minimum readable edge length
+        # This follows DiagrammeR's philosophy: better to pan/zoom than make unreadable
+        if max_scaled_range > 1.6 and edge_length_after_shrink >= min_edge_length_in_viewport:
+            shrink_factor = 1.6 / max_scaled_range
+            print(f"Graph extends beyond viewport, shrinking by {shrink_factor:.4f}")
+            print(f"Edge length after shrink: {edge_length_after_shrink:.4f} ({edge_length_after_shrink/node_diameter_in_viewport:.2f} diameters)")
+            for node in nodes:
+                positions[node][0] *= shrink_factor
+                positions[node][1] *= shrink_factor
+            # Recalculate after shrinking
+            all_x_scaled = [positions[node][0] for node in nodes]
+            all_y_scaled = [positions[node][1] for node in nodes]
+            scaled_range_x = max(all_x_scaled) - min(all_x_scaled)
+            scaled_range_y = max(all_y_scaled) - min(all_y_scaled)
+        else:
+            if max_scaled_range > 1.6:
+                print(f"Graph extends beyond viewport ({max_scaled_range:.2f}), but maintaining edge readability")
+                print(f"Use pan/zoom to navigate - edges kept at {target_edge_length_in_viewport/node_diameter_in_viewport:.1f} diameters")
+        
+        # Calculate final edge lengths
+        total_scaled_edge_length = 0.0
+        for src, tgt in edges:
+            dx = positions[src][0] - positions[tgt][0]
+            dy = positions[src][1] - positions[tgt][1]
+            total_scaled_edge_length += math.sqrt(dx * dx + dy * dy)
+        avg_scaled_edge_length = total_scaled_edge_length / len(edges) if edges else 0
+        
+        print(f"After scaling - X range: [{min(all_x_scaled):.4f}, {max(all_x_scaled):.4f}] = {scaled_range_x:.4f}")
+        print(f"After scaling - Y range: [{min(all_y_scaled):.4f}, {max(all_y_scaled):.4f}] = {scaled_range_y:.4f}")
+        print(f"Average edge length after scaling: {avg_scaled_edge_length:.4f}")
+        print(f"Edge length in node diameters: {avg_scaled_edge_length / node_diameter_in_viewport:.2f}")
+        print("=====================================\\n")
 
     return positions
 
@@ -450,10 +514,42 @@ def _generate_webgl_html(
         const zoomToggle = document.getElementById('zoom-toggle');
         const zoomModeText = document.getElementById('zoom-mode-text');
 
-        // Viewport state (start zoomed out slightly for padding)
-        let zoom = 0.85;
+        // Debug: Log node positions and edge lengths
+        console.log('=== Graph Layout Debug Info ===');
+        console.log('Number of nodes:', nodes.length);
+        console.log('Number of edges:', edges.length);
+        console.log('\\nNode positions:');
+        nodes.forEach(node => {{
+            console.log(`  Node ${{node.id}}: x=${{node.x.toFixed(4)}}, y=${{node.y.toFixed(4)}}`);
+        }});
+        
+        // Calculate edge lengths
+        console.log('\\nEdge lengths:');
+        edges.forEach(edge => {{
+            const dx = edge.targetX - edge.sourceX;
+            const dy = edge.targetY - edge.sourceY;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            console.log(`  ${{edge.source}} → ${{edge.target}}: ${{length.toFixed(4)}}`);
+        }});
+        
+        // Calculate bounding box
+        const allX = nodes.map(n => n.x);
+        const allY = nodes.map(n => n.y);
+        const minX = Math.min(...allX);
+        const maxX = Math.max(...allX);
+        const minY = Math.min(...allY);
+        const maxY = Math.max(...allY);
+        const rangeX = maxX - minX;
+        const rangeY = maxY - minY;
+        console.log('\\nBounding box:');
+        console.log(`  X range: [${{minX.toFixed(4)}}, ${{maxX.toFixed(4)}}] = ${{rangeX.toFixed(4)}}`);
+        console.log(`  Y range: [${{minY.toFixed(4)}}, ${{maxY.toFixed(4)}}] = ${{rangeY.toFixed(4)}}`);
+        console.log('================================\\n');
+
+        // Viewport state (start zoomed out more for better initial view)
+        let zoom = 0.7;
         let panX = 0, panY = 0;
-        const initialZoom = 0.85;
+        const initialZoom = 0.7;
         const initialPanX = 0;
         const initialPanY = 0;
         let isDragging = false;
