@@ -1130,25 +1130,55 @@ def _generate_graphviz_svg_html(
     </div>
 
     <script>
-        {viz_js_code}
-    </script>
+        (function() {{
+            // CRITICAL: Disable AMD/RequireJS detection so viz.js uses global scope
+            // Save original define if it exists
+            var originalDefine = (typeof define !== 'undefined') ? define : undefined;
+            var originalRequire = (typeof require !== 'undefined') ? require : undefined;
 
-    <script>
-        const dotString = `{dot_string}`;
-        const layoutEngine = '{layout_engine}';
-        const svgContainer = document.getElementById('svg-container');
+            // Temporarily undefine to force viz.js to use global scope
+            if (typeof define !== 'undefined') {{
+                define = undefined;
+            }}
+            if (typeof require !== 'undefined' && typeof require.config === 'function') {{
+                require = undefined;
+            }}
 
-        try {{
-            // Generate SVG with Graphviz
-            const svg = Viz(dotString, {{
-                format: 'svg',
-                engine: layoutEngine
-            }});
+            // Embed viz.js inline - will now use global.Viz = Viz branch
+            {viz_js_code}
 
-            svgContainer.innerHTML = svg;
+            // Restore define/require after viz.js loads
+            if (originalDefine !== undefined) {{
+                define = originalDefine;
+            }}
+            if (originalRequire !== undefined) {{
+                require = originalRequire;
+            }}
 
-            // SVG will auto-scale to container via CSS (width: 100%; height: 100%)
-            const svgElement = svgContainer.querySelector('svg');
+            // Get Viz reference (should be in global scope now)
+            var VizFunc = (typeof Viz !== 'undefined') ? Viz : window.Viz;
+
+            if (!VizFunc) {{
+                console.error('ERROR: Viz still not available after neutralizing AMD');
+                document.getElementById('svg-container').innerHTML = '<p style="color: red;">Error: Could not load Graphviz renderer</p>';
+                return;
+            }}
+
+            const dotString = `{dot_string}`;
+            const layoutEngine = '{layout_engine}';
+            const svgContainer = document.getElementById('svg-container');
+
+            try {{
+                // Generate SVG with Graphviz
+                const svg = VizFunc(dotString, {{
+                    format: 'svg',
+                    engine: layoutEngine
+                }});
+
+                svgContainer.innerHTML = svg;
+
+                // SVG will auto-scale to container via CSS (width: 100%; height: 100%)
+                const svgElement = svgContainer.querySelector('svg');
 
             let scale = 1;
             let panX = 0;
@@ -1210,10 +1240,11 @@ def _generate_graphviz_svg_html(
 
             svgContainer.style.cursor = 'grab';
 
-        }} catch (error) {{
-            svgContainer.innerHTML = '<p style="color: red; padding: 20px;">Error generating layout: ' + error.message + '</p>';
-            console.error('Viz.js error:', error);
-        }}
+            }} catch (error) {{
+                console.error('ERROR generating layout:', error);
+                svgContainer.innerHTML = '<p style="color: red; padding: 20px;">Error generating layout: ' + error.message + '</p>';
+            }}
+        }})(); // End of IIFE
     </script>
 </body>
 </html>"""
