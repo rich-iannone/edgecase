@@ -980,16 +980,18 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
 
     # Node defaults (DiagrammeR style)
     lines.append(
-        "  node [fontname=Helvetica, fontsize=10, shape=circle, fixedsize=true, width=0.5, style=filled, fillcolor=aliceblue, color=gray70, fontcolor=gray50];"
+        "  node [fontname=Helvetica, fontsize=10, shape=circle, fixedsize=true, width=0.5, style=filled, fillcolor=aliceblue, color=gray50, fontcolor=gray50];"
     )
 
-    # Edge defaults (DiagrammeR style)
+    # Edge defaults (DiagrammeR style with thicker, darker edges)
     if is_directed:
         lines.append(
-            "  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray80, arrowsize=0.5];"
+            "  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray60, penwidth=1.5, arrowsize=0.5];"
         )
     else:
-        lines.append("  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray80];")
+        lines.append(
+            "  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray60, penwidth=1.5];"
+        )
 
     # Add nodes
     for node in nodes:
@@ -1097,13 +1099,53 @@ def _generate_graphviz_svg_html(
             overflow: auto;
             border: 2px solid #80cbc4;
             border-radius: 6px;
-            background: white;
+            position: relative;
             box-shadow: inset 0 1px 3px rgba(0, 77, 64, 0.1);
+        }}
+
+        /* Ambient smoke effect background */
+        #edgecase-viz-wrapper #svg-container::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 30%, rgba(200, 220, 240, 0.6) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 70%, rgba(240, 210, 230, 0.5) 0%, transparent 50%),
+                radial-gradient(ellipse at 40% 80%, rgba(220, 240, 210, 0.5) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 20%, rgba(210, 230, 245, 0.6) 0%, transparent 50%),
+                white;
+            pointer-events: none;
+            z-index: 0;
+            animation: smokeMove 60s ease-in-out infinite;
+        }}
+
+        @keyframes smokeMove {{
+            0%, 100% {{
+                background-position: 0% 0%, 100% 100%, 50% 100%, 100% 0%;
+                background-size: 150% 150%, 140% 140%, 160% 160%, 130% 130%;
+            }}
+            25% {{
+                background-position: 30% 20%, 80% 70%, 40% 90%, 90% 10%;
+                background-size: 140% 140%, 160% 160%, 150% 150%, 145% 145%;
+            }}
+            50% {{
+                background-position: 50% 40%, 60% 50%, 30% 70%, 80% 30%;
+                background-size: 160% 160%, 150% 150%, 140% 140%, 155% 155%;
+            }}
+            75% {{
+                background-position: 20% 60%, 90% 30%, 60% 80%, 70% 50%;
+                background-size: 145% 145%, 135% 135%, 155% 155%, 140% 140%;
+            }}
         }}
 
         #edgecase-viz-wrapper #svg-container svg {{
             width: 100%;
             height: 100%;
+            position: relative;
+            z-index: 1;
         }}
 
         #edgecase-viz-wrapper .controls {{
@@ -1225,6 +1267,62 @@ def _generate_graphviz_svg_html(
 
                 // SVG will auto-scale to container via CSS (width: 100%; height: 100%)
                 const svgElement = svgContainer.querySelector('svg');
+
+                // Make SVG background transparent so smoke effect shows through
+                const bgPolygon = svgElement.querySelector('g.graph polygon');
+                if (bgPolygon) {{
+                    bgPolygon.setAttribute('fill', 'none');
+                    bgPolygon.setAttribute('fill-opacity', '0');
+                }}
+
+                // Create SVG filter for glassy effect with background color amplification
+                const defs = svgElement.querySelector('defs') || svgElement.insertBefore(
+                    document.createElementNS('http://www.w3.org/2000/svg', 'defs'),
+                    svgElement.firstChild
+                );
+
+                const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+                filter.setAttribute('id', 'glassEffect');
+                filter.setAttribute('x', '-50%');
+                filter.setAttribute('y', '-50%');
+                filter.setAttribute('width', '200%');
+                filter.setAttribute('height', '200%');
+
+                // Blur the node for soft glassy edges
+                const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+                blur.setAttribute('in', 'SourceGraphic');
+                blur.setAttribute('stdDeviation', '0.5');
+                blur.setAttribute('result', 'blurred');
+
+                // Merge blurred with original to keep stroke crisp
+                const merge = document.createElementNS('http://www.w3.org/2000/svg', 'feMerge');
+                const mergeNode1 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+                mergeNode1.setAttribute('in', 'blurred');
+                const mergeNode2 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+                mergeNode2.setAttribute('in', 'SourceGraphic');
+
+                merge.appendChild(mergeNode1);
+                merge.appendChild(mergeNode2);
+                filter.appendChild(blur);
+                filter.appendChild(merge);
+                defs.appendChild(filter);
+
+                // Apply glassy/liquid effect to nodes
+                const nodeGroups = svgElement.querySelectorAll('g.node');
+                const nodeEllipses = [];
+                nodeGroups.forEach(nodeGroup => {{
+                    const ellipse = nodeGroup.querySelector('ellipse');
+                    if (ellipse) {{
+                        // Store ellipse reference for slider control
+                        nodeEllipses.push(ellipse);
+                        // Make node fill semi-transparent for glassy effect (start at 0.7 for 2.5x)
+                        ellipse.setAttribute('fill-opacity', '0.7');
+                        // Apply custom filter to node group (soft blur)
+                        nodeGroup.style.filter = 'url(#glassEffect)';
+                        // Keep stroke opaque for definition
+                        ellipse.setAttribute('stroke-opacity', '1');
+                    }}
+                }});
 
             let scale = 1;
             let panX = 0;
