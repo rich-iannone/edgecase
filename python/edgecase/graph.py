@@ -4467,6 +4467,99 @@ class Graph:
         """
         return self._graph.get_alpha_centrality(alpha, max_iter, tol)
 
+    def get_katz_centrality(
+        self, alpha: float = 0.1, beta: float = 1.0, max_iter: int = 100, tol: float = 1e-6
+    ) -> dict[str, float]:
+        """Get Katz centrality for each node.
+
+        Katz centrality measures node influence based on the number of walks of
+        all lengths reaching the node, with walks weighted by α^length:
+
+        x = α · Aᵀ · x + β
+
+        where α is the attenuation factor, Aᵀ is the transpose of the adjacency
+        matrix, and β is a bias vector (constant for all nodes). For directed
+        graphs, this counts incoming paths, making it suitable for measuring
+        "prestige" or "influence received".
+
+        Key differences from other centralities:
+
+        - PageRank: Uses teleportation and out-degree normalization
+        - Eigenvector: Only considers infinite-length walks (principal eigenvector)
+        - Alpha centrality: Uses A instead of Aᵀ (outgoing vs incoming)
+        - Katz: Weights walks by path length, considers all finite walks
+
+        Parameters
+        ----------
+        alpha : float, default 0.1
+            Attenuation factor for walk lengths. Must be smaller than the
+            reciprocal of the largest eigenvalue (typically < 0.2 for safety).
+            Higher values give more weight to longer paths.
+        beta : float, default 1.0
+            Bias/weight added to each node. Acts as a "free" centrality that
+            every node gets. Higher values reduce the relative importance of
+            network position.
+        max_iter : int, default 100
+            Maximum number of iterations for convergence.
+        tol : float, default 1e-6
+            Convergence tolerance threshold.
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node labels to normalized Katz centrality scores.
+            Scores sum to 1.0.
+
+        Examples
+        --------
+        Calculate Katz centrality on a simple directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("A", "D")
+        )
+
+        katz = graph.get_katz_centrality(alpha=0.1)
+        # D has highest Katz (receives edges from A and C via B)
+        ```
+
+        Compare different alpha values:
+
+        ```python
+        katz_local = graph.get_katz_centrality(alpha=0.05)  # Emphasis on short paths
+        katz_global = graph.get_katz_centrality(alpha=0.15) # Include longer paths
+        ```
+
+        Notes
+        -----
+        - For undirected graphs, Aᵀ = A, so behavior is similar to alpha centrality
+        - For directed graphs, high Katz = many incoming paths (prestige/authority)
+        - Alpha should be < 1/λ_max to ensure convergence (typically α < 0.2)
+        - Beta = 1.0 treats all nodes equally; adjust to bias certain nodes
+        - Normalizes final scores to sum to 1.0 for interpretability
+
+        References
+        ----------
+        .. [1] Katz, L. (1953). "A new status index derived from sociometric analysis."
+               Psychometrika, 18(1), 39-43.
+
+        See Also
+        --------
+        get_eigen_centrality : Eigenvector centrality (infinite walks)
+        get_alpha_centrality : Uses outgoing edges instead of incoming
+        pagerank : Alternative prestige measure with damping
+        """
+        scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
+        return {self.label_from_id(node_id): score for node_id, score in scores_by_id.items()}
+
     def get_leverage_centrality(self) -> dict[str, float]:
         """Get leverage centrality for each node.
 

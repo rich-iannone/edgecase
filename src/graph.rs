@@ -2846,6 +2846,63 @@ impl Graph {
         centrality
     }
 
+    /// Get Katz centrality
+    /// Measures node influence based on weighted walks from all other nodes
+    /// x = alpha * A^T * x + beta
+    /// where alpha is attenuation (must be < 1/lambda_max), beta is bias vector
+    /// For directed graphs, uses transpose to count incoming paths
+    fn get_katz_centrality(&self, alpha: f64, beta: f64, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
+        let n = self.num_nodes();
+        if n == 0 {
+            return FxHashMap::default();
+        }
+
+        // Initialize centrality to beta for all nodes
+        let mut centrality: FxHashMap<u64, f64> = self.nodes.keys()
+            .map(|&id| (id, beta))
+            .collect();
+
+        for _ in 0..max_iter {
+            let prev_centrality = centrality.clone();
+            let mut max_change: f64 = 0.0;
+
+            for &node in self.nodes.keys() {
+                // For Katz, we use A^T (transpose), meaning we look at incoming edges
+                // For each node, sum centrality of nodes that point TO it
+                let mut incoming_sum = 0.0;
+
+                // Iterate through all potential predecessors
+                for (&other_node, neighbors) in &self.adjacency_list {
+                    if neighbors.contains(&node) {
+                        // other_node has an edge TO current node
+                        incoming_sum += prev_centrality.get(&other_node).unwrap_or(&0.0);
+                    }
+                }
+
+                // x_new = alpha * (incoming sum) + beta
+                let new_value = alpha * incoming_sum + beta;
+                centrality.insert(node, new_value);
+
+                let change = (new_value - prev_centrality.get(&node).unwrap()).abs();
+                max_change = max_change.max(change);
+            }
+
+            if max_change < tol {
+                break;
+            }
+        }
+
+        // Normalize by the sum
+        let total: f64 = centrality.values().sum();
+        if total > 0.0 {
+            for val in centrality.values_mut() {
+                *val /= total;
+            }
+        }
+
+        centrality
+    }
+
     /// Get alpha centrality
     /// Generalization of eigenvector centrality with attenuation factor
     /// x = alpha * A * x + e
