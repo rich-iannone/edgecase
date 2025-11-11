@@ -3073,6 +3073,376 @@ class Graph:
         """
         return self._graph.assortativity(attribute)
 
+    def spectrum(
+        self,
+        which: str = "largest",
+        k: int | None = None,
+    ) -> dict[str, list[float] | list[list[float]] | float | None]:
+        """Compute eigenvalues and eigenvectors of the adjacency matrix.
+
+        Returns the spectrum (eigenvalues and eigenvectors) of the graph's
+        adjacency matrix. The spectrum reveals important structural properties
+        including connectivity, bipartiteness, and graph regularity.
+
+        Parameters
+        ----------
+        which : str, default="largest"
+            Which eigenvalues to compute:
+            - "all": All n eigenvalues (O(n³), recommended for n < 100)
+            - "largest": Largest k eigenvalues (default k=6)
+            - "smallest": Smallest k eigenvalues
+        k : int, optional
+            Number of eigenvalues to compute for "largest"/"smallest".
+            Default is min(6, n-1) where n is the number of nodes.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys:
+            - "values": List of eigenvalues (sorted descending)
+            - "vectors": List of eigenvectors (each as list of floats)
+            - "spectral_gap": λ₁ - λ₂ (difference between two largest eigenvalues)
+
+        Raises
+        ------
+        ValueError
+            If graph is empty or eigenvalue computation fails.
+
+        Examples
+        --------
+        **Spectral Analysis of Complete Graph**
+
+        ```python
+        # Complete graph K_5
+        g = Graph(directed=False)
+
+        for i in range(5):
+            g.add_node(f"v{i}")
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(f"v{i}", f"v{j}")
+
+        spec = g.spectrum(which="all")
+        print(f"Eigenvalues: {spec['values']}")
+
+        # Complete graph: λ₁ = n-1, other λᵢ = -1
+        print(f"Spectral gap: {spec['spectral_gap']}")
+        # K_n has spectral gap = n
+        ```
+
+        **Detecting Bipartite Structure**
+
+        ```python
+        # Bipartite graph has symmetric spectrum
+        g = Graph(directed=False)
+
+        # Left partition: A, B
+        # Right partition: X, Y, Z
+        for node in ["A", "B", "X", "Y", "Z"]:
+            g.add_node(node)
+        g.add_edge("A", "X")
+        g.add_edge("A", "Y")
+        g.add_edge("B", "Y")
+        g.add_edge("B", "Z")
+
+        spec = g.spectrum(which="all")
+
+        # Bipartite: λ and -λ appear in pairs
+        # Check if λ_max ≈ -λ_min
+        values = spec['values']
+        is_bipartite = abs(values[0] + values[-1]) < 0.01
+        ```
+
+        **Spectral Clustering Using Leading Eigenvector**
+
+        ```python
+        # Use second eigenvector (Fiedler vector) for graph clustering
+        g = Graph(directed=False)
+
+        # Add two communities with a weak bridge
+        # Community 1: nodes 0-4
+        for i in range(5):
+            g.add_node(f"n{i}")
+            for j in range(i+1, 5):
+                g.add_edge(f"n{i}", f"n{j}")
+
+        # Community 2: nodes 5-9
+        for i in range(5, 10):
+            g.add_node(f"n{i}")
+            for j in range(i+1, 10):
+                g.add_edge(f"n{i}", f"n{j}")
+
+        # Bridge
+        g.add_edge("n4", "n5")
+
+        spec = g.spectrum(which="largest", k=2)
+        # Use eigenvector to partition graph
+        fiedler_vector = spec['vectors'][1]  # Second eigenvector
+        partition = [1 if v > 0 else 0 for v in fiedler_vector]
+        ```
+
+        **Computing Spectral Radius**
+
+        ```python
+        # Spectral radius = max absolute eigenvalue
+        spec = g.spectrum(which="all")
+        spectral_radius = max(abs(v) for v in spec['values'])
+
+        # For regular graphs: spectral radius = degree
+        # Bound: spectral_radius ≤ max_degree
+        ```
+
+        Notes
+        -----
+        **Spectral Properties**:
+
+        - **Spectral radius**: ρ(A) = max|λᵢ|
+          - Always equals largest eigenvalue for undirected graphs
+          - Bounded by max degree: ρ(A) ≤ Δ(G)
+          - For regular graphs: ρ(A) = degree
+
+        - **Spectral gap**: λ₁ - λ₂
+          - Measures connectivity and expansion
+          - Large gap → well-connected graph
+          - Small gap → bottlenecks or clusters
+          - Zero gap → disconnected graph
+
+        - **Trace**: Σλᵢ = 0 (sum of eigenvalues equals zero for undirected)
+
+        - **Number of spanning trees**: Related to Laplacian eigenvalues
+
+        **Special Graph Spectra**:
+
+        - Complete graph K_n: {n-1, -1, -1, ..., -1}
+        - Cycle C_n: {2cos(2πk/n) | k=0,...,n-1}
+        - Path P_n: {2cos(πk/(n+1)) | k=1,...,n}
+        - Star S_n: {√(n-1), 0, ..., 0, -√(n-1)}
+
+        **Computational Complexity**:
+
+        - which="all": O(n³) using dense eigendecomposition
+        - which="largest"/"smallest": O(kn²) using iterative methods
+        - Recommended: Use k < 10 for large graphs (n > 1000)
+
+        **Use Cases**:
+
+        - Spectral clustering: Community detection via eigenvectors
+        - Graph embedding: Represent nodes using eigenvector coordinates
+        - Bipartite detection: Check if spectrum is symmetric about 0
+        - Random walk analysis: Eigenvalues determine mixing time
+        - Graph comparison: Compare spectral distributions
+
+        See Also
+        --------
+        laplacian_spectrum : Laplacian matrix spectrum
+        pagerank : Dominant eigenvector of modified adjacency matrix
+
+        References
+        ----------
+        Chung, F. R. K. (1997). "Spectral Graph Theory."
+        American Mathematical Society.
+
+        Von Luxburg, U. (2007). "A tutorial on spectral clustering."
+        Statistics and Computing, 17(4), 395-416.
+        """
+        return self._graph.spectrum(which, k)
+
+    def laplacian_spectrum(
+        self,
+        which: str = "smallest",
+        k: int | None = None,
+        normalized: bool = False,
+    ) -> dict[str, list[float] | list[list[float]] | float | None]:
+        """Compute eigenvalues and eigenvectors of the graph Laplacian.
+
+        Returns the spectrum of the Laplacian matrix L = D - A (or normalized
+        variant). The Laplacian spectrum provides insights into graph connectivity,
+        cuts, and diffusion processes.
+
+        Parameters
+        ----------
+        which : str, default="smallest"
+            Which eigenvalues to compute:
+            - "all": All n eigenvalues (O(n³), recommended for n < 100)
+            - "smallest": Smallest k eigenvalues (default k=6)
+            - "largest": Largest k eigenvalues
+        k : int, optional
+            Number of eigenvalues to compute for "largest"/"smallest".
+            Default is min(6, n-1) where n is the number of nodes.
+        normalized : bool, default=False
+            If True, use normalized Laplacian: L_norm = D^(-1/2) L D^(-1/2).
+            Normalized version has eigenvalues in [0, 2] for undirected graphs.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys:
+            - "values": List of eigenvalues (sorted ascending)
+            - "vectors": List of eigenvectors (each as list of floats)
+            - "algebraic_connectivity": λ₂ (second-smallest eigenvalue,
+              measures how well-connected the graph is; 0 if disconnected)
+
+        Raises
+        ------
+        ValueError
+            If graph is empty or eigenvalue computation fails.
+
+        Examples
+        --------
+        **Detecting Disconnected Components**
+
+        ```python
+        # Graph with 2 components
+        g = Graph(directed=False)
+        # Component 1
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        # Component 2
+        g.add_edge("X", "Y")
+
+        spec = g.laplacian_spectrum(which="smallest", k=3)
+        zero_eigenvalues = sum(1 for v in spec['values'] if abs(v) < 1e-6)
+        print(f"Number of components: {zero_eigenvalues}")
+        # λ₁ = 0 has multiplicity = number of connected components
+
+        connectivity = spec['algebraic_connectivity']
+        print(f"Algebraic connectivity: {connectivity}")
+        # = 0 means disconnected
+        ```
+
+        **Spectral Clustering with Fiedler Vector**
+
+        ```python
+        # Two-way spectral clustering
+        g = Graph(directed=False)
+        # Create graph with two communities...
+        for i in range(6):
+            g.add_node(f"n{i}")
+
+        # Dense intra-community edges
+        g.add_edge("n0", "n1")
+        g.add_edge("n1", "n2")
+        g.add_edge("n3", "n4")
+        g.add_edge("n4", "n5")
+        # Sparse inter-community edge
+        g.add_edge("n2", "n3")
+
+        spec = g.laplacian_spectrum(which="smallest", k=3)
+        fiedler_vector = spec['vectors'][1]  # Second eigenvector (λ₂)
+
+        # Partition based on sign of Fiedler vector
+        cluster_1 = [i for i, v in enumerate(fiedler_vector) if v < 0]
+        cluster_2 = [i for i, v in enumerate(fiedler_vector) if v >= 0]
+        ```
+
+        **Measuring Graph Expansion**
+
+        ```python
+        # Algebraic connectivity measures expansion
+        spec = g.laplacian_spectrum(which="smallest", k=2)
+        algebraic_connectivity = spec['algebraic_connectivity']
+
+        # Cheeger inequality: h²/(2Δ) ≤ λ₂ ≤ 2h
+        # where h = edge expansion, Δ = max degree
+        # Large λ₂ → expander graph (hard to partition)
+        # Small λ₂ → bottleneck (easy to cut)
+        ```
+
+        **Normalized Laplacian for Weighted Graphs**
+
+        ```python
+        g = Graph(directed=False)
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=2.0)
+        g.add_edge("C", "A", weight=0.5)
+
+        # Normalized Laplacian accounts for degree variations
+        spec = g.laplacian_spectrum(which="all", normalized=True)
+        # Eigenvalues in [0, 2] for undirected graphs
+        # λ = 0 ⟺ connected component
+        # λ = 2 ⟺ bipartite structure
+        ```
+
+        **Random Walk and Diffusion Analysis**
+
+        ```python
+        # Laplacian eigenvalues determine diffusion speed
+        spec = g.laplacian_spectrum(which="smallest", k=5)
+
+        # Mixing time ≈ 1 / λ₂ (algebraic connectivity)
+        # Small λ₂ → slow mixing (long random walks to reach steady state)
+        # Large λ₂ → fast mixing (rapid convergence)
+        ```
+
+        Notes
+        -----
+        **Laplacian Properties**:
+
+        - **Always has 0 eigenvalue**: Corresponding eigenvector is constant
+        - **Number of 0 eigenvalues**: Equals number of connected components
+        - **Algebraic connectivity** (λ₂, Fiedler value):
+          - λ₂ > 0 ⟺ graph is connected
+          - λ₂ = 0 ⟺ disconnected
+          - Measures robustness to edge removal
+          - Lower bound on edge/vertex connectivity
+
+        - **Fiedler vector**: Eigenvector for λ₂
+          - Sign pattern reveals natural graph partition
+          - Used in spectral bisection algorithms
+          - Minimizes cut weight among all bisections
+
+        **Normalized vs Unnormalized**:
+
+        - **Unnormalized L = D - A**:
+          - Eigenvalues: 0 = λ₁ ≤ λ₂ ≤ ... ≤ λₙ
+          - Sensitive to degree distribution
+          - Natural for unweighted graphs
+
+        - **Normalized L_norm = D^(-1/2) L D^(-1/2)**:
+          - Eigenvalues in [0, 2] for undirected
+          - Better for weighted/degree-imbalanced graphs
+          - Used in normalized cut clustering
+
+        **Special Graph Laplacians**:
+
+        - Path P_n: {2 - 2cos(πk/n) | k=1,...,n}, λ₂ = 2(1 - cos(π/n))
+        - Cycle C_n: {2 - 2cos(2πk/n) | k=0,...,n-1}, λ₂ = 2(1 - cos(2π/n))
+        - Complete K_n: {0, n, n, ..., n}, λ₂ = n
+        - Star S_n: {0, 1, 1, ..., 1, n}, λ₂ = 1
+
+        **Computational Complexity**:
+
+        - which="all": O(n³) for dense eigendecomposition
+        - which="smallest": O(kn²) for k smallest eigenvalues
+        - Normalized version: Additional O(n²) for degree computation
+
+        **Use Cases**:
+
+        - Spectral clustering: Use Fiedler vector for graph partitioning
+        - Community detection: k-way clustering using k eigenvectors
+        - Graph cuts: Min-cut via spectral relaxation
+        - Synchronization: Analyze coupled oscillators on networks
+        - Diffusion processes: Heat kernel and random walks
+        - Network robustness: Algebraic connectivity as connectivity measure
+
+        See Also
+        --------
+        spectrum : Adjacency matrix spectrum
+        count_weakly_connected_components : Count connected components
+
+        References
+        ----------
+        Fiedler, M. (1973). "Algebraic connectivity of graphs."
+        Czechoslovak Mathematical Journal, 23(2), 298-305.
+
+        Chung, F. R. K. (1997). "Spectral Graph Theory."
+        American Mathematical Society.
+
+        Shi, J., & Malik, J. (2000). "Normalized cuts and image segmentation."
+        IEEE PAMI, 22(8), 888-905.
+        """
+        return self._graph.laplacian_spectrum(which, k, normalized)
+
     def count_weakly_connected_components(self) -> int:
         """Count weakly connected components in the graph.
 

@@ -4844,6 +4844,323 @@ impl Graph {
         })
     }
 
+    // ========== Graph Spectrum ==========
+
+    /// Compute the spectrum of the adjacency matrix
+    ///
+    /// Returns eigenvalues and eigenvectors of the graph's adjacency matrix,
+    /// along with the spectral gap (difference between largest and second-largest eigenvalues).
+    ///
+    /// # Arguments
+    /// * `which` - Which eigenvalues to compute:
+    ///   - "all": All eigenvalues (O(n³), for small graphs)
+    ///   - "largest": Largest k eigenvalues (default k=min(6, n-1))
+    ///   - "smallest": Smallest k eigenvalues
+    /// * `k` - Number of eigenvalues to compute (for "largest"/"smallest")
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - "values": List of eigenvalues (sorted descending)
+    /// - "vectors": List of eigenvectors (as lists)
+    /// - "spectral_gap": λ₁ - λ₂ (for connected graphs)
+    ///
+    /// # Errors
+    /// - Empty graph
+    /// - Failed eigenvalue computation
+    #[pyo3(signature = (which="largest", k=None))]
+    pub fn spectrum(
+        &self,
+        py: Python,
+        which: &str,
+        k: Option<usize>,
+    ) -> PyResult<PyObject> {
+        use nalgebra::{DMatrix, SymmetricEigen};
+        use pyo3::types::PyDict;
+
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = node_ids.len();
+
+        if n == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Cannot compute spectrum of empty graph",
+            ));
+        }
+
+        // Build adjacency matrix
+        let mut adj_matrix = DMatrix::<f64>::zeros(n, n);
+        let node_to_idx: FxHashMap<u64, usize> =
+            node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+
+        for edge in &self.edges {
+            if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target)) {
+                adj_matrix[(i, j)] = edge.weight.unwrap_or(1.0);
+                if !self.directed {
+                    adj_matrix[(j, i)] = edge.weight.unwrap_or(1.0);
+                }
+            }
+        }
+
+        // Compute eigenvalues and eigenvectors
+        let eigen = SymmetricEigen::new(adj_matrix);
+        let mut eigenvalues: Vec<f64> = eigen.eigenvalues.iter().copied().collect();
+        let eigenvectors = eigen.eigenvectors;
+
+        // Sort eigenvalues in descending order with indices
+        let mut indexed_eigenvalues: Vec<(usize, f64)> =
+            eigenvalues.iter().enumerate().map(|(i, &v)| (i, v)).collect();
+        indexed_eigenvalues.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+        // Determine which eigenvalues to return
+        let num_to_return = match which {
+            "all" => n,
+            "largest" => k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1))),
+            "smallest" => {
+                let k_val = k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1)));
+                indexed_eigenvalues.reverse(); // Sort ascending for smallest
+                k_val
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid 'which' parameter: '{}'. Use 'all', 'largest', or 'smallest'",
+                    which
+                )))
+            }
+        };
+
+        let num_to_return = std::cmp::min(num_to_return, n);
+
+        // Extract selected eigenvalues and corresponding eigenvectors
+        let selected_indices: Vec<usize> = indexed_eigenvalues
+            .iter()
+            .take(num_to_return)
+            .map(|(idx, _)| *idx)
+            .collect();
+
+        let selected_eigenvalues: Vec<f64> = indexed_eigenvalues
+            .iter()
+            .take(num_to_return)
+            .map(|(_, val)| *val)
+            .collect();
+
+        // For "smallest", reverse back to descending order for output
+        let (final_eigenvalues, final_indices) = if which == "smallest" {
+            let mut rev_vals = selected_eigenvalues.clone();
+            let mut rev_idx = selected_indices.clone();
+            rev_vals.reverse();
+            rev_idx.reverse();
+            (rev_vals, rev_idx)
+        } else {
+            (selected_eigenvalues, selected_indices)
+        };
+
+        // Extract corresponding eigenvectors
+        let selected_eigenvectors: Vec<Vec<f64>> = final_indices
+            .iter()
+            .map(|&idx| {
+                eigenvectors.column(idx).iter().copied().collect()
+            })
+            .collect();
+
+        // Compute spectral gap (λ₁ - λ₂)
+        let spectral_gap = if eigenvalues.len() >= 2 {
+            // Sort all eigenvalues to get true λ₁ and λ₂
+            eigenvalues.sort_by(|a, b| b.partial_cmp(a).unwrap());
+            Some(eigenvalues[0] - eigenvalues[1])
+        } else {
+            None
+        };
+
+        // Build result dictionary
+        let result = PyDict::new_bound(py);
+        result.set_item("values", final_eigenvalues)?;
+        result.set_item("vectors", selected_eigenvectors)?;
+        if let Some(gap) = spectral_gap {
+            result.set_item("spectral_gap", gap)?;
+        } else {
+            result.set_item("spectral_gap", py.None())?;
+        }
+
+        Ok(result.into())
+    }
+
+    /// Compute the spectrum of the graph Laplacian
+    ///
+    /// Returns eigenvalues and eigenvectors of the graph Laplacian matrix (L = D - A),
+    /// along with the algebraic connectivity (second-smallest eigenvalue).
+    ///
+    /// # Arguments
+    /// * `which` - Which eigenvalues to compute:
+    ///   - "all": All eigenvalues (O(n³), for small graphs)
+    ///   - "largest": Largest k eigenvalues
+    ///   - "smallest": Smallest k eigenvalues (default k=min(6, n-1))
+    /// * `k` - Number of eigenvalues to compute
+    /// * `normalized` - If true, use normalized Laplacian L_norm = D^(-1/2) L D^(-1/2)
+    ///
+    /// # Returns
+    /// Dictionary with:
+    /// - "values": List of eigenvalues (sorted ascending for Laplacian)
+    /// - "vectors": List of eigenvectors (as lists)
+    /// - "algebraic_connectivity": λ₂ (second-smallest eigenvalue, 0 for disconnected)
+    ///
+    /// # Errors
+    /// - Empty graph
+    /// - Failed eigenvalue computation
+    #[pyo3(signature = (which="smallest", k=None, normalized=false))]
+    pub fn laplacian_spectrum(
+        &self,
+        py: Python,
+        which: &str,
+        k: Option<usize>,
+        normalized: bool,
+    ) -> PyResult<PyObject> {
+        use nalgebra::{DMatrix, SymmetricEigen};
+        use pyo3::types::PyDict;
+
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = node_ids.len();
+
+        if n == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Cannot compute Laplacian spectrum of empty graph",
+            ));
+        }
+
+        // Build degree and adjacency matrices
+        let node_to_idx: FxHashMap<u64, usize> =
+            node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+
+        let mut adj_matrix = DMatrix::<f64>::zeros(n, n);
+        let mut degrees = vec![0.0_f64; n];
+
+        for edge in &self.edges {
+            if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target)) {
+                let weight = edge.weight.unwrap_or(1.0);
+                adj_matrix[(i, j)] = weight;
+                degrees[i] += weight;
+
+                if !self.directed {
+                    adj_matrix[(j, i)] = weight;
+                    degrees[j] += weight;
+                }
+            }
+        }
+
+        // Build Laplacian matrix
+        let laplacian = if normalized {
+            // Normalized Laplacian: L_norm = I - D^(-1/2) A D^(-1/2)
+            let mut l_norm = DMatrix::<f64>::identity(n, n);
+
+            for i in 0..n {
+                for j in 0..n {
+                    if i != j && adj_matrix[(i, j)] != 0.0 {
+                        let d_i_sqrt = degrees[i].sqrt();
+                        let d_j_sqrt = degrees[j].sqrt();
+
+                        if d_i_sqrt > 1e-10 && d_j_sqrt > 1e-10 {
+                            l_norm[(i, j)] = -adj_matrix[(i, j)] / (d_i_sqrt * d_j_sqrt);
+                        }
+                    }
+                }
+            }
+            l_norm
+        } else {
+            // Standard Laplacian: L = D - A
+            let mut laplacian = DMatrix::<f64>::zeros(n, n);
+
+            for i in 0..n {
+                laplacian[(i, i)] = degrees[i];
+                for j in 0..n {
+                    if i != j {
+                        laplacian[(i, j)] = -adj_matrix[(i, j)];
+                    }
+                }
+            }
+            laplacian
+        };
+
+        // Compute eigenvalues and eigenvectors
+        let eigen = SymmetricEigen::new(laplacian);
+        let mut eigenvalues: Vec<f64> = eigen.eigenvalues.iter().copied().collect();
+        let eigenvectors = eigen.eigenvectors;
+
+        // Sort eigenvalues in ASCENDING order for Laplacian (smallest first)
+        let mut indexed_eigenvalues: Vec<(usize, f64)> =
+            eigenvalues.iter().enumerate().map(|(i, &v)| (i, v)).collect();
+        indexed_eigenvalues.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        // Determine which eigenvalues to return
+        let num_to_return = match which {
+            "all" => n,
+            "smallest" => k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1))),
+            "largest" => {
+                let k_val = k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1)));
+                indexed_eigenvalues.reverse(); // Sort descending for largest
+                k_val
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid 'which' parameter: '{}'. Use 'all', 'largest', or 'smallest'",
+                    which
+                )))
+            }
+        };
+
+        let num_to_return = std::cmp::min(num_to_return, n);
+
+        // Extract selected eigenvalues and corresponding eigenvectors
+        let selected_indices: Vec<usize> = indexed_eigenvalues
+            .iter()
+            .take(num_to_return)
+            .map(|(idx, _)| *idx)
+            .collect();
+
+        let selected_eigenvalues: Vec<f64> = indexed_eigenvalues
+            .iter()
+            .take(num_to_return)
+            .map(|(_, val)| *val)
+            .collect();
+
+        // For "largest", reverse back to ascending order for output
+        let (final_eigenvalues, final_indices) = if which == "largest" {
+            let mut rev_vals = selected_eigenvalues.clone();
+            let mut rev_idx = selected_indices.clone();
+            rev_vals.reverse();
+            rev_idx.reverse();
+            (rev_vals, rev_idx)
+        } else {
+            (selected_eigenvalues, selected_indices)
+        };
+
+        // Extract corresponding eigenvectors
+        let selected_eigenvectors: Vec<Vec<f64>> = final_indices
+            .iter()
+            .map(|&idx| {
+                eigenvectors.column(idx).iter().copied().collect()
+            })
+            .collect();
+
+        // Compute algebraic connectivity (λ₂, second-smallest eigenvalue)
+        let algebraic_connectivity = if eigenvalues.len() >= 2 {
+            // Sort all eigenvalues ascending to get true λ₁ and λ₂
+            eigenvalues.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            Some(eigenvalues[1]) // Second smallest (λ₂)
+        } else {
+            None
+        };
+
+        // Build result dictionary
+        let result = PyDict::new_bound(py);
+        result.set_item("values", final_eigenvalues)?;
+        result.set_item("vectors", selected_eigenvectors)?;
+        if let Some(connectivity) = algebraic_connectivity {
+            result.set_item("algebraic_connectivity", connectivity)?;
+        } else {
+            result.set_item("algebraic_connectivity", py.None())?;
+        }
+
+        Ok(result.into())
+    }
+
     // ========== Community Detection ==========
 
     /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm
