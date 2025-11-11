@@ -322,7 +322,6 @@ def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations:
         edge_length_after_shrink = target_edge_length_in_viewport * potential_shrink
 
         # Only shrink if we can maintain minimum readable edge length
-        # This follows DiagrammeR's philosophy: better to pan/zoom than make unreadable
         if max_scaled_range > 1.6 and edge_length_after_shrink >= min_edge_length_in_viewport:
             shrink_factor = 1.6 / max_scaled_range
             print(f"Graph extends beyond viewport, shrinking by {shrink_factor:.4f}")
@@ -975,15 +974,15 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
 
     lines = [f"{graph_type} {{"]
 
-    # Graph-level attributes (DiagrammeR defaults)
+    # Graph-level attributes
     lines.append("  graph [outputorder=edgesfirst, bgcolor=white];")
 
-    # Node defaults (DiagrammeR style)
+    # Node defaults
     lines.append(
         "  node [fontname=Helvetica, fontsize=10, shape=circle, fixedsize=true, width=0.5, style=filled, fillcolor=aliceblue, color=gray50, fontcolor=gray50];"
     )
 
-    # Edge defaults (DiagrammeR style with thicker, darker edges)
+    # Edge defaults
     if is_directed:
         lines.append(
             "  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray60, penwidth=1.5, arrowsize=0.5];"
