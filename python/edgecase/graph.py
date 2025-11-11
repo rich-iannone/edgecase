@@ -3979,19 +3979,87 @@ class Graph:
     ) -> "Graph":
         """Map node attribute values to colors.
 
-        See edgecase.aesthetics.colorize_node_attrs() for full documentation.
-        """
-        from edgecase.aesthetics import colorize_node_attrs
+        Sets a color attribute on nodes based on categorical or continuous values.
+        For categorical data, assigns distinct colors from a palette.
+        For continuous data, interpolates between colors.
 
-        return colorize_node_attrs(
-            self,
-            node_attr_from=node_attr_from,
-            values=values,
-            node_attr_to=node_attr_to,
-            palette=palette,
-            alpha=alpha,
-            nodes=nodes,
-        )
+        Parameters
+        ----------
+        node_attr_from : str, optional
+            Attribute name to read values from (e.g., 'community', 'type')
+            If None, must provide values dict
+        values : dict, optional
+            Dictionary mapping node IDs to values
+            If None, reads from node_attr_from attribute
+        node_attr_to : str, default "color"
+            Attribute name to write colors to (e.g., 'color', 'fillcolor')
+        palette : str or list, default "default"
+            Color palette name ('default', 'vibrant', 'pastel', 'dark', 'tableau')
+            or list of hex color strings
+        alpha : int, optional
+            Alpha transparency (0-100), not yet implemented
+        nodes : list, optional
+            Subset of nodes to colorize (default: all nodes)
+
+        Returns
+        -------
+        Graph
+            Self for method chaining
+
+        Examples
+        --------
+        >>> # Color by community
+        >>> communities = G.get_cmty_louvain()
+        >>> G.colorize_node_attrs('community', communities, palette='vibrant')
+
+        >>> # Color by node type
+        >>> G.colorize_node_attrs(node_attr_from='type', palette='tableau')
+
+        >>> # Custom color list
+        >>> G.colorize_node_attrs('status', values={'A': 'active', 'B': 'inactive'},
+        ...                       palette=['#ff0000', '#00ff00'])
+        """
+        from edgecase.widget import COLOR_PALETTES
+
+        if nodes is None:
+            nodes = self.node_ids()
+
+        # Get values to colorize
+        if values is None:
+            if node_attr_from is None:
+                raise ValueError("Must provide either node_attr_from or values")
+            values = self.get_node_attrs(node_attr_from, nodes=nodes)
+
+        if not values:
+            return self
+
+        # Get unique values and assign colors
+        unique_values = sorted(list(set(values.values())))
+
+        # Get color palette
+        if isinstance(palette, str):
+            colors = COLOR_PALETTES.get(palette, COLOR_PALETTES["default"])
+        else:
+            colors = palette
+
+        # Create color mapping
+        n_values = len(unique_values)
+        if n_values <= len(colors):
+            color_list = colors[:n_values]
+        else:
+            # Cycle through colors if we have more values than colors
+            color_list = (colors * (n_values // len(colors) + 1))[:n_values]
+
+        color_map = dict(zip(unique_values, color_list))
+
+        # Set colors on nodes
+        for node_label, value in values.items():
+            color = color_map.get(value, "#cccccc")
+            # Convert string label to internal node ID if needed
+            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
+            self._graph.set_node_attr(node_id, node_attr_to, color)
+
+        return self
 
     def rescale_node_attrs(
         self,
@@ -4004,19 +4072,73 @@ class Graph:
     ) -> "Graph":
         """Rescale node attribute values to a range.
 
-        See edgecase.aesthetics.rescale_node_attrs() for full documentation.
-        """
-        from edgecase.aesthetics import rescale_node_attrs
+        Normalizes numeric values to a specified range, useful for sizing nodes
+        by centrality, degree, or other continuous metrics.
 
-        return rescale_node_attrs(
-            self,
-            node_attr_from=node_attr_from,
-            values=values,
-            node_attr_to=node_attr_to,
-            to_lower_bound=to_lower_bound,
-            to_upper_bound=to_upper_bound,
-            nodes=nodes,
-        )
+        Parameters
+        ----------
+        node_attr_from : str, optional
+            Attribute name to read values from (e.g., 'betweenness', 'degree')
+            If None, must provide values dict
+        values : dict, optional
+            Dictionary mapping node IDs to numeric values
+            If None, reads from node_attr_from attribute
+        node_attr_to : str, default "size"
+            Attribute name to write rescaled values to
+        to_lower_bound : float, default 0.5
+            Minimum value in output range
+        to_upper_bound : float, default 1.0
+            Maximum value in output range
+        nodes : list, optional
+            Subset of nodes to rescale (default: all nodes)
+
+        Returns
+        -------
+        Graph
+            Self for method chaining
+
+        Examples
+        --------
+        >>> # Size by betweenness centrality
+        >>> betweenness = G.get_betweenness()
+        >>> G.rescale_node_attrs('betweenness', betweenness,
+        ...                       node_attr_to='size', to_lower_bound=5, to_upper_bound=20)
+
+        >>> # Scale by degree
+        >>> degrees = {n: len(G.neighbors(n)) for n in G.nodes()}
+        >>> G.rescale_node_attrs(values=degrees, node_attr_to='width',
+        ...                       to_lower_bound=1, to_upper_bound=10)
+        """
+        if nodes is None:
+            nodes = self.node_ids()
+
+        # Get values to rescale
+        if values is None:
+            if node_attr_from is None:
+                raise ValueError("Must provide either node_attr_from or values")
+            values = self.get_node_attrs(node_attr_from, nodes=nodes)
+
+        if not values:
+            return self
+
+        # Get min/max for normalization
+        value_list = list(values.values())
+        min_val = min(value_list)
+        max_val = max(value_list)
+
+        # Avoid division by zero
+        value_range = max_val - min_val if max_val > min_val else 1.0
+        output_range = to_upper_bound - to_lower_bound
+
+        # Rescale and set on nodes
+        for node_label, value in values.items():
+            normalized = (value - min_val) / value_range
+            rescaled = to_lower_bound + (normalized * output_range)
+            # Convert string label to internal node ID if needed
+            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
+            self._graph.set_node_attr(node_id, node_attr_to, rescaled)
+
+        return self
 
     def set_node_attr_to_display(
         self,
@@ -4024,11 +4146,23 @@ class Graph:
     ) -> "Graph":
         """Set which node attribute to display in tooltips/labels.
 
-        See edgecase.aesthetics.set_node_attr_to_display() for full documentation.
-        """
-        from edgecase.aesthetics import set_node_attr_to_display
+        Parameters
+        ----------
+        attr : str, optional
+            Attribute name to display. If None, shows node ID.
 
-        return set_node_attr_to_display(self, attr=attr)
+        Returns
+        -------
+        Graph
+            Self for method chaining
+
+        Examples
+        --------
+        >>> G.set_node_attr_to_display('label')
+        >>> G.set_node_attr_to_display(None)  # Reset to node IDs
+        """
+        self._display_attr = attr
+        return self
 
     def get_authority_centrality(self, max_iter: int = 100, tol: float = 1e-6) -> dict[str, float]:
         """Get HITS authority scores for each node (directed graphs only).

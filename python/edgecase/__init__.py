@@ -9,11 +9,6 @@ except PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
 # Import Rust core with Python wrapper for API compatibility
-from edgecase.aesthetics import (
-    colorize_node_attrs,
-    rescale_node_attrs,
-    set_node_attr_to_display,
-)
 from edgecase.datasets import (
     karate_club,
 )
@@ -81,10 +76,6 @@ __all__ = [
     "plot_graph",
     "GraphWidget",
     "graph_widget",
-    # Aesthetics
-    "colorize_node_attrs",
-    "rescale_node_attrs",
-    "set_node_attr_to_display",
     # Tables
     "tbl_centrality",
     "tbl_network_summary",
