@@ -2088,6 +2088,155 @@ class Graph:
         """
         return self._graph.local_clustering_coefficient()
 
+    def which_mutual(self) -> list[tuple[int, int]]:
+        """Find pairs of mutual (reciprocal) edges in directed graph.
+
+        Identifies edge pairs where both A→B and B→A exist, indicating bidirectional
+        connections. Only meaningful for directed graphs. Each pair is returned once
+        with edge IDs in ascending order.
+
+        This is useful for analyzing reciprocity patterns in social networks,
+        communication graphs, and other directed relationships.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            List of (edge_id1, edge_id2) tuples representing mutual edge pairs.
+            Empty list if no mutual edges exist.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph.
+
+        Examples
+        --------
+        Find mutual edges in a social network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Carol")
+            .add_edge("Alice", "Bob")   # Edge 1
+            .add_edge("Bob", "Alice")   # Edge 2 - mutual with 1
+            .add_edge("Alice", "Carol") # Edge 3 - no reciprocal
+        )
+
+        mutual = graph.which_mutual()
+        print(mutual)  # [(1, 2)]
+        ```
+
+        Analyze communication patterns:
+
+        ```python
+        # Find bidirectional communication
+        mutual_pairs = graph.which_mutual()
+        print(f"Bidirectional connections: {len(mutual_pairs)}")
+
+        # Get details of mutual relationships
+        for edge1_id, edge2_id in mutual_pairs:
+            e1 = graph.get_edge_by_id(edge1_id)
+            e2 = graph.get_edge_by_id(edge2_id)
+            print(f"Mutual: {e1[0]} ↔ {e1[1]}")
+        ```
+
+        See Also
+        --------
+        reciprocity : Calculate overall reciprocity ratio
+        has_edge : Check if specific edge exists
+        """
+        return self._graph.which_mutual()
+
+    def reciprocity(self, mode: str = "default") -> float:
+        """Calculate reciprocity (fraction of edges with reciprocal counterpart).
+
+        Reciprocity measures the proportion of edges in a directed graph that are
+        bidirectional (mutual). Returns a value between 0.0 (no reciprocal edges)
+        and 1.0 (all edges are reciprocal).
+
+        This metric is fundamental for understanding relationship symmetry in social
+        networks, mutual influence in citation networks, and bidirectional flows in
+        transportation or communication networks.
+
+        Parameters
+        ----------
+        mode : {"default", "ratio"}, default="default"
+            Calculation mode for reciprocity:
+            - "default" or "ratio": (# mutual edges) / (total # edges)
+
+        Returns
+        -------
+        float
+            Reciprocity value between 0.0 and 1.0, or 0.0 for empty graphs.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph or with invalid mode.
+
+        Examples
+        --------
+        Measure reciprocity in a social network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Mutual with above
+            .add_edge("A", "C")  # No reciprocal
+        )
+
+        recip = graph.reciprocity()
+        print(f"Reciprocity: {recip:.3f}")  # 0.667 (2 mutual out of 3 edges)
+        ```
+
+        Compare different networks:
+
+        ```python
+        # Highly reciprocal network (e.g., friendships)
+        friendship = Graph(directed=True).add_edges([
+            ("A", "B"), ("B", "A"),
+            ("B", "C"), ("C", "B"),
+            ("A", "C"), ("C", "A"),
+        ])
+        print(f"Friendship reciprocity: {friendship.reciprocity():.2f}")  # 1.00
+
+        # Low reciprocity network (e.g., followers)
+        followers = Graph(directed=True).add_edges([
+            ("A", "B"), ("A", "C"),
+            ("B", "C"), ("D", "A"),
+        ])
+        print(f"Follower reciprocity: {followers.reciprocity():.2f}")  # 0.00
+        ```
+
+        Analyze communication patterns:
+
+        ```python
+        # Email network with some mutual communication
+        email = Graph(directed=True)
+        # ... add edges ...
+
+        recip = email.reciprocity()
+        if recip > 0.5:
+            print("High mutual communication")
+        elif recip > 0.2:
+            print("Moderate mutual communication")
+        else:
+            print("Mostly one-way communication")
+        ```
+
+        See Also
+        --------
+        which_mutual : Get pairs of mutual edges
+        is_directed : Check if graph is directed
+        """
+        return self._graph.reciprocity(mode)
+
     def count_weakly_connected_components(self) -> int:
         """Count weakly connected components in the graph.
 

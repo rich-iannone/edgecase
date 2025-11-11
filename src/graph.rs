@@ -3813,6 +3813,190 @@ impl Graph {
         Ok(trails)
     }
 
+    // ========== Reciprocity (Mutual Edges) ==========
+
+    /// Find pairs of mutual (reciprocal) edges in directed graph
+    ///
+    /// Returns edge IDs of edges that have a reciprocal counterpart.
+    /// For an edge A→B to be mutual, there must exist an edge B→A.
+    ///
+    /// # Returns
+    /// * Vec<(u64, u64)> - Vector of (edge_id1, edge_id2) pairs where each pair
+    ///   represents mutual edges. edge_id1 < edge_id2 for consistency.
+    ///
+    /// # Errors
+    /// * Returns error if graph is undirected (only meaningful for directed graphs)
+    ///
+    /// # Examples
+    /// ```ignore
+    /// let mut g = Graph::new(true, false);
+    /// g.add_edge("A", "B");  // edge_id 1
+    /// g.add_edge("B", "A");  // edge_id 2 - mutual with 1
+    /// g.add_edge("A", "C");  // edge_id 3 - no reciprocal
+    ///
+    /// let mutual = g.which_mutual();
+    /// // Returns [(1, 2)]
+    /// ```
+    pub fn which_mutual(&self) -> PyResult<Vec<(u64, u64)>> {
+        if !self.directed {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "which_mutual() requires a directed graph"
+            ));
+        }
+
+        let mut mutual_pairs: Vec<(u64, u64)> = Vec::new();
+        let mut seen_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
+
+        // For each edge, check if reverse edge exists
+        for edge in &self.edges {
+            let source = edge.source;
+            let target = edge.target;
+
+            // Skip self-loops
+            if source == target {
+                continue;
+            }
+
+            // Create canonical pair representation (smaller node first)
+            let canonical = if source < target {
+                (source, target)
+            } else {
+                (target, source)
+            };
+
+            // Skip if we've already processed this pair
+            if seen_pairs.contains(&canonical) {
+                continue;
+            }
+
+            // Find all edges from source to target
+            let forward_edges: Vec<u64> = self.edges
+                .iter()
+                .filter(|e| e.source == source && e.target == target)
+                .map(|e| e.id)
+                .collect();
+
+            // Find all edges from target to source (reverse)
+            let reverse_edges: Vec<u64> = self.edges
+                .iter()
+                .filter(|e| e.source == target && e.target == source)
+                .map(|e| e.id)
+                .collect();
+
+            // If both directions exist, they are mutual
+            if !forward_edges.is_empty() && !reverse_edges.is_empty() {
+                // Mark this node pair as seen
+                seen_pairs.insert(canonical);
+
+                // Create pairs of mutual edges
+                for &fwd_id in &forward_edges {
+                    for &rev_id in &reverse_edges {
+                        let pair = if fwd_id < rev_id {
+                            (fwd_id, rev_id)
+                        } else {
+                            (rev_id, fwd_id)
+                        };
+                        mutual_pairs.push(pair);
+                    }
+                }
+            }
+        }
+
+        Ok(mutual_pairs)
+    }
+
+    /// Calculate reciprocity (fraction of edges with reciprocal counterpart)
+    ///
+    /// Reciprocity measures the proportion of edges in a directed graph that are
+    /// bidirectional (mutual). Returns a value between 0.0 and 1.0.
+    ///
+    /// The calculation depends on the mode:
+    /// - "default": ratio of bidirectional connections to total connections
+    /// - "ratio": (# mutual edges) / (total # edges)
+    ///
+    /// # Arguments
+    /// * `mode` - Calculation mode: "default" or "ratio"
+    ///
+    /// # Returns
+    /// * f64 - Reciprocity value between 0.0 (no mutual edges) and 1.0 (all mutual)
+    ///
+    /// # Errors
+    /// * Returns error if graph is undirected
+    /// * Returns error if mode is invalid
+    ///
+    /// # Examples
+    /// ```ignore
+    /// let mut g = Graph::new(true, false);
+    /// g.add_edge("A", "B");
+    /// g.add_edge("B", "A");  // Mutual with above
+    /// g.add_edge("A", "C");  // No reciprocal
+    ///
+    /// let recip = g.reciprocity("ratio");
+    /// // 2 mutual edges out of 3 total = 0.666...
+    /// ```
+    #[pyo3(signature = (mode="default"))]
+    pub fn reciprocity(&self, mode: &str) -> PyResult<f64> {
+        if !self.directed {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "reciprocity() requires a directed graph"
+            ));
+        }
+
+        let num_edges = self.num_edges();
+        if num_edges == 0 {
+            return Ok(0.0);
+        }
+
+        match mode {
+            "default" | "ratio" => {
+                // Count edges that are mutual
+                let mut mutual_count = 0;
+                let mut seen_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
+
+                for edge in &self.edges {
+                    let source = edge.source;
+                    let target = edge.target;
+
+                    // Skip self-loops
+                    if source == target {
+                        continue;
+                    }
+
+                    // Create canonical pair
+                    let canonical = if source < target {
+                        (source, target)
+                    } else {
+                        (target, source)
+                    };
+
+                    // Skip if already counted
+                    if seen_pairs.contains(&canonical) {
+                        continue;
+                    }
+
+                    // Check if reverse edge exists
+                    let has_forward = self.edges.iter().any(|e|
+                        e.source == source && e.target == target
+                    );
+                    let has_reverse = self.edges.iter().any(|e|
+                        e.source == target && e.target == source
+                    );
+
+                    if has_forward && has_reverse {
+                        seen_pairs.insert(canonical);
+                        // Count both directions as mutual
+                        mutual_count += 2;
+                    }
+                }
+
+                Ok(mutual_count as f64 / num_edges as f64)
+            }
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                format!("Invalid mode '{}'. Use 'default' or 'ratio'", mode)
+            )),
+        }
+    }
+
     // ========== Community Detection ==========
 
     /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm
