@@ -6,6 +6,7 @@ pub mod connectivity;
 pub mod cycles;
 pub mod domirank;
 pub mod paths;
+pub mod structural;
 
 #[cfg(test)]
 mod tests {

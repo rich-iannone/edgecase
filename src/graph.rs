@@ -1,7 +1,7 @@
 //! Graph data structure and core operations
 
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList, PyTuple};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
@@ -2219,6 +2219,154 @@ impl Graph {
         let reciprocity = reciprocal_count as f64 / self.edges.len() as f64;
 
         Ok(reciprocity)
+    }
+
+    /// Count triangles in the graph
+    /// Returns a Python dictionary mapping node labels to triangle counts
+    ///
+    /// For undirected graphs, counts the number of triangles that include each node.
+    /// For directed graphs, counts directed triangles (closed triplets).
+    ///
+    /// # Time Complexity
+    /// O(m * d_max) where m is the number of edges and d_max is the maximum degree
+    ///
+    /// # Returns
+    /// Dictionary mapping node labels (or IDs as strings) to triangle counts
+    ///
+    /// # Example
+    /// ```python
+    /// import edgecase as ec
+    /// g = ec.Graph()
+    /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+    /// counts = g.count_triangles()
+    /// # Returns: {"A": 1, "B": 1, "C": 1}
+    /// ```
+    pub fn count_triangles(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let triangle_counts = crate::algorithms::structural::count_triangles(self);
+
+        // Convert to Python dict with node labels
+        let result = PyDict::new(py);
+        for (node_id, count) in triangle_counts {
+            let label = match self.label_from_id(node_id)? {
+                Some(l) => l,
+                None => node_id.to_string(),
+            };
+            result.set_item(label, count)?;
+        }
+
+        Ok(result.into())
+    }
+
+    /// List all triangles in the graph
+    /// Returns a list of triangles, where each triangle is a tuple of three node labels
+    ///
+    /// For undirected graphs, returns unique triangles.
+    /// For directed graphs, returns directed triangles (closed triplets).
+    ///
+    /// # Time Complexity
+    /// O(m * d_max) where m is the number of edges and d_max is the maximum degree
+    ///
+    /// # Returns
+    /// List of tuples (node1, node2, node3) representing triangles
+    ///
+    /// # Example
+    /// ```python
+    /// import edgecase as ec
+    /// g = ec.Graph()
+    /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+    /// triangles = g.list_triangles()
+    /// # Returns: [("A", "B", "C")]
+    /// ```
+    pub fn list_triangles(&self, py: Python) -> PyResult<Py<PyList>> {
+        let triangles = crate::algorithms::structural::list_triangles(self);
+
+        // Convert to Python list with node labels
+        let result = PyList::empty(py);
+        for (n1, n2, n3) in triangles {
+            let label1 = match self.label_from_id(n1)? {
+                Some(l) => l,
+                None => n1.to_string(),
+            };
+            let label2 = match self.label_from_id(n2)? {
+                Some(l) => l,
+                None => n2.to_string(),
+            };
+            let label3 = match self.label_from_id(n3)? {
+                Some(l) => l,
+                None => n3.to_string(),
+            };
+
+            let tuple = PyTuple::new_bound(py, &[label1, label2, label3]);
+            result.append(tuple)?;
+        }
+
+        Ok(result.into())
+    }
+
+    /// Compute global transitivity (clustering coefficient)
+    /// Transitivity = 3 * (number of triangles) / (number of connected triples)
+    ///
+    /// For undirected graphs, a connected triple is a set of three nodes where
+    /// at least two edges connect them (a path of length 2).
+    ///
+    /// Returns None if there are no connected triples in the graph.
+    ///
+    /// # Time Complexity
+    /// O(m * d_max) where m is the number of edges and d_max is the maximum degree
+    ///
+    /// # Returns
+    /// Global clustering coefficient as a float, or None if undefined
+    ///
+    /// # Example
+    /// ```python
+    /// import edgecase as ec
+    /// g = ec.Graph()
+    /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+    /// trans = g.transitivity()
+    /// # Returns: 1.0 (perfect triangle)
+    /// ```
+    pub fn transitivity(&self) -> Option<f64> {
+        crate::algorithms::structural::transitivity(self)
+    }
+
+    /// Compute local clustering coefficient for each node
+    /// For undirected graphs: C(v) = 2 * triangles(v) / (degree(v) * (degree(v) - 1))
+    /// For directed graphs: C(v) = triangles(v) / (out_degree(v) * (out_degree(v) - 1))
+    ///
+    /// Returns None for nodes with degree < 2 (no triangles possible)
+    ///
+    /// # Time Complexity
+    /// O(m * d_max) where m is the number of edges and d_max is the maximum degree
+    ///
+    /// # Returns
+    /// Dictionary mapping node labels to clustering coefficients (or None)
+    ///
+    /// # Example
+    /// ```python
+    /// import edgecase as ec
+    /// g = ec.Graph()
+    /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "D")])
+    /// clustering = g.local_clustering_coefficient()
+    /// # Returns clustering coefficient for each node
+    /// ```
+    pub fn local_clustering_coefficient(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let clustering = crate::algorithms::structural::local_clustering_coefficient(self);
+
+        // Convert to Python dict with node labels
+        let result = PyDict::new(py);
+        for (node_id, coeff_opt) in clustering {
+            let label = match self.label_from_id(node_id)? {
+                Some(l) => l,
+                None => node_id.to_string(),
+            };
+
+            match coeff_opt {
+                Some(coeff) => result.set_item(label, coeff)?,
+                None => result.set_item(label, py.None())?,
+            }
+        }
+
+        Ok(result.into())
     }
 
     /// Get minimum cut between two nodes using Ford-Fulkerson with BFS (Edmonds-Karp)

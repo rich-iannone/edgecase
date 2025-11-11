@@ -1852,6 +1852,242 @@ class Graph:
         """
         return self._graph.is_bipartite()
 
+    def count_triangles(self) -> dict[str, int]:
+        """Count triangles containing each node.
+
+        Returns the number of triangles that include each node in the graph.
+        For undirected graphs, counts each triangle once per vertex.
+        For directed graphs, counts directed triangles (closed triplets).
+
+        A triangle is a set of three nodes where all three pairs are connected.
+        This is the smallest non-trivial cycle and a fundamental measure of local
+        clustering in networks.
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        dict[str, int]
+            Dictionary mapping node labels (or string IDs) to triangle counts.
+
+        Examples
+        --------
+        Count triangles in a simple triangle:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        counts = graph.count_triangles()
+        print(counts)  # {"A": 1, "B": 1, "C": 1}
+        ```
+
+        Count triangles in a more complex graph:
+
+        ```python
+        # Graph with 2 triangles sharing an edge
+        graph = (
+            Graph()
+            .add_edges([
+                ("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
+                ("B", "D"), ("D", "C")  # Triangle 2 with B-C
+            ])
+        )
+
+        counts = graph.count_triangles()
+        # B and C each participate in 2 triangles
+        print(counts)  # {"A": 1, "B": 2, "C": 2, "D": 1}
+        ```
+
+        See Also
+        --------
+        list_triangles : Get list of all triangles
+        local_clustering_coefficient : Per-node clustering based on triangles
+        transitivity : Global clustering coefficient
+        """
+        return self._graph.count_triangles()
+
+    def list_triangles(self) -> list[tuple[str, str, str]]:
+        """List all triangles in the graph.
+
+        Returns a list of all triangles (3-cycles) in the graph. Each triangle is
+        represented as a sorted tuple of three node labels. For undirected graphs,
+        each triangle appears once. For directed graphs, lists directed triangles.
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        list[tuple[str, str, str]]
+            List of triangles, where each triangle is a tuple of three node labels.
+
+        Examples
+        --------
+        List triangles in a graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edges([
+                ("A", "B"), ("B", "C"), ("C", "A"),  # One triangle
+                ("A", "D"), ("D", "B")  # Another triangle
+            ])
+        )
+
+        triangles = graph.list_triangles()
+        print(triangles)  # [("A", "B", "C"), ("A", "B", "D")]
+        ```
+
+        For larger graphs, this can identify all triadic closures:
+
+        ```python
+        # Social network
+        graph = Graph().add_edges([
+            ("Alice", "Bob"), ("Bob", "Charlie"), ("Charlie", "Alice"),
+            ("Alice", "David"), ("David", "Bob")
+        ])
+
+        for tri in graph.list_triangles():
+            print(f"Triangle: {tri}")
+        ```
+
+        See Also
+        --------
+        count_triangles : Count triangles per node
+        transitivity : Ratio of triangles to possible triangles
+        """
+        return self._graph.list_triangles()
+
+    def transitivity(self) -> Optional[float]:
+        """Compute global transitivity (clustering coefficient).
+
+        Transitivity measures the probability that two neighbors of a node are
+        also connected. It's computed as:
+
+            transitivity = 3 * (number of triangles) / (number of connected triples)
+
+        A connected triple is a path of length 2 (three nodes where at least two
+        edges connect them). Higher transitivity indicates more clustering.
+
+        Returns None if there are no connected triples in the graph.
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        Optional[float]
+            Global clustering coefficient between 0.0 and 1.0, or None if undefined.
+
+        Examples
+        --------
+        Perfect triangle has transitivity 1.0:
+
+        ```python
+        triangle = Graph().add_edges([
+            ("A", "B"), ("B", "C"), ("C", "A")
+        ])
+
+        print(triangle.transitivity())  # 1.0 (all triples are closed)
+        ```
+
+        Chain graph has transitivity 0.0:
+
+        ```python
+        chain = Graph().add_edges([
+            ("A", "B"), ("B", "C"), ("C", "D")
+        ])
+
+        print(chain.transitivity())  # 0.0 (no triangles, only open triples)
+        ```
+
+        Real-world networks typically have values between 0.1 and 0.5:
+
+        ```python
+        social_network = Graph().add_edges([
+            ("Alice", "Bob"), ("Bob", "Charlie"),
+            ("Charlie", "David"), ("David", "Alice"),
+            ("Alice", "Charlie")  # Creates some triangles
+        ])
+
+        trans = social_network.transitivity()
+        print(f"Clustering: {trans:.3f}")
+        ```
+
+        See Also
+        --------
+        local_clustering_coefficient : Per-node clustering
+        count_triangles : Number of triangles per node
+        """
+        return self._graph.transitivity()
+
+    def local_clustering_coefficient(self) -> dict[str, Optional[float]]:
+        """Compute local clustering coefficient for each node.
+
+        The local clustering coefficient measures how close a node's neighbors are
+        to being a complete subgraph (clique). For a node with k neighbors, it's
+        the fraction of possible edges between neighbors that actually exist.
+
+        For undirected graphs:
+            C(v) = 2 * triangles(v) / (k * (k-1))
+
+        For directed graphs:
+            C(v) = triangles(v) / (k_out * (k_out-1))
+
+        Nodes with fewer than 2 neighbors return None (clustering undefined).
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        dict[str, Optional[float]]
+            Dictionary mapping node labels to clustering coefficients (0.0 to 1.0),
+            or None for nodes with degree < 2.
+
+        Examples
+        --------
+        Measure clustering in a network:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edges([
+                ("A", "B"), ("B", "C"), ("C", "A"),  # Triangle: A,B,C
+                ("A", "D"), ("A", "E")  # A has additional neighbors
+            ])
+        )
+
+        clustering = graph.local_clustering_coefficient()
+        print(f"Node A: {clustering['A']:.3f}")  # Lower (not all neighbors connected)
+        print(f"Node B: {clustering['B']:.3f}")  # 1.0 (all neighbors connected)
+        print(f"Node D: {clustering['D']}")      # None (degree 1)
+        ```
+
+        Find highly clustered nodes (hubs):
+
+        ```python
+        clustering = graph.local_clustering_coefficient()
+        hubs = {
+            node: coeff
+            for node, coeff in clustering.items()
+            if coeff and coeff > 0.5
+        }
+        print(f"Highly clustered nodes: {hubs}")
+        ```
+
+        See Also
+        --------
+        transitivity : Global clustering coefficient
+        count_triangles : Triangle counts used in calculation
+        """
+        return self._graph.local_clustering_coefficient()
+
     def count_weakly_connected_components(self) -> int:
         """Count weakly connected components in the graph.
 
