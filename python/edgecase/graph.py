@@ -796,6 +796,157 @@ class Graph:
         # Convert node IDs to labels
         return [[self.label_from_id(node_id) for node_id in cycle] for cycle in cycles_ids]
 
+    def ada_star_search(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        epsilon: float = 1.0,
+        weight_attr: str = "weight",
+        heuristic: Optional[Callable[[str, str], float]] = None,
+        reuse_planner: bool = False,
+    ) -> list[str]:
+        """
+        Find path using ADA* (Anytime Dynamic A*) search algorithm.
+
+        ADA* is an anytime optimal pathfinding algorithm that can return
+        suboptimal paths quickly and iteratively improve them. The epsilon
+        parameter controls the trade-off between solution quality and speed.
+
+        Parameters
+        ----------
+        source : int | str
+            Starting node ID or label.
+        target : int | str
+            Target node ID or label.
+        epsilon : float, default=1.0
+            Suboptimality bound. epsilon=1.0 finds optimal paths, epsilon>1.0
+            trades optimality for speed. Higher values explore less but may
+            return longer paths.
+        weight_attr : str, default="weight"
+            Edge attribute to use as weight. Falls back to edge.weight if
+            attribute not found.
+        heuristic : callable, optional
+            Custom heuristic function h(node_label, target_label) -> float
+            that estimates cost from any node to target. Must be admissible
+            (never overestimate). If None, uses zero heuristic (equivalent
+            to Dijkstra's algorithm).
+        reuse_planner : bool, default=False
+            If True, reuses planner state from previous call with same source/target.
+            Enables iterative refinement by calling with decreasing epsilon values.
+            If False, creates fresh planner for each call.
+
+        Returns
+        -------
+        list[str]
+            Path from source to target as list of node labels.
+
+        Raises
+        ------
+        ValueError
+            If source or target nodes don't exist, or if no path exists.
+
+        Examples
+        --------
+        Find optimal path (equivalent to Dijkstra):
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B", attributes={"weight": 1.0})
+            .add_edge("A", "C", attributes={"weight": 4.0})
+            .add_edge("B", "C", attributes={"weight": 2.0})
+            .add_edge("C", "D", attributes={"weight": 1.0})
+            .add_edge("B", "D", attributes={"weight": 5.0})
+        )
+
+        path = graph.ada_star_search("A", "D", epsilon=1.0)
+        print(path)  # ['A', 'B', 'C', 'D']
+        ```
+
+        Fast suboptimal path with higher epsilon:
+
+        ```python
+        # epsilon=5.0 explores less, finds path faster
+        path = graph.ada_star_search("A", "D", epsilon=5.0)
+        # May return suboptimal path but much faster on large graphs
+        ```
+
+        Custom heuristic (e.g., Euclidean distance for spatial graphs):
+
+        ```python
+        positions = {"A": (0, 0), "B": (1, 0), "C": (1, 1), "D": (2, 1)}
+
+        def euclidean(node: str, target: str) -> float:
+            x1, y1 = positions[node]
+            x2, y2 = positions[target]
+            return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+
+        path = graph.ada_star_search("A", "D", heuristic=euclidean)
+        ```
+
+        Iterative refinement (anytime behavior):
+
+        ```python
+        # Quick suboptimal path first
+        path1 = graph.ada_star_search("A", "D", epsilon=5.0, reuse_planner=True)
+
+        # Refine to better path (reuses previous work)
+        path2 = graph.ada_star_search("A", "D", epsilon=2.0, reuse_planner=True)
+
+        # Get optimal path (reuses previous work)
+        path3 = graph.ada_star_search("A", "D", epsilon=1.0, reuse_planner=True)
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(b^d) where b is branching factor, d is depth
+        - Space complexity: O(b^d) for storing search states
+        - epsilon=1.0 guarantees optimal paths (A* behavior)
+        - epsilon>1.0 provides bounded suboptimality with faster search
+        - The algorithm performs backward search from target to source
+        - Set reuse_planner=True for iterative refinement with decreasing epsilon
+        - Planner state is stored in graph._ada_star_planner attribute
+        - Different source/target pairs automatically create separate planners
+
+        References
+        ----------
+        Likhachev, M., Gordon, G., & Thrun, S. (2003). ARA*: Anytime A* with
+        provable bounds on sub-optimality. In Advances in Neural Information
+        Processing Systems (NIPS).
+
+        Likhachev, M., Ferguson, D., Gordon, G., Stentz, A., & Thrun, S. (2005).
+        Anytime Dynamic A*: An Anytime, Replanning Algorithm. In International
+        Conference on Automated Planning and Scheduling (ICAPS).
+        """
+        # Check if we should reuse existing planner
+        planner_key = (source, target, weight_attr)
+
+        if reuse_planner and hasattr(self, "_ada_star_planner"):
+            stored_planner, stored_key = self._ada_star_planner
+            if stored_key == planner_key:
+                # Reuse existing planner
+                return stored_planner.compute_or_improve_path(epsilon)
+
+        # Create new planner
+        planner = AdaStar(
+            self,
+            source,
+            target,
+            weight=weight_attr,
+            initial_epsilon=1000.0,
+            heuristic=heuristic,
+        )
+
+        # Store planner if reuse requested
+        if reuse_planner:
+            self._ada_star_planner = (planner, planner_key)
+
+        return planner.compute_or_improve_path(epsilon)
+
     def has_node(self, node: Union[int, str]) -> bool:
         """Check if a node exists in the graph.
 
@@ -4466,6 +4617,149 @@ class Graph:
         pagerank : Alternative prestige measure
         """
         return self._graph.get_alpha_centrality(alpha, max_iter, tol)
+
+    def get_bonacich_power_centrality(
+        self, beta: float = 0.1, normalized: bool = False
+    ) -> dict[str, float]:
+        """Get Bonacich power centrality for each node.
+
+        Bonacich power centrality generalizes eigenvector centrality to capture
+        both cooperative and competitive network dynamics. The key innovation is
+        the β parameter, which controls whether neighbors' power increases (+β)
+        or decreases (-β) a node's own power.
+
+        The centrality is computed as:
+            c(α, β) = α(I - βA)^(-1) A 1
+
+        where A is the adjacency matrix, α is a scaling parameter (set automatically),
+        β controls the nature of relations, and 1 is a vector of ones.
+
+        β > 0: Cooperative relations - being connected to powerful nodes makes you powerful
+               (e.g., collaboration networks, social influence, information diffusion)
+
+        β < 0: Competitive relations - being connected to weak nodes makes you powerful
+               (e.g., exchange networks, competitive markets, bargaining power)
+
+        β = 1/λ_max: Equivalent to eigenvector centrality
+
+        The magnitude of |β| controls how far influence propagates through the network.
+        Larger |β| means distant nodes have more influence; smaller |β| localizes influence.
+
+        Parameters
+        ----------
+        beta : float, default=0.1
+            The decay/attenuation parameter. Controls the nature and reach of influence:
+            - β > 0: Cooperative (powerful neighbors → more power)
+            - β < 0: Competitive (weak neighbors → more power)
+            - Must satisfy |β| < 1/λ_max to avoid singularity
+            - Typical range: -0.5 to 0.5
+            - β = 0: Reduces to simple degree centrality
+
+        normalized : bool, default=False
+            Normalization method:
+            - False: L2 normalization where sum(c^2) = n, making c=1 the "middle" value
+                     (Bonacich 1987 original formulation)
+            - True: Sum normalization where sum(c) = 1 (probability distribution)
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node labels to centrality scores.
+            Interpretation depends on β:
+            - β > 0: Higher scores = more powerful due to powerful neighbors
+            - β < 0: Higher scores = more powerful due to weak neighbors
+
+        Raises
+        ------
+        RuntimeError
+            If (I - βA) is singular. This happens when β is too close to 1/λ_max.
+            Try reducing |β| or choosing a different value.
+
+        Examples
+        --------
+        Cooperative network (β > 0) - star graph:
+
+        ```python
+        import edgecase as ec
+
+        # Create star: center connected to 3 leaves
+        g = ec.Graph(directed=True)
+        g.add_edges([("center", "leaf1"), ("center", "leaf2"), ("center", "leaf3")])
+
+        # Cooperative: powerful neighbors increase your power
+        power = g.get_bonacich_power_centrality(beta=0.1)
+        # center will have highest centrality (connected to many)
+        ```
+
+        Competitive network (β < 0) - exchange network:
+
+        ```python
+        # In exchange/bargaining networks, connecting to weak partners
+        # gives you more bargaining power
+        g = ec.Graph(directed=False)
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        # Negative beta: weak neighbors increase your power
+        power = g.get_bonacich_power_centrality(beta=-0.2)
+        # End nodes (A, D) have higher power - fewer alternatives
+        ```
+
+        Compare with eigenvector centrality:
+
+        ```python
+        # β near 1/λ_max approximates eigenvector centrality
+        # For small graphs, λ_max ≈ max_degree, so try β ≈ 1/max_degree
+        g = ec.Graph(directed=False)
+        g.add_edges([("A", "B"), ("B", "C"), ("B", "D")])
+
+        max_deg = max(g.get_degree_table()["degree"])
+        bonacich = g.get_bonacich_power_centrality(beta=0.9/max_deg)
+        eigen = g.get_eigen_centrality()
+        # Should be similar
+        ```
+
+        Notes
+        -----
+        - **Algorithm**: Uses matrix inversion via LU decomposition to solve (I - βA)x = A1
+        - **Time complexity**: O(n³) for dense graphs due to matrix operations
+        - **Space complexity**: O(n²) to store the adjacency matrix
+        - **Numerical stability**: The algorithm may fail if β is too close to 1/λ_max,
+          where λ_max is the largest eigenvalue of A. Choose |β| < 0.9/λ_max for safety.
+        - **β selection**: There's no universal "correct" β value - it should be chosen
+          based on theory and the specific application. See Rodan (2011) for guidance.
+        - **Negative β instability**: Centrality can be more sensitive to β changes when
+          β < 0 compared to β > 0. Test multiple values.
+        - **Directed graphs**: Works for both directed and undirected graphs. In directed
+          graphs, the interpretation relates to in-degree influence patterns.
+
+        References
+        ----------
+        .. [1] Bonacich, P. (1987). "Power and Centrality: A Family of Measures."
+               American Journal of Sociology, 92, 1170-1182.
+               https://www.jstor.org/stable/2780000
+
+        .. [2] Rodan, S. (2011). "Choosing the 'β' parameter when using the Bonacich
+               power measure." Journal of Social Structure, 12(1), 1-23.
+               https://www.exeley.com/journal_of_social_structure/doi/10.21307/joss-2019-032
+
+        .. [3] igraph documentation: "Find Bonacich Power Centrality Scores"
+               https://igraph.org/r/html/1.2.6/power_centrality.html
+
+        See Also
+        --------
+        get_eigen_centrality : Special case when β = 1/λ_max
+        get_katz_centrality : Similar walk-based centrality with different formulation
+        get_alpha_centrality : Attenuation-based centrality measure
+        pagerank : PageRank algorithm with teleportation
+        """
+        result = self._graph.get_bonacich_power_centrality(beta, normalized)
+        # Empty result indicates singular matrix error
+        if not result and self.num_nodes() > 0:
+            raise RuntimeError(
+                "Matrix (I - β·A) is singular. β is too close to 1/λ_max. "
+                "Try a smaller |β| value (e.g., reduce by half)."
+            )
+        return {self.label_from_id(node_id): score for node_id, score in result.items()}
 
     def get_katz_centrality(
         self, alpha: float = 0.1, beta: float = 1.0, max_iter: int = 100, tol: float = 1e-6
@@ -10468,3 +10762,317 @@ def get_cmty_fast_greedy(graph: Graph) -> dict[str, int]:
     get_cmty_edge_btwns : More accurate but slower
     """
     return graph._graph.get_cmty_fast_greedy()
+
+
+# ============================================================================
+# Pathfinding Classes
+# ============================================================================
+
+
+class AdaStar:
+    """
+    Anytime Dynamic A* (ADA*) path planner.
+
+    An advanced pathfinding algorithm that combines:
+    - **Anytime property**: Returns suboptimal paths quickly, iteratively improves
+    - **Dynamic property**: Efficiently handles graph changes, reuses computation
+
+    This is a stateful search algorithm that maintains its state between calls,
+    allowing it to:
+    1. Find an initial path quickly with high epsilon (suboptimal but fast)
+    2. Iteratively improve the path by lowering epsilon
+    3. Handle dynamic edge weight changes efficiently
+
+    The algorithm is based on the ARA* (Anytime Repairing A*) and D* Lite algorithms.
+
+    Parameters
+    ----------
+    graph : Graph
+        The graph to search. Must remain unchanged between calls unless
+        explicitly updated via `update_graph()`.
+    source : str
+        Label of the source node.
+    target : str
+        Label of the target node.
+    weight : str, optional
+        Name of the edge attribute to use as weight (default: "weight").
+    initial_epsilon : float, optional
+        Initial epsilon value for suboptimality bound (default: 1000.0).
+        Lower values give better paths but take longer.
+        epsilon = 1.0 is optimal (equivalent to A*).
+    heuristic : callable, optional
+        Heuristic function h(u, v) that estimates distance from u to v.
+        Should be admissible (never overestimate). If None, uses h=0 (Dijkstra).
+        Function should accept two node IDs (integers) and return float.
+
+    Attributes
+    ----------
+    graph : Graph
+        The graph being searched.
+    source : str
+        Source node label.
+    target : str
+        Target node label.
+    source_id : int
+        Internal node ID for source.
+    target_id : int
+        Internal node ID for target.
+    ada_star : _core.AdaStar
+        Rust backend AdaStar instance.
+
+    Examples
+    --------
+    Basic usage with anytime refinement:
+
+    >>> import edgecase as ec
+    >>>
+    >>> # Create a weighted graph
+    >>> g = ec.Graph()
+    >>> g.add_edges([
+    ...     ("A", "B", {"weight": 1.0}),
+    ...     ("B", "C", {"weight": 1.0}),
+    ...     ("A", "D", {"weight": 2.0}),
+    ...     ("D", "C", {"weight": 0.5}),
+    ... ])
+    >>>
+    >>> # Create ADA* planner
+    >>> planner = ec.AdaStar(g, "A", "C", initial_epsilon=2.0)
+    >>>
+    >>> # Get initial suboptimal path quickly
+    >>> path = planner.compute_or_improve_path(epsilon=2.0)
+    >>> print(f"Initial path: {path}")
+    >>>
+    >>> # Improve path with lower epsilon
+    >>> path = planner.compute_or_improve_path(epsilon=1.2)
+    >>> print(f"Improved path: {path}")
+    >>>
+    >>> # Get optimal path
+    >>> path = planner.compute_or_improve_path(epsilon=1.0)
+    >>> print(f"Optimal path: {path}")
+
+    Dynamic graph updates:
+
+    >>> import edgecase as ec
+    >>>
+    >>> g = ec.Graph()
+    >>> g.add_edges([
+    ...     ("A", "B", {"weight": 1.0}),
+    ...     ("B", "C", {"weight": 1.0}),
+    ...     ("A", "D", {"weight": 5.0}),
+    ...     ("D", "C", {"weight": 5.0}),
+    ... ])
+    >>>
+    >>> planner = ec.AdaStar(g, "A", "C")
+    >>> path = planner.compute_or_improve_path(epsilon=1.0)
+    >>> print(f"Initial path: {path}")  # Should be A -> B -> C
+    >>>
+    >>> # Edge weight changes (e.g., traffic, road closure)
+    >>> g.update_edge("B", "C", {"weight": 10.0})
+    >>>
+    >>> # Update planner with changes
+    >>> planner.update_graph([
+    ...     (g.get_node_id("B"), g.get_node_id("C"), 10.0)
+    ... ])
+    >>>
+    >>> # Compute new path (reuses previous computation)
+    >>> path = planner.compute_or_improve_path(epsilon=1.0)
+    >>> print(f"Updated path: {path}")  # May now use A -> D -> C
+
+    With custom heuristic (Euclidean distance):
+
+    >>> import edgecase as ec
+    >>> import math
+    >>>
+    >>> g = ec.Graph()
+    >>> # Add nodes with positions
+    >>> g.add_node("A", x=0.0, y=0.0)
+    >>> g.add_node("B", x=1.0, y=0.0)
+    >>> g.add_node("C", x=1.0, y=1.0)
+    >>> g.add_edges([
+    ...     ("A", "B", {"weight": 1.0}),
+    ...     ("B", "C", {"weight": 1.0}),
+    ...     ("A", "C", {"weight": 2.0}),
+    ... ])
+    >>>
+    >>> # Define Euclidean distance heuristic
+    >>> def euclidean_heuristic(u_id, v_id):
+    ...     u = g.get_node_by_id(u_id)
+    ...     v = g.get_node_by_id(v_id)
+    ...     dx = u.attributes.get("x", 0.0) - v.attributes.get("x", 0.0)
+    ...     dy = u.attributes.get("y", 0.0) - v.attributes.get("y", 0.0)
+    ...     return math.sqrt(dx*dx + dy*dy)
+    >>>
+    >>> planner = ec.AdaStar(g, "A", "C", heuristic=euclidean_heuristic)
+    >>> path = planner.compute_or_improve_path(epsilon=1.0)
+    >>> print(f"Path: {path}")
+
+    Notes
+    -----
+    - The heuristic function receives internal node IDs (integers), not labels
+    - For epsilon > 1.0, the path cost is guaranteed to be at most epsilon times optimal
+    - Lower epsilon values require more computation but give better paths
+    - The `update_graph()` method efficiently reuses previous computation
+    - Graph must not be modified between calls except via `update_graph()`
+
+    References
+    ----------
+    Likhachev, M., Gordon, G., & Thrun, S. (2003).
+    "ARA*: Anytime A* with provable bounds on sub-optimality."
+    Advances in Neural Information Processing Systems, 16.
+
+    Likhachev, M., Ferguson, D., Gordon, G., Stentz, A., & Thrun, S. (2005).
+    "Anytime dynamic A*: An anytime, replanning algorithm."
+    Proceedings of the International Conference on Automated Planning and
+    Scheduling (ICAPS), 262-271.
+
+    Koenig, S., & Likhachev, M. (2002).
+    "D* lite."
+    AAAI/IAAI, 476-483.
+
+    See Also
+    --------
+    Graph.shortest_path : Simple shortest path function (Dijkstra/BFS)
+    """
+
+    def __init__(
+        self,
+        graph,
+        source: str,
+        target: str,
+        weight: str = "weight",
+        initial_epsilon: float = 1000.0,
+        heuristic=None,
+    ):
+        """
+        Initialize ADA* planner.
+
+        Parameters
+        ----------
+        graph : Graph
+            The graph to search.
+        source : str
+            Label of source node.
+        target : str
+            Label of target node.
+        weight : str, optional
+            Edge attribute name for weights (default: "weight").
+        initial_epsilon : float, optional
+            Initial epsilon for suboptimality bound (default: 1000.0).
+        heuristic : callable, optional
+            Heuristic function h(u_id, v_id) -> float. If None, uses h=0.
+        """
+        from ._core import AdaStar as RustAdaStar
+
+        self.graph = graph
+        self.source = source
+        self.target = target
+
+        # Get internal node IDs
+        self.source_id = graph.id_from_label(source)
+        self.target_id = graph.id_from_label(target)
+
+        if self.source_id is None:
+            raise ValueError(f"Source node '{source}' not found in graph")
+        if self.target_id is None:
+            raise ValueError(f"Target node '{target}' not found in graph")
+
+        # Create Rust backend
+        self.ada_star = RustAdaStar(
+            self.source_id,
+            self.target_id,
+            weight=weight,
+            initial_epsilon=initial_epsilon,
+            heuristic=heuristic,
+        )
+
+    def compute_or_improve_path(self, epsilon: float = 1.0) -> list[str]:
+        """
+        Compute or improve the path with given epsilon.
+
+        On first call, initializes the search and finds an initial path.
+        On subsequent calls, improves the existing path if epsilon is lower.
+
+        Parameters
+        ----------
+        epsilon : float, optional
+            Suboptimality bound (default: 1.0).
+            - epsilon = 1.0: optimal path (A*)
+            - epsilon > 1.0: path cost ≤ epsilon × optimal cost
+            Higher epsilon = faster but less optimal
+
+        Returns
+        -------
+        list[str]
+            Path from source to target as list of node labels.
+
+        Raises
+        ------
+        ValueError
+            If no path exists from source to target.
+
+        Examples
+        --------
+        >>> planner = ec.AdaStar(graph, "A", "Z", initial_epsilon=2.0)
+        >>> path = planner.compute_or_improve_path(epsilon=2.0)  # Fast, suboptimal
+        >>> path = planner.compute_or_improve_path(epsilon=1.5)  # Better
+        >>> path = planner.compute_or_improve_path(epsilon=1.0)  # Optimal
+        """
+        # Run search in Rust
+        self.ada_star.compute_or_improve_path(self.graph._graph, epsilon)
+
+        # Extract path
+        path_ids = self.ada_star.extract_path(self.graph._graph)
+
+        # Convert to labels
+        return [self.graph.label_from_id(node_id) for node_id in path_ids]
+
+    def update_graph(self, changes: list[tuple[int, int, float]]) -> None:
+        """
+        Update the planner with edge weight changes.
+
+        This efficiently reuses previous computation rather than restarting
+        the search from scratch.
+
+        Parameters
+        ----------
+        changes : list[tuple[int, int, float]]
+            List of edge weight changes as (source_id, target_id, new_weight).
+            Use `graph.get_node_id(label)` to convert labels to IDs.
+
+        Examples
+        --------
+        >>> planner = ec.AdaStar(graph, "A", "Z")
+        >>> path = planner.compute_or_improve_path(epsilon=1.0)
+        >>>
+        >>> # Edge weight changes
+        >>> graph.update_edge("B", "C", {"weight": 10.0})
+        >>>
+        >>> # Update planner
+        >>> planner.update_graph([
+        ...     (graph.get_node_id("B"), graph.get_node_id("C"), 10.0)
+        ... ])
+        >>>
+        >>> # Recompute path (reuses previous work)
+        >>> new_path = planner.compute_or_improve_path(epsilon=1.0)
+        """
+        self.ada_star.update_graph(self.graph._graph, changes)
+
+    def extract_path(self) -> list[str]:
+        """
+        Extract the current path without running search.
+
+        Returns the path based on current g-values. Useful for inspecting
+        the path without triggering additional computation.
+
+        Returns
+        -------
+        list[str]
+            Current path from source to target as list of node labels.
+
+        Raises
+        ------
+        ValueError
+            If no path exists or search hasn't been initialized.
+        """
+        path_ids = self.ada_star.extract_path(self.graph._graph)
+        return [self.graph.label_from_id(node_id) for node_id in path_ids]

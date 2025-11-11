@@ -2846,6 +2846,86 @@ impl Graph {
         centrality
     }
 
+    /// Get Bonacich power centrality
+    /// Computes centrality based on: c(α, β) = α(I - βA)^(-1) A 1
+    /// β > 0: cooperative relations (powerful neighbors increase power)
+    /// β < 0: competitive relations (weak neighbors increase power)
+    /// β = 1/λ_max: equivalent to eigenvector centrality
+    /// Returns empty HashMap if matrix is singular
+    fn get_bonacich_power_centrality(&self, beta: f64, normalized: bool) -> FxHashMap<u64, f64> {
+        let n = self.num_nodes();
+        if n == 0 {
+            return FxHashMap::default();
+        }
+
+        // Create node ID to index mapping
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let _node_to_idx: FxHashMap<u64, usize> = node_ids.iter()
+            .enumerate()
+            .map(|(idx, &id)| (id, idx))
+            .collect();
+
+        // Build adjacency matrix A using nalgebra
+        let mut a_matrix = na::DMatrix::<f64>::zeros(n, n);
+        for (&node, neighbors) in &self.adjacency_list {
+            let i = _node_to_idx[&node];
+            for &neighbor in neighbors {
+                let j = _node_to_idx[&neighbor];
+                a_matrix[(i, j)] = 1.0;
+            }
+        }
+
+        // Compute (I - β*A)
+        let identity = na::DMatrix::<f64>::identity(n, n);
+        let i_minus_beta_a = &identity - beta * &a_matrix;
+
+        // Solve (I - β*A) * x = A * 1
+        // This is equivalent to x = (I - β*A)^(-1) * A * 1
+        let ones = na::DVector::<f64>::from_element(n, 1.0);
+        let a_ones = &a_matrix * &ones;
+
+        // Use LU decomposition to solve the system
+        let lu = i_minus_beta_a.lu();
+        if !lu.is_invertible() {
+            // Matrix is singular, return empty map
+            return FxHashMap::default();
+        }
+
+        let solution = match lu.solve(&a_ones) {
+            Some(sol) => sol,
+            None => return FxHashMap::default(),
+        };
+
+        // Extract centrality scores
+        let mut centrality: FxHashMap<u64, f64> = node_ids.iter()
+            .enumerate()
+            .map(|(idx, &id)| (id, solution[idx]))
+            .collect();
+
+        // Normalize
+        if normalized {
+            // Sum normalization: scores sum to 1
+            let sum: f64 = centrality.values().sum();
+            if sum.abs() > 1e-10 {
+                for val in centrality.values_mut() {
+                    *val /= sum;
+                }
+            }
+        } else {
+            // L2 normalization: sqrt(sum of squares) = sqrt(n)
+            // So that middle centrality = 1
+            let sum_squares: f64 = centrality.values().map(|&v| v * v).sum();
+            if sum_squares > 1e-10 {
+                let scale = (n as f64 / sum_squares).sqrt();
+                for val in centrality.values_mut() {
+                    *val *= scale;
+                }
+            }
+        }
+
+        centrality
+    }
+
     /// Get Katz centrality
     /// Measures node influence based on weighted walks from all other nodes
     /// x = alpha * A^T * x + beta
@@ -5359,6 +5439,392 @@ mod tests {
         assert_eq!(a_neighbors.len(), 1);
     }
 }
+
+/// Anytime Dynamic A* (ADA*) path planner
+///
+/// A stateful search algorithm that can:
+/// - Return suboptimal paths quickly (anytime property)
+/// - Iteratively improve paths with lower epsilon (anytime refinement)
+/// - Handle dynamic graph changes efficiently (reuses computation)
+///
+/// Based on: Likhachev et al. "Anytime dynamic A*" ICAPS 2005
+#[pyclass]
+pub struct AdaStar {
+    graph_id: Option<usize>,  // Track which graph this search is for
+    source: u64,
+    target: u64,
+    weight_attr: String,
+    epsilon: f64,
+
+    // g-values: estimate of cost from state to goal
+    state_to_goal_est: FxHashMap<u64, f64>,
+
+    // rhs-values: one-step lookahead cost
+    one_step_lookahead: FxHashMap<u64, f64>,
+
+    // Priority queue sets
+    open: FxHashMap<u64, (f64, f64)>,  // node -> (k1, k2) key
+    closed: FxHashSet<u64>,
+    incons: FxHashSet<u64>,
+
+    visited: FxHashSet<u64>,
+    initialize: bool,
+
+    // Store heuristic as Python callback
+    heuristic: Option<PyObject>,
+}
+
+#[pymethods]
+impl AdaStar {
+    #[new]
+    #[pyo3(signature = (source, target, weight="weight", initial_epsilon=1000.0, heuristic=None))]
+    fn new(
+        source: u64,
+        target: u64,
+        weight: &str,
+        initial_epsilon: f64,
+        heuristic: Option<PyObject>,
+    ) -> Self {
+        AdaStar {
+            graph_id: None,
+            source,
+            target,
+            weight_attr: weight.to_string(),
+            epsilon: initial_epsilon,
+            state_to_goal_est: FxHashMap::default(),
+            one_step_lookahead: FxHashMap::default(),
+            open: FxHashMap::default(),
+            closed: FxHashSet::default(),
+            incons: FxHashSet::default(),
+            visited: FxHashSet::default(),
+            initialize: true,
+            heuristic,
+        }
+    }
+
+    /// Initialize the search with a graph
+    fn initialize_search(&mut self, graph: &Graph) {
+        self.graph_id = Some(graph as *const _ as usize);
+
+        // Initialize g and rhs values
+        for &node_id in graph.nodes.keys() {
+            self.state_to_goal_est.insert(node_id, f64::INFINITY);
+            self.one_step_lookahead.insert(node_id, f64::INFINITY);
+        }
+
+        // Target has rhs = 0
+        self.one_step_lookahead.insert(self.target, 0.0);
+
+        // Add target to OPEN with its key
+        let key = self.compute_key(self.target, graph);
+        self.open.insert(self.target, key);
+    }
+
+    /// Compute or improve the path with given epsilon
+    fn compute_or_improve_path(&mut self, py: Python, graph: &Graph, epsilon: f64) -> PyResult<()> {
+        // Initialize on first call
+        if self.initialize {
+            self.initialize_search(graph);
+            self.epsilon = epsilon;
+            self.initialize = false;
+        } else {
+            // Move INCONS to OPEN
+            self.epsilon = epsilon;
+            for &state in &self.incons {
+                let key = self.compute_key(state, graph);
+                self.open.insert(state, key);
+            }
+            self.incons.clear();
+
+            // Update all OPEN keys
+            let open_nodes: Vec<u64> = self.open.keys().copied().collect();
+            for node in open_nodes {
+                let key = self.compute_key(node, graph);
+                self.open.insert(node, key);
+            }
+
+            self.closed.clear();
+        }
+
+        // Main search loop
+        loop {
+            // Get minimum key from OPEN
+            let (min_node, min_key) = if self.open.is_empty() {
+                (None, (f64::INFINITY, f64::INFINITY))
+            } else {
+                let (&node, &key) = self.open.iter()
+                    .min_by(|a, b| {
+                        let (k1_a, k2_a) = a.1;
+                        let (k1_b, k2_b) = b.1;
+                        k1_a.partial_cmp(&k1_b)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                            .then(k2_a.partial_cmp(&k2_b).unwrap_or(std::cmp::Ordering::Equal))
+                    })
+                    .unwrap();
+                (Some(node), key)
+            };
+
+            // Termination condition
+            let source_key = self.compute_key(self.source, graph);
+            let source_g = self.state_to_goal_est.get(&self.source).copied().unwrap_or(f64::INFINITY);
+            let source_rhs = self.one_step_lookahead.get(&self.source).copied().unwrap_or(f64::INFINITY);
+
+            if min_key >= source_key && source_g == source_rhs {
+                break;
+            }
+
+            if let Some(u) = min_node {
+                self.open.remove(&u);
+                self.visited.insert(u);
+
+                let g_u = self.state_to_goal_est.get(&u).copied().unwrap_or(f64::INFINITY);
+                let rhs_u = self.one_step_lookahead.get(&u).copied().unwrap_or(f64::INFINITY);
+
+                if g_u > rhs_u {
+                    // Overconsistent: make consistent
+                    self.state_to_goal_est.insert(u, rhs_u);
+                    self.closed.insert(u);
+
+                    // Update predecessors
+                    for &pred in graph.adjacency_list.keys() {
+                        if graph.adjacency_list.get(&pred).map_or(false, |neighbors| neighbors.contains(&u)) {
+                            self.update_state(py, pred, graph)?;
+                        }
+                    }
+                } else {
+                    // Underconsistent: set g to infinity and update
+                    self.state_to_goal_est.insert(u, f64::INFINITY);
+
+                    // Update u and its predecessors
+                    self.update_state(py, u, graph)?;
+                    for &pred in graph.adjacency_list.keys() {
+                        if graph.adjacency_list.get(&pred).map_or(false, |neighbors| neighbors.contains(&u)) {
+                            self.update_state(py, pred, graph)?;
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Update graph with edge weight changes
+    fn update_graph(&mut self, py: Python, graph: &Graph, changes: Vec<(u64, u64, f64)>) -> PyResult<()> {
+        // Apply changes to graph (caller must do this)
+        // Just update affected states
+
+        for (u, v, _new_weight) in changes {
+            self.update_state(py, u, graph)?;
+            self.update_state(py, v, graph)?;
+        }
+
+        // Move INCONS to OPEN
+        for &state in &self.incons {
+            let key = self.compute_key(state, graph);
+            self.open.insert(state, key);
+        }
+        self.incons.clear();
+
+        // Update all OPEN keys
+        let open_nodes: Vec<u64> = self.open.keys().copied().collect();
+        for node in open_nodes {
+            let key = self.compute_key(node, graph);
+            self.open.insert(node, key);
+        }
+
+        self.closed.clear();
+
+        Ok(())
+    }
+
+    /// Extract current path from source to target
+    fn extract_path(&self, graph: &Graph) -> PyResult<Vec<u64>> {
+        // Check if source is reachable from target (backward search direction)
+        let source_g = self.state_to_goal_est.get(&self.source).copied().unwrap_or(f64::INFINITY);
+        if source_g.is_infinite() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("No path exists from {} to {}", self.source, self.target)
+            ));
+        }
+
+        let mut path = vec![self.source];
+        let mut current = self.source;
+
+        // Follow greedy policy: pick successor that minimizes cost(current,succ) + g(succ)
+        // This reconstructs the optimal path found by the backward search
+        while current != self.target {
+            let neighbors = graph.adjacency_list.get(&current).ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    format!("No path exists: node {} has no neighbors", current)
+                )
+            })?;
+
+            // Find neighbor that minimizes edge_cost + g_value
+            let next = neighbors
+                .iter()
+                .min_by(|&&a, &&b| {
+                    let g_a = self
+                        .state_to_goal_est
+                        .get(&a)
+                        .copied()
+                        .unwrap_or(f64::INFINITY);
+                    let g_b = self
+                        .state_to_goal_est
+                        .get(&b)
+                        .copied()
+                        .unwrap_or(f64::INFINITY);
+                    let cost_a = self.get_edge_weight(current, a, graph) + g_a;
+                    let cost_b = self.get_edge_weight(current, b, graph) + g_b;
+                    cost_a
+                        .partial_cmp(&cost_b)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .copied()
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        format!("No path exists from {} to {}", self.source, self.target)
+                    )
+                })?;
+
+            if path.len() > graph.nodes.len() {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Path contains cycle or is too long"
+                ));
+            }
+
+            path.push(next);
+            current = next;
+        }
+
+        Ok(path)
+    }
+}
+
+impl AdaStar {
+    /// Update the state (rhs value) of a node
+    fn update_state(&mut self, py: Python, n: u64, graph: &Graph) -> PyResult<()> {
+        if n != self.target {
+            // Compute rhs(n) = min over successors of (g(s') + c(n, s'))
+            let mut min_rhs = f64::INFINITY;
+
+            if let Some(neighbors) = graph.adjacency_list.get(&n) {
+                for &succ in neighbors {
+                    let g_succ = self.state_to_goal_est.get(&succ).copied().unwrap_or(f64::INFINITY);
+                    let edge_cost = self.get_edge_weight(n, succ, graph);
+                    let rhs_candidate = g_succ + edge_cost;
+
+                    if rhs_candidate < min_rhs {
+                        min_rhs = rhs_candidate;
+                    }
+                }
+            }
+
+            self.one_step_lookahead.insert(n, min_rhs);
+        }
+
+        // Remove from OPEN if present
+        self.open.remove(&n);
+
+        // Update OPEN/INCONS based on consistency
+        let g_n = self.state_to_goal_est.get(&n).copied().unwrap_or(f64::INFINITY);
+        let rhs_n = self.one_step_lookahead.get(&n).copied().unwrap_or(f64::INFINITY);
+
+        if g_n != rhs_n {
+            if !self.closed.contains(&n) {
+                let key = self.compute_key(n, graph);
+                self.open.insert(n, key);
+            } else {
+                self.incons.insert(n);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Compute priority key for a node
+    fn compute_key(&self, n: u64, _graph: &Graph) -> (f64, f64) {
+        let g_n = self.state_to_goal_est.get(&n).copied().unwrap_or(f64::INFINITY);
+        let rhs_n = self.one_step_lookahead.get(&n).copied().unwrap_or(f64::INFINITY);
+
+        // Heuristic estimates distance from n to source (backward search direction)
+        let h = self.get_heuristic(n, self.source);
+
+        // ARA*/ADA* key: (min(g,rhs) + epsilon*h, min(g,rhs))
+        let min_val = if g_n < rhs_n { g_n } else { rhs_n };
+        (min_val + self.epsilon * h, min_val)
+    }
+
+    /// Get heuristic value
+    fn get_heuristic(&self, from: u64, to: u64) -> f64 {
+        if let Some(ref heuristic_fn) = self.heuristic {
+            Python::with_gil(|py| {
+                match heuristic_fn.call1(py, (from, to)) {
+                    Ok(result) => result.extract::<f64>(py).unwrap_or(0.0),
+                    Err(_) => 0.0,
+                }
+            })
+        } else {
+            0.0  // Default: Dijkstra-like (no heuristic)
+        }
+    }
+
+    /// Get edge weight from graph
+    fn get_edge_weight(&self, from: u64, to: u64, graph: &Graph) -> f64 {
+        // Find edge and get weight
+        for edge in &graph.edges {
+            if edge.source == from && edge.target == to {
+                // First try the weight field
+                if let Some(w) = edge.weight {
+                    return w;
+                }
+                // Fall back to attributes
+                if let Some(ref attrs) = edge.attributes {
+                    return Python::with_gil(|py| {
+                        let dict = attrs.bind(py);
+                        if let Ok(Some(weight)) = dict.get_item(&self.weight_attr) {
+                            if let Ok(w) = weight.extract::<f64>() {
+                                return w;
+                            }
+                        }
+                        1.0  // Default weight
+                    });
+                }
+                return 1.0;
+            }
+        }
+
+        // For undirected graphs, check reverse direction
+        if !graph.directed {
+            for edge in &graph.edges {
+                if edge.source == to && edge.target == from {
+                    // First try the weight field
+                    if let Some(w) = edge.weight {
+                        return w;
+                    }
+                    // Fall back to attributes
+                    if let Some(ref attrs) = edge.attributes {
+                        return Python::with_gil(|py| {
+                            let dict = attrs.bind(py);
+                            if let Ok(Some(weight)) = dict.get_item(&self.weight_attr) {
+                                if let Ok(w) = weight.extract::<f64>() {
+                                    return w;
+                                }
+                            }
+                            1.0
+                        });
+                    }
+                    return 1.0;
+                }
+            }
+        }
+
+        f64::INFINITY  // No edge exists
+    }
+}
+
 
 
 

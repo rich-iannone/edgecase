@@ -16,6 +16,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<graph::Graph>()?;
     m.add_class::<graph::Node>()?;
     m.add_class::<graph::Edge>()?;
+    m.add_class::<graph::AdaStar>()?;
 
     // Algorithm functions
     m.add_function(wrap_pyfunction!(algorithms::centrality::betweenness_centrality, m)?)?;
