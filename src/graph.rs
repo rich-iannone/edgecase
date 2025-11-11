@@ -234,22 +234,22 @@ impl Graph {
             }
             node.id
         };
-        
+
         // Add to label index if label exists
         if let Some(ref label) = node.label {
             self.node_labels.insert(label.clone(), node_id);
         }
-        
+
         // Track creation order only if this is a new node
         if !self.nodes.contains_key(&node_id) {
             self.node_creation_order.push(node_id);
         }
-        
+
         self.nodes.insert(node_id, node);
         self.adjacency_list
             .entry(node_id)
             .or_default();
-        
+
         Ok(node_id)
     }
 
@@ -295,7 +295,7 @@ impl Graph {
 
         // Track creation order
         self.edge_creation_order.push(edge.id);
-        
+
         // Store the edge ID before moving the edge
         let edge_id = edge.id;
 
@@ -314,10 +314,10 @@ impl Graph {
     }
 
     /// Get node ID from label
-    /// 
+    ///
     /// # Arguments
     /// * `label` - The label to look up
-    /// 
+    ///
     /// # Returns
     /// The node ID associated with the label, or an error if not found
     pub fn id_from_label(&self, label: &str) -> PyResult<u64> {
@@ -330,10 +330,10 @@ impl Graph {
     }
 
     /// Get node label from ID
-    /// 
+    ///
     /// # Arguments
     /// * `node_id` - The node ID to look up
-    /// 
+    ///
     /// # Returns
     /// The label associated with the node ID, or None if the node has no label
     pub fn label_from_id(&self, node_id: u64) -> PyResult<Option<String>> {
@@ -341,10 +341,10 @@ impl Graph {
     }
 
     /// Check if a node with the given ID exists
-    /// 
+    ///
     /// # Arguments
     /// * `node_id` - The node ID to check
-    /// 
+    ///
     /// # Returns
     /// True if the node exists, false otherwise
     pub fn has_node_id(&self, node_id: u64) -> bool {
@@ -352,10 +352,10 @@ impl Graph {
     }
 
     /// Check if a node with the given label exists
-    /// 
+    ///
     /// # Arguments
     /// * `label` - The label to check
-    /// 
+    ///
     /// # Returns
     /// True if a node with this label exists, false otherwise
     pub fn has_node_label(&self, label: &str) -> bool {
@@ -363,7 +363,7 @@ impl Graph {
     }
 
     /// Get all node labels as a dictionary mapping ID -> label
-    /// 
+    ///
     /// # Returns
     /// A Python dict mapping node IDs to their labels (only for nodes that have labels)
     pub fn get_all_labels(&self, py: Python) -> PyResult<Py<PyDict>> {
@@ -377,17 +377,33 @@ impl Graph {
     }
 
     /// Check if the graph is simple (no self-loops or multi-edges)
-    /// 
+    ///
     /// A simple graph is one that does not contain any loops nor any multiple edges.
     pub fn is_graph_simple(&self) -> bool {
         self.is_simple()
     }
 
     /// Check if the graph contains any cycles
-    /// 
+    ///
     /// Uses depth-first search to detect cycles in the graph.
     pub fn has_cycles(&self) -> bool {
         crate::algorithms::cycles::has_cycle(self)
+    }
+
+    /// Find all elementary cycles in the graph using Johnson's algorithm
+    ///
+    /// Returns all elementary (simple) cycles as vectors of node IDs.
+    ///
+    /// # Arguments
+    /// * `min_length` - Minimum cycle length to report (default 2.0)
+    ///
+    /// # Returns
+    /// Vector of cycles, where each cycle is a vector of node IDs
+    ///
+    /// # Errors
+    /// Returns error if graph is undirected (cycle enumeration requires directed graphs)
+    pub fn find_cycles(&self, min_length: f64) -> PyResult<Vec<Vec<u64>>> {
+        crate::algorithms::cycles::find_cycles(self, Some(min_length))
     }
 
     /// Get neighbors of a node
@@ -429,7 +445,7 @@ impl Graph {
     }
 
     /// Get edges as "source->target" or "source--target" strings
-    /// 
+    ///
     /// Returns edge definitions.
     /// For directed graphs: "A->B"
     /// For undirected graphs: "A--B"
@@ -475,7 +491,7 @@ impl Graph {
             .map(|e| e.id)
             .collect()
     }
-    
+
     /// Get weight of edge between two nodes (for internal use in algorithms)
     pub(crate) fn get_edge_weight(&self, from: u64, to: u64) -> f64 {
         self.edges
@@ -488,17 +504,17 @@ impl Graph {
     /// Delete edge by ID
     pub fn delete_edge_by_id(&mut self, edge_id: u64) -> PyResult<()> {
         let edge_idx = self.edges.iter().position(|e| e.id == edge_id);
-        
+
         if let Some(idx) = edge_idx {
             let edge = &self.edges[idx];
-            
+
             // Remove from adjacency list
             if let Some(neighbors) = self.adjacency_list.get_mut(&edge.source) {
                 if let Some(pos) = neighbors.iter().position(|n| n == &edge.target) {
                     neighbors.remove(pos);
                 }
             }
-            
+
             if !self.directed {
                 if let Some(neighbors) = self.adjacency_list.get_mut(&edge.target) {
                     if let Some(pos) = neighbors.iter().position(|n| n == &edge.source) {
@@ -506,12 +522,12 @@ impl Graph {
                     }
                 }
             }
-            
+
             self.edges.remove(idx);
-            
+
             // Remove from selection if selected
             self.selected_edges.remove(&edge_id);
-            
+
             Ok(())
         } else {
             Err(pyo3::exceptions::PyKeyError::new_err(format!(
@@ -528,24 +544,24 @@ impl Graph {
                 "Node {} does not exist",
                 node_id
             )))?;
-        
+
         // Remove from label index if it has a label
         if let Some(ref label) = node.label {
             self.node_labels.remove(label);
         }
-        
+
         // Add to tombstones
         self.deleted_node_ids.insert(node_id);
-        
+
         // Remove from adjacency list
         self.adjacency_list.remove(&node_id);
-        
+
         // Remove all incident edges
         self.edges.retain(|e| e.source != node_id && e.target != node_id);
-        
+
         // Clean up selection state
         self.selected_nodes.remove(&node_id);
-        
+
         Ok(())
     }
 
@@ -665,7 +681,7 @@ impl Graph {
     /// Select edges connected to specified nodes
     pub fn select_edges_by_node_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
         let node_set: FxHashSet<u64> = node_ids.into_iter().collect();
-        
+
         for edge in &self.edges {
             if node_set.contains(&edge.source) || node_set.contains(&edge.target) {
                 self.selected_edges.insert(edge.id);
@@ -722,7 +738,7 @@ impl Graph {
         if !self.directed {
             return self.degree(node_id);
         }
-        
+
         self.edges
             .iter()
             .filter(|e| e.target == node_id)
@@ -734,7 +750,7 @@ impl Graph {
         if !self.directed {
             return self.degree(node_id);
         }
-        
+
         self.edges
             .iter()
             .filter(|e| e.source == node_id)
@@ -811,7 +827,7 @@ impl Graph {
             // Call the predicate with the node
             let result = predicate.call1(py, (node.clone(),))?;
             let matches: bool = result.extract(py)?;
-            
+
             if matches {
                 self.selected_nodes.insert(node_id);
             }
@@ -826,7 +842,7 @@ impl Graph {
             // Call the predicate with the edge
             let result = predicate.call1(py, (edge.clone(),))?;
             let matches: bool = result.extract(py)?;
-            
+
             if matches {
                 self.selected_edges.insert(edge.id);
             }
@@ -849,7 +865,7 @@ impl Graph {
     pub fn select_last_nodes_created(&mut self, n: usize) -> PyResult<()> {
         let total = self.node_creation_order.len();
         let start_idx = if n >= total { 0 } else { total - n };
-        
+
         for &node_id in &self.node_creation_order[start_idx..] {
             self.selected_nodes.insert(node_id);
         }
@@ -861,7 +877,7 @@ impl Graph {
     pub fn select_last_edges_created(&mut self, n: usize) -> PyResult<()> {
         let total = self.edge_creation_order.len();
         let start_idx = if n >= total { 0 } else { total - n };
-        
+
         for edge_id in &self.edge_creation_order[start_idx..] {
             self.selected_edges.insert(*edge_id);
         }
@@ -899,7 +915,7 @@ impl Graph {
         // Use BFS to find all nodes within k hops
         let mut visited = FxHashSet::default();
         let mut current_level = FxHashSet::default();
-        
+
         // Initialize with seed nodes
         for node_id in node_ids {
             if !self.nodes.contains_key(&node_id) {
@@ -909,14 +925,14 @@ impl Graph {
             }
             current_level.insert(node_id);
         }
-        
+
         // BFS for k hops
         for _ in 0..k {
             let mut next_level = FxHashSet::default();
-            
+
             for &node_id in &current_level {
                 visited.insert(node_id);
-                
+
                 // Get neighbors based on mode
                 match effective_mode {
                     "out" => {
@@ -956,10 +972,10 @@ impl Graph {
                     _ => unreachable!(),
                 }
             }
-            
+
             current_level = next_level;
         }
-        
+
         // Add all visited nodes to selection (including the final level)
         for node_id in visited {
             self.selected_nodes.insert(node_id);
@@ -967,7 +983,7 @@ impl Graph {
         for node_id in current_level {
             self.selected_nodes.insert(node_id);
         }
-        
+
         Ok(())
     }
 
@@ -982,18 +998,18 @@ impl Graph {
         if scores.is_empty() {
             return Ok(());
         }
-        
+
         // Convert to vector and sort by score (descending)
         let mut scored_nodes: Vec<(u64, f64)> = scores.into_iter().collect();
         scored_nodes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        
+
         if k == 0 {
             return Ok(());
         }
-        
+
         // Select top k
         let actual_k = k.min(scored_nodes.len());
-        
+
         if include_ties && actual_k > 0 {
             // Include all nodes with the same score as the k-th node
             let threshold_score = scored_nodes[actual_k - 1].1;
@@ -1008,7 +1024,7 @@ impl Graph {
                 self.selected_nodes.insert(*node_id);
             }
         }
-        
+
         Ok(())
     }
 
@@ -1133,7 +1149,7 @@ impl Graph {
 
         // Generate all possible edges
         let mut possible_edges: Vec<(u64, u64)> = Vec::with_capacity(max_edges);
-        
+
         if self.directed {
             for i in 0..n {
                 for j in 0..n {
@@ -1309,14 +1325,14 @@ impl Graph {
 
         // Rewire edges with probability p
         let mut rewired_edges: FxHashSet<(usize, usize)> = FxHashSet::default();
-        
+
         for (u_idx, v_idx) in edges {
             if rng.gen::<f64>() < p {
                 // Rewire: choose new target
                 let mut new_v_idx = rng.gen_range(0..n);
                 let mut attempts = 0;
-                
-                while (new_v_idx == u_idx 
+
+                while (new_v_idx == u_idx
                     || rewired_edges.contains(&(u_idx, new_v_idx))
                     || rewired_edges.contains(&(new_v_idx, u_idx)))
                     && attempts < 100 {
@@ -1360,29 +1376,29 @@ impl Graph {
     }
 
     /// Generate Johnson graph J(n, k)
-    /// 
+    ///
     /// Creates a graph where vertices are k-subsets of {0, 1, ..., n-1},
     /// and two vertices are adjacent if their subsets intersect in exactly k-1 elements
     /// (i.e., they differ by exactly one element).
-    /// 
+    ///
     /// # Properties
     /// - Regular graph: each vertex has degree k(n-k)
     /// - Distance-regular
     /// C(n,k) vertices where C is binomial coefficient
     /// - Undirected, no self-loops
-    /// 
+    ///
     /// # Arguments
     /// * `n` - Size of the base set (must be >= 0)
     /// * `k` - Size of each subset (must satisfy 0 <= k <= n)
-    /// 
+    ///
     /// # Returns
     /// PyResult<()> - Ok if successful, Err if parameters invalid
-    /// 
+    ///
     /// # Algorithm
     /// 1. Generate all k-combinations of {0, 1, ..., n-1}
     /// 2. For each pair of combinations, check if intersection size = k-1
     /// 3. Add edge if condition satisfied
-    /// 
+    ///
     /// Time complexity: O(C(n,k)^2 * k) where C(n,k) is binomial coefficient
     #[pyo3(signature = (n, k))]
     fn generate_johnson_graph(&mut self, n: usize, k: usize) -> PyResult<()> {
@@ -1403,13 +1419,13 @@ impl Graph {
             let node_id = self.next_node_id;
             self.next_node_id += 1;
             node_ids.push(node_id);
-            
+
             // Label as comma-separated sorted elements
             let label = combo.iter()
                 .map(|x| x.to_string())
                 .collect::<Vec<_>>()
                 .join(",");
-            
+
             let node = Node::new(node_id, Some(label), None);
             self.add_node(node)?;
         }
@@ -1420,10 +1436,10 @@ impl Graph {
             for j in (i + 1)..combinations.len() {
                 let set_i: FxHashSet<_> = combinations[i].iter().copied().collect();
                 let set_j: FxHashSet<_> = combinations[j].iter().copied().collect();
-                
+
                 // Intersection size
                 let intersection_size = set_i.intersection(&set_j).count();
-                
+
                 if intersection_size == k.saturating_sub(1) {
                     let edge = Edge::new(
                         0,
@@ -1651,11 +1667,11 @@ impl Graph {
     /// Only counts parallel edges beyond the first one
     fn count_multi_edges(&self) -> usize {
         let mut edge_pairs: FxHashMap<(u64, u64), usize> = FxHashMap::default();
-        
+
         for edge in &self.edges {
             *edge_pairs.entry((edge.source, edge.target)).or_insert(0) += 1;
         }
-        
+
         // Count edges beyond the first for each pair
         edge_pairs.values().filter(|&&count| count > 1).map(|&count| count - 1).sum()
     }
@@ -1679,7 +1695,7 @@ impl Graph {
             }
 
             let reverse_pair = (edge.target, edge.source);
-            
+
             // If we've seen the reverse edge, this is a mutual pair
             if forward_edges.contains(&reverse_pair) {
                 mutual_count += 1;
@@ -1702,7 +1718,7 @@ impl Graph {
         }
 
         let mut edge_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
-        
+
         // Collect all edges
         for edge in &self.edges {
             // Skip self-loops
@@ -1939,13 +1955,13 @@ impl Graph {
         // Compute shortest paths from each node using BFS
         for &start_node in self.nodes.keys() {
             let distances = self.bfs_distances(start_node);
-            
+
             // Check if all nodes are reachable
             if distances.len() != self.num_nodes() {
                 // Graph is disconnected
                 return None;
             }
-            
+
             // Sum all distances (excluding the distance to self, which is 0)
             for (&target, &dist) in distances.iter() {
                 if target != start_node {
@@ -2125,12 +2141,12 @@ impl Graph {
     /// Measures importance by the change in total distance when node is removed
     /// vitality(v) = sum_distances(G) - sum_distances(G - v)
     /// Higher values indicate more important nodes
-    /// 
+    ///
     /// Performance: Uses parallel BFS (via Rayon) for ~linear speedup with cores
     /// Complexity: O(V²E / num_cores) with parallelization
     fn get_closeness_vitality(&self) -> FxHashMap<u64, f64> {
         use rayon::prelude::*;
-        
+
         let n = self.num_nodes();
         if n == 0 {
             return FxHashMap::default();
@@ -2148,7 +2164,7 @@ impl Graph {
             .map(|&node| {
                 // Compute total distances without this node
                 let total_without = self.compute_total_distances_without_node(node);
-                
+
                 // Vitality is the difference (higher = more important)
                 let vital = original_total - total_without;
                 (node, vital)
@@ -2283,9 +2299,9 @@ impl Graph {
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;
-        
+
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        
+
         node_ids
             .par_iter()
             .map(|&start| {
@@ -2298,7 +2314,7 @@ impl Graph {
     /// Helper: compute sum of all pairwise shortest path distances
     fn compute_total_distances(&self) -> f64 {
         let mut total = 0.0;
-        
+
         for &start in self.nodes.keys() {
             let distances = self.bfs_distances_optimized(start);
             total += distances.values().sum::<usize>() as f64;
@@ -2448,7 +2464,7 @@ impl Graph {
 
         for &node in self.nodes.keys() {
             let degree = self.degree(node);
-            
+
             // Nodes with degree < 2 have clustering coefficient 0
             if degree < 2 {
                 clustering.insert(node, 0.0);
@@ -2469,7 +2485,7 @@ impl Graph {
                 for j in (i + 1)..neighbors.len() {
                     let n1 = neighbors[i];
                     let n2 = neighbors[j];
-                    
+
                     // Check if edge exists between n1 and n2
                     if let Some(n1_neighbors) = self.adjacency_list.get(&n1) {
                         if n1_neighbors.contains(&n2) {
@@ -2497,7 +2513,7 @@ impl Graph {
     /// Returns the mean of all node clustering coefficients
     fn get_avg_clustering_coefficient(&self) -> f64 {
         let clustering = self.get_clustering_coefficient();
-        
+
         if clustering.is_empty() {
             return 0.0;
         }
@@ -2507,29 +2523,29 @@ impl Graph {
     }
 
     /// Get edge clustering coefficient for specified edges
-    /// 
+    ///
     /// Edge clustering coefficient C^(k)_ij measures how clustered an edge's
     /// neighborhood is based on k-cycles it participates in.
-    /// 
+    ///
     /// For k=3 (triangles):
     ///   - z^(3)_ij = number of triangles containing edge (i,j)
     ///   - s^(3)_ij = min(d_i - 1, d_j - 1) (maximum possible triangles)
     ///   - C^(3)_ij = (z^(3)_ij + offset) / s^(3)_ij (if normalize=true)
-    /// 
+    ///
     /// For k=4 (4-cycles):
     ///   - z^(4)_ij = number of 4-cycles containing edge (i,j)
     ///   - s^(4)_ij = (d_i - 1)(d_j - 1) (maximum possible 4-cycles)
     ///   - C^(4)_ij = (z^(4)_ij + offset) / s^(4)_ij (if normalize=true)
-    /// 
+    ///
     /// # Arguments
     /// * edge_ids - Vector of edge IDs to compute coefficient for (empty = all edges)
     /// * k - Cycle size (3 or 4)
     /// * normalize - Whether to normalize by maximum possible cycles s^(k)
     /// * offset - Whether to add 1 to cycle count (original definition uses offset=true)
-    /// 
+    ///
     /// # Returns
     /// HashMap mapping edge_id -> clustering coefficient
-    /// 
+    ///
     /// # Reference
     /// Radicchi et al. "Defining and identifying communities in networks" PNAS 101, 2658 (2004)
     fn get_edge_clustering_coefficient(
@@ -2582,7 +2598,7 @@ impl Graph {
                     .intersection(&neighbors_j)
                     .copied()
                     .collect();
-                
+
                 let mut z = common_neighbors.len() as f64;
                 if offset {
                     z += 1.0;
@@ -2604,7 +2620,7 @@ impl Graph {
                 // A 4-cycle through edge (i,j) has form: i -> a -> j -> b -> i
                 // where a ∈ neighbors(i), b ∈ neighbors(j), and a != j, b != i
                 // We need a and b to be connected
-                
+
                 let mut cycle_count = 0;
 
                 // For each neighbor a of i (excluding j)
@@ -2779,7 +2795,7 @@ impl Graph {
             .collect();
 
         let mut converged = false;
-        
+
         for _ in 0..max_iter {
             let prev_centrality = centrality.clone();
             let mut max_change: f64 = 0.0;
@@ -2787,7 +2803,7 @@ impl Graph {
             for &node in self.nodes.keys() {
                 // For eigenvector centrality: sum of centralities of neighbors
                 let mut neighbor_sum = 0.0;
-                
+
                 // Consider all neighbors (incoming for directed, all for undirected)
                 if let Some(neighbors) = self.adjacency_list.get(&node) {
                     for &neighbor in neighbors {
@@ -2891,7 +2907,7 @@ impl Graph {
 
         for &node in self.nodes.keys() {
             let k_v = self.degree(node) as f64;
-            
+
             if k_v == 0.0 {
                 leverage.insert(node, 0.0);
                 continue;
@@ -3104,14 +3120,14 @@ impl Graph {
     pub fn trav_out(&mut self) -> PyResult<()> {
         // Get current selected nodes
         let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
-        
+
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
 
         // Collect all neighbors
         let mut new_selection = FxHashSet::default();
-        
+
         if !self.directed {
             // For undirected graphs, get all neighbors
             for node_id in current_selection {
@@ -3141,14 +3157,14 @@ impl Graph {
     pub fn trav_in(&mut self) -> PyResult<()> {
         // Get current selected nodes
         let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
-        
+
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
 
         // Collect all neighbors
         let mut new_selection = FxHashSet::default();
-        
+
         if !self.directed {
             // For undirected graphs, get all neighbors
             for node_id in current_selection {
@@ -3178,7 +3194,7 @@ impl Graph {
     pub fn trav_both(&mut self) -> PyResult<()> {
         // Get current selected nodes
         let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
-        
+
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
@@ -3190,7 +3206,7 @@ impl Graph {
             if let Some(neighbors) = self.adjacency_list.get(&node_id) {
                 new_selection.extend(neighbors.iter().copied());
             }
-            
+
             // For directed graphs, also get predecessors
             if self.directed {
                 for edge in &self.edges {
@@ -3211,7 +3227,7 @@ impl Graph {
     pub fn trav_out_edge(&mut self) -> PyResult<()> {
         // Get current selected nodes
         let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
-        
+
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
@@ -3247,7 +3263,7 @@ impl Graph {
     pub fn trav_in_edge(&mut self) -> PyResult<()> {
         // Get current selected nodes
         let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
-        
+
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
@@ -3284,14 +3300,14 @@ impl Graph {
     pub fn trav_reverse_edge(&mut self, add_to_selection: bool) -> PyResult<()> {
         // Get current selected edges
         let current_selection: Vec<u64> = self.selected_edges.iter().cloned().collect();
-        
+
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
 
         // Find reverse edges
         let mut reverse_edges = FxHashSet::default();
-        
+
         for edge_id in current_selection {
             // Find the edge
             if let Some(edge) = self.edges.iter().find(|e| e.id == edge_id) {
@@ -3331,28 +3347,28 @@ impl Graph {
     // ========== Trail Enumeration ==========
 
     /// Count all trails (walks with distinct edges) from source to target
-    /// 
+    ///
     /// A trail is a walk where all edges are distinct, but nodes may repeat.
     /// This is different from:
     /// - Path: no repeated nodes or edges
     /// - Walk: nodes and edges may repeat freely
-    /// 
+    ///
     /// Uses iterative DFS with edge tracking to avoid recursion limits.
-    /// 
+    ///
     /// # Arguments
     /// * source - Starting node ID
     /// * target - Ending node ID
     /// * max_trails - Optional limit on number of trails to count (prevents explosion)
-    /// 
+    ///
     /// # Returns
     /// * Number of distinct trails from source to target
     /// * Returns None if max_trails exceeded
-    /// 
+    ///
     /// # Complexity
     /// * Can grow exponentially with graph size
     /// * Time: O(trails × avg_trail_length)
     /// * Space: O(edges) per trail in stack
-    /// 
+    ///
     /// # Note
     /// * For undirected graphs, edges are considered bidirectional
     /// * Self-loops are traversed at most once per trail
@@ -3426,18 +3442,18 @@ impl Graph {
     }
 
     /// Enumerate all trails (walks with distinct edges) from source to target
-    /// 
+    ///
     /// Returns a list of trails, where each trail is a sequence of node IDs.
-    /// 
+    ///
     /// # Arguments
     /// * source - Starting node ID
     /// * target - Ending node ID
     /// * max_trails - Optional limit on number of trails to return
-    /// 
+    ///
     /// # Returns
     /// * Vec of trails, where each trail is Vec<u64> of node IDs
     /// * If max_trails exceeded, returns partial list
-    /// 
+    ///
     /// # Warning
     /// * Can generate massive output for dense graphs
     /// * Use max_trails to limit memory usage
@@ -3515,27 +3531,27 @@ impl Graph {
     // ========== Community Detection ==========
 
     /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm
-    /// 
+    ///
     /// Greedy modularity optimization using an efficient heap-based approach.
     /// Merges communities that maximally increase modularity until no improvement is possible.
-    /// 
+    ///
     /// Algorithm:
     /// 1. Initialize: each node in its own community
     /// 2. Build heap of merge candidates ordered by ΔQ (modularity gain)
     /// 3. Repeatedly merge communities with largest ΔQ until heap empty or ΔQ ≤ 0
     /// 4. Return partition with maximum modularity achieved
-    /// 
+    ///
     /// Complexity: O(n log²n) on sparse graphs
-    /// 
+    ///
     /// # Arguments
     /// * None - uses default modularity calculation
-    /// 
+    ///
     /// # Returns
     /// * HashMap mapping node_id -> community_id (0-indexed)
-    /// 
+    ///
     /// # Errors
     /// * Returns error if graph is directed (requires undirected graph)
-    /// 
+    ///
     /// # References
     /// Clauset, Newman, Moore. "Finding community structure in very large networks" (2004)
     fn get_cmty_fast_greedy(&self) -> PyResult<FxHashMap<u64, usize>> {
@@ -3582,7 +3598,7 @@ impl Graph {
         // Track edges between communities (sparse representation)
         // (comm_i, comm_j) -> edge_weight
         let mut edge_weights: FxHashMap<(usize, usize), f64> = FxHashMap::default();
-        
+
         // Initialize edge weights from graph edges
         for (&from_id, neighbors) in &self.adjacency_list {
             let from_comm = *communities.get(&from_id).unwrap();
@@ -3644,10 +3660,10 @@ impl Graph {
         for (&(comm_a, comm_b), &e_ij) in &edge_weights {
             let a_i = community_degrees[comm_a];
             let a_j = community_degrees[comm_b];
-            
+
             // ΔQ = e_ij/m - (a_i * a_j)/(2m²)
             let delta_q = (e_ij / m) - (a_i * a_j) / (2.0 * m * m);
-            
+
             heap.push(MergeCandidate {
                 delta_q,
                 comm_a,
@@ -3657,7 +3673,7 @@ impl Graph {
 
         // Track which communities are still active
         let mut active_communities: FxHashSet<usize> = (0..n).collect();
-        
+
         // Track best modularity and partition
         let mut best_modularity = -1.0;
         let mut best_partition = communities.clone();
@@ -3707,11 +3723,11 @@ impl Graph {
             for (&(ci, cj), &weight) in &edge_weights {
                 if ci == comm_b || cj == comm_b {
                     edges_to_remove.push((ci, cj));
-                    
+
                     // Redirect to comm_a
                     let new_ci = if ci == comm_b { comm_a } else { ci };
                     let new_cj = if cj == comm_b { comm_a } else { cj };
-                    
+
                     if new_ci != new_cj {
                         let key = if new_ci < new_cj {
                             (new_ci, new_cj)
@@ -3749,7 +3765,7 @@ impl Graph {
                     let a_i = community_degrees[comm_a];
                     let a_j = community_degrees[other_comm];
                     let delta_q = (e_ij / m) - (a_i * a_j) / (2.0 * m * m);
-                    
+
                     heap.push(MergeCandidate {
                         delta_q,
                         comm_a: if comm_a < other_comm { comm_a } else { other_comm },
@@ -3762,7 +3778,7 @@ impl Graph {
         // Renumber communities to be contiguous (0, 1, 2, ...)
         let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
         let mut next_id = 0;
-        
+
         for comm_id in best_partition.values() {
             if !community_map.contains_key(comm_id) {
                 community_map.insert(*comm_id, next_id);
@@ -3778,28 +3794,28 @@ impl Graph {
     }
 
     /// Get community membership using Edge Betweenness (Girvan-Newman) algorithm
-    /// 
+    ///
     /// Iteratively removes edges with highest betweenness centrality to reveal communities.
     /// Uses Brandes' algorithm for efficient betweenness calculation.
-    /// 
+    ///
     /// Algorithm:
     /// 1. Compute edge betweenness for all edges using Brandes' algorithm
     /// 2. Remove edge with highest betweenness
     /// 3. Recompute betweenness and check if modularity improved
     /// 4. Repeat until modularity stops improving or graph fully disconnected
     /// 5. Return partition with maximum modularity
-    /// 
+    ///
     /// Complexity: O(m²n) where m = edges, n = nodes
-    /// 
+    ///
     /// # Arguments
     /// * None - automatically finds best partition
-    /// 
+    ///
     /// # Returns
     /// * HashMap mapping node_id -> community_id (0-indexed)
-    /// 
+    ///
     /// # Errors
     /// * Returns error if graph is directed (requires undirected graph)
-    /// 
+    ///
     /// # References
     /// Girvan & Newman. "Community structure in social and biological networks" (2002)
     /// Brandes. "A faster algorithm for betweenness centrality" (2001)
@@ -3843,7 +3859,7 @@ impl Graph {
         // Track best partition and modularity
         let mut best_modularity = -1.0;
         let mut best_partition = self.find_components(&working_adj);
-        
+
         // Initial modularity (all connected)
         let m_initial = self.num_edges() as f64;
         let mut current_modularity = self.compute_modularity_for_partition(&best_partition, m_initial);
@@ -3854,7 +3870,7 @@ impl Graph {
         for _iteration in 0..max_iterations {
             // Compute edge betweenness
             let betweenness = self.compute_edge_betweenness(&working_adj);
-            
+
             if betweenness.is_empty() {
                 break; // No more edges
             }
@@ -3875,7 +3891,7 @@ impl Graph {
 
                 // Find current communities
                 let current_partition = self.find_components(&working_adj);
-                
+
                 // Count remaining edges
                 let remaining_edges: usize = working_adj.values()
                     .map(|neighbors| neighbors.len())
@@ -3901,7 +3917,7 @@ impl Graph {
         // Renumber communities to be contiguous
         let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
         let mut next_id = 0;
-        
+
         for comm_id in best_partition.values() {
             if !community_map.contains_key(comm_id) {
                 community_map.insert(*comm_id, next_id);
@@ -3917,10 +3933,10 @@ impl Graph {
     }
 
     /// Get community membership using Leading Eigenvector (Newman) algorithm
-    /// 
+    ///
     /// Spectral optimization using recursive bisection based on the leading eigenvector
     /// of the modularity matrix. Splits communities when modularity improves.
-    /// 
+    ///
     /// Algorithm:
     /// 1. Start with all nodes in one community
     /// 2. Compute modularity matrix B_ij = A_ij - (k_i * k_j) / 2m
@@ -3928,18 +3944,18 @@ impl Graph {
     /// 4. Split by sign: positive → community 1, negative → community 2
     /// 5. Accept split if modularity improves
     /// 6. Recursively split each community
-    /// 
+    ///
     /// Complexity: O(n²) per split, recursive
-    /// 
+    ///
     /// # Arguments
     /// * None - automatically finds best hierarchical partition
-    /// 
+    ///
     /// # Returns
     /// * HashMap mapping node_id -> community_id (0-indexed)
-    /// 
+    ///
     /// # Errors
     /// * Returns error if graph is directed (requires undirected graph)
-    /// 
+    ///
     /// # References
     /// Newman, M. E. J. "Finding community structure in networks using the
     /// eigenvectors of matrices" (2006)
@@ -4017,7 +4033,7 @@ impl Graph {
         // Renumber communities to be contiguous
         let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
         let mut next_id = 0;
-        
+
         for comm_id in communities.values() {
             if !community_map.contains_key(comm_id) {
                 community_map.insert(*comm_id, next_id);
@@ -4033,7 +4049,7 @@ impl Graph {
     }
 
     /// Detect communities using the Louvain method (PyO3 wrapper).
-    /// 
+    ///
     /// The Louvain method is a hierarchical multi-level optimization algorithm.
     /// It maximizes modularity through iterative local optimization and aggregation.
     ///
@@ -4085,7 +4101,7 @@ impl Graph {
         // Initialize: each node in its own community
         let mut node_to_comm: Vec<usize> = (0..node_ids.len()).collect();
         let mut best_modularity = self.louvain_compute_modularity(&node_to_comm, &node_to_idx, m, resolution);
-        
+
         let mut improved = true;
         let max_iterations = 100;
         let mut iteration = 0;
@@ -4166,7 +4182,7 @@ impl Graph {
         // Check for disconnected components first
         let components = self.find_connected_components();
         let num_components = components.values().copied().max().unwrap_or(0) + 1;
-        
+
         if num_components > 1 {
             // Return components as communities
             return Ok(components);
@@ -4174,19 +4190,19 @@ impl Graph {
 
         // Compute transition probability matrix P
         let P = self.compute_transition_matrix(&node_ids, &node_to_idx);
-        
+
         // Compute t-step transition probabilities P^t
         let P_t = self.matrix_power(&P, steps);
-        
+
         // Compute distance matrix between nodes
         let distances = self.compute_random_walk_distances(&P_t, &node_ids, &node_to_idx);
-        
+
         // Hierarchical clustering using Ward's method
         let dendrogram = self.ward_clustering(&distances, n);
-        
+
         // Find best partition by maximizing modularity
         let best_partition = self.find_best_partition(&dendrogram, &node_ids, &node_to_idx);
-        
+
         // Convert to result format
         let mut result = FxHashMap::default();
         for (idx, &node_id) in node_ids.iter().enumerate() {
@@ -4199,17 +4215,17 @@ impl Graph {
     // ========== Spanning Tree Algorithms ==========
 
     /// Find minimum or maximum spanning tree using Kruskal's algorithm
-    /// 
+    ///
     /// Returns a vector of edge IDs that form the spanning tree.
     /// For a graph with n nodes, the MST will have exactly n-1 edges (if connected).
-    /// 
+    ///
     /// # Arguments
     /// * `minimum` - If true, find minimum spanning tree; if false, find maximum
     /// * `weight_attr` - Optional attribute name for edge weights (default: uses edge.weight)
-    /// 
+    ///
     /// # Returns
     /// Vector of edge IDs in the spanning tree, or empty vector if graph has < 2 nodes
-    /// 
+    ///
     /// # Algorithm
     /// Time complexity: O(E log E) for sorting edges
     /// Space complexity: O(V) for union-find structure
@@ -4221,7 +4237,7 @@ impl Graph {
         weight_attr: Option<&str>,
     ) -> PyResult<Vec<u64>> {
         let num_nodes = self.nodes.len();
-        
+
         if num_nodes < 2 {
             return Ok(Vec::new());
         }
@@ -4230,7 +4246,7 @@ impl Graph {
 
         // Collect all edges with their weights
         let mut weighted_edges: Vec<(f64, u64, u64, u64)> = Vec::new(); // (weight, edge_id, source, target)
-        
+
         for edge in &self.edges {
             let weight = if let Some(attr) = weight_attr {
                 // Get weight from custom attribute
@@ -4304,7 +4320,7 @@ impl Graph {
         }
 
         let mut result = Vec::new();
-        
+
         // Generate combinations recursively
         fn combine<T: Clone>(
             elements: &[T],
@@ -4416,15 +4432,15 @@ impl Graph {
                 s[idx] = -1.0;
             }
         }
-        
+
         // Precompute degrees
         let degrees: Vec<f64> = nodes.iter()
             .map(|&id| self.degree(id) as f64)
             .collect();
-        
+
         // Compute B^(g) matrix (same as used in eigenvector computation)
         let mut b_matrix: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
-        
+
         for (i, &node_i) in nodes.iter().enumerate() {
             // First compute row sum: Σ_k B_ik
             let mut row_sum = 0.0;
@@ -4436,7 +4452,7 @@ impl Graph {
                 let b_ik = a_ik - (degrees[i] * degrees[k]) / (2.0 * m);
                 row_sum += b_ik;
             }
-            
+
             // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
             for (j, &node_j) in nodes.iter().enumerate() {
                 let has_edge = self.adjacency_list.get(&node_i)
@@ -4444,7 +4460,7 @@ impl Graph {
                     .unwrap_or(false);
                 let a_ij = if has_edge { 1.0 } else { 0.0 };
                 let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
-                
+
                 if i == j {
                     b_matrix[i][j] = b_ij - row_sum;
                 } else {
@@ -4452,7 +4468,7 @@ impl Graph {
                 }
             }
         }
-        
+
         // Compute B^(g) * s
         let mut bs: Vec<f64> = vec![0.0; n];
         for i in 0..n {
@@ -4460,13 +4476,13 @@ impl Graph {
                 bs[i] += b_matrix[i][j] * s[j];
             }
         }
-        
+
         // Compute s^T * B^(g) * s (the modularity contribution)
         let mut mod_contribution = 0.0;
         for i in 0..n {
             mod_contribution += s[i] * bs[i];
         }
-        
+
         // Accept split if modularity contribution is positive (following igraph)
         if mod_contribution > 1e-8 {
             Some((group1, group2))
@@ -4479,7 +4495,7 @@ impl Graph {
     /// For a subgraph, we use the generalized modularity matrix:
     /// B^(g)_ij = B_ij - δ_ij * Σ_k B_ik
     /// This modification is essential for correct bisection (Newman 2006, Eq. 5)
-    /// 
+    ///
     /// Uses nalgebra's symmetric_eigen() for robust eigenvalue computation,
     /// specifically targeting the largest real eigenvalue (most positive).
     fn compute_leading_eigenvector(
@@ -4489,7 +4505,7 @@ impl Graph {
         m: f64,
     ) -> Option<Vec<f64>> {
         let n = nodes.len();
-        
+
         // Precompute degrees for efficiency
         let degrees: Vec<f64> = nodes.iter()
             .map(|&id| self.degree(id) as f64)
@@ -4497,7 +4513,7 @@ impl Graph {
 
         // Build B^(g) matrix for the subgraph using nalgebra DMatrix
         let mut b_matrix = na::DMatrix::<f64>::zeros(n, n);
-        
+
         for (i, &node_i) in nodes.iter().enumerate() {
             // First compute row sum: Σ_k B_ik
             let mut row_sum = 0.0;
@@ -4509,7 +4525,7 @@ impl Graph {
                 let b_ik = a_ik - (degrees[i] * degrees[k]) / (2.0 * m);
                 row_sum += b_ik;
             }
-            
+
             // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
             for (j, &node_j) in nodes.iter().enumerate() {
                 let has_edge = self.adjacency_list.get(&node_i)
@@ -4517,7 +4533,7 @@ impl Graph {
                     .unwrap_or(false);
                 let a_ij = if has_edge { 1.0 } else { 0.0 };
                 let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
-                
+
                 if i == j {
                     b_matrix[(i, j)] = b_ij - row_sum;
                 } else {
@@ -4529,33 +4545,33 @@ impl Graph {
         // Compute eigenvalues and eigenvectors using nalgebra
         // symmetric_eigen() is optimized for real symmetric matrices
         let eigen = b_matrix.symmetric_eigen();
-        
+
         // Find the eigenvalue with the largest value
         let eigenvalues = eigen.eigenvalues;
         let eigenvectors = eigen.eigenvectors;
-        
+
         // Find index of maximum eigenvalue
         let mut max_idx = 0;
         let mut max_eigenvalue = eigenvalues[0];
-        
+
         for (i, &val) in eigenvalues.iter().enumerate() {
             if val > max_eigenvalue {
                 max_eigenvalue = val;
                 max_idx = i;
             }
         }
-        
+
         // Check if largest eigenvalue is positive
         if max_eigenvalue <= 1e-10 {
             return None;
         }
-        
+
         // Extract the corresponding eigenvector
         let eigenvector = eigenvectors.column(max_idx);
-        
+
         // Convert to Vec<f64>
         let v: Vec<f64> = eigenvector.iter().copied().collect();
-        
+
         Some(v)
     }
 
@@ -4578,7 +4594,7 @@ impl Graph {
             let mut num_paths: FxHashMap<u64, f64> = FxHashMap::default();
             let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
             let mut stack: Vec<u64> = Vec::new();
-            
+
             let mut queue = std::collections::VecDeque::new();
             queue.push_back(source);
             distance.insert(source, 0);
@@ -4617,7 +4633,7 @@ impl Graph {
             while let Some(w) = stack.pop() {
                 if let Some(preds) = predecessors.get(&w) {
                     for &v in preds {
-                        let coeff = (num_paths.get(&v).unwrap() / num_paths.get(&w).unwrap()) 
+                        let coeff = (num_paths.get(&v).unwrap() / num_paths.get(&w).unwrap())
                                     * (1.0 + dependency.get(&w).unwrap());
                         *dependency.get_mut(&v).unwrap() += coeff;
 
@@ -4652,12 +4668,12 @@ impl Graph {
                     let has_edge = self.adjacency_list.get(&node_i)
                         .map(|neighbors| neighbors.contains(&node_j))
                         .unwrap_or(false);
-                    
+
                     let A_ij = if has_edge { 1.0 } else { 0.0 };
-                    
+
                     let k_i = self.degree(node_i) as f64;
                     let k_j = self.degree(node_j) as f64;
-                    
+
                     Q += A_ij - (k_i * k_j) / (2.0 * m);
                 }
             }
@@ -4744,10 +4760,10 @@ impl Graph {
 
                 // Calculate weight_all (total degree of node)
                 let weight_all = k_i;
-                
+
                 // Calculate edges from this node to each community
                 let mut comm_weights: FxHashMap<usize, f64> = FxHashMap::default();
-                
+
                 if let Some(neighbors) = self.adjacency_list.get(&node_id) {
                     for &neighbor_id in neighbors {
                         if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
@@ -4775,13 +4791,13 @@ impl Graph {
                 // Try moving to each neighboring community (or staying in modified current)
                 let mut best_comm = current_comm;
                 let mut best_gain = 0.0;
-                
+
                 // Collect all communities the node has edges to
                 let communities_to_try: Vec<usize> = comm_weights.keys().copied().collect();
 
                 for target_comm in communities_to_try {
                     let k_i_in = comm_weights.get(&target_comm).copied().unwrap_or(0.0);
-                    
+
                     // Modularity gain formula from igraph:
                     // gain = k_i_in - resolution * sigma_tot * k_i / (2*m)
                     // where sigma_tot is the sum of degrees in target community (with node removed if it's current)
@@ -4908,7 +4924,7 @@ impl Graph {
     fn matrix_power(&self, P: &[Vec<f64>], t: usize) -> Vec<Vec<f64>> {
         let n = P.len();
         let mut result = vec![vec![0.0; n]; n];
-        
+
         // Initialize as identity matrix
         for i in 0..n {
             result[i][i] = 1.0;
@@ -4997,7 +5013,7 @@ impl Graph {
                     } else {
                         f64::INFINITY
                     };
-                    
+
                     if d < min_dist {
                         min_dist = d;
                         best_i = i;
@@ -5010,9 +5026,9 @@ impl Graph {
             dendrogram.push((best_i, best_j, min_dist));
             active_clusters.remove(&best_i);
             active_clusters.remove(&best_j);
-            
+
             // Create new cluster
-            let new_size = cluster_sizes.get(best_i).copied().unwrap_or(1) 
+            let new_size = cluster_sizes.get(best_i).copied().unwrap_or(1)
                          + cluster_sizes.get(best_j).copied().unwrap_or(1);
             if cluster_sizes.len() <= next_cluster_id {
                 cluster_sizes.resize(next_cluster_id + 1, 0);
@@ -5034,7 +5050,7 @@ impl Graph {
                 if k == next_cluster_id {
                     continue;
                 }
-                
+
                 let size_i = cluster_sizes.get(best_i).copied().unwrap_or(1) as f64;
                 let size_j = cluster_sizes.get(best_j).copied().unwrap_or(1) as f64;
                 let size_k = cluster_sizes.get(k).copied().unwrap_or(1) as f64;
@@ -5045,19 +5061,19 @@ impl Graph {
                 } else {
                     0.0
                 };
-                
+
                 let d_jk = if best_j < dist_matrix.len() && k < dist_matrix[best_j].len() {
                     dist_matrix[best_j][k]
                 } else {
                     0.0
                 };
-                
+
                 let d_ij = min_dist;
 
                 // Ward's formula
-                let new_dist = ((size_i + size_k) * d_ik + (size_j + size_k) * d_jk 
+                let new_dist = ((size_i + size_k) * d_ik + (size_j + size_k) * d_jk
                               - size_k * d_ij) / (size_new + size_k);
-                
+
                 dist_matrix[next_cluster_id][k] = new_dist;
                 dist_matrix[k][next_cluster_id] = new_dist;
             }
@@ -5077,12 +5093,12 @@ impl Graph {
         node_to_idx: &FxHashMap<u64, usize>,
     ) -> Vec<usize> {
         let n = node_ids.len();
-        
+
         if dendrogram.is_empty() {
             // No merges, each node is own community
             return (0..n).collect();
         }
-        
+
         // Try all possible cuts of the dendrogram
         let mut best_partition = (0..n).collect::<Vec<_>>();
         let mut best_modularity = self.compute_modularity_from_partition(node_ids, &best_partition);
@@ -5091,15 +5107,15 @@ impl Graph {
         for num_merges in 1..=dendrogram.len() {
             // Build partition by applying merges using union-find
             let mut parent: Vec<usize> = (0..n).collect();
-            
+
             // Apply first num_merges from dendrogram
             for i in 0..num_merges {
                 let (c1, c2, _) = dendrogram[i];
-                
+
                 // Get original nodes for these clusters
                 let nodes_c1 = self.get_cluster_nodes(c1, n, &dendrogram[..i]);
                 let nodes_c2 = self.get_cluster_nodes(c2, n, &dendrogram[..i]);
-                
+
                 // Union all nodes from c2 into c1's community
                 if let (Some(rep1), Some(rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next()) {
                     let root1 = self.find_root(&mut parent, *rep1);
@@ -5114,7 +5130,7 @@ impl Graph {
             for i in 0..n {
                 partition[i] = self.find_root(&mut parent, i);
             }
-            
+
             // Renumber to be contiguous
             let mut unique_comms: Vec<usize> = partition.iter().copied().collect();
             unique_comms.sort_unstable();
@@ -5131,7 +5147,7 @@ impl Graph {
 
             // Compute modularity for this partition
             let Q = self.compute_modularity_from_partition(node_ids, &renumbered);
-            
+
             if Q > best_modularity {
                 best_modularity = Q;
                 best_partition = renumbered;
@@ -5144,25 +5160,25 @@ impl Graph {
     /// Get all original nodes that belong to a cluster
     fn get_cluster_nodes(&self, cluster_id: usize, n: usize, merges: &[(usize, usize, f64)]) -> FxHashSet<usize> {
         let mut nodes = FxHashSet::default();
-        
+
         // If cluster_id < n, it's an original node
         if cluster_id < n {
             nodes.insert(cluster_id);
             return nodes;
         }
-        
+
         // Otherwise, find which merge created this cluster
         let merge_idx = cluster_id - n;
         if merge_idx >= merges.len() {
             return nodes;
         }
-        
+
         let (c1, c2, _) = merges[merge_idx];
-        
+
         // Recursively get nodes from both children
         nodes.extend(self.get_cluster_nodes(c1, n, merges));
         nodes.extend(self.get_cluster_nodes(c2, n, merges));
-        
+
         nodes
     }
 
@@ -5189,11 +5205,11 @@ impl Graph {
                     let has_edge = self.adjacency_list.get(&node_i)
                         .map(|neighbors| neighbors.contains(&node_j))
                         .unwrap_or(false);
-                    
+
                     let A_ij = if has_edge { 1.0 } else { 0.0 };
                     let k_i = self.degree(node_i) as f64;
                     let k_j = self.degree(node_j) as f64;
-                    
+
                     Q += A_ij - (k_i * k_j) / (2.0 * m);
                 }
             }
@@ -5220,7 +5236,7 @@ mod tests {
         let mut graph = Graph::new(false, false);
         let node1 = Node::new("A".to_string(), None);
         let node2 = Node::new("B".to_string(), None);
-        
+
         assert!(graph.add_node(node1).is_ok());
         assert!(graph.add_node(node2).is_ok());
         assert_eq!(graph.num_nodes(), 2);
@@ -5229,16 +5245,16 @@ mod tests {
     #[test]
     fn test_add_edges() {
         let mut graph = Graph::new(false, false);
-        
+
         // Add nodes first
         graph.add_node(Node::new("A".to_string(), None)).unwrap();
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        
+
         // Add edge (ID will be auto-assigned)
         let edge = Edge::new(0, "A".to_string(), "B".to_string(), Some(1.0), None);
         assert!(graph.add_edge(edge).is_ok());
         assert_eq!(graph.num_edges(), 1);
-        
+
         // Check edge ID was auto-assigned
         let edge_ids = graph.edge_ids();
         assert_eq!(edge_ids.len(), 1);
@@ -5248,18 +5264,18 @@ mod tests {
     #[test]
     fn test_neighbors() {
         let mut graph = Graph::new(false, false);
-        
+
         graph.add_node(Node::new("A".to_string(), None)).unwrap();
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
         graph.add_node(Node::new("C".to_string(), None)).unwrap();
-        
+
         graph
             .add_edge(Edge::new(0, "A".to_string(), "B".to_string(), None, None))
             .unwrap();
         graph
             .add_edge(Edge::new(0, "A".to_string(), "C".to_string(), None, None))
             .unwrap();
-        
+
         let neighbors = graph.neighbors("A").unwrap();
         assert_eq!(neighbors.len(), 2);
         assert!(neighbors.contains(&"B".to_string()));
@@ -5269,19 +5285,19 @@ mod tests {
     #[test]
     fn test_directed_graph() {
         let mut graph = Graph::new(true, false);
-        
+
         graph.add_node(Node::new("A".to_string(), None)).unwrap();
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        
+
         graph
             .add_edge(Edge::new(0, "A".to_string(), "B".to_string(), None, None))
             .unwrap();
-        
+
         // In directed graph, B should not have A as neighbor
         let b_neighbors = graph.neighbors("B").unwrap();
         assert_eq!(b_neighbors.len(), 0);
-        
-        
+
+
         let a_neighbors = graph.neighbors("A").unwrap();
         assert_eq!(a_neighbors.len(), 1);
     }

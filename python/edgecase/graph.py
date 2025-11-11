@@ -710,8 +710,91 @@ class Graph:
         --------
         is_dag : Check if directed graph is acyclic
         get_girth : Get length of shortest cycle
+        find_cycles : Find all elementary cycles in the graph
         """
         return self._graph.has_cycles()
+
+    def find_cycles(self, min_length: int = 2) -> list[list[str]]:
+        """Find all elementary cycles in the graph using Johnson's algorithm.
+
+        Implements Donald B. Johnson's 1975 algorithm for finding all elementary
+        (simple) cycles in a directed graph. Each cycle is found exactly once and
+        contains no repeated nodes except the first/last.
+
+        This method only works on directed graphs. For undirected graphs, convert
+        to directed first or consider that every edge forms a 2-cycle.
+
+        Parameters
+        ----------
+        min_length : int, default=2
+            Minimum cycle length to report. Cycles shorter than this are ignored.
+            Default is 2 (includes self-loops if present).
+
+        Returns
+        -------
+        list[list[str]]
+            A list of cycles, where each cycle is a list of node labels forming
+            the cycle. The start node is not repeated at the end.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected (cycle enumeration requires directed graphs).
+
+        Examples
+        --------
+        Find all cycles in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Creates cycle A -> B -> C -> A
+            .add_edge("B", "A")  # Creates cycle A -> B -> A
+        )
+
+        cycles = graph.find_cycles()
+        print(cycles)  # [['A', 'B'], ['A', 'B', 'C']]
+        ```
+
+        Find only longer cycles:
+
+        ```python
+        cycles = graph.find_cycles(min_length=3)
+        print(cycles)  # [['A', 'B', 'C']]
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(V + E)(C + 1) where C is the number of cycles
+        - Space complexity: O(V + E)
+        - The algorithm uses backtracking with a blocking mechanism to avoid
+          redundant search
+        - For large dense graphs, the number of cycles can be exponential
+
+        References
+        ----------
+        Johnson, D. B. (1975). Finding all the elementary circuits of a directed
+        graph. SIAM Journal on Computing, 4(1), 77-84.
+
+        See Also
+        --------
+        has_cycles : Check if graph contains any cycles
+        is_dag : Check if directed graph is acyclic
+        get_girth : Get length of shortest cycle
+        """
+        if not self.is_directed:
+            raise ValueError("find_cycles() requires a directed graph")
+
+        # Get cycles as node IDs from Rust
+        cycles_ids = self._graph.find_cycles(float(min_length))
+
+        # Convert node IDs to labels
+        return [[self.label_from_id(node_id) for node_id in cycle] for cycle in cycles_ids]
 
     def has_node(self, node: Union[int, str]) -> bool:
         """Check if a node exists in the graph.
@@ -10026,9 +10109,29 @@ def detect_communities(graph: Graph) -> dict[str, int]:
     return rust.detect_communities(graph._graph)
 
 
-def find_cycles(graph: Graph) -> list[list[str]]:
-    """Find all cycles in the graph."""
-    return rust.find_cycles(graph._graph)
+def find_cycles(graph: Graph, min_length: int = 2) -> list[list[str]]:
+    """Find all elementary cycles in the graph using Johnson's algorithm.
+
+    This is a standalone function that calls the Graph method. For most use cases,
+    prefer using `graph.find_cycles()` instead.
+
+    Parameters
+    ----------
+    graph : Graph
+        The graph to search for cycles. Must be directed.
+    min_length : int, default=2
+        Minimum cycle length to report.
+
+    Returns
+    -------
+    list[list[str]]
+        A list of cycles, where each cycle is a list of node labels.
+
+    See Also
+    --------
+    Graph.find_cycles : Method version with full documentation
+    """
+    return graph.find_cycles(min_length=min_length)
 
 
 # Community detection algorithms
