@@ -9377,8 +9377,8 @@ class Graph:
         target: str = "auto",
         width: int = 800,
         height: int = 600,
-        node_size: float = 5.0,
-        edge_width: float = 1.0,
+        node_size: float = 20.0,
+        edge_width: float = 2.0,
         layout: str = "force",
     ) -> None:
         """
@@ -9393,9 +9393,9 @@ class Graph:
             Canvas width in pixels
         height : int, default 600
             Canvas height in pixels
-        node_size : float, default 5.0
+        node_size : float, default 20.0
             Node radius in pixels
-        edge_width : float, default 1.0
+        edge_width : float, default 2.0
             Edge line width in pixels
         layout : str, default "force"
             Layout algorithm: "force", "circular", "random"
