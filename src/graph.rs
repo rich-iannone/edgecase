@@ -3997,6 +3997,204 @@ impl Graph {
         }
     }
 
+    /// Find indices of multiple edges (edges between the same node pairs)
+    ///
+    /// Returns a list of edge IDs that are duplicates - i.e., edges that share
+    /// the same source and target nodes as another edge. For undirected graphs,
+    /// edges (u,v) and (v,u) are considered the same pair.
+    ///
+    /// # Returns
+    ///
+    /// Vector of edge IDs representing multiple/duplicate edges
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// # Create graph with multiple edges between same nodes
+    /// g = Graph(directed=True)
+    /// g.add_edge("A", "B", label="edge1")
+    /// g.add_edge("A", "B", label="edge2")  # Duplicate
+    /// g.add_edge("B", "C", label="edge3")
+    /// g.add_edge("B", "C", label="edge4")  # Duplicate
+    ///
+    /// multiple = g.which_multiple()
+    /// # Returns edge IDs of duplicates (e.g., [2, 4])
+    /// ```
+    pub fn which_multiple(&self) -> PyResult<Vec<u64>> {
+        let mut seen_pairs: std::collections::HashMap<(u64, u64), u64> = std::collections::HashMap::new();
+        let mut multiple_edges = Vec::new();
+
+        // Iterate through all edges
+        for edge in &self.edges {
+            let source = edge.source;
+            let target = edge.target;
+            let edge_id = edge.id;
+
+            // For undirected graphs, normalize the pair (smaller node ID first)
+            let pair = if self.directed {
+                (source, target)
+            } else {
+                if source <= target {
+                    (source, target)
+                } else {
+                    (target, source)
+                }
+            };
+
+            // Check if we've seen this pair before
+            if let Some(&first_edge_id) = seen_pairs.get(&pair) {
+                // This is a multiple edge - add to results if not already there
+                if !multiple_edges.contains(&first_edge_id) {
+                    multiple_edges.push(first_edge_id);
+                }
+                multiple_edges.push(edge_id);
+            } else {
+                // First time seeing this pair
+                seen_pairs.insert(pair, edge_id);
+            }
+        }
+
+        Ok(multiple_edges)
+    }
+
+    /// Count multiple edges grouped by node pair
+    ///
+    /// Returns a dictionary mapping node pairs to the count of edges between them.
+    /// Only includes pairs with 2 or more edges. For undirected graphs, returns
+    /// unordered pairs (smaller node ID first).
+    ///
+    /// # Returns
+    ///
+    /// Dictionary mapping (source_label, target_label) tuples to edge counts
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// g = Graph(directed=True)
+    /// g.add_edge("A", "B")
+    /// g.add_edge("A", "B")  # Second edge
+    /// g.add_edge("A", "B")  # Third edge
+    /// g.add_edge("B", "C")  # Single edge
+    ///
+    /// counts = g.count_multiple()
+    /// # Returns: {("A", "B"): 3}
+    /// # Single edges like ("B", "C") are not included
+    /// ```
+    pub fn count_multiple(&self) -> PyResult<std::collections::HashMap<(String, String), usize>> {
+        let mut pair_counts: std::collections::HashMap<(u64, u64), usize> = std::collections::HashMap::new();
+
+        // Count edges between each node pair
+        for edge in &self.edges {
+            let source = edge.source;
+            let target = edge.target;
+
+            // For undirected graphs, normalize the pair
+            let pair = if self.directed {
+                (source, target)
+            } else {
+                if source <= target {
+                    (source, target)
+                } else {
+                    (target, source)
+                }
+            };
+
+            *pair_counts.entry(pair).or_insert(0) += 1;
+        }
+
+        // Convert to labels and filter for multiples only (count >= 2)
+        let mut result = std::collections::HashMap::new();
+        for ((source_id, target_id), count) in pair_counts.iter() {
+            if *count >= 2 {
+                let source_label = self.nodes.get(source_id)
+                    .and_then(|n| n.label.clone())
+                    .unwrap_or_else(|| source_id.to_string());
+                let target_label = self.nodes.get(target_id)
+                    .and_then(|n| n.label.clone())
+                    .unwrap_or_else(|| target_id.to_string());
+
+                result.insert((source_label, target_label), *count);
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Find indices of self-loop edges (edges from a node to itself)
+    ///
+    /// Returns a list of edge IDs for all edges where source equals target.
+    ///
+    /// # Returns
+    ///
+    /// Vector of edge IDs representing self-loops
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// g = Graph(directed=True)
+    /// g.add_edge("A", "B")
+    /// g.add_edge("A", "A")  # Self-loop
+    /// g.add_edge("B", "C")
+    /// g.add_edge("C", "C")  # Self-loop
+    ///
+    /// loops = g.which_loop()
+    /// # Returns edge IDs of self-loops (e.g., [2, 4])
+    /// ```
+    pub fn which_loop(&self) -> PyResult<Vec<u64>> {
+        let mut loop_edges = Vec::new();
+
+        for edge in &self.edges {
+            if edge.source == edge.target {
+                loop_edges.push(edge.id);
+            }
+        }
+
+        Ok(loop_edges)
+    }
+
+    /// Count self-loops grouped by node
+    ///
+    /// Returns a dictionary mapping node labels to the count of self-loops for that node.
+    /// Only includes nodes with at least one self-loop.
+    ///
+    /// # Returns
+    ///
+    /// Dictionary mapping node labels to self-loop counts
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// g = Graph(directed=True)
+    /// g.add_edge("A", "B")
+    /// g.add_edge("A", "A")  # Self-loop
+    /// g.add_edge("A", "A")  # Another self-loop
+    /// g.add_edge("B", "B")  # Self-loop
+    ///
+    /// loops = g.count_loops()
+    /// # Returns: {"A": 2, "B": 1}
+    /// ```
+    pub fn count_loops(&self) -> PyResult<std::collections::HashMap<String, usize>> {
+        let mut loop_counts: std::collections::HashMap<u64, usize> = std::collections::HashMap::new();
+
+        // Count self-loops per node
+        for edge in &self.edges {
+            if edge.source == edge.target {
+                *loop_counts.entry(edge.source).or_insert(0) += 1;
+            }
+        }
+
+        // Convert node IDs to labels
+        let mut result = std::collections::HashMap::new();
+        for (node_id, count) in loop_counts.iter() {
+            let label = self.nodes.get(node_id)
+                .and_then(|n| n.label.clone())
+                .unwrap_or_else(|| node_id.to_string());
+            result.insert(label, *count);
+        }
+
+        Ok(result)
+    }
+
     // ========== Community Detection ==========
 
     /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm

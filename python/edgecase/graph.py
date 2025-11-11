@@ -2237,6 +2237,351 @@ class Graph:
         """
         return self._graph.reciprocity(mode)
 
+    def which_multiple(self) -> list[int]:
+        """Find edge IDs of multiple edges (duplicate edges between same node pairs).
+
+        Returns a list of edge IDs that represent multiple/duplicate edges - edges that
+        share the same source and target nodes as another edge in the graph. This is
+        useful for detecting and cleaning multigraphs.
+
+        For undirected graphs, edges (u,v) and (v,u) are considered the same pair.
+        When multiple edges exist between a pair, all edge IDs (including the first)
+        are returned.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs representing multiple edges. Empty if no duplicates exist.
+
+        Examples
+        --------
+        **Data Cleaning: Finding Duplicate Relationships**
+
+        ```python
+        g = Graph(directed=True)
+        g.add_edge("Alice", "Bob", weight=1.0)
+        g.add_edge("Alice", "Bob", weight=2.0)  # Duplicate connection
+        g.add_edge("Alice", "Bob", weight=3.0)  # Another duplicate
+        g.add_edge("Bob", "Carol", weight=1.0)  # Single edge
+
+        multiples = g.which_multiple()
+        len(multiples)  # All 3 Alice->Bob edges
+        # 3
+        ```
+
+        **Multigraph Validation**
+
+        ```python
+        # Check if graph is a simple graph (no multiple edges)
+        g = Graph(directed=False)
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        g.add_edge("C", "A")
+
+        is_simple = len(g.which_multiple()) == 0
+        is_simple
+        # True
+        ```
+
+        **Network Simplification: Identifying Edges to Merge**
+
+        ```python
+        # Social network with multiple interactions
+        social = Graph(directed=True)
+        social.add_edge("User1", "User2", interaction="like")
+        social.add_edge("User1", "User2", interaction="comment")
+        social.add_edge("User1", "User2", interaction="share")
+        social.add_edge("User2", "User3", interaction="like")
+
+        # Find which edges represent multiple interactions
+        multiple_edges = social.which_multiple()
+        # These could be merged into single weighted edges
+        len(multiple_edges)
+        # 3
+        ```
+
+        **Undirected Graph: Bidirectional Edges**
+
+        ```python
+        g = Graph(directed=False)
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")  # Duplicate in undirected graph
+        g.add_edge("B", "C")
+
+        multiples = g.which_multiple()
+        len(multiples)
+        # 2
+        ```
+
+        Notes
+        -----
+        - Self-loops are not considered multiple edges (use `which_loop()` instead)
+        - In undirected graphs, (u,v) and (v,u) are treated as the same pair
+        - Returns all edges involved in duplication, including the first occurrence
+        - Useful for data quality checks before analysis
+
+        See Also
+        --------
+        count_multiple : Count multiple edges grouped by node pair
+        which_loop : Find self-loop edges
+        """
+        return self._graph.which_multiple()
+
+    def count_multiple(self) -> dict[tuple[str, str], int]:
+        """Count multiple edges grouped by node pair.
+
+        Returns a dictionary showing how many edges exist between each pair of nodes
+        that has multiple edges. Only includes pairs with 2 or more edges.
+
+        For undirected graphs, returns unordered pairs (smaller node label first).
+
+        Returns
+        -------
+        dict[tuple[str, str], int]
+            Dictionary mapping (source_label, target_label) to edge count.
+            Only includes pairs with count >= 2.
+
+        Examples
+        --------
+        **Data Quality Report**
+
+        ```python
+        g = Graph(directed=True)
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")  # Duplicate
+        g.add_edge("A", "B")  # Another duplicate
+        g.add_edge("B", "C")
+        g.add_edge("B", "C")  # Duplicate
+
+        counts = g.count_multiple()
+        counts
+        # {('A', 'B'): 3, ('B', 'C'): 2}
+        ```
+
+        **Communication Network Analysis**
+
+        ```python
+        # Email network with multiple messages
+        email = Graph(directed=True)
+        email.add_edge("Alice", "Bob")    # Email 1
+        email.add_edge("Alice", "Bob")    # Email 2
+        email.add_edge("Alice", "Bob")    # Email 3
+        email.add_edge("Bob", "Carol")    # Email 1
+        email.add_edge("Bob", "Carol")    # Email 2
+
+        multi_count = email.count_multiple()
+        # Shows intensity of communication
+        for (sender, receiver), count in multi_count.items():
+            print(f"{sender} -> {receiver}: {count} emails")
+        # Alice -> Bob: 3 emails
+        # Bob -> Carol: 2 emails
+        ```
+
+        **Network Simplification Planning**
+
+        ```python
+        # Identify which edges need aggregation
+        transport = Graph(directed=False)
+        transport.add_edge("CityA", "CityB", route="highway")
+        transport.add_edge("CityA", "CityB", route="railway")
+        transport.add_edge("CityA", "CityB", route="airline")
+        transport.add_edge("CityB", "CityC", route="highway")
+
+        multi = transport.count_multiple()
+        # CityA-CityB has 3 routes to consolidate
+        multi
+        # {('CityA', 'CityB'): 3}
+        ```
+
+        Notes
+        -----
+        - Only returns pairs with 2+ edges (single edges are excluded)
+        - For undirected graphs, pairs are normalized (smaller label first)
+        - Self-loops are not counted as multiples (they're loops)
+        - Useful for understanding graph complexity before simplification
+
+        See Also
+        --------
+        which_multiple : Get edge IDs of multiple edges
+        count_loops : Count self-loops per node
+        """
+        return self._graph.count_multiple()
+
+    def which_loop(self) -> list[int]:
+        """Find edge IDs of self-loops (edges from a node to itself).
+
+        Returns a list of edge IDs for all edges where the source node equals
+        the target node. Self-loops are common in certain network types like
+        state machines, chemical reactions, or social networks (self-mentions).
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs representing self-loops. Empty if no self-loops exist.
+
+        Examples
+        --------
+        **Data Cleaning - Finding Self-References**
+
+        ```python
+        >>> g = Graph(directed=True)
+        >>> g.add_edge("Alice", "Bob")
+        >>> g.add_edge("Alice", "Alice")  # Self-loop
+        >>> g.add_edge("Bob", "Carol")
+        >>> g.add_edge("Carol", "Carol")  # Self-loop
+        >>>
+        >>> loops = g.which_loop()
+        >>> len(loops)
+        2
+        ```
+
+        **State Machine Validation**
+
+        ```python
+        >>> # Check for states that transition to themselves
+        >>> fsm = Graph(directed=True)
+        >>> fsm.add_edge("Idle", "Processing")
+        >>> fsm.add_edge("Processing", "Processing")  # Wait state
+        >>> fsm.add_edge("Processing", "Complete")
+        >>> fsm.add_edge("Complete", "Idle")
+        >>>
+        >>> self_transitions = fsm.which_loop()
+        >>> len(self_transitions)
+        1
+        ```
+
+        **Social Network Analysis**
+
+        ```python
+        # Find self-mentions or self-citations
+        social = Graph(directed=True)
+        social.add_edge("@alice", "@bob")
+        social.add_edge("@alice", "@alice")  # Self-mention
+        social.add_edge("@bob", "@carol")
+
+        self_mentions = social.which_loop()
+        # These might be removed for certain analyses
+        len(self_mentions)
+        # 1
+        ```
+
+        **Network Simplification**
+
+        ```python
+        g = Graph(directed=False)
+        g.add_edge("A", "B")
+        g.add_edge("B", "B")  # Self-loop
+        g.add_edge("C", "C")  # Self-loop
+
+        # Identify edges to remove for simple graph
+        loops_to_remove = g.which_loop()
+        len(loops_to_remove)
+        # 2
+        ```
+
+        Notes
+        -----
+        - Works for both directed and undirected graphs
+        - A node can have multiple self-loops (use `count_loops()` to count per node)
+        - Self-loops affect certain graph metrics (degree, centrality, etc.)
+        - Common preprocessing step is to remove self-loops for cleaner analysis
+
+        See Also
+        --------
+        count_loops : Count self-loops per node
+        which_multiple : Find multiple edges between node pairs
+        """
+        return self._graph.which_loop()
+
+    def count_loops(self) -> dict[str, int]:
+        """Count self-loops grouped by node.
+
+        Returns a dictionary mapping node labels to the count of self-loops for each node.
+        Only includes nodes that have at least one self-loop.
+
+        Returns
+        -------
+        dict[str, int]
+            Dictionary mapping node labels to self-loop counts.
+            Only includes nodes with count >= 1.
+
+        Examples
+        --------
+        **Data Quality Analysis**
+
+        ```python
+        g = Graph(directed=True)
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")  # Self-loop
+        g.add_edge("A", "A")  # Another self-loop
+        g.add_edge("B", "B")  # Self-loop
+        g.add_edge("C", "D")  # No self-loop
+
+        loop_counts = g.count_loops()
+        loop_counts
+        # {'A': 2, 'B': 1}
+        ```
+
+        **State Machine Analysis**
+
+        ```python
+        # Identify states with self-transitions
+        fsm = Graph(directed=True)
+        fsm.add_edge("Loading", "Loading")  # Retry loop
+        fsm.add_edge("Loading", "Loading")  # Another retry path
+        fsm.add_edge("Loading", "Ready")
+        fsm.add_edge("Processing", "Processing")  # Busy wait
+        fsm.add_edge("Processing", "Complete")
+
+        wait_states = fsm.count_loops()
+        # Shows which states have self-transitions
+        wait_states
+        # {'Loading': 2, 'Processing': 1}
+        ```
+
+        **Chemical Reaction Network**
+
+        ```python
+        # Autocatalytic reactions (self-referencing)
+        rxn = Graph(directed=True)
+        rxn.add_edge("A", "B")
+        rxn.add_edge("B", "B")  # B catalyzes itself
+        rxn.add_edge("B", "B")  # Multiple pathways
+        rxn.add_edge("C", "C")  # C is autocatalytic
+
+        autocatalytic = rxn.count_loops()
+        autocatalytic
+        # {'B': 2, 'C': 1}
+        ```
+
+        **Social Network - Self-Interactions**
+
+        ```python
+        social = Graph(directed=True)
+        social.add_edge("User1", "User1", action="self-like")
+        social.add_edge("User2", "User1", action="like")
+        social.add_edge("User2", "User2", action="self-like")
+        social.add_edge("User2", "User2", action="self-comment")
+
+        self_interactions = social.count_loops()
+        self_interactions
+        # {'User1': 1, 'User2': 2}
+        ```
+
+        Notes
+        -----
+        - Only returns nodes with at least one self-loop
+        - A node can have multiple self-loops (all counted)
+        - Useful for identifying unusual patterns in network data
+        - Common in multigraphs where multiple self-edges may exist
+
+        See Also
+        --------
+        which_loop : Get edge IDs of self-loops
+        which_multiple : Find multiple edges between node pairs
+        """
+        return self._graph.count_loops()
+
     def count_weakly_connected_components(self) -> int:
         """Count weakly connected components in the graph.
 
