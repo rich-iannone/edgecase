@@ -190,7 +190,7 @@ def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations:
         # Cool down (exponential cooling for better convergence)
         temp *= 0.99
 
-    # Normalize positions to fit in [-0.9, 0.9] range (leave some padding)
+    # Normalize positions to maintain consistent edge lengths while fitting in viewport
     if positions:
         all_x = [pos[0] for pos in positions.values()]
         all_y = [pos[1] for pos in positions.values()]
@@ -204,12 +204,19 @@ def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations:
         center_x = (max_x + min_x) / 2.0
         center_y = (max_y + min_y) / 2.0
 
-        # Use the larger range to maintain aspect ratio
+        # Target scale: normalize k (optimal distance) to a standard viewport distance
+        # k = sqrt(area / n) = sqrt(50), so we want k to map to ~0.25 in viewport coords
+        target_k_in_viewport = 0.25
+        scale_by_k = target_k_in_viewport / k if k > 0 else 1.0
+
+        # Also calculate scale needed to fit in viewport (with padding)
         max_range = max(range_x, range_y)
+        scale_to_fit = 1.6 / max_range if max_range > 0 else 1.0  # 1.6 leaves 20% padding
 
-        # Scale to fit in [-0.9, 0.9] (0.9 to leave padding)
-        scale = 1.8 / max_range if max_range > 0 else 1.0
+        # Use the smaller scale (more zoomed out) to ensure it fits while respecting edge length
+        scale = min(scale_by_k, scale_to_fit)
 
+        # Apply scaling and centering
         for node in nodes:
             positions[node][0] = (positions[node][0] - center_x) * scale
             positions[node][1] = (positions[node][1] - center_y) * scale
