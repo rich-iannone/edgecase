@@ -3111,6 +3111,167 @@ impl Graph {
         Ok(labels)
     }
 
+    /// Calculate Burt's constraint for each vertex
+    ///
+    /// Burt's constraint measures the extent to which a vertex's neighbors are
+    /// connected to each other, indicating lack of structural holes. Higher values
+    /// indicate more redundant contacts and less brokerage opportunity.
+    ///
+    /// Formula: C_i = Σ_j (p_ij + Σ_q p_iq * p_qj)²
+    /// where p_ij = (a_ij + a_ji) / Σ_k (a_ik + a_ki) are proportional tie strengths
+    ///
+    /// Returns None for isolated vertices (no connections)
+    pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<String, Option<f64>>> {
+        let mut result: FxHashMap<String, Option<f64>> = FxHashMap::default();
+
+        // Process each node
+        for &node_id in self.nodes.keys() {
+            let node_label = self.nodes
+                .get(&node_id)
+                .and_then(|n| n.label.clone())
+                .unwrap_or_else(|| node_id.to_string());
+
+            // Get all neighbors (for undirected: direct neighbors, for directed: both in and out)
+            let mut neighbor_weights: FxHashMap<u64, f64> = FxHashMap::default();
+
+            // Get outgoing neighbors
+            if let Some(neighbors) = self.adjacency_list.get(&node_id) {
+                for &neighbor_id in neighbors {
+                    let weight = if let Some(weight_attr) = weights {
+                        // Try to get weight from edge attributes
+                        self.edges.iter()
+                            .find(|e| e.source == node_id && e.target == neighbor_id)
+                            .and_then(|e| e.weight)
+                            .unwrap_or(1.0)
+                    } else {
+                        // Check edge.weight field
+                        self.edges.iter()
+                            .find(|e| e.source == node_id && e.target == neighbor_id)
+                            .and_then(|e| e.weight)
+                            .unwrap_or(1.0)
+                    };
+                    *neighbor_weights.entry(neighbor_id).or_insert(0.0) += weight;
+                }
+            }
+
+            // For directed graphs, also count incoming edges
+            if self.directed {
+                for edge in &self.edges {
+                    if edge.target == node_id && !self.deleted_edge_ids.contains(&edge.id) {
+                        let weight = if let Some(_weight_attr) = weights {
+                            edge.weight.unwrap_or(1.0)
+                        } else {
+                            edge.weight.unwrap_or(1.0)
+                        };
+                        *neighbor_weights.entry(edge.source).or_insert(0.0) += weight;
+                    }
+                }
+            }
+
+            // If isolated vertex, constraint is undefined
+            if neighbor_weights.is_empty() {
+                result.insert(node_label, None);
+                continue;
+            }
+
+            // Calculate total tie strength for normalization
+            let total_strength: f64 = neighbor_weights.values().sum();
+
+            if total_strength == 0.0 {
+                result.insert(node_label, None);
+                continue;
+            }
+
+            // Calculate proportional tie strengths (p_ij)
+            let mut prop_strengths: FxHashMap<u64, f64> = FxHashMap::default();
+            for (&neighbor, &strength) in &neighbor_weights {
+                prop_strengths.insert(neighbor, strength / total_strength);
+            }
+
+            // Calculate constraint: C_i = Σ_j (p_ij + Σ_q p_iq * p_qj)²
+            let mut constraint_sum = 0.0;
+
+            for (&j, &p_ij) in &prop_strengths {
+                // Calculate indirect connection: Σ_q p_iq * p_qj
+                let mut indirect = 0.0;
+
+                // Get neighbors of j
+                let mut j_neighbors: FxHashSet<u64> = FxHashSet::default();
+                if let Some(j_adj) = self.adjacency_list.get(&j) {
+                    j_neighbors.extend(j_adj.iter().copied());
+                }
+
+                // For directed graphs, also include incoming neighbors of j
+                if self.directed {
+                    for edge in &self.edges {
+                        if edge.target == j && !self.deleted_edge_ids.contains(&edge.id) {
+                            j_neighbors.insert(edge.source);
+                        }
+                    }
+                }
+
+                // Sum over common neighbors q (excluding i and j)
+                for &q in &j_neighbors {
+                    if q != node_id && q != j {
+                        if let Some(&p_iq) = prop_strengths.get(&q) {
+                            // Get weight from q to j
+                            let mut q_to_j_weight = 0.0;
+
+                            // Check direct edge q -> j
+                            for edge in &self.edges {
+                                if edge.source == q && edge.target == j && !self.deleted_edge_ids.contains(&edge.id) {
+                                    q_to_j_weight += edge.weight.unwrap_or(1.0);
+                                }
+                            }
+
+                            // For undirected or to get reverse edges in directed
+                            if !self.directed || self.directed {
+                                for edge in &self.edges {
+                                    if edge.target == q && edge.source == j && !self.deleted_edge_ids.contains(&edge.id) {
+                                        q_to_j_weight += edge.weight.unwrap_or(1.0);
+                                    }
+                                }
+                            }
+
+                            // Get j's total strength for normalization
+                            let mut j_total = 0.0;
+                            if let Some(j_neighbors_weighted) = self.adjacency_list.get(&j) {
+                                for &j_neighbor in j_neighbors_weighted {
+                                    for edge in &self.edges {
+                                        if edge.source == j && edge.target == j_neighbor && !self.deleted_edge_ids.contains(&edge.id) {
+                                            j_total += edge.weight.unwrap_or(1.0);
+                                        }
+                                    }
+                                }
+                            }
+
+                            if self.directed {
+                                for edge in &self.edges {
+                                    if edge.target == j && !self.deleted_edge_ids.contains(&edge.id) {
+                                        j_total += edge.weight.unwrap_or(1.0);
+                                    }
+                                }
+                            }
+
+                            if j_total > 0.0 {
+                                let p_qj = q_to_j_weight / j_total;
+                                indirect += p_iq * p_qj;
+                            }
+                        }
+                    }
+                }
+
+                // Add squared term
+                let term = p_ij + indirect;
+                constraint_sum += term * term;
+            }
+
+            result.insert(node_label, Some(constraint_sum));
+        }
+
+        Ok(result)
+    }
+
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;

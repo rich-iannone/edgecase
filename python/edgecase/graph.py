@@ -5125,6 +5125,144 @@ class Graph:
         """
         return self._graph.topological_sort()
 
+    def constraint(self, weights: str | None = None) -> dict[str, float | None]:
+        """Calculate Burt's constraint for each node.
+
+        Burt's constraint measures the extent to which ego's contacts are
+        redundant, that is, connected to each other. Higher constraint indicates
+        fewer structural holes and less brokerage opportunity. Lower constraint
+        indicates a network position with more non-redundant contacts, offering
+        greater access to diverse information and control benefits.
+
+        The constraint of node i's ego network is:
+
+            C_i = Σ_j (p_ij + Σ_q p_iq × p_qj)²
+
+        where p_ij are proportional tie strengths:
+
+            p_ij = (a_ij + a_ji) / Σ_k (a_ik + a_ki)
+
+        and a_ij are elements of the adjacency matrix (edge weights).
+
+        Time complexity: O(V × D²) where D is average degree
+        Space complexity: O(V)
+
+        Parameters
+        ----------
+        weights : str, optional
+            Name of edge attribute to use as weights. If None, uses edge
+            weight field. If weights don't exist, treats all edges equally.
+
+        Returns
+        -------
+        dict[str, float | None]
+            Dictionary mapping node labels to constraint values. Returns
+            None for isolated nodes (undefined constraint).
+
+        Examples
+        --------
+        Identify brokers in a social network:
+
+        ```python
+        # Simple network with a broker (B)
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")  # Broker
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("B", "D")
+            # Note: C and D are not connected
+        )
+
+        constraints = g.constraint()
+        print(f"B (broker): {constraints['B']:.3f}")  # Low constraint
+        print(f"A (connected): {constraints['A']:.3f}")  # High constraint
+        ```
+
+        Analyze structural holes:
+
+        ```python
+        # Compare dense vs. sparse ego networks
+        g = Graph()
+        for i in range(5):
+            g.add_node(label=str(i))
+
+        # Node 0: connects to 1,2 which are connected (no structural hole)
+        g.add_edge("0", "1")
+        g.add_edge("0", "2")
+        g.add_edge("1", "2")
+
+        # Node 3: connects to 4,5 which are NOT connected (structural hole)
+        g.add_node(label="3")
+        g.add_node(label="4")
+        g.add_node(label="5")
+        g.add_edge("3", "4")
+        g.add_edge("3", "5")
+        # Note: 4 and 5 are not connected
+
+        constraints = g.constraint()
+        print(f"Node 0 (dense): {constraints['0']:.3f}")  # Higher
+        print(f"Node 3 (sparse): {constraints['3']:.3f}")  # Lower
+        ```
+
+        Weighted networks:
+
+        ```python
+        g = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=5.0)
+            .add_edge("A", "C", weight=1.0)
+            .add_edge("B", "C", weight=3.0)
+        )
+
+        # Strong tie to B dominates A's network
+        constraints = g.constraint()
+        print(constraints)
+        ```
+
+        Notes
+        -----
+        **Interpretation**:
+        - **High constraint** (approaching 1.0): Ego's contacts are highly
+          interconnected. Limited brokerage opportunities, high closure.
+        - **Low constraint** (approaching 0.0): Ego's contacts are disconnected.
+          Many structural holes, high brokerage potential.
+
+        **Structural holes** occur when ego's contacts are not connected to each
+        other, providing opportunities for:
+        - Information brokerage (access to diverse information)
+        - Control benefits (mediating between disconnected groups)
+        - Innovation (combining ideas from separate clusters)
+
+        **Use cases**:
+        - Social capital analysis: Who has advantageous network positions?
+        - Innovation research: Individuals spanning structural holes
+        - Organizational networks: Identifying key boundary spanners
+        - Entrepreneurship: Access to diverse resources and information
+
+        **Undefined values**: Isolated nodes have no ego network and return None.
+
+        References
+        ----------
+        Burt, R. S. (2004). Structural holes and good ideas. American Journal
+        of Sociology, 110(2), 349-399.
+
+        Burt, R. S. (1992). Structural Holes: The Social Structure of Competition.
+        Harvard University Press.
+
+        See Also
+        --------
+        local_clustering_coefficient : Alternative measure of ego network density
+        transitivity : Global clustering coefficient
+        """
+        return self._graph.constraint(weights)
+
     def get_reciprocity(self) -> float:
         """Get reciprocity (fraction of reciprocal edges).
 
