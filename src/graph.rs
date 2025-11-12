@@ -2790,6 +2790,240 @@ impl Graph {
         Ok(min_cut)
     }
 
+    /// Perform a random walk on the graph
+    ///
+    /// Performs a random walk starting from a given vertex and taking a specified
+    /// number of steps. Returns the sequence of vertices visited.
+    ///
+    /// # Arguments
+    /// * `start` - Label of the starting vertex
+    /// * `steps` - Number of steps to take
+    /// * `mode` - Direction to follow: "out" (default), "in", "all"
+    /// * `stuck` - What to do if stuck: "return" (default) or "error"
+    /// * `seed` - Optional random seed for reproducibility
+    ///
+    /// # Returns
+    /// Vector of vertex labels of length steps + 1 (including start vertex)
+    #[pyo3(signature = (start, steps, mode="out", stuck="return", seed=None))]
+    pub fn random_walk(
+        &self,
+        start: &str,
+        steps: usize,
+        mode: &str,
+        stuck: &str,
+        seed: Option<u64>,
+    ) -> PyResult<Vec<String>> {
+        let start_id = self.id_from_label(start).map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Start vertex '{}' not found", start)
+            )
+        })?;
+
+        let mut rng: ChaCha8Rng = if let Some(s) = seed {
+            ChaCha8Rng::seed_from_u64(s)
+        } else {
+            ChaCha8Rng::from_entropy()
+        };
+
+        let mut path = vec![start_id];
+        let mut current = start_id;
+
+        for _ in 0..steps {
+            // Get neighbors based on mode
+            let neighbors = match mode {
+                "out" => {
+                    // Follow outgoing edges
+                    if let Some(neighbors) = self.adjacency_list.get(&current) {
+                        neighbors.clone()
+                    } else {
+                        Vec::new()
+                    }
+                }
+                "in" => {
+                    // Follow incoming edges (reverse direction)
+                    let mut in_neighbors = Vec::new();
+                    for (&node, neighbors) in &self.adjacency_list {
+                        if neighbors.contains(&current) {
+                            in_neighbors.push(node);
+                        }
+                    }
+                    in_neighbors
+                }
+                "all" => {
+                    // Follow edges in both directions (ignore direction)
+                    let mut all_neighbors = FxHashSet::default();
+
+                    // Outgoing
+                    if let Some(neighbors) = self.adjacency_list.get(&current) {
+                        all_neighbors.extend(neighbors);
+                    }
+
+                    // Incoming
+                    for (&node, neighbors) in &self.adjacency_list {
+                        if neighbors.contains(&current) {
+                            all_neighbors.insert(node);
+                        }
+                    }
+
+                    all_neighbors.into_iter().collect()
+                }
+                _ => {
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        format!("Invalid mode: '{}'. Must be 'out', 'in', or 'all'", mode)
+                    ));
+                }
+            };
+
+            if neighbors.is_empty() {
+                // Stuck! Handle according to stuck parameter
+                match stuck {
+                    "return" => break, // Return partial walk
+                    "error" => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                            format!("Random walk got stuck at vertex with no neighbors")
+                        ));
+                    }
+                    _ => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                            format!("Invalid stuck: '{}'. Must be 'return' or 'error'", stuck)
+                        ));
+                    }
+                }
+            }
+
+            // Choose next vertex uniformly at random
+            let next = *neighbors.choose(&mut rng).unwrap();
+            path.push(next);
+            current = next;
+        }
+
+        // Convert node IDs to labels
+        let labels: Vec<String> = path.iter()
+            .map(|&id| {
+                self.nodes.get(&id)
+                    .and_then(|node| node.label.clone())
+                    .unwrap_or_else(|| id.to_string())
+            })
+            .collect();
+
+        Ok(labels)
+    }
+
+    /// Perform a random walk on the graph and return edges
+    ///
+    /// Like random_walk() but returns the sequence of edges traversed instead
+    /// of vertices visited.
+    ///
+    /// # Arguments
+    /// * `start` - Label of the starting vertex
+    /// * `steps` - Number of steps to take
+    /// * `mode` - Direction to follow: "out" (default), "in", "all"
+    /// * `stuck` - What to do if stuck: "return" (default) or "error"
+    /// * `seed` - Optional random seed for reproducibility
+    ///
+    /// # Returns
+    /// Vector of tuples (edge_id, source_label, target_label) of length steps
+    #[pyo3(signature = (start, steps, mode="out", stuck="return", seed=None))]
+    pub fn random_edge_walk(
+        &self,
+        start: &str,
+        steps: usize,
+        mode: &str,
+        stuck: &str,
+        seed: Option<u64>,
+    ) -> PyResult<Vec<(u64, String, String)>> {
+        let start_id = self.id_from_label(start).map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Start vertex '{}' not found", start)
+            )
+        })?;
+
+        let mut rng: ChaCha8Rng = if let Some(s) = seed {
+            ChaCha8Rng::seed_from_u64(s)
+        } else {
+            ChaCha8Rng::from_entropy()
+        };
+
+        let mut edges_traversed = Vec::new();
+        let mut current = start_id;
+
+        for _ in 0..steps {
+            // Get available edges based on mode
+            let available_edges: Vec<&Edge> = match mode {
+                "out" => {
+                    // Outgoing edges from current
+                    self.edges.iter()
+                        .filter(|e| e.source == current)
+                        .collect()
+                }
+                "in" => {
+                    // Incoming edges to current (traverse backwards)
+                    self.edges.iter()
+                        .filter(|e| e.target == current)
+                        .collect()
+                }
+                "all" => {
+                    // All edges connected to current
+                    self.edges.iter()
+                        .filter(|e| e.source == current || e.target == current)
+                        .collect()
+                }
+                _ => {
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        format!("Invalid mode: '{}'. Must be 'out', 'in', or 'all'", mode)
+                    ));
+                }
+            };
+
+            if available_edges.is_empty() {
+                // Stuck! Handle according to stuck parameter
+                match stuck {
+                    "return" => break, // Return partial walk
+                    "error" => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                            format!("Random walk got stuck at vertex with no outgoing edges")
+                        ));
+                    }
+                    _ => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                            format!("Invalid stuck: '{}'. Must be 'return' or 'error'", stuck)
+                        ));
+                    }
+                }
+            }
+
+            // Choose next edge uniformly at random
+            let edge = *available_edges.choose(&mut rng).unwrap();
+
+            // Determine next vertex based on mode
+            let next = match mode {
+                "out" => edge.target,
+                "in" => edge.source,
+                "all" => {
+                    if edge.source == current {
+                        edge.target
+                    } else {
+                        edge.source
+                    }
+                }
+                _ => unreachable!(),
+            };
+
+            // Get labels
+            let source_label = self.nodes.get(&edge.source)
+                .and_then(|n| n.label.clone())
+                .unwrap_or_else(|| edge.source.to_string());
+            let target_label = self.nodes.get(&edge.target)
+                .and_then(|n| n.label.clone())
+                .unwrap_or_else(|| edge.target.to_string());
+
+            edges_traversed.push((edge.id, source_label, target_label));
+            current = next;
+        }
+
+        Ok(edges_traversed)
+    }
+
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;

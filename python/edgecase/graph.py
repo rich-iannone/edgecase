@@ -4781,6 +4781,218 @@ class Graph:
         """
         return self._graph.edge_connectivity()
 
+    def random_walk(
+        self,
+        start: str,
+        steps: int,
+        mode: str = "out",
+        stuck: str = "return",
+        seed: int | None = None,
+    ) -> list[str]:
+        """Perform a random walk on the graph.
+
+        Takes a random walk starting from a given vertex, choosing neighbors
+        uniformly at random at each step. Returns the sequence of vertices
+        visited, including the starting vertex.
+
+        The walk follows edges according to the `mode` parameter:
+        - "out": Follow outgoing edges (default for directed graphs)
+        - "in": Follow incoming edges (reverse direction)
+        - "all": Ignore edge directions (treat as undirected)
+
+        If the walk reaches a vertex with no valid neighbors (gets "stuck"),
+        behavior is controlled by the `stuck` parameter.
+
+        Time complexity: O(steps), plus O(degree) per step for neighbor lookup.
+
+        Parameters
+        ----------
+        start : str
+            Label of the starting vertex.
+        steps : int
+            Number of steps to take in the walk.
+        mode : {"out", "in", "all"}, default="out"
+            Direction to follow edges:
+            - "out": Follow outgoing edges
+            - "in": Follow incoming edges
+            - "all": Ignore edge direction
+        stuck : {"return", "error"}, default="return"
+            What to do if the walk gets stuck:
+            - "return": Return the partial walk
+            - "error": Raise an error
+        seed : int, optional
+            Random seed for reproducibility. If None, uses system entropy.
+
+        Returns
+        -------
+        list[str]
+            Sequence of vertex labels visited, of length `steps + 1`
+            (includes the starting vertex). May be shorter if `stuck="return"`
+            and the walk terminates early.
+
+        Raises
+        ------
+        ValueError
+            If start vertex not found, or invalid mode/stuck parameter.
+        RuntimeError
+            If walk gets stuck and `stuck="error"`.
+
+        Examples
+        --------
+        Random walk on a cycle:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 7):
+            graph.add_node(label=str(i))
+        for i in range(1, 7):
+            graph.add_edge(str(i), str((i % 6) + 1))
+
+        # Take a 10-step walk
+        path = graph.random_walk("1", steps=10, seed=42)
+        print(len(path))  # 11 (including start)
+        print(path[0])    # "1" (starting vertex)
+        ```
+
+        Random walk on directed graph:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_nodes_from(["A", "B", "C", "D"])
+        graph.add_edges_from([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+
+        # Follow edge directions
+        path = graph.random_walk("A", steps=10, mode="out", seed=42)
+
+        # Reverse directions
+        path_reverse = graph.random_walk("A", steps=10, mode="in", seed=42)
+        ```
+
+        Handle stuck situations:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_edges_from([("A", "B"), ("B", "C")])  # C has no outgoing edges
+
+        # Return partial walk when stuck
+        path = graph.random_walk("A", steps=10, stuck="return")
+        print(len(path))  # 3: ["A", "B", "C"]
+
+        # Or raise error
+        try:
+            path = graph.random_walk("A", steps=10, stuck="error")
+        except RuntimeError as e:
+            print("Got stuck!")
+        ```
+
+        Notes
+        -----
+        Random walks are fundamental to many graph algorithms:
+        - PageRank and personalized PageRank
+        - Node2Vec and DeepWalk embeddings
+        - Community detection (Walktrap)
+        - Graph sampling and exploration
+
+        For weighted random walks where edge weights affect transition
+        probabilities, this basic implementation should be extended.
+
+        See Also
+        --------
+        random_edge_walk : Return edges instead of vertices
+        get_cmty_walktrap : Community detection via random walks
+        """
+        return self._graph.random_walk(start, steps, mode, stuck, seed)
+
+    def random_edge_walk(
+        self,
+        start: str,
+        steps: int,
+        mode: str = "out",
+        stuck: str = "return",
+        seed: int | None = None,
+    ) -> list[tuple[int, str, str]]:
+        """Perform a random walk and return the edges traversed.
+
+        Like `random_walk()`, but returns the sequence of edges traversed
+        rather than the vertices visited. Each edge is represented as a
+        tuple (edge_id, source_label, target_label).
+
+        Time complexity: O(steps), plus O(degree) per step for edge lookup.
+
+        Parameters
+        ----------
+        start : str
+            Label of the starting vertex.
+        steps : int
+            Number of steps to take in the walk.
+        mode : {"out", "in", "all"}, default="out"
+            Direction to follow edges:
+            - "out": Follow outgoing edges
+            - "in": Follow incoming edges
+            - "all": Ignore edge direction
+        stuck : {"return", "error"}, default="return"
+            What to do if the walk gets stuck:
+            - "return": Return the partial walk
+            - "error": Raise an error
+        seed : int, optional
+            Random seed for reproducibility. If None, uses system entropy.
+
+        Returns
+        -------
+        list[tuple[int, str, str]]
+            Sequence of edges traversed, where each edge is a tuple of
+            (edge_id, source_label, target_label). Length is `steps`,
+            or shorter if `stuck="return"` and walk terminates early.
+
+        Raises
+        ------
+        ValueError
+            If start vertex not found, or invalid mode/stuck parameter.
+        RuntimeError
+            If walk gets stuck and `stuck="error"`.
+
+        Examples
+        --------
+        Track edges in a random walk:
+
+        ```python
+        graph = Graph()
+        graph.add_edges_from([("A", "B"), ("B", "C"), ("C", "A")])
+
+        edges = graph.random_edge_walk("A", steps=5, seed=42)
+
+        # Each edge is (id, source, target)
+        for edge_id, source, target in edges:
+            print(f"Edge {edge_id}: {source} -> {target}")
+        ```
+
+        Analyze edge usage frequency:
+
+        ```python
+        from collections import Counter
+
+        # Long random walk
+        edges = graph.random_edge_walk("A", steps=1000, seed=42)
+
+        # Count edge usage
+        edge_counts = Counter((src, tgt) for _, src, tgt in edges)
+        print("Most used edges:", edge_counts.most_common(3))
+        ```
+
+        Notes
+        -----
+        This is useful for:
+        - Analyzing edge importance via usage frequency
+        - Edge-centric graph algorithms
+        - Transition probability estimation
+        - Graph sketching and sampling
+
+        See Also
+        --------
+        random_walk : Return vertices instead of edges
+        """
+        return self._graph.random_edge_walk(start, steps, mode, stuck, seed)
+
     def get_reciprocity(self) -> float:
         """Get reciprocity (fraction of reciprocal edges).
 
