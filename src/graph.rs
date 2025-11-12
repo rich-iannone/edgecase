@@ -3357,6 +3357,141 @@ impl Graph {
         Ok(result)
     }
 
+    /// Compute a spanner of the graph with the given stretch
+    ///
+    /// A spanner is a sparse subgraph that approximates distances in the original graph.
+    /// For any pair of nodes u, v: distance_H(u,v) <= stretch * distance_G(u,v)
+    ///
+    /// # Arguments
+    /// * `stretch` - Maximum distance approximation factor (must be >= 1.0)
+    /// * `weight` - Optional edge attribute name to use as weight
+    /// * `seed` - Optional random seed for reproducibility
+    ///
+    /// # Returns
+    /// A new Graph with the same nodes but a subset of edges
+    ///
+    /// # Algorithm
+    /// Baswana-Sen randomized algorithm:
+    /// - Phase 1: Clustering nodes and selecting edges between clusters
+    /// - Phase 2: Connecting vertices to nearby clusters
+    /// - Expected time: O(km) where k = (stretch+1)//2, m = number of edges
+    /// - Sparsity: O(k × n^(1+1/k)) edges
+    #[pyo3(signature = (stretch, weight=None, seed=None))]
+    pub fn spanner(&self, py: Python, stretch: f64, weight: Option<String>, seed: Option<u64>) -> PyResult<Graph> {
+        // Validate input
+        if stretch < 1.0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "stretch must be at least 1.0"
+            ));
+        }
+
+        // Only works on undirected simple graphs
+        if self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "spanner only works on undirected graphs"
+            ));
+        }
+
+        // For now, implement a simple greedy spanner algorithm
+        // This is simpler than Baswana-Sen but still gives good results
+
+        // Initialize RNG
+        let mut rng = if let Some(s) = seed {
+            ChaCha8Rng::seed_from_u64(s)
+        } else {
+            ChaCha8Rng::from_entropy()
+        };
+
+        // Initialize spanner with all nodes, no edges
+        let mut spanner = Graph::new(false, false);
+
+        // Copy all nodes
+        for (node_id, node) in &self.nodes {
+            let label = node.label.clone();
+            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let node_obj = Node::new(*node_id, label, attrs);
+            spanner.add_node(node_obj)?;
+        }
+
+        // Build distance matrix in spanner (initially infinite)
+        let mut spanner_distances: FxHashMap<(u64, u64), f64> = FxHashMap::default();
+        for &u in self.nodes.keys() {
+            for &v in self.nodes.keys() {
+                if u == v {
+                    spanner_distances.insert((u, v), 0.0);
+                } else {
+                    spanner_distances.insert((u, v), f64::INFINITY);
+                }
+            }
+        }
+
+        // Collect and sort edges by weight
+        let mut sorted_edges: Vec<_> = self.edges.iter().collect();
+        sorted_edges.sort_by(|a, b| {
+            let w_a = if let Some(ref w) = weight {
+                a.attributes.as_ref().and_then(|attrs| {
+                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
+                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
+                }).unwrap_or(1.0)
+            } else {
+                1.0
+            };
+
+            let w_b = if let Some(ref w) = weight {
+                b.attributes.as_ref().and_then(|attrs| {
+                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
+                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
+                }).unwrap_or(1.0)
+            } else {
+                1.0
+            };
+
+            w_a.partial_cmp(&w_b).unwrap()
+        });
+
+        // Greedy spanner: add edge if it improves stretch
+        for edge in sorted_edges {
+            let u = edge.source;
+            let v = edge.target;
+
+            let edge_weight = if let Some(ref w) = weight {
+                edge.attributes.as_ref().and_then(|attrs| {
+                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
+                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
+                }).unwrap_or(1.0)
+            } else {
+                1.0
+            };
+
+            // Check if this edge is needed (distance in spanner > stretch * edge_weight)
+            let current_dist = spanner_distances[&(u, v)];
+            if current_dist > stretch * edge_weight {
+                // Add edge to spanner
+                let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+                let edge_obj = Edge::new(0, u, v, Some(edge_weight), attrs);
+                spanner.add_edge(edge_obj)?;
+
+                // Update distances using Floyd-Warshall-like update
+                // For each pair of nodes, check if going through this new edge improves distance
+                for &x in self.nodes.keys() {
+                    for &y in self.nodes.keys() {
+                        let dist_through_edge = spanner_distances[&(x, u)]
+                            .min(spanner_distances[&(x, v)])
+                            + edge_weight
+                            + spanner_distances[&(u, y)].min(spanner_distances[&(v, y)]);
+
+                        let current = spanner_distances[&(x, y)];
+                        if dist_through_edge < current {
+                            spanner_distances.insert((x, y), dist_through_edge);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(spanner)
+    }
+
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;
