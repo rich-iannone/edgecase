@@ -102,50 +102,75 @@ class Graph:
         self._nodes_df_provided = nodes_df is not None
 
         # Initialize from DataFrames if provided
+        id_to_label_map = {}
         if nodes_df is not None:
-            self._init_from_nodes_df(nodes_df)
+            id_to_label_map = self._init_from_nodes_df(nodes_df)
 
         if edges_df is not None:
-            self._init_from_edges_df(edges_df)
+            self._init_from_edges_df(edges_df, id_to_label_map)
 
-    def _init_from_nodes_df(self, nodes_df: pl.DataFrame) -> None:
+    def _init_from_nodes_df(self, nodes_df: pl.DataFrame) -> dict[str, str]:
         """Initialize nodes from a Polars DataFrame.
 
         Parameters
         ----------
         nodes_df : pl.DataFrame
             DataFrame with at minimum an 'id' column. Other columns become node attributes.
-            The 'id' values are treated as labels (even if they're integers) to maintain
-            user-specified identifiers.
+            If 'label' column exists, maps id -> label for edge resolution.
+
+        Returns
+        -------
+        dict[str, str]
+            Mapping from id values to label values (for edge resolution)
         """
         if "id" not in nodes_df.columns:
             raise ValueError("nodes_df must contain an 'id' column")
 
         # Get attribute columns (everything except 'id')
         attr_cols = [col for col in nodes_df.columns if col != "id"]
+        id_to_label = {}
 
-        # Add each node with its ID as a label (to preserve user-specified IDs)
+        # Add each node
         for row in nodes_df.iter_rows(named=True):
             node_id_value = row["id"]
-            # Convert ID to string to use as label (preserves integer IDs like 0, 1, 2...)
-            label = str(node_id_value)
-            attributes = {col: row[col] for col in attr_cols}
-            self.add_node(label=label, **attributes)
 
-    def _init_from_edges_df(self, edges_df: pl.DataFrame) -> None:
+            # If there's a 'label' column, use id as node_id and label separately
+            if "label" in attr_cols:
+                label = str(row["label"])
+                # Track id -> label mapping for edge resolution
+                id_to_label[str(node_id_value)] = label
+                # Don't include 'label' in attributes since we're passing it explicitly
+                attributes = {col: row[col] for col in attr_cols if col != "label"}
+                self.add_node(node_id=node_id_value, label=label, **attributes)
+            else:
+                # Use id as both node_id and label
+                label = str(node_id_value)
+                attributes = {col: row[col] for col in attr_cols}
+                self.add_node(node_id=node_id_value, label=label, **attributes)
+
+        return id_to_label
+
+    def _init_from_edges_df(
+        self, edges_df: pl.DataFrame, id_to_label_map: dict[str, str] = None
+    ) -> None:
         """Initialize edges from a Polars DataFrame.
 
         Automatically creates nodes if they don't exist yet (only if nodes_df was not provided).
-        When nodes_df was provided, edge 'from' and 'to' values are treated as labels
-        to match the node IDs specified in nodes_df.
+        When nodes_df was provided with id/label columns, edge 'from' and 'to' values
+        are mapped through id_to_label_map to find the actual node labels.
 
         Parameters
         ----------
         edges_df : pl.DataFrame
             DataFrame with at minimum 'from' and 'to' columns. Other columns become edge attributes.
+        id_to_label_map : dict[str, str], optional
+            Mapping from node ids to labels (from nodes_df processing)
         """
         if "from" not in edges_df.columns or "to" not in edges_df.columns:
             raise ValueError("edges_df must contain 'from' and 'to' columns")
+
+        if id_to_label_map is None:
+            id_to_label_map = {}
 
         # If no nodes_df was provided, auto-create nodes from edges (as labels)
         if not getattr(self, "_nodes_df_provided", False):
@@ -164,10 +189,13 @@ class Graph:
         attr_cols = [col for col in edges_df.columns if col not in ["from", "to"]]
 
         # Add each edge with its attributes
-        # When nodes_df was provided, from/to values are treated as labels
         for row in edges_df.iter_rows(named=True):
-            source = str(row["from"])  # Treat as label to match nodes_df IDs
-            target = str(row["to"])  # Treat as label to match nodes_df IDs
+            source_id = str(row["from"])
+            target_id = str(row["to"])
+
+            # Map through id_to_label if provided (from nodes_df with separate id/label)
+            source = id_to_label_map.get(source_id, source_id)
+            target = id_to_label_map.get(target_id, target_id)
 
             # Extract weight if present and graph is weighted
             weight = None
