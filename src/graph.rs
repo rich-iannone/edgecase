@@ -6973,6 +6973,65 @@ impl Graph {
 
         Ok(mst_edges)
     }
+
+    /// Enumerate all simple paths between source and target nodes.
+    ///
+    /// A simple path is a path with no repeated nodes. Uses depth-first search
+    /// with backtracking to explore all possibilities.
+    ///
+    /// # Arguments
+    /// * `source` - Source node label
+    /// * `target` - Target node label
+    /// * `cutoff` - Optional maximum path length (number of edges). If None, no limit.
+    ///
+    /// # Returns
+    /// Vec of paths, where each path is a Vec of node labels (String)
+    ///
+    /// # Algorithm
+    /// - Uses DFS with backtracking
+    /// - Tracks visited nodes to ensure "simple" property
+    /// - Time complexity: O(n!) in worst case (all permutations)
+    /// - Space complexity: O(n) for recursion stack
+    ///
+    /// # Example
+    /// ```python
+    /// # Find all simple paths from 'A' to 'D' with max length 4
+    /// paths = graph.all_simple_paths('A', 'D', cutoff=4)
+    /// ```
+    #[pyo3(signature = (source, target, cutoff=None))]
+    fn all_simple_paths(
+        &self,
+        source: String,
+        target: String,
+        cutoff: Option<usize>,
+    ) -> PyResult<Vec<Vec<String>>> {
+        // Look up node IDs from labels
+        let source_id = self.node_labels.get(&source)
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Source node '{}' not found", source)
+            ))?;
+        let target_id = self.node_labels.get(&target)
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Target node '{}' not found", target)
+            ))?;
+
+        // Initialize visited set and result container
+        let mut visited = FxHashSet::default();
+        let mut paths = Vec::new();
+        let mut current_path = Vec::new();
+
+        // Start DFS
+        self.dfs_simple_paths(
+            *source_id,
+            *target_id,
+            &mut visited,
+            &mut current_path,
+            &mut paths,
+            cutoff,
+        );
+
+        Ok(paths)
+    }
 }
 
 
@@ -6994,6 +7053,56 @@ impl Graph {
         } else {
             false
         }
+    }
+
+    /// Helper for all_simple_paths: DFS with backtracking
+    fn dfs_simple_paths(
+        &self,
+        current: u64,
+        target: u64,
+        visited: &mut FxHashSet<u64>,
+        current_path: &mut Vec<String>,
+        paths: &mut Vec<Vec<String>>,
+        cutoff: Option<usize>,
+    ) {
+        // Get label for current node
+        let current_label = self.nodes.get(&current)
+            .and_then(|n| n.label.clone())
+            .unwrap_or_else(|| current.to_string());
+
+        // Add current node to path and mark as visited
+        visited.insert(current);
+        current_path.push(current_label);
+
+        // Check if we've reached the target
+        if current == target {
+            paths.push(current_path.clone());
+        } else {
+            // Check cutoff (cutoff is number of edges, path length is nodes)
+            let can_continue = cutoff.map_or(true, |max_edges| current_path.len() <= max_edges);
+
+            if can_continue {
+                // Explore neighbors
+                if let Some(neighbors) = self.adjacency_list.get(&current) {
+                    for &neighbor in neighbors {
+                        if !visited.contains(&neighbor) {
+                            self.dfs_simple_paths(
+                                neighbor,
+                                target,
+                                visited,
+                                current_path,
+                                paths,
+                                cutoff,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Backtrack: remove current node from path and visited set
+        current_path.pop();
+        visited.remove(&current);
     }
 
     /// Generate all k-combinations of elements
@@ -9102,13 +9211,3 @@ fn matrix_power(matrix: &[Vec<u64>], power: usize) -> Vec<Vec<u64>> {
         multiply_matrices(matrix, &sub_power)
     }
 }
-
-
-
-
-
-
-
-
-
-

@@ -4396,6 +4396,145 @@ class Graph:
         """
         return self._graph.get_graph_radius()
 
+    def get_all_simple_paths(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        cutoff: Optional[int] = None,
+    ) -> list[list[str]]:
+        """Find all simple paths between two nodes.
+
+        A simple path is a path with no repeated nodes. This method uses depth-first
+        search with backtracking to enumerate all possible simple paths from source to target.
+
+        Parameters
+        ----------
+        source : int | str
+            Source node (integer ID or string label).
+        target : int | str
+            Target node (integer ID or string label).
+        cutoff : int | None, default None
+            Maximum path length (number of edges) to consider. If None, no limit is applied.
+            Useful for preventing excessive computation in large graphs.
+
+        Returns
+        -------
+        list of lists of str
+            List of paths, where each path is a list of node labels from source to target.
+            Returns empty list if no paths exist.
+
+        Algorithm
+        ---------
+        - Uses DFS with backtracking
+        - Time complexity: O(n!) worst case (exponential in path length)
+        - Space complexity: O(n) for recursion stack
+        - Best for: Finding alternative routes, analyzing network redundancy, path enumeration
+
+        Examples
+        --------
+        Find all paths in a simple network:
+
+        ```python
+        # Create diamond-shaped graph: A->B->D, A->C->D
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("B", "D")
+            .add_edge("C", "D")
+        )
+
+        # Find all simple paths from A to D
+        paths = graph.get_all_simple_paths("A", "D")
+        for path in paths:
+            print(" -> ".join(path))
+        # Output:
+        # A -> B -> D
+        # A -> C -> D
+        ```
+
+        Limit path length with cutoff:
+
+        ```python
+        # Create longer chain with shortcut
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+            .add_edge("A", "E")
+        )
+
+        # Find paths with max 2 edges
+        short_paths = graph.get_all_simple_paths("A", "E", cutoff=2)
+        print(f"Found {len(short_paths)} short paths")  # 1 path: A->E
+
+        # Find all paths (no limit)
+        all_paths = graph.get_all_simple_paths("A", "E")
+        print(f"Found {len(all_paths)} total paths")  # 2 paths
+        ```
+
+        Analyze network redundancy:
+
+        ```python
+        # Communication network with redundant paths
+        network = (
+            Graph()
+            .add_node(label="Server1")
+            .add_node(label="Router1")
+            .add_node(label="Router2")
+            .add_node(label="Server2")
+            .add_edge("Server1", "Router1")
+            .add_edge("Server1", "Router2")
+            .add_edge("Router1", "Server2")
+            .add_edge("Router2", "Server2")
+        )
+
+        # Find all backup routes
+        routes = network.get_all_simple_paths("Server1", "Server2")
+        print(f"Network has {len(routes)}x redundancy")
+        ```
+
+        Use Cases
+        ---------
+        - **Network Redundancy**: Find backup routes in communication networks
+        - **Social Network Analysis**: Discover indirect connections between people
+        - **Logistics**: Identify alternative delivery routes
+        - **Knowledge Graphs**: Trace reasoning paths between concepts
+        - **Biology**: Analyze metabolic pathways with multiple routes
+
+        See Also
+        --------
+        shortest_path : Find single shortest path (standalone function)
+        get_graph_diameter : Get longest shortest path in graph
+        enumerate_trails : Enumerate trails (paths without repeated edges)
+
+        Notes
+        -----
+        - For large graphs or long paths, the number of simple paths can be exponential
+        - Use the `cutoff` parameter to limit search depth and prevent excessive computation
+        - For weighted graphs needing k-shortest paths, consider implementing Yen's algorithm
+        - This method returns ALL paths, which can be memory-intensive for dense graphs
+        """
+        # Resolve node labels to internal IDs
+        source_label = self.label_from_id(self._resolve_node_id(source, auto_create=False))
+        target_label = self.label_from_id(self._resolve_node_id(target, auto_create=False))
+
+        # Call Rust implementation
+        paths = self._graph.all_simple_paths(source_label, target_label, cutoff)
+
+        return paths
+
     def get_girth(self) -> int | None:
         """Get girth (length of shortest cycle).
 
