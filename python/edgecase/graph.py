@@ -4239,7 +4239,7 @@ class Graph:
         return self.get_graph_diameter()
 
     def get_articulation_points(self) -> list[str]:
-        """Find articulation points (cut vertices) in the graph.
+        """Find articulation points (cut nodes) in the graph.
 
         An articulation point is a node whose removal disconnects the graph or
         increases the number of connected components. Uses Tarjan's DFS-based
@@ -4264,8 +4264,8 @@ class Graph:
 
         # In a path: A-B-C-D-E
         # Middle nodes B, C, D are articulation points
-        cut_vertices = graph.get_articulation_points()
-        print(len(cut_vertices))  # 3
+        cut_nodes = graph.get_articulation_points()
+        print(len(cut_nodes))  # 3
         ```
 
         Notes
@@ -4791,16 +4791,16 @@ class Graph:
     ) -> list[str]:
         """Perform a random walk on the graph.
 
-        Takes a random walk starting from a given vertex, choosing neighbors
-        uniformly at random at each step. Returns the sequence of vertices
-        visited, including the starting vertex.
+        Takes a random walk starting from a given node, choosing neighbors
+        uniformly at random at each step. Returns the sequence of nodes
+        visited, including the starting node.
 
         The walk follows edges according to the `mode` parameter:
         - "out": Follow outgoing edges (default for directed graphs)
         - "in": Follow incoming edges (reverse direction)
         - "all": Ignore edge directions (treat as undirected)
 
-        If the walk reaches a vertex with no valid neighbors (gets "stuck"),
+        If the walk reaches a node with no valid neighbors (gets "stuck"),
         behavior is controlled by the `stuck` parameter.
 
         Time complexity: O(steps), plus O(degree) per step for neighbor lookup.
@@ -4808,7 +4808,7 @@ class Graph:
         Parameters
         ----------
         start : str
-            Label of the starting vertex.
+            Label of the starting node.
         steps : int
             Number of steps to take in the walk.
         mode : {"out", "in", "all"}, default="out"
@@ -4826,14 +4826,14 @@ class Graph:
         Returns
         -------
         list[str]
-            Sequence of vertex labels visited, of length `steps + 1`
-            (includes the starting vertex). May be shorter if `stuck="return"`
+            Sequence of node labels visited, of length `steps + 1`
+            (includes the starting node). May be shorter if `stuck="return"`
             and the walk terminates early.
 
         Raises
         ------
         ValueError
-            If start vertex not found, or invalid mode/stuck parameter.
+            If start node not found, or invalid mode/stuck parameter.
         RuntimeError
             If walk gets stuck and `stuck="error"`.
 
@@ -4851,7 +4851,7 @@ class Graph:
         # Take a 10-step walk
         path = graph.random_walk("1", steps=10, seed=42)
         print(len(path))  # 11 (including start)
-        print(path[0])    # "1" (starting vertex)
+        print(path[0])    # "1" (starting node)
         ```
 
         Random walk on directed graph:
@@ -4898,7 +4898,7 @@ class Graph:
 
         See Also
         --------
-        random_edge_walk : Return edges instead of vertices
+        random_edge_walk : Return edges instead of nodes
         get_cmty_walktrap : Community detection via random walks
         """
         return self._graph.random_walk(start, steps, mode, stuck, seed)
@@ -4914,7 +4914,7 @@ class Graph:
         """Perform a random walk and return the edges traversed.
 
         Like `random_walk()`, but returns the sequence of edges traversed
-        rather than the vertices visited. Each edge is represented as a
+        rather than the nodes visited. Each edge is represented as a
         tuple (edge_id, source_label, target_label).
 
         Time complexity: O(steps), plus O(degree) per step for edge lookup.
@@ -4922,7 +4922,7 @@ class Graph:
         Parameters
         ----------
         start : str
-            Label of the starting vertex.
+            Label of the starting node.
         steps : int
             Number of steps to take in the walk.
         mode : {"out", "in", "all"}, default="out"
@@ -4947,7 +4947,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If start vertex not found, or invalid mode/stuck parameter.
+            If start node not found, or invalid mode/stuck parameter.
         RuntimeError
             If walk gets stuck and `stuck="error"`.
 
@@ -11429,8 +11429,8 @@ class Graph:
     def add_johnson_graph(self, n: int, k: int) -> "Graph":
         """Add a Johnson graph J(n, k) to this graph.
 
-        Creates a graph where vertices represent k-subsets of {0, 1, ..., n-1},
-        and two vertices are adjacent if their subsets intersect in exactly k-1 elements
+        Creates a graph where nodes represent k-subsets of {0, 1, ..., n-1},
+        and two nodes are adjacent if their subsets intersect in exactly k-1 elements
         (i.e., they differ by exactly one element).
 
         Johnson graphs are distance-regular and k(n-k)-regular. They generalize to
@@ -11457,18 +11457,18 @@ class Graph:
 
         Properties
         ----------
-        - **Vertices**: C(n,k) nodes where C is the binomial coefficient "n choose k"
+        - **Nodes**: C(n,k) nodes where C is the binomial coefficient "n choose k"
         - **Degree**: Each node has degree k(n-k) (regular graph)
-        - **Distance-regular**: Distances between vertices follow regular pattern
+        - **Distance-regular**: Distances between nodes follow regular pattern
         - **Undirected**: All edges are bidirectional
         - **Node labels**: Comma-separated sorted elements (e.g., "0,1,2")
 
         Relationship to Other Graphs
         -----------------------------
-        - **Kneser graphs K(n,k)**: Vertices adjacent if subsets are disjoint.
+        - **Kneser graphs K(n,k)**: Nodes adjacent if subsets are disjoint.
           Johnson J(n,k) and Kneser K(n,k) are complementary for certain parameters.
         - **Hamming graphs**: Johnson graphs are a special case of Hamming graphs.
-        - **Petersen graph**: J(5,2) is the Petersen graph (10 vertices, degree 3).
+        - **Petersen graph**: J(5,2) is the Petersen graph (10 nodes, degree 3).
 
         Complexity
         ----------
@@ -11507,8 +11507,8 @@ class Graph:
         print(f"Degree: {degrees[0]}")  # 6
 
         # Note: The Petersen graph is actually the Kneser graph K(5,2),
-        # not Johnson J(5,2). J(5,2) has 10 vertices and is 6-regular,
-        # while Petersen has 10 vertices but is 3-regular.
+        # not Johnson J(5,2). J(5,2) has 10 nodes and is 6-regular,
+        # while Petersen has 10 nodes but is 3-regular.
         ```
 
         See Also
