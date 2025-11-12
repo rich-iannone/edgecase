@@ -385,7 +385,7 @@ def demo_advanced_filtering():
             attrs.get("category") == "electronics"
             and attrs.get("price", 0) > 100
             and attrs.get("rating", 0) >= 4.5
-            and attrs.get("in_stock") == True
+            and attrs.get("in_stock")
         )
 
     G.select_nodes(premium_quality_available)
