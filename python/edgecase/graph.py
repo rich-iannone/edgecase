@@ -4535,6 +4535,142 @@ class Graph:
 
         return paths
 
+    def is_simple_path(self, nodes: list[Union[int, str]]) -> bool:
+        """Check if a sequence of nodes forms a simple path in the graph.
+
+        A simple path is a sequence where:
+
+        1. All nodes exist in the graph
+        2. Each consecutive pair of nodes is connected by an edge
+        3. No node appears more than once (no cycles)
+
+        This is a fast O(n) validation method useful for checking user input,
+        validating computed paths, or testing path properties.
+
+        Parameters
+        ----------
+        nodes : list of int or str
+            Sequence of node IDs or labels to validate.
+
+        Returns
+        -------
+        bool
+            True if the sequence forms a valid simple path, False otherwise.
+
+        Algorithm
+        ---------
+        - Time complexity: O(n) where n is the length of the node sequence
+        - Space complexity: O(n) for tracking visited nodes
+        - Checks performed: node existence, edge connectivity, no repetitions
+
+        Examples
+        --------
+        Validate a simple path:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # Valid simple path
+        assert graph.is_simple_path(["A", "B", "C"]) == True
+
+        # Invalid: no edge from A to C
+        assert graph.is_simple_path(["A", "C"]) == False
+
+        # Invalid: node D doesn't exist
+        assert graph.is_simple_path(["A", "B", "D"]) == False
+        ```
+
+        Check for cycles:
+
+        ```python
+        # Create triangle
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        # Valid simple path
+        assert graph.is_simple_path(["A", "B", "C"]) == True
+
+        # Invalid: A appears twice (cycle)
+        assert graph.is_simple_path(["A", "B", "C", "A"]) == False
+        ```
+
+        Validate computed paths:
+
+        ```python
+        # Get all paths and validate them
+        paths = graph.get_all_simple_paths("A", "D")
+
+        for path in paths:
+            # All returned paths should be valid
+            assert graph.is_simple_path(path) == True
+            print(f"✓ Valid path: {' -> '.join(path)}")
+        ```
+
+        Edge cases:
+
+        ```python
+        # Empty path is valid
+        assert graph.is_simple_path([]) == True
+
+        # Single node is valid (if it exists)
+        assert graph.is_simple_path(["A"]) == True
+
+        # Nonexistent single node is invalid
+        assert graph.is_simple_path(["Z"]) == False
+        ```
+
+        Use Cases
+        ---------
+        - **Input Validation**: Check user-provided paths before processing
+        - **Path Verification**: Validate paths returned by algorithms
+        - **Route Checking**: Verify delivery or travel routes
+        - **Graph Algorithms**: Test path properties in custom algorithms
+        - **Debugging**: Verify intermediate results in path computations
+
+        See Also
+        --------
+        get_all_simple_paths : Find all simple paths between two nodes
+        has_path : Check if any path exists between nodes
+        shortest_path : Find shortest path between nodes
+
+        Notes
+        -----
+        - This method is much faster than calling `get_all_simple_paths()` and checking membership
+        - For directed graphs, edges must exist in the specified direction
+        - Empty path and single-node paths are considered valid simple paths
+        - Compatible with both integer node IDs and string labels
+        """
+        # Convert node IDs to labels for Rust
+        node_labels = []
+        for node in nodes:
+            try:
+                node_id = self._resolve_node_id(node, auto_create=False)
+                label = self.label_from_id(node_id)
+                # If no label, use string of node ID
+                if label is None:
+                    label = str(node_id)
+                node_labels.append(label)
+            except (ValueError, KeyError):
+                # Node doesn't exist
+                return False
+
+        # Call Rust implementation
+        return self._graph.is_simple_path(node_labels)
+
     def get_girth(self) -> int | None:
         """Get girth (length of shortest cycle).
 

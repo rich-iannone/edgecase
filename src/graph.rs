@@ -7032,6 +7032,84 @@ impl Graph {
 
         Ok(paths)
     }
+
+    /// Check if a sequence of nodes forms a simple path in the graph.
+    ///
+    /// A simple path is a sequence of nodes where:
+    /// 1. All nodes exist in the graph
+    /// 2. Consecutive nodes are connected by edges
+    /// 3. No node appears more than once (no cycles)
+    ///
+    /// # Arguments
+    /// * `nodes` - Sequence of node labels to validate
+    ///
+    /// # Returns
+    /// true if the sequence forms a valid simple path, false otherwise
+    ///
+    /// # Algorithm
+    /// - O(n) time complexity where n = number of nodes in path
+    /// - O(n) space complexity for tracking visited nodes
+    ///
+    /// # Example
+    /// ```python
+    /// # Check if ['A', 'B', 'C'] forms a simple path
+    /// is_valid = graph.is_simple_path(['A', 'B', 'C'])
+    /// ```
+    fn is_simple_path(&self, nodes: Vec<String>) -> PyResult<bool> {
+        // Empty path or single node is trivially a simple path
+        if nodes.len() <= 1 {
+            // But we need to check if the node exists
+            if nodes.len() == 1 {
+                if self.find_node_id(&nodes[0]).is_none() {
+                    return Ok(false);
+                }
+            }
+            return Ok(true);
+        }
+
+        // Track visited nodes to ensure no repeats
+        let mut visited = FxHashSet::default();
+
+        // Iterate through consecutive pairs
+        for i in 0..nodes.len() - 1 {
+            let current_label = &nodes[i];
+            let next_label = &nodes[i + 1];
+
+            // Check if current node exists (try label, then parse as ID)
+            let current_id = match self.find_node_id(current_label) {
+                Some(id) => id,
+                None => return Ok(false),
+            };
+
+            // Check if next node exists
+            let next_id = match self.find_node_id(next_label) {
+                Some(id) => id,
+                None => return Ok(false),
+            };
+
+            // Check if current node was already visited (not simple!)
+            if !visited.insert(current_id) {
+                return Ok(false);
+            }
+
+            // Check if edge exists from current to next
+            if !self.has_edge(current_id, next_id) {
+                return Ok(false);
+            }
+        }
+
+        // Check last node for repeats
+        let last_label = &nodes[nodes.len() - 1];
+        if let Some(last_id) = self.find_node_id(last_label) {
+            if !visited.insert(last_id) {
+                return Ok(false);
+            }
+        } else {
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
 }
 
 
@@ -7053,6 +7131,25 @@ impl Graph {
         } else {
             false
         }
+    }
+
+    /// Find node ID from a label string. Tries label lookup first,
+    /// then parses as integer ID if that fails.
+    fn find_node_id(&self, label: &str) -> Option<u64> {
+        // First try: lookup as a label
+        if let Some(&id) = self.node_labels.get(label) {
+            return Some(id);
+        }
+
+        // Second try: parse as integer ID
+        if let Ok(id) = label.parse::<u64>() {
+            // Check if this ID actually exists in the graph
+            if self.nodes.contains_key(&id) {
+                return Some(id);
+            }
+        }
+
+        None
     }
 
     /// Helper for all_simple_paths: DFS with backtracking
