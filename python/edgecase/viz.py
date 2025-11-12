@@ -1002,10 +1002,52 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
             "  edge [fontname=Helvetica, fontsize=8, len=1.5, color=gray60, penwidth=1.5];"
         )
 
-    # Add nodes
+    # Add nodes with individual styling from attributes
     for node in nodes:
-        # Quote node labels to handle special characters and spaces
-        lines.append(f'  "{node}";')
+        node_obj = graph.get_node(node)
+        attrs = node_obj.attributes if node_obj else {}
+
+        # Map common attribute names to Graphviz DOT attributes
+        dot_attrs = []
+
+        # Size/width (use 'size' or 'width' attribute)
+        if "size" in attrs:
+            dot_attrs.append(f"width={attrs['size']}")
+        elif "width" in attrs:
+            dot_attrs.append(f"width={attrs['width']}")
+
+        # Fill color (use 'fillcolor' or 'fill' attribute)
+        if "fillcolor" in attrs:
+            dot_attrs.append(f'fillcolor="{attrs["fillcolor"]}"')
+        elif "fill" in attrs:
+            dot_attrs.append(f'fillcolor="{attrs["fill"]}"')
+
+        # Border color (use 'color' attribute)
+        if "color" in attrs:
+            dot_attrs.append(f'color="{attrs["color"]}"')
+
+        # Shape (use 'shape' attribute)
+        if "shape" in attrs:
+            dot_attrs.append(f"shape={attrs['shape']}")
+
+        # Style (use 'style' attribute)
+        if "style" in attrs:
+            dot_attrs.append(f'style="{attrs["style"]}"')
+
+        # Font color (use 'fontcolor' attribute)
+        if "fontcolor" in attrs:
+            dot_attrs.append(f'fontcolor="{attrs["fontcolor"]}"')
+
+        # Pen width (use 'penwidth' attribute)
+        if "penwidth" in attrs:
+            dot_attrs.append(f"penwidth={attrs['penwidth']}")
+
+        # Build node line with attributes
+        if dot_attrs:
+            attrs_str = ", ".join(dot_attrs)
+            lines.append(f'  "{node}" [{attrs_str}];')
+        else:
+            lines.append(f'  "{node}";')
 
     # Add edges
     for src, tgt in edges:
