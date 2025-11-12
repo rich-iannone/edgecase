@@ -1,5 +1,3 @@
-"""Example demonstrating cycle enumeration using Johnson's algorithm."""
-
 import edgecase as ec
 
 # Create a directed graph with multiple cycles
