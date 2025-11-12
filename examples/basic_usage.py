@@ -1,5 +1,3 @@
-"""Example demonstrating basic EdgeCase usage."""
-
 import edgecase as ec
 import polars as pl
 
