@@ -1,10 +1,3 @@
-"""
-Demo of ADA* (Anytime Dynamic A*) pathfinding algorithm.
-
-Shows the simple one-shot API for finding optimal paths with configurable
-suboptimality bounds and custom heuristics.
-"""
-
 import edgecase as ec
 
 
