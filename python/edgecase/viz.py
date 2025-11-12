@@ -668,12 +668,13 @@ def _generate_graphviz_html(
         }}
 
         // Build node and edge data
-        const nodes = {json.dumps([str(node) for node in nodes])};
-        const nodeData = nodes.map(node => ({{
-            id: node,
-            label: node,
-            x: positions[node] ? positions[node][0] : 0,
-            y: positions[node] ? positions[node][1] : 0
+        const nodesInfo = {json.dumps([{"id": str(node), "label": str(node), "attributes": graph.get_node(node).attributes if graph.get_node(node) else {}} for node in nodes])};
+        const nodeData = nodesInfo.map(nodeInfo => ({{
+            id: nodeInfo.id,
+            label: nodeInfo.label,
+            attributes: nodeInfo.attributes,
+            x: positions[nodeInfo.id] ? positions[nodeInfo.id][0] : 0,
+            y: positions[nodeInfo.id] ? positions[nodeInfo.id][1] : 0
         }}));
 
         console.log('Node data:', nodeData);
@@ -882,9 +883,18 @@ def _generate_graphviz_html(
                 if (node !== hoveredNode) {{
                     hoveredNode = node;
                     if (node) {{
-                        const tooltipText = node.id === node.label
+                        let tooltipText = node.id === node.label
                             ? `Node: ${{node.id}}`
                             : `Node: ${{node.id}}\\nLabel: ${{node.label}}`;
+
+                        // Add attributes to tooltip
+                        if (node.attributes && Object.keys(node.attributes).length > 0) {{
+                            tooltipText += '\\n';
+                            for (const [key, value] of Object.entries(node.attributes)) {{
+                                tooltipText += `\\n${{key}}: ${{value}}`;
+                            }}
+                        }}
+
                         tooltip.textContent = tooltipText;
                         tooltip.style.whiteSpace = 'pre-line';
                         tooltip.style.left = `${{mouseX + 10}}px`;
@@ -1055,6 +1065,19 @@ def _generate_graphviz_svg_html(
 
     unique_id = str(int(time.time() * 1000000) % 1000000)  # Use microseconds modulo 1M
 
+    # Collect node data with attributes
+    nodes_data = []
+    for node in nodes:
+        node_obj = graph.get_node(node)
+        nodes_data.append(
+            {
+                "id": str(node),
+                "label": str(node),
+                "attributes": node_obj.attributes if node_obj else {},
+            }
+        )
+
+    nodes_json = json.dumps(nodes_data)
     edges_json = json.dumps(edges)
     is_directed = "true" if graph.is_directed else "false"
 
@@ -1254,6 +1277,13 @@ def _generate_graphviz_svg_html(
             const layoutEngine = '{layout_engine}';
             const svgContainer = document.getElementById('svg-container-{unique_id}');
 
+            // Node data with attributes for tooltips
+            const nodesData = {nodes_json};
+            const nodesMap = {{}};
+            nodesData.forEach(node => {{
+                nodesMap[node.id] = node;
+            }});
+
             // Edge data for tooltips: [[source, target], ...]
             const edgesData = {edges_json};
             const isDirected = {is_directed};
@@ -1348,8 +1378,21 @@ def _generate_graphviz_svg_html(
                     const textElement = node.querySelector('text');
                     const nodeId = textElement ? textElement.textContent.trim() : 'Unknown';
 
+                    // Get node data with attributes
+                    const nodeData = nodesMap[nodeId];
+
                     node.addEventListener('mouseenter', (e) => {{
-                        customTooltip.textContent = `Node: ${{nodeId}}`;
+                        let tooltipText = `Node: ${{nodeId}}`;
+
+                        // Add attributes if available
+                        if (nodeData && nodeData.attributes && Object.keys(nodeData.attributes).length > 0) {{
+                            for (const [key, value] of Object.entries(nodeData.attributes)) {{
+                                tooltipText += `\\n${{key}}: ${{value}}`;
+                            }}
+                        }}
+
+                        customTooltip.textContent = tooltipText;
+                        customTooltip.style.whiteSpace = 'pre-line';
                         customTooltip.classList.add('visible');
                     }});
 
