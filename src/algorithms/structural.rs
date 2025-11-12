@@ -10,7 +10,7 @@ use std::collections::HashSet;
 ///
 /// Algorithm: For each edge (u,v), count common neighbors.
 /// Each common neighbor w forms a triangle (u,v,w).
-/// For undirected graphs, each triangle is counted 3 times (once per vertex).
+/// For undirected graphs, each triangle is counted 3 times (once per node).
 /// For directed graphs, counts closed triplets.
 ///
 /// Time complexity: O(m * d_max) where d_max is maximum degree

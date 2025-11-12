@@ -5,8 +5,8 @@ def to_igraph(graph):
     """Convert an EdgeCase Graph to an igraph graph.
 
     Creates an igraph graph preserving directionality, node/edge attributes, and
-    weights. Node names are stored as 'name' vertex attribute since igraph uses
-    integer vertex indices internally.
+    weights. Node names are stored as 'name' node attribute since igraph uses
+    integer node indices internally.
 
     Parameters
     ---
@@ -61,7 +61,7 @@ def to_igraph(graph):
     # Add vertices
     ig_graph.add_vertices(n_nodes)
 
-    # Set node labels as vertex "name" attribute (converting IDs to labels)
+    # Set node labels as "name" attribute (converting IDs to labels)
     node_labels = [graph.label_from_id(node_id) for node_id in node_ids]
     ig_graph.vs["name"] = node_labels
 
@@ -150,9 +150,9 @@ def to_igraph(graph):
 def from_igraph(ig_graph, weighted: Optional[bool] = None):
     """Convert an igraph graph to an EdgeCase Graph.
 
-    Creates an EdgeCase graph from igraph, preserving directionality, vertex/edge
-    attributes, and weights. Node names are taken from 'name' vertex attribute if
-    present, otherwise vertex indices are used.
+    Creates an EdgeCase graph from igraph, preserving directionality, node/edge
+    attributes, and weights. Node names are taken from 'name' node attribute if
+    present, otherwise node indices are used.
 
     Parameters
     ---
@@ -218,28 +218,28 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     graph = Graph(directed=directed, weighted=weighted)
 
     # Determine node IDs
-    # If 'name' attribute exists, use it; otherwise use vertex indices
+    # If 'name' attribute exists, use it; otherwise use node indices
     if "name" in ig_graph.vs.attributes():
         node_ids = ig_graph.vs["name"]
     else:
         node_ids = [str(i) for i in range(ig_graph.vcount())]
 
-    # Get all vertex attribute names (excluding 'name' since we use it for node ID)
-    vertex_attrs = [attr for attr in ig_graph.vs.attributes() if attr != "name"]
+    # Get all node attribute names (excluding 'name' since we use it for node ID)
+    node_attrs = [attr for attr in ig_graph.vs.attributes() if attr != "name"]
 
     # Add nodes with attributes
     for idx, node_id in enumerate(node_ids):
         # Convert node_id to string (EdgeCase uses string node IDs)
         node_id_str = str(node_id)
 
-        # Collect vertex attributes
-        node_attrs = {}
-        for attr_name in vertex_attrs:
+        # Collect node attributes
+        node_attributes = {}
+        for attr_name in node_attrs:
             attr_value = ig_graph.vs[idx][attr_name]
             if attr_value is not None:
-                node_attrs[attr_name] = attr_value
+                node_attributes[attr_name] = attr_value
 
-        graph.add_node(node_id_str, **node_attrs)
+        graph.add_node(node_id_str, **node_attributes)
 
     # Get all edge attribute names
     edge_attrs = ig_graph.es.attributes()

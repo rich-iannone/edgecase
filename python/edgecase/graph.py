@@ -1856,7 +1856,7 @@ class Graph:
         """Count triangles containing each node.
 
         Returns the number of triangles that include each node in the graph.
-        For undirected graphs, counts each triangle once per vertex.
+        For undirected graphs, counts each triangle once per node.
         For directed graphs, counts directed triangles (closed triplets).
 
         A triangle is a set of three nodes where all three pairs are connected.
@@ -3384,7 +3384,7 @@ class Graph:
           - λ₂ > 0 ⟺ graph is connected
           - λ₂ = 0 ⟺ disconnected
           - Measures robustness to edge removal
-          - Lower bound on edge/vertex connectivity
+          - Lower bound on edge/node connectivity
 
         - **Fiedler vector**: Eigenvector for λ₂
           - Sign pattern reveals natural graph partition
@@ -4484,16 +4484,16 @@ class Graph:
 
         See Also
         --------
-        get_cohesion : Get vertex connectivity
+        get_cohesion : Get node connectivity
         is_connected : Check if graph is connected
         """
         return self._graph.get_adhesion()
 
     def get_cohesion(self) -> int:
-        """Get cohesion (minimum vertex cut size).
+        """Get cohesion (minimum node cut size).
 
         The cohesion is the minimum number of nodes whose removal would disconnect
-        the graph. Also called vertex connectivity. Only defined for undirected graphs.
+        the graph. Also called node connectivity. Only defined for undirected graphs.
         Returns 0 if already disconnected.
 
         Note: Current implementation provides an upper bound (minimum degree) for
@@ -4502,7 +4502,7 @@ class Graph:
         Returns
         -------
         int
-            Minimum vertex cut size.
+            Minimum node cut size.
 
         Raises
         ------
@@ -10847,7 +10847,7 @@ class Graph:
         Johnson graphs are distance-regular and k(n-k)-regular. They generalize to
         the family J(n,k,s) where s is the intersection size; this method implements
         the standard case where s = k-1. When k=0 or k=n, the graph is trivial
-        (single vertex, no edges).
+        (single node, no edges).
 
         Parameters
         ----------
@@ -10869,7 +10869,7 @@ class Graph:
         Properties
         ----------
         - **Vertices**: C(n,k) nodes where C is the binomial coefficient "n choose k"
-        - **Degree**: Each vertex has degree k(n-k) (regular graph)
+        - **Degree**: Each node has degree k(n-k) (regular graph)
         - **Distance-regular**: Distances between vertices follow regular pattern
         - **Undirected**: All edges are bidirectional
         - **Node labels**: Comma-separated sorted elements (e.g., "0,1,2")

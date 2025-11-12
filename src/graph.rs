@@ -1382,7 +1382,7 @@ impl Graph {
     /// (i.e., they differ by exactly one element).
     ///
     /// # Properties
-    /// - Regular graph: each vertex has degree k(n-k)
+    /// - Regular graph: each node has degree k(n-k)
     /// - Distance-regular
     /// C(n,k) vertices where C is binomial coefficient
     /// - Undirected, no self-loops
@@ -2062,9 +2062,9 @@ impl Graph {
         Ok(min_degree)
     }
 
-    /// Get cohesion (minimum vertex cut size)
-    /// Returns minimum number of vertices whose removal disconnects the graph
-    /// Uses Menger's theorem: min vertex cut = max number of vertex-disjoint paths
+    /// Get cohesion (minimum node cut size)
+    /// Returns minimum number of nodes whose removal disconnects the graph
+    /// Uses Menger's theorem: min node cut = max number of node-disjoint paths
     /// Simplified implementation for now
     fn get_cohesion(&self) -> PyResult<usize> {
         if self.directed {
@@ -3622,8 +3622,8 @@ impl Graph {
     }
 
     /// Count strongly connected components (directed graphs only).
-    /// A strongly connected component is a maximal set of vertices where
-    /// every vertex is reachable from every other vertex.
+    /// A strongly connected component is a maximal set of nodes where
+    /// every node is reachable from every other node.
     pub fn count_strongly_connected_components(&self) -> PyResult<usize> {
         crate::algorithms::connectivity::count_strongly_connected_components(self)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
