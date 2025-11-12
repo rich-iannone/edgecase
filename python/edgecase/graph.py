@@ -5263,6 +5263,143 @@ class Graph:
         """
         return self._graph.constraint(weights)
 
+    def number_of_walks(self, walk_length: int) -> dict[str, dict[str, int]]:
+        """Count walks of a specific length between all pairs of nodes.
+
+        A walk is a sequence of nodes where each adjacent pair is connected by
+        an edge. Unlike paths, walks can repeat nodes and edges. The number of
+        walks of length k from node i to node j equals the (i,j) entry of A^k
+        where A is the adjacency matrix.
+
+        This method computes the k-th power of the adjacency matrix using fast
+        matrix exponentiation, which is efficient even for large k values.
+
+        Time complexity: O(V³ × log k) where V is the number of nodes
+        Space complexity: O(V²)
+
+        Parameters
+        ----------
+        walk_length : int
+            Non-negative integer representing the number of edges in the walk.
+            A walk of length 0 means staying at the same node (identity matrix).
+            A walk of length 1 counts direct edges.
+
+        Returns
+        -------
+        dict[str, dict[str, int]]
+            Nested dictionary where outer keys are source nodes, inner keys are
+            target nodes, and inner values are the number of walks of length
+            `walk_length` from source to target.
+
+        Raises
+        ------
+        ValueError
+            If walk_length is negative.
+
+        Examples
+        --------
+        Count walks in a simple path:
+
+        ```python
+        g = Graph()
+        g.add_node(label="0")
+        g.add_node(label="1")
+        g.add_node(label="2")
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+
+        # Walks of length 2
+        walks = g.number_of_walks(2)
+        print(walks["0"]["2"])  # 1 (path: 0 → 1 → 2)
+        print(walks["1"]["1"])  # 2 (paths: 1 → 0 → 1 and 1 → 2 → 1)
+        ```
+
+        Count walks in a triangle:
+
+        ```python
+        g = Graph()
+        for i in range(3):
+            g.add_node(label=str(i))
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+        g.add_edge("2", "0")
+
+        # Walks of length 3 (can return to start)
+        walks = g.number_of_walks(3)
+        print(walks["0"]["0"])  # 2 (two ways to return: 0→1→2→0 and 0→1→0→0)
+        ```
+
+        Total number of walks in the graph:
+
+        ```python
+        walks = g.number_of_walks(2)
+        total = sum(
+            sum(targets.values()) for targets in walks.values()
+        )
+        print(f"Total walks of length 2: {total}")
+        ```
+
+        Walks from a specific source:
+
+        ```python
+        walks = g.number_of_walks(3)
+        source_walks = walks["0"]
+        print(f"Walks from node 0: {sum(source_walks.values())}")
+        ```
+
+        Notes
+        -----
+        **Walk vs. Path**:
+        - A **walk** can repeat nodes and edges (counted by this method)
+        - A **path** cannot repeat nodes (use shortest path algorithms)
+        - A **trail** cannot repeat edges but can repeat nodes
+
+        **Walk length 0**:
+        Returns the identity matrix - each node has exactly 1 "walk" to itself
+        (staying in place) and 0 walks to other nodes.
+
+        **Walk length 1**:
+        Returns the adjacency matrix - counts direct edges. For multigraphs,
+        this counts multiple edges between the same node pair.
+
+        **Growth of walk counts**:
+        The number of walks can grow very quickly, especially in dense graphs
+        and with larger walk lengths. For example, in a complete graph K_n,
+        the number of walks grows exponentially with walk_length.
+
+        **Applications**:
+        - **Network reachability**: Measure connectivity strength beyond
+          shortest paths
+        - **Information diffusion**: Model how information can spread through
+          multiple redundant paths
+        - **Random walk analysis**: Expected number of random walks between
+          nodes
+        - **Graph similarity**: Compare graphs based on walk structure
+        - **Spectral analysis**: Related to eigenvalues of the adjacency matrix
+
+        **Relationship to matrix powers**:
+        This method computes A^k where A is the adjacency matrix. The trace
+        of A^k (sum of diagonal elements) counts closed walks (cycles) of
+        length k.
+
+        References
+        ----------
+        Bollobás, B. (1998). Modern Graph Theory. Springer.
+
+        Lovász, L. (1993). Random walks on graphs: A survey. Combinatorics,
+        Paul Erdős is Eighty, 2, 1-46.
+
+        See Also
+        --------
+        random_walk : Generate a single random walk
+        all_simple_paths : Enumerate paths without repetition
+        shortest_path : Find shortest path between nodes
+        """
+        if walk_length < 0:
+            raise ValueError("walk_length must be non-negative")
+
+        return self._graph.number_of_walks(walk_length)
+
     def get_reciprocity(self) -> float:
         """Get reciprocity (fraction of reciprocal edges).
 

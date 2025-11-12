@@ -3272,6 +3272,91 @@ impl Graph {
         Ok(result)
     }
 
+    /// Count the number of walks of a specific length between all pairs of nodes.
+    ///
+    /// A walk is a sequence of nodes where each adjacent pair is connected by an edge.
+    /// Walks can repeat edges and nodes. The number of walks of length k from node i
+    /// to node j equals the (i,j) entry of A^k where A is the adjacency matrix.
+    ///
+    /// # Arguments
+    /// * `walk_length` - Non-negative integer representing the number of edges in the walk
+    ///
+    /// # Returns
+    /// Nested HashMap: outer key = source node label, inner key = target node label,
+    /// inner value = number of walks of length `walk_length` from source to target
+    ///
+    /// # Time Complexity
+    /// O(V³ × log k) using fast matrix exponentiation where V is number of vertices
+    /// and k is walk_length
+    pub fn number_of_walks(&self, walk_length: usize) -> PyResult<FxHashMap<String, FxHashMap<String, u64>>> {
+        // Get sorted list of node IDs for consistent matrix indexing
+        let mut node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        node_ids.sort_unstable();
+        let n = node_ids.len();
+
+        // Create node_id -> matrix index mapping
+        let mut id_to_idx = FxHashMap::default();
+        for (idx, &node_id) in node_ids.iter().enumerate() {
+            id_to_idx.insert(node_id, idx);
+        }
+
+        // Build adjacency matrix
+        let mut adj_matrix = vec![vec![0u64; n]; n];
+
+        for edge in &self.edges {
+            if self.deleted_edge_ids.contains(&edge.id) {
+                continue;
+            }
+
+            let source_idx = id_to_idx[&edge.source];
+            let target_idx = id_to_idx[&edge.target];
+
+            // Add edge (in directed graphs, only source -> target)
+            adj_matrix[source_idx][target_idx] += 1;
+
+            // In undirected graphs, also add reverse edge
+            if !self.directed {
+                adj_matrix[target_idx][source_idx] += 1;
+            }
+        }
+
+        // Compute A^walk_length using fast matrix exponentiation
+        let result_matrix = if walk_length == 0 {
+            // A^0 = Identity matrix
+            let mut identity = vec![vec![0u64; n]; n];
+            for i in 0..n {
+                identity[i][i] = 1;
+            }
+            identity
+        } else {
+            matrix_power(&adj_matrix, walk_length)
+        };
+
+        // Convert result matrix to nested HashMap with node labels
+        let mut result = FxHashMap::default();
+        for (i, &source_id) in node_ids.iter().enumerate() {
+            let source_label = self.nodes
+                .get(&source_id)
+                .and_then(|n| n.label.clone())
+                .unwrap_or_else(|| source_id.to_string());
+
+            let mut target_map = FxHashMap::default();
+
+            for (j, &target_id) in node_ids.iter().enumerate() {
+                let target_label = self.nodes
+                    .get(&target_id)
+                    .and_then(|n| n.label.clone())
+                    .unwrap_or_else(|| target_id.to_string());
+
+                target_map.insert(target_label, result_matrix[i][j]);
+            }
+
+            result.insert(source_label, target_map);
+        }
+
+        Ok(result)
+    }
+
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;
@@ -8834,6 +8919,54 @@ impl AdaStar {
     }
 }
 
+// ============================================================================
+// Matrix Operations for Walk Counting
+// ============================================================================
+
+/// Multiply two square matrices
+fn multiply_matrices(a: &[Vec<u64>], b: &[Vec<u64>]) -> Vec<Vec<u64>> {
+    let n = a.len();
+    let mut result = vec![vec![0u64; n]; n];
+
+    for i in 0..n {
+        for j in 0..n {
+            for k in 0..n {
+                result[i][j] = result[i][j].saturating_add(a[i][k].saturating_mul(b[k][j]));
+            }
+        }
+    }
+
+    result
+}
+
+/// Compute matrix power using fast exponentiation
+/// Time complexity: O(n³ × log k) where n is matrix size and k is the power
+fn matrix_power(matrix: &[Vec<u64>], power: usize) -> Vec<Vec<u64>> {
+    let n = matrix.len();
+
+    if power == 0 {
+        // Return identity matrix
+        let mut identity = vec![vec![0u64; n]; n];
+        for i in 0..n {
+            identity[i][i] = 1;
+        }
+        return identity;
+    }
+
+    if power == 1 {
+        return matrix.to_vec();
+    }
+
+    // Fast exponentiation: A^k = (A^(k/2))^2 if k is even
+    //                      A^k = A × A^(k-1) if k is odd
+    if power % 2 == 0 {
+        let half_power = matrix_power(matrix, power / 2);
+        multiply_matrices(&half_power, &half_power)
+    } else {
+        let sub_power = matrix_power(matrix, power - 1);
+        multiply_matrices(matrix, &sub_power)
+    }
+}
 
 
 
