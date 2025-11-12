@@ -4536,6 +4536,251 @@ class Graph:
         """
         return self._graph.get_cohesion()
 
+    def cohesive_blocks(self) -> tuple[list[list[str]], list[int], list[int | None]]:
+        """Find hierarchical cohesive block structure.
+
+        Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal
+        subgraph that requires removal of at least k nodes to disconnect it. Returns a
+        hierarchical structure where child blocks have higher cohesion than their parents.
+
+        Based on Moody & White (2003) "Structural Cohesion and Embeddedness: A Hierarchical
+        Concept of Social Groups".
+
+        Time complexity: O(V^5) due to node connectivity computations.
+
+        Returns
+        -------
+        tuple[list[list[str]], list[int], list[int | None]]
+            A tuple containing:
+            - blocks: List of node sets (each as list of node labels)
+            - cohesion: List of k-values (cohesion of each block)
+            - parent: List of parent block indices (None for root blocks)
+
+        Examples
+        --------
+        Find cohesive blocks in a complete graph:
+
+        ```python
+        # K_5 complete graph has cohesion 4
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        blocks, cohesions, parents = graph.cohesive_blocks()
+        # Returns: ([['1','2','3','4','5']], [4], [None])
+        ```
+
+        Find hierarchical structure:
+
+        ```python
+        # Graph with nested cohesive structure
+        graph = Graph()
+        # Build K_4 (cohesion 3)
+        for i in range(1, 5):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            for j in range(i + 1, 5):
+                graph.add_edge(str(i), str(j))
+
+        # Add nodes to create larger 2-cohesive block
+        graph.add_node(label="5")
+        graph.add_node(label="6")
+        graph.add_edge("1", "5")
+        graph.add_edge("2", "5")
+        graph.add_edge("5", "6")
+        graph.add_edge("6", "1")
+        graph.add_edge("6", "2")
+
+        blocks, cohesions, parents = graph.cohesive_blocks()
+        # Returns hierarchical structure with root block and K_4 sub-block
+        ```
+
+        See Also
+        --------
+        node_connectivity : Compute global node connectivity
+        node_connectivity_between : Node connectivity between two nodes
+        get_cohesion : Get minimum node cut size (upper bound)
+        """
+        return self._graph.cohesive_blocks()
+
+    def node_connectivity(self) -> int:
+        """Compute global node connectivity.
+
+        Returns the minimum number of nodes whose removal disconnects the graph.
+        This is computed as the minimum pairwise node connectivity over all pairs
+        of non-adjacent nodes.
+
+        Uses Menger's theorem: node connectivity equals the maximum number of
+        node-disjoint paths. Implementation transforms the problem to max-flow.
+
+        Time complexity: O(V^4) for complete enumeration of pairs.
+
+        Returns
+        -------
+        int
+            Minimum number of nodes needed to disconnect the graph.
+            Returns 0 if already disconnected.
+            Returns n-1 for complete graph K_n.
+
+        Examples
+        --------
+        Cycle graph has node connectivity 2:
+
+        ```python
+        graph = Graph()
+        n = 6
+        for i in range(1, n + 1):
+            graph.add_node(label=str(i))
+        for i in range(1, n + 1):
+            graph.add_edge(str(i), str((i % n) + 1))
+
+        print(graph.node_connectivity())  # 2
+        ```
+
+        Complete graph K_5 has node connectivity 4:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        print(graph.node_connectivity())  # 4
+        ```
+
+        See Also
+        --------
+        node_connectivity_between : Node connectivity between specific nodes
+        edge_connectivity : Minimum edge cut
+        cohesive_blocks : Find hierarchical cohesive structure
+        """
+        return self._graph.node_connectivity()
+
+    def node_connectivity_between(self, source: str, target: str) -> int:
+        """Compute node connectivity between two nodes.
+
+        Returns the minimum number of nodes that must be removed to disconnect
+        the source from the target. Uses Menger's theorem: this equals the maximum
+        number of node-disjoint paths between the nodes.
+
+        Implementation transforms the graph by splitting each internal node into
+        in-node and out-node with capacity 1, converting node connectivity to
+        edge connectivity, which is computed using max-flow.
+
+        Time complexity: O(V * E^2) using Ford-Fulkerson with BFS.
+
+        Parameters
+        ----------
+        source : str
+            Label of source node.
+        target : str
+            Label of target node.
+
+        Returns
+        -------
+        int
+            Minimum number of nodes whose removal disconnects source from target.
+
+        Raises
+        ------
+        ValueError
+            If source or target doesn't exist, or if source == target.
+
+        Examples
+        --------
+        Path graph connectivity:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            graph.add_edge(str(i), str(i + 1))
+
+        # Endpoints have connectivity 1 (any middle node disconnects them)
+        print(graph.node_connectivity_between("1", "5"))  # 1
+        ```
+
+        Complete graph connectivity:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        # Any two nodes in K_5 have connectivity 3
+        print(graph.node_connectivity_between("1", "5"))  # 3
+        ```
+
+        See Also
+        --------
+        node_connectivity : Global node connectivity
+        edge_connectivity : Minimum edge cut
+        cohesive_blocks : Find hierarchical cohesive structure
+        """
+        return self._graph.node_connectivity_between(source, target)
+
+    def edge_connectivity(self) -> int:
+        """Compute edge connectivity (minimum edge cut).
+
+        Returns the minimum number of edges whose removal disconnects the graph.
+        For undirected graphs, this is computed as the minimum over strategic pairs
+        of nodes. For directed graphs, respects edge directions.
+
+        Edge connectivity provides a measure of graph robustness: higher values
+        indicate more redundant paths and better fault tolerance.
+
+        Time complexity: O(V * E^2) using max-flow computations.
+
+        Returns
+        -------
+        int
+            Minimum number of edges needed to disconnect the graph.
+            Returns 0 if already disconnected or has isolated nodes.
+
+        Examples
+        --------
+        Cycle graph has edge connectivity 2:
+
+        ```python
+        graph = Graph()
+        n = 6
+        for i in range(1, n + 1):
+            graph.add_node(label=str(i))
+        for i in range(1, n + 1):
+            graph.add_edge(str(i), str((i % n) + 1))
+
+        print(graph.edge_connectivity())  # 2
+        ```
+
+        Star graph has edge connectivity 1:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="center")
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+            graph.add_edge("center", str(i))
+
+        print(graph.edge_connectivity())  # 1
+        ```
+
+        See Also
+        --------
+        node_connectivity : Minimum node cut
+        get_adhesion : Another name for edge connectivity
+        cohesive_blocks : Find hierarchical cohesive structure
+        """
+        return self._graph.edge_connectivity()
+
     def get_reciprocity(self) -> float:
         """Get reciprocity (fraction of reciprocal edges).
 

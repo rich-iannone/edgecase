@@ -2094,6 +2094,284 @@ impl Graph {
         Ok(min_degree)
     }
 
+    /// Compute node connectivity between two nodes
+    ///
+    /// Node connectivity is the minimum number of nodes that must be removed
+    /// to disconnect source from target. Uses Menger's theorem: this equals
+    /// the maximum number of node-disjoint paths between the nodes.
+    ///
+    /// Implementation: Transform graph by splitting each node v into v_in and v_out
+    /// with edge (v_in, v_out) of capacity 1. This converts node connectivity to
+    /// edge connectivity, which we compute using max-flow.
+    pub fn node_connectivity_between(&self, source: u64, target: u64) -> PyResult<usize> {
+        if !self.nodes.contains_key(&source) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Source node {} does not exist", source),
+            ));
+        }
+        if !self.nodes.contains_key(&target) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Target node {} does not exist", target),
+            ));
+        }
+        if source == target {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Source and target must be different nodes",
+            ));
+        }
+
+        // Special case: if not connected, connectivity is 0
+        if !self.is_connected() {
+            // Check if source and target are in same component
+            let components = self.find_connected_components();
+            let source_comp = components.get(&source);
+            let target_comp = components.get(&target);
+
+            if source_comp != target_comp {
+                return Ok(0);
+            }
+        }
+
+        // Build transformed graph for node connectivity
+        // Each node v becomes v_in (v*2) and v_out (v*2+1) with capacity 1 edge between them
+        // Exception: source and target nodes are not split (to measure connectivity between them)
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+
+        // Add internal edges for split nodes (except source and target)
+        for &node in self.nodes.keys() {
+            if node != source && node != target {
+                let v_in = node * 2;
+                let v_out = node * 2 + 1;
+                capacity.insert((v_in, v_out), 1); // Capacity 1 to count node removal
+            }
+        }
+
+        // Add edges from original graph
+        for edge in &self.edges {
+            let s = edge.source;
+            let t = edge.target;
+
+            // Map to transformed nodes
+            let s_out = if s == source || s == target { s } else { s * 2 + 1 };
+            let t_in = if t == source || t == target { t } else { t * 2 };
+
+            *capacity.entry((s_out, t_in)).or_insert(0) += 1;
+
+            // For undirected graphs, add reverse edge
+            if !self.directed {
+                let t_out = if t == source || t == target { t } else { t * 2 + 1 };
+                let s_in = if s == source || s == target { s } else { s * 2 };
+                *capacity.entry((t_out, s_in)).or_insert(0) += 1;
+            }
+        }
+
+        // Run max-flow from source to target on transformed graph
+        let mut residual = capacity.clone();
+        let mut max_flow = 0;
+
+        loop {
+            // Find augmenting path using BFS
+            let path = self.bfs_augmenting_path_custom(source, target, &residual);
+
+            if path.is_empty() {
+                break;
+            }
+
+            // Find minimum capacity along the path
+            let mut path_flow = usize::MAX;
+            for i in 0..path.len() - 1 {
+                let edge_key = (path[i], path[i + 1]);
+                let cap = residual.get(&edge_key).copied().unwrap_or(0);
+                path_flow = path_flow.min(cap);
+            }
+
+            // Update residual capacities
+            for i in 0..path.len() - 1 {
+                let forward_key = (path[i], path[i + 1]);
+                let backward_key = (path[i + 1], path[i]);
+
+                *residual.entry(forward_key).or_insert(0) -= path_flow;
+                *residual.entry(backward_key).or_insert(0) += path_flow;
+            }
+
+            max_flow += path_flow;
+        }
+
+        Ok(max_flow)
+    }
+
+    /// Compute global node connectivity
+    ///
+    /// Returns the minimum number of nodes whose removal disconnects the graph.
+    /// This is computed as the minimum pairwise node connectivity over all pairs
+    /// of non-adjacent nodes.
+    pub fn node_connectivity(&self) -> PyResult<usize> {
+        let n = self.num_nodes();
+
+        if n == 0 {
+            return Ok(0);
+        }
+
+        if n == 1 {
+            return Ok(0);
+        }
+
+        // If disconnected, connectivity is 0
+        if !self.is_connected() {
+            return Ok(0);
+        }
+
+        // If complete graph, connectivity is n - 1
+        let num_edges = self.num_edges();
+        let expected_complete = n * (n - 1) / 2;
+        if !self.directed && num_edges == expected_complete {
+            return Ok(n - 1);
+        }
+
+        // Optimization: connectivity <= min_degree
+        let min_degree = self.nodes.keys()
+            .map(|&id| self.degree(id))
+            .min()
+            .unwrap_or(0);
+
+        if min_degree == 0 {
+            return Ok(0);
+        }
+
+        if min_degree == 1 {
+            return Ok(1);
+        }
+
+        // Compute minimum over all non-adjacent pairs
+        let mut min_connectivity = usize::MAX;
+        let mut nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        nodes.sort(); // Ensure consistent ordering
+
+        for i in 0..nodes.len() {
+            for j in (i + 1)..nodes.len() {
+                let u = nodes[i];
+                let v = nodes[j];
+
+                // Only check non-adjacent pairs (adjacent pairs have higher connectivity)
+                let are_adjacent = self.edges.iter().any(|e| {
+                    (e.source == u && e.target == v) ||
+                    (e.source == v && e.target == u) ||
+                    (!self.directed && (e.source == v && e.target == u))
+                });
+
+                if !are_adjacent {
+                    let conn = self.node_connectivity_between(u, v)?;
+                    min_connectivity = min_connectivity.min(conn);
+
+                    // Early termination if we found connectivity 1
+                    if min_connectivity == 1 {
+                        return Ok(1);
+                    }
+                }
+            }
+        }
+
+        // If all pairs are adjacent (complete graph), connectivity is n-1
+        if min_connectivity == usize::MAX {
+            return Ok(n - 1);
+        }
+
+        Ok(min_connectivity)
+    }
+
+    /// Find cohesive blocks in the graph
+    ///
+    /// A k-cohesive block is a maximal subgraph where at least k nodes must be removed
+    /// to disconnect it. Returns hierarchical structure where child blocks have higher
+    /// cohesion than their parents.
+    ///
+    /// Based on Moody & White (2003) "Structural Cohesion and Embeddedness"
+    ///
+    /// Returns:
+    ///   - blocks: Vec of node sets (each block as list of labels)
+    ///   - cohesion: Vec of k-values (cohesion of each block)
+    ///   - parent: Vec of parent block indices (None for root blocks)
+    pub fn cohesive_blocks(&self, py: Python) -> PyResult<PyObject> {
+        let n = self.num_nodes();
+
+        // Handle empty or trivial graphs
+        if n == 0 {
+            return Ok((vec![] as Vec<Vec<String>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).to_object(py));
+        }
+
+        if n == 1 {
+            let node_id = *self.nodes.keys().next().unwrap();
+            let label = self.nodes.get(&node_id).unwrap().label.clone().unwrap_or_else(|| node_id.to_string());
+            return Ok((vec![vec![label]], vec![0_usize], vec![None::<usize>]).to_object(py));
+        }
+
+        // If graph is disconnected, process each component separately
+        if !self.is_connected() {
+            let component_map = self.find_connected_components();
+            let mut all_blocks = Vec::new();
+            let mut all_cohesions = Vec::new();
+            let mut all_parents = Vec::new();
+
+            // Group nodes by component ID
+            let mut comp_groups: FxHashMap<usize, Vec<u64>> = FxHashMap::default();
+            for (&node, &comp_id) in &component_map {
+                comp_groups.entry(comp_id).or_insert_with(Vec::new).push(node);
+            }
+
+            for comp_nodes in comp_groups.values() {
+                if comp_nodes.len() > 1 {
+                    // Process each component recursively
+                    // Use a separate blocks vector for each component
+                    let mut comp_all_blocks = Vec::new();
+                    let (comp_blocks, comp_cohesions, comp_parents) =
+                        self.cohesive_blocks_for_subgraph(comp_nodes, None, &mut comp_all_blocks)?;
+
+                    // Add the returned blocks (not comp_all_blocks, as it's already populated)
+                    all_blocks.extend(comp_blocks);
+                    all_cohesions.extend(comp_cohesions);
+                    all_parents.extend(comp_parents);
+                } else if comp_nodes.len() == 1 {
+                    // Single node component
+                    all_blocks.push(comp_nodes.clone());
+                    all_cohesions.push(0);
+                    all_parents.push(None);
+                }
+            }
+
+            // Convert node IDs to labels
+            let blocks_with_labels: Vec<Vec<String>> = all_blocks.iter()
+                .map(|block| {
+                    block.iter()
+                        .map(|&node_id| {
+                            self.nodes.get(&node_id).unwrap().label.clone().unwrap_or_else(|| node_id.to_string())
+                        })
+                        .collect()
+                })
+                .collect();
+
+            return Ok((blocks_with_labels, all_cohesions, all_parents).to_object(py));
+        }
+
+        // Process connected graph
+        let all_nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        let mut all_blocks = Vec::new();
+        let (blocks, cohesions, parents) =
+            self.cohesive_blocks_for_subgraph(&all_nodes, None, &mut all_blocks)?;
+
+        // Convert node IDs to labels
+        let blocks_with_labels: Vec<Vec<String>> = blocks.iter()
+            .map(|block| {
+                block.iter()
+                    .map(|&node_id| {
+                        self.nodes.get(&node_id).unwrap().label.clone().unwrap_or_else(|| node_id.to_string())
+                    })
+                    .collect()
+            })
+            .collect();
+
+        Ok((blocks_with_labels, cohesions, parents).to_object(py))
+    }
+
     /// Get eccentricity for each node
     /// Eccentricity is the maximum distance from a node to any other node
     /// Returns HashMap mapping node ID to eccentricity (None if disconnected)
@@ -2442,6 +2720,74 @@ impl Graph {
         }
 
         Ok(max_flow)
+    }
+
+    /// Compute edge connectivity (minimum edge cut)
+    ///
+    /// Returns the minimum number of edges whose removal disconnects the graph.
+    /// For undirected graphs, this is computed as the minimum over all pairs of nodes.
+    /// For directed graphs, uses a similar approach but respects edge directions.
+    pub fn edge_connectivity(&self) -> PyResult<usize> {
+        let n = self.num_nodes();
+
+        if n == 0 {
+            return Ok(0);
+        }
+
+        if n == 1 {
+            return Ok(0);
+        }
+
+        // If disconnected, edge connectivity is 0
+        if !self.is_connected() {
+            return Ok(0);
+        }
+
+        // Optimization: edge connectivity <= min_degree
+        let min_degree = self.nodes.keys()
+            .map(|&id| self.degree(id))
+            .min()
+            .unwrap_or(0);
+
+        if min_degree == 0 {
+            return Ok(0);
+        }
+
+        if min_degree == 1 {
+            return Ok(1);
+        }
+
+        // For small graphs, check all pairs
+        // For larger graphs, use heuristic: check min_degree + 1 random pairs
+        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        let mut min_cut = usize::MAX;
+
+        // Strategy: compute min-cut from node with minimum degree to several other nodes
+        // This is much faster than checking all pairs and usually finds the minimum
+
+        if let Some(&source) = nodes.iter().min_by_key(|&&id| self.degree(id)) {
+            // Check cuts to several other nodes
+            let check_count = (nodes.len()).min(10); // Check up to 10 other nodes
+
+            for i in 0..check_count {
+                if nodes[i] != source {
+                    let target = nodes[i];
+                    let cut = self.get_min_cut_between(source, target)?;
+                    min_cut = min_cut.min(cut);
+
+                    // Early termination
+                    if min_cut == 1 {
+                        return Ok(1);
+                    }
+                }
+            }
+        }
+
+        if min_cut == usize::MAX {
+            return Ok(0);
+        }
+
+        Ok(min_cut)
     }
 
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
@@ -5939,6 +6285,15 @@ impl Graph {
         &self.edges
     }
 
+    /// Check if there's an edge between two nodes
+    fn has_edge(&self, source: u64, target: u64) -> bool {
+        if let Some(neighbors) = self.adjacency_list.get(&source) {
+            neighbors.contains(&target)
+        } else {
+            false
+        }
+    }
+
     /// Generate all k-combinations of elements
     /// Helper function for Johnson graph generation
     fn generate_combinations<T: Clone>(elements: &[T], k: usize) -> Vec<Vec<T>> {
@@ -6358,6 +6713,701 @@ impl Graph {
         }
 
         Vec::new() // No path found
+    }
+
+    /// BFS for finding augmenting paths in transformed graph (for node connectivity)
+    /// Similar to bfs_augmenting_path but works with transformed node IDs
+    fn bfs_augmenting_path_custom(
+        &self,
+        source: u64,
+        sink: u64,
+        residual: &FxHashMap<(u64, u64), usize>,
+    ) -> Vec<u64> {
+        let mut visited = FxHashSet::default();
+        let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        visited.insert(source);
+        queue.push_back(source);
+
+        while let Some(current) = queue.pop_front() {
+            if current == sink {
+                // Reconstruct path
+                let mut path = vec![current];
+                let mut node = current;
+
+                while let Some(&p) = parent.get(&node) {
+                    path.push(p);
+                    node = p;
+                }
+
+                path.reverse();
+                return path;
+            }
+
+            // Explore all possible outgoing edges with residual capacity > 0
+            // Check all possible transformed nodes
+            for (&from, &to, &cap) in residual.iter().filter_map(|(k, v)| {
+                if k.0 == current && *v > 0 {
+                    Some((&k.0, &k.1, v))
+                } else {
+                    None
+                }
+            }) {
+                if !visited.contains(&to) {
+                    visited.insert(to);
+                    parent.insert(to, from);
+                    queue.push_back(to);
+                }
+            }
+        }
+
+        Vec::new() // No path found
+    }
+
+    /// Helper for cohesive_blocks: recursively process a subgraph to find cohesive structure
+    ///
+    /// Args:
+    ///   nodes: Node set defining the subgraph
+    ///   parent_idx: Index of parent block (None for root)
+    ///   all_blocks: Accumulated list of blocks (passed for indexing)
+    ///
+    /// Returns: (blocks, cohesions, parent_indices) for this subgraph and its children
+    fn cohesive_blocks_for_subgraph(
+        &self,
+        nodes: &[u64],
+        parent_idx: Option<usize>,
+        all_blocks: &mut Vec<Vec<u64>>,
+    ) -> PyResult<(Vec<Vec<u64>>, Vec<usize>, Vec<Option<usize>>)> {
+        let mut blocks = Vec::new();
+        let mut cohesions = Vec::new();
+        let mut parents = Vec::new();
+
+        // If subgraph is too small, return as single block
+        if nodes.len() <= 2 {
+            blocks.push(nodes.to_vec());
+            cohesions.push(if nodes.len() == 2 { 1 } else { 0 });
+            parents.push(parent_idx);
+            return Ok((blocks, cohesions, parents));
+        }
+
+        // Compute connectivity of this subgraph
+        let k = self.induced_subgraph_connectivity(nodes)?;
+
+        // Add this block
+        let current_idx = all_blocks.len();
+        blocks.push(nodes.to_vec());
+        cohesions.push(k);
+        parents.push(parent_idx);
+        all_blocks.push(nodes.to_vec());
+
+        // If k is 0 (disconnected) or very small, we're done with this branch
+        if k == 0 {
+            return Ok((blocks, cohesions, parents));
+        }
+
+        // Find minimal k-separators
+        let separators = self.find_minimal_separators(nodes, k)?;
+
+        eprintln!("DEBUG: Found {} separators for k={}", separators.len(), k);
+        for (idx, sep) in separators.iter().enumerate() {
+            eprintln!("  Separator {}: {:?}", idx, sep);
+        }
+
+        if separators.is_empty() {
+            // No separators found - this is a leaf block
+            return Ok((blocks, cohesions, parents));
+        }
+
+        // Try each separator to find higher-cohesion subblocks
+        let mut processed_components = FxHashSet::default();
+
+        for separator in &separators {
+            // Remove separator nodes and find connected components
+            let remaining_nodes: Vec<u64> = nodes
+                .iter()
+                .filter(|&&n| !separator.contains(&n))
+                .copied()
+                .collect();
+
+            if remaining_nodes.is_empty() {
+                continue;
+            }
+
+            // Find components in remaining graph
+            let components = self.find_components_in_subgraph(&remaining_nodes);
+
+            for comp_nodes in components {
+                if comp_nodes.len() <= 1 {
+                    continue;
+                }
+
+                // Create a signature for this component to avoid duplicates
+                let mut comp_sorted = comp_nodes.clone();
+                comp_sorted.sort_unstable();
+                let comp_signature = format!("{:?}", comp_sorted);
+
+                if processed_components.contains(&comp_signature) {
+                    continue;
+                }
+                processed_components.insert(comp_signature);
+
+                // Check component + separator for higher connectivity
+                // A k-cohesive block can contain a (k+1)-cohesive sub-block
+                // formed by one component plus the separator
+                let mut candidate_nodes = comp_nodes.clone();
+                candidate_nodes.extend(separator.iter().copied());
+
+                eprintln!("DEBUG: Checking candidate with {} nodes (comp {} + sep {})",
+                          candidate_nodes.len(), comp_nodes.len(), separator.len());
+
+                let candidate_connectivity = self.induced_subgraph_connectivity(&candidate_nodes)?;
+
+                eprintln!("DEBUG: Candidate connectivity = {} (parent k = {})", candidate_connectivity, k);
+
+                if candidate_connectivity > k {
+                    eprintln!("DEBUG: Found higher-cohesion sub-block!");
+                    // Recursively process this higher-cohesion component
+                    let (sub_blocks, sub_cohesions, sub_parents) =
+                        self.cohesive_blocks_for_subgraph(&candidate_nodes, Some(current_idx), all_blocks)?;
+
+                    blocks.extend(sub_blocks);
+                    cohesions.extend(sub_cohesions);
+                    parents.extend(sub_parents);
+                } else {
+                    eprintln!("DEBUG: Candidate does not have higher connectivity, skipping");
+                }
+            }
+        }
+
+        Ok((blocks, cohesions, parents))
+    }
+
+    /// Find minimal k-separators in a subgraph
+    ///
+    /// A k-separator is a set of k nodes whose removal disconnects the subgraph.
+    /// A minimal separator has no proper subset that is also a separator.
+    fn find_minimal_separators(
+        &self,
+        nodes: &[u64],
+        k: usize,
+    ) -> PyResult<Vec<Vec<u64>>> {
+        let n = nodes.len();
+        let mut separators = Vec::new();
+
+        if k == 0 || k >= n {
+            return Ok(separators);
+        }
+
+        // For small k, we can enumerate candidate separators
+        // For k=1: find articulation points
+        if k == 1 {
+            let articulation_points = self.find_articulation_points_in_subgraph(nodes);
+            for node in articulation_points {
+                separators.push(vec![node]);
+            }
+            return Ok(separators);
+        }
+
+        // For k > 1: use connectivity checks to find separators
+        // Strategy: For each pair of non-adjacent nodes, find min-cut
+        // If min-cut size == k, those cut nodes form a k-separator
+        let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+        let mut candidate_separators = FxHashSet::default();
+
+        eprintln!("DEBUG find_minimal_separators: n={}, k={}", n, k);
+
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let u = nodes[i];
+                let v = nodes[j];
+
+                // Skip if adjacent
+                if self.has_edge(u, v) {
+                    continue;
+                }
+
+                eprintln!("DEBUG: Non-adjacent ({},{})", u, v);
+
+                // Find connectivity between u and v in this subgraph
+                let conn = self.node_connectivity_between_in_subgraph(u, v, &node_set)?;
+
+                eprintln!("DEBUG: conn = {}", conn);
+
+                if conn == k {
+                    // Find the actual separator (min-cut) between u and v
+                    let separator = self.find_min_node_cut_in_subgraph(u, v, &node_set)?;
+
+                    if separator.len() == k {
+                        let mut sep_sorted = separator.clone();
+                        sep_sorted.sort_unstable();
+                        candidate_separators.insert(sep_sorted);
+                    }
+                }
+            }
+        }
+
+        // Filter to only minimal separators
+        let all_seps: Vec<Vec<u64>> = candidate_separators.into_iter().collect();
+        for sep in &all_seps {
+            let is_minimal = !all_seps.iter().any(|other_sep| {
+                other_sep != sep && other_sep.iter().all(|node| sep.contains(node))
+            });
+
+            if is_minimal {
+                separators.push(sep.clone());
+            }
+        }
+
+        Ok(separators)
+    }
+
+    /// Compute node connectivity of an induced subgraph
+    fn induced_subgraph_connectivity(&self, nodes: &[u64]) -> PyResult<usize> {
+        let n = nodes.len();
+
+        if n <= 1 {
+            return Ok(0);
+        }
+
+        if n == 2 {
+            return Ok(if self.has_edge(nodes[0], nodes[1]) { 1 } else { 0 });
+        }
+
+        // If this is the whole graph, use the efficient global method
+        if n == self.num_nodes() {
+            return self.node_connectivity();
+        }
+
+        // Check if subgraph is connected
+        let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+        if !self.is_subgraph_connected(&node_set) {
+            return Ok(0);
+        }
+
+        // Check if complete
+        let mut edge_count = 0;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if self.has_edge(nodes[i], nodes[j]) {
+                    edge_count += 1;
+                }
+            }
+        }
+        let max_edges = n * (n - 1) / 2;
+        if edge_count == max_edges {
+            return Ok(n - 1);
+        }
+
+        // Find minimum degree in subgraph
+        let mut min_degree = usize::MAX;
+        for &node in nodes {
+            let degree = self.adjacency_list
+                .get(&node)
+                .map(|neighbors| {
+                    neighbors.iter().filter(|&&n| node_set.contains(&n)).count()
+                })
+                .unwrap_or(0);
+            min_degree = min_degree.min(degree);
+        }
+
+        if min_degree == 1 {
+            return Ok(1);
+        }
+
+        // Compute connectivity between non-adjacent pairs
+        let mut min_connectivity = usize::MAX;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let u = nodes[i];
+                let v = nodes[j];
+
+                if !self.has_edge(u, v) {
+                    let conn = self.node_connectivity_between_in_subgraph(u, v, &node_set)?;
+                    min_connectivity = min_connectivity.min(conn);
+
+                    if min_connectivity == 1 {
+                        return Ok(1);
+                    }
+                }
+            }
+        }
+
+        if min_connectivity == usize::MAX {
+            Ok(n - 1)
+        } else {
+            Ok(min_connectivity)
+        }
+    }
+
+    /// Check if a subgraph defined by node set is connected
+    fn is_subgraph_connected(&self, node_set: &FxHashSet<u64>) -> bool {
+        if node_set.is_empty() {
+            return true;
+        }
+
+        let start = *node_set.iter().next().unwrap();
+        let mut visited = FxHashSet::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        visited.insert(start);
+        queue.push_back(start);
+
+        while let Some(current) = queue.pop_front() {
+            if let Some(neighbors) = self.adjacency_list.get(&current) {
+                for &neighbor in neighbors {
+                    if node_set.contains(&neighbor) && !visited.contains(&neighbor) {
+                        visited.insert(neighbor);
+                        queue.push_back(neighbor);
+                    }
+                }
+            }
+        }
+
+        visited.len() == node_set.len()
+    }
+
+    /// Find connected components within a subgraph
+    fn find_components_in_subgraph(&self, nodes: &[u64]) -> Vec<Vec<u64>> {
+        let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+        let mut visited = FxHashSet::default();
+        let mut components = Vec::new();
+
+        for &node in nodes {
+            if visited.contains(&node) {
+                continue;
+            }
+
+            let mut component = Vec::new();
+            let mut queue = std::collections::VecDeque::new();
+
+            visited.insert(node);
+            queue.push_back(node);
+
+            while let Some(current) = queue.pop_front() {
+                component.push(current);
+
+                if let Some(neighbors) = self.adjacency_list.get(&current) {
+                    for &neighbor in neighbors {
+                        if node_set.contains(&neighbor) && !visited.contains(&neighbor) {
+                            visited.insert(neighbor);
+                            queue.push_back(neighbor);
+                        }
+                    }
+                }
+            }
+
+            components.push(component);
+        }
+
+        components
+    }
+
+    /// Find articulation points (cut vertices) in a subgraph
+    fn find_articulation_points_in_subgraph(&self, nodes: &[u64]) -> Vec<u64> {
+        let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+        let mut articulation_points = Vec::new();
+
+        if nodes.len() <= 2 {
+            return articulation_points;
+        }
+
+        for &candidate in nodes {
+            // Remove candidate and check if subgraph becomes disconnected
+            let remaining: Vec<u64> = nodes
+                .iter()
+                .filter(|&&n| n != candidate)
+                .copied()
+                .collect();
+
+            let remaining_set: FxHashSet<u64> = remaining.iter().copied().collect();
+
+            if !self.is_subgraph_connected(&remaining_set) {
+                articulation_points.push(candidate);
+            }
+        }
+
+        articulation_points
+    }
+
+    /// Compute node connectivity between two nodes in a subgraph
+    fn node_connectivity_between_in_subgraph(
+        &self,
+        source: u64,
+        target: u64,
+        node_set: &FxHashSet<u64>,
+    ) -> PyResult<usize> {
+        if !node_set.contains(&source) || !node_set.contains(&target) {
+            return Ok(0);
+        }
+
+        if source == target {
+            return Ok(0);
+        }
+
+        // Check direct connection
+        if self.has_edge(source, target) {
+            // Still need to check if there's a path without the direct edge
+            // by computing node connectivity properly
+        }
+
+        // Transform graph for node connectivity: split each node except source/target
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+
+        // Use large offset to avoid ID collisions
+        let offset = 1_000_000_000u64;
+
+        // Split internal nodes (not source or target)
+        for &node in node_set.iter() {
+            if node != source && node != target {
+                let v_in = offset + node * 2;
+                let v_out = offset + node * 2 + 1;
+                capacity.insert((v_in, v_out), 1);
+            }
+        }
+
+        // Map edges in the subgraph to the transformed graph
+        for &from in node_set.iter() {
+            if let Some(neighbors) = self.adjacency_list.get(&from) {
+                for &to in neighbors {
+                    if !node_set.contains(&to) {
+                        continue;
+                    }
+
+                    let from_node = if from == source || from == target {
+                        from
+                    } else {
+                        offset + from * 2 + 1 // out-node
+                    };
+
+                    let to_node = if to == source || to == target {
+                        to
+                    } else {
+                        offset + to * 2 // in-node
+                    };
+
+                    capacity.insert((from_node, to_node), usize::MAX);
+                }
+            }
+        }
+
+        // Run Ford-Fulkerson to find max flow
+        let max_flow = self.ford_fulkerson_on_capacity_graph(source, target, &capacity);
+
+        Ok(max_flow)
+    }
+
+    /// Find minimum node cut between two nodes in a subgraph
+    /// Returns the set of nodes whose removal disconnects source from target
+    fn find_min_node_cut_in_subgraph(
+        &self,
+        source: u64,
+        target: u64,
+        node_set: &FxHashSet<u64>,
+    ) -> PyResult<Vec<u64>> {
+        // Compute max flow first
+        let max_flow = self.node_connectivity_between_in_subgraph(source, target, node_set)?;
+
+        if max_flow == 0 {
+            return Ok(vec![]);
+        }
+
+        // Transform graph and compute residual graph after max flow
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+
+        // Use large offset to avoid ID collisions
+        let offset = 1_000_000_000u64;
+
+        for &node in node_set.iter() {
+            if node != source && node != target {
+                let v_in = offset + node * 2;
+                let v_out = offset + node * 2 + 1;
+                capacity.insert((v_in, v_out), 1);
+            }
+        }
+
+        for &from in node_set.iter() {
+            if let Some(neighbors) = self.adjacency_list.get(&from) {
+                for &to in neighbors {
+                    if !node_set.contains(&to) {
+                        continue;
+                    }
+
+                    let from_node = if from == source || from == target {
+                        from
+                    } else {
+                        offset + from * 2 + 1
+                    };
+
+                    let to_node = if to == source || to == target {
+                        to
+                    } else {
+                        offset + to * 2
+                    };
+
+                    capacity.insert((from_node, to_node), usize::MAX);
+                }
+            }
+        }
+
+        // Run max flow to get residual graph
+        let residual = self.compute_residual_after_max_flow(source, target, &capacity);
+
+        // Find min-cut: nodes reachable from source in residual graph
+        let reachable_from_source = self.find_reachable_in_residual(source, &residual);
+
+        // Min-cut nodes are those where v_in is reachable but v_out is not
+        let mut cut_nodes = Vec::new();
+        for &node in node_set.iter() {
+            if node == source || node == target {
+                continue;
+            }
+
+            let v_in = offset + node * 2;
+            let v_out = offset + node * 2 + 1;
+
+            if reachable_from_source.contains(&v_in) && !reachable_from_source.contains(&v_out) {
+                cut_nodes.push(node);
+            }
+        }
+
+        Ok(cut_nodes)
+    }
+
+    /// Ford-Fulkerson max flow on a capacity graph
+    fn ford_fulkerson_on_capacity_graph(
+        &self,
+        source: u64,
+        sink: u64,
+        capacity: &FxHashMap<(u64, u64), usize>,
+    ) -> usize {
+        let mut residual = capacity.clone();
+        let mut max_flow = 0;
+
+        loop {
+            let path = self.bfs_in_capacity_graph(source, sink, &residual);
+            if path.is_empty() {
+                break;
+            }
+
+            // Find bottleneck capacity
+            let mut flow = usize::MAX;
+            for i in 0..(path.len() - 1) {
+                let edge = (path[i], path[i + 1]);
+                flow = flow.min(*residual.get(&edge).unwrap_or(&0));
+            }
+
+            // Update residual graph
+            for i in 0..(path.len() - 1) {
+                let forward = (path[i], path[i + 1]);
+                let backward = (path[i + 1], path[i]);
+
+                *residual.entry(forward).or_insert(0) -= flow;
+                *residual.entry(backward).or_insert(0) += flow;
+            }
+
+            max_flow += flow;
+        }
+
+        max_flow
+    }
+
+    /// BFS to find augmenting path in capacity graph
+    fn bfs_in_capacity_graph(
+        &self,
+        source: u64,
+        sink: u64,
+        residual: &FxHashMap<(u64, u64), usize>,
+    ) -> Vec<u64> {
+        let mut visited = FxHashSet::default();
+        let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        visited.insert(source);
+        queue.push_back(source);
+
+        while let Some(current) = queue.pop_front() {
+            if current == sink {
+                let mut path = vec![sink];
+                let mut node = sink;
+
+                while let Some(&p) = parent.get(&node) {
+                    path.push(p);
+                    node = p;
+                }
+
+                path.reverse();
+                return path;
+            }
+
+            // Check all possible edges in residual graph
+            for (&(from, to), &cap) in residual.iter() {
+                if from == current && cap > 0 && !visited.contains(&to) {
+                    visited.insert(to);
+                    parent.insert(to, from);
+                    queue.push_back(to);
+                }
+            }
+        }
+
+        Vec::new()
+    }
+
+    /// Compute residual graph after running max flow
+    fn compute_residual_after_max_flow(
+        &self,
+        source: u64,
+        sink: u64,
+        capacity: &FxHashMap<(u64, u64), usize>,
+    ) -> FxHashMap<(u64, u64), usize> {
+        let mut residual = capacity.clone();
+
+        loop {
+            let path = self.bfs_in_capacity_graph(source, sink, &residual);
+            if path.is_empty() {
+                break;
+            }
+
+            let mut flow = usize::MAX;
+            for i in 0..(path.len() - 1) {
+                let edge = (path[i], path[i + 1]);
+                flow = flow.min(*residual.get(&edge).unwrap_or(&0));
+            }
+
+            for i in 0..(path.len() - 1) {
+                let forward = (path[i], path[i + 1]);
+                let backward = (path[i + 1], path[i]);
+
+                *residual.entry(forward).or_insert(0) -= flow;
+                *residual.entry(backward).or_insert(0) += flow;
+            }
+        }
+
+        residual
+    }
+
+    /// Find all nodes reachable from source in residual graph
+    fn find_reachable_in_residual(
+        &self,
+        source: u64,
+        residual: &FxHashMap<(u64, u64), usize>,
+    ) -> FxHashSet<u64> {
+        let mut reachable = FxHashSet::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        reachable.insert(source);
+        queue.push_back(source);
+
+        while let Some(current) = queue.pop_front() {
+            for (&(from, to), &cap) in residual.iter() {
+                if from == current && cap > 0 && !reachable.contains(&to) {
+                    reachable.insert(to);
+                    queue.push_back(to);
+                }
+            }
+        }
+
+        reachable
     }
 
     /// Louvain local optimization phase.
