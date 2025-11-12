@@ -7,6 +7,7 @@ use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use nalgebra as na;
+use std::collections::VecDeque;
 
 /// A node in the graph
 #[pyclass]
@@ -3022,6 +3023,92 @@ impl Graph {
         }
 
         Ok(edges_traversed)
+    }
+
+    /// Topological sort using Kahn's algorithm (BFS-based)
+    ///
+    /// Returns nodes in topological order such that for every directed edge u -> v,
+    /// u appears before v in the ordering. Only works on DAGs (directed acyclic graphs).
+    ///
+    /// Time complexity: O(V + E)
+    /// Space complexity: O(V)
+    pub fn topological_sort(&self) -> PyResult<Vec<String>> {
+        // Check if graph is directed
+        if !self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Topological sort only works on directed graphs"
+            ));
+        }
+
+        // Handle empty graph
+        if self.nodes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+
+        // Calculate in-degree for each node
+        let mut in_degree: FxHashMap<u64, usize> = node_ids.iter().map(|&id| (id, 0)).collect();
+
+        // Count incoming edges for each node
+        for edge in &self.edges {
+            if !self.deleted_edge_ids.contains(&edge.id) {
+                *in_degree.entry(edge.target).or_insert(0) += 1;
+            }
+        }
+
+        // Queue of nodes with in-degree 0
+        let mut queue: VecDeque<u64> = node_ids
+            .iter()
+            .filter(|&&id| in_degree[&id] == 0)
+            .copied()
+            .collect();
+
+        let mut result = Vec::new();
+
+        // Process nodes in topological order
+        while let Some(node) = queue.pop_front() {
+            result.push(node);
+
+            // Get outgoing neighbors from this node
+            if let Some(neighbors) = self.adjacency_list.get(&node) {
+                for &target in neighbors {
+                    // Decrease in-degree
+                    if let Some(degree) = in_degree.get_mut(&target) {
+                        *degree -= 1;
+
+                        // If in-degree becomes 0, add to queue
+                        if *degree == 0 {
+                            queue.push_back(target);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check if all nodes were processed (cycle detection)
+        if result.len() != node_ids.len() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!(
+                    "Graph contains a cycle - not a DAG. Processed {} of {} nodes",
+                    result.len(),
+                    node_ids.len()
+                )
+            ));
+        }
+
+        // Convert node IDs to labels
+        let labels: Vec<String> = result
+            .iter()
+            .map(|&id| {
+                self.nodes
+                    .get(&id)
+                    .and_then(|n| n.label.clone())
+                    .unwrap_or_else(|| id.to_string())
+            })
+            .collect();
+
+        Ok(labels)
     }
 
     /// Helper: compute sum of all pairwise shortest path distances (parallel)

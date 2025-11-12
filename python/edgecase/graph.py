@@ -4989,9 +4989,141 @@ class Graph:
 
         See Also
         --------
-        random_walk : Return vertices instead of edges
+        random_walk : Return nodes instead of edges
         """
         return self._graph.random_edge_walk(start, steps, mode, stuck, seed)
+
+    def topological_sort(self) -> list[str]:
+        """Sort nodes in topological order (DAG only).
+
+        Returns a linear ordering of nodes such that for every directed edge
+        u → v, node u appears before v in the ordering. This is only possible
+        for directed acyclic graphs (DAGs).
+
+        Uses Kahn's algorithm (BFS-based) which has O(V + E) time complexity.
+        The algorithm processes nodes with zero in-degree first, then removes
+        them and updates in-degrees of neighbors.
+
+        Time complexity: O(V + E)
+        Space complexity: O(V)
+
+        Returns
+        -------
+        list[str]
+            node labels in topological order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or contains a cycle (not a DAG).
+
+        Examples
+        --------
+        Sort tasks with dependencies:
+
+        ```python
+        # Build system: compile order for files with dependencies
+        graph = (
+            Graph(directed=True)
+            .add_node(label="main.cpp")
+            .add_node(label="utils.cpp")
+            .add_node(label="utils.h")
+            .add_node(label="config.h")
+            .add_edge("main.cpp", "utils.h")     # main depends on utils.h
+            .add_edge("main.cpp", "config.h")    # main depends on config.h
+            .add_edge("utils.cpp", "utils.h")    # utils.cpp depends on utils.h
+            .add_edge("utils.h", "config.h")     # utils.h depends on config.h
+        )
+
+        order = graph.topological_sort()
+        print("Build order:", " → ".join(order))
+        # Output: config.h → utils.h → main.cpp → utils.cpp (or similar valid order)
+        ```
+
+        Course prerequisites:
+
+        ```python
+        # University course dependencies
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Intro CS")
+            .add_node(label="Data Structures")
+            .add_node(label="Algorithms")
+            .add_node(label="Machine Learning")
+            .add_edge("Intro CS", "Data Structures")
+            .add_edge("Data Structures", "Algorithms")
+            .add_edge("Algorithms", "Machine Learning")
+        )
+
+        curriculum = graph.topological_sort()
+        for i, course in enumerate(curriculum, 1):
+            print(f"Semester {i}: {course}")
+        ```
+
+        Detect cycles (not a DAG):
+
+        ```python
+        # Circular dependency
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Creates cycle
+        )
+
+        try:
+            order = graph.topological_sort()
+        except ValueError as e:
+            print(f"Error: {e}")  # "Graph contains a cycle - not a DAG"
+        ```
+
+        Multiple valid orderings:
+
+        ```python
+        # Some graphs have multiple valid topological sorts
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "C")
+            .add_edge("B", "C")
+        )
+
+        # Both [A, B, C] and [B, A, C] are valid
+        order = graph.topological_sort()
+        print(order)
+        ```
+
+        Notes
+        -----
+        Common use cases:
+        - Build systems and dependency resolution
+        - Task scheduling with prerequisites
+        - Package installation order
+        - Makefile execution order
+        - Database migration ordering
+        - Course curriculum planning
+
+        Implementation details:
+        - Uses Kahn's algorithm (BFS-based approach)
+        - Maintains in-degree count for each node
+        - Processes nodes with in-degree 0 first
+        - Detects cycles by checking if all nodes are processed
+
+        Alternative algorithms:
+        - DFS-based topological sort (reverse post-order)
+        - Both have O(V + E) complexity
+
+        See Also
+        --------
+        is_dag : Check if graph is a directed acyclic graph
+        has_cycles : Check if graph contains cycles
+        """
+        return self._graph.topological_sort()
 
     def get_reciprocity(self) -> float:
         """Get reciprocity (fraction of reciprocal edges).
