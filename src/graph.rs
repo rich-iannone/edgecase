@@ -6809,11 +6809,6 @@ impl Graph {
         // Find minimal k-separators
         let separators = self.find_minimal_separators(nodes, k)?;
 
-        eprintln!("DEBUG: Found {} separators for k={}", separators.len(), k);
-        for (idx, sep) in separators.iter().enumerate() {
-            eprintln!("  Separator {}: {:?}", idx, sep);
-        }
-
         if separators.is_empty() {
             // No separators found - this is a leaf block
             return Ok((blocks, cohesions, parents));
@@ -6858,15 +6853,9 @@ impl Graph {
                 let mut candidate_nodes = comp_nodes.clone();
                 candidate_nodes.extend(separator.iter().copied());
 
-                eprintln!("DEBUG: Checking candidate with {} nodes (comp {} + sep {})",
-                          candidate_nodes.len(), comp_nodes.len(), separator.len());
-
                 let candidate_connectivity = self.induced_subgraph_connectivity(&candidate_nodes)?;
 
-                eprintln!("DEBUG: Candidate connectivity = {} (parent k = {})", candidate_connectivity, k);
-
                 if candidate_connectivity > k {
-                    eprintln!("DEBUG: Found higher-cohesion sub-block!");
                     // Recursively process this higher-cohesion component
                     let (sub_blocks, sub_cohesions, sub_parents) =
                         self.cohesive_blocks_for_subgraph(&candidate_nodes, Some(current_idx), all_blocks)?;
@@ -6874,8 +6863,6 @@ impl Graph {
                     blocks.extend(sub_blocks);
                     cohesions.extend(sub_cohesions);
                     parents.extend(sub_parents);
-                } else {
-                    eprintln!("DEBUG: Candidate does not have higher connectivity, skipping");
                 }
             }
         }
@@ -6915,8 +6902,6 @@ impl Graph {
         let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
         let mut candidate_separators = FxHashSet::default();
 
-        eprintln!("DEBUG find_minimal_separators: n={}, k={}", n, k);
-
         for i in 0..n {
             for j in (i + 1)..n {
                 let u = nodes[i];
@@ -6927,12 +6912,8 @@ impl Graph {
                     continue;
                 }
 
-                eprintln!("DEBUG: Non-adjacent ({},{})", u, v);
-
                 // Find connectivity between u and v in this subgraph
                 let conn = self.node_connectivity_between_in_subgraph(u, v, &node_set)?;
-
-                eprintln!("DEBUG: conn = {}", conn);
 
                 if conn == k {
                     // Find the actual separator (min-cut) between u and v
