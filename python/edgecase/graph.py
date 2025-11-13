@@ -692,6 +692,50 @@ class Graph:
         """
         return self._graph.is_graph_simple()
 
+    def has_node(self, node: Union[int, str]) -> bool:
+        """Check if a node exists in the graph.
+
+        Verifies whether a node (specified by ID or label) exists in the graph.
+        Returns `False` for invalid inputs or missing nodes.
+
+        Parameters
+        ----------
+        node : int | str
+            Node ID (int) or label (str) to check.
+
+        Returns
+        -------
+        bool
+            `True` if the node exists, `False` otherwise.
+
+        Examples
+        --------
+        Check node existence:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+        )
+
+        print(graph.has_node("Alice"))   # True
+        print(graph.has_node(1))         # True
+        print(graph.has_node("Charlie")) # False
+        print(graph.has_node(999))       # False
+        ```
+
+        See Also
+        --------
+        has_edge : Check if an edge exists
+        num_nodes : Get total node count
+        """
+        try:
+            node_id = self._resolve_node_id(node, auto_create=False)
+            return self._graph.has_node_id(node_id)
+        except (ValueError, TypeError):
+            return False
+
     def has_cycles(self) -> bool:
         """Check if the graph contains any cycles.
 
@@ -1182,50 +1226,6 @@ class Graph:
             self._ada_star_planner = (planner, planner_key)
 
         return planner.compute_or_improve_path(epsilon)
-
-    def has_node(self, node: Union[int, str]) -> bool:
-        """Check if a node exists in the graph.
-
-        Verifies whether a node (specified by ID or label) exists in the graph.
-        Returns `False` for invalid inputs or missing nodes.
-
-        Parameters
-        ----------
-        node : int | str
-            Node ID (int) or label (str) to check.
-
-        Returns
-        -------
-        bool
-            `True` if the node exists, `False` otherwise.
-
-        Examples
-        --------
-        Check node existence:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-        )
-
-        print(graph.has_node("Alice"))   # True
-        print(graph.has_node(1))         # True
-        print(graph.has_node("Charlie")) # False
-        print(graph.has_node(999))       # False
-        ```
-
-        See Also
-        --------
-        has_edge : Check if an edge exists
-        num_nodes : Get total node count
-        """
-        try:
-            node_id = self._resolve_node_id(node, auto_create=False)
-            return self._graph.has_node_id(node_id)
-        except (ValueError, TypeError):
-            return False
 
     def edges(self) -> list[tuple[int, str, str]]:
         """Return list of edges as (id, source, target) tuples.
