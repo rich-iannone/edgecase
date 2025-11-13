@@ -4652,67 +4652,6 @@ class Graph:
         """
         return self._graph.transitivity()
 
-    def local_clustering_coefficient(self) -> dict[str, Optional[float]]:
-        """Compute local clustering coefficient for each node.
-
-        The local clustering coefficient measures how close a node's neighbors are
-        to being a complete subgraph (clique). For a node with k neighbors, it's
-        the fraction of possible edges between neighbors that actually exist.
-
-        For undirected graphs:
-            C(v) = 2 * triangles(v) / (k * (k-1))
-
-        For directed graphs:
-            C(v) = triangles(v) / (k_out * (k_out-1))
-
-        Nodes with fewer than 2 neighbors return None (clustering undefined).
-
-        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
-
-        Returns
-        -------
-        dict[str, Optional[float]]
-            Dictionary mapping node labels to clustering coefficients (0.0 to 1.0),
-            or None for nodes with degree < 2.
-
-        Examples
-        --------
-        Measure clustering in a network:
-
-        ```python
-        graph = (
-            Graph()
-            .add_edges([
-                ("A", "B"), ("B", "C"), ("C", "A"),  # Triangle: A,B,C
-                ("A", "D"), ("A", "E")  # A has additional neighbors
-            ])
-        )
-
-        clustering = graph.local_clustering_coefficient()
-        print(f"Node A: {clustering['A']:.3f}")  # Lower (not all neighbors connected)
-        print(f"Node B: {clustering['B']:.3f}")  # 1.0 (all neighbors connected)
-        print(f"Node D: {clustering['D']}")      # None (degree 1)
-        ```
-
-        Find highly clustered nodes (hubs):
-
-        ```python
-        clustering = graph.local_clustering_coefficient()
-        hubs = {
-            node: coeff
-            for node, coeff in clustering.items()
-            if coeff and coeff > 0.5
-        }
-        print(f"Highly clustered nodes: {hubs}")
-        ```
-
-        See Also
-        --------
-        transitivity : Global clustering coefficient
-        count_triangles : Triangle counts used in calculation
-        """
-        return self._graph.local_clustering_coefficient()
-
     def which_mutual(self) -> list[tuple[int, int]]:
         """Find pairs of mutual (reciprocal) edges in directed graph.
 
@@ -7530,139 +7469,6 @@ class Graph:
 
         return result
 
-    def get_clustering_coefficient(self) -> dict[str, float]:
-        """Get local clustering coefficient for each node.
-
-        The clustering coefficient measures the degree to which a node's neighbors
-        are connected to each other. For a node v:
-
-        C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
-             = (2 × triangles through v) / (get_degree(v) × (get_degree(v) - 1))
-
-        Returns 0.0 for nodes with degree < 2 (cannot form triangles).
-
-        Range: [0, 1] where:
-        - 0 = neighbors are not connected at all
-        - 1 = neighbors form a complete graph (clique)
-
-        Returns
-        -------
-        dict[str, float]
-            Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
-
-        Examples
-        --------
-        Calculate clustering in a triangle:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-
-        clustering = graph.get_clustering_coefficient()
-        # All nodes have clustering coefficient 1.0 (complete triangle)
-        for node_id, coeff in clustering.items():
-            print(f"{node_id}: {coeff}")
-        ```
-
-        Calculate clustering in a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="center")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("center", "A")
-            .add_edge("center", "B")
-            .add_edge("center", "C")
-        )
-
-        clustering = graph.get_clustering_coefficient()
-        # Center has 0.0 (no edges between spokes)
-        # Spokes have 0.0 (degree 1, can't form triangles)
-        ```
-
-        Notes
-        -----
-        High clustering coefficients indicate nodes in tightly-knit groups.
-        The clustering coefficient is a key measure of network transitivity
-        and is used to identify small-world networks.
-
-        See Also
-        --------
-        get_avg_clustering_coefficient : Get graph-level average
-        get_coreness : K-core decomposition
-        """
-        return self._graph.get_clustering_coefficient()
-
-    def get_avg_clustering_coefficient(self) -> float:
-        """Get average clustering coefficient for the graph.
-
-        Returns the mean of all node clustering coefficients. This is a global
-        measure of how clustered the graph is overall.
-
-        Returns
-        -------
-        float
-            Average clustering coefficient (0.0 to 1.0).
-
-        Examples
-        --------
-        Compare clustering in different graph types:
-
-        ```python
-        # Triangle graph - highly clustered
-        triangle = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-        print(f"Triangle: {triangle.get_avg_clustering_coefficient():.2f}")
-        # Triangle: 1.00
-
-        # Star graph - not clustered
-        star = (
-            Graph()
-            .add_node(label="center")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("center", "A")
-            .add_edge("center", "B")
-            .add_edge("center", "C")
-        )
-        print(f"Star: {star.get_avg_clustering_coefficient():.2f}")
-        # Star: 0.00
-        ```
-
-        Notes
-        -----
-        Values close to 1.0 indicate a highly clustered network (many triangles).
-        Values close to 0.0 indicate a tree-like or sparse network structure.
-
-        Small-world networks typically have high clustering coefficients combined
-        with low average path lengths.
-
-        See Also
-        --------
-        get_clustering_coefficient : Per-node clustering
-        get_mean_distance : Average path length
-        density : Overall graph density
-        """
-        return self._graph.get_avg_clustering_coefficient()
-
     def get_edge_clustering_coefficient(
         self,
         edge_ids: list[str] | None = None,
@@ -7814,6 +7620,202 @@ class Graph:
 
         # Convert result keys back to string IDs
         return {str(k): v for k, v in result.items()}
+
+    # ========== Clustering Methods ==========
+
+    def local_clustering_coefficient(self) -> dict[str, Optional[float]]:
+        """Compute local clustering coefficient for each node.
+
+        The local clustering coefficient measures how close a node's neighbors are
+        to being a complete subgraph (clique). For a node with k neighbors, it's
+        the fraction of possible edges between neighbors that actually exist.
+
+        For undirected graphs:
+            C(v) = 2 * triangles(v) / (k * (k-1))
+
+        For directed graphs:
+            C(v) = triangles(v) / (k_out * (k_out-1))
+
+        Nodes with fewer than 2 neighbors return None (clustering undefined).
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        dict[str, Optional[float]]
+            Dictionary mapping node labels to clustering coefficients (0.0 to 1.0),
+            or None for nodes with degree < 2.
+
+        Examples
+        --------
+        Measure clustering in a network:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edges([
+                ("A", "B"), ("B", "C"), ("C", "A"),  # Triangle: A,B,C
+                ("A", "D"), ("A", "E")  # A has additional neighbors
+            ])
+        )
+
+        clustering = graph.local_clustering_coefficient()
+        print(f"Node A: {clustering['A']:.3f}")  # Lower (not all neighbors connected)
+        print(f"Node B: {clustering['B']:.3f}")  # 1.0 (all neighbors connected)
+        print(f"Node D: {clustering['D']}")      # None (degree 1)
+        ```
+
+        Find highly clustered nodes (hubs):
+
+        ```python
+        clustering = graph.local_clustering_coefficient()
+        hubs = {
+            node: coeff
+            for node, coeff in clustering.items()
+            if coeff and coeff > 0.5
+        }
+        print(f"Highly clustered nodes: {hubs}")
+        ```
+
+        See Also
+        --------
+        transitivity : Global clustering coefficient
+        count_triangles : Triangle counts used in calculation
+        """
+        return self._graph.local_clustering_coefficient()
+
+    def get_clustering_coefficient(self) -> dict[str, float]:
+        """Get local clustering coefficient for each node.
+
+        The clustering coefficient measures the degree to which a node's neighbors
+        are connected to each other. For a node v:
+
+        C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
+             = (2 × triangles through v) / (get_degree(v) × (get_degree(v) - 1))
+
+        Returns 0.0 for nodes with degree < 2 (cannot form triangles).
+
+        Range: [0, 1] where:
+        - 0 = neighbors are not connected at all
+        - 1 = neighbors form a complete graph (clique)
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
+
+        Examples
+        --------
+        Calculate clustering in a triangle:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        clustering = graph.get_clustering_coefficient()
+        # All nodes have clustering coefficient 1.0 (complete triangle)
+        for node_id, coeff in clustering.items():
+            print(f"{node_id}: {coeff}")
+        ```
+
+        Calculate clustering in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("center", "A")
+            .add_edge("center", "B")
+            .add_edge("center", "C")
+        )
+
+        clustering = graph.get_clustering_coefficient()
+        # Center has 0.0 (no edges between spokes)
+        # Spokes have 0.0 (degree 1, can't form triangles)
+        ```
+
+        Notes
+        -----
+        High clustering coefficients indicate nodes in tightly-knit groups.
+        The clustering coefficient is a key measure of network transitivity
+        and is used to identify small-world networks.
+
+        See Also
+        --------
+        get_avg_clustering_coefficient : Get graph-level average
+        get_coreness : K-core decomposition
+        """
+        return self._graph.get_clustering_coefficient()
+
+    def get_avg_clustering_coefficient(self) -> float:
+        """Get average clustering coefficient for the graph.
+
+        Returns the mean of all node clustering coefficients. This is a global
+        measure of how clustered the graph is overall.
+
+        Returns
+        -------
+        float
+            Average clustering coefficient (0.0 to 1.0).
+
+        Examples
+        --------
+        Compare clustering in different graph types:
+
+        ```python
+        # Triangle graph - highly clustered
+        triangle = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        print(f"Triangle: {triangle.get_avg_clustering_coefficient():.2f}")
+        # Triangle: 1.00
+
+        # Star graph - not clustered
+        star = (
+            Graph()
+            .add_node(label="center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("center", "A")
+            .add_edge("center", "B")
+            .add_edge("center", "C")
+        )
+        print(f"Star: {star.get_avg_clustering_coefficient():.2f}")
+        # Star: 0.00
+        ```
+
+        Notes
+        -----
+        Values close to 1.0 indicate a highly clustered network (many triangles).
+        Values close to 0.0 indicate a tree-like or sparse network structure.
+
+        Small-world networks typically have high clustering coefficients combined
+        with low average path lengths.
+
+        See Also
+        --------
+        get_clustering_coefficient : Per-node clustering
+        get_mean_distance : Average path length
+        density : Overall graph density
+        """
+        return self._graph.get_avg_clustering_coefficient()
 
     # ========== Community Detection Methods ==========
 
