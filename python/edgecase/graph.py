@@ -987,24 +987,24 @@ class Graph:
         ```python
         graph = (
             Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
             .add_edge("A", "B")
             .add_edge("B", "C")
-            .add_edge("C", "A")  # Creates cycle A -> B -> C -> A
-            .add_edge("B", "A")  # Creates cycle A -> B -> A
+            .add_edge("C", "A")  # Creates cycle: 1 -> 2 -> 3 -> 1
+            .add_edge("B", "A")  # Creates cycle: 1 -> 2 -> 1
         )
 
         cycles = graph.get_cycles()
-        print(cycles)  # [[0, 1], [0, 1, 2]] (node IDs)
+        print(cycles)  # [[1, 2], [1, 2, 3]] (node IDs)
         ```
 
         Find only longer cycles:
 
         ```python
         cycles = graph.get_cycles(min_length=3)
-        print(cycles)  # [[0, 1, 2]]
+        print(cycles)  # [[1, 2, 3]]
         ```
 
         Notes
