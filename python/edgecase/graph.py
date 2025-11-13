@@ -7150,16 +7150,25 @@ class Graph:
 
         Examples
         --------
-        >>> # Color by community
-        >>> communities = G.get_cmty_louvain()
-        >>> G.colorize_node_attrs('community', communities, palette='vibrant')
+        Color by community:
 
-        >>> # Color by node type
-        >>> G.colorize_node_attrs(node_attr_from='type', palette='tableau')
+        ```python
+        communities = G.get_cmty_louvain()
+        G.colorize_node_attrs('community', communities, palette='vibrant')
+        ```
 
-        >>> # Custom color list
-        >>> G.colorize_node_attrs('status', values={'A': 'active', 'B': 'inactive'},
-        ...                       palette=['#ff0000', '#00ff00'])
+        Color by node type:
+
+        ```python
+        G.colorize_node_attrs(node_attr_from='type', palette='tableau')
+        ```
+
+        Custom color list:
+
+        ```python
+        G.colorize_node_attrs('status', values={'A': 'active', 'B': 'inactive'},
+                              palette=['#ff0000', '#00ff00'])
+        ```
         """
         from edgecase.colors import COLOR_PALETTES
 
@@ -7241,15 +7250,21 @@ class Graph:
 
         Examples
         --------
-        >>> # Size by betweenness centrality
-        >>> betweenness = G.get_betweenness()
-        >>> G.rescale_node_attrs('betweenness', betweenness,
-        ...                       node_attr_to='size', to_lower_bound=5, to_upper_bound=20)
+        Size by betweenness centrality:
 
-        >>> # Scale by degree
-        >>> degrees = {n: len(G.neighbors(n)) for n in G.nodes()}
-        >>> G.rescale_node_attrs(values=degrees, node_attr_to='width',
-        ...                       to_lower_bound=1, to_upper_bound=10)
+        ```python
+        betweenness = G.get_betweenness()
+        G.rescale_node_attrs('betweenness', betweenness,
+                             node_attr_to='size', to_lower_bound=5, to_upper_bound=20)
+        ```
+
+        Scale by degree:
+
+        ```python
+        degrees = {n: len(G.neighbors(n)) for n in G.nodes()}
+        G.rescale_node_attrs(values=degrees, node_attr_to='width',
+                             to_lower_bound=1, to_upper_bound=10)
+        ```
         """
         if nodes is None:
             nodes = self.node_ids()
@@ -7300,8 +7315,10 @@ class Graph:
 
         Examples
         --------
-        >>> G.set_node_attr_to_display('label')
-        >>> G.set_node_attr_to_display(None)  # Reset to node IDs
+        ```python
+        G.set_node_attr_to_display('label')
+        G.set_node_attr_to_display(None)  # Reset to node IDs
+        ```
         """
         self._display_attr = attr
         return self
