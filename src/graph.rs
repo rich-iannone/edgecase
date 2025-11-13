@@ -403,7 +403,7 @@ impl Graph {
     ///
     /// # Errors
     /// Returns error if graph is undirected (cycle enumeration requires directed graphs)
-    pub fn find_cycles(&self, min_length: f64) -> PyResult<Vec<Vec<u64>>> {
+    pub fn get_cycles(&self, min_length: f64) -> PyResult<Vec<Vec<u64>>> {
         crate::algorithms::cycles::find_cycles(self, Some(min_length))
     }
 

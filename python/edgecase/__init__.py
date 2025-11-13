@@ -22,7 +22,7 @@ from edgecase.graph import (
     Node,
     betweenness_centrality,
     detect_communities,
-    find_cycles,
+    get_cycles,
     pagerank,
     shortest_path,
 )
@@ -68,7 +68,7 @@ __all__ = [
     "pagerank",
     "betweenness_centrality",
     "detect_communities",
-    "find_cycles",
+    "get_cycles",
     # I/O
     "from_polars",
     "to_polars",

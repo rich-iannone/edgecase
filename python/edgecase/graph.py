@@ -692,6 +692,47 @@ class Graph:
         """
         return self._graph.is_graph_simple()
 
+    def has_cycles(self) -> bool:
+        """Check if the graph contains any cycles.
+
+        Uses depth-first search to detect cycles. For directed graphs, looks for
+        back edges. For undirected graphs, checks for cycles excluding trivial
+        two-node back-and-forth paths.
+
+        Returns
+        -------
+        bool
+            `True` if the graph contains at least one cycle, `False` if acyclic.
+
+        Examples
+        --------
+        Check for cycles in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.has_cycles())  # False
+
+        # Add edge to create a cycle
+        graph.add_edge("C", "A")
+        print(graph.has_cycles())  # True
+        ```
+
+        See Also
+        --------
+        is_dag : Check if directed graph is acyclic
+        get_girth : Get length of shortest cycle
+        get_cycles : Get all elementary cycles in the graph
+        """
+        return self._graph.has_cycles()
+
     # ========== Internal NDF Methods ==========
 
     def colorize_node_attrs(
@@ -912,49 +953,8 @@ class Graph:
         self._display_attr = attr
         return self
 
-    def has_cycles(self) -> bool:
-        """Check if the graph contains any cycles.
-
-        Uses depth-first search to detect cycles. For directed graphs, looks for
-        back edges. For undirected graphs, checks for cycles excluding trivial
-        two-node back-and-forth paths.
-
-        Returns
-        -------
-        bool
-            `True` if the graph contains at least one cycle, `False` if acyclic.
-
-        Examples
-        --------
-        Check for cycles in a directed graph:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        print(graph.has_cycles())  # False
-
-        # Add edge to create a cycle
-        graph.add_edge("C", "A")
-        print(graph.has_cycles())  # True
-        ```
-
-        See Also
-        --------
-        is_dag : Check if directed graph is acyclic
-        get_girth : Get length of shortest cycle
-        find_cycles : Find all elementary cycles in the graph
-        """
-        return self._graph.has_cycles()
-
-    def find_cycles(self, min_length: int = 2) -> list[list[str]]:
-        """Find all elementary cycles in the graph using Johnson's algorithm.
+    def get_cycles(self, min_length: int = 2) -> list[list[str]]:
+        """Get all elementary cycles in the graph using Johnson's algorithm.
 
         Implements Donald B. Johnson's 1975 algorithm for finding all elementary
         (simple) cycles in a directed graph. Each cycle is found exactly once and
@@ -996,14 +996,14 @@ class Graph:
             .add_edge("B", "A")  # Creates cycle A -> B -> A
         )
 
-        cycles = graph.find_cycles()
+        cycles = graph.get_cycles()
         print(cycles)  # [['A', 'B'], ['A', 'B', 'C']]
         ```
 
         Find only longer cycles:
 
         ```python
-        cycles = graph.find_cycles(min_length=3)
+        cycles = graph.get_cycles(min_length=3)
         print(cycles)  # [['A', 'B', 'C']]
         ```
 
@@ -1027,10 +1027,10 @@ class Graph:
         get_girth : Get length of shortest cycle
         """
         if not self.is_directed:
-            raise ValueError("find_cycles() requires a directed graph")
+            raise ValueError("get_cycles() requires a directed graph")
 
         # Get cycles as node IDs from Rust
-        cycles_ids = self._graph.find_cycles(float(min_length))
+        cycles_ids = self._graph.get_cycles(float(min_length))
 
         # Convert node IDs to labels
         return [[self.get_label_from_id(node_id) for node_id in cycle] for cycle in cycles_ids]
@@ -13897,11 +13897,11 @@ def detect_communities(graph: Graph) -> dict[str, int]:
     return rust.detect_communities(graph._graph)
 
 
-def find_cycles(graph: Graph, min_length: int = 2) -> list[list[str]]:
-    """Find all elementary cycles in the graph using Johnson's algorithm.
+def get_cycles(graph: Graph, min_length: int = 2) -> list[list[str]]:
+    """Get all elementary cycles in the graph using Johnson's algorithm.
 
     This is a standalone function that calls the Graph method. For most use cases,
-    prefer using `graph.find_cycles()` instead.
+    prefer using `graph.get_cycles()` instead.
 
     Parameters
     ----------
@@ -13917,9 +13917,9 @@ def find_cycles(graph: Graph, min_length: int = 2) -> list[list[str]]:
 
     See Also
     --------
-    Graph.find_cycles : Method version with full documentation
+    Graph.get_cycles : Method version with full documentation
     """
-    return graph.find_cycles(min_length=min_length)
+    return graph.get_cycles(min_length=min_length)
 
 
 # Community detection algorithms

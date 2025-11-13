@@ -21,14 +21,14 @@ print(f"Edges: {G.num_edges()}")
 print()
 
 # Find all cycles
-all_cycles = G.find_cycles()
+all_cycles = G.get_cycles()
 print(f"All elementary cycles found: {len(all_cycles)}")
 for i, cycle in enumerate(all_cycles, 1):
     print(f"  {i}. {' -> '.join(cycle)} -> {cycle[0]} (length: {len(cycle)})")
 print()
 
 # Find only longer cycles (length >= 3)
-long_cycles = G.find_cycles(min_length=3)
+long_cycles = G.get_cycles(min_length=3)
 print(f"Cycles of length 3+: {len(long_cycles)}")
 for i, cycle in enumerate(long_cycles, 1):
     print(f"  {i}. {' -> '.join(cycle)} -> {cycle[0]} (length: {len(cycle)})")
@@ -47,6 +47,6 @@ triangle = (
     .add_edge("Z", "X")
 )
 
-cycles = triangle.find_cycles()
+cycles = triangle.get_cycles()
 print(f"Triangle cycles: {cycles}")
 print(f"Cycle: {' -> '.join(cycles[0])} -> {cycles[0][0]}")
