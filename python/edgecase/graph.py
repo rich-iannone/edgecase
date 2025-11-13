@@ -295,7 +295,7 @@ class Graph:
         --------
         add_edge : Add edges between existing nodes
         get_id_from_label : Look up node ID by label
-        label_from_id : Look up node label by ID
+        get_label_from_id : Look up node label by ID
         """
         # Handle different input patterns for node_id
         if isinstance(node_id, rust.Node):
@@ -554,7 +554,7 @@ class Graph:
 
         See Also
         --------
-        label_from_id : Get label from node ID
+        get_label_from_id : Get label from node ID
         has_node : Check if node exists
         """
         try:
@@ -562,7 +562,7 @@ class Graph:
         except (ValueError, Exception):
             return None
 
-    def label_from_id(self, node_id: int) -> Optional[str]:
+    def get_label_from_id(self, node_id: int) -> Optional[str]:
         """Get the label for a node by its ID.
 
         Translates an internal u64 node ID to its human-readable string label.
@@ -590,10 +590,10 @@ class Graph:
             .add_node(label="Bob")
         )
 
-        label = graph.label_from_id(1)
+        label = graph.get_label_from_id(1)
         print(label)  # "Alice"
 
-        no_label = graph.label_from_id(999)
+        no_label = graph.get_label_from_id(999)
         print(no_label)  # None
         ```
 
@@ -1042,7 +1042,7 @@ class Graph:
         cycles_ids = self._graph.find_cycles(float(min_length))
 
         # Convert node IDs to labels
-        return [[self.label_from_id(node_id) for node_id in cycle] for cycle in cycles_ids]
+        return [[self.get_label_from_id(node_id) for node_id in cycle] for cycle in cycles_ids]
 
     def ada_star_search(
         self,
@@ -4839,8 +4839,8 @@ class Graph:
         - This method returns ALL paths, which can be memory-intensive for dense graphs
         """
         # Resolve node labels to internal IDs
-        source_label = self.label_from_id(self._resolve_node_id(source, auto_create=False))
-        target_label = self.label_from_id(self._resolve_node_id(target, auto_create=False))
+        source_label = self.get_label_from_id(self._resolve_node_id(source, auto_create=False))
+        target_label = self.get_label_from_id(self._resolve_node_id(target, auto_create=False))
 
         # Call Rust implementation
         paths = self._graph.all_simple_paths(source_label, target_label, cutoff)
@@ -4971,7 +4971,7 @@ class Graph:
         for node in nodes:
             try:
                 node_id = self._resolve_node_id(node, auto_create=False)
-                label = self.label_from_id(node_id)
+                label = self.get_label_from_id(node_id)
                 # If no label, use string of node ID
                 if label is None:
                     label = str(node_id)
@@ -6674,7 +6674,7 @@ class Graph:
         # Convert internal IDs back to string labels
         result = []
         for trail in trails:
-            result.append([self.label_from_id(node_id) or str(node_id) for node_id in trail])
+            result.append([self.get_label_from_id(node_id) or str(node_id) for node_id in trail])
 
         return result
 
@@ -7962,7 +7962,7 @@ class Graph:
             return self
 
         # Convert to labels for backwards compatibility
-        return {self.label_from_id(node_id): score for node_id, score in result.items()}
+        return {self.get_label_from_id(node_id): score for node_id, score in result.items()}
 
     def get_katz_centrality(
         self,
@@ -8072,7 +8072,7 @@ class Graph:
             return self
 
         # Convert to labels for backwards compatibility
-        return {self.label_from_id(node_id): score for node_id, score in scores_by_id.items()}
+        return {self.get_label_from_id(node_id): score for node_id, score in scores_by_id.items()}
 
     def get_leverage_centrality(self, attr_name: str = None) -> Union[dict[str, float], "Graph"]:
         """Get leverage centrality for each node.
@@ -8305,7 +8305,7 @@ class Graph:
 
         # Convert node IDs to labels
         scores_by_label = {
-            self.label_from_id(node_id): score for node_id, score in scores_by_id.items()
+            self.get_label_from_id(node_id): score for node_id, score in scores_by_id.items()
         }
 
         if return_sigma:
@@ -8371,10 +8371,10 @@ class Graph:
         # Convert node IDs to labels in the result
         result = {}
         for node1_id, inner_dict in result_ids.items():
-            node1_label = self.label_from_id(node1_id)
+            node1_label = self.get_label_from_id(node1_id)
             result[node1_label] = {}
             for node2_id, score in inner_dict.items():
-                node2_label = self.label_from_id(node2_id)
+                node2_label = self.get_label_from_id(node2_id)
                 result[node1_label][node2_label] = score
         return result
 
@@ -8434,10 +8434,10 @@ class Graph:
         # Convert node IDs to labels in the result
         result = {}
         for node1_id, inner_dict in result_ids.items():
-            node1_label = self.label_from_id(node1_id)
+            node1_label = self.get_label_from_id(node1_id)
             result[node1_label] = {}
             for node2_id, score in inner_dict.items():
-                node2_label = self.label_from_id(node2_id)
+                node2_label = self.get_label_from_id(node2_id)
                 result[node1_label][node2_label] = score
         return result
 
@@ -8496,10 +8496,10 @@ class Graph:
         # Convert node IDs to labels in the result
         result = {}
         for node1_id, inner_dict in result_ids.items():
-            node1_label = self.label_from_id(node1_id)
+            node1_label = self.get_label_from_id(node1_id)
             result[node1_label] = {}
             for node2_id, score in inner_dict.items():
-                node2_label = self.label_from_id(node2_id)
+                node2_label = self.get_label_from_id(node2_id)
                 result[node1_label][node2_label] = score
         return result
 
@@ -8558,10 +8558,10 @@ class Graph:
         # Convert node IDs to labels in the result
         result = {}
         for node1_id, inner_dict in result_ids.items():
-            node1_label = self.label_from_id(node1_id)
+            node1_label = self.get_label_from_id(node1_id)
             result[node1_label] = {}
             for node2_id, score in inner_dict.items():
-                node2_label = self.label_from_id(node2_id)
+                node2_label = self.get_label_from_id(node2_id)
                 result[node1_label][node2_label] = score
         return result
 
@@ -9836,8 +9836,8 @@ class Graph:
                         edge = self.get_edge(edge_id)
                         if edge:
                             # Convert IDs to labels
-                            source_label = self.label_from_id(edge.source)
-                            target_label = self.label_from_id(edge.target)
+                            source_label = self.get_label_from_id(edge.source)
+                            target_label = self.get_label_from_id(edge.target)
                             edge_key = f"{source_label}{separator}{target_label}"
                             # Check special weight attribute first
                             if edge_attr == "weight" and edge.weight is not None:
@@ -9851,8 +9851,8 @@ class Graph:
                 edge = self.get_edge(edge_id)
                 if edge:
                     # Convert IDs to labels
-                    source_label = self.label_from_id(edge.source)
-                    target_label = self.label_from_id(edge.target)
+                    source_label = self.get_label_from_id(edge.source)
+                    target_label = self.get_label_from_id(edge.target)
                     edge_key = f"{source_label}{separator}{target_label}"
                     # Check special weight attribute first
                     if edge_attr == "weight" and edge.weight is not None:
@@ -12553,7 +12553,7 @@ class Graph:
         print(graph.num_edges())  # 12
 
         # Each node is a 2-subset
-        nodes = [graph.label_from_id(nid) for nid in graph.nodes()]
+        nodes = [graph.get_label_from_id(nid) for nid in graph.nodes()]
         print(nodes)  # ['0,1', '0,2', '0,3', '1,2', '1,3', '2,3']
 
         # Verify regularity: each node has degree k(n-k) = 2*2 = 4
@@ -12690,7 +12690,7 @@ class Graph:
         graph.select_nodes_by_id([node_b_id]).trav_both()
 
         # Get labels of selected nodes
-        labels = [graph.label_from_id(nid) for nid in graph.get_selected_nodes()]
+        labels = [graph.get_label_from_id(nid) for nid in graph.get_selected_nodes()]
         # Returns ['A', 'C'] (or ['C', 'A'] - order may vary)
         ```
         """
@@ -13347,7 +13347,7 @@ class Graph:
 
         # Degree statistics - compute for all nodes
         node_ids = self.node_ids()
-        degrees = [self.degree(self.label_from_id(nid) or str(nid)) for nid in node_ids]
+        degrees = [self.degree(self.get_label_from_id(nid) or str(nid)) for nid in node_ids]
 
         if degrees:
             avg_degree = sum(degrees) / len(degrees)
@@ -13567,7 +13567,7 @@ class Graph:
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
             for node_id in self.nodes():
-                label = self.label_from_id(node_id)
+                label = self.get_label_from_id(node_id)
                 # Try to get node attributes if they exist
                 try:
                     node_obj = self._graph.get_node(label)
@@ -13583,8 +13583,8 @@ class Graph:
                 edge = self.get_edge(edge_id)
                 if edge:
                     mst.add_edge(
-                        self.label_from_id(edge.source),
-                        self.label_from_id(edge.target),
+                        self.get_label_from_id(edge.source),
+                        self.get_label_from_id(edge.target),
                         weight=edge.weight,
                         attributes=edge.attributes,
                     )
@@ -13659,7 +13659,7 @@ class Graph:
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
             for node_id in self.nodes():
-                label = self.label_from_id(node_id)
+                label = self.get_label_from_id(node_id)
                 # Try to get node attributes if they exist
                 try:
                     node_obj = self._graph.get_node(label)
@@ -13675,8 +13675,8 @@ class Graph:
                 edge = self.get_edge(edge_id)
                 if edge:
                     st.add_edge(
-                        self.label_from_id(edge.source),
-                        self.label_from_id(edge.target),
+                        self.get_label_from_id(edge.source),
+                        self.get_label_from_id(edge.target),
                         weight=edge.weight,
                         attributes=edge.attributes,
                     )
@@ -13748,7 +13748,7 @@ def shortest_path(
     if path_ids is None:
         return None
     # Convert node IDs to labels
-    return [graph.label_from_id(node_id) for node_id in path_ids]
+    return [graph.get_label_from_id(node_id) for node_id in path_ids]
 
 
 def pagerank(
@@ -13828,7 +13828,7 @@ def pagerank(
     """
     result_ids = rust.pagerank(graph._graph, damping=damping, max_iter=max_iter, tol=tol)
     # Convert node IDs to labels
-    return {graph.label_from_id(node_id): score for node_id, score in result_ids.items()}
+    return {graph.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
 
 
 def betweenness_centrality(graph: Graph) -> dict[str, float]:
@@ -13898,7 +13898,7 @@ def betweenness_centrality(graph: Graph) -> dict[str, float]:
     """
     result_ids = rust.betweenness_centrality(graph._graph)
     # Convert node IDs to labels
-    return {graph.label_from_id(node_id): score for node_id, score in result_ids.items()}
+    return {graph.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
 
 
 def detect_communities(graph: Graph) -> dict[str, int]:
@@ -14267,7 +14267,7 @@ class AdaStar:
         path_ids = self.ada_star.extract_path(self.graph._graph)
 
         # Convert to labels
-        return [self.graph.label_from_id(node_id) for node_id in path_ids]
+        return [self.graph.get_label_from_id(node_id) for node_id in path_ids]
 
     def update_graph(self, changes: list[tuple[int, int, float]]) -> None:
         """
@@ -14318,4 +14318,4 @@ class AdaStar:
             If no path exists or search hasn't been initialized.
         """
         path_ids = self.ada_star.extract_path(self.graph._graph)
-        return [self.graph.label_from_id(node_id) for node_id in path_ids]
+        return [self.graph.get_label_from_id(node_id) for node_id in path_ids]

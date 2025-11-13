@@ -68,7 +68,7 @@ def karate_club() -> Graph:
     betweenness = G.get_betweenness()
     top_nodes = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:3]
     for node_id, score in top_nodes:
-        label = G.label_from_id(node_id)
+        label = G.get_label_from_id(node_id)
         print(f"Node {label}: {score:.3f}")
 
     # Check k-core decomposition

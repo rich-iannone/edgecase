@@ -65,7 +65,7 @@ def test_nodes_returns_list(simple_graph):
     nodes = simple_graph.nodes()
     assert isinstance(nodes, list)
     # nodes() returns IDs, need to get labels to compare
-    labels = [simple_graph.label_from_id(nid) for nid in nodes]
+    labels = [simple_graph.get_label_from_id(nid) for nid in nodes]
     assert set(labels) == {"A", "B", "C"}
 
 
@@ -127,7 +127,7 @@ def test_edges_returns_list(simple_graph):
 def test_neighbors_simple(simple_graph):
     """Test basic neighbor query"""
     neighbor_ids = simple_graph.neighbors("A")
-    neighbor_labels = [simple_graph.label_from_id(nid) for nid in neighbor_ids]
+    neighbor_labels = [simple_graph.get_label_from_id(nid) for nid in neighbor_ids]
     assert "B" in neighbor_labels
 
 
@@ -147,8 +147,8 @@ def test_undirected_neighbors_symmetric():
     G.add_node("B")
     G.add_edge("A", "B")
     
-    neighbors_a = [G.label_from_id(nid) for nid in G.neighbors("A")]
-    neighbors_b = [G.label_from_id(nid) for nid in G.neighbors("B")]
+    neighbors_a = [G.get_label_from_id(nid) for nid in G.neighbors("A")]
+    neighbors_b = [G.get_label_from_id(nid) for nid in G.neighbors("B")]
     
     assert "B" in neighbors_a
     assert "A" in neighbors_b
@@ -161,7 +161,7 @@ def test_directed_neighbors_asymmetric():
     G.add_node("B")
     G.add_edge("A", "B")
     
-    neighbors_a = [G.label_from_id(nid) for nid in G.neighbors("A")]
+    neighbors_a = [G.get_label_from_id(nid) for nid in G.neighbors("A")]
     assert "B" in neighbors_a
     # B might not have A as neighbor (depends on API)
 

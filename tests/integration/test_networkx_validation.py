@@ -20,7 +20,7 @@ except ImportError:
 
 def node_to_nx(graph, node_id):
     """Convert EdgeCase node ID to NetworkX node identifier (label if exists, else ID)."""
-    return graph.label_from_id(node_id) or node_id
+    return graph.get_label_from_id(node_id) or node_id
 
 
 pytestmark = pytest.mark.skipif(
@@ -136,7 +136,7 @@ class TestPageRankValidation:
         # Compare results (should be very close)
         # Both NetworkX and EdgeCase now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             assert abs(ec_ranks[label] - nx_ranks[label]) < 0.01, \
                 f"PageRank mismatch for node {label}: EC={ec_ranks[label]}, NX={nx_ranks[label]}"
     
@@ -159,7 +159,7 @@ class TestPageRankValidation:
         tolerance = 0.05 if name == "weighted_dag" else 0.015
         # Both NetworkX and EdgeCase now use labels as keys
         for node_id in graph.nodes():
-            label = graph.label_from_id(node_id)
+            label = graph.get_label_from_id(node_id)
             assert abs(ec_ranks[label] - nx_ranks[label]) < tolerance, \
                 f"{name}: PageRank mismatch for node {label}: EC={ec_ranks[label]:.6f}, NX={nx_ranks[label]:.6f}"
     
@@ -632,7 +632,7 @@ class TestBetweennessCentralityValidation:
         
         # Both EdgeCase and NetworkX now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01, \
                 f"Betweenness mismatch for {nx_node}: EC={ec_bc[label]}, NX={nx_bc[nx_node]}"
@@ -662,7 +662,7 @@ class TestBetweennessCentralityValidation:
         assert ec_bc["center"] > ec_bc["A"]
         
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01, \
                 f"Betweenness mismatch for {nx_node}: EC={ec_bc[label]}, NX={nx_bc[nx_node]}"
@@ -689,7 +689,7 @@ class TestBetweennessCentralityValidation:
         # In complete graph, all nodes should have equal betweenness (0)
         # Both EdgeCase and NetworkX now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             assert abs(ec_bc[label]) < 0.01
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01
@@ -738,7 +738,7 @@ class TestComplexAlgorithmsValidation:
         
         # Both EdgeCase and NetworkX now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_ranks[label] - nx_ranks[nx_node]) < 0.01, \
                 f"PageRank mismatch for {nx_node}: EC={ec_ranks[label]}, NX={nx_ranks[nx_node]}"
@@ -798,7 +798,7 @@ class TestComplexAlgorithmsValidation:
         
         # Both EdgeCase and NetworkX now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_ranks[label] - nx_ranks[nx_node]) < 0.01
             assert abs(ec_ranks[label] - 0.25) < 0.01  # Should be ~1/4 for 4 nodes
@@ -1508,7 +1508,7 @@ class TestWeightedMetrics:
         
         # Both EdgeCase and NetworkX now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.001
     
@@ -1620,7 +1620,7 @@ class TestNumericalStability:
         
         # Both EdgeCase and NetworkX now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.01
     
@@ -1644,7 +1644,7 @@ class TestNumericalStability:
         
         # Both EdgeCase and NetworkX now use labels as keys
         for node_id in G.nodes():
-            label = G.label_from_id(node_id)
+            label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.01
     

@@ -239,7 +239,7 @@ class TestKatzComparison:
         alpha_c = g.get_alpha_centrality(alpha=0.1)
 
         # alpha_centrality returns numeric IDs, convert to labels
-        alpha_c_labeled = {g.label_from_id(nid): score for nid, score in alpha_c.items()}
+        alpha_c_labeled = {g.get_label_from_id(nid): score for nid, score in alpha_c.items()}
 
         # Should be very similar for undirected graphs
         for node in ["A", "B", "C"]:

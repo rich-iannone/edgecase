@@ -42,7 +42,7 @@ class TestDiceSimilarity:
         
         sim = G.get_dice_similarity()
         for node_id in G.nodes():
-            node_label = G.label_from_id(node_id)
+            node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
     def test_partial_overlap(self):
@@ -125,7 +125,7 @@ class TestJaccardSimilarity:
         
         sim = G.get_jaccard_similarity()
         for node_id in G.nodes():
-            node_label = G.label_from_id(node_id)
+            node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
     def test_partial_overlap(self):
@@ -216,7 +216,7 @@ class TestCosineSimilarity:
         
         sim = G.get_cosine_similarity()
         for node_id in G.nodes():
-            node_label = G.label_from_id(node_id)
+            node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
     def test_partial_overlap(self):
@@ -310,7 +310,7 @@ class TestOverlapSimilarity:
         
         sim = G.get_overlap_similarity()
         for node_id in G.nodes():
-            node_label = G.label_from_id(node_id)
+            node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
     def test_subset_relationship(self):
@@ -419,8 +419,8 @@ class TestSimilaritySymmetry:
         nodes = G.nodes()
         for n1_id in nodes:
             for n2_id in nodes:
-                n1 = G.label_from_id(n1_id)
-                n2 = G.label_from_id(n2_id)
+                n1 = G.get_label_from_id(n1_id)
+                n2 = G.get_label_from_id(n2_id)
                 assert sim[n1][n2] == pytest.approx(sim[n2][n1])
     
     def test_overlap_symmetric(self):
@@ -539,7 +539,7 @@ class TestSimilarityReturnStructure:
         G = ec.Graph()
         G.add_path_graph(5)
         # Convert node IDs to labels for comparison
-        node_labels = {G.label_from_id(node_id) for node_id in G.nodes()}
+        node_labels = {G.get_label_from_id(node_id) for node_id in G.nodes()}
         
         for method in [G.get_dice_similarity, G.get_jaccard_similarity,
                       G.get_cosine_similarity, G.get_overlap_similarity]:

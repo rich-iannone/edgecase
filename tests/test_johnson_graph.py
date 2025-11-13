@@ -22,7 +22,7 @@ class TestJohnsonGraph:
         """Test J(4,2) has correct node labels (2-subsets)."""
         graph = Graph(directed=False).add_johnson_graph(n=4, k=2)
         
-        node_labels = {graph.label_from_id(nid) for nid in graph.nodes()}
+        node_labels = {graph.get_label_from_id(nid) for nid in graph.nodes()}
         expected = {'0,1', '0,2', '0,3', '1,2', '1,3', '2,3'}
         
         assert node_labels == expected
@@ -43,7 +43,7 @@ class TestJohnsonGraph:
         # Node "0,1" should be adjacent to nodes that share exactly 1 element
         node_01_id = graph.get_id_from_label("0,1")
         neighbors = graph.neighbors(node_01_id)
-        neighbor_labels = {graph.label_from_id(nid) for nid in neighbors}
+        neighbor_labels = {graph.get_label_from_id(nid) for nid in neighbors}
         
         # Neighbors: share 0 or 1 with {0,1}
         expected_neighbors = {'0,2', '0,3', '1,2', '1,3'}

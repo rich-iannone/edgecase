@@ -62,7 +62,7 @@ def to_igraph(graph):
     ig_graph.add_vertices(n_nodes)
 
     # Set node labels as "name" attribute (converting IDs to labels)
-    node_labels = [graph.label_from_id(node_id) for node_id in node_ids]
+    node_labels = [graph.get_label_from_id(node_id) for node_id in node_ids]
     ig_graph.vs["name"] = node_labels
 
     # Add node attributes

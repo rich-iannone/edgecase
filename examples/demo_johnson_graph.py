@@ -13,7 +13,7 @@ def main():
     print(f"Edges: {g1.num_edges()}")
 
     # Show node labels (the 2-subsets)
-    nodes = sorted([g1.label_from_id(nid) for nid in g1.nodes()])
+    nodes = sorted([g1.get_label_from_id(nid) for nid in g1.nodes()])
     print(f"\nNode labels (2-subsets): {nodes}")
 
     # Show regularity
@@ -23,7 +23,7 @@ def main():
 
     # Show adjacency for one node
     node_01 = g1.get_id_from_label("0,1")
-    neighbors = [g1.label_from_id(nid) for nid in g1.neighbors(node_01)]
+    neighbors = [g1.get_label_from_id(nid) for nid in g1.neighbors(node_01)]
     print(f"\nNeighbors of '0,1': {sorted(neighbors)}")
     print("Each neighbor intersects '0,1' in exactly 1 element")
 
@@ -38,7 +38,7 @@ def main():
     print(f"Edges: {g2.num_edges()}")
 
     # Show node labels
-    nodes2 = sorted([g2.label_from_id(nid) for nid in g2.nodes()])
+    nodes2 = sorted([g2.get_label_from_id(nid) for nid in g2.nodes()])
     print(f"\nNode labels: {nodes2}")
 
     # Show regularity
@@ -56,7 +56,7 @@ def main():
     print(f"Nodes: {g3.num_nodes()} (C(5,1) = 5)")
     print(f"Edges: {g3.num_edges()}")
 
-    nodes3 = sorted([g3.label_from_id(nid) for nid in g3.nodes()])
+    nodes3 = sorted([g3.get_label_from_id(nid) for nid in g3.nodes()])
     print(f"Node labels (singletons): {nodes3}")
 
     degrees3 = [g3.degree(nid) for nid in g3.nodes()]

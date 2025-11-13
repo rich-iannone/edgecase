@@ -75,7 +75,7 @@ def to_networkx(graph, multigraph: bool = False):
             node_attrs = dict(node.attributes)
 
         # Use label as NetworkX node ID if it exists, otherwise use the numeric ID
-        nx_node_id = graph.label_from_id(node_id) or node_id
+        nx_node_id = graph.get_label_from_id(node_id) or node_id
         nx_graph.add_node(nx_node_id, **node_attrs)
 
     # Add edges with attributes
@@ -97,8 +97,8 @@ def to_networkx(graph, multigraph: bool = False):
             edge_attrs["edgecase_edge_id"] = edge_id
 
             # Use labels if available, otherwise use IDs
-            nx_source = graph.label_from_id(source) or source
-            nx_target = graph.label_from_id(target) or target
+            nx_source = graph.get_label_from_id(source) or source
+            nx_target = graph.get_label_from_id(target) or target
             nx_graph.add_edge(nx_source, nx_target, key=edge_id, **edge_attrs)
     else:
         # Simple Graph: warn if multiple edges exist
@@ -126,8 +126,8 @@ def to_networkx(graph, multigraph: bool = False):
                 edge_attrs["weight"] = edge.weight
 
             # Use labels if available, otherwise use IDs
-            nx_source = graph.label_from_id(source) or source
-            nx_target = graph.label_from_id(target) or target
+            nx_source = graph.get_label_from_id(source) or source
+            nx_target = graph.get_label_from_id(target) or target
             nx_graph.add_edge(nx_source, nx_target, **edge_attrs)
 
     return nx_graph
