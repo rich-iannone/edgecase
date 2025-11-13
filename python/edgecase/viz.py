@@ -77,7 +77,7 @@ def plot_graph(
     >>> plot_graph(G, layout="neato")
     """
     # Extract graph data (fast - direct from Rust)
-    nodes = graph.nodes()
+    nodes = graph.get_node_ids()
     edges = []
 
     # Build edge list efficiently
@@ -1098,7 +1098,7 @@ def _generate_graphviz_svg_html(
         Complete HTML document with embedded SVG
     """
     graph_type = "Directed" if graph.is_directed else "Undirected"
-    num_nodes = len(graph.nodes())
+    num_nodes = len(graph.get_node_ids())
     num_edges = graph.num_edges()
 
     # Generate unique ID suffix for this graph instance to avoid conflicts in notebooks

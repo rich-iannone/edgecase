@@ -41,7 +41,7 @@ class TestDiceSimilarity:
         G.add_star_graph(5)
         
         sim = G.get_dice_similarity()
-        for node_id in G.nodes():
+        for node_id in G.get_node_ids():
             node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
@@ -124,7 +124,7 @@ class TestJaccardSimilarity:
         G.add_cycle_graph(5)
         
         sim = G.get_jaccard_similarity()
-        for node_id in G.nodes():
+        for node_id in G.get_node_ids():
             node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
@@ -215,7 +215,7 @@ class TestCosineSimilarity:
         G.add_path_graph(5)
         
         sim = G.get_cosine_similarity()
-        for node_id in G.nodes():
+        for node_id in G.get_node_ids():
             node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
@@ -309,7 +309,7 @@ class TestOverlapSimilarity:
         G.add_full_graph(4)
         
         sim = G.get_overlap_similarity()
-        for node_id in G.nodes():
+        for node_id in G.get_node_ids():
             node_label = G.get_label_from_id(node_id)
             assert sim[node_label][node_label] == pytest.approx(1.0)
     
@@ -416,7 +416,7 @@ class TestSimilaritySymmetry:
         G.add_full_graph(5)
         
         sim = G.get_cosine_similarity()
-        nodes = G.nodes()
+        nodes = G.get_node_ids()
         for n1_id in nodes:
             for n2_id in nodes:
                 n1 = G.get_label_from_id(n1_id)
@@ -539,7 +539,7 @@ class TestSimilarityReturnStructure:
         G = ec.Graph()
         G.add_path_graph(5)
         # Convert node IDs to labels for comparison
-        node_labels = {G.get_label_from_id(node_id) for node_id in G.nodes()}
+        node_labels = {G.get_label_from_id(node_id) for node_id in G.get_node_ids()}
         
         for method in [G.get_dice_similarity, G.get_jaccard_similarity,
                       G.get_cosine_similarity, G.get_overlap_similarity]:

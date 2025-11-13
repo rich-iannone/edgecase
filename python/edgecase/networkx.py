@@ -67,7 +67,7 @@ def to_networkx(graph, multigraph: bool = False):
         nx_graph = nx.DiGraph() if graph.is_directed else nx.Graph()
 
     # Add nodes with attributes
-    for node_id in graph.nodes():
+    for node_id in graph.get_node_ids():
         node = graph.get_node(node_id)
         node_attrs = {}
         if node and node.attributes:

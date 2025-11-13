@@ -70,7 +70,7 @@ def test_edge_count_nonnegative(G):
 @settings(max_examples=100)
 def test_nodes_list_length(G):
     """len(nodes()) should equal num_nodes()"""
-    assert len(G.nodes()) == G.num_nodes()
+    assert len(G.get_node_ids()) == G.num_nodes()
 
 
 @given(G=small_graphs())
@@ -94,7 +94,7 @@ def test_add_node_increases_count(G):
 def test_add_duplicate_node_no_change(G):
     """Adding duplicate node should not change count"""
     if G.num_nodes() > 0:
-        node = G.nodes()[0]
+        node = G.get_node_ids()[0]
         initial = G.num_nodes()
         G.add_node(node)
         assert G.num_nodes() == initial
@@ -107,7 +107,7 @@ def test_add_duplicate_node_no_change(G):
 def test_undirected_neighbors_symmetric(G):
     """In undirected graph, if B is neighbor of A, then A is neighbor of B"""
     if G.num_nodes() > 0:
-        for node in G.nodes():
+        for node in G.get_node_ids():
             neighbors = G.neighbors(node)
             for neighbor in neighbors:
                 # Check symmetry
@@ -150,7 +150,7 @@ def test_pagerank_covers_all_nodes(G):
         
         if ranks:
             assert len(ranks) == G.num_nodes()
-            assert set(ranks.keys()) == set(G.nodes())
+            assert set(ranks.keys()) == set(G.get_node_ids())
 
 
 # Shortest path property tests
@@ -160,7 +160,7 @@ def test_pagerank_covers_all_nodes(G):
 def test_shortest_path_starts_and_ends_correctly(G, seed):
     """Shortest path should start at source and end at target"""
     if G.num_nodes() >= 2:
-        nodes = G.nodes()
+        nodes = G.get_node_ids()
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
         
@@ -176,7 +176,7 @@ def test_shortest_path_starts_and_ends_correctly(G, seed):
 def test_shortest_path_consecutive_edges_exist(G, seed):
     """All consecutive nodes in path should be connected by edges"""
     if G.num_nodes() >= 2:
-        nodes = G.nodes()
+        nodes = G.get_node_ids()
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
         

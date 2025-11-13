@@ -160,7 +160,7 @@ class TestSelectEdgesByPredicate:
         G.add_edge("server_2", "client_3")
         
         # Pre-compute node mappings to avoid borrowing issues in predicate
-        node_labels = {node.id: node.label for node_id in G.node_ids() if (node := G.get_node(node_id))}
+        node_labels = {node.id: node.label for node_id in G.get_node_ids() if (node := G.get_node(node_id))}
         
         # Select edges from servers to clients - check label patterns
         def is_server_to_client(edge):

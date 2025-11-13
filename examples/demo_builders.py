@@ -12,7 +12,7 @@ def demo_path_graph():
     g = g.add_path(n=5, type="step", label=True, rel="next")
 
     print(f"Created path graph: {g}")
-    print(f"Nodes: {g.node_ids()}")
+    print(f"Nodes: {g.get_node_ids()}")
     print(f"Edges: {g.edges()}")
     print(f"Node '1' neighbors: {g.neighbors('1')}")
     print()
@@ -29,7 +29,7 @@ def demo_cycle_graph():
 
     print(f"Created cycle graph: {g}")
     print("Each node has exactly 1 neighbor (directed cycle):")
-    for node_id in g.node_ids():
+    for node_id in g.get_node_ids():
         print(f"  Node '{node_id}': {g.neighbors(node_id)}")
     print()
 
@@ -44,7 +44,7 @@ def demo_star_graph():
     g = g.add_star(n=6, type="network")
 
     print(f"Created star graph: {g}")
-    center = g.node_ids()[0]  # First node is center
+    center = g.get_node_ids()[0]  # First node is center
     print(f"Center node '{center}' has {len(g.neighbors(center))} neighbors")
     print(f"Center neighbors: {g.neighbors(center)}")
     print()
@@ -63,7 +63,7 @@ def demo_complete_graph():
     print("Expected edges for K4: 4*(4-1)/2 = 6")
     print(f"Actual edges: {g.num_edges()}")
     print("Each node connects to all others:")
-    for node_id in g.node_ids():
+    for node_id in g.get_node_ids():
         print(f"  Node '{node_id}': {len(g.neighbors(node_id))} neighbors")
     print()
 
@@ -97,9 +97,9 @@ def demo_grid_graph():
     print(f"Actual edges: {g.num_edges()}")
 
     # Analyze node degrees
-    corners = sum(1 for nid in g.node_ids() if len(g.neighbors(nid)) == 2)
-    edges = sum(1 for nid in g.node_ids() if len(g.neighbors(nid)) == 3)
-    interior = sum(1 for nid in g.node_ids() if len(g.neighbors(nid)) == 4)
+    corners = sum(1 for nid in g.get_node_ids() if len(g.neighbors(nid)) == 2)
+    edges = sum(1 for nid in g.get_node_ids() if len(g.neighbors(nid)) == 3)
+    interior = sum(1 for nid in g.get_node_ids() if len(g.neighbors(nid)) == 4)
 
     print(f"Corner nodes (degree 2): {corners}")
     print(f"Edge nodes (degree 3): {edges}")
