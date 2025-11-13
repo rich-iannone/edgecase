@@ -4979,7 +4979,7 @@ class Graph:
         # Call Rust implementation
         return self._graph.is_simple_path(node_labels)
 
-    def get_girth(self) -> int | None:
+    def get_graph_girth(self) -> int | None:
         """Get girth (length of shortest cycle).
 
         The girth is the length of the shortest cycle in the graph.
@@ -5008,14 +5008,14 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_girth())  # 4 (cycle length)
+        print(graph.get_graph_girth())  # 4 (cycle length)
         ```
 
         Trees have no cycles:
 
         ```python
         tree = Graph(directed=True).add_balanced_tree(k=2, h=3)
-        print(tree.get_girth())  # None
+        print(tree.get_graph_girth())  # None
         ```
 
         See Also
@@ -5025,7 +5025,7 @@ class Graph:
         """
         return self._graph.get_girth()
 
-    def get_adhesion(self) -> int:
+    def get_graph_adhesion(self) -> int:
         """Get adhesion (minimum edge cut size).
 
         The adhesion is the minimum number of edges whose removal would disconnect
@@ -5062,17 +5062,17 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_adhesion())  # 2
+        print(graph.get_graph_adhesion())  # 2
         ```
 
         See Also
         --------
-        get_cohesion : Get node connectivity
+        get_graph_cohesion : Get node connectivity
         is_connected : Check if graph is connected
         """
         return self._graph.get_adhesion()
 
-    def get_cohesion(self) -> int:
+    def get_graph_cohesion(self) -> int:
         """Get cohesion (minimum node cut size).
 
         The cohesion is the minimum number of nodes whose removal would disconnect
@@ -5109,12 +5109,12 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_cohesion())  # 2
+        print(graph.get_graph_cohesion())  # 2
         ```
 
         See Also
         --------
-        get_adhesion : Get edge connectivity
+        get_graph_adhesion : Get edge connectivity
         is_connected : Check if graph is connected
         """
         return self._graph.get_cohesion()

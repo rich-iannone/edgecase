@@ -268,35 +268,35 @@ class TestGirth:
     def test_girth_empty_graph(self):
         """Empty graph has no girth."""
         G = ec.Graph()
-        girth = G.get_girth()
+        girth = G.get_graph_girth()
         assert girth is None
 
     def test_girth_tree_graph(self):
         """Tree (acyclic) has no girth."""
         G = ec.Graph()
         G.add_balanced_tree(2, 3)
-        girth = G.get_girth()
+        girth = G.get_graph_girth()
         assert girth is None
 
     def test_girth_triangle(self):
         """Triangle has girth 3."""
         G = ec.Graph()
         G.add_cycle_graph(3)
-        girth = G.get_girth()
+        girth = G.get_graph_girth()
         assert girth == 3
 
     def test_girth_square(self):
         """Square has girth 4."""
         G = ec.Graph()
         G.add_cycle_graph(4)
-        girth = G.get_girth()
+        girth = G.get_graph_girth()
         assert girth == 4
 
     def test_girth_hexagon(self):
         """Hexagon has girth 6."""
         G = ec.Graph()
         G.add_cycle_graph(6)
-        girth = G.get_girth()
+        girth = G.get_graph_girth()
         assert girth == 6
 
     def test_girth_complex_graph(self):
@@ -314,7 +314,7 @@ class TestGirth:
         G.add_edge("E", "F")
         G.add_edge("F", "C")  # Larger cycle
 
-        girth = G.get_girth()
+        girth = G.get_graph_girth()
         assert girth == 3  # Triangle is shortest cycle
 
 
@@ -324,7 +324,7 @@ class TestAdhesion:
     def test_adhesion_empty_graph(self):
         """Empty graph has adhesion 0."""
         G = ec.Graph()
-        adhesion = G.get_adhesion()
+        adhesion = G.get_graph_adhesion()
         assert adhesion == 0
 
     def test_adhesion_disconnected_graph(self):
@@ -335,28 +335,28 @@ class TestAdhesion:
             G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("C", "D")
-        adhesion = G.get_adhesion()
+        adhesion = G.get_graph_adhesion()
         assert adhesion == 0
 
     def test_adhesion_path_graph(self):
         """Path graph has adhesion 1 (single edge cut)."""
         G = ec.Graph()
         G.add_path_graph(5)
-        adhesion = G.get_adhesion()
+        adhesion = G.get_graph_adhesion()
         assert adhesion == 1
 
     def test_adhesion_cycle_graph(self):
         """Cycle graph has adhesion 2 (need 2 edge cuts)."""
         G = ec.Graph()
         G.add_cycle_graph(5)
-        adhesion = G.get_adhesion()
+        adhesion = G.get_graph_adhesion()
         assert adhesion == 2
 
     def test_adhesion_complete_graph(self):
         """Complete graph has adhesion n-1."""
         G = ec.Graph()
         G.add_full_graph(5)
-        adhesion = G.get_adhesion()
+        adhesion = G.get_graph_adhesion()
         assert adhesion == 4  # K5 has adhesion 4
 
     def test_adhesion_directed_raises_error(self):
@@ -367,7 +367,7 @@ class TestAdhesion:
         G.add_edge("A", "B")
 
         with pytest.raises(ValueError):
-            G.get_adhesion()
+            G.get_graph_adhesion()
 
 
 class TestCohesion:
@@ -376,7 +376,7 @@ class TestCohesion:
     def test_cohesion_empty_graph(self):
         """Empty graph has cohesion 0."""
         G = ec.Graph()
-        cohesion = G.get_cohesion()
+        cohesion = G.get_graph_cohesion()
         assert cohesion == 0
 
     def test_cohesion_disconnected_graph(self):
@@ -384,35 +384,35 @@ class TestCohesion:
         G = ec.Graph()
         G.add_node("A")
         G.add_node("B")
-        cohesion = G.get_cohesion()
+        cohesion = G.get_graph_cohesion()
         assert cohesion == 0
 
     def test_cohesion_path_graph(self):
         """Path graph has cohesion 1 (single node cut)."""
         G = ec.Graph()
         G.add_path_graph(5)
-        cohesion = G.get_cohesion()
+        cohesion = G.get_graph_cohesion()
         assert cohesion == 1
 
     def test_cohesion_cycle_graph(self):
         """Cycle graph has cohesion 2 (need 2 node cuts)."""
         G = ec.Graph()
         G.add_cycle_graph(5)
-        cohesion = G.get_cohesion()
+        cohesion = G.get_graph_cohesion()
         assert cohesion == 2
 
     def test_cohesion_complete_graph(self):
         """Complete graph has cohesion n-1."""
         G = ec.Graph()
         G.add_full_graph(5)
-        cohesion = G.get_cohesion()
+        cohesion = G.get_graph_cohesion()
         assert cohesion == 4  # K5 has cohesion 4
 
     def test_cohesion_star_graph(self):
         """Star graph has cohesion 1 (remove hub)."""
         G = ec.Graph()
         G.add_star_graph(5)
-        cohesion = G.get_cohesion()
+        cohesion = G.get_graph_cohesion()
         assert cohesion == 1
 
     def test_cohesion_directed_raises_error(self):
@@ -423,7 +423,7 @@ class TestCohesion:
         G.add_edge("A", "B")
 
         with pytest.raises(ValueError):
-            G.get_cohesion()
+            G.get_graph_cohesion()
 
 
 class TestAdvancedPropertiesIntegration:
@@ -436,11 +436,11 @@ class TestAdvancedPropertiesIntegration:
 
         assert G.get_graph_diameter() == 6
         assert G.get_graph_radius() == 3
-        assert G.get_girth() is None  # Trees have no cycles
+        assert G.get_graph_girth() is None  # Trees have no cycles
         assert len(G.get_periphery()) == 2
         assert len(G.get_articulation_points()) == 5  # Middle 5 nodes
-        assert G.get_adhesion() == 1
-        assert G.get_cohesion() == 1
+        assert G.get_graph_adhesion() == 1
+        assert G.get_graph_cohesion() == 1
 
     def test_properties_on_cycle_graph(self):
         """Test multiple properties on cycle graph."""
@@ -449,11 +449,11 @@ class TestAdvancedPropertiesIntegration:
 
         assert G.get_graph_diameter() == 4
         assert G.get_graph_radius() == 4
-        assert G.get_girth() == 8
+        assert G.get_graph_girth() == 8
         assert len(G.get_periphery()) == 8  # All nodes in even cycle
         assert G.get_articulation_points() == []  # No APs in cycle
-        assert G.get_adhesion() == 2
-        assert G.get_cohesion() == 2
+        assert G.get_graph_adhesion() == 2
+        assert G.get_graph_cohesion() == 2
 
     def test_properties_on_complete_graph(self):
         """Test multiple properties on complete graph."""
@@ -462,11 +462,11 @@ class TestAdvancedPropertiesIntegration:
 
         assert G.get_graph_diameter() == 1
         assert G.get_graph_radius() == 1
-        assert G.get_girth() == 3  # Triangles
+        assert G.get_graph_girth() == 3  # Triangles
         assert len(G.get_periphery()) == 5  # All nodes have same eccentricity
         assert G.get_articulation_points() == []  # Highly connected
-        assert G.get_adhesion() == 4
-        assert G.get_cohesion() == 4
+        assert G.get_graph_adhesion() == 4
+        assert G.get_graph_cohesion() == 4
 
     def test_histogram_matches_degree_distribution(self):
         """get_degree_histogram() should match degree_distribution()."""
