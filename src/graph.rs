@@ -557,6 +557,11 @@ impl Graph {
         // Remove from adjacency list
         self.adjacency_list.remove(&node_id);
 
+        // Remove the deleted node from all other nodes' adjacency lists
+        for (_, neighbors) in self.adjacency_list.iter_mut() {
+            neighbors.retain(|&n| n != node_id);
+        }
+
         // Remove all incident edges
         self.edges.retain(|e| e.source != node_id && e.target != node_id);
 

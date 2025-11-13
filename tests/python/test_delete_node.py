@@ -298,8 +298,6 @@ class TestDeleteNodeWeightedGraph:
 class TestDeleteNodeDegree:
     """Test delete_node affects degree calculations."""
 
-    @pytest.mark.xfail(reason="Rust delete_node doesn't update neighbor adjacency lists")
-    @pytest.mark.xfail(reason="Rust delete_node doesn't update neighbor adjacency lists")
     def test_delete_node_updates_neighbor_degrees(self):
         """Test that neighbor degrees update after node deletion."""
         graph = (
@@ -322,7 +320,6 @@ class TestDeleteNodeDegree:
         assert graph.degree("A") == 0
         assert graph.degree("C") == 0
 
-    @pytest.mark.xfail(reason="Rust delete_node doesn't update neighbor adjacency lists")
     def test_delete_hub_node(self):
         """Test deleting a hub node (high degree)."""
         graph = (
@@ -352,7 +349,6 @@ class TestDeleteNodeDegree:
 class TestDeleteNodeConnectivity:
     """Test delete_node affects connectivity."""
 
-    @pytest.mark.xfail(reason="Rust delete_node doesn't update neighbor adjacency lists")
     def test_delete_node_disconnects_graph(self):
         """Test that deleting a bridge node disconnects the graph."""
         graph = (
@@ -370,7 +366,6 @@ class TestDeleteNodeConnectivity:
 
         assert not graph.is_connected()  # Graph now disconnected
 
-    @pytest.mark.xfail(reason="Rust delete_node doesn't update neighbor adjacency lists")
     def test_delete_leaf_node_preserves_connectivity(self):
         """Test that deleting a leaf node may preserve connectivity."""
         graph = (
