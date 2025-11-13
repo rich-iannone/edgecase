@@ -929,14 +929,14 @@ class Graph:
         """
         return self._graph.edges()
 
-    def edges_str_repr(self, limit: Optional[int] = 1000) -> list[str]:
+    def edges_str_repr(self, limit: Optional[int] = 1000, use_labels: bool = False) -> list[str]:
         """Get edges as formatted string representations.
 
-        Returns edge representations as strings showing node IDs with arrow notation.
+        Returns edge representations as strings showing node identifiers with arrow notation.
         The format depends on whether the graph is directed or undirected:
 
-        - Directed graphs: "source_id->target_id"
-        - Undirected graphs: "source_id--target_id"
+        - Directed graphs: "source->target"
+        - Undirected graphs: "source--target"
 
         Parameters
         ----------
@@ -944,16 +944,20 @@ class Graph:
             Maximum number of edge strings to return. Pass `None` to return all edges
             (warning: may be slow for large graphs). Default limit of 1000 prevents
             performance issues when working with large graphs.
+        use_labels : bool, default=False
+            If `True`, preferentially use node labels instead of IDs. Falls back to
+            node IDs when labels are not available for a node. If `False`, always
+            use node IDs.
 
         Returns
         -------
         list[str]
             List of edge strings with arrow notation indicating direction.
-            Node IDs are used, not labels.
+            Uses node IDs by default, or labels when `use_labels=True` and available.
 
         Examples
         --------
-        Get formatted edges in a directed graph:
+        Get formatted edges with node IDs:
 
         ```python
         import edgecase as ec
@@ -970,6 +974,23 @@ class Graph:
         print(graph.edges_str_repr())  # ['1->2', '2->3']
         ```
 
+        Get formatted edges with labels:
+
+        ```python
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.edges_str_repr(use_labels=True))  # ['A->B', 'B->C']
+        ```
+
         Undirected graphs use double dashes:
 
         ```python
@@ -981,13 +1002,28 @@ class Graph:
         )
 
         print(graph.edges_str_repr())  # ['1--2']
+        print(graph.edges_str_repr(use_labels=True))  # ['X--Y']
+        ```
+
+        Mixed labels (some nodes have labels, others don't):
+
+        ```python
+        graph = (
+            ec.Graph()
+            .add_node(label="Alice")
+            .add_node()  # No label
+            .add_edge("Alice", 2)
+        )
+
+        # Falls back to IDs when labels not available
+        print(graph.edges_str_repr(use_labels=True))  # ['Alice--2']
         ```
 
         Get all edges regardless of size:
 
         ```python
         # Use None to get all edges (may be slow for large graphs!)
-        all_edges = graph.edges_str_repr(limit=None)
+        all_edges = graph.edges_str_repr(limit=None, use_labels=True)
         print(f"Total edges: {len(all_edges)}")
         ```
 
@@ -997,8 +1033,27 @@ class Graph:
         edge_ids : Get list of edge IDs only
         num_edges : Get count of edges
         """
-        edge_strs = self._graph.get_edges()
-        return edge_strs if limit is None else edge_strs[:limit]
+        if use_labels:
+            # Build edge strings using labels when available
+            separator = "->" if self.is_directed else "--"
+            edge_list = self.edges()
+            edge_strs = []
+
+            for edge_id, source_id, target_id in edge_list:
+                # Try to get labels, fall back to IDs
+                source_label = self.get_label_from_id(source_id)
+                target_label = self.get_label_from_id(target_id)
+
+                source_str = source_label if source_label is not None else str(source_id)
+                target_str = target_label if target_label is not None else str(target_id)
+
+                edge_strs.append(f"{source_str}{separator}{target_str}")
+
+            return edge_strs if limit is None else edge_strs[:limit]
+        else:
+            # Use node IDs (default behavior)
+            edge_strs = self._graph.get_edges()
+            return edge_strs if limit is None else edge_strs[:limit]
 
     def has_edge_id(self, edge_id: int) -> bool:
         """Check if an edge with given ID exists.
