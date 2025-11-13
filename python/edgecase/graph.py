@@ -5189,7 +5189,7 @@ class Graph:
         """
         return self._graph.cohesive_blocks()
 
-    def node_connectivity(self) -> int:
+    def get_node_connectivity(self) -> int:
         """Compute global node connectivity.
 
         Returns the minimum number of nodes whose removal disconnects the graph.
@@ -5220,7 +5220,7 @@ class Graph:
         for i in range(1, n + 1):
             graph.add_edge(str(i), str((i % n) + 1))
 
-        print(graph.node_connectivity())  # 2
+        print(graph.get_node_connectivity())  # 2
         ```
 
         Complete graph K_5 has node connectivity 4:
@@ -5233,18 +5233,18 @@ class Graph:
             for j in range(i + 1, 6):
                 graph.add_edge(str(i), str(j))
 
-        print(graph.node_connectivity())  # 4
+        print(graph.get_node_connectivity())  # 4
         ```
 
         See Also
         --------
-        node_connectivity_between : Node connectivity between specific nodes
-        edge_connectivity : Minimum edge cut
-        cohesive_blocks : Find hierarchical cohesive structure
+        get_node_connectivity_between : Node connectivity between specific nodes
+        get_edge_connectivity : Minimum edge cut
+        get_cohesive_blocks : Find hierarchical cohesive structure
         """
         return self._graph.node_connectivity()
 
-    def node_connectivity_between(self, source: str, target: str) -> int:
+    def get_node_connectivity_between(self, source: str, target: str) -> int:
         """Compute node connectivity between two nodes.
 
         Returns the minimum number of nodes that must be removed to disconnect
@@ -5286,7 +5286,7 @@ class Graph:
             graph.add_edge(str(i), str(i + 1))
 
         # Endpoints have connectivity 1 (any middle node disconnects them)
-        print(graph.node_connectivity_between("1", "5"))  # 1
+        print(graph.get_node_connectivity_between("1", "5"))  # 1
         ```
 
         Complete graph connectivity:
@@ -5300,18 +5300,18 @@ class Graph:
                 graph.add_edge(str(i), str(j))
 
         # Any two nodes in K_5 have connectivity 3
-        print(graph.node_connectivity_between("1", "5"))  # 3
+        print(graph.get_node_connectivity_between("1", "5"))  # 3
         ```
 
         See Also
         --------
-        node_connectivity : Global node connectivity
-        edge_connectivity : Minimum edge cut
-        cohesive_blocks : Find hierarchical cohesive structure
+        get_node_connectivity : Global node connectivity
+        get_edge_connectivity : Minimum edge cut
+        get_cohesive_blocks : Find hierarchical cohesive structure
         """
         return self._graph.node_connectivity_between(source, target)
 
-    def edge_connectivity(self) -> int:
+    def get_edge_connectivity(self) -> int:
         """Compute edge connectivity (minimum edge cut).
 
         Returns the minimum number of edges whose removal disconnects the graph.
@@ -5341,7 +5341,7 @@ class Graph:
         for i in range(1, n + 1):
             graph.add_edge(str(i), str((i % n) + 1))
 
-        print(graph.edge_connectivity())  # 2
+        print(graph.get_edge_connectivity())  # 2
         ```
 
         Star graph has edge connectivity 1:
@@ -5353,14 +5353,14 @@ class Graph:
             graph.add_node(label=str(i))
             graph.add_edge("center", str(i))
 
-        print(graph.edge_connectivity())  # 1
+        print(graph.get_edge_connectivity())  # 1
         ```
 
         See Also
         --------
-        node_connectivity : Minimum node cut
-        get_adhesion : Another name for edge connectivity
-        cohesive_blocks : Find hierarchical cohesive structure
+        get_node_connectivity : Minimum node cut
+        get_graph_adhesion : Another name for edge connectivity
+        get_cohesive_blocks : Find hierarchical cohesive structure
         """
         return self._graph.edge_connectivity()
 
