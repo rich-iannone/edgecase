@@ -1170,6 +1170,66 @@ class Graph:
 
         return self
 
+    def delete_node(self, node: Union[int, str]) -> "Graph":
+        """Delete a node from the graph.
+
+        Removes a node and all its incident edges from the graph. The node can be
+        specified by its ID or label.
+
+        Parameters
+        ----------
+        node : int | str
+            Node ID (int) or label (str) to delete.
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Raises
+        ------
+        KeyError
+            If the node doesn't exist in the graph.
+
+        Examples
+        --------
+        Delete node by label:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        graph.delete_node("B")
+        print(graph.has_node("B"))  # False
+        print(graph.has_edge("A", "B"))  # False (incident edges removed)
+        ```
+
+        Delete node by ID:
+
+        ```python
+        graph = Graph().add_node(label="Alice")
+        node_id = graph.get_id_from_label("Alice")
+
+        graph.delete_node(node_id)
+        print(graph.has_node(node_id))  # False
+        ```
+
+        See Also
+        --------
+        add_node : Add nodes to the graph
+        has_node : Check if node exists
+        delete_edge : Delete edges from the graph
+        """
+        node_id = self._resolve_node_id(node, auto_create=False)
+        self._graph.delete_node(node_id)
+        return self
+
     def is_graph_simple(self) -> bool:
         """Check if the graph is simple (no self-loops or multi-edges).
 
