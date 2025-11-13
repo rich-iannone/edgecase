@@ -1470,6 +1470,8 @@ class Graph:
         """
         return self._graph.is_graph_simple()
 
+    # ========== Cycle Detection Methods ==========
+
     def has_cycles(self) -> bool:
         """Check if the graph contains any cycles.
 
@@ -1510,6 +1512,85 @@ class Graph:
         get_cycles : Get all elementary cycles in the graph
         """
         return self._graph.has_cycles()
+
+    def get_cycles(self, min_length: int = 2) -> list[list[int]]:
+        """Get all elementary cycles in the graph using Johnson's algorithm.
+
+        Implements Donald B. Johnson's 1975 algorithm for finding all elementary
+        (simple) cycles in a directed graph. Each cycle is found exactly once and
+        contains no repeated nodes except the first/last.
+
+        This method only works on directed graphs. For undirected graphs, convert
+        to directed first or consider that every edge forms a 2-cycle.
+
+        Parameters
+        ----------
+        min_length : int, default=2
+            Minimum cycle length to report. Cycles shorter than this are ignored.
+            Default is 2 (includes self-loops if present).
+
+        Returns
+        -------
+        list[list[int]]
+            A list of cycles, where each cycle is a list of node IDs forming
+            the cycle. The start node is not repeated at the end.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected (cycle enumeration requires directed graphs).
+
+        Examples
+        --------
+        Find all cycles in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Creates cycle: 1 -> 2 -> 3 -> 1
+            .add_edge("B", "A")  # Creates cycle: 1 -> 2 -> 1
+        )
+
+        cycles = graph.get_cycles()
+        print(cycles)  # [[1, 2], [1, 2, 3]] (node IDs)
+        ```
+
+        Find only longer cycles:
+
+        ```python
+        cycles = graph.get_cycles(min_length=3)
+        print(cycles)  # [[1, 2, 3]]
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(V + E)(C + 1) where C is the number of cycles
+        - Space complexity: O(V + E)
+        - The algorithm uses backtracking with a blocking mechanism to avoid
+          redundant search
+        - For large dense graphs, the number of cycles can be exponential
+
+        References
+        ----------
+        Johnson, D. B. (1975). Finding all the elementary circuits of a directed
+        graph. SIAM Journal on Computing, 4(1), 77-84.
+
+        See Also
+        --------
+        has_cycles : Check if graph contains any cycles
+        is_dag : Check if directed graph is acyclic
+        get_girth : Get length of shortest cycle
+        """
+        if not self.is_directed:
+            raise ValueError("get_cycles() requires a directed graph")
+
+        # Get cycles as node IDs from Rust
+        return self._graph.get_cycles(float(min_length))
 
     # ========== Internal NDF Methods ==========
 
@@ -1730,85 +1811,6 @@ class Graph:
         """
         self._display_attr = attr
         return self
-
-    def get_cycles(self, min_length: int = 2) -> list[list[int]]:
-        """Get all elementary cycles in the graph using Johnson's algorithm.
-
-        Implements Donald B. Johnson's 1975 algorithm for finding all elementary
-        (simple) cycles in a directed graph. Each cycle is found exactly once and
-        contains no repeated nodes except the first/last.
-
-        This method only works on directed graphs. For undirected graphs, convert
-        to directed first or consider that every edge forms a 2-cycle.
-
-        Parameters
-        ----------
-        min_length : int, default=2
-            Minimum cycle length to report. Cycles shorter than this are ignored.
-            Default is 2 (includes self-loops if present).
-
-        Returns
-        -------
-        list[list[int]]
-            A list of cycles, where each cycle is a list of node IDs forming
-            the cycle. The start node is not repeated at the end.
-
-        Raises
-        ------
-        ValueError
-            If the graph is undirected (cycle enumeration requires directed graphs).
-
-        Examples
-        --------
-        Find all cycles in a directed graph:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Creates cycle: 1 -> 2 -> 3 -> 1
-            .add_edge("B", "A")  # Creates cycle: 1 -> 2 -> 1
-        )
-
-        cycles = graph.get_cycles()
-        print(cycles)  # [[1, 2], [1, 2, 3]] (node IDs)
-        ```
-
-        Find only longer cycles:
-
-        ```python
-        cycles = graph.get_cycles(min_length=3)
-        print(cycles)  # [[1, 2, 3]]
-        ```
-
-        Notes
-        -----
-        - Time complexity: O(V + E)(C + 1) where C is the number of cycles
-        - Space complexity: O(V + E)
-        - The algorithm uses backtracking with a blocking mechanism to avoid
-          redundant search
-        - For large dense graphs, the number of cycles can be exponential
-
-        References
-        ----------
-        Johnson, D. B. (1975). Finding all the elementary circuits of a directed
-        graph. SIAM Journal on Computing, 4(1), 77-84.
-
-        See Also
-        --------
-        has_cycles : Check if graph contains any cycles
-        is_dag : Check if directed graph is acyclic
-        get_girth : Get length of shortest cycle
-        """
-        if not self.is_directed:
-            raise ValueError("get_cycles() requires a directed graph")
-
-        # Get cycles as node IDs from Rust
-        return self._graph.get_cycles(float(min_length))
 
     def ada_star_search(
         self,
