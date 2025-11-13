@@ -2052,6 +2052,8 @@ class Graph:
         """Get the graph's name."""
         return self._graph_name
 
+    # ========== Degree Methods ==========
+
     def get_degree(self, node: Union[int, str]) -> int:
         """Get the degree of a node.
 
@@ -2216,6 +2218,530 @@ class Graph:
             raise ValueError("out_degree only available for directed graphs")
         node_id = self._resolve_node_id(node)
         return len(self._graph.neighbors(node_id))
+
+    # ========== Degree Methods ==========
+
+    def degree_distribution(self) -> dict[int, int]:
+        """Get degree distribution as a mapping from degree to count.
+
+        Returns a histogram of node degrees, showing how many nodes have each
+        degree value. Useful for analyzing network topology and identifying
+        hub nodes or scale-free properties.
+
+        Returns
+        -------
+        dict[int, int]
+            Dictionary mapping degree values to the number of nodes with that degree.
+
+        Examples
+        --------
+        Get degree distribution:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("Hub", "A")
+            .add_edge("Hub", "B")
+            .add_edge("Hub", "C")
+            .add_edge("Hub", "D")
+        )
+
+        dist = graph.degree_distribution()
+        print(dist)  # {1: 4, 4: 1} - 4 nodes with degree 1, 1 node with degree 4
+        ```
+
+        See Also
+        --------
+        degree : Get degree of a single node
+        average_degree : Get mean degree
+        get_degree_histogram : Alias for this method
+        """
+        return self._graph.degree_distribution()
+
+    def get_graph_average_degree(self) -> float:
+        """Calculate average degree across all nodes.
+
+        For directed graphs, this returns the average of (in-degree + out-degree).
+        For undirected graphs, each edge contributes to the degree of both endpoints.
+
+        Returns
+        -------
+        float
+            Mean degree value across all nodes.
+
+        Examples
+        --------
+        Calculate average degree:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+
+        print(graph.get_graph_average_degree())  # 2.0 (cycle graph)
+        ```
+
+        See Also
+        --------
+        degree_distribution : Get full degree distribution
+        degree : Get degree of a specific node
+        """
+        return self._graph.average_degree()
+
+    def get_agg_degree_in(self, agg: str, conditions: Optional[Callable] = None) -> float:
+        """Get aggregate value from indegree of nodes.
+
+        Computes a single aggregate statistic from the indegree values of all nodes
+        (or a filtered subset) in a directed graph. Useful for summarizing the
+        indegree distribution or analyzing filtered node subsets.
+
+        Parameters
+        ---
+        agg : str
+            Aggregation function to apply. Must be one of:
+            - `'sum'` : Sum of all indegrees
+            - `'min'` : Minimum indegree
+            - `'max'` : Maximum indegree
+            - `'mean'` : Mean indegree
+            - `'median'` : Median indegree
+        conditions : callable, optional
+            Filter function that takes a node object and returns `True` to include
+            the node in the aggregation. If `None`, all nodes are included.
+
+        Returns
+        ---
+        float
+            The computed aggregate indegree value. Returns `0.0` if no nodes match
+            the conditions.
+
+        Raises
+        ---
+        ValueError
+            If the graph is undirected or if `agg` is not a valid aggregation function.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        # Create directed graph
+        graph = ec.Graph(directed=True)
+        graph.add_gnm_graph(20, 35, seed=23)
+
+        # Mean indegree across all nodes
+        mean_in = graph.get_agg_degree_in('mean')
+        print(mean_in)  # 1.75
+
+        # Median indegree
+        median_in = graph.get_agg_degree_in('median')
+        print(median_in)  # 1.5
+
+        # Filtered aggregation: mean indegree of high-degree nodes
+        high_degree_mean = graph.get_agg_degree_in(
+            'mean',
+            conditions=lambda n: graph.get_degree(n) > 3
+        )
+        ```
+
+        See Also
+        --------
+        get_agg_degree_out : Aggregate outdegree values
+        get_agg_degree_total : Aggregate total degree values
+        in_degree : Get indegree of a single node
+        degree_distribution : Get full degree distribution
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_agg_degree_in() only works with directed graphs")
+
+        valid_agg = {"sum", "min", "max", "mean", "median"}
+        if agg not in valid_agg:
+            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
+
+        # Get indegrees for all nodes (or filtered nodes)
+        degrees = []
+        for node_id in self.node_ids(limit=None):
+            if conditions is None or conditions(self.get_node(node_id)):
+                degrees.append(self.get_in_degree(node_id))
+
+        if not degrees:
+            return 0.0
+
+        # Apply aggregation
+        if agg == "sum":
+            return float(sum(degrees))
+        elif agg == "min":
+            return float(min(degrees))
+        elif agg == "max":
+            return float(max(degrees))
+        elif agg == "mean":
+            return sum(degrees) / len(degrees)
+        elif agg == "median":
+            sorted_degrees = sorted(degrees)
+            n = len(sorted_degrees)
+            if n % 2 == 0:
+                return (sorted_degrees[n // 2 - 1] + sorted_degrees[n // 2]) / 2.0
+            else:
+                return float(sorted_degrees[n // 2])
+
+    def get_agg_degree_out(self, agg: str, conditions: Optional[Callable] = None) -> float:
+        """Get aggregate value from outdegree of nodes.
+
+        Computes a single aggregate statistic from the outdegree values of all nodes
+        (or a filtered subset) in a directed graph. Useful for summarizing the
+        outdegree distribution or analyzing filtered node subsets.
+
+        Parameters
+        ---
+        agg : str
+            Aggregation function to apply. Must be one of:
+            - `'sum'` : Sum of all outdegrees
+            - `'min'` : Minimum outdegree
+            - `'max'` : Maximum outdegree
+            - `'mean'` : Mean outdegree
+            - `'median'` : Median outdegree
+        conditions : callable, optional
+            Filter function that takes a node object and returns `True` to include
+            the node in the aggregation. If `None`, all nodes are included.
+
+        Returns
+        ---
+        float
+            The computed aggregate outdegree value. Returns `0.0` if no nodes match
+            the conditions.
+
+        Raises
+        ---
+        ValueError
+            If the graph is undirected or if `agg` is not a valid aggregation function.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        # Create directed graph
+        graph = ec.Graph(directed=True)
+        graph.add_gnm_graph(20, 35, seed=23)
+
+        # Mean outdegree across all nodes
+        mean_out = graph.get_agg_degree_out('mean')
+        print(mean_out)  # 1.75
+
+        # Median outdegree
+        median_out = graph.get_agg_degree_out('median')
+        print(median_out)  # 1.0
+
+        # Filtered aggregation: max outdegree of nodes with attributes
+        max_out = graph.get_agg_degree_out(
+            'max',
+            conditions=lambda n: 'type' in n.attributes
+        )
+        ```
+
+        See Also
+        --------
+        get_agg_degree_in : Aggregate indegree values
+        get_agg_degree_total : Aggregate total degree values
+        out_degree : Get outdegree of a single node
+        degree_distribution : Get full degree distribution
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_agg_degree_out() only works with directed graphs")
+
+        valid_agg = {"sum", "min", "max", "mean", "median"}
+        if agg not in valid_agg:
+            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
+
+        # Get outdegrees for all nodes (or filtered nodes)
+        degrees = []
+        for node_id in self.node_ids(limit=None):
+            if conditions is None or conditions(self.get_node(node_id)):
+                degrees.append(self.get_out_degree(node_id))
+
+        if not degrees:
+            return 0.0
+
+        # Apply aggregation
+        if agg == "sum":
+            return float(sum(degrees))
+        elif agg == "min":
+            return float(min(degrees))
+        elif agg == "max":
+            return float(max(degrees))
+        elif agg == "mean":
+            return sum(degrees) / len(degrees)
+        elif agg == "median":
+            sorted_degrees = sorted(degrees)
+            n = len(sorted_degrees)
+            if n % 2 == 0:
+                return (sorted_degrees[n // 2 - 1] + sorted_degrees[n // 2]) / 2.0
+            else:
+                return float(sorted_degrees[n // 2])
+
+    def get_agg_degree_total(self, agg: str, conditions: Optional[Callable] = None) -> float:
+        """Get aggregate value from total degree of nodes.
+
+        Computes a single aggregate statistic from the total degree values of all nodes
+        (or a filtered subset). Works with both directed and undirected graphs. For
+        directed graphs, total degree = indegree + outdegree.
+
+        Parameters
+        ---
+        agg : str
+            Aggregation function to apply. Must be one of:
+            - `'sum'` : Sum of all total degrees
+            - `'min'` : Minimum total degree
+            - `'max'` : Maximum total degree
+            - `'mean'` : Mean total degree
+            - `'median'` : Median total degree
+        conditions : callable, optional
+            Filter function that takes a node object and returns `True` to include
+            the node in the aggregation. If `None`, all nodes are included.
+
+        Returns
+        ---
+        float
+            The computed aggregate total degree value. Returns `0.0` if no nodes
+            match the conditions.
+
+        Raises
+        ---
+        ValueError
+            If `agg` is not a valid aggregation function.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        # Create directed graph
+        graph = ec.Graph(directed=True)
+        graph.add_gnm_graph(20, 35, seed=23)
+
+        # Mean total degree across all nodes
+        mean_total = graph.get_agg_degree_total('mean')
+        print(mean_total)  # 3.5
+
+        # Median total degree
+        median_total = graph.get_agg_degree_total('median')
+        print(median_total)  # 3.0
+
+        # Works with undirected graphs too
+        graph_undirected = ec.Graph(directed=False)
+        graph_undirected.add_cycle_graph(10)
+        mean_deg = graph_undirected.get_agg_degree_total('mean')
+        print(mean_deg)  # 2.0
+        ```
+
+        See Also
+        --------
+        get_agg_degree_in : Aggregate indegree values (directed only)
+        get_agg_degree_out : Aggregate outdegree values (directed only)
+        degree : Get total degree of a single node
+        average_degree : Get mean degree across all nodes
+        """
+        valid_agg = {"sum", "min", "max", "mean", "median"}
+        if agg not in valid_agg:
+            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
+
+        # Get total degrees for all nodes (or filtered nodes)
+        degrees = []
+        for node_id in self.node_ids(limit=None):
+            if conditions is None or conditions(self.get_node(node_id)):
+                degrees.append(self.get_degree(node_id))
+
+        if not degrees:
+            return 0.0
+
+        # Apply aggregation
+        if agg == "sum":
+            return float(sum(degrees))
+        elif agg == "min":
+            return float(min(degrees))
+        elif agg == "max":
+            return float(max(degrees))
+        elif agg == "mean":
+            return sum(degrees) / len(degrees)
+        elif agg == "median":
+            sorted_degrees = sorted(degrees)
+            n = len(sorted_degrees)
+            if n % 2 == 0:
+                return (sorted_degrees[n // 2 - 1] + sorted_degrees[n // 2]) / 2.0
+            else:
+                return float(sorted_degrees[n // 2])
+
+    def get_degree_histogram(self) -> dict[int, int]:
+        """Get degree histogram for plotting.
+
+        Returns a dictionary mapping degree values to their frequencies,
+        suitable for creating degree distribution plots. This is an alias
+        for `degree_distribution()`.
+
+        Returns
+        -------
+        dict[int, int]
+            Dictionary where keys are degree values and values are counts of
+            nodes with that degree.
+
+        Examples
+        --------
+        Get degree histogram from a star graph:
+
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph()
+        graph.add_star_graph(5)  # 1 hub (degree 4) + 4 leaves (degree 1)
+
+        hist = graph.get_degree_histogram()
+        print(hist)  # {1: 4, 4: 1}
+        ```
+
+        Visualize degree distribution:
+
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph()
+        graph.add_gnp_graph(100, 0.05, seed=23)
+
+        hist = graph.get_degree_histogram()
+
+        # Plot with your favorite library
+        for degree, count in sorted(hist.items()):
+            print(f"Degree {degree}: {count} nodes")
+        ```
+
+        See Also
+        --------
+        degree_distribution : Equivalent method
+        average_degree : Get mean degree
+        """
+        return self.degree_distribution()
+
+    # ========== Distance & Path Metrics ==========
+
+    def get_mean_distance(self) -> float | None:
+        """Get mean distance (average shortest path length).
+
+        Computes average shortest path length between all reachable node pairs.
+        Also known as average path length or characteristic path length. Returns
+        None if graph is disconnected (infinite distances exist).
+
+        Returns
+        -------
+        float | None
+            Average shortest path length, or None if graph is disconnected.
+
+        Examples
+        --------
+        Calculate mean distance in a path graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        mean_dist = graph.get_mean_distance()
+        # Paths: A-B(1), A-C(2), A-D(3), B-C(1), B-D(2), C-D(1)
+        # Average: (1+2+3+1+2+1)/6 = 1.67
+        print(mean_dist)
+        ```
+
+        Notes
+        -----
+        Important network metric:
+        - Small-world networks: Low mean distance despite high clustering
+        - Scale-free networks: Mean distance grows logarithmically with size
+        - Used in epidemiology: Average infection spread time
+
+        See Also
+        --------
+        get_graph_diameter : Maximum shortest path length
+        get_graph_radius : Minimum eccentricity
+        """
+        return self._graph.get_mean_distance()
+
+    def get_min_eccentricity(self) -> int | None:
+        """Get minimum eccentricity (graph radius).
+
+        Alias for `get_graph_radius()`. The minimum eccentricity is the smallest
+        maximum distance from any node to all other nodes. Returns None if graph
+        is disconnected.
+
+        Returns
+        -------
+        int | None
+            Minimum eccentricity (radius), or None if disconnected.
+
+        Examples
+        --------
+        Find the radius of a star graph:
+
+        ```python
+        graph = Graph().add_star_graph(5)
+
+        radius = graph.get_min_eccentricity()
+        print(radius)  # 1 (center reaches all nodes in 1 step)
+        ```
+
+        See Also
+        --------
+        get_graph_radius : Equivalent method
+        get_max_eccentricity : Maximum eccentricity (diameter)
+        get_eccentricity : Eccentricity of each node
+        """
+        return self.get_graph_radius()
+
+    def get_max_eccentricity(self) -> int | None:
+        """Get maximum eccentricity (graph diameter).
+
+        Alias for `get_graph_diameter()`. The maximum eccentricity is the longest
+        shortest path between any two nodes. Returns None if graph is disconnected.
+
+        Returns
+        -------
+        int | None
+            Maximum eccentricity (diameter), or None if disconnected.
+
+        Examples
+        --------
+        Find the diameter of a path graph:
+
+        ```python
+        graph = Graph().add_path_graph(5)
+
+        diameter = graph.get_max_eccentricity()
+        print(diameter)  # 4 (end-to-end distance)
+        ```
+
+        See Also
+        --------
+        get_graph_diameter : Equivalent method
+        get_min_eccentricity : Minimum eccentricity (radius)
+        get_eccentricity : Eccentricity of each node
+        """
+        return self.get_graph_diameter()
 
     # ========== Structural Properties ==========
 
@@ -4126,48 +4652,6 @@ class Graph:
         """
         return self._graph.count_strongly_connected_components()
 
-    def degree_distribution(self) -> dict[int, int]:
-        """Get degree distribution as a mapping from degree to count.
-
-        Returns a histogram of node degrees, showing how many nodes have each
-        degree value. Useful for analyzing network topology and identifying
-        hub nodes or scale-free properties.
-
-        Returns
-        -------
-        dict[int, int]
-            Dictionary mapping degree values to the number of nodes with that degree.
-
-        Examples
-        --------
-        Get degree distribution:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="Hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("Hub", "A")
-            .add_edge("Hub", "B")
-            .add_edge("Hub", "C")
-            .add_edge("Hub", "D")
-        )
-
-        dist = graph.degree_distribution()
-        print(dist)  # {1: 4, 4: 1} - 4 nodes with degree 1, 1 node with degree 4
-        ```
-
-        See Also
-        --------
-        degree : Get degree of a single node
-        average_degree : Get mean degree
-        get_degree_histogram : Alias for this method
-        """
-        return self._graph.degree_distribution()
-
     def count_selfloops(self) -> int:
         """Count number of self-loops in the graph.
 
@@ -4357,485 +4841,6 @@ class Graph:
         reciprocity : Calculate reciprocity ratio
         """
         return self._graph.count_asymmetric_node_pairs()
-
-    def get_graph_average_degree(self) -> float:
-        """Calculate average degree across all nodes.
-
-        For directed graphs, this returns the average of (in-degree + out-degree).
-        For undirected graphs, each edge contributes to the degree of both endpoints.
-
-        Returns
-        -------
-        float
-            Mean degree value across all nodes.
-
-        Examples
-        --------
-        Calculate average degree:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
-        )
-
-        print(graph.get_graph_average_degree())  # 2.0 (cycle graph)
-        ```
-
-        See Also
-        --------
-        degree_distribution : Get full degree distribution
-        degree : Get degree of a specific node
-        """
-        return self._graph.average_degree()
-
-    def get_agg_degree_in(self, agg: str, conditions: Optional[Callable] = None) -> float:
-        """Get aggregate value from indegree of nodes.
-
-        Computes a single aggregate statistic from the indegree values of all nodes
-        (or a filtered subset) in a directed graph. Useful for summarizing the
-        indegree distribution or analyzing filtered node subsets.
-
-        Parameters
-        ---
-        agg : str
-            Aggregation function to apply. Must be one of:
-            - `'sum'` : Sum of all indegrees
-            - `'min'` : Minimum indegree
-            - `'max'` : Maximum indegree
-            - `'mean'` : Mean indegree
-            - `'median'` : Median indegree
-        conditions : callable, optional
-            Filter function that takes a node object and returns `True` to include
-            the node in the aggregation. If `None`, all nodes are included.
-
-        Returns
-        ---
-        float
-            The computed aggregate indegree value. Returns `0.0` if no nodes match
-            the conditions.
-
-        Raises
-        ---
-        ValueError
-            If the graph is undirected or if `agg` is not a valid aggregation function.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        # Create directed graph
-        graph = ec.Graph(directed=True)
-        graph.add_gnm_graph(20, 35, seed=23)
-
-        # Mean indegree across all nodes
-        mean_in = graph.get_agg_degree_in('mean')
-        print(mean_in)  # 1.75
-
-        # Median indegree
-        median_in = graph.get_agg_degree_in('median')
-        print(median_in)  # 1.5
-
-        # Filtered aggregation: mean indegree of high-degree nodes
-        high_degree_mean = graph.get_agg_degree_in(
-            'mean',
-            conditions=lambda n: graph.get_degree(n) > 3
-        )
-        ```
-
-        See Also
-        --------
-        get_agg_degree_out : Aggregate outdegree values
-        get_agg_degree_total : Aggregate total degree values
-        in_degree : Get indegree of a single node
-        degree_distribution : Get full degree distribution
-        """
-        if not self._graph.is_directed:
-            raise ValueError("get_agg_degree_in() only works with directed graphs")
-
-        valid_agg = {"sum", "min", "max", "mean", "median"}
-        if agg not in valid_agg:
-            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
-
-        # Get indegrees for all nodes (or filtered nodes)
-        degrees = []
-        for node_id in self.node_ids(limit=None):
-            if conditions is None or conditions(self.get_node(node_id)):
-                degrees.append(self.get_in_degree(node_id))
-
-        if not degrees:
-            return 0.0
-
-        # Apply aggregation
-        if agg == "sum":
-            return float(sum(degrees))
-        elif agg == "min":
-            return float(min(degrees))
-        elif agg == "max":
-            return float(max(degrees))
-        elif agg == "mean":
-            return sum(degrees) / len(degrees)
-        elif agg == "median":
-            sorted_degrees = sorted(degrees)
-            n = len(sorted_degrees)
-            if n % 2 == 0:
-                return (sorted_degrees[n // 2 - 1] + sorted_degrees[n // 2]) / 2.0
-            else:
-                return float(sorted_degrees[n // 2])
-
-    def get_agg_degree_out(self, agg: str, conditions: Optional[Callable] = None) -> float:
-        """Get aggregate value from outdegree of nodes.
-
-        Computes a single aggregate statistic from the outdegree values of all nodes
-        (or a filtered subset) in a directed graph. Useful for summarizing the
-        outdegree distribution or analyzing filtered node subsets.
-
-        Parameters
-        ---
-        agg : str
-            Aggregation function to apply. Must be one of:
-            - `'sum'` : Sum of all outdegrees
-            - `'min'` : Minimum outdegree
-            - `'max'` : Maximum outdegree
-            - `'mean'` : Mean outdegree
-            - `'median'` : Median outdegree
-        conditions : callable, optional
-            Filter function that takes a node object and returns `True` to include
-            the node in the aggregation. If `None`, all nodes are included.
-
-        Returns
-        ---
-        float
-            The computed aggregate outdegree value. Returns `0.0` if no nodes match
-            the conditions.
-
-        Raises
-        ---
-        ValueError
-            If the graph is undirected or if `agg` is not a valid aggregation function.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        # Create directed graph
-        graph = ec.Graph(directed=True)
-        graph.add_gnm_graph(20, 35, seed=23)
-
-        # Mean outdegree across all nodes
-        mean_out = graph.get_agg_degree_out('mean')
-        print(mean_out)  # 1.75
-
-        # Median outdegree
-        median_out = graph.get_agg_degree_out('median')
-        print(median_out)  # 1.0
-
-        # Filtered aggregation: max outdegree of nodes with attributes
-        max_out = graph.get_agg_degree_out(
-            'max',
-            conditions=lambda n: 'type' in n.attributes
-        )
-        ```
-
-        See Also
-        --------
-        get_agg_degree_in : Aggregate indegree values
-        get_agg_degree_total : Aggregate total degree values
-        out_degree : Get outdegree of a single node
-        degree_distribution : Get full degree distribution
-        """
-        if not self._graph.is_directed:
-            raise ValueError("get_agg_degree_out() only works with directed graphs")
-
-        valid_agg = {"sum", "min", "max", "mean", "median"}
-        if agg not in valid_agg:
-            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
-
-        # Get outdegrees for all nodes (or filtered nodes)
-        degrees = []
-        for node_id in self.node_ids(limit=None):
-            if conditions is None or conditions(self.get_node(node_id)):
-                degrees.append(self.get_out_degree(node_id))
-
-        if not degrees:
-            return 0.0
-
-        # Apply aggregation
-        if agg == "sum":
-            return float(sum(degrees))
-        elif agg == "min":
-            return float(min(degrees))
-        elif agg == "max":
-            return float(max(degrees))
-        elif agg == "mean":
-            return sum(degrees) / len(degrees)
-        elif agg == "median":
-            sorted_degrees = sorted(degrees)
-            n = len(sorted_degrees)
-            if n % 2 == 0:
-                return (sorted_degrees[n // 2 - 1] + sorted_degrees[n // 2]) / 2.0
-            else:
-                return float(sorted_degrees[n // 2])
-
-    def get_agg_degree_total(self, agg: str, conditions: Optional[Callable] = None) -> float:
-        """Get aggregate value from total degree of nodes.
-
-        Computes a single aggregate statistic from the total degree values of all nodes
-        (or a filtered subset). Works with both directed and undirected graphs. For
-        directed graphs, total degree = indegree + outdegree.
-
-        Parameters
-        ---
-        agg : str
-            Aggregation function to apply. Must be one of:
-            - `'sum'` : Sum of all total degrees
-            - `'min'` : Minimum total degree
-            - `'max'` : Maximum total degree
-            - `'mean'` : Mean total degree
-            - `'median'` : Median total degree
-        conditions : callable, optional
-            Filter function that takes a node object and returns `True` to include
-            the node in the aggregation. If `None`, all nodes are included.
-
-        Returns
-        ---
-        float
-            The computed aggregate total degree value. Returns `0.0` if no nodes
-            match the conditions.
-
-        Raises
-        ---
-        ValueError
-            If `agg` is not a valid aggregation function.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        # Create directed graph
-        graph = ec.Graph(directed=True)
-        graph.add_gnm_graph(20, 35, seed=23)
-
-        # Mean total degree across all nodes
-        mean_total = graph.get_agg_degree_total('mean')
-        print(mean_total)  # 3.5
-
-        # Median total degree
-        median_total = graph.get_agg_degree_total('median')
-        print(median_total)  # 3.0
-
-        # Works with undirected graphs too
-        graph_undirected = ec.Graph(directed=False)
-        graph_undirected.add_cycle_graph(10)
-        mean_deg = graph_undirected.get_agg_degree_total('mean')
-        print(mean_deg)  # 2.0
-        ```
-
-        See Also
-        --------
-        get_agg_degree_in : Aggregate indegree values (directed only)
-        get_agg_degree_out : Aggregate outdegree values (directed only)
-        degree : Get total degree of a single node
-        average_degree : Get mean degree across all nodes
-        """
-        valid_agg = {"sum", "min", "max", "mean", "median"}
-        if agg not in valid_agg:
-            raise ValueError(f"agg must be one of {valid_agg}, got '{agg}'")
-
-        # Get total degrees for all nodes (or filtered nodes)
-        degrees = []
-        for node_id in self.node_ids(limit=None):
-            if conditions is None or conditions(self.get_node(node_id)):
-                degrees.append(self.get_degree(node_id))
-
-        if not degrees:
-            return 0.0
-
-        # Apply aggregation
-        if agg == "sum":
-            return float(sum(degrees))
-        elif agg == "min":
-            return float(min(degrees))
-        elif agg == "max":
-            return float(max(degrees))
-        elif agg == "mean":
-            return sum(degrees) / len(degrees)
-        elif agg == "median":
-            sorted_degrees = sorted(degrees)
-            n = len(sorted_degrees)
-            if n % 2 == 0:
-                return (sorted_degrees[n // 2 - 1] + sorted_degrees[n // 2]) / 2.0
-            else:
-                return float(sorted_degrees[n // 2])
-
-    def get_degree_histogram(self) -> dict[int, int]:
-        """Get degree histogram for plotting.
-
-        Returns a dictionary mapping degree values to their frequencies,
-        suitable for creating degree distribution plots. This is an alias
-        for `degree_distribution()`.
-
-        Returns
-        -------
-        dict[int, int]
-            Dictionary where keys are degree values and values are counts of
-            nodes with that degree.
-
-        Examples
-        --------
-        Get degree histogram from a star graph:
-
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph()
-        graph.add_star_graph(5)  # 1 hub (degree 4) + 4 leaves (degree 1)
-
-        hist = graph.get_degree_histogram()
-        print(hist)  # {1: 4, 4: 1}
-        ```
-
-        Visualize degree distribution:
-
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph()
-        graph.add_gnp_graph(100, 0.05, seed=23)
-
-        hist = graph.get_degree_histogram()
-
-        # Plot with your favorite library
-        for degree, count in sorted(hist.items()):
-            print(f"Degree {degree}: {count} nodes")
-        ```
-
-        See Also
-        --------
-        degree_distribution : Equivalent method
-        average_degree : Get mean degree
-        degree : Get degree of a single node
-        """
-        return self._graph.get_degree_histogram()
-
-    def get_mean_distance(self) -> float | None:
-        """Get mean distance (average shortest path length).
-
-        Computes average shortest path length between all reachable node pairs.
-        Also known as average path length or characteristic path length. Returns
-        None if graph is disconnected (infinite distances exist).
-
-        Returns
-        -------
-        float | None
-            Average shortest path length, or None if graph is disconnected.
-
-        Examples
-        --------
-        Calculate mean distance in a path graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-        )
-
-        mean_dist = graph.get_mean_distance()
-        # Paths: A-B(1), A-C(2), A-D(3), B-C(1), B-D(2), C-D(1)
-        # Average: (1+2+3+1+2+1)/6 = 1.67
-        print(mean_dist)
-        ```
-
-        Notes
-        -----
-        Important network metric:
-        - Small-world networks: Low mean distance despite high clustering
-        - Scale-free networks: Mean distance grows logarithmically with size
-        - Used in epidemiology: Average infection spread time
-
-        See Also
-        --------
-        get_graph_diameter : Maximum shortest path length
-        get_graph_radius : Minimum eccentricity
-        """
-        return self._graph.get_mean_distance()
-
-    def get_min_eccentricity(self) -> int | None:
-        """Get minimum eccentricity (graph radius).
-
-        Alias for `get_graph_radius()`. The minimum eccentricity is the smallest
-        maximum distance from any node to all other nodes. Returns None if graph
-        is disconnected.
-
-        Returns
-        -------
-        int | None
-            Minimum eccentricity (radius), or None if disconnected.
-
-        Examples
-        --------
-        Find the radius of a star graph:
-
-        ```python
-        graph = Graph().add_star_graph(5)
-
-        radius = graph.get_min_eccentricity()
-        print(radius)  # 1 (center reaches all nodes in 1 step)
-        ```
-
-        See Also
-        --------
-        get_graph_radius : Equivalent method
-        get_max_eccentricity : Maximum eccentricity (diameter)
-        get_eccentricity : Eccentricity of each node
-        """
-        return self.get_graph_radius()
-
-    def get_max_eccentricity(self) -> int | None:
-        """Get maximum eccentricity (graph diameter).
-
-        Alias for `get_graph_diameter()`. The maximum eccentricity is the longest
-        shortest path between any two nodes. Returns None if graph is disconnected.
-
-        Returns
-        -------
-        int | None
-            Maximum eccentricity (diameter), or None if disconnected.
-
-        Examples
-        --------
-        Find the diameter of a path graph:
-
-        ```python
-        graph = Graph().add_path_graph(5)
-
-        diameter = graph.get_max_eccentricity()
-        print(diameter)  # 4 (end-to-end distance)
-        ```
-
-        See Also
-        --------
-        get_graph_diameter : Equivalent method
-        get_min_eccentricity : Minimum eccentricity (radius)
-        get_eccentricity : Eccentricity of each node
-        """
-        return self.get_graph_diameter()
 
     def get_articulation_points(self) -> list[str]:
         """Find articulation points (cut nodes) in the graph.
