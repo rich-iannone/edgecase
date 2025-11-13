@@ -1961,64 +1961,6 @@ class Graph:
 
         return planner.compute_or_improve_path(epsilon)
 
-    def neighbors(self, node: Union[int, str]) -> list[int]:
-        """Get neighbors of a node.
-
-        Returns the node IDs of all nodes directly connected to the specified node.
-        For directed graphs, returns only outgoing neighbors (nodes this node points to).
-
-        Parameters
-        ----------
-        node : int | str
-            Node ID or label to get neighbors for.
-
-        Returns
-        -------
-        list[int]
-            List of neighbor node IDs.
-
-        Examples
-        --------
-        Get neighbors in an undirected graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-        )
-
-        neighbors = graph.neighbors("A")
-        print(len(neighbors))  # 2
-        ```
-
-        In directed graphs, only outgoing edges count:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")  # A -> B
-            .add_edge("C", "A")  # C -> A
-        )
-
-        # A points to B, so B is a neighbor
-        print(len(graph.neighbors("A")))  # 1
-        ```
-
-        See Also
-        --------
-        degree : Get node degree
-        has_edge : Check if edge exists
-        """
-        node_id = self._resolve_node_id(node)
-        return self._graph.neighbors(node_id)
-
     def num_nodes(self) -> int:
         """Return number of nodes."""
         return self._graph.num_nodes()
@@ -3356,6 +3298,473 @@ class Graph:
                 node2_label = self.get_label_from_id(node2_id)
                 result[node1_label][node2_label] = score
         return result
+
+    # ========== Neighbor & Connectivity Methods ==========
+
+    def neighbors(self, node: Union[int, str]) -> list[int]:
+        """Get neighbors of a node.
+
+        Returns the node IDs of all nodes directly connected to the specified node.
+        For directed graphs, returns only outgoing neighbors (nodes this node points to).
+
+        Parameters
+        ----------
+        node : int | str
+            Node ID or label to get neighbors for.
+
+        Returns
+        -------
+        list[int]
+            List of neighbor node IDs.
+
+        Examples
+        --------
+        Get neighbors in an undirected graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+        )
+
+        neighbors = graph.neighbors("A")
+        print(len(neighbors))  # 2
+        ```
+
+        In directed graphs, only outgoing edges count:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")  # A -> B
+            .add_edge("C", "A")  # C -> A
+        )
+
+        # A points to B, so B is a neighbor
+        print(len(graph.neighbors("A")))  # 1
+        ```
+
+        See Also
+        --------
+        degree : Get node degree
+        has_edge : Check if edge exists
+        """
+        node_id = self._resolve_node_id(node)
+        return self._graph.neighbors(node_id)
+
+    def get_common_neighbors(self, node_id1: str, node_id2: str) -> list[str]:
+        """Get nodes that are neighbors of both specified nodes.
+
+        Returns the intersection of neighbor sets for two nodes, useful for finding
+        shared connections or potential triangles in the graph.
+
+        Parameters
+        ---
+        node_id1 : str
+            First node ID.
+        node_id2 : str
+            Second node ID.
+
+        Returns
+        ---
+        list of str
+            List of node IDs that are neighbors to both `node_id1` and `node_id2`.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False)
+        graph.add_edge("A", "C")
+        graph.add_edge("B", "C")
+        graph.add_edge("A", "D")
+        graph.add_edge("B", "D")
+
+        # Find nodes connected to both A and B
+        common = graph.get_common_neighbors("A", "B")
+        print(common)  # ['C', 'D']
+        ```
+
+        Triangle detection using common neighbors:
+
+        ```python
+        # Find all triangles involving node A
+        for neighbor in graph.neighbors("A"):
+            common = graph.get_common_neighbors("A", neighbor)
+            for third_node in common:
+                print(f"Triangle: A - {neighbor} - {third_node}")
+        ```
+
+        See Also
+        --------
+        get_neighbors : Get neighbors of a single node
+        get_similarity : Measure neighbor overlap between nodes
+        """
+        neighbors1 = set(self.get_neighbors(node_id1, mode="all"))
+        neighbors2 = set(self.get_neighbors(node_id2, mode="all"))
+        return list(neighbors1 & neighbors2)
+
+    def get_predecessors(self, node_id: str) -> list[str]:
+        """Get direct predecessors of a node (incoming neighbors).
+
+        Returns nodes that have outgoing edges to the specified node. Only available
+        for directed graphs.
+
+        Parameters
+        ---
+        node_id : str
+            Node ID to find predecessors for.
+
+        Returns
+        ---
+        list of str
+            List of predecessor node IDs (nodes with edges pointing to `node_id`).
+
+        Raises
+        ---
+        ValueError
+            If the graph is undirected.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_edge("A", "C")
+        graph.add_edge("B", "C")
+
+        # Find nodes with edges pointing to C
+        predecessors = graph.get_predecessors("C")
+        print(predecessors)  # ['A', 'B']
+        ```
+
+        See Also
+        --------
+        get_successors : Get outgoing neighbors
+        get_neighbors : Get neighbors with direction control
+        in_degree : Get count of incoming edges
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_predecessors only available for directed graphs")
+        return self.get_neighbors(node_id, mode="in")
+
+    def get_successors(self, node_id: str) -> list[str]:
+        """Get direct successors of a node (outgoing neighbors).
+
+        Returns nodes that are targets of outgoing edges from the specified node.
+        Only available for directed graphs.
+
+        Parameters
+        ---
+        node_id : str
+            Node ID to find successors for.
+
+        Returns
+        ---
+        list of str
+            List of successor node IDs (nodes that `node_id` points to).
+
+        Raises
+        ---
+        ValueError
+            If the graph is undirected.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "C")
+
+        # Find nodes that A points to
+        successors = graph.get_successors("A")
+        print(successors)  # ['B', 'C']
+        ```
+
+        See Also
+        --------
+        get_predecessors : Get incoming neighbors
+        get_neighbors : Get neighbors with direction control
+        out_degree : Get count of outgoing edges
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_successors only available for directed graphs")
+        return self.get_neighbors(node_id, mode="out")
+
+    def get_non_neighbors(self, node_id: str) -> list[str]:
+        """Get nodes that are NOT neighbors of the specified node.
+
+        Returns all nodes in the graph except the specified node itself and its
+        neighbors. Useful for finding potential new connections or disconnected nodes.
+
+        Parameters
+        ---
+        node_id : str
+            Node ID to find non-neighbors for.
+
+        Returns
+        ---
+        list of str
+            Sorted list of node IDs that are not neighbors of `node_id` and are not
+            `node_id` itself.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_path_graph(5)  # 1 → 2 → 3 → 4 → 5
+
+        # Node 2 is connected to 1 and 3
+        # Non-neighbors are 4 and 5
+        non_neighbors = graph.get_non_neighbors("2")
+        print(non_neighbors)  # ['4', '5']
+        ```
+
+        Find potential new connections:
+
+        ```python
+        # Recommend connections for a node
+        node = "A"
+        candidates = graph.get_non_neighbors(node)
+
+        # Score candidates by common neighbors
+        scores = [
+            (candidate, len(graph.get_common_neighbors(node, candidate)))
+            for candidate in candidates
+        ]
+        ```
+
+        See Also
+        --------
+        get_neighbors : Get neighbors of a node
+        neighbors : Get neighbor list
+        """
+        all_nodes = set(self.node_ids(limit=None))
+        neighbors = set(self.get_neighbors(node_id, mode="all"))
+
+        # Remove the node itself and its neighbors
+        non_neighbors = all_nodes - neighbors - {node_id}
+
+        return sorted(list(non_neighbors))
+
+    def get_similar_neighbors(
+        self,
+        node_id: str,
+        node_attr: str,
+        tol_abs: tuple[float, float] | None = None,
+        tol_pct: tuple[float, float] | None = None,
+    ) -> list[str]:
+        """Get neighbors with similar attribute values.
+
+        Returns neighbors whose numeric attribute values fall within a specified
+        tolerance range of the starting node's value. Useful for finding connected
+        nodes with comparable properties.
+
+        Parameters
+        ---
+        node_id : str
+            Starting node ID to compare against.
+        node_attr : str
+            Name of the numeric attribute to compare.
+        tol_abs : tuple of (float, float), optional
+            Absolute tolerance as `(lower_bound, upper_bound)` from the starting
+            value. For example, `(1.0, 2.0)` means values from `start_value - 1.0`
+            to `start_value + 2.0` are considered similar.
+        tol_pct : tuple of (float, float), optional
+            Percentage tolerance as `(lower_pct, upper_pct)` from the starting value.
+            For example, `(10, 20)` means values from `start_value × 0.9` to
+            `start_value × 1.2` are considered similar.
+
+        Returns
+        ---
+        list of str
+            List of neighbor node IDs with similar attribute values. Empty list if
+            the starting node lacks the attribute or has no neighbors in range.
+
+        Raises
+        ---
+        ValueError
+            If the attribute exists but is not numeric (int or float).
+
+        Examples
+        --------
+        ```python
+        graph = Graph()
+        graph.add_node("A", value=5.0)
+        graph.add_node("B", value=5.5)
+        graph.add_node("C", value=10.0)
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "C")
+
+        # Find neighbors within ±1.0 of A's value (5.0)
+        similar = graph.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
+        print(similar)  # ['B'] (5.5 is within range, 10.0 is not)
+        ```
+
+        Using percentage tolerance:
+
+        ```python
+        # Find neighbors within ±20% of A's value
+        similar_pct = graph.get_similar_neighbors(
+            "A",
+            "value",
+            tol_pct=(20, 20)
+        )
+        # Range: 4.0 to 6.0 (20% of 5.0)
+        ```
+
+        Notes
+        -----
+        - If neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
+        - Neighbors without the specified attribute are excluded from results.
+        - Non-numeric attribute values raise a `ValueError`.
+
+        See Also
+        --------
+        get_neighbors : Get all neighbors without filtering
+        get_node_attrs : Get attributes for multiple nodes
+        """
+        # Get starting node's attribute value
+        start_node = self.get_node(node_id)
+        if not start_node or not start_node.attributes:
+            return []
+
+        if node_attr not in start_node.attributes:
+            return []
+
+        start_value = start_node.attributes[node_attr]
+
+        # Must be numeric
+        if not isinstance(start_value, (int, float)):
+            raise ValueError(f"Attribute '{node_attr}' must be numeric for similarity comparison")
+
+        # Determine bounds
+        if tol_abs is not None:
+            lower_bound = start_value - tol_abs[0]
+            upper_bound = start_value + tol_abs[1]
+        elif tol_pct is not None:
+            lower_bound = start_value * (1 - tol_pct[0] / 100.0)
+            upper_bound = start_value * (1 + tol_pct[1] / 100.0)
+        else:
+            # Exact match if no tolerance specified
+            lower_bound = start_value
+            upper_bound = start_value
+
+        # Get all neighbors
+        neighbors = self.get_neighbors(node_id, mode="all")
+
+        # Filter by attribute similarity
+        similar = []
+        for neighbor_id in neighbors:
+            neighbor = self.get_node(neighbor_id)
+            if neighbor and neighbor.attributes and node_attr in neighbor.attributes:
+                neighbor_value = neighbor.attributes[node_attr]
+                if isinstance(neighbor_value, (int, float)):
+                    if lower_bound <= neighbor_value <= upper_bound:
+                        similar.append(neighbor_id)
+
+        return similar
+
+    def get_all_connected_nodes(self, node_id: str) -> list[str]:
+        """Get all nodes reachable from the specified node.
+
+        Uses breadth-first search (BFS) to find all nodes in the same connected
+        component. For directed graphs, treats edges as undirected during traversal.
+
+        Parameters
+        ---
+        node_id : str
+            Starting node ID for the search.
+
+        Returns
+        ---
+        list of str
+            List of all reachable node IDs, excluding the starting node itself.
+            Empty list if the node is isolated.
+
+        Raises
+        ---
+        KeyError
+            If `node_id` does not exist in the graph.
+
+        Examples
+        --------
+        ```python
+        graph = Graph()
+
+        # Create two separate components
+        graph.add_path_graph(3)  # Component 1: nodes 0-1-2
+        graph.add_path_graph(2)  # Component 2: nodes 3-4
+
+        # Find all nodes reachable from node 0
+        node_0 = graph.get_id_from_label(0)
+        connected = graph.get_all_connected_nodes(node_0)
+        print(len(connected))  # 2 (nodes 1 and 2)
+
+        # Node 3 is in a separate component
+        node_3 = graph.get_id_from_label(3)
+        connected_3 = graph.get_all_connected_nodes(node_3)
+        print(len(connected_3))  # 1 (node 4)
+        ```
+
+        Component size analysis:
+
+        ```python
+        # Find size of each component
+        visited = set()
+        components = []
+
+        for node in graph.node_ids(limit=None):
+            if node not in visited:
+                component = graph.get_all_connected_nodes(node)
+                component.append(node)  # Include starting node
+                components.append(component)
+                visited.update(component)
+
+        print(f"Found {len(components)} components")
+        ```
+
+        See Also
+        --------
+        is_connected : Check if graph is fully connected
+        count_weakly_connected_components : Count connected components
+        get_neighbors : Get immediate neighbors only
+        """
+        if not self.has_node(node_id):
+            raise KeyError(f"Node '{node_id}' does not exist")
+
+        visited = set()
+        queue = [node_id]
+        visited.add(node_id)
+
+        while queue:
+            current = queue.pop(0)
+
+            # Get all neighbors (treating directed as undirected)
+            neighbors = self.get_neighbors(current, mode="all")
+
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        # Remove the starting node from results
+        visited.discard(node_id)
+
+        return sorted(list(visited))
 
     # ========== Structural Properties ==========
 
@@ -10840,413 +11249,6 @@ class Graph:
             neighbors = [n for n in neighbors if predicate(n)]
 
         return neighbors
-
-    def get_common_neighbors(self, node_id1: str, node_id2: str) -> list[str]:
-        """Get nodes that are neighbors of both specified nodes.
-
-        Returns the intersection of neighbor sets for two nodes, useful for finding
-        shared connections or potential triangles in the graph.
-
-        Parameters
-        ---
-        node_id1 : str
-            First node ID.
-        node_id2 : str
-            Second node ID.
-
-        Returns
-        ---
-        list of str
-            List of node IDs that are neighbors to both `node_id1` and `node_id2`.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=False)
-        graph.add_edge("A", "C")
-        graph.add_edge("B", "C")
-        graph.add_edge("A", "D")
-        graph.add_edge("B", "D")
-
-        # Find nodes connected to both A and B
-        common = graph.get_common_neighbors("A", "B")
-        print(common)  # ['C', 'D']
-        ```
-
-        Triangle detection using common neighbors:
-
-        ```python
-        # Find all triangles involving node A
-        for neighbor in graph.neighbors("A"):
-            common = graph.get_common_neighbors("A", neighbor)
-            for third_node in common:
-                print(f"Triangle: A - {neighbor} - {third_node}")
-        ```
-
-        See Also
-        --------
-        get_neighbors : Get neighbors of a single node
-        get_similarity : Measure neighbor overlap between nodes
-        """
-        neighbors1 = set(self.get_neighbors(node_id1, mode="all"))
-        neighbors2 = set(self.get_neighbors(node_id2, mode="all"))
-        return list(neighbors1 & neighbors2)
-
-    def get_predecessors(self, node_id: str) -> list[str]:
-        """Get direct predecessors of a node (incoming neighbors).
-
-        Returns nodes that have outgoing edges to the specified node. Only available
-        for directed graphs.
-
-        Parameters
-        ---
-        node_id : str
-            Node ID to find predecessors for.
-
-        Returns
-        ---
-        list of str
-            List of predecessor node IDs (nodes with edges pointing to `node_id`).
-
-        Raises
-        ---
-        ValueError
-            If the graph is undirected.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=True)
-        graph.add_edge("A", "C")
-        graph.add_edge("B", "C")
-
-        # Find nodes with edges pointing to C
-        predecessors = graph.get_predecessors("C")
-        print(predecessors)  # ['A', 'B']
-        ```
-
-        See Also
-        --------
-        get_successors : Get outgoing neighbors
-        get_neighbors : Get neighbors with direction control
-        in_degree : Get count of incoming edges
-        """
-        if not self._graph.is_directed:
-            raise ValueError("get_predecessors only available for directed graphs")
-        return self.get_neighbors(node_id, mode="in")
-
-    def get_successors(self, node_id: str) -> list[str]:
-        """Get direct successors of a node (outgoing neighbors).
-
-        Returns nodes that are targets of outgoing edges from the specified node.
-        Only available for directed graphs.
-
-        Parameters
-        ---
-        node_id : str
-            Node ID to find successors for.
-
-        Returns
-        ---
-        list of str
-            List of successor node IDs (nodes that `node_id` points to).
-
-        Raises
-        ---
-        ValueError
-            If the graph is undirected.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=True)
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "C")
-
-        # Find nodes that A points to
-        successors = graph.get_successors("A")
-        print(successors)  # ['B', 'C']
-        ```
-
-        See Also
-        --------
-        get_predecessors : Get incoming neighbors
-        get_neighbors : Get neighbors with direction control
-        out_degree : Get count of outgoing edges
-        """
-        if not self._graph.is_directed:
-            raise ValueError("get_successors only available for directed graphs")
-        return self.get_neighbors(node_id, mode="out")
-
-    def get_non_neighbors(self, node_id: str) -> list[str]:
-        """Get nodes that are NOT neighbors of the specified node.
-
-        Returns all nodes in the graph except the specified node itself and its
-        neighbors. Useful for finding potential new connections or disconnected nodes.
-
-        Parameters
-        ---
-        node_id : str
-            Node ID to find non-neighbors for.
-
-        Returns
-        ---
-        list of str
-            Sorted list of node IDs that are not neighbors of `node_id` and are not
-            `node_id` itself.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=True)
-        graph.add_path_graph(5)  # 1 → 2 → 3 → 4 → 5
-
-        # Node 2 is connected to 1 and 3
-        # Non-neighbors are 4 and 5
-        non_neighbors = graph.get_non_neighbors("2")
-        print(non_neighbors)  # ['4', '5']
-        ```
-
-        Find potential new connections:
-
-        ```python
-        # Recommend connections for a node
-        node = "A"
-        candidates = graph.get_non_neighbors(node)
-
-        # Score candidates by common neighbors
-        scores = [
-            (candidate, len(graph.get_common_neighbors(node, candidate)))
-            for candidate in candidates
-        ]
-        ```
-
-        See Also
-        --------
-        get_neighbors : Get neighbors of a node
-        neighbors : Get neighbor list
-        """
-        all_nodes = set(self.node_ids(limit=None))
-        neighbors = set(self.get_neighbors(node_id, mode="all"))
-
-        # Remove the node itself and its neighbors
-        non_neighbors = all_nodes - neighbors - {node_id}
-
-        return sorted(list(non_neighbors))
-
-    def get_similar_neighbors(
-        self,
-        node_id: str,
-        node_attr: str,
-        tol_abs: tuple[float, float] | None = None,
-        tol_pct: tuple[float, float] | None = None,
-    ) -> list[str]:
-        """Get neighbors with similar attribute values.
-
-        Returns neighbors whose numeric attribute values fall within a specified
-        tolerance range of the starting node's value. Useful for finding connected
-        nodes with comparable properties.
-
-        Parameters
-        ---
-        node_id : str
-            Starting node ID to compare against.
-        node_attr : str
-            Name of the numeric attribute to compare.
-        tol_abs : tuple of (float, float), optional
-            Absolute tolerance as `(lower_bound, upper_bound)` from the starting
-            value. For example, `(1.0, 2.0)` means values from `start_value - 1.0`
-            to `start_value + 2.0` are considered similar.
-        tol_pct : tuple of (float, float), optional
-            Percentage tolerance as `(lower_pct, upper_pct)` from the starting value.
-            For example, `(10, 20)` means values from `start_value × 0.9` to
-            `start_value × 1.2` are considered similar.
-
-        Returns
-        ---
-        list of str
-            List of neighbor node IDs with similar attribute values. Empty list if
-            the starting node lacks the attribute or has no neighbors in range.
-
-        Raises
-        ---
-        ValueError
-            If the attribute exists but is not numeric (int or float).
-
-        Examples
-        --------
-        ```python
-        graph = Graph()
-        graph.add_node("A", value=5.0)
-        graph.add_node("B", value=5.5)
-        graph.add_node("C", value=10.0)
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "C")
-
-        # Find neighbors within ±1.0 of A's value (5.0)
-        similar = graph.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
-        print(similar)  # ['B'] (5.5 is within range, 10.0 is not)
-        ```
-
-        Using percentage tolerance:
-
-        ```python
-        # Find neighbors within ±20% of A's value
-        similar_pct = graph.get_similar_neighbors(
-            "A",
-            "value",
-            tol_pct=(20, 20)
-        )
-        # Range: 4.0 to 6.0 (20% of 5.0)
-        ```
-
-        Notes
-        -----
-        - If neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
-        - Neighbors without the specified attribute are excluded from results.
-        - Non-numeric attribute values raise a `ValueError`.
-
-        See Also
-        --------
-        get_neighbors : Get all neighbors without filtering
-        get_node_attrs : Get attributes for multiple nodes
-        """
-        # Get starting node's attribute value
-        start_node = self.get_node(node_id)
-        if not start_node or not start_node.attributes:
-            return []
-
-        if node_attr not in start_node.attributes:
-            return []
-
-        start_value = start_node.attributes[node_attr]
-
-        # Must be numeric
-        if not isinstance(start_value, (int, float)):
-            raise ValueError(f"Attribute '{node_attr}' must be numeric for similarity comparison")
-
-        # Determine bounds
-        if tol_abs is not None:
-            lower_bound = start_value - tol_abs[0]
-            upper_bound = start_value + tol_abs[1]
-        elif tol_pct is not None:
-            lower_bound = start_value * (1 - tol_pct[0] / 100.0)
-            upper_bound = start_value * (1 + tol_pct[1] / 100.0)
-        else:
-            # Exact match if no tolerance specified
-            lower_bound = start_value
-            upper_bound = start_value
-
-        # Get all neighbors
-        neighbors = self.get_neighbors(node_id, mode="all")
-
-        # Filter by attribute similarity
-        similar = []
-        for neighbor_id in neighbors:
-            neighbor = self.get_node(neighbor_id)
-            if neighbor and neighbor.attributes and node_attr in neighbor.attributes:
-                neighbor_value = neighbor.attributes[node_attr]
-                if isinstance(neighbor_value, (int, float)):
-                    if lower_bound <= neighbor_value <= upper_bound:
-                        similar.append(neighbor_id)
-
-        return similar
-
-    def get_all_connected_nodes(self, node_id: str) -> list[str]:
-        """Get all nodes reachable from the specified node.
-
-        Uses breadth-first search (BFS) to find all nodes in the same connected
-        component. For directed graphs, treats edges as undirected during traversal.
-
-        Parameters
-        ---
-        node_id : str
-            Starting node ID for the search.
-
-        Returns
-        ---
-        list of str
-            List of all reachable node IDs, excluding the starting node itself.
-            Empty list if the node is isolated.
-
-        Raises
-        ---
-        KeyError
-            If `node_id` does not exist in the graph.
-
-        Examples
-        --------
-        ```python
-        graph = Graph()
-
-        # Create two separate components
-        graph.add_path_graph(3)  # Component 1: nodes 0-1-2
-        graph.add_path_graph(2)  # Component 2: nodes 3-4
-
-        # Find all nodes reachable from node 0
-        node_0 = graph.get_id_from_label(0)
-        connected = graph.get_all_connected_nodes(node_0)
-        print(len(connected))  # 2 (nodes 1 and 2)
-
-        # Node 3 is in a separate component
-        node_3 = graph.get_id_from_label(3)
-        connected_3 = graph.get_all_connected_nodes(node_3)
-        print(len(connected_3))  # 1 (node 4)
-        ```
-
-        Component size analysis:
-
-        ```python
-        # Find size of each component
-        visited = set()
-        components = []
-
-        for node in graph.node_ids(limit=None):
-            if node not in visited:
-                component = graph.get_all_connected_nodes(node)
-                component.append(node)  # Include starting node
-                components.append(component)
-                visited.update(component)
-
-        print(f"Found {len(components)} components")
-        ```
-
-        See Also
-        --------
-        is_connected : Check if graph is fully connected
-        count_weakly_connected_components : Count connected components
-        get_neighbors : Get immediate neighbors only
-        """
-        if not self.has_node(node_id):
-            raise KeyError(f"Node '{node_id}' does not exist")
-
-        visited = set()
-        queue = [node_id]
-        visited.add(node_id)
-
-        while queue:
-            current = queue.pop(0)
-
-            # Get all neighbors (treating directed as undirected)
-            neighbors = self.get_neighbors(current, mode="all")
-
-            for neighbor in neighbors:
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append(neighbor)
-
-        # Remove the starting node from results
-        visited.discard(node_id)
-
-        return sorted(list(visited))
 
     def get_node_creation_order(self) -> list[int]:
         """Get nodes in their creation order.
