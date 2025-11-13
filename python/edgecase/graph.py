@@ -6681,7 +6681,7 @@ class Graph:
 
     # ========== Community Detection Methods ==========
 
-    def get_cmty_fast_greedy(self) -> dict[str, int]:
+    def get_cmty_fast_greedy(self, attr_name: str = None) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
 
         This is a greedy modularity optimization algorithm that merges communities
@@ -6694,10 +6694,18 @@ class Graph:
         3. Repeatedly merge the pair with highest ΔQ until no improvement
         4. Return the partition with maximum modularity
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            If provided, automatically stores community assignments as node attributes
+            with this name and returns self for method chaining. If not provided,
+            returns the community dictionary.
+
         Returns
         -------
-        dict[str, int]
-            Mapping from node ID to community ID (0-indexed).
+        Union[dict[str, int], Graph]
+            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed).
+            If attr_name is provided: returns self for method chaining.
 
         Raises
         ------
@@ -6726,6 +6734,15 @@ class Graph:
         print(len(set(communities.values())))  # 2 communities
         ```
 
+        Store as node attributes and chain:
+
+        ```python
+        (graph
+            .get_cmty_fast_greedy(attr_name="community")
+            .colorize_node_attrs("community", palette="Set1")
+            .show())
+        ```
+
         Notes
         -----
         Complexity: O(n log²n) on sparse graphs, O(n + m) space.
@@ -6741,9 +6758,15 @@ class Graph:
         get_cmty_louvain : Faster for very large graphs
         get_cmty_edge_btwns : More accurate but slower
         """
-        return self._graph.get_cmty_fast_greedy()
+        communities = self._graph.get_cmty_fast_greedy()
 
-    def get_cmty_edge_btwns(self) -> dict[str, int]:
+        if attr_name is not None:
+            self.set_node_attrs(attr_name, communities)
+            return self
+
+        return communities
+
+    def get_cmty_edge_btwns(self, attr_name: str = None) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
 
         Iteratively removes edges with highest betweenness centrality to reveal
@@ -6755,10 +6778,18 @@ class Graph:
         structure and clear "bridge" edges between communities. When accuracy is
         more important than speed.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            If provided, automatically stores community assignments as node attributes
+            with this name and returns self for method chaining. If not provided,
+            returns the community dictionary.
+
         Returns
         -------
-        dict[str, int]
-            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+        Union[dict[str, int], Graph]
+            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If attr_name is provided: returns self for method chaining.
 
         Raises
         ------
@@ -6792,6 +6823,15 @@ class Graph:
         # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
         ```
 
+        Store as node attributes and chain:
+
+        ```python
+        (graph
+            .get_cmty_edge_btwns(attr_name="community")
+            .colorize_node_attrs("community", palette="Pastel1")
+            .show())
+        ```
+
         Notes
         -----
         Algorithm steps:
@@ -6818,9 +6858,15 @@ class Graph:
         get_cmty_louvain : Best for very large graphs
         get_cmty_walktrap : Alternative hierarchical method
         """
-        return self._graph.get_cmty_edge_btwns()
+        communities = self._graph.get_cmty_edge_btwns()
 
-    def get_cmty_l_eigenvec(self) -> dict[str, int]:
+        if attr_name is not None:
+            self.set_node_attrs(attr_name, communities)
+            return self
+
+        return communities
+
+    def get_cmty_l_eigenvec(self, attr_name: str = None) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Leading Eigenvector (Newman) algorithm.
 
         Spectral optimization method using recursive bisection based on the leading
@@ -6828,10 +6874,18 @@ class Graph:
         modularity improves. Best for medium-sized graphs (< 20K nodes) with clear
         2-way divisions and hierarchical structure.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            If provided, automatically stores community assignments as node attributes
+            with this name and returns self for method chaining. If not provided,
+            returns the community dictionary.
+
         Returns
         -------
-        dict[str, int]
-            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+        Union[dict[str, int], Graph]
+            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If attr_name is provided: returns self for method chaining.
 
         Raises
         ------
@@ -6867,6 +6921,15 @@ class Graph:
         # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
         ```
 
+        Store as node attributes and chain:
+
+        ```python
+        (graph
+            .get_cmty_l_eigenvec(attr_name="community")
+            .colorize_node_attrs("community", palette="Spectral")
+            .show())
+        ```
+
         Notes
         -----
         Algorithm steps:
@@ -6897,9 +6960,17 @@ class Graph:
         get_cmty_edge_btwns : More accurate but slower
         get_cmty_louvain : Best for very large graphs
         """
-        return self._graph.get_cmty_l_eigenvec()
+        communities = self._graph.get_cmty_l_eigenvec()
 
-    def get_cmty_louvain(self, resolution: float = 1.0) -> dict[str, int]:
+        if attr_name is not None:
+            self.set_node_attrs(attr_name, communities)
+            return self
+
+        return communities
+
+    def get_cmty_louvain(
+        self, resolution: float = 1.0, attr_name: str = None
+    ) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Louvain multi-level optimization algorithm.
 
         The Louvain method is a hierarchical algorithm that maximizes modularity
@@ -6914,11 +6985,16 @@ class Graph:
         resolution : float, default 1.0
             Resolution parameter controlling community size. Higher values favor
             smaller communities. Standard modularity uses resolution=1.0.
+        attr_name : str, optional
+            If provided, automatically stores community assignments as node attributes
+            with this name and returns self for method chaining. If not provided,
+            returns the community dictionary.
 
         Returns
         -------
-        dict[str, int]
-            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+        Union[dict[str, int], Graph]
+            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If attr_name is provided: returns self for method chaining.
 
         Raises
         ------
@@ -6963,6 +7039,15 @@ class Graph:
         coarse = graph.get_cmty_louvain(resolution=0.5)  # Larger communities
         ```
 
+        Store as node attributes and chain:
+
+        ```python
+        (graph
+            .get_cmty_louvain(attr_name="community")
+            .colorize_node_attrs("community", palette="viridis")
+            .show())
+        ```
+
         Notes
         -----
         Algorithm steps:
@@ -6997,9 +7082,17 @@ class Graph:
         get_cmty_edge_btwns : Divisive hierarchical method
         get_cmty_l_eigenvec : Spectral bisection method
         """
-        return self._graph.get_cmty_louvain(resolution)
+        communities = self._graph.get_cmty_louvain(resolution)
 
-    def get_cmty_walktrap(self, steps: int = 4) -> dict[str, int]:
+        if attr_name is not None:
+            self.set_node_attrs(attr_name, communities)
+            return self
+
+        return communities
+
+    def get_cmty_walktrap(
+        self, steps: int = 4, attr_name: str = None
+    ) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Walktrap random walk algorithm.
 
         The Walktrap algorithm exploits the property that random walks tend to stay
@@ -7018,11 +7111,16 @@ class Graph:
             - steps=2: Local structure only
             - steps=4: Good balance (default, recommended)
             - steps=6+: Longer-range patterns, more computation
+        attr_name : str, optional
+            If provided, automatically stores community assignments as node attributes
+            with this name and returns self for method chaining. If not provided,
+            returns the community dictionary.
 
         Returns
         -------
-        dict[str, int]
-            Dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+        Union[dict[str, int], Graph]
+            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If attr_name is provided: returns self for method chaining.
 
         Raises
         ------
@@ -7066,6 +7164,15 @@ class Graph:
         global_cmty = graph.get_cmty_walktrap(steps=6)  # More global communities
         ```
 
+        Store as node attributes and chain:
+
+        ```python
+        (graph
+            .get_cmty_walktrap(attr_name="community")
+            .colorize_node_attrs("community", palette="tab10")
+            .show())
+        ```
+
         Notes
         -----
         Algorithm steps:
@@ -7107,7 +7214,15 @@ class Graph:
         get_cmty_edge_btwns : Divisive hierarchical method
         get_cmty_l_eigenvec : Spectral method
         """
-        return self._graph.get_cmty_walktrap(steps)
+        communities = self._graph.get_cmty_walktrap(steps)
+
+        if attr_name is not None:
+            self.set_node_attrs(attr_name, communities)
+            return self
+
+        return communities
+
+    # ========== Internal NDF Methods ==========
 
     def colorize_node_attrs(
         self,
