@@ -9,6 +9,10 @@ except PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
 # Import Rust core with Python wrapper for API compatibility
+from edgecase.colors import (
+    COLOR_PALETTES,
+    list_palettes,
+)
 from edgecase.datasets import (
     karate_club,
 )
@@ -82,4 +86,7 @@ __all__ = [
     # Datasets
     "from_matrix_market",
     "karate_club",
+    # Colors
+    "COLOR_PALETTES",
+    "list_palettes",
 ]
