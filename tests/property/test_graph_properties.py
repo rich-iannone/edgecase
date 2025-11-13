@@ -12,10 +12,15 @@ from edgecase import Graph, shortest_path, pagerank
 @st.composite
 def node_ids(draw):
     """Generate valid node IDs"""
-    return draw(st.text(min_size=1, max_size=10, alphabet=st.characters(
-        whitelist_categories=('Lu', 'Ll', 'Nd'),
-        min_codepoint=65, max_codepoint=122
-    )))
+    return draw(
+        st.text(
+            min_size=1,
+            max_size=10,
+            alphabet=st.characters(
+                whitelist_categories=("Lu", "Ll", "Nd"), min_codepoint=65, max_codepoint=122
+            ),
+        )
+    )
 
 
 @st.composite
@@ -23,34 +28,35 @@ def small_graphs(draw, directed=None):
     """Generate small random graphs"""
     is_directed = draw(st.booleans()) if directed is None else directed
     is_weighted = draw(st.booleans())
-    
+
     G = Graph(directed=is_directed, weighted=is_weighted)
-    
+
     # Generate nodes
     num_nodes = draw(st.integers(min_value=0, max_value=20))
     nodes = [f"n{i}" for i in range(num_nodes)]
-    
+
     for node in nodes:
         G.add_node(node)
-    
+
     # Generate edges
     if num_nodes > 1:
         num_edges = draw(st.integers(min_value=0, max_value=num_nodes * 2))
-        
+
         for _ in range(num_edges):
             src = draw(st.sampled_from(nodes))
             tgt = draw(st.sampled_from(nodes))
-            
+
             if is_weighted:
                 weight = draw(st.floats(min_value=0.1, max_value=10.0))
                 G.add_edge(src, tgt, weight=weight)
             else:
                 G.add_edge(src, tgt)
-    
+
     return G
 
 
 # Graph invariant tests
+
 
 @given(G=small_graphs())
 @settings(max_examples=100)
@@ -76,8 +82,8 @@ def test_nodes_list_length(G):
 @given(G=small_graphs())
 @settings(max_examples=100)
 def test_edges_list_length(G):
-    """len(edges()) should equal num_edges()"""
-    assert len(G.edges()) == G.num_edges()
+    """len(edges_as_tuples()) should equal num_edges()"""
+    assert len(G.edges_as_tuples()) == G.num_edges()
 
 
 @given(G=small_graphs())
@@ -102,6 +108,7 @@ def test_add_duplicate_node_no_change(G):
 
 # Undirected graph property tests
 
+
 @given(G=small_graphs(directed=False))
 @settings(max_examples=100)
 def test_undirected_neighbors_symmetric(G):
@@ -117,13 +124,14 @@ def test_undirected_neighbors_symmetric(G):
 
 # PageRank property tests
 
+
 @given(G=small_graphs())
 @settings(max_examples=50, deadline=1000)
 def test_pagerank_sum_to_one(G):
     """PageRank scores should sum to 1.0"""
     if G.num_nodes() > 0:
         ranks = pagerank(G)
-        
+
         if ranks:  # If PageRank succeeded
             total = sum(ranks.values())
             assert abs(total - 1.0) < 1e-4
@@ -135,7 +143,7 @@ def test_pagerank_all_positive(G):
     """All PageRank scores should be positive"""
     if G.num_nodes() > 0:
         ranks = pagerank(G)
-        
+
         if ranks:
             for score in ranks.values():
                 assert score > 0
@@ -147,13 +155,14 @@ def test_pagerank_covers_all_nodes(G):
     """PageRank should return scores for all nodes"""
     if G.num_nodes() > 0:
         ranks = pagerank(G)
-        
+
         if ranks:
             assert len(ranks) == G.num_nodes()
             assert set(ranks.keys()) == set(G.node_ids(limit=None))
 
 
 # Shortest path property tests
+
 
 @given(G=small_graphs(), seed=st.integers(min_value=0, max_value=1000))
 @settings(max_examples=50, deadline=1000)
@@ -163,9 +172,9 @@ def test_shortest_path_starts_and_ends_correctly(G, seed):
         nodes = G.node_ids(limit=None)
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
-        
+
         path = shortest_path(G, source, target)
-        
+
         if path and len(path) > 0:
             assert path[0] == source
             assert path[-1] == target
@@ -179,13 +188,13 @@ def test_shortest_path_consecutive_edges_exist(G, seed):
         nodes = G.node_ids(limit=None)
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
-        
+
         path = shortest_path(G, source, target)
-        
+
         if path and len(path) > 1:
             for i in range(len(path) - 1):
                 # Next node should be in current node's neighbors
-                assert path[i+1] in G.neighbors(path[i])
+                assert path[i + 1] in G.neighbors(path[i])
 
 
 if __name__ == "__main__":

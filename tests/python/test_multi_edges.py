@@ -42,8 +42,8 @@ class TestMultiEdgeGraphs:
         edge_ids = g.edge_ids()
         assert edge_ids == [1, 2, 3, 4]
 
-        # Check edges returns (id, source_id, target_id) - IDs not labels
-        edges = g.edges()
+        # Check edges_as_tuples returns (id, source_id, target_id) - IDs not labels
+        edges = g.edges_as_tuples()
         assert len(edges) == 4
         # Nodes get auto-assigned integer IDs (A=1, B=2, C=3)
         assert edges[0] == (1, 1, 2)  # edge 1: A->B

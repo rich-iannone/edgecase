@@ -9,6 +9,7 @@ from edgecase import Graph
 
 # Graph creation tests
 
+
 def test_empty_graph(empty_graph):
     """Empty graph should have 0 nodes and 0 edges"""
     assert empty_graph.num_nodes() == 0
@@ -34,6 +35,7 @@ def test_weighted_graph_creation():
 
 
 # Node operation tests
+
 
 def test_add_single_node(empty_graph):
     """Adding node should increase count"""
@@ -70,6 +72,7 @@ def test_nodes_returns_list(simple_graph):
 
 
 # Edge operation tests
+
 
 def test_add_edge_creates_nodes(empty_graph):
     """Adding edge should create nodes if they don't exist"""
@@ -116,13 +119,14 @@ def test_add_duplicate_edge_directed():
 
 
 def test_edges_returns_list(simple_graph):
-    """edges() should return list of edges"""
-    edges = simple_graph.edges()
+    """edges_as_tuples() should return list of edges"""
+    edges = simple_graph.edges_as_tuples()
     assert isinstance(edges, list)
     assert len(edges) == 2
 
 
 # Neighbor query tests
+
 
 def test_neighbors_simple(simple_graph):
     """Test basic neighbor query"""
@@ -146,10 +150,10 @@ def test_undirected_neighbors_symmetric():
     G.add_node("A")
     G.add_node("B")
     G.add_edge("A", "B")
-    
+
     neighbors_a = [G.get_label_from_id(nid) for nid in G.neighbors("A")]
     neighbors_b = [G.get_label_from_id(nid) for nid in G.neighbors("B")]
-    
+
     assert "B" in neighbors_a
     assert "A" in neighbors_b
 
@@ -160,13 +164,14 @@ def test_directed_neighbors_asymmetric():
     G.add_node("A")
     G.add_node("B")
     G.add_edge("A", "B")
-    
+
     neighbors_a = [G.get_label_from_id(nid) for nid in G.neighbors("A")]
     assert "B" in neighbors_a
     # B might not have A as neighbor (depends on API)
 
 
 # Graph property tests
+
 
 def test_num_nodes_matches_added(small_graph):
     """num_nodes() should match actual node count"""
@@ -176,7 +181,7 @@ def test_num_nodes_matches_added(small_graph):
 
 def test_num_edges_matches_added(small_graph):
     """num_edges() should match actual edge count"""
-    edges = small_graph.edges()
+    edges = small_graph.edges_as_tuples()
     assert small_graph.num_edges() == len(edges)
 
 

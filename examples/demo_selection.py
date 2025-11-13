@@ -36,7 +36,7 @@ def demo_basic_selection():
 
     print(f"\nEdges connected to David: {G.count_selected_edges()} edges")
     selected_edge_ids = G.get_selected_edges()
-    edges_info = G.edges()
+    edges_info = G.edges_as_tuples()
     for eid in selected_edge_ids:
         edge = [e for e in edges_info if e[0] == eid][0]
         print(f"  Edge {edge[0]}: {edge[1]} -> {edge[2]}")
@@ -113,7 +113,7 @@ def demo_directed_graph_degree():
     print("\nHighly cited papers (in-degree >= 3):")
     for paper in highly_cited:
         # Count incoming citations
-        citations = [e for e in G.edges() if e[2] == paper]
+        citations = [e for e in G.edges_as_tuples() if e[2] == paper]
         print(f"  {paper}: {len(citations)} citations")
 
     # Find papers that cite many others (high out-degree)
@@ -123,7 +123,7 @@ def demo_directed_graph_degree():
 
     print("\nReview papers (out-degree >= 3):")
     for paper in review_papers:
-        citations = [e for e in G.edges() if e[1] == paper]
+        citations = [e for e in G.edges_as_tuples() if e[1] == paper]
         cited_papers = [e[2] for e in citations]
         print(f"  {paper}: cites {cited_papers}")
 

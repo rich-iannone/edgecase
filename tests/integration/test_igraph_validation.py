@@ -156,7 +156,7 @@ class TestGraphConversion:
 
         # Convert back
         G2 = from_igraph(ig_graph)
-        edges = G2.edges()
+        edges = G2.edges_as_tuples()
         edge = G2.get_edge(edges[0][0])
 
         assert edge.weight == 1.5

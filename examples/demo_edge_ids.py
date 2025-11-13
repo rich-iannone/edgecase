@@ -20,7 +20,7 @@ def demo_basic_multi_edges():
     print(f"Nodes: {g.num_nodes()}")
     print(f"Edges: {g.num_edges()}")
     print(f"Edge IDs: {g.edge_ids()}")
-    print(f"\nEdges (id, source, target): {g.edges()}")
+    print(f"\nEdges (id, source, target): {g.edges_as_tuples()}")
     print()
 
 
@@ -44,7 +44,7 @@ def demo_auto_increment():
     print("Added 5 edges total")
     print(f"Edge IDs: {g.edge_ids()}")
     print("\nMultiple A->B edges:")
-    for edge_id, src, tgt in g.edges():
+    for edge_id, src, tgt in g.edges_as_tuples():
         if src == "A" and tgt == "B":
             print(f"  Edge {edge_id}: {src} -> {tgt}")
     print()
@@ -114,7 +114,7 @@ def demo_dataframe_edge_ids():
     print(f"Nodes: {g.num_nodes()}, Edges: {g.num_edges()}")
     print(f"Edge IDs preserved: {g.edge_ids()}")
     print("\nUser1 -> User2 edges:")
-    for edge_id, src, tgt in g.edges():
+    for edge_id, src, tgt in g.edges_as_tuples():
         if src == "User1" and tgt == "User2":
             print(f"  Edge {edge_id}: {src} -> {tgt}")
     print()
@@ -148,7 +148,7 @@ def demo_social_network():
     print(f"Edge IDs: {g.edge_ids()}")
 
     # Find all Alice -> Bob interactions
-    alice_bob = [(eid, s, t) for eid, s, t in g.edges() if s == "Alice" and t == "Bob"]
+    alice_bob = [(eid, s, t) for eid, s, t in g.edges_as_tuples() if s == "Alice" and t == "Bob"]
     print(f"\nAlice -> Bob has {len(alice_bob)} different interaction types:")
     for eid, s, t in alice_bob:
         print(f"  Edge {eid}: {s} -> {t}")
@@ -184,7 +184,9 @@ def demo_transaction_network():
     print(f"Transaction IDs: {g.edge_ids()}")
 
     # Analyze transactions between Acct_001 and Acct_002
-    acct1_to_2 = [(eid, s, t) for eid, s, t in g.edges() if s == "Acct_001" and t == "Acct_002"]
+    acct1_to_2 = [
+        (eid, s, t) for eid, s, t in g.edges_as_tuples() if s == "Acct_001" and t == "Acct_002"
+    ]
     print(f"\nAcct_001 -> Acct_002: {len(acct1_to_2)} transactions")
     for eid, s, t in acct1_to_2:
         print(f"  Transaction {eid}: {s} -> {t}")

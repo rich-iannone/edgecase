@@ -79,7 +79,7 @@ def to_networkx(graph, multigraph: bool = False):
         nx_graph.add_node(nx_node_id, **node_attrs)
 
     # Add edges with attributes
-    edges = graph.edges()  # Returns list of (id, source, target) tuples
+    edges = graph.edges_as_tuples()  # Returns list of (id, source, target) tuples
 
     if multigraph:
         # MultiGraph: preserve edge IDs and multiple edges

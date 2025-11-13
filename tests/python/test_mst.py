@@ -27,7 +27,7 @@ class TestMinimumSpanningTree:
         # Calculate total weight
         total = sum(
             e.weight
-            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges()]
+            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges_as_tuples()]
             if e and e.weight is not None
         )
         assert total == 6.0  # 1 + 2 + 3
@@ -62,7 +62,7 @@ class TestMinimumSpanningTree:
         mst_weight = g.minimum_spanning_tree()
         total_weight = sum(
             e.weight
-            for e in [mst_weight.get_edge(eid) for eid, _, _ in mst_weight.edges()]
+            for e in [mst_weight.get_edge(eid) for eid, _, _ in mst_weight.edges_as_tuples()]
             if e and e.weight is not None
         )
         assert total_weight == 20.0  # Two edges with weight 10.0 each
@@ -142,7 +142,7 @@ class TestMinimumSpanningTree:
         assert mst.num_edges() == 2
 
         # Verify the structure is correct
-        edges = list(mst.edges())
+        edges = list(mst.edges_as_tuples())
         assert len(edges) == 2
 
     def test_mst_equal_weights(self):
@@ -161,7 +161,7 @@ class TestMinimumSpanningTree:
         assert mst.num_edges() == 2
         total = sum(
             e.weight
-            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges()]
+            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges_as_tuples()]
             if e and e.weight is not None
         )
         assert total == 2.0
@@ -214,7 +214,7 @@ class TestMaximumSpanningTree:
         # Calculate total weight (should prefer highest weights)
         total = sum(
             e.weight
-            for e in [max_st.get_edge(eid) for eid, _, _ in max_st.edges()]
+            for e in [max_st.get_edge(eid) for eid, _, _ in max_st.edges_as_tuples()]
             if e and e.weight is not None
         )
         # Maximum ST should select the 3 highest-weight edges that connect all nodes
@@ -272,18 +272,18 @@ class TestMaximumSpanningTree:
         # Minimum should prefer low weights
         mst_total = sum(
             e.weight
-            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges()]
+            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges_as_tuples()]
             if e and e.weight is not None
         )
         assert mst_total == 4.0  # 1.0 + 3.0
 
         # Maximum should prefer high weights
-        max_total = sum(
+        max_st_total = sum(
             e.weight
-            for e in [max_st.get_edge(eid) for eid, _, _ in max_st.edges()]
+            for e in [max_st.get_edge(eid) for eid, _, _ in max_st.edges_as_tuples()]
             if e and e.weight is not None
         )
-        assert max_total == 8.0  # 5.0 + 3.0
+        assert max_st_total == 8.0  # 5.0 + 3.0
 
 
 class TestMSTEdgeCases:
@@ -348,7 +348,7 @@ class TestMSTEdgeCases:
 
         total = sum(
             e.weight
-            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges()]
+            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges_as_tuples()]
             if e and e.weight is not None
         )
         # Should include the negative weight edge
@@ -368,7 +368,7 @@ class TestMSTEdgeCases:
 
         total = sum(
             e.weight
-            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges()]
+            for e in [mst.get_edge(eid) for eid, _, _ in mst.edges_as_tuples()]
             if e and e.weight is not None
         )
         assert total == 0.0  # Two zero-weight edges

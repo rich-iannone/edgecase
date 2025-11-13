@@ -88,7 +88,7 @@ def to_igraph(graph):
     node_to_idx = {node_id: idx for idx, node_id in enumerate(node_ids)}
 
     # Add edges
-    edges = graph.edges()  # Returns list of (id, source, target) tuples
+    edges = graph.edges_as_tuples()  # Returns list of (id, source, target) tuples
     edge_list = []
     edge_weights = []
     edge_ids = []

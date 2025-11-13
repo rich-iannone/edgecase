@@ -13,7 +13,7 @@ def demo_path_graph():
 
     print(f"Created path graph: {g}")
     print(f"Nodes: {g.node_ids(limit=None)}")
-    print(f"Edges: {g.edges()}")
+    print(f"Edges: {g.edges_as_tuples()}")
     print(f"Node '1' neighbors: {g.neighbors('1')}")
     print()
 
