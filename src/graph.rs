@@ -5255,8 +5255,8 @@ impl Graph {
     /// Measures the tendency of nodes to connect to other nodes with similar degrees.
     /// Returns Pearson correlation coefficient of node degrees across edges.
     ///
-    /// This implementation follows igraph's approach: compute node degrees and use
-    /// them as numeric attributes in the assortativity() function.
+    /// Computes node degrees and uses them as numeric attributes in the
+    /// assortativity() function.
     ///
     /// # Returns
     /// * f64 - Assortativity coefficient in range [-1, 1]
@@ -5283,7 +5283,6 @@ impl Graph {
     ///
     /// # References
     /// Newman, M.E.J. "Assortative mixing in networks" (2002)
-    /// igraph mixing.c lines 439-457
     pub fn assortativity_degree(&self) -> PyResult<f64> {
         let m = self.edges.len();
         if m == 0 {
@@ -5292,7 +5291,7 @@ impl Graph {
             ));
         }
 
-        // Calculate degrees for all nodes (following igraph's igraph_strength approach)
+        // Calculate degrees for all nodes
         // For undirected graphs, this is total degree
         // For directed graphs, we use out-degree for source and in-degree for target
 
@@ -5333,7 +5332,6 @@ impl Graph {
         };
 
         // Use the numeric assortativity function with degree values
-        // This matches igraph's implementation (mixing.c lines 439-457)
         let m_f64 = m as f64;
 
         let mut num1: f64 = 0.0;  // Σ(x*y)
@@ -5352,7 +5350,7 @@ impl Graph {
 
         // Apply undirected/directed normalization (same as assortativity())
         let (numerator, denominator) = if !self.directed {
-            // Undirected: special formula (igraph mixing.c lines 240-266)
+            // Undirected: special formula
             let num2 = (sum_x + sum_y) / (m_f64 * 2.0);
             let den1 = (sum_x2 + sum_y2) / (m_f64 * 2.0);
             num1 /= m_f64;
@@ -5361,7 +5359,7 @@ impl Graph {
             let den = den1 - num2 * num2;
             (num, den)
         } else {
-            // Directed: standard Pearson correlation (igraph mixing.c lines 268-308)
+            // Directed: standard Pearson correlation
             let mean_x = sum_x / m_f64;
             let mean_y = sum_y / m_f64;
 
@@ -5373,7 +5371,7 @@ impl Graph {
             (num, den)
         };
 
-        // Handle zero variance case (all nodes have same degree) - return NaN like igraph
+        // Handle zero variance case (all nodes have same degree) - return NaN
         if denominator.abs() < 1e-10 {
             return Ok(f64::NAN);
         }
@@ -5843,11 +5841,10 @@ impl Graph {
             }
 
             // Calculate Pearson correlation coefficient
-            // Following igraph implementation (mixing.c lines 219-310)
             let m_f64 = m as f64;
 
             if !self.directed {
-                // Undirected graph - special handling per igraph
+                // Undirected graph - special handling
                 let mut num1 = 0.0;
                 let mut num2 = 0.0;
                 let mut den1 = 0.0;
@@ -7322,7 +7319,7 @@ impl Graph {
             return None;
         }
 
-        // Check if split improves modularity using the same method as igraph:
+        // Check if split improves modularity:
         // Create split vector: +1 for group1, -1 for group2
         let n = nodes.len();
         let mut s: Vec<f64> = vec![0.0; n];
@@ -7384,7 +7381,7 @@ impl Graph {
             mod_contribution += s[i] * bs[i];
         }
 
-        // Accept split if modularity contribution is positive (following igraph)
+        // Accept split if modularity contribution is positive
         if mod_contribution > 1e-8 {
             Some((group1, group2))
         } else {
@@ -8375,7 +8372,7 @@ impl Graph {
                 for target_comm in communities_to_try {
                     let k_i_in = comm_weights.get(&target_comm).copied().unwrap_or(0.0);
 
-                    // Modularity gain formula from igraph:
+                    // Modularity gain formula:
                     // gain = k_i_in - resolution * sigma_tot * k_i / (2*m)
                     // where sigma_tot is the sum of degrees in target community (with node removed if it's current)
                     let sigma_tot = comm_degree_sum.get(&target_comm).copied().unwrap_or(0.0);

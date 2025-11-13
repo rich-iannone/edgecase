@@ -4,6 +4,115 @@ import polars as pl
 
 from edgecase import _core as rust
 
+# ==============================================================================
+# Core Data Structures
+# ==============================================================================
+
+# These are the Node and Edge classes from Rust backend for direct instantiation.
+# These are typically used in advanced scenarios or testing where you need
+# fine-grained control over graph element creation.
+
+Node = rust.Node
+"""Node data structure.
+
+Represents a graph node with an ID, optional label, and optional attributes.
+Typically created via `Graph.add_node()`, but can be instantiated directly
+for testing or advanced use cases.
+
+Attributes
+----------
+id : int
+    Internal node ID (64-bit unsigned integer).
+label : str | None
+    Optional human-readable label.
+attributes : dict | None
+    Optional dictionary of node attributes.
+
+Examples
+--------
+Create a basic node:
+
+```python
+from edgecase import Node
+
+# Node with ID and label only
+node = Node(1, "A")
+```
+
+Create a node with attributes:
+
+```python
+from edgecase import Node
+
+# Node with ID, label, and attributes
+node = Node(2, "B", {"type": "user", "score": 0.9})
+```
+
+Use in graph construction:
+
+```python
+from edgecase import Graph, Node
+
+# Create graph and add nodes directly
+graph = Graph()
+graph.add_node(Node(1, "Alice"))
+graph.add_node(Node(2, "Bob", {"role": "admin"}))
+```
+"""
+
+Edge = rust.Edge
+"""Edge data structure.
+
+Represents a graph edge connecting two nodes, with optional weight and attributes.
+Typically created via `Graph.add_edge()`, but can be instantiated directly
+for testing or advanced use cases.
+
+Attributes
+----------
+id : int
+    Internal edge ID (64-bit unsigned integer).
+source : int
+    Source node ID.
+target : int
+    Target node ID.
+weight : float | None
+    Optional edge weight (for weighted graphs).
+attributes : dict | None
+    Optional dictionary of edge attributes.
+
+Examples
+--------
+Create a basic edge:
+
+```python
+from edgecase import Edge
+
+# Auto-assign ID, connect nodes 1 -> 2
+edge = Edge(0, 1, 2, None, None)
+```
+
+Create a weighted edge with attributes:
+
+```python
+from edgecase import Edge
+
+# Edge with weight and attributes
+edge = Edge(0, 1, 2, 1.5, {"type": "friend", "since": 2020})
+```
+
+Use in graph construction:
+
+```python
+from edgecase import Graph, Node, Edge
+
+# Create graph with direct node and edge objects
+graph = Graph(directed=True, weighted=True)
+graph.add_node(Node(1, "Alice"))
+graph.add_node(Node(2, "Bob"))
+graph.add_edge(Edge(0, 1, 2, 0.8, {"relationship": "colleague"}))
+```
+"""
+
 
 class Graph:
     """A high-performance graph data structure with optional direction and weights.
@@ -13796,9 +13905,9 @@ class Graph:
         return self._graph.__repr__()
 
 
-# Re-export Node and Edge from Rust for direct access if needed
-Node = rust.Node
-Edge = rust.Edge
+# ==============================================================================
+# Algorithm Functions
+# ==============================================================================
 
 
 # Algorithm functions - wrap Rust functions to accept our Graph wrapper
