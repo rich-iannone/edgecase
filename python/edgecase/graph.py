@@ -953,7 +953,7 @@ class Graph:
         self._display_attr = attr
         return self
 
-    def get_cycles(self, min_length: int = 2) -> list[list[str]]:
+    def get_cycles(self, min_length: int = 2) -> list[list[int]]:
         """Get all elementary cycles in the graph using Johnson's algorithm.
 
         Implements Donald B. Johnson's 1975 algorithm for finding all elementary
@@ -971,8 +971,8 @@ class Graph:
 
         Returns
         -------
-        list[list[str]]
-            A list of cycles, where each cycle is a list of node labels forming
+        list[list[int]]
+            A list of cycles, where each cycle is a list of node IDs forming
             the cycle. The start node is not repeated at the end.
 
         Raises
@@ -997,14 +997,14 @@ class Graph:
         )
 
         cycles = graph.get_cycles()
-        print(cycles)  # [['A', 'B'], ['A', 'B', 'C']]
+        print(cycles)  # [[0, 1], [0, 1, 2]] (node IDs)
         ```
 
         Find only longer cycles:
 
         ```python
         cycles = graph.get_cycles(min_length=3)
-        print(cycles)  # [['A', 'B', 'C']]
+        print(cycles)  # [[0, 1, 2]]
         ```
 
         Notes
@@ -1030,10 +1030,7 @@ class Graph:
             raise ValueError("get_cycles() requires a directed graph")
 
         # Get cycles as node IDs from Rust
-        cycles_ids = self._graph.get_cycles(float(min_length))
-
-        # Convert node IDs to labels
-        return [[self.get_label_from_id(node_id) for node_id in cycle] for cycle in cycles_ids]
+        return self._graph.get_cycles(float(min_length))
 
     def ada_star_search(
         self,
@@ -13897,7 +13894,7 @@ def detect_communities(graph: Graph) -> dict[str, int]:
     return rust.detect_communities(graph._graph)
 
 
-def get_cycles(graph: Graph, min_length: int = 2) -> list[list[str]]:
+def get_cycles(graph: Graph, min_length: int = 2) -> list[list[int]]:
     """Get all elementary cycles in the graph using Johnson's algorithm.
 
     This is a standalone function that calls the Graph method. For most use cases,
@@ -13912,8 +13909,8 @@ def get_cycles(graph: Graph, min_length: int = 2) -> list[list[str]]:
 
     Returns
     -------
-    list[list[str]]
-        A list of cycles, where each cycle is a list of node labels.
+    list[list[int]]
+        A list of cycles, where each cycle is a list of node IDs.
 
     See Also
     --------

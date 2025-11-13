@@ -20,18 +20,22 @@ print(f"Nodes: {G.num_nodes()}")
 print(f"Edges: {G.num_edges()}")
 print()
 
-# Find all cycles
+# Find all cycles (returns node IDs)
 all_cycles = G.get_cycles()
 print(f"All elementary cycles found: {len(all_cycles)}")
 for i, cycle in enumerate(all_cycles, 1):
-    print(f"  {i}. {' -> '.join(cycle)} -> {cycle[0]} (length: {len(cycle)})")
+    # Convert node IDs to labels for display
+    cycle_labels = [G.get_label_from_id(nid) for nid in cycle]
+    print(f"  {i}. {' -> '.join(cycle_labels)} -> {cycle_labels[0]} (length: {len(cycle)})")
 print()
 
 # Find only longer cycles (length >= 3)
 long_cycles = G.get_cycles(min_length=3)
 print(f"Cycles of length 3+: {len(long_cycles)}")
 for i, cycle in enumerate(long_cycles, 1):
-    print(f"  {i}. {' -> '.join(cycle)} -> {cycle[0]} (length: {len(cycle)})")
+    # Convert node IDs to labels for display
+    cycle_labels = [G.get_label_from_id(nid) for nid in cycle]
+    print(f"  {i}. {' -> '.join(cycle_labels)} -> {cycle_labels[0]} (length: {len(cycle)})")
 print()
 
 # Check a simple triangle
@@ -48,5 +52,7 @@ triangle = (
 )
 
 cycles = triangle.get_cycles()
-print(f"Triangle cycles: {cycles}")
-print(f"Cycle: {' -> '.join(cycles[0])} -> {cycles[0][0]}")
+# Convert node IDs to labels for display
+cycle_labels = [triangle.get_label_from_id(nid) for nid in cycles[0]]
+print(f"Triangle cycles (node IDs): {cycles}")
+print(f"Cycle (labels): {' -> '.join(cycle_labels)} -> {cycle_labels[0]}")
