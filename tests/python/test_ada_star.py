@@ -30,6 +30,11 @@ def add_weighted_edges(graph, edge_list):
         graph.add_edge(src, dst, **attrs)
 
 
+def get_path_ids(graph, labels):
+    """Convert a list of node labels to node IDs."""
+    return [graph.get_id_from_label(label) for label in labels]
+
+
 class TestAdaStarBasic:
     """Basic pathfinding tests."""
 
@@ -47,7 +52,7 @@ class TestAdaStarBasic:
 
         path = g.ada_star_search("A", "D", epsilon=1.0)
 
-        assert path == ["A", "B", "C", "D"]
+        assert path == get_path_ids(g, ["A", "B", "C", "D"])
 
     def test_shortest_of_two_paths(self):
         """Test choosing shortest of two paths."""
@@ -65,7 +70,7 @@ class TestAdaStarBasic:
         path = g.ada_star_search("A", "C", epsilon=1.0)
 
         # Should take shorter path A -> B -> C (cost 2.0) over A -> D -> C (cost 10.0)
-        assert path == ["A", "B", "C"]
+        assert path == get_path_ids(g, ["A", "B", "C"])
 
     def test_weighted_path(self):
         """Test path with different edge weights."""
@@ -83,7 +88,7 @@ class TestAdaStarBasic:
         path = g.ada_star_search("A", "B", epsilon=1.0)
 
         # Should take A -> C -> D -> B (cost 6.0) over A -> B (cost 10.0)
-        assert path == ["A", "C", "D", "B"]
+        assert path == get_path_ids(g, ["A", "C", "D", "B"])
 
 
 class TestAdaStarAnytime:
@@ -109,8 +114,8 @@ class TestAdaStarAnytime:
         # High epsilon - may find suboptimal path quickly
         path_high = g.ada_star_search("A", "D", epsilon=10.0, reuse_planner=True)
         assert isinstance(path_high, list)
-        assert path_high[0] == "A"
-        assert path_high[-1] == "D"
+        assert path_high[0] == g.get_id_from_label("A")
+        assert path_high[-1] == g.get_id_from_label("D")
 
         # Lower epsilon - should find better or equal path
         path_low = g.ada_star_search("A", "D", epsilon=1.5, reuse_planner=True)
@@ -118,7 +123,7 @@ class TestAdaStarAnytime:
 
         # Optimal epsilon - should find best path
         path_optimal = g.ada_star_search("A", "D", epsilon=1.0, reuse_planner=True)
-        assert path_optimal == ["A", "X", "Y", "Z", "D"]
+        assert path_optimal == get_path_ids(g, ["A", "X", "Y", "Z", "D"])
 
     def test_repeated_calls_same_epsilon(self):
         """Test that repeated calls with same epsilon return same path."""
@@ -155,16 +160,16 @@ class TestAdaStarAnytime:
         # Use reuse_planner=True for iterative refinement
         path_high = g.ada_star_search("A", "D", epsilon=10.0, reuse_planner=True)
         assert isinstance(path_high, list)
-        assert path_high[0] == "A"
-        assert path_high[-1] == "D"
+        assert path_high[0] == g.get_id_from_label("A")
+        assert path_high[-1] == g.get_id_from_label("D")
 
         # Lower epsilon - should reuse planner state
         path_optimal = g.ada_star_search("A", "D", epsilon=1.0, reuse_planner=True)
-        assert path_optimal == ["A", "X", "Y", "Z", "D"]
+        assert path_optimal == get_path_ids(g, ["A", "X", "Y", "Z", "D"])
 
         # Without reuse_planner, creates fresh planner each time
         path_fresh = g.ada_star_search("A", "D", epsilon=1.0, reuse_planner=False)
-        assert path_fresh == ["A", "X", "Y", "Z", "D"]
+        assert path_fresh == get_path_ids(g, ["A", "X", "Y", "Z", "D"])
 
 
 class TestAdaStarDynamic:
@@ -201,7 +206,7 @@ class TestAdaStarHeuristics:
 
         path = g.ada_star_search("A", "C", epsilon=1.0, heuristic=zero_heuristic)
 
-        assert path == ["A", "B", "C"]
+        assert path == get_path_ids(g, ["A", "B", "C"])
 
     def test_constant_heuristic(self):
         """Test with constant heuristic."""
@@ -221,7 +226,7 @@ class TestAdaStarHeuristics:
         path = g.ada_star_search("A", "C", epsilon=1.0, heuristic=constant_heuristic)
 
         # Still should find optimal path
-        assert path == ["A", "B", "C"]
+        assert path == get_path_ids(g, ["A", "B", "C"])
 
 
 class TestAdaStarEdgeCases:
@@ -234,7 +239,7 @@ class TestAdaStarEdgeCases:
 
         path = g.ada_star_search("A", "A", epsilon=1.0)
 
-        assert path == ["A"]
+        assert path == get_path_ids(g, ["A"])
 
     def test_two_node_path(self):
         """Test simple two-node path."""
@@ -245,7 +250,7 @@ class TestAdaStarEdgeCases:
 
         path = g.ada_star_search("A", "B", epsilon=1.0)
 
-        assert path == ["A", "B"]
+        assert path == get_path_ids(g, ["A", "B"])
 
     def test_no_path_exists(self):
         """Test when no path exists between nodes."""
@@ -281,13 +286,13 @@ class TestAdaStarComparison:
         # ADA* with epsilon=1.0 should find optimal path
         ada_path = g.ada_star_search("A", "C", epsilon=1.0)
 
-        # EdgeCase's shortest_path uses Dijkstra
+        # EdgeCase's shortest_path uses Dijkstra (returns labels)
         dijkstra_path = ec.shortest_path(g, "A", "C")
 
         # Both should find optimal paths
         # Multiple optimal paths may exist, so we check they're both valid
-        assert ada_path[0] == "A" and ada_path[-1] == "C"
-        assert dijkstra_path[0] == "A" and dijkstra_path[-1] == "C"
+        assert ada_path[0] == g.get_id_from_label("A") and ada_path[-1] == g.get_id_from_label("C")
+        assert dijkstra_path[0] == "A" and dijkstra_path[-1] == "C"  # shortest_path returns labels
 
         # For this graph, optimal path is A->B->E->C or A->D->C (both cost 3.0)
         assert len(ada_path) == 3  # Should be a 3-hop path

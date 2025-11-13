@@ -1040,7 +1040,7 @@ class Graph:
         weight_attr: str = "weight",
         heuristic: Optional[Callable[[str, str], float]] = None,
         reuse_planner: bool = False,
-    ) -> list[str]:
+    ) -> list[int]:
         """
         Find path using ADA* (Anytime Dynamic A*) search algorithm.
 
@@ -1062,7 +1062,7 @@ class Graph:
             Edge attribute to use as weight. Falls back to edge.weight if
             attribute not found.
         heuristic : callable, optional
-            Custom heuristic function h(node_label, target_label) -> float
+            Custom heuristic function h(node_id, target_id) -> float
             that estimates cost from any node to target. Must be admissible
             (never overestimate). If None, uses zero heuristic (equivalent
             to Dijkstra's algorithm).
@@ -1073,8 +1073,8 @@ class Graph:
 
         Returns
         -------
-        list[str]
-            Path from source to target as list of node labels.
+        list[int]
+            Path from source to target as list of node IDs.
 
         Raises
         ------
@@ -1100,7 +1100,7 @@ class Graph:
         )
 
         path = graph.ada_star_search("A", "D", epsilon=1.0)
-        print(path)  # ['A', 'B', 'C', 'D']
+        print(path)  # [1, 2, 3, 4] (node IDs)
         ```
 
         Fast suboptimal path with higher epsilon:
@@ -14216,7 +14216,7 @@ class AdaStar:
             heuristic=heuristic,
         )
 
-    def compute_or_improve_path(self, epsilon: float = 1.0) -> list[str]:
+    def compute_or_improve_path(self, epsilon: float = 1.0) -> list[int]:
         """
         Compute or improve the path with given epsilon.
 
@@ -14233,8 +14233,8 @@ class AdaStar:
 
         Returns
         -------
-        list[str]
-            Path from source to target as list of node labels.
+        list[int]
+            Path from source to target as list of node IDs.
 
         Raises
         ------
@@ -14251,11 +14251,8 @@ class AdaStar:
         # Run search in Rust
         self.ada_star.compute_or_improve_path(self.graph._graph, epsilon)
 
-        # Extract path
-        path_ids = self.ada_star.extract_path(self.graph._graph)
-
-        # Convert to labels
-        return [self.graph.get_label_from_id(node_id) for node_id in path_ids]
+        # Extract and return path as node IDs
+        return self.ada_star.extract_path(self.graph._graph)
 
     def update_graph(self, changes: list[tuple[int, int, float]]) -> None:
         """
@@ -14288,7 +14285,7 @@ class AdaStar:
         """
         self.ada_star.update_graph(self.graph._graph, changes)
 
-    def extract_path(self) -> list[str]:
+    def extract_path(self) -> list[int]:
         """
         Extract the current path without running search.
 
@@ -14297,13 +14294,12 @@ class AdaStar:
 
         Returns
         -------
-        list[str]
-            Current path from source to target as list of node labels.
+        list[int]
+            Current path from source to target as list of node IDs.
 
         Raises
         ------
         ValueError
             If no path exists or search hasn't been initialized.
         """
-        path_ids = self.ada_star.extract_path(self.graph._graph)
-        return [self.graph.get_label_from_id(node_id) for node_id in path_ids]
+        return self.ada_star.extract_path(self.graph._graph)
