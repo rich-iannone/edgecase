@@ -701,6 +701,222 @@ class Graph:
         """
         return self._graph.is_graph_simple()
 
+    # ========== Internal NDF Methods ==========
+
+    def colorize_node_attrs(
+        self,
+        node_attr_from: str = None,
+        values: dict[str, Any] = None,
+        node_attr_to: str = "color",
+        palette: str | list[str] = "default",
+        alpha: Optional[int] = None,
+        nodes: Optional[list[str]] = None,
+    ) -> "Graph":
+        """Map node attribute values to colors.
+
+        Sets a color attribute on nodes based on categorical or continuous values.
+        For categorical data, assigns distinct colors from a palette.
+        For continuous data, interpolates between colors.
+
+        Parameters
+        ----------
+        node_attr_from : str, optional
+            Attribute name to read values from (e.g., 'community', 'type')
+            If None, must provide values dict
+        values : dict, optional
+            Dictionary mapping node IDs to values
+            If None, reads from node_attr_from attribute
+        node_attr_to : str, default "color"
+            Attribute name to write colors to (e.g., 'color', 'fillcolor')
+        palette : str or list, default "default"
+            Color palette name or list of hex color strings.
+            Available palettes: ColorBrewer (e.g., 'Greens', 'RdBu', 'Set1'),
+            Viridis ('viridis', 'magma', 'plasma'), or legacy ('default', 'vibrant')
+        alpha : int, optional
+            Alpha transparency (0-100), not yet implemented
+        nodes : list, optional
+            Subset of nodes to colorize (default: all nodes)
+
+        Returns
+        -------
+        Graph
+            Self for method chaining
+
+        Examples
+        --------
+        Color by community:
+
+        ```python
+        communities = G.get_cmty_louvain()
+        G.colorize_node_attrs('community', communities, palette='vibrant')
+        ```
+
+        Color by node type:
+
+        ```python
+        G.colorize_node_attrs(node_attr_from='type', palette='tableau')
+        ```
+
+        Custom color list:
+
+        ```python
+        G.colorize_node_attrs('status', values={'A': 'active', 'B': 'inactive'},
+                              palette=['#ff0000', '#00ff00'])
+        ```
+        """
+        from edgecase.colors import COLOR_PALETTES
+
+        if nodes is None:
+            nodes = self.node_ids()
+
+        # Get values to colorize
+        if values is None:
+            if node_attr_from is None:
+                raise ValueError("Must provide either node_attr_from or values")
+            values = self.get_node_attrs(node_attr_from, nodes=nodes)
+
+        if not values:
+            return self
+
+        # Get unique values and assign colors
+        unique_values = sorted(list(set(values.values())))
+
+        # Get color palette
+        if isinstance(palette, str):
+            colors = COLOR_PALETTES.get(palette, COLOR_PALETTES["default"])
+        else:
+            colors = palette
+
+        # Create color mapping
+        n_values = len(unique_values)
+        if n_values <= len(colors):
+            color_list = colors[:n_values]
+        else:
+            # Cycle through colors if we have more values than colors
+            color_list = (colors * (n_values // len(colors) + 1))[:n_values]
+
+        color_map = dict(zip(unique_values, color_list))
+
+        # Set colors on nodes
+        for node_label, value in values.items():
+            color = color_map.get(value, "#cccccc")
+            # Convert string label to internal node ID if needed
+            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
+            self._graph.set_node_attr(node_id, node_attr_to, color)
+
+        return self
+
+    def rescale_node_attrs(
+        self,
+        node_attr_from: str = None,
+        values: dict[str, int | float] = None,
+        node_attr_to: str = "size",
+        to_lower_bound: float = 0.5,
+        to_upper_bound: float = 1.0,
+        nodes: Optional[list[str]] = None,
+    ) -> "Graph":
+        """Rescale node attribute values to a range.
+
+        Normalizes numeric values to a specified range, useful for sizing nodes
+        by centrality, degree, or other continuous metrics.
+
+        Parameters
+        ----------
+        node_attr_from : str, optional
+            Attribute name to read values from (e.g., 'betweenness', 'degree')
+            If None, must provide values dict
+        values : dict, optional
+            Dictionary mapping node IDs to numeric values
+            If None, reads from node_attr_from attribute
+        node_attr_to : str, default "size"
+            Attribute name to write rescaled values to
+        to_lower_bound : float, default 0.5
+            Minimum value in output range
+        to_upper_bound : float, default 1.0
+            Maximum value in output range
+        nodes : list, optional
+            Subset of nodes to rescale (default: all nodes)
+
+        Returns
+        -------
+        Graph
+            Self for method chaining
+
+        Examples
+        --------
+        Size by betweenness centrality:
+
+        ```python
+        betweenness = G.get_betweenness()
+        G.rescale_node_attrs('betweenness', betweenness,
+                             node_attr_to='size', to_lower_bound=5, to_upper_bound=20)
+        ```
+
+        Scale by degree:
+
+        ```python
+        degrees = {n: len(G.neighbors(n)) for n in G.nodes()}
+        G.rescale_node_attrs(values=degrees, node_attr_to='width',
+                             to_lower_bound=1, to_upper_bound=10)
+        ```
+        """
+        if nodes is None:
+            nodes = self.node_ids()
+
+        # Get values to rescale
+        if values is None:
+            if node_attr_from is None:
+                raise ValueError("Must provide either node_attr_from or values")
+            values = self.get_node_attrs(node_attr_from, nodes=nodes)
+
+        if not values:
+            return self
+
+        # Get min/max for normalization
+        value_list = list(values.values())
+        min_val = min(value_list)
+        max_val = max(value_list)
+
+        # Avoid division by zero
+        value_range = max_val - min_val if max_val > min_val else 1.0
+        output_range = to_upper_bound - to_lower_bound
+
+        # Rescale and set on nodes
+        for node_label, value in values.items():
+            normalized = (value - min_val) / value_range
+            rescaled = to_lower_bound + (normalized * output_range)
+            # Convert string label to internal node ID if needed
+            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
+            self._graph.set_node_attr(node_id, node_attr_to, rescaled)
+
+        return self
+
+    def set_node_attr_to_display(
+        self,
+        attr: Optional[str] = None,
+    ) -> "Graph":
+        """Set which node attribute to display in tooltips/labels.
+
+        Parameters
+        ----------
+        attr : str, optional
+            Attribute name to display. If None, shows node ID.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining
+
+        Examples
+        --------
+        ```python
+        G.set_node_attr_to_display('label')
+        G.set_node_attr_to_display(None)  # Reset to node IDs
+        ```
+        """
+        self._display_attr = attr
+        return self
+
     def has_cycles(self) -> bool:
         """Check if the graph contains any cycles.
 
@@ -1301,9 +1517,73 @@ class Graph:
         edge_ids = self._graph.find_edge_ids(source_id, target_id)
         return len(edge_ids) > 0
 
-    def delete_edge_by_id(self, edge_id: int):
-        """Delete edge by ID."""
-        return self._graph.delete_edge_by_id(edge_id)
+    def delete_edge_by_id(self, edge_id: int) -> "Graph":
+        """Delete an edge from the graph by its ID.
+
+        Removes an edge directly using its unique edge identifier. This is more
+        efficient than deleting by source and target nodes when the edge ID is known,
+        and is particularly useful for multigraphs where multiple edges may exist
+        between the same pair of nodes.
+
+        Parameters
+        ----------
+        edge_id : int
+            The unique identifier of the edge to remove.
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Raises
+        ------
+        KeyError
+            If no edge exists with the specified ID.
+
+        Examples
+        --------
+        Delete an edge by its ID:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+        )
+
+        # Get the edge ID
+        edge_id = graph.edge_ids()[0]
+
+        # Delete the edge
+        graph.delete_edge_by_id(edge_id)
+        print(graph.has_edge("A", "B"))  # False
+        ```
+
+        Delete specific edges in a multigraph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B", edge_id=1, weight=1.0)
+            .add_edge("A", "B", edge_id=2, weight=2.0)
+        )
+
+        # Delete only the first edge
+        graph.delete_edge_by_id(1)
+        print(graph.has_edge("A", "B"))  # True (second edge remains)
+        ```
+
+        See Also
+        --------
+        delete_edge : Delete edge by source and target nodes
+        has_edge_id : Check if edge ID exists
+        edge_ids : Get all edge IDs
+        """
+        self._graph.delete_edge_by_id(edge_id)
+        return self
 
     def delete_edge(
         self,
@@ -7221,222 +7501,6 @@ class Graph:
             return self
 
         return communities
-
-    # ========== Internal NDF Methods ==========
-
-    def colorize_node_attrs(
-        self,
-        node_attr_from: str = None,
-        values: dict[str, Any] = None,
-        node_attr_to: str = "color",
-        palette: str | list[str] = "default",
-        alpha: Optional[int] = None,
-        nodes: Optional[list[str]] = None,
-    ) -> "Graph":
-        """Map node attribute values to colors.
-
-        Sets a color attribute on nodes based on categorical or continuous values.
-        For categorical data, assigns distinct colors from a palette.
-        For continuous data, interpolates between colors.
-
-        Parameters
-        ----------
-        node_attr_from : str, optional
-            Attribute name to read values from (e.g., 'community', 'type')
-            If None, must provide values dict
-        values : dict, optional
-            Dictionary mapping node IDs to values
-            If None, reads from node_attr_from attribute
-        node_attr_to : str, default "color"
-            Attribute name to write colors to (e.g., 'color', 'fillcolor')
-        palette : str or list, default "default"
-            Color palette name or list of hex color strings.
-            Available palettes: ColorBrewer (e.g., 'Greens', 'RdBu', 'Set1'),
-            Viridis ('viridis', 'magma', 'plasma'), or legacy ('default', 'vibrant')
-        alpha : int, optional
-            Alpha transparency (0-100), not yet implemented
-        nodes : list, optional
-            Subset of nodes to colorize (default: all nodes)
-
-        Returns
-        -------
-        Graph
-            Self for method chaining
-
-        Examples
-        --------
-        Color by community:
-
-        ```python
-        communities = G.get_cmty_louvain()
-        G.colorize_node_attrs('community', communities, palette='vibrant')
-        ```
-
-        Color by node type:
-
-        ```python
-        G.colorize_node_attrs(node_attr_from='type', palette='tableau')
-        ```
-
-        Custom color list:
-
-        ```python
-        G.colorize_node_attrs('status', values={'A': 'active', 'B': 'inactive'},
-                              palette=['#ff0000', '#00ff00'])
-        ```
-        """
-        from edgecase.colors import COLOR_PALETTES
-
-        if nodes is None:
-            nodes = self.node_ids()
-
-        # Get values to colorize
-        if values is None:
-            if node_attr_from is None:
-                raise ValueError("Must provide either node_attr_from or values")
-            values = self.get_node_attrs(node_attr_from, nodes=nodes)
-
-        if not values:
-            return self
-
-        # Get unique values and assign colors
-        unique_values = sorted(list(set(values.values())))
-
-        # Get color palette
-        if isinstance(palette, str):
-            colors = COLOR_PALETTES.get(palette, COLOR_PALETTES["default"])
-        else:
-            colors = palette
-
-        # Create color mapping
-        n_values = len(unique_values)
-        if n_values <= len(colors):
-            color_list = colors[:n_values]
-        else:
-            # Cycle through colors if we have more values than colors
-            color_list = (colors * (n_values // len(colors) + 1))[:n_values]
-
-        color_map = dict(zip(unique_values, color_list))
-
-        # Set colors on nodes
-        for node_label, value in values.items():
-            color = color_map.get(value, "#cccccc")
-            # Convert string label to internal node ID if needed
-            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
-            self._graph.set_node_attr(node_id, node_attr_to, color)
-
-        return self
-
-    def rescale_node_attrs(
-        self,
-        node_attr_from: str = None,
-        values: dict[str, int | float] = None,
-        node_attr_to: str = "size",
-        to_lower_bound: float = 0.5,
-        to_upper_bound: float = 1.0,
-        nodes: Optional[list[str]] = None,
-    ) -> "Graph":
-        """Rescale node attribute values to a range.
-
-        Normalizes numeric values to a specified range, useful for sizing nodes
-        by centrality, degree, or other continuous metrics.
-
-        Parameters
-        ----------
-        node_attr_from : str, optional
-            Attribute name to read values from (e.g., 'betweenness', 'degree')
-            If None, must provide values dict
-        values : dict, optional
-            Dictionary mapping node IDs to numeric values
-            If None, reads from node_attr_from attribute
-        node_attr_to : str, default "size"
-            Attribute name to write rescaled values to
-        to_lower_bound : float, default 0.5
-            Minimum value in output range
-        to_upper_bound : float, default 1.0
-            Maximum value in output range
-        nodes : list, optional
-            Subset of nodes to rescale (default: all nodes)
-
-        Returns
-        -------
-        Graph
-            Self for method chaining
-
-        Examples
-        --------
-        Size by betweenness centrality:
-
-        ```python
-        betweenness = G.get_betweenness()
-        G.rescale_node_attrs('betweenness', betweenness,
-                             node_attr_to='size', to_lower_bound=5, to_upper_bound=20)
-        ```
-
-        Scale by degree:
-
-        ```python
-        degrees = {n: len(G.neighbors(n)) for n in G.nodes()}
-        G.rescale_node_attrs(values=degrees, node_attr_to='width',
-                             to_lower_bound=1, to_upper_bound=10)
-        ```
-        """
-        if nodes is None:
-            nodes = self.node_ids()
-
-        # Get values to rescale
-        if values is None:
-            if node_attr_from is None:
-                raise ValueError("Must provide either node_attr_from or values")
-            values = self.get_node_attrs(node_attr_from, nodes=nodes)
-
-        if not values:
-            return self
-
-        # Get min/max for normalization
-        value_list = list(values.values())
-        min_val = min(value_list)
-        max_val = max(value_list)
-
-        # Avoid division by zero
-        value_range = max_val - min_val if max_val > min_val else 1.0
-        output_range = to_upper_bound - to_lower_bound
-
-        # Rescale and set on nodes
-        for node_label, value in values.items():
-            normalized = (value - min_val) / value_range
-            rescaled = to_lower_bound + (normalized * output_range)
-            # Convert string label to internal node ID if needed
-            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
-            self._graph.set_node_attr(node_id, node_attr_to, rescaled)
-
-        return self
-
-    def set_node_attr_to_display(
-        self,
-        attr: Optional[str] = None,
-    ) -> "Graph":
-        """Set which node attribute to display in tooltips/labels.
-
-        Parameters
-        ----------
-        attr : str, optional
-            Attribute name to display. If None, shows node ID.
-
-        Returns
-        -------
-        Graph
-            Self for method chaining
-
-        Examples
-        --------
-        ```python
-        G.set_node_attr_to_display('label')
-        G.set_node_attr_to_display(None)  # Reset to node IDs
-        ```
-        """
-        self._display_attr = attr
-        return self
 
     def get_authority_centrality(
         self, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
