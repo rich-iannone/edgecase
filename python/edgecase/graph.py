@@ -4245,6 +4245,8 @@ class Graph:
 
     # ========== Structural Properties ==========
 
+    # --- Graph Type & Density Checks ---
+
     def get_graph_density(self) -> float:
         """Calculate graph density (ratio of actual to possible edges).
 
@@ -4477,6 +4479,8 @@ class Graph:
         """
         return self._graph.is_bipartite()
 
+    # --- Triangle & Transitivity Analysis ---
+
     def count_triangles(self) -> dict[str, int]:
         """Count triangles containing each node.
 
@@ -4652,6 +4656,8 @@ class Graph:
         """
         return self._graph.transitivity()
 
+    # --- Reciprocity & Mutuality ---
+
     def which_mutual(self) -> list[tuple[int, int]]:
         """Find pairs of mutual (reciprocal) edges in directed graph.
 
@@ -4800,6 +4806,8 @@ class Graph:
         is_directed : Check if graph is directed
         """
         return self._graph.reciprocity(mode)
+
+    # --- Edge Type Analysis ---
 
     def which_multiple(self) -> list[int]:
         """Find edge IDs of multiple edges (duplicate edges between same node pairs).
@@ -5145,6 +5153,8 @@ class Graph:
         which_multiple : Find multiple edges between node pairs
         """
         return self._graph.count_loops()
+
+    # --- Assortativity Measures ---
 
     def get_graph_assortativity_degree(self) -> float:
         """Calculate degree assortativity coefficient.
@@ -5860,6 +5870,8 @@ class Graph:
         """
         return self._graph.laplacian_spectrum(which, k, normalized)
 
+    # --- Component Counts ---
+
     def count_weakly_connected_components(self) -> int:
         """Count weakly connected components in the graph.
 
@@ -5943,6 +5955,8 @@ class Graph:
         is_connected : Check overall connectivity
         """
         return self._graph.count_strongly_connected_components()
+
+    # --- Simple Count Methods ---
 
     def count_selfloops(self) -> int:
         """Count number of self-loops in the graph.
@@ -6272,6 +6286,8 @@ class Graph:
         paths = self._graph.all_simple_paths(source_label, target_label, cutoff)
 
         return paths
+
+    # --- Path & Topological Analysis ---
 
     def is_simple_path(self, nodes: list[Union[int, str]]) -> bool:
         """Check if a sequence of nodes forms a simple path in the graph.
