@@ -1319,20 +1319,28 @@ class Graph:
         """
         return self._graph.get_edges()
 
-    def edge_ids(self) -> list[int]:
+    def edge_ids(self, limit: Optional[int] = 1000) -> list[int]:
         """Return list of edge IDs.
 
-        Returns all edge IDs in the graph. Edge IDs are unique integers assigned
-        to each edge, useful for direct edge access and manipulation.
+        Returns edge IDs in the graph up to the specified limit. Edge IDs are
+        unique integers assigned to each edge, useful for direct edge access
+        and manipulation.
+
+        Parameters
+        ----------
+        limit : int | None, default=1000
+            Maximum number of edge IDs to return. Pass `None` to return all edge IDs
+            (warning: may be slow for large graphs). Default limit of 1000 prevents
+            performance issues when working with large graphs.
 
         Returns
         -------
         list[int]
-            List of all edge IDs in the graph.
+            List of edge IDs in the graph, limited to `limit`.
 
         Examples
         --------
-        Get all edge IDs:
+        Get first 1000 edge IDs (default):
 
         ```python
         import edgecase as ec
@@ -1346,8 +1354,24 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        ids = graph.edge_ids()
-        print(f"Graph has {len(ids)} edges with IDs: {ids}")
+        ids = graph.edge_ids()  # Returns up to 1000 edge IDs
+        print(f"Showing {len(ids)} edge IDs: {ids}")
+        ```
+
+        Get a smaller sample:
+
+        ```python
+        # Get only first 10 edge IDs for preview
+        sample_ids = graph.edge_ids(limit=10)
+        print(f"Sample: {sample_ids}")
+        ```
+
+        Get all edge IDs regardless of size:
+
+        ```python
+        # Use None to get all edges (may be slow for large graphs!)
+        all_ids = graph.edge_ids(limit=None)
+        print(f"Total edges: {len(all_ids)}")
         ```
 
         See Also
@@ -1356,7 +1380,8 @@ class Graph:
         get_node_ids_by_edge_id : Get edge node IDs by edge ID
         has_edge_id : Check if edge ID exists
         """
-        return self._graph.edge_ids()
+        ids = self._graph.edge_ids()
+        return ids if limit is None else ids[:limit]
 
     def get_node_ids_by_edge_id(self, edge_id: int) -> tuple[int, int] | None:
         """Get edge (source, target) node IDs by edge ID.
