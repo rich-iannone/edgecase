@@ -528,11 +528,17 @@ function render({ model, el }) {
           const screen = worldToScreen(node.x, node.y);
           tooltip.innerHTML = `<strong>${node.label || node.id}</strong><br/>`;
 
-          // Add node attributes to tooltip
+          // Add node attributes to tooltip (exclude aesthetic attributes)
+          const aestheticAttrs = ['id', 'x', 'y', 'label', 'color', 'size', 'fillcolor', 'fontcolor', 'width', 'height', 'shape'];
           const attrs = [];
           for (let key in node) {
-            if (!['id', 'x', 'y', 'label', 'color', 'size'].includes(key)) {
-              attrs.push(`${key}: ${node[key]}`);
+            if (!aestheticAttrs.includes(key)) {
+              let value = node[key];
+              // Format numeric values: round floats to 5 decimals, keep integers as-is
+              if (typeof value === 'number') {
+                value = Number.isInteger(value) ? value : parseFloat(value.toFixed(5));
+              }
+              attrs.push(`${key}: ${value}`);
             }
           }
           if (attrs.length > 0) {
