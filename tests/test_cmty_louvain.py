@@ -187,8 +187,8 @@ class TestLouvainModularity:
             for v in G.node_ids(limit=None):
                 if communities[u] == communities[v]:
                     A_ij = 1.0 if G.has_edge(u, v) else 0.0
-                    k_u = G.degree(u)
-                    k_v = G.degree(v)
+                    k_u = G.get_degree(u)
+                    k_v = G.get_degree(v)
                     Q += A_ij - (k_u * k_v) / (2.0 * m)
         
         return Q / (2.0 * m)

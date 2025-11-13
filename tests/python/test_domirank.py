@@ -377,7 +377,7 @@ class TestDomiRankComparison:
         g = _build_graph([("A", "B"), ("B", "C"), ("B", "D"), ("C", "E")])
 
         domirank = g.get_domirank_centrality(sigma=0.01)  # Low sigma ~ degree
-        degrees = {node: g.degree(node) for node in ["A", "B", "C", "D", "E"]}
+        degrees = {node: g.get_degree(node) for node in ["A", "B", "C", "D", "E"]}
 
         # Rankings should be similar at low sigma
         dr_ranking = sorted(domirank.keys(), key=lambda k: domirank[k], reverse=True)

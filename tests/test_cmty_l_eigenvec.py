@@ -197,8 +197,8 @@ class TestLeadingEigenvectorModularity:
             for node_j in G.node_ids(limit=None):
                 if communities[node_i] == communities[node_j]:
                     A_ij = 1.0 if G.has_edge(node_i, node_j) else 0.0
-                    k_i = G.degree(node_i)
-                    k_j = G.degree(node_j)
+                    k_i = G.get_degree(node_i)
+                    k_j = G.get_degree(node_j)
                     Q += A_ij - (k_i * k_j) / (2.0 * m)
         
         return Q / (2.0 * m)

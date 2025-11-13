@@ -91,7 +91,7 @@ def main():
     print("Node          Degree    DomiRank")
     print("-" * 40)
     for node in ["hub1", "hub2", "leaf1_0", "leaf2_0"]:
-        deg = g.degree(node)
+        deg = g.get_degree(node)
         print(f"{node:12s}  {deg:3d}      {dr[node]:8.4f}")
 
     print("\nKey insight: DomiRank captures competition dynamics.")

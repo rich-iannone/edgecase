@@ -32,7 +32,7 @@ class TestJohnsonGraph:
         graph = Graph(directed=False).add_johnson_graph(n=4, k=2)
         
         expected_degree = 2 * (4 - 2)  # k * (n-k) = 4
-        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
+        degrees = [graph.get_degree(nid) for nid in graph.node_ids(limit=None)]
         
         assert all(d == expected_degree for d in degrees)
         
@@ -60,7 +60,7 @@ class TestJohnsonGraph:
         # Total edges = (10 * 6) / 2 = 30
         assert graph.num_edges() == 30
         
-        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
+        degrees = [graph.get_degree(nid) for nid in graph.node_ids(limit=None)]
         assert all(d == 6 for d in degrees)
         
     def test_johnson_5_1_singletons(self):
@@ -76,7 +76,7 @@ class TestJohnsonGraph:
         # Degree = 1*(5-1) = 4 (complete graph K5)
         assert graph.num_edges() == 10  # C(5,2) = 10 edges
         
-        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
+        degrees = [graph.get_degree(nid) for nid in graph.node_ids(limit=None)]
         assert all(d == 4 for d in degrees)
         
     def test_johnson_edge_cases(self):

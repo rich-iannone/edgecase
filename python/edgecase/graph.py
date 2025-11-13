@@ -1870,7 +1870,7 @@ class Graph:
         """Get the graph's name."""
         return self._graph_name
 
-    def degree(self, node: Union[int, str]) -> int:
+    def get_degree(self, node: Union[int, str]) -> int:
         """Get the degree of a node.
 
         For directed graphs, returns total degree (in-degree + out-degree).
@@ -1900,8 +1900,8 @@ class Graph:
             .add_edge("A", "C")
         )
 
-        print(graph.degree("A"))  # 2
-        print(graph.degree("B"))  # 1
+        print(graph.get_degree("A"))  # 2
+        print(graph.get_degree("B"))  # 1
         ```
 
         In directed graphs, counts both incoming and outgoing:
@@ -1916,13 +1916,13 @@ class Graph:
             .add_edge("C", "A")  # C -> A (in for A)
         )
 
-        print(graph.degree("A"))  # 2 (1 in + 1 out)
+        print(graph.get_degree("A"))  # 2 (1 in + 1 out)
         ```
 
         See Also
         --------
-        in_degree : Get in-degree for directed graphs
-        out_degree : Get out-degree for directed graphs
+        get_in_degree : Get in-degree for directed graphs
+        get_out_degree : Get out-degree for directed graphs
         average_degree : Get average degree across all nodes
         """
         node_id = self._resolve_node_id(node)
@@ -1936,7 +1936,7 @@ class Graph:
         else:
             return len(neighbors)
 
-    def in_degree(self, node: Union[int, str]) -> int:
+    def get_in_degree(self, node: Union[int, str]) -> int:
         """Get the in-degree of a node (directed graphs only).
 
         In-degree is the number of edges pointing into the node. Only meaningful
@@ -1971,14 +1971,14 @@ class Graph:
             .add_edge("C", "B")  # B has 2 incoming
         )
 
-        print(graph.in_degree("B"))  # 2
-        print(graph.in_degree("A"))  # 0
+        print(graph.get_in_degree("B"))  # 2
+        print(graph.get_in_degree("A"))  # 0
         ```
 
         See Also
         --------
-        out_degree : Get out-degree for directed graphs
-        degree : Get total degree
+        get_out_degree : Get out-degree for directed graphs
+        get_degree : Get total degree
         """
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
@@ -1986,7 +1986,7 @@ class Graph:
         # edges() returns (edge_id, source, target) tuples
         return sum(1 for edge in self._graph.edges() if edge[2] == node_id)
 
-    def out_degree(self, node: Union[int, str]) -> int:
+    def get_out_degree(self, node: Union[int, str]) -> int:
         """Get the out-degree of a node (directed graphs only).
 
         Out-degree is the number of edges pointing out from the node. Only meaningful
@@ -2021,14 +2021,14 @@ class Graph:
             .add_edge("A", "C")  # A has 2 outgoing
         )
 
-        print(graph.out_degree("A"))  # 2
-        print(graph.out_degree("B"))  # 0
+        print(graph.get_out_degree("A"))  # 2
+        print(graph.get_out_degree("B"))  # 0
         ```
 
         See Also
         --------
-        in_degree : Get in-degree for directed graphs
-        degree : Get total degree
+        get_in_degree : Get in-degree for directed graphs
+        get_degree : Get total degree
         """
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
@@ -4265,7 +4265,7 @@ class Graph:
         # Filtered aggregation: mean indegree of high-degree nodes
         high_degree_mean = graph.get_agg_degree_in(
             'mean',
-            conditions=lambda n: graph.degree(n) > 3
+            conditions=lambda n: graph.get_degree(n) > 3
         )
         ```
 
@@ -4287,7 +4287,7 @@ class Graph:
         degrees = []
         for node_id in self.node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
-                degrees.append(self.in_degree(node_id))
+                degrees.append(self.get_in_degree(node_id))
 
         if not degrees:
             return 0.0
@@ -4382,7 +4382,7 @@ class Graph:
         degrees = []
         for node_id in self.node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
-                degrees.append(self.out_degree(node_id))
+                degrees.append(self.get_out_degree(node_id))
 
         if not degrees:
             return 0.0
@@ -4474,7 +4474,7 @@ class Graph:
         degrees = []
         for node_id in self.node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
-                degrees.append(self.degree(node_id))
+                degrees.append(self.get_degree(node_id))
 
         if not degrees:
             return 0.0
@@ -6790,7 +6790,7 @@ class Graph:
         are connected to each other. For a node v:
 
         C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
-             = (2 × triangles through v) / (degree(v) × (degree(v) - 1))
+             = (2 × triangles through v) / (get_degree(v) × (get_degree(v) - 1))
 
         Returns 0.0 for nodes with degree < 2 (cannot form triangles).
 
@@ -9694,15 +9694,17 @@ class Graph:
         """
         # Compute scores based on measure
         if measure == "degree":
-            scores = {node_id: self.degree(node_id) for node_id in self.node_ids(limit=None)}
+            scores = {node_id: self.get_degree(node_id) for node_id in self.node_ids(limit=None)}
         elif measure == "in_degree":
             if not self._graph.is_directed:
                 raise ValueError("in_degree only available for directed graphs")
-            scores = {node_id: self.in_degree(node_id) for node_id in self.node_ids(limit=None)}
+            scores = {node_id: self.get_in_degree(node_id) for node_id in self.node_ids(limit=None)}
         elif measure == "out_degree":
             if not self._graph.is_directed:
                 raise ValueError("out_degree only available for directed graphs")
-            scores = {node_id: self.out_degree(node_id) for node_id in self.node_ids(limit=None)}
+            scores = {
+                node_id: self.get_out_degree(node_id) for node_id in self.node_ids(limit=None)
+            }
         elif measure == "pagerank":
             scores = pagerank(self, **kwargs)
         elif measure == "betweenness":
@@ -10247,7 +10249,7 @@ class Graph:
 
         # Add degree if requested
         if include_degree:
-            data["degree"] = [self.degree(nid) for nid in node_ids]
+            data["degree"] = [self.get_degree(nid) for nid in node_ids]
 
         return pl.DataFrame(data)
 
@@ -10446,7 +10448,7 @@ class Graph:
             ]
 
         if include_degree:
-            data["degree"] = [self.degree(nid) for nid in node_ids]
+            data["degree"] = [self.get_degree(nid) for nid in node_ids]
 
         return pl.DataFrame(data)
 
@@ -10612,7 +10614,7 @@ class Graph:
         # Find neighbors with high degree
         high_degree_neighbors = graph.get_neighbors(
             "A",
-            predicate=lambda n: graph.degree(n) > 2
+            predicate=lambda n: graph.get_degree(n) > 2
         )
         ```
 
@@ -12662,7 +12664,7 @@ class Graph:
         print(nodes)  # ['0,1', '0,2', '0,3', '1,2', '1,3', '2,3']
 
         # Verify regularity: each node has degree k(n-k) = 2*2 = 4
-        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
+        degrees = [graph.get_degree(nid) for nid in graph.node_ids(limit=None)]
         print(set(degrees))  # {4}
         ```
 
@@ -12674,7 +12676,7 @@ class Graph:
         print(johnson_5_2.num_edges())  # 30
 
         # Verify regularity: degree = k(n-k) = 2*(5-2) = 6
-        degrees = [johnson_5_2.degree(nid) for nid in johnson_5_2.node_ids(limit=None)]
+        degrees = [johnson_5_2.get_degree(nid) for nid in johnson_5_2.node_ids(limit=None)]
         print(f"Degree: {degrees[0]}")  # 6
 
         # Note: The Petersen graph is actually the Kneser graph K(5,2),
@@ -13452,7 +13454,7 @@ class Graph:
 
         # Degree statistics - compute for all nodes
         node_ids = self.node_ids(limit=None)
-        degrees = [self.degree(self.get_label_from_id(nid) or str(nid)) for nid in node_ids]
+        degrees = [self.get_degree(self.get_label_from_id(nid) or str(nid)) for nid in node_ids]
 
         if degrees:
             avg_degree = sum(degrees) / len(degrees)

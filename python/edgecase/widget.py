@@ -120,7 +120,7 @@ class GraphWidget:
         >>> widget = GraphWidget(G)
         >>> widget.show()
         >>> # Custom aesthetics
-        >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.node_ids(limit=None)})
+        >>> G.set_node_attrs_ws(size={n: G.get_degree(n) for n in G.node_ids(limit=None)})
         >>> widget = GraphWidget(G)
         >>> widget.show()
     ```

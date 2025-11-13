@@ -308,15 +308,15 @@ class TestDeleteNodeDegree:
         )
 
         # Before deletion
-        assert graph.degree("A") == 1
-        assert graph.degree("B") == 2
-        assert graph.degree("C") == 1
+        assert graph.get_degree("A") == 1
+        assert graph.get_degree("B") == 2
+        assert graph.get_degree("C") == 1
 
         graph.delete_node("B")
 
         # After deletion
-        assert graph.degree("A") == 0
-        assert graph.degree("C") == 0
+        assert graph.get_degree("A") == 0
+        assert graph.get_degree("C") == 0
 
     def test_delete_hub_node(self):
         """Test deleting a hub node (high degree)."""
@@ -333,7 +333,7 @@ class TestDeleteNodeDegree:
             .add_edge("Hub", "D")
         )
 
-        assert graph.degree("Hub") == 4
+        assert graph.get_degree("Hub") == 4
         assert graph.num_edges() == 4
 
         graph.delete_node("Hub")
@@ -341,7 +341,7 @@ class TestDeleteNodeDegree:
         assert graph.num_edges() == 0
         assert graph.num_nodes() == 4
         # All other nodes now isolated
-        assert all(graph.degree(n) == 0 for n in ["A", "B", "C", "D"])
+        assert all(graph.get_degree(n) == 0 for n in ["A", "B", "C", "D"])
 
 
 class TestDeleteNodeConnectivity:

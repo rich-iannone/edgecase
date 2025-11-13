@@ -17,7 +17,7 @@ def main():
     print(f"\nNode labels (2-subsets): {nodes}")
 
     # Show regularity
-    degrees = [g1.degree(nid) for nid in g1.node_ids(limit=None)]
+    degrees = [g1.get_degree(nid) for nid in g1.node_ids(limit=None)]
     print(f"Degree: {degrees[0]} (k(n-k) = 2*2 = 4)")
     print(f"Is regular: {len(set(degrees)) == 1}")
 
@@ -42,7 +42,7 @@ def main():
     print(f"\nNode labels: {nodes2}")
 
     # Show regularity
-    degrees2 = [g2.degree(nid) for nid in g2.node_ids(limit=None)]
+    degrees2 = [g2.get_degree(nid) for nid in g2.node_ids(limit=None)]
     print(f"Degree: {degrees2[0]} (k(n-k) = 2*3 = 6)")
     print(f"Is regular: {len(set(degrees2)) == 1}")
 
@@ -59,7 +59,7 @@ def main():
     nodes3 = sorted([g3.get_label_from_id(nid) for nid in g3.node_ids(limit=None)])
     print(f"Node labels (singletons): {nodes3}")
 
-    degrees3 = [g3.degree(nid) for nid in g3.node_ids(limit=None)]
+    degrees3 = [g3.get_degree(nid) for nid in g3.node_ids(limit=None)]
     print(f"Degree: {degrees3[0]} (k(n-k) = 1*4 = 4)")
     print("This is the complete graph K5 (all pairs connected)")
 

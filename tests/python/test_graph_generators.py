@@ -226,8 +226,8 @@ class TestGraphProperties:
         
         # First and last nodes have degree 1
         # Middle nodes have degree 2
-        degrees = [G.degree('1'), G.degree('2'), G.degree('3'), 
-                  G.degree('4'), G.degree('5')]
+        degrees = [G.get_degree('1'), G.get_degree('2'), G.get_degree('3'), 
+                  G.get_degree('4'), G.get_degree('5')]
         assert degrees == [1, 2, 2, 2, 1]
         
     def test_star_graph_hub(self):
@@ -235,25 +235,25 @@ class TestGraphProperties:
         G = ec.Graph().add_star_graph(6)
         
         # First node should be the hub with degree 5
-        assert G.degree('1') == 5
+        assert G.get_degree('1') == 5
         
         # Other nodes should have degree 1
         for i in range(2, 7):
-            assert G.degree(str(i)) == 1
+            assert G.get_degree(str(i)) == 1
             
     def test_cycle_graph_uniform_degree(self):
         """Cycle graph has uniform degree 2."""
         G = ec.Graph().add_cycle_graph(5)
         
         for i in range(1, 6):
-            assert G.degree(str(i)) == 2
+            assert G.get_degree(str(i)) == 2
             
     def test_full_graph_uniform_degree(self):
         """Complete graph has uniform degree n-1."""
         G = ec.Graph().add_full_graph(5)
         
         for i in range(1, 6):
-            assert G.degree(str(i)) == 4
+            assert G.get_degree(str(i)) == 4
 
 
 class TestEdgeCases:
