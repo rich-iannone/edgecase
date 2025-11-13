@@ -668,7 +668,7 @@ def _generate_graphviz_html(
         }}
 
         // Build node and edge data
-        const nodesInfo = {json.dumps([{"id": str(node), "label": str(node), "attributes": graph.get_node(node).attributes if graph.get_node(node) else {}} for node in nodes])};
+        const nodesInfo = {json.dumps([{"id": str(node), "label": str(node), "attributes": (graph.get_node(node).attributes if graph.get_node(node) and graph.get_node(node).attributes else {})} for node in nodes])};
         const nodeData = nodesInfo.map(nodeInfo => ({{
             id: nodeInfo.id,
             label: nodeInfo.label,
@@ -1005,7 +1005,7 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
     # Add nodes with individual styling from attributes
     for node in nodes:
         node_obj = graph.get_node(node)
-        attrs = node_obj.attributes if node_obj else {}
+        attrs = node_obj.attributes if (node_obj and node_obj.attributes) else {}
 
         # Map common attribute names to Graphviz DOT attributes
         dot_attrs = []
@@ -1115,7 +1115,7 @@ def _generate_graphviz_svg_html(
             {
                 "id": str(node),
                 "label": str(node),
-                "attributes": node_obj.attributes if node_obj else {},
+                "attributes": node_obj.attributes if (node_obj and node_obj.attributes) else {},
             }
         )
 
