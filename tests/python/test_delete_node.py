@@ -1,5 +1,3 @@
-"""Tests for delete_node() method."""
-
 import pytest
 from edgecase import Graph
 
