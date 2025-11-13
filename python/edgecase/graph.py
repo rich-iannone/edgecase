@@ -1226,7 +1226,13 @@ class Graph:
         has_node : Check if node exists
         delete_edge : Delete edges from the graph
         """
-        node_id = self._resolve_node_id(node, auto_create=False)
+        try:
+            node_id = self._resolve_node_id(node, auto_create=False)
+        except ValueError as e:
+            # Convert ValueError to KeyError for consistency
+            raise KeyError(str(e))
+
+        # Rust delete_node raises PyKeyError if node doesn't exist
         self._graph.delete_node(node_id)
         return self
 
