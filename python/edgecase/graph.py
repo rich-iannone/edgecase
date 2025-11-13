@@ -923,24 +923,33 @@ class Graph:
 
         See Also
         --------
-        get_edges : Get edges as formatted strings
+        edges_str_repr : Get edges as formatted strings
         edge_ids : Get list of edge IDs only
         num_edges : Get count of edges
         """
         return self._graph.edges()
 
-    def get_edges(self) -> list[str]:
-        """Get edges as formatted strings.
+    def edges_str_repr(self, limit: Optional[int] = 1000) -> list[str]:
+        """Get edges as formatted string representations.
 
-        Returns human-readable edge representations using node labels.
+        Returns edge representations as strings showing node IDs with arrow notation.
         The format depends on whether the graph is directed or undirected:
-        - Directed graphs: "source->target"
-        - Undirected graphs: "source--target"
+
+        - Directed graphs: "source_id->target_id"
+        - Undirected graphs: "source_id--target_id"
+
+        Parameters
+        ----------
+        limit : int | None, default=1000
+            Maximum number of edge strings to return. Pass `None` to return all edges
+            (warning: may be slow for large graphs). Default limit of 1000 prevents
+            performance issues when working with large graphs.
 
         Returns
         -------
         list[str]
             List of edge strings with arrow notation indicating direction.
+            Node IDs are used, not labels.
 
         Examples
         --------
@@ -958,7 +967,7 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.get_edges())  # ['A->B', 'B->C']
+        print(graph.edges_str_repr())  # ['1->2', '2->3']
         ```
 
         Undirected graphs use double dashes:
@@ -971,15 +980,25 @@ class Graph:
             .add_edge("X", "Y")
         )
 
-        print(graph.get_edges())  # ['X--Y']
+        print(graph.edges_str_repr())  # ['1--2']
+        ```
+
+        Get all edges regardless of size:
+
+        ```python
+        # Use None to get all edges (may be slow for large graphs!)
+        all_edges = graph.edges_str_repr(limit=None)
+        print(f"Total edges: {len(all_edges)}")
         ```
 
         See Also
         --------
         edges : Get edges as (id, source, target) tuples
+        edge_ids : Get list of edge IDs only
         num_edges : Get count of edges
         """
-        return self._graph.get_edges()
+        edge_strs = self._graph.get_edges()
+        return edge_strs if limit is None else edge_strs[:limit]
 
     def has_edge_id(self, edge_id: int) -> bool:
         """Check if an edge with given ID exists.
@@ -1247,8 +1266,7 @@ class Graph:
 
         ```python
         graph = Graph().add_node(label="A").add_node(label="B").add_edge("A", "B")
-        edges = graph.get_edges()
-        edge_id = edges[0].id
+        edge_id = graph.edge_ids()[0]
 
         graph.delete_edge(id=edge_id)
         print(graph.has_edge("A", "B"))  # False
