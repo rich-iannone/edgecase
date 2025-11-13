@@ -47,7 +47,7 @@ class TestCycleEnumeration:
         assert len(cycles) == 1
         assert len(cycles[0]) == 3
         # Check all three node IDs are in the cycle
-        node_ids = G.get_node_ids()
+        node_ids = G.node_ids(limit=None)
         assert set(cycles[0]) == set(node_ids)
 
     def test_two_node_cycle(self):
@@ -63,7 +63,7 @@ class TestCycleEnumeration:
         assert len(cycles) == 1
         assert len(cycles[0]) == 2
         # Check both node IDs are in the cycle
-        node_ids = G.get_node_ids()
+        node_ids = G.node_ids(limit=None)
         assert set(cycles[0]) == set(node_ids)
 
     def test_multiple_separate_cycles(self):
@@ -181,7 +181,7 @@ class TestCycleEnumeration:
         cycles = G.get_cycles()
         assert len(cycles) == 1
         # Check all three node IDs are in the cycle
-        node_ids = G.get_node_ids()
+        node_ids = G.node_ids(limit=None)
         assert set(cycles[0]) == set(node_ids)
 
     def test_standalone_function(self):

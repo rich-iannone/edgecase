@@ -600,27 +600,35 @@ class Graph:
         See Also
         --------
         get_id_from_label : Get node ID from label
-        get_node_ids : Get all node IDs in the graph
+        node_ids : Get all node IDs in the graph
         """
         try:
             return self._graph.label_from_id(node_id)
         except (ValueError, Exception):
             return None
 
-    def get_node_ids(self) -> list[int]:
-        """Get all node IDs in the graph.
+    def node_ids(self, limit: Optional[int] = 1000) -> list[int]:
+        """Return list of node IDs.
 
-        Returns the complete list of u64 node IDs currently in the graph.
-        Useful for iterating over all nodes or checking graph size.
+        Returns node IDs in the graph up to the specified limit. Node IDs are
+        unique integers (u64) assigned to each node, useful for iterating over
+        nodes or performing operations on specific nodes.
+
+        Parameters
+        ----------
+        limit : int | None, default=1000
+            Maximum number of node IDs to return. Pass `None` to return all node IDs
+            (warning: may be slow for large graphs). Default limit of 1000 prevents
+            performance issues when working with large graphs.
 
         Returns
         -------
         list[int]
-            List of u64 node IDs in the graph.
+            List of node IDs in the graph, limited to `limit`.
 
         Examples
         --------
-        Get all node IDs:
+        Get first 1000 node IDs (default):
 
         ```python
         graph = (
@@ -630,15 +638,33 @@ class Graph:
             .add_node(label="C")
         )
 
-        ids = graph.get_node_ids()
-        print(ids)  # [1, 2, 3]
+        ids = graph.node_ids()  # Returns up to 1000 node IDs
+        print(f"Showing {len(ids)} node IDs: {ids}")
+        ```
+
+        Get a smaller sample:
+
+        ```python
+        # Get only first 10 node IDs for preview
+        sample_ids = graph.node_ids(limit=10)
+        print(f"Sample: {sample_ids}")
+        ```
+
+        Get all node IDs regardless of size:
+
+        ```python
+        # Use None to get all nodes (may be slow for large graphs!)
+        all_ids = graph.node_ids(limit=None)
+        print(f"Total nodes: {len(all_ids)}")
         ```
 
         See Also
         --------
         num_nodes : Get the count of nodes
+        edge_ids : Get list of edge IDs
         """
-        return self._graph.get_node_ids()
+        ids = self._graph.get_node_ids()
+        return ids if limit is None else ids[:limit]
 
     def is_graph_simple(self) -> bool:
         """Check if the graph is simple (no self-loops or multi-edges).
@@ -843,7 +869,7 @@ class Graph:
         from edgecase.colors import COLOR_PALETTES
 
         if nodes is None:
-            nodes = self.get_node_ids()
+            nodes = self.node_ids(limit=None)
 
         # Get values to colorize
         if values is None:
@@ -933,13 +959,13 @@ class Graph:
         Scale by degree:
 
         ```python
-        degrees = {n: len(G.neighbors(n)) for n in G.get_node_ids()}
+        degrees = {n: len(G.neighbors(n)) for n in G.node_ids(limit=None)}
         G.rescale_node_attrs(values=degrees, node_attr_to='width',
                              to_lower_bound=1, to_upper_bound=10)
         ```
         """
         if nodes is None:
-            nodes = self.get_node_ids()
+            nodes = self.node_ids(limit=None)
 
         # Get values to rescale
         if values is None:
@@ -4193,7 +4219,7 @@ class Graph:
 
         # Get indegrees for all nodes (or filtered nodes)
         degrees = []
-        for node_id in self.get_node_ids():
+        for node_id in self.node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
                 degrees.append(self.in_degree(node_id))
 
@@ -4288,7 +4314,7 @@ class Graph:
 
         # Get outdegrees for all nodes (or filtered nodes)
         degrees = []
-        for node_id in self.get_node_ids():
+        for node_id in self.node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
                 degrees.append(self.out_degree(node_id))
 
@@ -4380,7 +4406,7 @@ class Graph:
 
         # Get total degrees for all nodes (or filtered nodes)
         degrees = []
-        for node_id in self.get_node_ids():
+        for node_id in self.node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
                 degrees.append(self.degree(node_id))
 
@@ -6105,7 +6131,7 @@ class Graph:
         >>> # Create a random graph
         >>> nx_g = nx.erdos_renyi_graph(50, 0.1, seed=42)
         >>> g = Graph()
-        >>> for node in nx_g.get_node_ids():
+        >>> for node in nx_g.node_ids(limit=None):
         ...     g.add_node(label=str(node))
         >>> for u, v in nx_g.edges():
         ...     g.add_edge(str(u), str(v))
@@ -9602,15 +9628,15 @@ class Graph:
         """
         # Compute scores based on measure
         if measure == "degree":
-            scores = {node_id: self.degree(node_id) for node_id in self.get_node_ids()}
+            scores = {node_id: self.degree(node_id) for node_id in self.node_ids(limit=None)}
         elif measure == "in_degree":
             if not self._graph.is_directed:
                 raise ValueError("in_degree only available for directed graphs")
-            scores = {node_id: self.in_degree(node_id) for node_id in self.get_node_ids()}
+            scores = {node_id: self.in_degree(node_id) for node_id in self.node_ids(limit=None)}
         elif measure == "out_degree":
             if not self._graph.is_directed:
                 raise ValueError("out_degree only available for directed graphs")
-            scores = {node_id: self.out_degree(node_id) for node_id in self.get_node_ids()}
+            scores = {node_id: self.out_degree(node_id) for node_id in self.node_ids(limit=None)}
         elif measure == "pagerank":
             scores = pagerank(self, **kwargs)
         elif measure == "betweenness":
@@ -9680,7 +9706,7 @@ class Graph:
         """
 
         if nodes is None:
-            nodes = self.get_node_ids()
+            nodes = self.node_ids(limit=None)
 
         result = {}
         for node_id in nodes:
@@ -9756,7 +9782,7 @@ class Graph:
         add_node : Add node with initial attributes
         """
         if nodes is None:
-            nodes = self.get_node_ids()
+            nodes = self.node_ids(limit=None)
 
         # Handle different value types
         if isinstance(values, dict):
@@ -10130,7 +10156,7 @@ class Graph:
         """
         import polars as pl
 
-        node_ids = self.get_node_ids()
+        node_ids = self.node_ids(limit=None)
         if not node_ids:
             return pl.DataFrame()
 
@@ -10751,7 +10777,7 @@ class Graph:
         get_neighbors : Get neighbors of a node
         neighbors : Get neighbor list
         """
-        all_nodes = set(self.get_node_ids())
+        all_nodes = set(self.node_ids(limit=None))
         neighbors = set(self.get_neighbors(node_id, mode="all"))
 
         # Remove the node itself and its neighbors
@@ -10926,7 +10952,7 @@ class Graph:
         visited = set()
         components = []
 
-        for node in graph.get_node_ids():
+        for node in graph.node_ids(limit=None):
             if node not in visited:
                 component = graph.get_all_connected_nodes(node)
                 component.append(node)  # Include starting node
@@ -12332,7 +12358,7 @@ class Graph:
             temp = Graph(directed=directed)
             temp._graph.generate_gnp_graph(n, p, seed)
             # Copy nodes and edges to this graph
-            for node_id in temp.get_node_ids():
+            for node_id in temp.node_ids(limit=None):
                 self.add_node(node_id)
             for source, target in temp.edges():
                 self.add_edge(source, target)
@@ -12395,7 +12421,7 @@ class Graph:
             temp = Graph(directed=directed)
             temp._graph.generate_gnm_graph(n, m, seed)
             # Copy nodes and edges to this graph
-            for node_id in temp.get_node_ids():
+            for node_id in temp.node_ids(limit=None):
                 self.add_node(node_id)
             for source, target in temp.edges():
                 self.add_edge(source, target)
@@ -12566,11 +12592,11 @@ class Graph:
         print(graph.num_edges())  # 12
 
         # Each node is a 2-subset
-        nodes = [graph.get_label_from_id(nid) for nid in graph.get_node_ids()]
+        nodes = [graph.get_label_from_id(nid) for nid in graph.node_ids(limit=None)]
         print(nodes)  # ['0,1', '0,2', '0,3', '1,2', '1,3', '2,3']
 
         # Verify regularity: each node has degree k(n-k) = 2*2 = 4
-        degrees = [graph.degree(nid) for nid in graph.get_node_ids()]
+        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
         print(set(degrees))  # {4}
         ```
 
@@ -12582,7 +12608,7 @@ class Graph:
         print(johnson_5_2.num_edges())  # 30
 
         # Verify regularity: degree = k(n-k) = 2*(5-2) = 6
-        degrees = [johnson_5_2.degree(nid) for nid in johnson_5_2.get_node_ids()]
+        degrees = [johnson_5_2.degree(nid) for nid in johnson_5_2.node_ids(limit=None)]
         print(f"Degree: {degrees[0]}")  # 6
 
         # Note: The Petersen graph is actually the Kneser graph K(5,2),
@@ -13359,7 +13385,7 @@ class Graph:
         info["Density"] = f"{density:.2f}"
 
         # Degree statistics - compute for all nodes
-        node_ids = self.get_node_ids()
+        node_ids = self.node_ids(limit=None)
         degrees = [self.degree(self.get_label_from_id(nid) or str(nid)) for nid in node_ids]
 
         if degrees:
@@ -13579,7 +13605,7 @@ class Graph:
             mst = Graph(directed=self.is_directed, weighted=True)
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids():
+            for node_id in self.node_ids(limit=None):
                 label = self.get_label_from_id(node_id)
                 # Try to get node attributes if they exist
                 try:
@@ -13671,7 +13697,7 @@ class Graph:
             st = Graph(directed=self.is_directed, weighted=True)
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids():
+            for node_id in self.node_ids(limit=None):
                 label = self.get_label_from_id(node_id)
                 # Try to get node attributes if they exist
                 try:

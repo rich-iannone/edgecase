@@ -58,7 +58,7 @@ class TestToNetworkX:
         nx_graph = to_networkx(G)
         
         assert nx_graph.number_of_nodes() == 3
-        assert set(nx_graph.get_node_ids()) == {"A", "B", "C"}
+        assert set(nx_graph.node_ids(limit=None)) == {"A", "B", "C"}
     
     def test_nodes_with_attributes(self):
         """Convert graph with node attributes."""
@@ -216,7 +216,7 @@ class TestFromNetworkX:
         G = from_networkx(nx_graph)
         
         assert G.num_nodes() == 3
-        assert set(G.get_node_ids()) == {"A", "B", "C"}
+        assert set(G.node_ids(limit=None)) == {"A", "B", "C"}
     
     def test_nodes_with_attributes(self):
         """Convert NetworkX graph with node attributes."""
@@ -334,9 +334,9 @@ class TestFromNetworkX:
         G = from_networkx(nx_graph)
         
         # Node IDs should be converted to strings
-        assert "1" in G.get_node_ids()
-        assert "2" in G.get_node_ids()
-        assert "3" in G.get_node_ids()
+        assert "1" in G.node_ids(limit=None)
+        assert "2" in G.node_ids(limit=None)
+        assert "3" in G.node_ids(limit=None)
         assert G.num_edges() == 2
 
 

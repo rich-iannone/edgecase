@@ -22,7 +22,7 @@ class TestJohnsonGraph:
         """Test J(4,2) has correct node labels (2-subsets)."""
         graph = Graph(directed=False).add_johnson_graph(n=4, k=2)
         
-        node_labels = {graph.get_label_from_id(nid) for nid in graph.get_node_ids()}
+        node_labels = {graph.get_label_from_id(nid) for nid in graph.node_ids(limit=None)}
         expected = {'0,1', '0,2', '0,3', '1,2', '1,3', '2,3'}
         
         assert node_labels == expected
@@ -32,7 +32,7 @@ class TestJohnsonGraph:
         graph = Graph(directed=False).add_johnson_graph(n=4, k=2)
         
         expected_degree = 2 * (4 - 2)  # k * (n-k) = 4
-        degrees = [graph.degree(nid) for nid in graph.get_node_ids()]
+        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
         
         assert all(d == expected_degree for d in degrees)
         
@@ -60,7 +60,7 @@ class TestJohnsonGraph:
         # Total edges = (10 * 6) / 2 = 30
         assert graph.num_edges() == 30
         
-        degrees = [graph.degree(nid) for nid in graph.get_node_ids()]
+        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
         assert all(d == 6 for d in degrees)
         
     def test_johnson_5_1_singletons(self):
@@ -76,7 +76,7 @@ class TestJohnsonGraph:
         # Degree = 1*(5-1) = 4 (complete graph K5)
         assert graph.num_edges() == 10  # C(5,2) = 10 edges
         
-        degrees = [graph.degree(nid) for nid in graph.get_node_ids()]
+        degrees = [graph.degree(nid) for nid in graph.node_ids(limit=None)]
         assert all(d == 4 for d in degrees)
         
     def test_johnson_edge_cases(self):

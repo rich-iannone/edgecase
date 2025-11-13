@@ -55,7 +55,7 @@ def to_igraph(graph):
     ig_graph = ig.Graph(directed=graph.is_directed)
 
     # Get all node IDs and create a mapping
-    node_ids = list(graph.get_node_ids())
+    node_ids = list(graph.node_ids(limit=None))
     n_nodes = len(node_ids)
 
     # Add vertices

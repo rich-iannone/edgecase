@@ -5,7 +5,7 @@ from edgecase import Graph
 def networkx_to_edgecase(nx_graph):
     """Convert NetworkX graph to EdgeCase graph."""
     g = Graph()
-    for node in nx_graph.get_node_ids():
+    for node in nx_graph.node_ids(limit=None):
         g.add_node(label=str(node))
     for u, v in nx_graph.edges():
         g.add_edge(str(u), str(v))

@@ -20,7 +20,7 @@ class TestDeleteNodesWS:
         G.delete_nodes_ws()
         
         assert G.num_nodes() == 3
-        assert set(G.get_node_ids()) == {1, 4, 5}  # Returns integer IDs
+        assert set(G.node_ids(limit=None)) == {1, 4, 5}  # Returns integer IDs
         # Edges incident to deleted nodes should also be removed
         assert G.num_edges() == 1  # Only 4-5 edge remains
         
@@ -46,7 +46,7 @@ class TestDeleteNodesWS:
         G.delete_nodes_ws()
         
         assert G.num_nodes() == 2
-        assert set(G.get_node_ids()) == {1, 3}  # A=1, C=3
+        assert set(G.node_ids(limit=None)) == {1, 3}  # A=1, C=3
         
     def test_delete_nodes_in_directed_graph(self):
         """Delete nodes in directed graph."""
@@ -68,7 +68,7 @@ class TestDeleteNodesWS:
         G = ec.Graph()
         G.add_star_graph(5)
         
-        all_nodes = G.get_node_ids()
+        all_nodes = G.node_ids(limit=None)
         G.select_nodes_by_id(all_nodes)
         G.delete_nodes_ws()
         
@@ -587,7 +587,7 @@ class TestBulkModificationWorkflows:
           .set_node_attrs_ws(hub=True, color='red')
         
         # Check attributes were set
-        hubs = [n for n in G.get_node_ids() if G.get_node(n).attributes and G.get_node(n).attributes.get('hub')]
+        hubs = [n for n in G.node_ids(limit=None) if G.get_node(n).attributes and G.get_node(n).attributes.get('hub')]
         assert len(hubs) >= 3
         
     def test_workflow_transform_weights(self):
@@ -627,7 +627,7 @@ class TestBulkModificationWorkflows:
         G.delete_nodes_ws()
         
         # Fully connect remaining nodes
-        remaining = G.get_node_ids()
+        remaining = G.node_ids(limit=None)
         G.select_nodes_by_id(remaining) \
           .fully_connect_nodes_ws(type='rebuilt')
         

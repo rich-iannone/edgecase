@@ -42,7 +42,7 @@ class TestGraphBuilderEdgeCases:
         assert g.num_edges() == 3
         
         # Each node should have exactly one neighbor
-        for node_id in g.get_node_ids():
+        for node_id in g.node_ids(limit=None):
             assert len(g.neighbors(node_id)) == 1
     
     def test_add_star_two_nodes(self):
@@ -144,7 +144,7 @@ class TestGraphBuilderProperties:
         assert g.num_edges() == n
         
         # Each node should have exactly 1 outgoing edge
-        for node_id in g.get_node_ids():
+        for node_id in g.node_ids(limit=None):
             assert len(g.neighbors(node_id)) == 1
     
     @given(n=st.integers(min_value=2, max_value=30))
@@ -157,7 +157,7 @@ class TestGraphBuilderProperties:
         assert g.num_edges() == n - 1
         
         # Count degree distribution
-        degrees = [len(g.neighbors(nid)) for nid in g.get_node_ids()]
+        degrees = [len(g.neighbors(nid)) for nid in g.node_ids(limit=None)]
         
         if n == 2:
             # Special case: both nodes have degree 1
@@ -181,7 +181,7 @@ class TestGraphBuilderProperties:
         
         # Each node should have n-1 neighbors
         if n > 1:
-            for node_id in g.get_node_ids():
+            for node_id in g.node_ids(limit=None):
                 assert len(g.neighbors(node_id)) == n - 1
     
     @given(
@@ -442,7 +442,7 @@ class TestGraphBuilderConsistency:
         g = g.add_path_graph(n=5)
         
         # Should be able to trace from 1 to 5
-        node_ids = sorted(g.get_node_ids(), key=int)
+        node_ids = sorted(g.node_ids(limit=None), key=int)
         for i in range(len(node_ids) - 1):
             current = node_ids[i]
             expected_next = node_ids[i + 1]
@@ -456,7 +456,7 @@ class TestGraphBuilderConsistency:
         
         # Traverse the cycle and return to start
         visited = set()
-        current = g.get_node_ids()[0]
+        current = g.node_ids(limit=None)[0]
         start = current
         
         while current not in visited:
@@ -475,7 +475,7 @@ class TestGraphBuilderConsistency:
         g = g.add_star_graph(n=7)
         
         # Find the center (node with highest degree)
-        nodes = g.get_node_ids()
+        nodes = g.node_ids(limit=None)
         degrees = {nid: len(g.neighbors(nid)) for nid in nodes}
         center = max(degrees, key=degrees.get)
         
@@ -490,7 +490,7 @@ class TestGraphBuilderConsistency:
         g = ec.Graph(directed=False)
         g = g.add_full_graph(n=5)
         
-        nodes = g.get_node_ids()
+        nodes = g.node_ids(limit=None)
         for node in nodes:
             neighbors = set(g.neighbors(node))
             # Each node should connect to all others
@@ -504,7 +504,7 @@ class TestGraphBuilderConsistency:
         # Corner nodes should have exactly 2 neighbors
         # Edge nodes should have exactly 3 neighbors
         # Center node should have exactly 4 neighbors
-        degrees = [len(g.neighbors(nid)) for nid in g.get_node_ids()]
+        degrees = [len(g.neighbors(nid)) for nid in g.node_ids(limit=None)]
         
         assert degrees.count(2) == 4  # 4 corners
         assert degrees.count(3) == 4  # 4 edge midpoints

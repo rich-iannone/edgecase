@@ -120,7 +120,7 @@ class GraphWidget:
         >>> widget = GraphWidget(G)
         >>> widget.show()
         >>> # Custom aesthetics
-        >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.get_node_ids()})
+        >>> G.set_node_attrs_ws(size={n: G.degree(n) for n in G.node_ids(limit=None)})
         >>> widget = GraphWidget(G)
         >>> widget.show()
     ```
@@ -197,7 +197,7 @@ class GraphWidget:
         from edgecase.viz import _circular_layout, _force_directed_layout, _random_layout
 
         # Get nodes and edges
-        nodes = self.graph.get_node_ids()
+        nodes = self.graph.node_ids(limit=None)
         edges = []
         seen = set()
 
@@ -866,7 +866,7 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     >>> widget.show()
     >>> # With community detection
     >>> communities = G.get_cmty_louvain()
-    >>> for node_id in G.get_node_ids():
+    >>> for node_id in G.node_ids(limit=None):
     ...     if node_id in communities:
     ...         node = G.get_node(node_id)
     ...         node.attributes["community"] = communities[node_id]
