@@ -22,7 +22,7 @@ G_fast = (
     .colorize_node_attrs(node_attr_from="community", palette="Set1")
 )
 
-node_1 = G_fast.id_from_label("1")
+node_1 = G_fast.get_id_from_label("1")
 node_obj = G_fast.get_node(node_1)
 print(
     f"Node 1 attributes: community={node_obj.attributes.get('community')}, "

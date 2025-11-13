@@ -120,7 +120,7 @@ class TestMinimumSpanningTree:
         mst = g.minimum_spanning_tree()
 
         # Check that nodes exist and have basic structure
-        node_a = mst.get_node(mst.id_from_label("A"))
+        node_a = mst.get_node(mst.get_id_from_label("A"))
         assert node_a is not None
         assert node_a.label == "A"
         # Attributes may or may not be preserved - just check structure works

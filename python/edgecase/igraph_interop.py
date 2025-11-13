@@ -187,7 +187,7 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     graph = from_igraph(ig_graph)
     print(graph.num_nodes())  # 2
     print(graph.num_edges())  # 1
-    node = graph.get_node(graph.id_from_label("A"))
+    node = graph.get_node(graph.get_id_from_label("A"))
     print(node.attributes["color"])  # 'red'
     ```
 

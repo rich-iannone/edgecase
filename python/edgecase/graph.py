@@ -255,7 +255,7 @@ class Graph:
         ```python
         graph = Graph()
         graph.add_node(label="Node1")
-        node_id = graph.id_from_label("Node1")
+        node_id = graph.get_id_from_label("Node1")
         print(f"Created node with ID: {node_id}")
         ```
 
@@ -294,7 +294,7 @@ class Graph:
         See Also
         --------
         add_edge : Add edges between existing nodes
-        id_from_label : Look up node ID by label
+        get_id_from_label : Look up node ID by label
         label_from_id : Look up node label by ID
         """
         # Handle different input patterns for node_id
@@ -391,8 +391,8 @@ class Graph:
         graph = Graph()
         graph.add_node(label="Alice")
         graph.add_node(label="Bob")
-        alice_id = graph.id_from_label("Alice")
-        bob_id = graph.id_from_label("Bob")
+        alice_id = graph.get_id_from_label("Alice")
+        bob_id = graph.get_id_from_label("Bob")
         graph.add_edge(alice_id, bob_id)
         ```
 
@@ -413,7 +413,7 @@ class Graph:
         graph = Graph()
         graph.add_node(label="Alice")
         graph.add_node(label="Bob")
-        alice_id = graph.id_from_label("Alice")
+        alice_id = graph.get_id_from_label("Alice")
         graph.add_edge(alice_id, "Bob")
         ```
 
@@ -518,7 +518,7 @@ class Graph:
         else:
             raise TypeError(f"Node identifier must be int or str, got {type(node)}")
 
-    def id_from_label(self, label: str) -> Optional[int]:
+    def get_id_from_label(self, label: str) -> Optional[int]:
         """Get the integer ID for a node by its label.
 
         Translates a human-readable string label to the internal u64 node ID.
@@ -545,10 +545,10 @@ class Graph:
             .add_node(label="Bob")
         )
 
-        alice_id = graph.id_from_label("Alice")
+        alice_id = graph.get_id_from_label("Alice")
         print(alice_id)  # 1
 
-        unknown_id = graph.id_from_label("Unknown")
+        unknown_id = graph.get_id_from_label("Unknown")
         print(unknown_id)  # None
         ```
 
@@ -599,7 +599,7 @@ class Graph:
 
         See Also
         --------
-        id_from_label : Get node ID from label
+        get_id_from_label : Get node ID from label
         get_node_ids : Get all node IDs in the graph
         """
         try:
@@ -801,7 +801,9 @@ class Graph:
         for node_label, value in values.items():
             color = color_map.get(value, "#cccccc")
             # Convert string label to internal node ID if needed
-            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
+            node_id = (
+                node_label if isinstance(node_label, int) else self.get_id_from_label(node_label)
+            )
             self._graph.set_node_attr(node_id, node_attr_to, color)
 
         return self
@@ -886,7 +888,9 @@ class Graph:
             normalized = (value - min_val) / value_range
             rescaled = to_lower_bound + (normalized * output_range)
             # Convert string label to internal node ID if needed
-            node_id = node_label if isinstance(node_label, int) else self.id_from_label(node_label)
+            node_id = (
+                node_label if isinstance(node_label, int) else self.get_id_from_label(node_label)
+            )
             self._graph.set_node_attr(node_id, node_attr_to, rescaled)
 
         return self
@@ -7307,12 +7311,12 @@ class Graph:
 
         communities = graph.get_cmty_louvain()
         # Nodes in same triangle have same community ID
-        node_a = graph.id_from_label("A")
-        node_b = graph.id_from_label("B")
-        node_c = graph.id_from_label("C")
-        node_d = graph.id_from_label("D")
+        node_a = graph.get_id_from_label("A")
+        node_b = graph.get_id_from_label("B")
+        node_c = graph.get_id_from_label("C")
+        node_d = graph.get_id_from_label("D")
         assert communities[node_a] == communities[node_b] == communities[node_c]
-        assert communities[node_d] == communities[graph.id_from_label("E")]
+        assert communities[node_d] == communities[graph.get_id_from_label("E")]
 
         # Control community granularity with resolution
         fine = graph.get_cmty_louvain(resolution=1.5)  # Smaller communities
@@ -7432,12 +7436,12 @@ class Graph:
         graph.add_edge("C", "D")  # Bridge
 
         communities = graph.get_cmty_walktrap()
-        node_a = graph.id_from_label("A")
-        node_b = graph.id_from_label("B")
-        node_c = graph.id_from_label("C")
-        node_d = graph.id_from_label("D")
+        node_a = graph.get_id_from_label("A")
+        node_b = graph.get_id_from_label("B")
+        node_c = graph.get_id_from_label("C")
+        node_d = graph.get_id_from_label("D")
         assert communities[node_a] == communities[node_b] == communities[node_c]
-        assert communities[node_d] == communities[graph.id_from_label("E")]
+        assert communities[node_d] == communities[graph.get_id_from_label("E")]
 
         # Try different step lengths for different scales
         local_cmty = graph.get_cmty_walktrap(steps=2)   # More local communities
@@ -9493,7 +9497,7 @@ class Graph:
 
         ```python
         graph = Graph().add_star_graph(5)
-        center_id = graph.id_from_label(0)
+        center_id = graph.get_id_from_label(0)
         graph.select_nodes_in_neighborhood(center_id, k=1, mode="all")
 
         # Selects all neighbors of center (not center itself)
@@ -9713,7 +9717,7 @@ class Graph:
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .set_node_attrs("color", "blue", nodes=[graph.id_from_label("A"), graph.id_from_label("B")])
+            .set_node_attrs("color", "blue", nodes=[graph.get_id_from_label("A"), graph.get_id_from_label("B")])
         )
 
         colors = graph.get_node_attrs("color")
@@ -9723,13 +9727,13 @@ class Graph:
         graph.set_node_attrs("status", "active")
 
         # Set different values using a list
-        node_ids = [graph.id_from_label(l) for l in ["A", "B", "C"]]
+        node_ids = [graph.get_id_from_label(l) for l in ["A", "B", "C"]]
         graph.set_node_attrs("score", [100, 85, 92], nodes=node_ids)
 
         # Set different values using a dictionary
-        id_map = {graph.id_from_label("A"): "primary",
-                  graph.id_from_label("B"): "secondary",
-                  graph.id_from_label("C"): "primary"}
+        id_map = {graph.get_id_from_label("A"): "primary",
+                  graph.get_id_from_label("B"): "secondary",
+                  graph.get_id_from_label("C"): "primary"}
         graph.set_node_attrs("category", id_map)
         ```
 
@@ -10892,12 +10896,12 @@ class Graph:
         graph.add_path_graph(2)  # Component 2: nodes 3-4
 
         # Find all nodes reachable from node 0
-        node_0 = graph.id_from_label(0)
+        node_0 = graph.get_id_from_label(0)
         connected = graph.get_all_connected_nodes(node_0)
         print(len(connected))  # 2 (nodes 1 and 2)
 
         # Node 3 is in a separate component
-        node_3 = graph.id_from_label(3)
+        node_3 = graph.get_id_from_label(3)
         connected_3 = graph.get_all_connected_nodes(node_3)
         print(len(connected_3))  # 1 (node 4)
         ```
@@ -11074,7 +11078,7 @@ class Graph:
         graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
 
         # Select and delete middle nodes
-        node_ids = [graph.id_from_label(2), graph.id_from_label(3)]
+        node_ids = [graph.get_id_from_label(2), graph.get_id_from_label(3)]
         graph.select_nodes_by_id(node_ids)
         graph.delete_nodes_ws()
 
@@ -11203,8 +11207,8 @@ class Graph:
         graph.add_node('B', value=20)
 
         # Select nodes and set attributes
-        id_a = graph.id_from_label('A')
-        id_b = graph.id_from_label('B')
+        id_a = graph.get_id_from_label('A')
+        id_b = graph.get_id_from_label('B')
         (graph
             .select_nodes_by_id([id_a, id_b])
             .set_node_attrs_ws(color='red', importance=0.9)
@@ -11333,9 +11337,9 @@ class Graph:
         graph.add_node('C', score=30)
 
         # Double the score for selected nodes
-        id_a = graph.id_from_label('A')
-        id_b = graph.id_from_label('B')
-        id_c = graph.id_from_label('C')
+        id_a = graph.get_id_from_label('A')
+        id_b = graph.get_id_from_label('B')
+        id_c = graph.get_id_from_label('C')
         (graph
             .select_nodes_by_id([id_a, id_b])
             .mutate_node_attrs_ws('score', lambda x: x * 2)
@@ -11481,9 +11485,9 @@ class Graph:
         graph.add_node('C')
 
         # Create clique among selected nodes
-        id_a = graph.id_from_label('A')
-        id_b = graph.id_from_label('B')
-        id_c = graph.id_from_label('C')
+        id_a = graph.get_id_from_label('A')
+        id_b = graph.get_id_from_label('B')
+        id_c = graph.get_id_from_label('C')
         (graph
             .select_nodes_by_id([id_a, id_b, id_c])
             .fully_connect_nodes_ws(type='clique', weight=1.0)
@@ -12616,7 +12620,7 @@ class Graph:
         graph.add_edge("A", "B")
         graph.add_edge("B", "C")
 
-        node_a_id = graph.id_from_label("A")
+        node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out()
         selected = graph.get_selected_nodes()
         # Returns [node_id_for_B]
@@ -12650,7 +12654,7 @@ class Graph:
         graph.add_edge("A", "B")
         graph.add_edge("B", "C")
 
-        node_c_id = graph.id_from_label("C")
+        node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in()
         selected = graph.get_selected_nodes()
         # Returns [node_id_for_B]
@@ -12682,7 +12686,7 @@ class Graph:
         graph.add_edge("A", "B")
         graph.add_edge("C", "B")
 
-        node_b_id = graph.id_from_label("B")
+        node_b_id = graph.get_id_from_label("B")
         graph.select_nodes_by_id([node_b_id]).trav_both()
 
         # Get labels of selected nodes
@@ -12717,7 +12721,7 @@ class Graph:
         graph.add_edge("A", "B")
         graph.add_edge("A", "C")
 
-        node_a_id = graph.id_from_label("A")
+        node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out_edge()
 
         print(len(graph.get_selected_edges()))  # 2
@@ -12750,7 +12754,7 @@ class Graph:
         graph.add_edge("A", "C")
         graph.add_edge("B", "C")
 
-        node_c_id = graph.id_from_label("C")
+        node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in_edge()
 
         print(len(graph.get_selected_edges()))  # 2
@@ -14207,8 +14211,8 @@ class AdaStar:
         self.target = target
 
         # Get internal node IDs
-        self.source_id = graph.id_from_label(source)
-        self.target_id = graph.id_from_label(target)
+        self.source_id = graph.get_id_from_label(source)
+        self.target_id = graph.get_id_from_label(target)
 
         if self.source_id is None:
             raise ValueError(f"Source node '{source}' not found in graph")

@@ -22,7 +22,7 @@ def main():
     print(f"Is regular: {len(set(degrees)) == 1}")
 
     # Show adjacency for one node
-    node_01 = g1.id_from_label("0,1")
+    node_01 = g1.get_id_from_label("0,1")
     neighbors = [g1.label_from_id(nid) for nid in g1.neighbors(node_01)]
     print(f"\nNeighbors of '0,1': {sorted(neighbors)}")
     print("Each neighbor intersects '0,1' in exactly 1 element")

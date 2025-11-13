@@ -41,7 +41,7 @@ class TestJohnsonGraph:
         graph = Graph(directed=False).add_johnson_graph(n=4, k=2)
         
         # Node "0,1" should be adjacent to nodes that share exactly 1 element
-        node_01_id = graph.id_from_label("0,1")
+        node_01_id = graph.get_id_from_label("0,1")
         neighbors = graph.neighbors(node_01_id)
         neighbor_labels = {graph.label_from_id(nid) for nid in neighbors}
         

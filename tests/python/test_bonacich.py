@@ -507,7 +507,7 @@ class TestBonacichComparison:
         # Get degrees manually
         degrees = {}
         for node in bonacich.keys():
-            degrees[node] = len(g.get_neighbors(g.id_from_label(node)))
+            degrees[node] = len(g.get_neighbors(g.get_id_from_label(node)))
 
         # Ordering should match degree ordering
         degree_order = sorted(degrees.items(), key=lambda x: x[1], reverse=True)

@@ -815,7 +815,7 @@ class TestEdgeCases:
         nx_graph = to_networkx(G)
         
         assert G.num_nodes() == nx_graph.number_of_nodes()
-        a_id = G.id_from_label("A")
+        a_id = G.get_id_from_label("A")
         assert G.degree(a_id) == nx_graph.degree["A"]
         assert G.degree(a_id) == 0
         ec_neighbors = list(G.neighbors(a_id))
@@ -847,7 +847,7 @@ class TestEdgeCases:
         nx_graph = to_networkx(G)
         
         assert G.num_nodes() == nx_graph.number_of_nodes()
-        c_id = G.id_from_label("C")
+        c_id = G.get_id_from_label("C")
         assert G.degree(c_id) == nx_graph.degree["C"]
         assert G.degree(c_id) == 0
         assert list(G.neighbors(c_id)) == []
@@ -1381,8 +1381,8 @@ class TestClosenessAndHarmonic:
                 nx_node = node_to_nx(G, node_id)
                 assert abs(ec_cc[node_id] - nx_cc[nx_node]) < 0.01
             
-            center_id = G.id_from_label("center")
-            a_id = G.id_from_label("A")
+            center_id = G.get_id_from_label("center")
+            a_id = G.get_id_from_label("A")
             assert ec_cc[center_id] > ec_cc[a_id]
     
     def test_harmonic_centrality(self):
@@ -1488,7 +1488,7 @@ class TestWeightedMetrics:
                 assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01
             
             # B should have non-zero betweenness
-            b_id = G.id_from_label("B")
+            b_id = G.get_id_from_label("B")
             assert ec_bc[b_id] > 0.01
     
     def test_weighted_pagerank(self):
@@ -1689,7 +1689,7 @@ class TestNumericalStability:
             
             # Check a few nodes
             for label in ["0,0", "5,5", "9,9"]:
-                node_id = G.id_from_label(label)
+                node_id = G.get_id_from_label(label)
                 assert abs(ec_bc[node_id] - nx_bc[label]) < 0.01
 
 

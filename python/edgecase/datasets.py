@@ -54,7 +54,7 @@ def karate_club() -> Graph:
     # Density: 0.139
 
     # Access node attributes by label
-    node_id = G.id_from_label("0")
+    node_id = G.get_id_from_label("0")
     node = G.get_node(node_id)
     print(f"Mr. Hi's faction: {node.attributes['faction']}")
     # Mr. Hi's faction: 1
