@@ -1353,13 +1353,13 @@ class Graph:
         See Also
         --------
         edges : Get edges with full details
-        get_edge_by_id : Get edge details by ID
+        get_node_ids_by_edge_id : Get edge node IDs by edge ID
         has_edge_id : Check if edge ID exists
         """
         return self._graph.edge_ids()
 
-    def get_edge_by_id(self, edge_id: int) -> tuple[str, str] | None:
-        """Get edge (source, target) by ID.
+    def get_node_ids_by_edge_id(self, edge_id: int) -> tuple[int, int] | None:
+        """Get edge (source, target) node IDs by edge ID.
 
         Retrieves the source and target node IDs for a specific edge using its
         edge ID. Returns None if the edge ID doesn't exist.
@@ -1371,8 +1371,8 @@ class Graph:
 
         Returns
         -------
-        tuple[str, str] | None
-            A tuple of (source_id, target_id) if the edge exists, None otherwise.
+        tuple[int, int] | None
+            A tuple of (source_node_id, target_node_id) if the edge exists, None otherwise.
 
         Examples
         --------
@@ -1392,11 +1392,11 @@ class Graph:
         edge_id = graph.edge_ids()[0]
 
         # Look up the edge
-        source, target = graph.get_edge_by_id(edge_id)
+        source, target = graph.get_node_ids_by_edge_id(edge_id)
         print(f"Edge {edge_id} goes from {source} to {target}")
 
         # Non-existent edge returns None
-        result = graph.get_edge_by_id(9999)
+        result = graph.get_node_ids_by_edge_id(9999)
         print(result)  # None
         ```
 
@@ -1445,7 +1445,7 @@ class Graph:
 
         See Also
         --------
-        get_edge_by_id : Get edge details by ID
+        get_node_ids_by_edge_id : Get edge node IDs by edge ID
         has_edge : Check if edge exists between two nodes
         edge_ids : Get all edge IDs
         """
@@ -2437,8 +2437,8 @@ class Graph:
 
         # Get details of mutual relationships
         for edge1_id, edge2_id in mutual_pairs:
-            e1 = graph.get_edge_by_id(edge1_id)
-            e2 = graph.get_edge_by_id(edge2_id)
+            e1 = graph.get_node_ids_by_edge_id(edge1_id)
+            e2 = graph.get_node_ids_by_edge_id(edge2_id)
             print(f"Mutual: {e1[0]} ↔ {e1[1]}")
         ```
 
@@ -10215,7 +10215,7 @@ class Graph:
         data = {"id": edge_ids}
 
         if include_endpoints:
-            edges = [self.get_edge_by_id(eid) for eid in edge_ids]
+            edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
             data["source"] = [e[0] if e else None for e in edges]
             data["target"] = [e[1] if e else None for e in edges]
 
@@ -10407,7 +10407,7 @@ class Graph:
         data = {"id": edge_ids}
 
         if include_endpoints:
-            edges = [self.get_edge_by_id(eid) for eid in edge_ids]
+            edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
             data["source"] = [e[0] if e else None for e in edges]
             data["target"] = [e[1] if e else None for e in edges]
 
@@ -11017,7 +11017,7 @@ class Graph:
 
         # Get endpoints in creation order
         for eid in creation_order:
-            source, target = graph.get_edge_by_id(eid)
+            source, target = graph.get_node_ids_by_edge_id(eid)
             print(f"Edge {eid}: {source} -> {target}")
         ```
 
@@ -11596,7 +11596,7 @@ class Graph:
         edges_to_add = []
 
         for edge_id in selected:
-            edge_tuple = self.get_edge_by_id(edge_id)
+            edge_tuple = self.get_node_ids_by_edge_id(edge_id)
             if edge_tuple:
                 source, target = edge_tuple
                 # Check if reverse edge exists
@@ -11645,7 +11645,7 @@ class Graph:
         graph.rev_edge_dir_ws()
 
         # Edge now goes B → A
-        source, target = graph.get_edge_by_id(edge_ids[0])
+        source, target = graph.get_node_ids_by_edge_id(edge_ids[0])
         print(f"{source} -> {target}")  # B -> A
 
         # Weight is preserved

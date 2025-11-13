@@ -328,8 +328,8 @@ class TestReciprocityUseCases:
         assert g.has_edge_id(edge2_id)
 
         # Verify they point to the right nodes (returns node IDs, not labels)
-        e1 = g.get_edge_by_id(edge1_id)
-        e2 = g.get_edge_by_id(edge2_id)
+        e1 = g.get_node_ids_by_edge_id(edge1_id)
+        e2 = g.get_node_ids_by_edge_id(edge2_id)
 
         # Both should be between the same two nodes
         nodes_e1 = set(e1)

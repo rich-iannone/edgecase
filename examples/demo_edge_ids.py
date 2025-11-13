@@ -69,8 +69,8 @@ def demo_edge_operations():
     print(f"All edge IDs: {edge_ids}")
 
     # Get specific edge
-    print(f"\nEdge {edge_ids[0]}: {g.get_edge_by_id(edge_ids[0])}")
-    print(f"Edge {edge_ids[1]}: {g.get_edge_by_id(edge_ids[1])}")
+    print(f"\nEdge {edge_ids[0]}: {g.get_node_ids_by_edge_id(edge_ids[0])}")
+    print(f"Edge {edge_ids[1]}: {g.get_node_ids_by_edge_id(edge_ids[1])}")
 
     # Check if edge exists
     print(f"\nHas edge {edge_ids[0]}? {g.has_edge_id(edge_ids[0])}")

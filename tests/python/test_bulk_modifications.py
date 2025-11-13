@@ -526,7 +526,7 @@ class TestRevEdgeDirWS:
         G.rev_edge_dir_ws()
         
         # Edge 1 should now be B->A (returns IDs: 2, 1)
-        edge_tuple = G.get_edge_by_id(1)
+        edge_tuple = G.get_node_ids_by_edge_id(1)
         assert edge_tuple == (2, 1)  # B=2, A=1
         
     def test_reverse_preserves_attributes(self):
@@ -569,9 +569,9 @@ class TestRevEdgeDirWS:
         G.rev_edge_dir_ws()
         
         # Returns IDs: B=2, A=1, C=3, D=4
-        assert G.get_edge_by_id(1) == (2, 1)  # B->A
-        assert G.get_edge_by_id(2) == (2, 3)  # B->C (Unchanged)
-        assert G.get_edge_by_id(3) == (4, 3)  # D->C
+        assert G.get_node_ids_by_edge_id(1) == (2, 1)  # B->A
+        assert G.get_node_ids_by_edge_id(2) == (2, 3)  # B->C (Unchanged)
+        assert G.get_node_ids_by_edge_id(3) == (4, 3)  # D->C
 
 
 class TestBulkModificationWorkflows:

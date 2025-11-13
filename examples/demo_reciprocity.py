@@ -32,8 +32,8 @@ def example_1_basic_reciprocity():
     mutual = g.which_mutual()
     print(f"\nMutual edge pairs: {len(mutual)}")
     for edge1_id, edge2_id in mutual:
-        e1 = g.get_edge_by_id(edge1_id)
-        e2 = g.get_edge_by_id(edge2_id)
+        e1 = g.get_node_ids_by_edge_id(edge1_id)
+        e2 = g.get_node_ids_by_edge_id(edge2_id)
         print(f"  Edge {edge1_id} and {edge2_id} are mutual")
     print()
 
@@ -143,8 +143,8 @@ def example_3_communication_patterns():
 
     print("\nMutual communication pairs:")
     for edge1_id, edge2_id in mutual_pairs:
-        e1 = email.get_edge_by_id(edge1_id)
-        e2 = email.get_edge_by_id(edge2_id)
+        e1 = email.get_node_ids_by_edge_id(edge1_id)
+        e2 = email.get_node_ids_by_edge_id(edge2_id)
         # Get labels by node IDs
         node1_id = e1[0]
         node2_id = e1[1]
@@ -240,8 +240,8 @@ def example_5_detecting_mutual_edges():
 
     # Display mutual relationships
     for edge1_id, edge2_id in mutual_pairs:
-        e1 = g.get_edge_by_id(edge1_id)
-        e2 = g.get_edge_by_id(edge2_id)
+        e1 = g.get_node_ids_by_edge_id(edge1_id)
+        e2 = g.get_node_ids_by_edge_id(edge2_id)
         # Get labels by node IDs
         node1_id = e1[0]
         node2_id = e1[1]
