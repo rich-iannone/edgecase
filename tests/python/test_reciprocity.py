@@ -116,12 +116,12 @@ class TestWhichMutual:
 
 
 class TestReciprocity:
-    """Test reciprocity() function."""
+    """Test get_graph_reciprocity() function."""
 
     def test_empty_graph(self):
         """Empty graph has reciprocity 0.0."""
         g = ec.Graph(directed=True)
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
     def test_single_edge(self):
         """Single edge has reciprocity 0.0."""
@@ -130,7 +130,7 @@ class TestReciprocity:
         g.add_node(label="B")
         g.add_edge("A", "B")
 
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
     def test_perfect_reciprocity(self):
         """All edges mutual gives reciprocity 1.0."""
@@ -140,7 +140,7 @@ class TestReciprocity:
         g.add_edge("A", "B")
         g.add_edge("B", "A")
 
-        assert g.reciprocity() == 1.0
+        assert g.get_graph_reciprocity() == 1.0
 
     def test_partial_reciprocity(self):
         """Mixed mutual and one-way edges."""
@@ -152,7 +152,7 @@ class TestReciprocity:
         g.add_edge("B", "A")  # Mutual (2 edges)
         g.add_edge("A", "C")  # One-way (1 edge)
 
-        recip = g.reciprocity()
+        recip = g.get_graph_reciprocity()
         # 2 mutual edges out of 3 total
         assert abs(recip - (2.0 / 3.0)) < 1e-10
 
@@ -167,7 +167,7 @@ class TestReciprocity:
         g.add_edge("C", "A")
 
         # One-way cycle, no mutual pairs
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
     def test_ratio_mode(self):
         """Test 'ratio' mode (should be same as default)."""
@@ -179,8 +179,8 @@ class TestReciprocity:
         g.add_edge("B", "A")
         g.add_edge("A", "C")
 
-        recip_default = g.reciprocity("default")
-        recip_ratio = g.reciprocity("ratio")
+        recip_default = g.get_graph_reciprocity("default")
+        recip_ratio = g.get_graph_reciprocity("ratio")
         assert abs(recip_default - recip_ratio) < 1e-10
 
     def test_multiple_mutual_pairs(self):
@@ -198,7 +198,7 @@ class TestReciprocity:
         g.add_edge("C", "A")  # Mutual
 
         # All 6 edges are mutual
-        assert g.reciprocity() == 1.0
+        assert g.get_graph_reciprocity() == 1.0
 
     def test_star_graph_no_reciprocity(self):
         """Star graph (hub with out-edges) has no reciprocity."""
@@ -208,7 +208,7 @@ class TestReciprocity:
             g.add_node(label=str(i))
             g.add_edge("hub", str(i))
 
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
     def test_undirected_graph_raises_error(self):
         """Should raise error for undirected graphs."""
@@ -218,7 +218,7 @@ class TestReciprocity:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="directed"):
-            g.reciprocity()
+            g.get_graph_reciprocity()
 
     def test_invalid_mode_raises_error(self):
         """Invalid mode should raise error."""
@@ -228,7 +228,7 @@ class TestReciprocity:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="Invalid mode"):
-            g.reciprocity("invalid")
+            g.get_graph_reciprocity("invalid")
 
     def test_self_loops_ignored_in_reciprocity(self):
         """Self-loops should not affect reciprocity."""
@@ -239,7 +239,7 @@ class TestReciprocity:
         g.add_edge("A", "B")
 
         # Only 1 non-self-loop edge, no mutual
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
 
 class TestReciprocityUseCases:
@@ -265,7 +265,7 @@ class TestReciprocityUseCases:
                 g.add_node(label=b)
             g.add_edge(a, b)
 
-        assert g.reciprocity() == 1.0
+        assert g.get_graph_reciprocity() == 1.0
 
     def test_citation_network_low_reciprocity(self):
         """Citation networks typically have low reciprocity."""
@@ -286,7 +286,7 @@ class TestReciprocityUseCases:
             g.add_edge(a, b)
 
         # No reciprocal citations
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
     def test_communication_network_partial(self):
         """Communication network with some bidirectional communication."""
@@ -307,7 +307,7 @@ class TestReciprocityUseCases:
                 g.add_node(label=b)
             g.add_edge(a, b)
 
-        recip = g.reciprocity()
+        recip = g.get_graph_reciprocity()
         # 4 mutual out of 6 total edges
         assert abs(recip - (4.0 / 6.0)) < 1e-10
 
@@ -349,7 +349,7 @@ class TestReciprocityEdgeCases:
         g.add_node(label="A")
 
         assert len(g.which_mutual()) == 0
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
     def test_two_nodes_no_edges(self):
         """Two nodes with no edges."""
@@ -358,7 +358,7 @@ class TestReciprocityEdgeCases:
         g.add_node(label="B")
 
         assert len(g.which_mutual()) == 0
-        assert g.reciprocity() == 0.0
+        assert g.get_graph_reciprocity() == 0.0
 
     def test_complete_directed_graph(self):
         """Complete directed graph (all possible edges)."""
@@ -374,7 +374,7 @@ class TestReciprocityEdgeCases:
                     g.add_edge(n1, n2)
 
         # All edges should be mutual
-        assert g.reciprocity() == 1.0
+        assert g.get_graph_reciprocity() == 1.0
         mutual = g.which_mutual()
         # 3 pairs of mutual edges (A-B, A-C, B-C)
         assert len(mutual) == 3

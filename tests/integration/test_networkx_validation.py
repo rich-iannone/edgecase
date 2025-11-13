@@ -308,7 +308,7 @@ class TestGraphPropertiesValidation:
         
         nx_graph = to_networkx(G)
         
-        ec_density = G.density()
+        ec_density = G.get_graph_density()
         nx_density = nx.density(nx_graph)
         
         assert abs(ec_density - nx_density) < 0.001, \
@@ -1549,7 +1549,7 @@ class TestDirectedGraphSpecifics:
         nx_graph = to_networkx(G)
         
         if hasattr(G, 'reciprocity'):
-            ec_reciprocity = G.reciprocity()
+            ec_reciprocity = G.get_graph_reciprocity()
             nx_reciprocity = nx.reciprocity(nx_graph)
             assert abs(ec_reciprocity - nx_reciprocity) < 0.01
     

@@ -1928,7 +1928,7 @@ class Graph:
 
     # ========== Structural Properties ==========
 
-    def density(self) -> float:
+    def get_graph_density(self) -> float:
         """Calculate graph density (ratio of actual to possible edges).
 
         Density measures how complete a graph is. A complete graph has density 1.0,
@@ -1957,7 +1957,7 @@ class Graph:
         )
 
         # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
-        print(f"{graph.density():.3f}")  # 0.667
+        print(f"{graph.get_graph_density():.3f}")  # 0.667
         ```
 
         Compare sparse vs. dense graphs:
@@ -1974,7 +1974,7 @@ class Graph:
             .add_edge("A", "C")
         )
 
-        print(f"{complete.density():.3f}")  # 1.000
+        print(f"{complete.get_graph_density():.3f}")  # 1.000
         ```
 
         See Also
@@ -2273,7 +2273,7 @@ class Graph:
         """
         return self._graph.list_triangles()
 
-    def transitivity(self) -> Optional[float]:
+    def get_graph_transitivity(self) -> Optional[float]:
         """Compute global transitivity (clustering coefficient).
 
         Transitivity measures the probability that two neighbors of a node are
@@ -2302,7 +2302,7 @@ class Graph:
             ("A", "B"), ("B", "C"), ("C", "A")
         ])
 
-        print(triangle.transitivity())  # 1.0 (all triples are closed)
+        print(triangle.get_graph_transitivity())  # 1.0 (all triples are closed)
         ```
 
         Chain graph has transitivity 0.0:
@@ -2312,7 +2312,7 @@ class Graph:
             ("A", "B"), ("B", "C"), ("C", "D")
         ])
 
-        print(chain.transitivity())  # 0.0 (no triangles, only open triples)
+        print(chain.get_graph_transitivity())  # 0.0 (no triangles, only open triples)
         ```
 
         Real-world networks typically have values between 0.1 and 0.5:
@@ -2324,7 +2324,7 @@ class Graph:
             ("Alice", "Charlie")  # Creates some triangles
         ])
 
-        trans = social_network.transitivity()
+        trans = social_network.get_graph_transitivity()
         print(f"Clustering: {trans:.3f}")
         ```
 
@@ -2457,7 +2457,7 @@ class Graph:
         """
         return self._graph.which_mutual()
 
-    def reciprocity(self, mode: str = "default") -> float:
+    def get_graph_reciprocity(self, mode: str = "default") -> float:
         """Calculate reciprocity (fraction of edges with reciprocal counterpart).
 
         Reciprocity measures the proportion of edges in a directed graph that are
@@ -2499,7 +2499,7 @@ class Graph:
             .add_edge("A", "C")  # No reciprocal
         )
 
-        recip = graph.reciprocity()
+        recip = graph.get_graph_reciprocity()
         print(f"Reciprocity: {recip:.3f}")  # 0.667 (2 mutual out of 3 edges)
         ```
 
@@ -2512,14 +2512,14 @@ class Graph:
             ("B", "C"), ("C", "B"),
             ("A", "C"), ("C", "A"),
         ])
-        print(f"Friendship reciprocity: {friendship.reciprocity():.2f}")  # 1.00
+        print(f"Friendship reciprocity: {friendship.get_graph_reciprocity():.2f}")  # 1.00
 
         # Low reciprocity network (e.g., followers)
         followers = Graph(directed=True).add_edges([
             ("A", "B"), ("A", "C"),
             ("B", "C"), ("D", "A"),
         ])
-        print(f"Follower reciprocity: {followers.reciprocity():.2f}")  # 0.00
+        print(f"Follower reciprocity: {followers.get_graph_reciprocity():.2f}")  # 0.00
         ```
 
         Analyze communication patterns:
@@ -2529,7 +2529,7 @@ class Graph:
         email = Graph(directed=True)
         # ... add edges ...
 
-        recip = email.reciprocity()
+        recip = email.get_graph_reciprocity()
         if recip > 0.5:
             print("High mutual communication")
         elif recip > 0.2:
@@ -2890,7 +2890,7 @@ class Graph:
         """
         return self._graph.count_loops()
 
-    def assortativity_degree(self) -> float:
+    def get_graph_assortativity_degree(self) -> float:
         """Calculate degree assortativity coefficient.
 
         Measures the tendency of nodes to connect to other nodes with similar degrees.
@@ -2927,7 +2927,7 @@ class Graph:
         g.add_edge("User1", "User2")
         g.add_edge("User3", "User4")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         # r > 0: hubs connect to hubs, periphery to periphery
         ```
 
@@ -2942,7 +2942,7 @@ class Graph:
         g.add_edge("Server2", "Client4")
         g.add_edge("Server2", "Client5")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         # r < 0: high-degree nodes connect to low-degree nodes
         ```
 
@@ -2959,7 +2959,7 @@ class Graph:
             u, v = random.sample(nodes, 2)
             g.add_edge(u, v)
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         # r ≈ 0: no systematic degree correlation
         ```
 
@@ -4067,7 +4067,7 @@ class Graph:
         """
         return self._graph.count_asymmetric_node_pairs()
 
-    def average_degree(self) -> float:
+    def get_graph_average_degree(self) -> float:
         """Calculate average degree across all nodes.
 
         For directed graphs, this returns the average of (in-degree + out-degree).
@@ -4095,7 +4095,7 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.average_degree())  # 2.0 (cycle graph)
+        print(graph.get_graph_average_degree())  # 2.0 (cycle graph)
         ```
 
         See Also
@@ -13338,7 +13338,7 @@ class Graph:
             return info
 
         # Density
-        density = self.density()
+        density = self.get_graph_density()
         info["Density"] = f"{density:.2f}"
 
         # Degree statistics - compute for all nodes

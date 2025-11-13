@@ -17,7 +17,7 @@ class TestAssortativityDegree:
         """Empty graph should raise error."""
         g = Graph(directed=False)
         with pytest.raises(ValueError, match="no edges"):
-            g.assortativity_degree()
+            g.get_graph_assortativity_degree()
 
     def test_single_edge_error(self):
         """Single edge has no variance - returns NaN like igraph."""
@@ -25,7 +25,7 @@ class TestAssortativityDegree:
         add_nodes(g, "A", "B")
         g.add_edge("A", "B")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         assert math.isnan(r), "Single edge should return NaN (no variance)"
 
     def test_perfect_assortative_undirected(self):
@@ -42,7 +42,7 @@ class TestAssortativityDegree:
         g.add_edge("Leaf1", "Leaf2")
         g.add_edge("Leaf2", "Leaf3")  # Leaves in chain
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         # Note: This structure gives r=-1.0 in igraph because the actual
         # degrees are [1,2,1,1,2,1] - not perfectly assortative
         # For this test, we just verify it's a valid correlation
@@ -60,7 +60,7 @@ class TestAssortativityDegree:
         g.add_edge("Hub", "Leaf3")
         g.add_edge("Hub", "Leaf4")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         assert r < 0, "Star graph should be disassortative"
 
     def test_random_mixing_undirected(self):
@@ -75,7 +75,7 @@ class TestAssortativityDegree:
         g.add_edge("D", "E")
         g.add_edge("E", "A")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         assert math.isnan(r), "Uniform degree cycle should return NaN"
 
     def test_assortative_directed(self):
@@ -92,7 +92,7 @@ class TestAssortativityDegree:
         g.add_edge("L1", "L2")
         g.add_edge("L2", "L3")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         # Should be positive (but hard to predict exact value)
         assert isinstance(r, float)
         assert -1 <= r <= 1
@@ -108,7 +108,7 @@ class TestAssortativityDegree:
         g.add_edge("Source2", "Sink2")
         g.add_edge("Source2", "Sink3")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         assert isinstance(r, float)
         # May be NaN if variance is zero, otherwise in [-1, 1]
         assert math.isnan(r) or (-1 <= r <= 1)
@@ -125,7 +125,7 @@ class TestAssortativityDegree:
                 g.add_edge(u, v)
 
         # All nodes have degree 3 - no variance
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         assert math.isnan(r), "Uniform degree should return NaN"
 
     def test_self_loops_included(self):
@@ -137,7 +137,7 @@ class TestAssortativityDegree:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         assert isinstance(r, float)
         assert -1 <= r <= 1
 
@@ -152,7 +152,7 @@ class TestAssortativityDegree:
         g.add_edge("C", "D")
         g.add_edge("D", "E")
 
-        r = g.assortativity_degree()
+        r = g.get_graph_assortativity_degree()
         assert r < 0, "Path graph should be slightly disassortative"
 
 
@@ -502,7 +502,7 @@ class TestEdgeCases:
         g.add_edge("A", "B")  # hub-hub
         g.add_edge("C", "D")  # leaf-leaf
 
-        r_degree = g.assortativity_degree()
+        r_degree = g.get_graph_assortativity_degree()
         r_nominal = g.assortativity_nominal("type")
         r_numeric = g.assortativity("value")
 
@@ -525,7 +525,7 @@ class TestEdgeCases:
             v = f"N{(i + 1) % 50}"
             g.add_edge(u, v)
 
-        r_degree = g.assortativity_degree()
+        r_degree = g.get_graph_assortativity_degree()
         r_nominal = g.assortativity_nominal("group")
         r_numeric = g.assortativity("score")
 

@@ -24,7 +24,7 @@ def example_1_basic_reciprocity():
     print("  Alice → Carol (one-way)")
 
     # Calculate reciprocity
-    recip = g.reciprocity()
+    recip = g.get_graph_reciprocity()
     print(f"\nReciprocity: {recip:.3f}")
     print(f"Interpretation: {recip * 100:.1f}% of edges are reciprocal")
 
@@ -83,13 +83,13 @@ def example_2_social_networks():
     print("\nFriendship Network:")
     print(f"  Nodes: {friendship.num_nodes()}")
     print(f"  Edges: {friendship.num_edges()}")
-    print(f"  Reciprocity: {friendship.reciprocity():.3f}")
+    print(f"  Reciprocity: {friendship.get_graph_reciprocity():.3f}")
     print("  Interpretation: Symmetric relationships (friends)")
 
     print("\nFollower Network:")
     print(f"  Nodes: {followers.num_nodes()}")
     print(f"  Edges: {followers.num_edges()}")
-    print(f"  Reciprocity: {followers.reciprocity():.3f}")
+    print(f"  Reciprocity: {followers.get_graph_reciprocity():.3f}")
     print("  Interpretation: Asymmetric relationships (followers)")
     print()
 
@@ -125,7 +125,7 @@ def example_3_communication_patterns():
             email.add_node(label=receiver)
         email.add_edge(sender, receiver)
 
-    recip = email.reciprocity()
+    recip = email.get_graph_reciprocity()
     mutual_pairs = email.which_mutual()
 
     print("\nEmail Network Statistics:")
@@ -187,7 +187,7 @@ def example_4_citation_network():
             citations.add_node(label=cited)
         citations.add_edge(citing, cited)
 
-    recip = citations.reciprocity()
+    recip = citations.get_graph_reciprocity()
 
     print("\nCitation Network:")
     print(f"  Papers (nodes): {citations.num_nodes()}")
@@ -257,7 +257,7 @@ def example_5_detecting_mutual_edges():
         print(f"  {node1_label} ↔ {node2_label} (edges {edge1_id}, {edge2_id})")
 
     # Calculate overall reciprocity
-    recip = g.reciprocity()
+    recip = g.get_graph_reciprocity()
     print(f"\nOverall reciprocity: {recip:.3f}")
     print(f"({recip * 100:.1f}% of edges are part of mutual pairs)")
     print()
@@ -288,12 +288,12 @@ def example_6_comparing_modes():
     print("  2 one-way edges")
 
     # Default mode
-    recip_default = g.reciprocity("default")
+    recip_default = g.get_graph_reciprocity("default")
     print(f"\nReciprocity (default): {recip_default:.3f}")
     print(f"  Calculation: {4} mutual / {6} total = {recip_default:.3f}")
 
     # Ratio mode (same as default)
-    recip_ratio = g.reciprocity("ratio")
+    recip_ratio = g.get_graph_reciprocity("ratio")
     print(f"\nReciprocity (ratio): {recip_ratio:.3f}")
     print("  Calculation: same as default")
 

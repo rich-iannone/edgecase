@@ -18,7 +18,7 @@ for client in ["Client1", "Client2", "Client3", "Client4"]:
     g.add_node(client)
     g.add_edge("Server", client)
 
-r = g.assortativity_degree()
+r = g.get_graph_assortativity_degree()
 print(f"     Degree assortativity: {r:.3f}")
 print("     Interpretation: Disassortative (high-degree server connects to low-degree clients)")
 

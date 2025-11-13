@@ -174,7 +174,7 @@ class TestTransitivity:
         g.add_edge("B", "C")
         g.add_edge("C", "A")
 
-        trans = g.transitivity()
+        trans = g.get_graph_transitivity()
         assert trans is not None
         assert abs(trans - 1.0) < 1e-10
 
@@ -189,7 +189,7 @@ class TestTransitivity:
         g.add_edge("B", "C")
         g.add_edge("C", "D")
 
-        trans = g.transitivity()
+        trans = g.get_graph_transitivity()
         assert trans is not None
         assert abs(trans - 0.0) < 1e-10
 
@@ -205,14 +205,14 @@ class TestTransitivity:
         g.add_edge("C", "A")  # Triangle
         g.add_edge("A", "D")  # Extra edge creating open triple
 
-        trans = g.transitivity()
+        trans = g.get_graph_transitivity()
         assert trans is not None
         assert 0.0 < trans < 1.0
 
     def test_transitivity_empty(self):
         """Empty graph returns None."""
         g = ec.Graph()
-        trans = g.transitivity()
+        trans = g.get_graph_transitivity()
         assert trans is None
 
     def test_transitivity_no_triples(self):
@@ -221,7 +221,7 @@ class TestTransitivity:
         g.add_node(label="A")
         g.add_node(label="B")
 
-        trans = g.transitivity()
+        trans = g.get_graph_transitivity()
         assert trans is None
 
 

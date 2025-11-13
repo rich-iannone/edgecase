@@ -90,7 +90,7 @@ g.add_edge("Hub", "Spoke2")
 g.add_edge("Hub", "Spoke3")
 g.add_edge("Hub", "Spoke4")
 
-r = g.assortativity_degree()
+r = g.get_graph_assortativity_degree()
 print(f"   Degree assortativity: r = {r:.3f}")
 print("   Interpretation: High-degree hub connects to low-degree spokes (disassortative)")
 

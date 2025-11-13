@@ -59,7 +59,7 @@ def example_2_clustering_coefficients():
     )
 
     # Global transitivity
-    trans = g.transitivity()
+    trans = g.get_graph_transitivity()
     print(f"\nGlobal transitivity: {trans:.4f}")
     print("  (Fraction of connected triples that form triangles)")
 
@@ -120,13 +120,13 @@ def example_3_social_network_analysis():
     print("\nNetwork structure analysis:")
     print(f"  Nodes: {g.num_nodes()}")
     print(f"  Edges: {g.num_edges()}")
-    print(f"  Density: {g.density():.4f}")
+    print(f"  Density: {g.get_graph_density():.4f}")
 
     # Triangle analysis
     triangle_counts = g.count_triangles()
     total_triangles = sum(triangle_counts.values()) // 3
     print(f"\n  Total triangles: {total_triangles}")
-    print(f"  Global transitivity: {g.transitivity():.4f}")
+    print(f"  Global transitivity: {g.get_graph_transitivity():.4f}")
 
     # Identify highly clustered nodes (potential community cores)
     clustering = g.local_clustering_coefficient()
@@ -198,7 +198,7 @@ def example_4_compare_network_types():
     for name, g in graphs:
         triangle_counts = g.count_triangles()
         total_tri = sum(triangle_counts.values()) // 3
-        trans = g.transitivity()
+        trans = g.get_graph_transitivity()
         trans_str = f"{trans:.4f}" if trans is not None else "None"
 
         print(
