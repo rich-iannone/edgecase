@@ -2743,6 +2743,620 @@ class Graph:
         """
         return self.get_graph_diameter()
 
+    def get_graph_diameter(self) -> int | None:
+        """Get graph diameter (maximum eccentricity).
+
+        The diameter is the longest shortest path between any two nodes.
+        Returns None if the graph is disconnected. This metric is useful
+        for understanding the "width" of a network.
+
+        Returns
+        -------
+        int | None
+            Maximum distance between any two nodes, or None if disconnected.
+
+        Examples
+        --------
+        Calculate diameter of a path:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        print(graph.get_graph_diameter())  # 3 (A to D)
+        ```
+
+        See Also
+        --------
+        get_graph_radius : Get minimum eccentricity
+        eccentricity : Get eccentricity of a specific node
+        """
+        return self._graph.get_graph_diameter()
+
+    def get_graph_radius(self) -> int | None:
+        """Get graph radius (minimum eccentricity).
+
+        The radius is the minimum of all node eccentricities. Nodes with
+        eccentricity equal to the radius form the center of the graph.
+        Returns None if the graph is disconnected.
+
+        Returns
+        -------
+        int | None
+            Minimum eccentricity, or None if disconnected.
+
+        Examples
+        --------
+        Calculate radius of a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        print(graph.get_graph_radius())  # 1 (hub is center)
+        ```
+
+        See Also
+        --------
+        get_graph_diameter : Get maximum eccentricity
+        eccentricity : Get eccentricity of a specific node
+        """
+        return self._graph.get_graph_radius()
+
+    def get_graph_girth(self) -> int | None:
+        """Get girth (length of shortest cycle).
+
+        The girth is the length of the shortest cycle in the graph.
+        Returns None if the graph is acyclic (a forest/tree). Uses BFS
+        from each node to detect shortest cycles efficiently.
+
+        Returns
+        -------
+        int | None
+            Length of shortest cycle, or None if acyclic.
+
+        Examples
+        --------
+        Find girth of a cycle graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+
+        print(graph.get_graph_girth())  # 4 (cycle length)
+        ```
+
+        Trees have no cycles:
+
+        ```python
+        tree = Graph(directed=True).add_balanced_tree(k=2, h=3)
+        print(tree.get_graph_girth())  # None
+        ```
+
+        See Also
+        --------
+        has_cycles : Check if graph contains any cycles
+        is_dag : Check if directed graph is acyclic
+        """
+        return self._graph.get_girth()
+
+    def get_eccentricity(self) -> dict[str, int | None]:
+        """Get eccentricity for each node in the graph.
+
+        Eccentricity of a node is the maximum distance from that node to any
+        other reachable node in the graph. It measures how far a node is from
+        the most distant node it can reach. Returns None for nodes in disconnected
+        graphs where some nodes are unreachable.
+
+        Returns
+        -------
+        dict[str, int | None]
+            Dictionary mapping node IDs to eccentricity values. Values are None
+            for nodes in disconnected components.
+
+        Examples
+        --------
+        Calculate eccentricities in a path graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+        )
+
+        ecc = graph.get_eccentricity()
+        # End nodes have max eccentricity (4)
+        # Middle node C has min eccentricity (2)
+        ```
+
+        See Also
+        --------
+        get_graph_diameter : Get maximum eccentricity
+        get_graph_radius : Get minimum eccentricity
+        get_periphery : Get nodes with maximum eccentricity
+        """
+        return self._graph.get_eccentricity()
+
+    def get_radiality(self) -> dict[str, float | None]:
+        """Get radiality centrality for each node in the graph.
+
+        Radiality measures how central a node is based on its eccentricity
+        relative to the graph diameter. The formula is:
+
+        radiality(v) = (diameter + 1 - eccentricity(v)) / (n - 1)
+
+        where n is the number of nodes. Higher radiality indicates a more
+        central position in the network. Returns None for nodes in disconnected
+        graphs.
+
+        Returns
+        -------
+        dict[str, float | None]
+            Dictionary mapping node IDs to radiality scores (0.0 to 1.0).
+            Values are None for nodes in disconnected components.
+
+        Examples
+        --------
+        Calculate radiality in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        rad = graph.get_radiality()
+        # Hub has highest radiality (most central)
+        # Leaves have lower radiality (peripheral)
+        ```
+
+        See Also
+        --------
+        get_eccentricity : Get eccentricity values
+        get_graph_diameter : Get graph diameter
+        get_closeness_vitality : Alternative centrality measure
+        """
+        return self._graph.get_radiality()
+
+    # ========== Similarity Methods ==========
+
+    def similarity(self, nodes: list[str] = None, method: str = "jaccard") -> list[list[float]]:
+        """Calculate pairwise similarity between nodes based on neighborhoods.
+
+        Computes structural similarity using various metrics that compare the
+        neighborhoods (adjacent nodes) of node pairs. Returns a similarity matrix
+        where higher values indicate more similar neighborhood structures.
+
+        Parameters
+        ----------
+        nodes : list[str], optional
+            List of node labels to compute similarities for.
+            If None or empty, computes for all nodes in the graph.
+        method : str, default="jaccard"
+            Similarity metric to use. Options:
+            - "jaccard": Jaccard coefficient (intersection over union)
+            - "dice": Dice coefficient (2× intersection over sum of sizes)
+            - "invlogweighted": Inverse log-weighted (Adamic-Adar index)
+            - "cosine": Cosine similarity
+
+        Returns
+        -------
+        list[list[float]]
+            Similarity matrix where entry (i,j) is the similarity between
+            nodes[i] and nodes[j]. Diagonal entries are always 1.0.
+
+        Raises
+        ------
+        ValueError
+            If a node label is not found or method is invalid.
+
+        Examples
+        --------
+        **Link Prediction in Social Network**
+
+        ```python
+        # Find similar users for recommendation
+        g = Graph(directed=False)
+        g.add_edge("Alice", "Bob")
+        g.add_edge("Alice", "Carol")
+        g.add_edge("Bob", "Carol")
+        g.add_edge("Dave", "Eve")
+        g.add_edge("Dave", "Frank")
+        g.add_edge("Eve", "Frank")
+
+        # Alice and Dave have similar patterns (both connect to 2 people)
+        sim = g.similarity(["Alice", "Dave"], method="jaccard")
+        # sim[0][1] = similarity between Alice and Dave
+        ```
+
+        **Comparing Similarity Metrics**
+
+        ```python
+        # Bipartite-like structure
+        g = Graph(directed=False)
+        g.add_edge("A", "X")
+        g.add_edge("A", "Y")
+        g.add_edge("B", "X")
+        g.add_edge("B", "Y")
+
+        # A and B have identical neighborhoods
+        jaccard = g.similarity(["A", "B"], method="jaccard")
+        dice = g.similarity(["A", "B"], method="dice")
+        cosine = g.similarity(["A", "B"], method="cosine")
+
+        # All should show high similarity (≈ 1.0)
+        assert jaccard[0][1] == 1.0
+        assert dice[0][1] == 1.0
+        assert cosine[0][1] == 1.0
+        ```
+
+        **Link Prediction with Inverse Log-Weighted**
+
+        ```python
+        # Protein interaction network
+        g = Graph(directed=False)
+        g.add_edge("P1", "Hub")
+        g.add_edge("P2", "Hub")
+        g.add_edge("Hub", "P3")
+        g.add_edge("Hub", "P4")
+
+        # P1 and P2 connected through high-degree hub
+        # Inverse log-weighted gives lower weight to high-degree nodes
+        sim = g.similarity(["P1", "P2"], method="invlogweighted")
+        # Lower similarity due to common high-degree neighbor
+        ```
+
+        **Community Detection Helper**
+
+        ```python
+        # Identify similar nodes within network
+        g = Graph(directed=False)
+        # Add edges for a community structure
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(f"C1_{i}", f"C1_{j}")
+
+        # Get all pairwise similarities
+        all_sim = g.similarity(method="jaccard")
+        # Nodes in same dense community have high similarity
+        ```
+
+        Notes
+        -----
+        **Jaccard Similarity**:
+        - Most common metric
+        - Range: [0, 1]
+        - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
+
+        **Dice Similarity**:
+        - Gives more weight to common neighbors than Jaccard
+        - Range: [0, 1]
+        - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
+
+        **Inverse Log-Weighted (Adamic-Adar)**:
+        - Weights common neighbors by inverse log of their degree
+        - Rare neighbors contribute more
+        - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
+        - Popular for link prediction
+
+        **Cosine Similarity**:
+        - Normalized dot product
+        - Range: [0, 1]
+        - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
+
+        **Use Cases**:
+        - Link prediction: Which edges are likely to form?
+        - Recommendation: Find similar users/items
+        - Community detection: Group similar nodes
+        - Network embedding: Similarity-based features
+
+        See Also
+        --------
+        assortativity : Attribute-based mixing patterns
+        pagerank : Node importance ranking
+
+        References
+        ----------
+        Liben-Nowell, D., & Kleinberg, J. (2007). "The link-prediction
+        problem for social networks." CAIS, 58(7), 1019-1031.
+
+        Adamic, L. A., & Adar, E. (2003). "Friends and neighbors on
+        the Web." Social Networks, 25(3), 211-230.
+        """
+        if nodes is None:
+            nodes = []
+        return self._graph.similarity(nodes, method)
+
+    def get_dice_similarity(self) -> dict[str, dict[str, float]]:
+        """Get Dice similarity coefficient between all node pairs.
+
+        The Dice coefficient measures similarity between two nodes based on their
+        neighborhood overlap:
+
+        Dice(A, B) = 2 × |neighbors(A) ∩ neighbors(B)| / (|neighbors(A)| + |neighbors(B)|)
+
+        Range: [0, 1] where 0 means no common neighbors and 1 means identical
+        neighborhoods (or same node). Self-similarity is always 1.0.
+
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Calculate Dice similarity for link prediction:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("D", "B")
+            .add_edge("D", "C")
+        )
+
+        sim = graph.get_dice_similarity()
+        # A and D share neighbors B and C
+        print(sim["A"]["D"])  # 1.0 (perfect overlap)
+        ```
+
+        Notes
+        -----
+        Useful for:
+
+        - Link prediction (similar nodes likely to connect)
+        - Community detection (nodes with similar neighborhoods)
+        - Recommendation systems (find similar users/items)
+
+        See Also
+        --------
+        get_jaccard_similarity : More conservative similarity measure
+        get_cosine_similarity : Geometric similarity measure
+        get_overlap_similarity : Emphasizes subset relationships
+        """
+        result_ids = self._graph.get_dice_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.get_label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.get_label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
+
+    def get_jaccard_similarity(self) -> dict[str, dict[str, float]]:
+        """Get Jaccard similarity index between all node pairs.
+
+        The Jaccard index is a classic set similarity measure:
+
+        Jaccard(A, B) = |neighbors(A) ∩ neighbors(B)| / |neighbors(A) ∪ neighbors(B)|
+
+        Range: [0, 1] where 0 means no common neighbors and 1 means identical
+        neighborhoods (or same node). More conservative than Dice coefficient
+        (always ≤ Dice score). Self-similarity is always 1.0.
+
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Calculate Jaccard similarity in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        sim = graph.get_jaccard_similarity()
+        # Leaves have no common neighbors
+        print(sim["A"]["B"])  # 0.0
+        ```
+
+        Notes
+        -----
+        Widely used in:
+
+        - Document similarity (bag-of-words)
+        - User similarity (common items/friends)
+        - Biological networks (protein interactions)
+
+        See Also
+        --------
+        get_dice_similarity : Less conservative alternative
+        get_cosine_similarity : Geometric similarity measure
+        get_overlap_similarity : Emphasizes subset relationships
+        """
+        result_ids = self._graph.get_jaccard_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.get_label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.get_label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
+
+    def get_cosine_similarity(self) -> dict[str, dict[str, float]]:
+        """Get cosine similarity between all node pairs.
+
+        Cosine similarity treats neighbors as vector components:
+
+        Cosine(A, B) = |neighbors(A) ∩ neighbors(B)| / √(|neighbors(A)| × |neighbors(B)|)
+
+        Range: [0, 1] where 0 means no common neighbors and 1 means identical
+        neighborhoods. Geometric interpretation: cosine of angle between
+        neighbor vectors. Self-similarity is always 1.0.
+
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Calculate cosine similarity in a triangle graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        sim = graph.get_cosine_similarity()
+        # Each node shares 1 neighbor with the others
+        print(sim["A"]["B"])  # 0.5 (1 common / sqrt(2 * 2))
+        ```
+
+        Notes
+        -----
+        Advantages:
+
+        - Scales well with high-degree nodes
+        - Balances degree differences
+        - Standard in text mining and recommendation systems
+
+        See Also
+        --------
+        get_dice_similarity : Harmonic mean of degrees
+        get_jaccard_similarity : Set-theoretic similarity
+        get_overlap_similarity : Min-based similarity
+        """
+        result_ids = self._graph.get_cosine_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.get_label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.get_label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
+
+    def get_overlap_similarity(self) -> dict[str, dict[str, float]]:
+        """Get overlap coefficient between all node pairs.
+
+        The overlap coefficient emphasizes subset relationships:
+
+        Overlap(A, B) = |neighbors(A) ∩ neighbors(B)| / min(|neighbors(A)|, |neighbors(B)|)
+
+        Range: [0, 1] where 0 means no common neighbors and 1 means one
+        neighborhood is a subset of the other. Asymmetric measure useful for
+        hierarchical patterns. Self-similarity is always 1.0.
+
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Detect hierarchical relationships in a hub-spoke graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="spoke")
+            .add_node(label="extended")
+            .add_edge("hub", "spoke")
+            .add_edge("hub", "extended")
+            .add_edge("spoke", "extra")
+        )
+
+        sim = graph.get_overlap_similarity()
+        # Hub's neighborhood is subset of spoke's
+        print(sim["hub"]["spoke"])  # 1.0
+        ```
+
+        Notes
+        -----
+        Use cases:
+
+        - Detecting specialization/generalization
+        - Finding hubs whose neighbors are subsets of others
+        - Hierarchical community structure
+
+        See Also
+        --------
+        get_jaccard_similarity : Symmetric set similarity
+        get_dice_similarity : Harmonic mean alternative
+        get_cosine_similarity : Geometric interpretation
+        """
+        result_ids = self._graph.get_overlap_similarity()
+        # Convert node IDs to labels in the result
+        result = {}
+        for node1_id, inner_dict in result_ids.items():
+            node1_label = self.get_label_from_id(node1_id)
+            result[node1_label] = {}
+            for node2_id, score in inner_dict.items():
+                node2_label = self.get_label_from_id(node2_id)
+                result[node1_label][node2_label] = score
+        return result
+
     # ========== Structural Properties ==========
 
     def get_graph_density(self) -> float:
@@ -3800,153 +4414,6 @@ class Graph:
         """
         return self._graph.assortativity_degree()
 
-    def similarity(self, nodes: list[str] = None, method: str = "jaccard") -> list[list[float]]:
-        """Calculate pairwise similarity between nodes based on neighborhoods.
-
-        Computes structural similarity using various metrics that compare the
-        neighborhoods (adjacent nodes) of node pairs. Returns a similarity matrix
-        where higher values indicate more similar neighborhood structures.
-
-        Parameters
-        ----------
-        nodes : list[str], optional
-            List of node labels to compute similarities for.
-            If None or empty, computes for all nodes in the graph.
-        method : str, default="jaccard"
-            Similarity metric to use. Options:
-            - "jaccard": Jaccard coefficient (intersection over union)
-            - "dice": Dice coefficient (2× intersection over sum of sizes)
-            - "invlogweighted": Inverse log-weighted (Adamic-Adar index)
-            - "cosine": Cosine similarity
-
-        Returns
-        -------
-        list[list[float]]
-            Similarity matrix where entry (i,j) is the similarity between
-            nodes[i] and nodes[j]. Diagonal entries are always 1.0.
-
-        Raises
-        ------
-        ValueError
-            If a node label is not found or method is invalid.
-
-        Examples
-        --------
-        **Link Prediction in Social Network**
-
-        ```python
-        # Find similar users for recommendation
-        g = Graph(directed=False)
-        g.add_edge("Alice", "Bob")
-        g.add_edge("Alice", "Carol")
-        g.add_edge("Bob", "Carol")
-        g.add_edge("Dave", "Eve")
-        g.add_edge("Dave", "Frank")
-        g.add_edge("Eve", "Frank")
-
-        # Alice and Dave have similar patterns (both connect to 2 people)
-        sim = g.similarity(["Alice", "Dave"], method="jaccard")
-        # sim[0][1] = similarity between Alice and Dave
-        ```
-
-        **Comparing Similarity Metrics**
-
-        ```python
-        # Bipartite-like structure
-        g = Graph(directed=False)
-        g.add_edge("A", "X")
-        g.add_edge("A", "Y")
-        g.add_edge("B", "X")
-        g.add_edge("B", "Y")
-
-        # A and B have identical neighborhoods
-        jaccard = g.similarity(["A", "B"], method="jaccard")
-        dice = g.similarity(["A", "B"], method="dice")
-        cosine = g.similarity(["A", "B"], method="cosine")
-
-        # All should show high similarity (≈ 1.0)
-        assert jaccard[0][1] == 1.0
-        assert dice[0][1] == 1.0
-        assert cosine[0][1] == 1.0
-        ```
-
-        **Link Prediction with Inverse Log-Weighted**
-
-        ```python
-        # Protein interaction network
-        g = Graph(directed=False)
-        g.add_edge("P1", "Hub")
-        g.add_edge("P2", "Hub")
-        g.add_edge("Hub", "P3")
-        g.add_edge("Hub", "P4")
-
-        # P1 and P2 connected through high-degree hub
-        # Inverse log-weighted gives lower weight to high-degree nodes
-        sim = g.similarity(["P1", "P2"], method="invlogweighted")
-        # Lower similarity due to common high-degree neighbor
-        ```
-
-        **Community Detection Helper**
-
-        ```python
-        # Identify similar nodes within network
-        g = Graph(directed=False)
-        # Add edges for a community structure
-        for i in range(5):
-            for j in range(i+1, 5):
-                g.add_edge(f"C1_{i}", f"C1_{j}")
-
-        # Get all pairwise similarities
-        all_sim = g.similarity(method="jaccard")
-        # Nodes in same dense community have high similarity
-        ```
-
-        Notes
-        -----
-        **Jaccard Similarity**:
-        - Most common metric
-        - Range: [0, 1]
-        - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
-
-        **Dice Similarity**:
-        - Gives more weight to common neighbors than Jaccard
-        - Range: [0, 1]
-        - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
-
-        **Inverse Log-Weighted (Adamic-Adar)**:
-        - Weights common neighbors by inverse log of their degree
-        - Rare neighbors contribute more
-        - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
-        - Popular for link prediction
-
-        **Cosine Similarity**:
-        - Normalized dot product
-        - Range: [0, 1]
-        - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
-
-        **Use Cases**:
-        - Link prediction: Which edges are likely to form?
-        - Recommendation: Find similar users/items
-        - Community detection: Group similar nodes
-        - Network embedding: Similarity-based features
-
-        See Also
-        --------
-        assortativity : Attribute-based mixing patterns
-        pagerank : Node importance ranking
-
-        References
-        ----------
-        Liben-Nowell, D., & Kleinberg, J. (2007). "The link-prediction
-        problem for social networks." CAIS, 58(7), 1019-1031.
-
-        Adamic, L. A., & Adar, E. (2003). "Friends and neighbors on
-        the Web." Social Networks, 25(3), 211-230.
-        """
-        if nodes is None:
-            nodes = []
-        return self._graph.similarity(nodes, method)
-
     def assortativity_nominal(self, attribute: str) -> float:
         """Calculate assortativity for categorical (nominal) node attributes.
 
@@ -4924,82 +5391,6 @@ class Graph:
         """
         return self._graph.get_periphery()
 
-    def get_graph_diameter(self) -> int | None:
-        """Get graph diameter (maximum eccentricity).
-
-        The diameter is the longest shortest path between any two nodes.
-        Returns None if the graph is disconnected. This metric is useful
-        for understanding the "width" of a network.
-
-        Returns
-        -------
-        int | None
-            Maximum distance between any two nodes, or None if disconnected.
-
-        Examples
-        --------
-        Calculate diameter of a path:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-        )
-
-        print(graph.get_graph_diameter())  # 3 (A to D)
-        ```
-
-        See Also
-        --------
-        get_graph_radius : Get minimum eccentricity
-        eccentricity : Get eccentricity of a specific node
-        """
-        return self._graph.get_graph_diameter()
-
-    def get_graph_radius(self) -> int | None:
-        """Get graph radius (minimum eccentricity).
-
-        The radius is the minimum of all node eccentricities. Nodes with
-        eccentricity equal to the radius form the center of the graph.
-        Returns None if the graph is disconnected.
-
-        Returns
-        -------
-        int | None
-            Minimum eccentricity, or None if disconnected.
-
-        Examples
-        --------
-        Calculate radius of a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        print(graph.get_graph_radius())  # 1 (hub is center)
-        ```
-
-        See Also
-        --------
-        get_graph_diameter : Get maximum eccentricity
-        eccentricity : Get eccentricity of a specific node
-        """
-        return self._graph.get_graph_radius()
-
     def get_all_simple_paths(
         self,
         source: Union[int, str],
@@ -5274,52 +5665,6 @@ class Graph:
 
         # Call Rust implementation
         return self._graph.is_simple_path(node_labels)
-
-    def get_graph_girth(self) -> int | None:
-        """Get girth (length of shortest cycle).
-
-        The girth is the length of the shortest cycle in the graph.
-        Returns None if the graph is acyclic (a forest/tree). Uses BFS
-        from each node to detect shortest cycles efficiently.
-
-        Returns
-        -------
-        int | None
-            Length of shortest cycle, or None if acyclic.
-
-        Examples
-        --------
-        Find girth of a cycle graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
-        )
-
-        print(graph.get_graph_girth())  # 4 (cycle length)
-        ```
-
-        Trees have no cycles:
-
-        ```python
-        tree = Graph(directed=True).add_balanced_tree(k=2, h=3)
-        print(tree.get_graph_girth())  # None
-        ```
-
-        See Also
-        --------
-        has_cycles : Check if graph contains any cycles
-        is_dag : Check if directed graph is acyclic
-        """
-        return self._graph.get_girth()
 
     def get_graph_adhesion(self) -> int:
         """Get adhesion (minimum edge cut size).
@@ -6524,98 +6869,6 @@ class Graph:
         is_connected : Check if graph is connected
         """
         return self._graph.get_min_cut_between(source, sink)
-
-    def get_eccentricity(self) -> dict[str, int | None]:
-        """Get eccentricity for each node in the graph.
-
-        Eccentricity of a node is the maximum distance from that node to any
-        other reachable node in the graph. It measures how far a node is from
-        the most distant node it can reach. Returns None for nodes in disconnected
-        graphs where some nodes are unreachable.
-
-        Returns
-        -------
-        dict[str, int | None]
-            Dictionary mapping node IDs to eccentricity values. Values are None
-            for nodes in disconnected components.
-
-        Examples
-        --------
-        Calculate eccentricities in a path graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-        )
-
-        ecc = graph.get_eccentricity()
-        # End nodes have max eccentricity (4)
-        # Middle node C has min eccentricity (2)
-        ```
-
-        See Also
-        --------
-        get_graph_diameter : Get maximum eccentricity
-        get_graph_radius : Get minimum eccentricity
-        get_periphery : Get nodes with maximum eccentricity
-        """
-        return self._graph.get_eccentricity()
-
-    def get_radiality(self) -> dict[str, float | None]:
-        """Get radiality centrality for each node in the graph.
-
-        Radiality measures how central a node is based on its eccentricity
-        relative to the graph diameter. The formula is:
-
-        radiality(v) = (diameter + 1 - eccentricity(v)) / (n - 1)
-
-        where n is the number of nodes. Higher radiality indicates a more
-        central position in the network. Returns None for nodes in disconnected
-        graphs.
-
-        Returns
-        -------
-        dict[str, float | None]
-            Dictionary mapping node IDs to radiality scores (0.0 to 1.0).
-            Values are None for nodes in disconnected components.
-
-        Examples
-        --------
-        Calculate radiality in a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        rad = graph.get_radiality()
-        # Hub has highest radiality (most central)
-        # Leaves have lower radiality (peripheral)
-        ```
-
-        See Also
-        --------
-        get_eccentricity : Get eccentricity values
-        get_graph_diameter : Get graph diameter
-        get_closeness_vitality : Alternative centrality measure
-        """
-        return self._graph.get_radiality()
 
     def get_closeness_vitality(self) -> dict[str, float]:
         """Get closeness vitality centrality for each node.
@@ -8605,257 +8858,6 @@ class Graph:
         return scores_by_label
 
     # ========== Selection Methods ==========
-
-    def get_dice_similarity(self) -> dict[str, dict[str, float]]:
-        """Get Dice similarity coefficient between all node pairs.
-
-        The Dice coefficient measures similarity between two nodes based on their
-        neighborhood overlap:
-
-        Dice(A, B) = 2 × |neighbors(A) ∩ neighbors(B)| / (|neighbors(A)| + |neighbors(B)|)
-
-        Range: [0, 1] where 0 means no common neighbors and 1 means identical
-        neighborhoods (or same node). Self-similarity is always 1.0.
-
-        Returns
-        -------
-        dict[str, dict[str, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Calculate Dice similarity for link prediction:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("D", "B")
-            .add_edge("D", "C")
-        )
-
-        sim = graph.get_dice_similarity()
-        # A and D share neighbors B and C
-        print(sim["A"]["D"])  # 1.0 (perfect overlap)
-        ```
-
-        Notes
-        -----
-        Useful for:
-
-        - Link prediction (similar nodes likely to connect)
-        - Community detection (nodes with similar neighborhoods)
-        - Recommendation systems (find similar users/items)
-
-        See Also
-        --------
-        get_jaccard_similarity : More conservative similarity measure
-        get_cosine_similarity : Geometric similarity measure
-        get_overlap_similarity : Emphasizes subset relationships
-        """
-        result_ids = self._graph.get_dice_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
-
-    def get_jaccard_similarity(self) -> dict[str, dict[str, float]]:
-        """Get Jaccard similarity index between all node pairs.
-
-        The Jaccard index is a classic set similarity measure:
-
-        Jaccard(A, B) = |neighbors(A) ∩ neighbors(B)| / |neighbors(A) ∪ neighbors(B)|
-
-        Range: [0, 1] where 0 means no common neighbors and 1 means identical
-        neighborhoods (or same node). More conservative than Dice coefficient
-        (always ≤ Dice score). Self-similarity is always 1.0.
-
-        Returns
-        -------
-        dict[str, dict[str, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Calculate Jaccard similarity in a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        sim = graph.get_jaccard_similarity()
-        # Leaves have no common neighbors
-        print(sim["A"]["B"])  # 0.0
-        ```
-
-        Notes
-        -----
-        Widely used in:
-
-        - Document similarity (bag-of-words)
-        - User similarity (common items/friends)
-        - Biological networks (protein interactions)
-
-        See Also
-        --------
-        get_dice_similarity : Less conservative alternative
-        get_cosine_similarity : Geometric similarity measure
-        get_overlap_similarity : Emphasizes subset relationships
-        """
-        result_ids = self._graph.get_jaccard_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
-
-    def get_cosine_similarity(self) -> dict[str, dict[str, float]]:
-        """Get cosine similarity between all node pairs.
-
-        Cosine similarity treats neighbors as vector components:
-
-        Cosine(A, B) = |neighbors(A) ∩ neighbors(B)| / √(|neighbors(A)| × |neighbors(B)|)
-
-        Range: [0, 1] where 0 means no common neighbors and 1 means identical
-        neighborhoods. Geometric interpretation: cosine of angle between
-        neighbor vectors. Self-similarity is always 1.0.
-
-        Returns
-        -------
-        dict[str, dict[str, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Calculate cosine similarity in a triangle graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-
-        sim = graph.get_cosine_similarity()
-        # Each node shares 1 neighbor with the others
-        print(sim["A"]["B"])  # 0.5 (1 common / sqrt(2 * 2))
-        ```
-
-        Notes
-        -----
-        Advantages:
-
-        - Scales well with high-degree nodes
-        - Balances degree differences
-        - Standard in text mining and recommendation systems
-
-        See Also
-        --------
-        get_dice_similarity : Harmonic mean of degrees
-        get_jaccard_similarity : Set-theoretic similarity
-        get_overlap_similarity : Min-based similarity
-        """
-        result_ids = self._graph.get_cosine_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
-
-    def get_overlap_similarity(self) -> dict[str, dict[str, float]]:
-        """Get overlap coefficient between all node pairs.
-
-        The overlap coefficient emphasizes subset relationships:
-
-        Overlap(A, B) = |neighbors(A) ∩ neighbors(B)| / min(|neighbors(A)|, |neighbors(B)|)
-
-        Range: [0, 1] where 0 means no common neighbors and 1 means one
-        neighborhood is a subset of the other. Asymmetric measure useful for
-        hierarchical patterns. Self-similarity is always 1.0.
-
-        Returns
-        -------
-        dict[str, dict[str, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Detect hierarchical relationships in a hub-spoke graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="spoke")
-            .add_node(label="extended")
-            .add_edge("hub", "spoke")
-            .add_edge("hub", "extended")
-            .add_edge("spoke", "extra")
-        )
-
-        sim = graph.get_overlap_similarity()
-        # Hub's neighborhood is subset of spoke's
-        print(sim["hub"]["spoke"])  # 1.0
-        ```
-
-        Notes
-        -----
-        Use cases:
-
-        - Detecting specialization/generalization
-        - Finding hubs whose neighbors are subsets of others
-        - Hierarchical community structure
-
-        See Also
-        --------
-        get_jaccard_similarity : Symmetric set similarity
-        get_dice_similarity : Harmonic mean alternative
-        get_cosine_similarity : Geometric interpretation
-        """
-        result_ids = self._graph.get_overlap_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
 
     def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
         """Select nodes by their IDs.
