@@ -16,8 +16,9 @@ class TestKatzBasic:
         g = Graph()
         g.add_node("A")
         result = g.get_katz_centrality()
-        assert "A" in result
-        assert abs(result["A"] - 1.0) < 1e-6
+        a_id = g.get_id_from_label("A")
+        assert a_id in result
+        assert abs(result[a_id] - 1.0) < 1e-6
 
     def test_two_nodes_directed(self):
         """Directed edge: receiver has higher Katz."""
@@ -28,7 +29,7 @@ class TestKatzBasic:
 
         result = g.get_katz_centrality(alpha=0.1)
         # B receives from A, so B should have higher centrality
-        assert result["B"] > result["A"]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
 
     def test_two_nodes_undirected(self):
         """Undirected edge: symmetric Katz scores."""
@@ -39,7 +40,7 @@ class TestKatzBasic:
 
         result = g.get_katz_centrality(alpha=0.1)
         # Should be symmetric
-        assert abs(result["A"] - result["B"]) < 1e-6
+        assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
 
     def test_path_graph(self):
         """Path A→B→C: C has highest Katz."""
@@ -54,8 +55,8 @@ class TestKatzBasic:
         # C receives from B (direct) and A (via B)
         # B receives from A (direct)
         # A receives nothing
-        assert result["C"] > result["B"]
-        assert result["B"] > result["A"]
+        assert result[g.get_id_from_label("C")] > result[g.get_id_from_label("B")]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
 
     def test_star_directed(self):
         """Directed star: center has highest Katz if edges point to it."""
@@ -68,8 +69,10 @@ class TestKatzBasic:
 
         result = g.get_katz_centrality(alpha=0.1)
         # Hub receives from all leaves
+        hub_id = g.get_id_from_label("hub")
         for i in range(3):
-            assert result["hub"] > result[f"leaf_{i}"]
+            leaf_id = g.get_id_from_label(f"leaf_{i}")
+            assert result[hub_id] > result[leaf_id]
 
     def test_cycle_directed(self):
         """Directed cycle: all nodes equal Katz."""
@@ -83,8 +86,8 @@ class TestKatzBasic:
 
         result = g.get_katz_centrality(alpha=0.1)
         # Symmetric cycle - all equal
-        assert abs(result["A"] - result["B"]) < 1e-6
-        assert abs(result["B"] - result["C"]) < 1e-6
+        assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
+        assert abs(result[g.get_id_from_label("B")] - result[g.get_id_from_label("C")]) < 1e-6
 
 
 class TestKatzParameters:
@@ -103,7 +106,8 @@ class TestKatzParameters:
         high_alpha = g.get_katz_centrality(alpha=0.15)
 
         # D receives via long path - should benefit more from high alpha
-        assert high_alpha["D"] > low_alpha["D"]
+        d_id = g.get_id_from_label("D")
+        assert high_alpha[d_id] > low_alpha[d_id]
 
     def test_beta_effect(self):
         """Beta adds uniform bias to all nodes."""
@@ -118,8 +122,9 @@ class TestKatzParameters:
         # Both betas should maintain same normalized scores after normalization
         # The key is that beta affects the absolute values before normalization
         # After normalization, the relative ordering is preserved
-        assert low_beta["B"] > low_beta["A"]
-        assert high_beta["B"] > high_beta["A"]
+        a_id, b_id = g.get_id_from_label("A"), g.get_id_from_label("B")
+        assert low_beta[b_id] > low_beta[a_id]
+        assert high_beta[b_id] > high_beta[a_id]
 
     def test_convergence_tolerance(self):
         """Lower tolerance means more iterations."""
@@ -133,8 +138,9 @@ class TestKatzParameters:
         tight = g.get_katz_centrality(tol=1e-8)
 
         # Both should give similar results
-        for node in ["A", "B", "C"]:
-            assert abs(loose[node] - tight[node]) < 1e-2
+        for label in ["A", "B", "C"]:
+            node_id = g.get_id_from_label(label)
+            assert abs(loose[node_id] - tight[node_id]) < 1e-2
 
     def test_max_iter_limit(self):
         """Katz completes even with low max_iter."""
@@ -145,7 +151,7 @@ class TestKatzParameters:
 
         result = g.get_katz_centrality(max_iter=10)
         assert len(result) == 2
-        assert result["B"] > result["A"]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
 
 
 class TestKatzNormalization:
@@ -195,8 +201,8 @@ class TestKatzEdgeCases:
         result = g.get_katz_centrality()
         assert len(result) == 4
         # Within each component, receiver should have higher score
-        assert result["B"] > result["A"]
-        assert result["D"] > result["C"]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
+        assert result[g.get_id_from_label("D")] > result[g.get_id_from_label("C")]
 
     def test_isolated_node(self):
         """Isolated nodes get base beta value."""
@@ -209,8 +215,8 @@ class TestKatzEdgeCases:
         result = g.get_katz_centrality()
         # Isolated node and A (no incoming edges) should have equal scores
         # B should have highest (receives from A)
-        assert result["isolated"] == result["A"]
-        assert result["B"] > result["isolated"]
+        assert result[g.get_id_from_label("isolated")] == result[g.get_id_from_label("A")]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("isolated")]
 
     def test_self_loop(self):
         """Self-loop contributes to own Katz."""
@@ -221,7 +227,7 @@ class TestKatzEdgeCases:
 
         result = g.get_katz_centrality(alpha=0.1)
         # A receives from itself
-        assert result["A"] > result["B"]
+        assert result[g.get_id_from_label("A")] > result[g.get_id_from_label("B")]
 
 
 class TestKatzComparison:
@@ -238,13 +244,12 @@ class TestKatzComparison:
         katz = g.get_katz_centrality(alpha=0.1, beta=1.0)
         alpha_c = g.get_alpha_centrality(alpha=0.1)
 
-        # alpha_centrality returns numeric IDs, convert to labels
-        alpha_c_labeled = {g.get_label_from_id(nid): score for nid, score in alpha_c.items()}
-
+        # Both now return node IDs as keys
         # Should be very similar for undirected graphs
-        for node in ["A", "B", "C"]:
+        for label in ["A", "B", "C"]:
+            node_id = g.get_id_from_label(label)
             # Allow some difference due to different formulations
-            assert abs(katz[node] - alpha_c_labeled[node]) < 0.1
+            assert abs(katz[node_id] - alpha_c[node_id]) < 0.1
 
     def test_prestige_ordering(self):
         """Katz correctly identifies high-prestige nodes."""
@@ -260,9 +265,9 @@ class TestKatzComparison:
 
         katz = g.get_katz_centrality()
         # Leader receives from all others
-        assert katz["leader"] > katz["A"]
-        assert katz["leader"] > katz["B"]
-        assert katz["leader"] > katz["C"]
+        assert katz[g.get_id_from_label("leader")] > katz[g.get_id_from_label("A")]
+        assert katz[g.get_id_from_label("leader")] > katz[g.get_id_from_label("B")]
+        assert katz[g.get_id_from_label("leader")] > katz[g.get_id_from_label("C")]
 
 
 class TestKatzLargeGraph:
@@ -280,10 +285,13 @@ class TestKatzLargeGraph:
 
         result = g.get_katz_centrality(alpha=0.05)
 
+        # Get node IDs
+        node_ids = [g.get_id_from_label(label) for label in nodes]
+
         # End of path should have highest Katz
-        assert result[nodes[-1]] == max(result.values())
+        assert result[node_ids[-1]] == max(result.values())
         # Start should have lowest
-        assert result[nodes[0]] == min(result.values())
+        assert result[node_ids[0]] == min(result.values())
 
     def test_complete_graph(self):
         """Complete graph: all nodes equal Katz (symmetric)."""

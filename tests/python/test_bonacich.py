@@ -43,7 +43,8 @@ class TestBonacichBasic:
         g.add_node("A")
         result = g.get_bonacich_power_centrality()
         # With no edges, A·1 = 0, so centrality is 0
-        assert abs(result["A"]) < 1e-7
+        node_id = g.get_id_from_label("A")
+        assert abs(result[node_id]) < 1e-7
 
     def test_complete_graph_K5(self):
         """Complete graph K5 - all nodes equal."""
@@ -72,12 +73,13 @@ class TestBonacichBasic:
 
         result = g.get_bonacich_power_centrality(beta=0.1)
 
-        # Expected values from NetworkX
-        expected = {
+        # Expected values from NetworkX (converted to use node IDs)
+        expected_by_label = {
             "0": 0.7480544714310444,
             "1": 1.3714331976235816,
             "2": 0.7480544714310444,
         }
+        expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
 
         for node, exp_val in expected.items():
             assert abs(result[node] - exp_val) < 1e-6
@@ -95,13 +97,14 @@ class TestBonacichBasic:
 
         result = g.get_bonacich_power_centrality(beta=0.1)
 
-        # Expected values from NetworkX
-        expected = {
+        # Expected values from NetworkX (converted to use node IDs)
+        expected_by_label = {
             "0": 1.6520663752618043,
             "1": 0.6508140266182866,
             "2": 0.6508140266182866,
             "3": 0.6508140266182866,
         }
+        expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
 
         for node, exp_val in expected.items():
             assert abs(result[node] - exp_val) < 1e-6
@@ -121,12 +124,13 @@ class TestBonacichDirected:
 
         result = g.get_bonacich_power_centrality(beta=0.1)
 
-        # Expected values from NetworkX
-        expected = {
+        # Expected values from NetworkX (converted to use node IDs)
+        expected_by_label = {
             "0": 1.2816138016780187,
             "1": 1.1651034560709261,
             "2": 0.0,
         }
+        expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
 
         for node, exp_val in expected.items():
             assert abs(result[node] - exp_val) < 1e-6
@@ -144,8 +148,9 @@ class TestBonacichDirected:
 
         result = g.get_bonacich_power_centrality(beta=0.1)
 
-        # Expected values from NetworkX
-        expected = {"0": 2.0, "1": 0.0, "2": 0.0, "3": 0.0}
+        # Expected values from NetworkX (converted to use node IDs)
+        expected_by_label = {"0": 2.0, "1": 0.0, "2": 0.0, "3": 0.0}
+        expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
 
         for node, exp_val in expected.items():
             assert abs(result[node] - exp_val) < 1e-6
@@ -215,9 +220,13 @@ class TestBonacichParameters:
         result = g.get_bonacich_power_centrality(beta=0.1)
 
         # Center should have highest power (connected to many)
-        assert result["center"] > result["a"]
-        assert result["center"] > result["b"]
-        assert result["center"] > result["c"]
+        center_id = g.get_id_from_label("center")
+        a_id = g.get_id_from_label("a")
+        b_id = g.get_id_from_label("b")
+        c_id = g.get_id_from_label("c")
+        assert result[center_id] > result[a_id]
+        assert result[center_id] > result[b_id]
+        assert result[center_id] > result[c_id]
 
     def test_beta_negative(self):
         """Negative beta: competitive relations change power dynamics."""
@@ -229,8 +238,9 @@ class TestBonacichParameters:
 
         # With negative beta, middle nodes still have higher power in undirected paths
         # because they connect to more nodes (the math works differently than intuition)
-        assert result["B"] > result["A"]
-        assert result["C"] > result["D"]
+        a_id, b_id, c_id, d_id = [g.get_id_from_label(l) for l in ["A", "B", "C", "D"]]
+        assert result[b_id] > result[a_id]
+        assert result[c_id] > result[d_id]
 
     def test_beta_zero(self):
         """Beta = 0 gives degree-based centrality."""
@@ -241,9 +251,10 @@ class TestBonacichParameters:
 
         # With beta=0, centrality proportional to degree
         # B has degree 3, others have degree 1-2
-        assert result["B"] > result["A"]
-        assert result["B"] > result["C"]
-        assert result["B"] > result["D"]
+        a_id, b_id, c_id, d_id = [g.get_id_from_label(l) for l in ["A", "B", "C", "D"]]
+        assert result[b_id] > result[a_id]
+        assert result[b_id] > result[c_id]
+        assert result[b_id] > result[d_id]
 
 
 class TestBonacichCook1987:
@@ -307,8 +318,9 @@ class TestBonacichCook1987:
             },
         }
 
-        for beta, expected in test_cases.items():
+        for beta, expected_by_label in test_cases.items():
             result = g.get_bonacich_power_centrality(beta=beta, normalized=False)
+            expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
             for node, exp_val in expected.items():
                 assert abs(result[node] - exp_val) < 1e-6, f"Beta={beta}, node={node}"
 
@@ -331,7 +343,8 @@ class TestBonacichCook1987:
         # Test multiple beta values
         for beta in [-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3]:
             result = g.get_bonacich_power_centrality(beta=beta, normalized=False)
-            for node, exp_val in expected.items():
+            expected_by_id = {g.get_id_from_label(lbl): val for lbl, val in expected.items()}
+            for node, exp_val in expected_by_id.items():
                 assert abs(result[node] - exp_val) < 1e-6, f"Beta={beta}, node={node}"
 
     def test_cook_1d_directed(self):
@@ -419,8 +432,9 @@ class TestBonacichCook1987:
             },
         }
 
-        for beta, expected in test_cases.items():
+        for beta, expected_by_label in test_cases.items():
             result = g.get_bonacich_power_centrality(beta=beta, normalized=False)
+            expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
             for node, exp_val in expected.items():
                 assert abs(result[node] - exp_val) < 1e-6, f"Beta={beta}, node={node}"
 
@@ -468,7 +482,8 @@ class TestBonacichEdgeCases:
         result = g.get_bonacich_power_centrality(beta=0.1)
 
         # Self-loop increases A's centrality
-        assert result["A"] > 0
+        a_id = g.get_id_from_label("A")
+        assert result[a_id] > 0
 
     def test_large_negative_beta(self):
         """Large negative beta (competitive relations)."""
@@ -493,9 +508,10 @@ class TestBonacichComparison:
         bonacich = g.get_bonacich_power_centrality(beta=0.3, normalized=True)
 
         # Should have similar ordering (B highest due to degree)
-        assert bonacich["B"] > bonacich["A"]
-        assert bonacich["B"] > bonacich["C"]
-        assert bonacich["B"] > bonacich["D"]
+        a_id, b_id, c_id, d_id = [g.get_id_from_label(l) for l in ["A", "B", "C", "D"]]
+        assert bonacich[b_id] > bonacich[a_id]
+        assert bonacich[b_id] > bonacich[c_id]
+        assert bonacich[b_id] > bonacich[d_id]
 
     def test_beta_zero_vs_degree(self):
         """Beta = 0 should give degree-proportional centrality."""
@@ -504,10 +520,10 @@ class TestBonacichComparison:
 
         bonacich = g.get_bonacich_power_centrality(beta=0.0)
 
-        # Get degrees manually
+        # Get degrees manually (bonacich keys are now node IDs)
         degrees = {}
-        for node in bonacich.keys():
-            degrees[node] = len(g.get_neighbors(g.get_id_from_label(node)))
+        for node_id in bonacich.keys():
+            degrees[node_id] = len(g.get_neighbors(node_id))
 
         # Ordering should match degree ordering
         degree_order = sorted(degrees.items(), key=lambda x: x[1], reverse=True)
@@ -531,8 +547,11 @@ class TestBonacichLargeGraph:
         result = g.get_bonacich_power_centrality(beta=0.05)
 
         # Middle nodes should have higher centrality
-        assert result["10"] > result["0"]
-        assert result["10"] > result["19"]
+        id_10 = g.get_id_from_label("10")
+        id_0 = g.get_id_from_label("0")
+        id_19 = g.get_id_from_label("19")
+        assert result[id_10] > result[id_0]
+        assert result[id_10] > result[id_19]
 
     def test_complete_graph(self):
         """Complete graph with 10 nodes."""

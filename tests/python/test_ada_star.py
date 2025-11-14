@@ -286,13 +286,14 @@ class TestAdaStarComparison:
         # ADA* with epsilon=1.0 should find optimal path
         ada_path = g.ada_star_search("A", "C", epsilon=1.0)
 
-        # EdgeCase's shortest_path uses Dijkstra (returns labels)
+        # EdgeCase's shortest_path uses Dijkstra (now returns node IDs)
         dijkstra_path = g.shortest_path("A", "C")
 
         # Both should find optimal paths
         # Multiple optimal paths may exist, so we check they're both valid
-        assert ada_path[0] == g.get_id_from_label("A") and ada_path[-1] == g.get_id_from_label("C")
-        assert dijkstra_path[0] == "A" and dijkstra_path[-1] == "C"  # shortest_path returns labels
+        a_id, c_id = g.get_id_from_label("A"), g.get_id_from_label("C")
+        assert ada_path[0] == a_id and ada_path[-1] == c_id
+        assert dijkstra_path[0] == a_id and dijkstra_path[-1] == c_id
 
         # For this graph, optimal path is A->B->E->C or A->D->C (both cost 3.0)
         assert len(ada_path) == 3  # Should be a 3-hop path

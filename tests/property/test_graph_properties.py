@@ -178,11 +178,9 @@ def test_shortest_path_starts_and_ends_correctly(G, seed):
         path = G.shortest_path(source, target)
 
         if path and len(path) > 0:
-            # Path returns node labels, so convert source/target to labels
-            source_label = G.get_label_from_id(source)
-            target_label = G.get_label_from_id(target)
-            assert path[0] == source_label
-            assert path[-1] == target_label
+            # Path now returns node IDs
+            assert path[0] == source
+            assert path[-1] == target
 
 
 @given(G=small_graphs(), seed=st.integers(min_value=0, max_value=1000))
@@ -198,15 +196,12 @@ def test_shortest_path_consecutive_edges_exist(G, seed):
 
         if path and len(path) > 1:
             for i in range(len(path) - 1):
-                # Path contains labels, convert current node label to ID
-                current_label = path[i]
-                current_id = G.get_id_from_label(current_label)
+                # Path contains node IDs - use them directly
+                current_id = path[i]
                 # Get neighbor IDs
                 neighbor_ids = G.neighbors(current_id)
-                # Convert next label to ID for comparison
-                next_label = path[i + 1]
-                next_id = G.get_id_from_label(next_label)
                 # Next node should be in current node's neighbors
+                next_id = path[i + 1]
                 assert next_id in neighbor_ids
 
 

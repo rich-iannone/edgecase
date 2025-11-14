@@ -9218,7 +9218,7 @@ class Graph:
 
     def get_bonacich_power_centrality(
         self, beta: float = 0.1, normalized: bool = False, attr_name: str = None
-    ) -> Union[dict[str, float], "Graph"]:
+    ) -> Union[dict[int, float], "Graph"]:
         """Get Bonacich power centrality for each node.
 
         Bonacich power centrality generalizes eigenvector centrality to capture
@@ -9265,8 +9265,8 @@ class Graph:
 
         Returns
         -------
-        Union[dict[str, float], Graph]
-            If attr_name is None: dictionary mapping node labels to centrality scores.
+        Union[dict[int, float], Graph]
+            If attr_name is None: dictionary mapping node IDs to centrality scores.
             If attr_name is provided: returns self for method chaining.
             Interpretation depends on β:
             - β > 0: Higher scores = more powerful due to powerful neighbors
@@ -9361,12 +9361,10 @@ class Graph:
             )
 
         if attr_name is not None:
-            # Use dict with node IDs for set_node_attrs
             self.set_node_attrs(attr_name, result)
             return self
 
-        # Convert to labels for backwards compatibility
-        return {self.get_label_from_id(node_id): score for node_id, score in result.items()}
+        return result
 
     def get_katz_centrality(
         self,
@@ -9375,7 +9373,7 @@ class Graph:
         max_iter: int = 100,
         tol: float = 1e-6,
         attr_name: str = None,
-    ) -> Union[dict[str, float], "Graph"]:
+    ) -> Union[dict[int, float], "Graph"]:
         """Get Katz centrality for each node.
 
         Katz centrality measures node influence based on the number of walks of
@@ -9416,8 +9414,8 @@ class Graph:
 
         Returns
         -------
-        Union[dict[str, float], Graph]
-            If attr_name is None: dictionary mapping node labels to normalized Katz centrality scores.
+        Union[dict[int, float], Graph]
+            If attr_name is None: dictionary mapping node IDs to normalized Katz centrality scores.
             If attr_name is provided: returns self for method chaining.
             Scores sum to 1.0.
 
@@ -9471,12 +9469,10 @@ class Graph:
         scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
 
         if attr_name is not None:
-            # Use dict with node IDs for set_node_attrs
             self.set_node_attrs(attr_name, scores_by_id)
             return self
 
-        # Convert to labels for backwards compatibility
-        return {self.get_label_from_id(node_id): score for node_id, score in scores_by_id.items()}
+        return scores_by_id
 
     def get_leverage_centrality(self, attr_name: str = None) -> Union[dict[int, float], "Graph"]:
         """Get leverage centrality for each node.

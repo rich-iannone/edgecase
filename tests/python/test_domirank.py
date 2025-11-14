@@ -39,11 +39,12 @@ class TestDomiRankBasic:
         g = Graph()
         g.add_node("A")
         result = g.get_domirank_centrality()
-        assert "A" in result
+        a_id = g.get_id_from_label("A")
+        assert a_id in result
 
         # Single node should have zero dominance (no competition)
         # Allow small numerical error
-        assert abs(result["A"]) < 1e-6
+        assert abs(result[a_id]) < 1e-6
 
     def test_path_graph(self):
         """Path graph P3: A-B-C."""
@@ -52,11 +53,11 @@ class TestDomiRankBasic:
         result = g.get_domirank_centrality()
 
         # B (center) should have highest dominance
-        assert result["B"] > result["A"]
-        assert result["B"] > result["C"]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("C")]
 
         # End nodes A and C should have similar (negative) dominance
-        assert abs(result["A"] - result["C"]) < 1e-6
+        assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("C")]) < 1e-6
 
     def test_cycle_graph(self):
         """Triangle cycle: all nodes equal."""
@@ -65,8 +66,8 @@ class TestDomiRankBasic:
         result = g.get_domirank_centrality()
 
         # All nodes equivalent in symmetric cycle
-        assert abs(result["A"] - result["B"]) < 1e-6
-        assert abs(result["B"] - result["C"]) < 1e-6
+        assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
+        assert abs(result[g.get_id_from_label("B")] - result[g.get_id_from_label("C")]) < 1e-6
 
     def test_star_graph(self):
         """Star graph: hub dominates."""
@@ -75,13 +76,18 @@ class TestDomiRankBasic:
         result = g.get_domirank_centrality()
 
         # Hub should have highest dominance
-        assert result["hub"] > result["A"]
-        assert result["hub"] > result["B"]
-        assert result["hub"] > result["C"]
-        assert result["hub"] > result["D"]
+        assert result[g.get_id_from_label("hub")] > result[g.get_id_from_label("A")]
+        assert result[g.get_id_from_label("hub")] > result[g.get_id_from_label("B")]
+        assert result[g.get_id_from_label("hub")] > result[g.get_id_from_label("C")]
+        assert result[g.get_id_from_label("hub")] > result[g.get_id_from_label("D")]
 
         # All leaves should have similar (negative) dominance
-        leaf_scores = [result["A"], result["B"], result["C"], result["D"]]
+        leaf_scores = [
+            result[g.get_id_from_label("A")],
+            result[g.get_id_from_label("B")],
+            result[g.get_id_from_label("C")],
+            result[g.get_id_from_label("D")],
+        ]
         assert all(abs(s - leaf_scores[0]) < 1e-6 for s in leaf_scores)
 
     def test_complete_graph(self):
@@ -194,8 +200,8 @@ class TestDomiRankDirected:
         result = g.get_domirank_centrality()
 
         # All nodes should have equal dominance (symmetric cycle)
-        assert abs(result["A"] - result["B"]) < 1e-6
-        assert abs(result["B"] - result["C"]) < 1e-6
+        assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
+        assert abs(result[g.get_id_from_label("B")] - result[g.get_id_from_label("C")]) < 1e-6
 
     def test_directed_star(self):
         """Directed star: hub with all outgoing edges."""
@@ -233,8 +239,8 @@ class TestDomiRankDisconnected:
         assert len(result) == 5
 
         # Within component 2, D should dominate
-        assert result["D"] > result["C"]
-        assert result["D"] > result["E"]
+        assert result[g.get_id_from_label("D")] > result[g.get_id_from_label("C")]
+        assert result[g.get_id_from_label("D")] > result[g.get_id_from_label("E")]
 
     def test_isolated_nodes(self):
         """Graph with isolated nodes."""
@@ -247,7 +253,7 @@ class TestDomiRankDisconnected:
         result = g.get_domirank_centrality()
 
         # Isolated node should have zero dominance
-        assert abs(result["isolated"]) < 1e-6
+        assert abs(result[g.get_id_from_label("isolated")]) < 1e-6
 
 
 class TestDomiRankNumerical:
@@ -260,13 +266,17 @@ class TestDomiRankNumerical:
         result = g.get_domirank_centrality(sigma=0.01)
 
         # B should have highest score (highest degree)
-        assert result["B"] > result["A"]
-        assert result["B"] > result["C"]
-        assert result["B"] > result["D"]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("C")]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("D")]
 
         # Low-degree nodes should have similar low scores
-        low_degree_nodes = [result["A"], result["C"], result["D"]]
-        assert all(s < result["B"] for s in low_degree_nodes)
+        low_degree_nodes = [
+            result[g.get_id_from_label("A")],
+            result[g.get_id_from_label("C")],
+            result[g.get_id_from_label("D")],
+        ]
+        assert all(s < result[g.get_id_from_label("B")] for s in low_degree_nodes)
 
     def test_higher_sigma(self):
         """Higher σ still identifies structural properties."""
@@ -276,9 +286,9 @@ class TestDomiRankNumerical:
         result = g.get_domirank_centrality(sigma=0.5)
 
         # B should still dominate (highest degree)
-        assert result["B"] > result["A"]
-        assert result["B"] > result["C"]
-        assert result["B"] > result["D"]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("C")]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("D")]
 
     def test_score_properties(self):
         """DomiRank scores preserve network structure."""
@@ -287,11 +297,11 @@ class TestDomiRankNumerical:
         result = g.get_domirank_centrality()
 
         # Center nodes should have higher dominance
-        assert result["B"] > result["A"]
-        assert result["C"] > result["D"]
+        assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
+        assert result[g.get_id_from_label("C")] > result[g.get_id_from_label("D")]
 
         # Symmetric path endpoints should have similar scores
-        assert abs(result["A"] - result["D"]) < 1e-2
+        assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("D")]) < 1e-2
 
     def test_negative_scores(self):
         """Some nodes can have negative dominance (submissive)."""
@@ -300,12 +310,12 @@ class TestDomiRankNumerical:
         result = g.get_domirank_centrality()
 
         # Leaves should have negative scores (dominated by hub)
-        assert result["A"] < 0
-        assert result["B"] < 0
-        assert result["C"] < 0
+        assert result[g.get_id_from_label("A")] < 0
+        assert result[g.get_id_from_label("B")] < 0
+        assert result[g.get_id_from_label("C")] < 0
 
         # Hub should have positive score
-        assert result["hub"] > 0
+        assert result[g.get_id_from_label("hub")] > 0
 
 
 class TestDomiRankEdgeCases:
@@ -318,7 +328,7 @@ class TestDomiRankEdgeCases:
         result = g.get_domirank_centrality()
 
         # Both nodes have degree 1, should be symmetric
-        assert abs(result["A"] - result["B"]) < 1e-6
+        assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
 
     def test_self_loop(self):
         """Graph with self-loop."""
@@ -364,8 +374,8 @@ class TestDomiRankEdgeCases:
         assert len(result) == 100
 
         # Interior nodes should have higher dominance than corners
-        center = result["n5_5"]
-        corner = result["n0_0"]
+        center = result[g.get_id_from_label("n5_5")]
+        corner = result[g.get_id_from_label("n0_0")]
         assert center > corner
 
 
@@ -377,11 +387,16 @@ class TestDomiRankComparison:
         g = _build_graph([("A", "B"), ("B", "C"), ("B", "D"), ("C", "E")])
 
         domirank = g.get_domirank_centrality(sigma=0.01)  # Low sigma ~ degree
-        degrees = {node: g.get_degree(node) for node in ["A", "B", "C", "D", "E"]}
+        # Create degrees dict with node IDs as keys
+        label_to_id = {lbl: g.get_id_from_label(lbl) for lbl in ["A", "B", "C", "D", "E"]}
+        degrees = {
+            label_to_id[lbl]: g.get_degree(label_to_id[lbl]) for lbl in ["A", "B", "C", "D", "E"]
+        }
 
         # Rankings should be similar at low sigma
         dr_ranking = sorted(domirank.keys(), key=lambda k: domirank[k], reverse=True)
         deg_ranking = sorted(degrees.keys(), key=lambda k: degrees[k], reverse=True)
 
         # B should be top in both (highest degree)
-        assert dr_ranking[0] == deg_ranking[0] == "B"
+        b_id = label_to_id["B"]
+        assert dr_ranking[0] == deg_ranking[0] == b_id

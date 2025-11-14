@@ -130,13 +130,18 @@ class TestGraphConversion:
 
         # Convert back and verify
         G2 = from_igraph(ig_graph)
+        # get_node_attrs now returns dict with node IDs as keys
         attrs_a = G2.get_node_attrs("color", ["A", "B"])
         values = G2.get_node_attrs("value", ["A", "B"])
 
-        assert attrs_a["A"] == "red"
-        assert attrs_a["B"] == "blue"
-        assert values["A"] == 10
-        assert values["B"] == 20
+        # Get node IDs for comparison
+        a_id = G2.get_id_from_label("A")
+        b_id = G2.get_id_from_label("B")
+
+        assert attrs_a[a_id] == "red"
+        assert attrs_a[b_id] == "blue"
+        assert values[a_id] == 10
+        assert values[b_id] == 20
 
     def test_edge_attributes_preservation(self):
         """Test that edge attributes are preserved during conversion."""
@@ -264,10 +269,12 @@ class TestShortestPaths:
 
         ig_graph = to_igraph(G)
 
-        # EdgeCase shortest path
-        ec_path = G.shortest_path("A", "D")
+        # EdgeCase shortest path (returns node IDs)
+        ec_path_ids = G.shortest_path("A", "D")
+        # Convert EdgeCase path IDs to labels for comparison
+        ec_path = [G.get_label_from_id(nid) for nid in ec_path_ids]
 
-        # igraph shortest path
+        # igraph shortest path (no weights for unweighted graph)
         node_names = ig_graph.vs["name"]
         idx_a = node_names.index("A")
         idx_d = node_names.index("D")
@@ -290,8 +297,10 @@ class TestShortestPaths:
 
         ig_graph = to_igraph(G)
 
-        # EdgeCase shortest path (should use Dijkstra with weights)
-        ec_path = G.shortest_path("A", "D")
+        # EdgeCase shortest path (returns node IDs, uses Dijkstra with weights)
+        ec_path_ids = G.shortest_path("A", "D")
+        # Convert EdgeCase path IDs to labels for comparison
+        ec_path = [G.get_label_from_id(nid) for nid in ec_path_ids]
 
         # igraph shortest path with weights
         node_names = ig_graph.vs["name"]
