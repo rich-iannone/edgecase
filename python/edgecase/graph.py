@@ -3862,6 +3862,9 @@ class Graph:
         get_neighbors : Get neighbors of a node
         neighbors : Get neighbor list
         """
+        # Resolve node_id to integer ID
+        node_id = self._resolve_node_id(node_id)
+
         all_nodes = set(self.node_ids(limit=None))
         neighbors = set(self.get_neighbors(node_id, mode="all"))
 
@@ -4053,6 +4056,9 @@ class Graph:
         count_weakly_connected_components : Count connected components
         get_neighbors : Get immediate neighbors only
         """
+        # Resolve node_id to integer ID
+        node_id = self._resolve_node_id(node_id)
+
         if not self.has_node(node_id):
             raise KeyError(f"Node '{node_id}' does not exist")
 
@@ -11671,6 +11677,9 @@ class Graph:
         get_common_neighbors : Get shared neighbors between two nodes
         neighbors : Get neighbors of a node (simpler interface)
         """
+        # Resolve node_id to integer ID
+        node_id = self._resolve_node_id(node_id)
+
         if mode not in ["out", "in", "all"]:
             raise ValueError("mode must be 'out', 'in', or 'all'")
 
