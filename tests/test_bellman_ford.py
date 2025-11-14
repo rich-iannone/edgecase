@@ -4,6 +4,11 @@ import pytest
 from edgecase import Graph
 
 
+def get_path_labels(graph, path_ids):
+    """Helper to convert path of node IDs to labels for readability."""
+    return [graph.get_label_from_id(nid) for nid in path_ids]
+
+
 class TestBellmanFordBasic:
     """Basic Bellman-Ford functionality tests."""
 
@@ -19,7 +24,7 @@ class TestBellmanFordBasic:
         )
 
         path, distance = graph.bellman_ford_shortest_path("A", "C")
-        assert path == ["A", "B", "C"]
+        assert path == [1, 2, 3]  # A, B, C
         assert distance == 3.0
 
     def test_negative_weights(self):
@@ -38,7 +43,7 @@ class TestBellmanFordBasic:
 
         path, distance = graph.bellman_ford_shortest_path("A", "D")
         # Should go A -> C -> B -> D to take advantage of negative weight
-        assert path == ["A", "C", "B", "D"]
+        assert path == [1, 3, 2, 4]  # A, C, B, D
         assert distance == 0.0  # 2 + (-3) + 1 = 0
 
     def test_direct_connection(self):
@@ -51,7 +56,7 @@ class TestBellmanFordBasic:
         )
 
         path, distance = graph.bellman_ford_shortest_path("A", "B")
-        assert path == ["A", "B"]
+        assert path == [1, 2]  # A, B
         assert distance == 5.0
 
     def test_no_path(self):
@@ -115,7 +120,7 @@ class TestBellmanFordComplexGraphs:
 
         path, distance = graph.bellman_ford_shortest_path("A", "B")
         # Should go A -> C -> D -> B (total: 3) instead of A -> B (10)
-        assert path == ["A", "C", "D", "B"]
+        assert path == [1, 3, 4, 2]  # A, C, D, B
         assert distance == 3.0
 
     def test_star_graph(self):
@@ -132,7 +137,7 @@ class TestBellmanFordComplexGraphs:
         )
 
         path, distance = graph.bellman_ford_shortest_path("hub", "C")
-        assert path == ["hub", "C"]
+        assert path == [1, 4]  # hub, C
         assert distance == 3.0
 
     def test_mixed_positive_negative_weights(self):
@@ -151,7 +156,7 @@ class TestBellmanFordComplexGraphs:
 
         path, distance = graph.bellman_ford_shortest_path("A", "D")
         # Should be A -> B -> C -> D = 5 + (-2) + 3 = 6
-        assert path == ["A", "B", "C", "D"]
+        assert path == [1, 2, 3, 4]  # A, B, C, D
         assert distance == 6.0
 
 
@@ -163,7 +168,7 @@ class TestBellmanFordEdgeCases:
         graph = Graph(directed=True).add_node(label="A")
 
         path, distance = graph.bellman_ford_shortest_path("A", "A")
-        assert path == ["A"]
+        assert path == [1]  # A
         assert distance == 0.0
 
     def test_zero_weight_edges(self):
@@ -178,7 +183,7 @@ class TestBellmanFordEdgeCases:
         )
 
         path, distance = graph.bellman_ford_shortest_path("A", "C")
-        assert path == ["A", "B", "C"]
+        assert path == [1, 2, 3]  # A, B, C
         assert distance == 0.0
 
     def test_large_negative_weights(self):
@@ -193,7 +198,7 @@ class TestBellmanFordEdgeCases:
         )
 
         path, distance = graph.bellman_ford_shortest_path("A", "C")
-        assert path == ["A", "B", "C"]
+        assert path == [1, 2, 3]  # A, B, C
         assert distance == 50.0
 
 
@@ -212,7 +217,7 @@ class TestBellmanFordUndirected:
         )
 
         path, distance = graph.bellman_ford_shortest_path("A", "C")
-        assert path == ["A", "B", "C"]
+        assert path == [1, 2, 3]  # A, B, C
         assert distance == 3.0
 
     def test_undirected_negative_weights(self):

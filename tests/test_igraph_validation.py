@@ -345,9 +345,12 @@ class TestBellmanFord:
         # Calculate distance from igraph path
         ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
 
+        # Convert EdgeCase IDs to labels for comparison
+        ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
+
         # Both should find path A -> C -> D (total weight 3.0)
-        assert ec_path == ig_path
-        assert ec_path == ["A", "C", "D"]
+        assert ec_path_labels == ig_path
+        assert ec_path_labels == ["A", "C", "D"]
         assert approx_equal(ec_dist, ig_dist)
         assert approx_equal(ec_dist, 3.0)
 
@@ -379,9 +382,12 @@ class TestBellmanFord:
         # Calculate distance from igraph path
         ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
 
+        # Convert EdgeCase IDs to labels for comparison
+        ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
+
         # Should take advantage of negative weight: A -> C -> B -> D (2 + -3 + 1 = 0)
-        assert ec_path == ig_path
-        assert ec_path == ["A", "C", "B", "D"]
+        assert ec_path_labels == ig_path
+        assert ec_path_labels == ["A", "C", "B", "D"]
         assert approx_equal(ec_dist, ig_dist)
         assert approx_equal(ec_dist, 0.0)
 
@@ -415,9 +421,12 @@ class TestBellmanFord:
         # Calculate distance from igraph path
         ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
 
+        # Convert EdgeCase IDs to labels for comparison
+        ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
+
         # Should be A -> B -> C -> D = 5 + (-2) + 3 = 6
-        assert ec_path == ig_path
-        assert ec_path == ["A", "B", "C", "D"]
+        assert ec_path_labels == ig_path
+        assert ec_path_labels == ["A", "B", "C", "D"]
         assert approx_equal(ec_dist, ig_dist)
         assert approx_equal(ec_dist, 6.0)
 
@@ -463,8 +472,11 @@ class TestBellmanFord:
         # Calculate distance from igraph path
         ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
 
-        assert ec_path == ig_path
-        assert ec_path == ["A", "B", "C"]
+        # Convert EdgeCase IDs to labels for comparison
+        ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
+
+        assert ec_path_labels == ig_path
+        assert ec_path_labels == ["A", "B", "C"]
         assert approx_equal(ec_dist, ig_dist)
         assert approx_equal(ec_dist, 3.0)
 
@@ -486,9 +498,12 @@ class TestBellmanFord:
         ig_path_indices = ig_graph.get_shortest_path(idx_a, idx_a, weights="weight")
         ig_path = [node_names[i] for i in ig_path_indices]
 
+        # Convert EdgeCase IDs to labels for comparison
+        ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
+
         # Both should return just the source node with distance 0
-        assert ec_path == ig_path
-        assert ec_path == ["A"]
+        assert ec_path_labels == ig_path
+        assert ec_path_labels == ["A"]
         assert approx_equal(ec_dist, 0.0)
 
 

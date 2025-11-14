@@ -2946,7 +2946,7 @@ class Graph:
 
     def bellman_ford_shortest_path(
         self, source: Union[int, str], target: Union[int, str]
-    ) -> tuple[list[str], float] | None:
+    ) -> tuple[list[int], float] | None:
         """Find shortest path using Bellman-Ford algorithm (supports negative weights).
 
         Computes the shortest weighted path from source to target using the Bellman-Ford
@@ -2968,9 +2968,9 @@ class Graph:
 
         Returns
         -------
-        tuple[list[str], float] | None
+        tuple[list[int], float] | None
             Tuple of (path, distance) where:
-            - path: List of node labels from source to target (inclusive)
+            - path: List of node IDs from source to target (inclusive)
             - distance: Total weight of the shortest path
             Returns None if target is unreachable.
 
@@ -2999,7 +2999,7 @@ class Graph:
         path, distance = graph.bellman_ford_shortest_path("A", "D")
         # Path: A -> C -> B -> D (takes negative weight edge)
         # Distance: 2 + (-3) + 1 = 0
-        print(path)      # ['A', 'C', 'B', 'D']
+        print(path)      # [1, 2, 3, 4] (node IDs)
         print(distance)  # 0.0
         ```
 
@@ -3066,9 +3066,7 @@ class Graph:
             return None
 
         path_ids, distance = result
-        # Convert node IDs to labels
-        path_labels = [self.get_label_from_id(node_id) for node_id in path_ids]
-        return (path_labels, distance)
+        return (path_ids, distance)
 
     def shortest_path(self, source: Union[int, str], target: Union[int, str]) -> list[int] | None:
         """Find shortest path between two nodes.
