@@ -1,5 +1,4 @@
 import edgecase as ec
-from edgecase import shortest_path
 
 
 def demo_basic_usage():

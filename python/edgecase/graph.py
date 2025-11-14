@@ -3027,6 +3027,197 @@ class Graph:
         path_labels = [self.get_label_from_id(node_id) for node_id in path_ids]
         return (path_labels, distance)
 
+    def shortest_path(self, source: Union[int, str], target: Union[int, str]) -> list[str] | None:
+        """Find shortest path between two nodes.
+
+        Uses breadth-first search (BFS) to find the shortest path by number of hops.
+        For weighted shortest paths, use Dijkstra's algorithm instead.
+
+        Parameters
+        ----------
+        source : int | str
+            Source node (integer ID or string label).
+        target : int | str
+            Target node (integer ID or string label).
+
+        Returns
+        -------
+        list[str] | None
+            List of node labels in the path from source to target (inclusive), or
+            None if no path exists.
+
+        Examples
+        --------
+        Find shortest path in a simple graph:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(5)  # 1-2-3-4-5
+
+        # Find shortest path
+        path = graph.shortest_path("1", "5")
+        print(path)  # ['1', '2', '3', '4', '5']
+
+        # No path between disconnected components
+        graph.add_node("isolated")
+        path = graph.shortest_path("1", "isolated")
+        print(path)  # None
+        ```
+
+        See Also
+        --------
+        bellman_ford_shortest_path : Shortest paths with negative weights
+        get_graph_diameter : Get longest shortest path in the graph
+        get_mean_distance : Get average shortest path length
+        get_all_simple_paths : Enumerate all simple paths between nodes
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        path_ids = rust.shortest_path(self._graph, source_id, target_id)
+        if path_ids is None:
+            return None
+        # Convert node IDs to labels
+        return [self.get_label_from_id(node_id) for node_id in path_ids]
+
+    def pagerank(
+        self, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-6
+    ) -> dict[str, float]:
+        """Calculate PageRank scores for all nodes in the graph.
+
+        PageRank is a link analysis algorithm that assigns importance scores to nodes
+        based on their incoming connections. Originally developed by Google to rank web
+        pages, it's widely used in social network analysis, recommendation systems, and
+        influence detection.
+
+        The algorithm iteratively distributes "rank" from each node to its neighbors,
+        with a damping factor to model random jumps. Nodes with many incoming edges from
+        high-ranking nodes receive higher scores.
+
+        Parameters
+        ----------
+        damping : float, default=0.85
+            The probability of following an edge (vs. random jump). Higher values (closer
+            to 1.0) give more weight to the graph structure. Typical range: 0.8-0.95.
+        max_iter : int, default=100
+            Maximum number of iterations to run. The algorithm stops early if convergence
+            is reached.
+        tol : float, default=1e-6
+            Convergence tolerance. The algorithm stops when the sum of absolute differences
+            between iterations is less than this value.
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node labels to their PageRank scores. Scores sum to 1.0
+            across all nodes.
+
+        Examples
+        --------
+        Calculate PageRank on a simple social network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+            .add_edge("Alice", "Bob")
+            .add_edge("Alice", "Charlie")
+            .add_edge("Bob", "Charlie")
+        )
+
+        scores = graph.pagerank()
+        print(scores)
+        # {'Charlie': 0.475, 'Bob': 0.262, 'Alice': 0.262}
+        ```
+
+        Use custom damping factor for more exploration:
+
+        ```python
+        scores = graph.pagerank(damping=0.5)  # More random jumping
+        ```
+
+        Find the most influential nodes:
+
+        ```python
+        scores = graph.pagerank()
+        top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
+        for node, score in top_nodes:
+            print(f"{node}: {score:.4f}")
+        ```
+
+        See Also
+        --------
+        betweenness_centrality : Measure nodes that bridge communities
+        get_eigenvector_centrality : Alternative centrality measure
+        """
+        result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
+        # Convert node IDs to labels
+        return {self.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
+
+    def betweenness_centrality(self) -> dict[str, float]:
+        """Calculate betweenness centrality scores for all nodes.
+
+        Betweenness centrality measures how often a node appears on the shortest paths
+        between other nodes in the graph. Nodes with high betweenness act as bridges or
+        bottlenecks, controlling the flow of information or resources through the network.
+
+        This metric is particularly useful for:
+        - Identifying key connectors in social networks
+        - Finding critical infrastructure nodes in transportation/communication networks
+        - Detecting potential bottlenecks or points of failure
+
+        The algorithm computes shortest paths between all pairs of nodes and counts how
+        many times each node appears on these paths.
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node labels to their betweenness centrality scores.
+            Scores are normalized to the range [0, 1].
+
+        Examples
+        --------
+        Find bridge nodes in a network:
+
+        ```python
+        # Create two clusters connected by a bridge node
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="Bridge")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "Bridge")
+            .add_edge("Bridge", "C")
+            .add_edge("C", "D")
+        )
+
+        scores = graph.betweenness_centrality()
+        print(scores["Bridge"])  # High score - bridges two clusters
+        ```
+
+        Identify the most important connectors:
+
+        ```python
+        scores = graph.betweenness_centrality()
+        connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        for node, score in connectors:
+            print(f"{node}: {score:.4f}")
+        ```
+
+        See Also
+        --------
+        pagerank : Measure node importance by incoming connections
+        get_closeness_centrality : Measure based on distance to all nodes
+        """
+        result_ids = rust.betweenness_centrality(self._graph)
+        # Convert node IDs to labels
+        return {self.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
+
     # ========== Similarity Methods ==========
 
     def similarity(self, nodes: list[str] = None, method: str = "jaccard") -> list[list[float]]:
@@ -10455,9 +10646,9 @@ class Graph:
                 node_id: self.get_out_degree(node_id) for node_id in self.node_ids(limit=None)
             }
         elif measure == "pagerank":
-            scores = pagerank(self, **kwargs)
+            scores = self.pagerank(**kwargs)
         elif measure == "betweenness":
-            scores = betweenness_centrality(self)
+            scores = self.betweenness_centrality()
         else:
             raise ValueError(
                 f"Unknown centrality measure '{measure}'. "
@@ -14141,215 +14332,8 @@ class Graph:
 
 
 # ==============================================================================
-# Algorithm Functions
+# Community Detection Helper Functions
 # ==============================================================================
-
-
-# Algorithm functions - wrap Rust functions to accept our Graph wrapper
-def shortest_path(
-    graph: Graph, source: Union[int, str], target: Union[int, str]
-) -> list[str] | None:
-    """Find shortest path between two nodes.
-
-    Uses breadth-first search (BFS) to find the shortest path by number of hops.
-    For weighted shortest paths, use Dijkstra's algorithm instead.
-
-    Parameters
-    ---
-    graph : Graph
-        The graph to search. Can be directed or undirected.
-    source : int | str
-        Source node (integer ID or string label).
-    target : int | str
-        Target node (integer ID or string label).
-
-    Returns
-    ---
-    list of str | None
-        List of node labels in the path from source to target (inclusive), or
-        `None` if no path exists.
-
-    Examples
-    --------
-    ```python
-    import edgecase as ec
-    from edgecase import shortest_path
-
-    graph = ec.Graph()
-    graph.add_path_graph(5)  # 1-2-3-4-5
-
-    # Find shortest path
-    path = shortest_path(graph, "1", "5")
-    print(path)  # ['1', '2', '3', '4', '5']
-
-    # No path between disconnected components
-    graph.add_node("isolated")
-    path = shortest_path(graph, "1", "isolated")
-    print(path)  # None
-    ```
-
-    See Also
-    --------
-    get_graph_diameter : Get longest shortest path in the graph
-    get_mean_distance : Get average shortest path length
-    """
-    source_id = graph._resolve_node_id(source, auto_create=False)
-    target_id = graph._resolve_node_id(target, auto_create=False)
-    path_ids = rust.shortest_path(graph._graph, source_id, target_id)
-    if path_ids is None:
-        return None
-    # Convert node IDs to labels
-    return [graph.get_label_from_id(node_id) for node_id in path_ids]
-
-
-def pagerank(
-    graph: Graph, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-6
-) -> dict[str, float]:
-    """Calculate PageRank scores for all nodes in the graph.
-
-    PageRank is a link analysis algorithm that assigns importance scores to nodes
-    based on their incoming connections. Originally developed by Google to rank web
-    pages, it's widely used in social network analysis, recommendation systems, and
-    influence detection.
-
-    The algorithm iteratively distributes "rank" from each node to its neighbors,
-    with a damping factor to model random jumps. Nodes with many incoming edges from
-    high-ranking nodes receive higher scores.
-
-    Parameters
-    ----------
-    graph : Graph
-        The graph to analyze. Can be directed or undirected.
-    damping : float, default 0.85
-        The probability of following an edge (vs. random jump). Higher values (closer
-        to 1.0) give more weight to the graph structure. Typical range: 0.8-0.95.
-    max_iter : int, default 100
-        Maximum number of iterations to run. The algorithm stops early if convergence
-        is reached.
-    tol : float, default 1e-6
-        Convergence tolerance. The algorithm stops when the sum of absolute differences
-        between iterations is less than this value.
-
-    Returns
-    -------
-    dict[str, float]
-        Dictionary mapping node labels to their PageRank scores. Scores sum to 1.0
-        across all nodes.
-
-    Examples
-    --------
-    Calculate PageRank on a simple social network:
-
-    ```python
-    from edgecase import Graph, pagerank
-
-    graph = (
-        Graph(directed=True)
-        .add_node(label="Alice")
-        .add_node(label="Bob")
-        .add_node(label="Charlie")
-        .add_edge("Alice", "Bob")
-        .add_edge("Alice", "Charlie")
-        .add_edge("Bob", "Charlie")
-    )
-
-    scores = pagerank(graph)
-    print(scores)
-    # {'Charlie': 0.475, 'Bob': 0.262, 'Alice': 0.262}
-    ```
-
-    Use custom damping factor for more exploration:
-
-    ```python
-    scores = pagerank(graph, damping=0.5)  # More random jumping
-    ```
-
-    Find the most influential nodes:
-
-    ```python
-    scores = pagerank(graph)
-    top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
-    for node, score in top_nodes:
-        print(f"{node}: {score:.4f}")
-    ```
-
-    See Also
-    --------
-    betweenness_centrality : Measure nodes that bridge communities
-    """
-    result_ids = rust.pagerank(graph._graph, damping=damping, max_iter=max_iter, tol=tol)
-    # Convert node IDs to labels
-    return {graph.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
-
-
-def betweenness_centrality(graph: Graph) -> dict[str, float]:
-    """Calculate betweenness centrality scores for all nodes.
-
-    Betweenness centrality measures how often a node appears on the shortest paths
-    between other nodes in the graph. Nodes with high betweenness act as bridges or
-    bottlenecks, controlling the flow of information or resources through the network.
-
-    This metric is particularly useful for:
-    - Identifying key connectors in social networks
-    - Finding critical infrastructure nodes in transportation/communication networks
-    - Detecting potential bottlenecks or points of failure
-
-    The algorithm computes shortest paths between all pairs of nodes and counts how
-    many times each node appears on these paths.
-
-    Parameters
-    ----------
-    graph : Graph
-        The graph to analyze. Works with both directed and undirected graphs.
-
-    Returns
-    -------
-    dict[str, float]
-        Dictionary mapping node labels to their betweenness centrality scores.
-        Scores are normalized to the range [0, 1].
-
-    Examples
-    --------
-    Find bridge nodes in a network:
-
-    ```python
-    from edgecase import Graph, betweenness_centrality
-
-    # Create two clusters connected by a bridge node
-    graph = (
-        Graph()
-        .add_node(label="A")
-        .add_node(label="B")
-        .add_node(label="Bridge")
-        .add_node(label="C")
-        .add_node(label="D")
-        .add_edge("A", "B")
-        .add_edge("B", "Bridge")
-        .add_edge("Bridge", "C")
-        .add_edge("C", "D")
-    )
-
-    scores = betweenness_centrality(graph)
-    print(scores["Bridge"])  # High score - bridges two clusters
-    ```
-
-    Identify the most important connectors:
-
-    ```python
-    scores = betweenness_centrality(graph)
-    connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-
-    for node, score in connectors:
-        print(f"{node}: {score:.4f}")
-    ```
-
-    See Also
-    --------
-    pagerank : Measure node importance by incoming connections
-    """
-    result_ids = rust.betweenness_centrality(graph._graph)
-    # Convert node IDs to labels
-    return {graph.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
 
 
 def detect_communities(graph: Graph) -> dict[str, int]:

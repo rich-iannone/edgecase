@@ -5,7 +5,7 @@ Property-based tests using Hypothesis
 
 import pytest
 from hypothesis import given, strategies as st, settings
-from edgecase import Graph, shortest_path, pagerank
+from edgecase import Graph
 
 
 # Custom strategies for graph generation
@@ -130,7 +130,7 @@ def test_undirected_neighbors_symmetric(G):
 def test_pagerank_sum_to_one(G):
     """PageRank scores should sum to 1.0"""
     if G.num_nodes() > 0:
-        ranks = pagerank(G)
+        ranks = G.pagerank()
 
         if ranks:  # If PageRank succeeded
             total = sum(ranks.values())
@@ -142,7 +142,7 @@ def test_pagerank_sum_to_one(G):
 def test_pagerank_all_positive(G):
     """All PageRank scores should be positive"""
     if G.num_nodes() > 0:
-        ranks = pagerank(G)
+        ranks = G.pagerank()
 
         if ranks:
             for score in ranks.values():
@@ -154,7 +154,7 @@ def test_pagerank_all_positive(G):
 def test_pagerank_covers_all_nodes(G):
     """PageRank should return scores for all nodes"""
     if G.num_nodes() > 0:
-        ranks = pagerank(G)
+        ranks = G.pagerank()
 
         if ranks:
             assert len(ranks) == G.num_nodes()

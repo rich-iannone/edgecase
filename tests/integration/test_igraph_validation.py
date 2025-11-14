@@ -265,7 +265,7 @@ class TestShortestPaths:
         ig_graph = to_igraph(G)
 
         # EdgeCase shortest path
-        ec_path = ec.shortest_path(G, "A", "D")
+        ec_path = G.shortest_path("A", "D")
 
         # igraph shortest path
         node_names = ig_graph.vs["name"]
@@ -291,7 +291,7 @@ class TestShortestPaths:
         ig_graph = to_igraph(G)
 
         # EdgeCase shortest path (should use Dijkstra with weights)
-        ec_path = ec.shortest_path(G, "A", "D")
+        ec_path = G.shortest_path("A", "D")
 
         # igraph shortest path with weights
         node_names = ig_graph.vs["name"]
@@ -499,7 +499,7 @@ class TestPageRank:
         ig_graph = to_igraph(G)
 
         # EdgeCase PageRank (uses damping parameter)
-        ec_pr = ec.pagerank(G, damping=0.85, max_iter=100, tol=1e-6)
+        ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6)
 
         # igraph PageRank (uses damping parameter)
         ig_pr_values = ig_graph.pagerank(damping=0.85)
@@ -521,7 +521,7 @@ class TestPageRank:
         ig_graph = to_igraph(G)
 
         # EdgeCase PageRank
-        ec_pr = ec.pagerank(G, damping=0.85)
+        ec_pr = G.pagerank(damping=0.85)
 
         # igraph PageRank
         ig_pr_values = ig_graph.pagerank(damping=0.85)
@@ -556,7 +556,7 @@ class TestBetweennessCentrality:
         ig_graph = to_igraph(G)
 
         # EdgeCase betweenness
-        ec_between = ec.betweenness_centrality(G)
+        ec_between = G.betweenness_centrality()
 
         # igraph betweenness
         ig_between_values = ig_graph.betweenness(directed=False, normalized=True)
@@ -589,7 +589,7 @@ class TestBetweennessCentrality:
         ig_graph = to_igraph(G)
 
         # EdgeCase betweenness
-        ec_between = ec.betweenness_centrality(G)
+        ec_between = G.betweenness_centrality()
 
         # igraph betweenness
         ig_between_values = ig_graph.betweenness(directed=False, normalized=True)

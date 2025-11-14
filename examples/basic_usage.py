@@ -32,13 +32,13 @@ def main() -> None:
 
     # Example 3: Calculate PageRank
     print("\nPageRank scores:")
-    pagerank_scores = ec.pagerank(G)
+    pagerank_scores = G.pagerank()
     for person, score in sorted(pagerank_scores.items(), key=lambda x: x[1], reverse=True):
         print(f"  {person}: {score:.4f}")
 
     # Example 4: Find shortest path
     print("\nFinding shortest path from Alice to Carol...")
-    path = ec.shortest_path(G, "Alice", "Carol")
+    path = G.shortest_path("Alice", "Carol")
     print(f"Path: {' -> '.join(path)}")
 
 
