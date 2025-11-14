@@ -2852,7 +2852,7 @@ class Graph:
         """
         return self._graph.get_girth()
 
-    def get_eccentricity(self) -> dict[str, int | None]:
+    def get_eccentricity(self) -> dict[int, int | None]:
         """Get eccentricity for each node in the graph.
 
         Eccentricity of a node is the maximum distance from that node to any
@@ -2862,7 +2862,7 @@ class Graph:
 
         Returns
         -------
-        dict[str, int | None]
+        dict[int, int | None]
             Dictionary mapping node IDs to eccentricity values. Values are None
             for nodes in disconnected components.
 
@@ -2897,7 +2897,7 @@ class Graph:
         """
         return self._graph.get_eccentricity()
 
-    def get_radiality(self) -> dict[str, float | None]:
+    def get_radiality(self) -> dict[int, float | None]:
         """Get radiality centrality for each node in the graph.
 
         Radiality measures how central a node is based on its eccentricity
@@ -2911,7 +2911,7 @@ class Graph:
 
         Returns
         -------
-        dict[str, float | None]
+        dict[int, float | None]
             Dictionary mapping node IDs to radiality scores (0.0 to 1.0).
             Values are None for nodes in disconnected components.
 
