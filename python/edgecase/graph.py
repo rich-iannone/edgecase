@@ -3070,7 +3070,7 @@ class Graph:
         path_labels = [self.get_label_from_id(node_id) for node_id in path_ids]
         return (path_labels, distance)
 
-    def shortest_path(self, source: Union[int, str], target: Union[int, str]) -> list[str] | None:
+    def shortest_path(self, source: Union[int, str], target: Union[int, str]) -> list[int] | None:
         """Find shortest path between two nodes.
 
         Uses breadth-first search (BFS) to find the shortest path by number of hops.
@@ -3085,8 +3085,8 @@ class Graph:
 
         Returns
         -------
-        list[str] | None
-            List of node labels in the path from source to target (inclusive), or
+        list[int] | None
+            List of node IDs in the path from source to target (inclusive), or
             None if no path exists.
 
         Examples
@@ -3100,6 +3100,14 @@ class Graph:
         # Find shortest path using node IDs
         path = graph.shortest_path(1, 5)
         print(path)  # [1, 2, 3, 4, 5]
+
+        # Works with labels too - returns node IDs
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_edge(5, 6)
+        graph.add_edge(6, 7)
+        path = graph.shortest_path("A", "B")
+        print(path)  # [6, 7]
 
         # No path between disconnected components
         graph.add_node(label="isolated")
@@ -3118,10 +3126,7 @@ class Graph:
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
         path_ids = rust.shortest_path(self._graph, source_id, target_id)
-        if path_ids is None:
-            return None
-        # Convert node IDs to labels
-        return [self.get_label_from_id(node_id) for node_id in path_ids]
+        return path_ids
 
     def pagerank(
         self, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-6
@@ -9473,7 +9478,7 @@ class Graph:
         # Convert to labels for backwards compatibility
         return {self.get_label_from_id(node_id): score for node_id, score in scores_by_id.items()}
 
-    def get_leverage_centrality(self, attr_name: str = None) -> Union[dict[str, float], "Graph"]:
+    def get_leverage_centrality(self, attr_name: str = None) -> Union[dict[int, float], "Graph"]:
         """Get leverage centrality for each node.
 
         Leverage centrality measures the degree connectivity of a node relative
@@ -9497,7 +9502,7 @@ class Graph:
 
         Returns
         -------
-        Union[dict[str, float], Graph]
+        Union[dict[int, float], Graph]
             If attr_name is None: dictionary mapping node IDs to leverage centrality scores.
             If attr_name is provided: returns self for method chaining.
 
@@ -9554,7 +9559,7 @@ class Graph:
         patience: int = 10,
         max_depth: int = 50,
         return_sigma: bool = False,
-    ) -> dict[str, float] | tuple[dict[str, float], float]:
+    ) -> dict[int, float] | tuple[dict[int, float], float]:
         """Get DomiRank centrality for each node.
 
         DomiRank centrality quantifies node dominance in their neighborhoods.
@@ -9604,8 +9609,8 @@ class Graph:
 
         Returns
         -------
-        dict[str, float] or tuple[dict[str, float], float]
-            Dictionary mapping node labels to dominance scores. Nodes with positive
+        dict[int, float] or tuple[dict[int, float], float]
+            Dictionary mapping node IDs to dominance scores. Nodes with positive
             scores are dominant in their neighborhoods. Nodes with negative scores
             are submissive (give up resources to neighbors). If return_sigma=True,
             returns tuple of (centrality dict, sigma value).
@@ -9702,14 +9707,9 @@ class Graph:
                 RuntimeWarning,
             )
 
-        # Convert node IDs to labels
-        scores_by_label = {
-            self.get_label_from_id(node_id): score for node_id, score in scores_by_id.items()
-        }
-
         if return_sigma:
-            return scores_by_label, final_sigma
-        return scores_by_label
+            return scores_by_id, final_sigma
+        return scores_by_id
 
     # ========== Selection Methods ==========
 
@@ -10793,7 +10793,7 @@ class Graph:
 
     # ========== Query Operations ==========
 
-    def get_node_attrs(self, attr: str, nodes: list[str] | None = None) -> dict[str, any]:
+    def get_node_attrs(self, attr: str, nodes: list[int | str] | None = None) -> dict[int, any]:
         """Get attribute values for nodes.
 
         Extracts a specific attribute from one or more nodes. Only returns entries
@@ -10804,12 +10804,12 @@ class Graph:
         ----------
         attr : str
             Attribute name to extract.
-        nodes : list[str] | None, default None
-            Optional list of node IDs to query. If None, queries all nodes.
+        nodes : list[int | str] | None, default None
+            Optional list of node IDs (int) or labels (str) to query. If None, queries all nodes.
 
         Returns
         -------
-        dict[str, any]
+        dict[int, any]
             Dictionary mapping node IDs to attribute values. Only includes nodes
             that have the attribute set.
 
@@ -10826,17 +10826,26 @@ class Graph:
         )
 
         scores = graph.get_node_attrs("score")
-        print(scores)  # {'A': 95, 'B': 88, 'C': 92}
+        # Returns dict with node IDs as keys: {1: 95, 2: 88, 3: 92}
+        print(scores)
 
         types = graph.get_node_attrs("type")
-        print(types)  # {'A': 'user', 'B': 'admin', 'C': 'user'}
+        # Returns: {1: 'user', 2: 'admin', 3: 'user'}
+        print(types)
         ```
 
-        Get attribute from specific nodes:
+        Get attribute from specific nodes using node IDs:
+
+        ```python
+        user_scores = graph.get_node_attrs("score", nodes=[1, 3])
+        print(user_scores)  # {1: 95, 3: 92}
+        ```
+
+        Can also use labels:
 
         ```python
         user_scores = graph.get_node_attrs("score", nodes=["A", "C"])
-        print(user_scores)  # {'A': 95, 'C': 92}
+        print(user_scores)  # {1: 95, 3: 92}
         ```
 
         See Also
@@ -10847,6 +10856,9 @@ class Graph:
 
         if nodes is None:
             nodes = self.node_ids(limit=None)
+        else:
+            # Resolve labels to IDs
+            nodes = [self._resolve_node_id(nid) for nid in nodes]
 
         result = {}
         for node_id in nodes:
@@ -10857,7 +10869,9 @@ class Graph:
 
         return result
 
-    def set_node_attrs(self, node_attr: str, values, nodes: list[str] | None = None) -> "Graph":
+    def set_node_attrs(
+        self, node_attr: str, values, nodes: list[int | str] | None = None
+    ) -> "Graph":
         """Set attribute values for one or more nodes.
 
         Updates a specific attribute on nodes. Can set the same value for all nodes,
@@ -10873,8 +10887,8 @@ class Graph:
             - Single value: Applied to all specified nodes
             - List: Must match length of nodes (paired by position)
             - Dict: Maps node IDs to values (only sets specified nodes)
-        nodes : list[str] | None, default None
-            Optional list of node IDs to update. If None, updates all nodes.
+        nodes : list[int | str] | None, default None
+            Optional list of node IDs (int) or labels (str) to update. If None, updates all nodes.
 
         Returns
         -------
@@ -10888,7 +10902,7 @@ class Graph:
 
         Examples
         --------
-        Set same value for specific nodes:
+        Set same value for specific nodes using node IDs:
 
         ```python
         graph = (
@@ -10896,20 +10910,38 @@ class Graph:
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .set_node_attrs("color", "blue", nodes=[graph.get_id_from_label("A"), graph.get_id_from_label("B")])
         )
 
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+        graph.set_node_attrs("color", "blue", nodes=[a_id, b_id])
+
         colors = graph.get_node_attrs("color")
-        # Returns dict mapping node IDs to 'blue'
+        # Returns dict mapping node IDs to 'blue': {1: 'blue', 2: 'blue'}
+        ```
 
-        # Set same value for all nodes
+        Can also use labels:
+
+        ```python
+        graph.set_node_attrs("color", "red", nodes=["A", "B"])
+        ```
+
+        Set same value for all nodes:
+
+        ```python
         graph.set_node_attrs("status", "active")
+        ```
 
-        # Set different values using a list
+        Set different values using a list:
+
+        ```python
         node_ids = [graph.get_id_from_label(l) for l in ["A", "B", "C"]]
         graph.set_node_attrs("score", [100, 85, 92], nodes=node_ids)
+        ```
 
-        # Set different values using a dictionary
+        Set different values using a dictionary:
+
+        ```python
         id_map = {graph.get_id_from_label("A"): "primary",
                   graph.get_id_from_label("B"): "secondary",
                   graph.get_id_from_label("C"): "primary"}
@@ -10923,13 +10955,21 @@ class Graph:
         """
         if nodes is None:
             nodes = self.node_ids(limit=None)
+        else:
+            # Resolve labels to IDs
+            nodes = [self._resolve_node_id(nid) for nid in nodes]
 
         # Handle different value types
         if isinstance(values, dict):
-            # Dict mapping node IDs to values
+            # Dict mapping node IDs to values - resolve keys if they're labels
+            resolved_values = {}
+            for key, value in values.items():
+                resolved_key = self._resolve_node_id(key) if isinstance(key, (int, str)) else key
+                resolved_values[resolved_key] = value
+
             for node_id in nodes:
-                if node_id in values:
-                    self._graph.set_node_attr(node_id, node_attr, values[node_id])
+                if node_id in resolved_values:
+                    self._graph.set_node_attr(node_id, node_attr, resolved_values[node_id])
         elif isinstance(values, list):
             # List of values (must match length of nodes)
             if len(values) != len(nodes):

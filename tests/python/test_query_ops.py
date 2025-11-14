@@ -54,6 +54,76 @@ class TestGetNodeAttrs:
 
         assert scores == {}
 
+    def test_get_node_attrs_accepts_labels(self):
+        """Test that get_node_attrs accepts both IDs and labels."""
+        G = ec.Graph()
+        G.add_node("A", score=95)
+        G.add_node("B", score=88)
+        G.add_node("C", score=92)
+
+        # Using node IDs
+        scores_by_id = G.get_node_attrs("score", nodes=[1, 3])
+        assert scores_by_id == {1: 95, 3: 92}
+
+        # Using node labels
+        scores_by_label = G.get_node_attrs("score", nodes=["A", "C"])
+        assert scores_by_label == {1: 95, 3: 92}
+
+        # Should return same results (both keyed by IDs)
+        assert scores_by_id == scores_by_label
+
+        # Mixed usage
+        scores_mixed = G.get_node_attrs("score", nodes=[1, "C"])
+        assert scores_mixed == {1: 95, 3: 92}
+
+
+class TestSetNodeAttrs:
+    """Tests for set_node_attrs()."""
+
+    def test_set_node_attrs_accepts_labels_list(self):
+        """Test that set_node_attrs accepts labels in the nodes parameter."""
+        G = ec.Graph()
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+
+        # Using node IDs
+        G.set_node_attrs("color", "blue", nodes=[1, 2])
+        colors_by_id = G.get_node_attrs("color", nodes=[1, 2])
+        assert colors_by_id == {1: "blue", 2: "blue"}
+
+        # Try with labels
+        G.set_node_attrs("color", "red", nodes=["A", "B"])
+        colors_by_label = G.get_node_attrs("color", nodes=["A", "B"])
+        assert colors_by_label == {1: "red", 2: "red"}
+
+        # Mixed usage
+        G.set_node_attrs("status", "active", nodes=[1, "C"])
+        status = G.get_node_attrs("status")
+        assert status == {1: "active", 3: "active"}
+
+    def test_set_node_attrs_accepts_labels_dict(self):
+        """Test that set_node_attrs accepts labels in the values dict."""
+        G = ec.Graph()
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+
+        # Using node IDs in dict
+        G.set_node_attrs("score", {1: 100, 2: 85, 3: 92})
+        scores_by_id = G.get_node_attrs("score")
+        assert scores_by_id == {1: 100, 2: 85, 3: 92}
+
+        # Using labels in dict
+        G.set_node_attrs("grade", {"A": "A+", "B": "B", "C": "A"})
+        grades_by_label = G.get_node_attrs("grade")
+        assert grades_by_label == {1: "A+", 2: "B", 3: "A"}
+
+        # Mixed dict keys
+        G.set_node_attrs("category", {1: "primary", "C": "secondary"})
+        categories = G.get_node_attrs("category")
+        assert categories == {1: "primary", 3: "secondary"}
+
 
 class TestGetEdgeAttrs:
     """Tests for get_edge_attrs()."""
