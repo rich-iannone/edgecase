@@ -70,11 +70,18 @@ def plot_graph(
 
     Examples
     --------
-    >>> from edgecase import Graph, plot_graph
-    >>> G = Graph()
-    >>> G.add_edge("A", "B")
-    >>> G.add_edge("B", "C")
-    >>> plot_graph(G, layout="neato")
+    ```python
+    from edgecase import Graph, plot_graph
+
+    G = Graph()
+    G.add_node(label="A")
+    G.add_node(label="B")
+    G.add_node(label="C")
+    G.add_edge(source="A", target="B")
+    G.add_edge(source="B", target="C")
+
+    plot_graph(G, layout="neato")
+    ```
     """
     # Extract graph data (fast - direct from Rust)
     nodes = graph.node_ids(limit=None)
@@ -968,15 +975,22 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
 
     Examples
     --------
-    >>> G = Graph()
-    >>> G.add_edge("A", "B")
-    >>> dot = _generate_dot_string(G, ["A", "B"], [["A", "B"]])
-    >>> print(dot)
-    graph {
-      "A";
-      "B";
-      "A" -- "B";
-    }
+    ```python
+    from edgecase import Graph
+    from edgecase.viz import _generate_dot_string
+
+    G = Graph()
+    G.add_node(label="A")
+    G.add_node(label="B")
+    G.add_edge(source="A", target="B")
+
+    # Get node and edge IDs
+    node_ids = G.node_ids(limit=None)
+    edges = [[e[1], e[2]] for e in G.edges_as_tuples()]
+
+    dot = _generate_dot_string(G, node_ids, edges)
+    print(dot)
+    ```
     """
     is_directed = graph.is_directed
     graph_type = "digraph" if is_directed else "graph"

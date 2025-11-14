@@ -105,24 +105,64 @@ class GraphWidget:
 
         Examples
         --------
-        >>> from edgecase import Graph, GraphWidget
-        >>> G = Graph(directed=False)
-        >>> for src, tgt in [('A','B'), ('B','C'), ('C','A')]:
-        ...     G.add_node(src)
-        ...     G.add_node(tgt)
-        ...     G.add_edge(src, tgt)
-        >>> # Basic visualization
-        >>> widget = GraphWidget(G)
-        >>> widget.show()
-        >>> # With community detection
-        >>> communities = G.get_cmty_louvain()
-        >>> G.set_node_attrs_ws(community=communities)
-        >>> widget = GraphWidget(G)
-        >>> widget.show()
-        >>> # Custom aesthetics
-        >>> G.set_node_attrs_ws(size={n: G.get_degree(n) for n in G.node_ids(limit=None)})
-        >>> widget = GraphWidget(G)
-        >>> widget.show()
+        Basic visualization:
+
+        ```python
+        from edgecase import Graph, GraphWidget
+
+        G = Graph(directed=False)
+        G.add_node(label='A')
+        G.add_node(label='B')
+        G.add_node(label='C')
+        G.add_edge(source='A', target='B')
+        G.add_edge(source='B', target='C')
+        G.add_edge(source='C', target='A')
+
+        widget = GraphWidget(G)
+        widget.show()
+        ```
+
+        With community detection:
+
+        ```python
+        from edgecase import Graph, GraphWidget
+
+        G = Graph(directed=False)
+        for i in range(6):
+            G.add_node(label=str(i))
+        G.add_edge(source='0', target='1')
+        G.add_edge(source='1', target='2')
+        G.add_edge(source='0', target='2')
+        G.add_edge(source='3', target='4')
+        G.add_edge(source='4', target='5')
+        G.add_edge(source='3', target='5')
+
+        G.get_cmty_louvain(attr_name="community")
+        widget = GraphWidget(G)
+        widget.show()
+        ```
+
+        Custom aesthetics:
+
+        ```python
+        from edgecase import Graph, GraphWidget
+
+        G = Graph(directed=False)
+        G.add_node(label='A')
+        G.add_node(label='B')
+        G.add_node(label='C')
+        G.add_edge(source='A', target='B')
+        G.add_edge(source='B', target='C')
+
+        # Size nodes by degree
+        for node_id in G.node_ids(limit=None):
+            degree = G.get_degree(node=node_id)
+            node = G.get_node(node_id=node_id)
+            node.attributes["size"] = degree * 0.5
+
+        widget = GraphWidget(G)
+        widget.show()
+        ```
     ```
     """
 
@@ -855,22 +895,40 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
 
     Examples
     --------
-    >>> from edgecase import Graph, graph_widget
-    >>> G = Graph(directed=False)
-    >>> for src, tgt in [('A','B'), ('B','C')]:
-    ...     G.add_node(src)
-    ...     G.add_node(tgt)
-    ...     G.add_edge(src, tgt)
-    >>> # Basic usage
-    >>> widget = graph_widget(G)
-    >>> widget.show()
-    >>> # With community detection
-    >>> communities = G.get_cmty_louvain()
-    >>> for node_id in G.node_ids(limit=None):
-    ...     if node_id in communities:
-    ...         node = G.get_node(node_id)
-    ...         node.attributes["community"] = communities[node_id]
-    >>> widget = graph_widget(G)
-    >>> widget.show()
+    Basic usage:
+
+    ```python
+    from edgecase import Graph, graph_widget
+
+    G = Graph(directed=False)
+    G.add_node(label='A')
+    G.add_node(label='B')
+    G.add_node(label='C')
+    G.add_edge(source='A', target='B')
+    G.add_edge(source='B', target='C')
+
+    widget = graph_widget(G)
+    widget.show()
+    ```
+
+    With community detection:
+
+    ```python
+    from edgecase import Graph, graph_widget
+
+    G = Graph(directed=False)
+    for i in range(6):
+        G.add_node(label=str(i))
+    G.add_edge(source='0', target='1')
+    G.add_edge(source='1', target='2')
+    G.add_edge(source='0', target='2')
+    G.add_edge(source='3', target='4')
+    G.add_edge(source='4', target='5')
+    G.add_edge(source='3', target='5')
+
+    G.get_cmty_louvain(attr_name="community")
+    widget = graph_widget(G)
+    widget.show()
+    ```
     """
     return GraphWidget(graph, **kwargs)

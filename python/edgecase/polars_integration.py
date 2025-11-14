@@ -44,14 +44,23 @@ def from_polars(
 
     Examples
     --------
-    >>> import polars as pl
-    >>> import edgecase as ec
-    >>> df = pl.DataFrame({
-    ...     "from": ["A", "B", "C"],
-    ...     "to": ["B", "C", "A"],
-    ...     "weight": [1.0, 2.0, 1.5]
-    ... })
-    >>> G = ec.from_polars(df, source_col="from", target_col="to", weight_col="weight")
+    ```python
+    import polars as pl
+    import edgecase as ec
+
+    df = pl.DataFrame({
+        "from": ["A", "B", "C"],
+        "to": ["B", "C", "A"],
+        "weight": [1.0, 2.0, 1.5]
+    })
+
+    G = ec.from_polars(
+        df,
+        source_col="from",
+        target_col="to",
+        weight_col="weight"
+    )
+    ```
     """
     if isinstance(df, pl.LazyFrame):
         df = df.collect()

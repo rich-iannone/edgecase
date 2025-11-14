@@ -151,7 +151,7 @@ class Graph:
         Graph()
         .add_node(label="Alice")
         .add_node(label="Bob")
-        .add_edge("Alice", "Bob")
+        .add_edge(source="Alice", target="Bob")
     )
     ```
 
@@ -187,7 +187,7 @@ class Graph:
         Graph(directed=True, weighted=True)
         .add_node(label="Alice")
         .add_node(label="Bob")
-        .add_edge("Alice", "Bob", weight=0.8)
+        .add_edge(source="Alice", target="Bob", weight=0.8)
     )
     ```
 
@@ -383,7 +383,7 @@ class Graph:
 
         ```python
         graph = (
-            Graph()
+            Graph(directed=True)
             .add_node(label="Alice")
             .add_node(label="Bob", from_node="Alice")     # Edge: Alice -> Bob
             .add_node(label="Charlie", to_node="Alice")   # Edge: Charlie -> Alice
@@ -504,9 +504,9 @@ class Graph:
         graph = Graph()
         graph.add_node(label="Alice")
         graph.add_node(label="Bob")
-        alice_id = graph.get_id_from_label("Alice")
-        bob_id = graph.get_id_from_label("Bob")
-        graph.add_edge(alice_id, bob_id)
+        alice_id = graph.get_id_from_label(label="Alice")
+        bob_id = graph.get_id_from_label(label="Bob")
+        graph.add_edge(source=alice_id, target=bob_id)
         ```
 
         Add edges using labels (only if labels are unique):
@@ -516,7 +516,7 @@ class Graph:
             Graph()
             .add_node(label="Alice")
             .add_node(label="Bob")
-            .add_edge("Alice", "Bob")
+            .add_edge(source="Alice", target="Bob")
         )
         ```
 
@@ -526,8 +526,8 @@ class Graph:
         graph = Graph()
         graph.add_node(label="Alice")
         graph.add_node(label="Bob")
-        alice_id = graph.get_id_from_label("Alice")
-        graph.add_edge(alice_id, "Bob")
+        alice_id = graph.get_id_from_label(label="Alice")
+        graph.add_edge(source=alice_id, target="Bob")
         ```
 
         Add weighted edges:
@@ -537,7 +537,7 @@ class Graph:
             Graph(weighted=True)
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B", weight=0.75)
+            .add_edge(source="A", target="B", weight=0.75)
         )
         ```
 
@@ -548,7 +548,7 @@ class Graph:
             Graph()
             .add_node(label="Alice")
             .add_node(label="Bob")
-            .add_edge("Alice", "Bob", relationship="friend", since=2020)
+            .add_edge(source="Alice", target="Bob", relationship="friend", since=2020)
         )
         ```
 
@@ -761,6 +761,10 @@ class Graph:
         Get a smaller sample:
 
         ```python
+        graph = Graph()
+        for i in range(100):
+            graph.add_node(label=f"Node_{i}")
+
         # Get only first 10 node IDs for preview
         sample_ids = graph.node_ids(limit=10)
         print(f"Sample: {sample_ids}")
@@ -769,6 +773,10 @@ class Graph:
         Get all node IDs regardless of size:
 
         ```python
+        graph = Graph()
+        for i in range(5):
+            graph.add_node(label=f"Node_{i}")
+
         # Use None to get all nodes (may be slow for large graphs!)
         all_ids = graph.node_ids(limit=None)
         print(f"Total nodes: {len(all_ids)}")
@@ -813,8 +821,8 @@ class Graph:
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
         )
 
         ids = graph.edge_ids()  # Returns up to 1000 edge IDs
@@ -824,6 +832,14 @@ class Graph:
         Get a smaller sample:
 
         ```python
+        import edgecase as ec
+
+        graph = ec.Graph()
+        for i in range(20):
+            graph.add_node(label=f"Node_{i}")
+        for i in range(19):
+            graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
+
         # Get only first 10 edge IDs for preview
         sample_ids = graph.edge_ids(limit=10)
         print(f"Sample: {sample_ids}")
@@ -832,6 +848,14 @@ class Graph:
         Get all edge IDs regardless of size:
 
         ```python
+        import edgecase as ec
+
+        graph = ec.Graph()
+        for i in range(5):
+            graph.add_node(label=f"Node_{i}")
+        for i in range(4):
+            graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
+
         # Use None to get all edges (may be slow for large graphs!)
         all_ids = graph.edge_ids(limit=None)
         print(f"Total edges: {len(all_ids)}")
@@ -873,18 +897,18 @@ class Graph:
             ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B")
+            .add_edge(source="A", target="B")
         )
 
         # Get first edge ID
         edge_id = graph.edge_ids()[0]
 
         # Look up the edge
-        source, target = graph.get_node_ids_by_edge_id(edge_id)
+        source, target = graph.get_node_ids_by_edge_id(edge_id=edge_id)
         print(f"Edge {edge_id} goes from {source} to {target}")
 
         # Non-existent edge returns None
-        result = graph.get_node_ids_by_edge_id(9999)
+        result = graph.get_node_ids_by_edge_id(edge_id=9999)
         print(result)  # None
         ```
 
@@ -1005,7 +1029,7 @@ class Graph:
             ec.Graph(directed=False)
             .add_node(label="X")
             .add_node(label="Y")
-            .add_edge("X", "Y")
+            .add_edge(source="X", target="Y")
         )
 
         print(graph.edges_str_repr())  # ['1--2']
@@ -1018,17 +1042,29 @@ class Graph:
         graph = (
             ec.Graph()
             .add_node(label="Alice")
-            .add_node()  # No label
-            .add_edge("Alice", 2)
+            .add_node(label="Bob")  # Add node with label
         )
 
-        # Falls back to IDs when labels not available
-        print(graph.edges_str_repr(use_labels=True))  # ['Alice--2']
+        # Get the node IDs to create an edge
+        alice_id = graph.get_id_from_label(label="Alice")
+        bob_id = graph.get_id_from_label(label="Bob")
+        graph.add_edge(source=alice_id, target=bob_id)
+
+        # Use labels in string representation
+        print(graph.edges_str_repr(use_labels=True))  # ['Alice--Bob']
         ```
 
         Get all edges regardless of size:
 
         ```python
+        import edgecase as ec
+
+        graph = ec.Graph()
+        for i in range(5):
+            graph.add_node(label=f"Node_{i}")
+        for i in range(4):
+            graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
+
         # Use None to get all edges (may be slow for large graphs!)
         all_edges = graph.edges_str_repr(limit=None, use_labels=True)
         print(f"Total edges: {len(all_edges)}")
@@ -1089,12 +1125,12 @@ class Graph:
             ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B")
+            .add_edge(source="A", target="B")
         )
 
         edge_id = graph.edge_ids()[0]
-        print(graph.has_edge_id(edge_id))  # True
-        print(graph.has_edge_id(9999))     # False
+        print(graph.has_edge_id(edge_id=edge_id))  # True
+        print(graph.has_edge_id(edge_id=9999))     # False
         ```
 
         See Also
@@ -1176,11 +1212,11 @@ class Graph:
             Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B")
+            .add_edge(source="A", target="B")
         )
 
-        print(graph.has_edge("A", "B"))  # True
-        print(graph.has_edge("B", "A"))  # False (directed)
+        print(graph.has_edge(source="A", target="B"))  # True
+        print(graph.has_edge(source="B", target="A"))  # False (directed)
         ```
 
         For undirected graphs, order doesn't matter:
@@ -1190,11 +1226,11 @@ class Graph:
             Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B")
+            .add_edge(source="A", target="B")
         )
 
-        print(graph.has_edge("A", "B"))  # True
-        print(graph.has_edge("B", "A"))  # True (undirected)
+        print(graph.has_edge(source="A", target="B"))  # True
+        print(graph.has_edge(source="B", target="A"))  # True (undirected)
         ```
 
         See Also
@@ -1232,10 +1268,12 @@ class Graph:
         from edgecase import Graph
 
         graph = Graph()
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "B")  # Multi-edge
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_edge(source="A", target="B")
+        graph.add_edge(source="A", target="B")  # Multi-edge
 
-        edge_ids = graph.find_edge_ids("A", "B")
+        edge_ids = graph.find_edge_ids(source="A", target="B")
         print(len(edge_ids))  # 2
         ```
         """
@@ -1274,23 +1312,23 @@ class Graph:
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
         )
 
-        graph.delete_node("B")
-        print(graph.has_node("B"))  # False
-        print(graph.has_edge("A", "B"))  # False (incident edges removed)
+        graph.delete_node(node="B")
+        print(graph.has_node(node="B"))  # False
+        print(graph.has_edge(source="A", target="B"))  # False (incident edges removed)
         ```
 
         Delete node by ID:
 
         ```python
         graph = Graph().add_node(label="Alice")
-        node_id = graph.get_id_from_label("Alice")
+        node_id = graph.get_id_from_label(label="Alice")
 
-        graph.delete_node(node_id)
-        print(graph.has_node(node_id))  # False
+        graph.delete_node(node=node_id)
+        print(graph.has_node(node=node_id))  # False
         ```
 
         See Also
@@ -1352,22 +1390,27 @@ class Graph:
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
             .delete_edge(source="A", target="B")
         )
 
-        print(graph.has_edge("A", "B"))  # False
+        print(graph.has_edge(source="A", target="B"))  # False
         ```
 
         Delete edge by ID:
 
         ```python
-        graph = Graph().add_node(label="A").add_node(label="B").add_edge("A", "B")
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+        )
         edge_id = graph.edge_ids()[0]
 
         graph.delete_edge(id=edge_id)
-        print(graph.has_edge("A", "B"))  # False
+        print(graph.has_edge(source="A", target="B"))  # False
         ```
 
         See Also
@@ -1425,15 +1468,15 @@ class Graph:
             Graph()
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B")
+            .add_edge(source="A", target="B")
         )
 
         # Get the edge ID
         edge_id = graph.edge_ids()[0]
 
         # Delete the edge
-        graph.delete_edge_by_id(edge_id)
-        print(graph.has_edge("A", "B"))  # False
+        graph.delete_edge_by_id(edge_id=edge_id)
+        print(graph.has_edge(source="A", target="B"))  # False
         ```
 
         Delete specific edges in a multigraph:
@@ -1443,13 +1486,13 @@ class Graph:
             Graph()
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B", edge_id=1, weight=1.0)
-            .add_edge("A", "B", edge_id=2, weight=2.0)
+            .add_edge(source="A", target="B", edge_id=1, weight=1.0)
+            .add_edge(source="A", target="B", edge_id=2, weight=2.0)
         )
 
         # Delete only the first edge
-        graph.delete_edge_by_id(1)
-        print(graph.has_edge("A", "B"))  # True (second edge remains)
+        graph.delete_edge_by_id(edge_id=1)
+        print(graph.has_edge(source="A", target="B"))  # True (second edge remains)
         ```
 
         See Also
@@ -1590,13 +1633,13 @@ class Graph:
         ```python
         graph = (
             Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Creates cycle: 1 -> 2 -> 3 -> 1
-            .add_edge("B", "A")  # Creates cycle: 1 -> 2 -> 1
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Creates cycle: 1 -> 2 -> 3 -> 1
+            .add_edge(source="B", target="A")  # Creates cycle: 1 -> 2 -> 1
         )
 
         cycles = graph.get_cycles()
@@ -1606,6 +1649,16 @@ class Graph:
         Find only longer cycles:
 
         ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
         cycles = graph.get_cycles(min_length=3)
         print(cycles)  # [[1, 2, 3]]
         ```
@@ -1681,21 +1734,50 @@ class Graph:
         Color by community:
 
         ```python
-        communities = G.get_cmty_louvain()
-        G.colorize_node_attrs('community', communities, palette='vibrant')
+        # Create a simple graph for demonstration
+        G = Graph(directed=False)
+        for i in range(6):
+            G.add_node(label=str(i))
+
+        # Create two communities
+        G.add_edge(source="0", target="1")
+        G.add_edge(source="1", target="2")
+        G.add_edge(source="0", target="2")
+        G.add_edge(source="3", target="4")
+        G.add_edge(source="4", target="5")
+        G.add_edge(source="3", target="5")
+
+        # Detect communities and colorize
+        G.get_cmty_louvain(attr_name="community")
+        G.colorize_node_attrs(node_attr_from="community", palette="vibrant")
         ```
 
         Color by node type:
 
         ```python
-        G.colorize_node_attrs(node_attr_from='type', palette='tableau')
+        # Create graph with typed nodes
+        G = Graph()
+        G.add_node(label="A", type="person")
+        G.add_node(label="B", type="person")
+        G.add_node(label="C", type="organization")
+        G.add_edge(source="A", target="B")
+        G.add_edge(source="B", target="C")
+
+        G.colorize_node_attrs(node_attr_from="type", palette="tableau")
         ```
 
         Custom color list:
 
         ```python
-        G.colorize_node_attrs('status', values={'A': 'active', 'B': 'inactive'},
-                              palette=['#ff0000', '#00ff00'])
+        G = Graph()
+        G.add_node(label="A", status="active")
+        G.add_node(label="B", status="inactive")
+        G.add_edge(source="A", target="B")
+
+        G.colorize_node_attrs(
+            node_attr_from="status",
+            palette=["#ff0000", "#00ff00"]
+        )
         ```
         """
         from edgecase.colors import COLOR_PALETTES
@@ -1783,17 +1865,44 @@ class Graph:
         Size by betweenness centrality:
 
         ```python
-        betweenness = G.get_betweenness()
-        G.rescale_node_attrs('betweenness', betweenness,
-                             node_attr_to='size', to_lower_bound=5, to_upper_bound=20)
+        # Create a simple graph
+        G = Graph()
+        for i in range(5):
+            G.add_node(label=str(i))
+        G.add_edge(source="0", target="1")
+        G.add_edge(source="1", target="2")
+        G.add_edge(source="2", target="3")
+        G.add_edge(source="3", target="4")
+
+        # Calculate betweenness and rescale to node sizes
+        betweenness = G.betweenness_centrality()
+        G.rescale_node_attrs(
+            values=betweenness,
+            node_attr_to="size",
+            to_lower_bound=5,
+            to_upper_bound=20
+        )
         ```
 
         Scale by degree:
 
         ```python
-        degrees = {n: len(G.neighbors(n)) for n in G.node_ids(limit=None)}
-        G.rescale_node_attrs(values=degrees, node_attr_to='width',
-                             to_lower_bound=1, to_upper_bound=10)
+        # Create a simple graph
+        G = Graph()
+        for i in range(4):
+            G.add_node(label=str(i))
+        G.add_edge(source="0", target="1")
+        G.add_edge(source="0", target="2")
+        G.add_edge(source="0", target="3")
+
+        # Calculate degrees and rescale
+        degrees = {n: len(G.neighbors(node=n)) for n in G.node_ids(limit=None)}
+        G.rescale_node_attrs(
+            values=degrees,
+            node_attr_to="width",
+            to_lower_bound=1,
+            to_upper_bound=10
+        )
         ```
         """
         if nodes is None:
@@ -1848,8 +1957,13 @@ class Graph:
         Examples
         --------
         ```python
-        G.set_node_attr_to_display('label')
-        G.set_node_attr_to_display(None)  # Reset to node IDs
+        G = Graph()
+        G.add_node(label="Alice", age=30)
+        G.add_node(label="Bob", age=25)
+        G.add_edge(source="Alice", target="Bob")
+
+        G.set_node_attr_to_display(attr="label")
+        G.set_node_attr_to_display(attr=None)  # Reset to node IDs
         ```
         """
         self._display_attr = attr
@@ -5330,33 +5444,41 @@ class Graph:
 
         Examples
         --------
-        **Data Cleaning - Finding Self-References**
+        Data Cleaning - Finding Self-References:
 
         ```python
-        >>> g = Graph(directed=True)
-        >>> g.add_edge("Alice", "Bob")
-        >>> g.add_edge("Alice", "Alice")  # Self-loop
-        >>> g.add_edge("Bob", "Carol")
-        >>> g.add_edge("Carol", "Carol")  # Self-loop
-        >>>
-        >>> loops = g.which_loop()
-        >>> len(loops)
-        2
+        from edgecase import Graph
+
+        g = Graph(directed=True)
+        g.add_node(label="Alice")
+        g.add_node(label="Bob")
+        g.add_node(label="Carol")
+        g.add_edge(source="Alice", target="Bob")
+        g.add_edge(source="Alice", target="Alice")  # Self-loop
+        g.add_edge(source="Bob", target="Carol")
+        g.add_edge(source="Carol", target="Carol")  # Self-loop
+
+        loops = g.which_loop()
+        print(len(loops))  # 2
         ```
 
-        **State Machine Validation**
+        State Machine Validation:
 
         ```python
-        >>> # Check for states that transition to themselves
-        >>> fsm = Graph(directed=True)
-        >>> fsm.add_edge("Idle", "Processing")
-        >>> fsm.add_edge("Processing", "Processing")  # Wait state
-        >>> fsm.add_edge("Processing", "Complete")
-        >>> fsm.add_edge("Complete", "Idle")
-        >>>
-        >>> self_transitions = fsm.which_loop()
-        >>> len(self_transitions)
-        1
+        from edgecase import Graph
+
+        # Check for states that transition to themselves
+        fsm = Graph(directed=True)
+        fsm.add_node(label="Idle")
+        fsm.add_node(label="Processing")
+        fsm.add_node(label="Complete")
+        fsm.add_edge(source="Idle", target="Processing")
+        fsm.add_edge(source="Processing", target="Processing")  # Wait state
+        fsm.add_edge(source="Processing", target="Complete")
+        fsm.add_edge(source="Complete", target="Idle")
+
+        self_transitions = fsm.which_loop()
+        print(len(self_transitions))  # 1
         ```
 
         **Social Network Analysis**
@@ -7456,32 +7578,39 @@ class Graph:
         --------
         Create a simple 2-spanner (distances at most 2× original):
 
-        >>> g = Graph()
-        >>> for i in range(5):
-        ...     g.add_node(label=str(i))
-        >>> # Create a cycle
-        >>> for i in range(5):
-        ...     g.add_edge(str(i), str((i+1) % 5))
-        >>>
-        >>> spanner = g.transform_with_spanner(stretch=2.0)
-        >>> spanner.num_edges() < g.num_edges()  # Fewer edges
-        True
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(5):
+            g.add_node(label=str(i))
+
+        # Create a cycle
+        for i in range(5):
+            g.add_edge(source=str(i), target=str((i+1) % 5))
+
+        spanner = g.transform_with_spanner(stretch=2.0)
+        print(spanner.num_edges() < g.num_edges())  # True - Fewer edges
+        ```
 
         Create a 3-spanner of a weighted graph:
 
-        >>> g = Graph()
-        >>> g.add_node(label="A")
-        >>> g.add_node(label="B")
-        >>> g.add_node(label="C")
-        >>> g.add_edge("A", "B", weight=1.0)
-        >>> g.add_edge("B", "C", weight=1.0)
-        >>> g.add_edge("A", "C", weight=5.0)
-        >>>
-        >>> spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
-        >>> # The direct A-C edge might be omitted since going A→B→C
-        >>> # gives distance 2, which is < 3 × (distance 5)
-        >>> spanner.num_edges() <= 2
-        True
+        ```python
+        from edgecase import Graph
+
+        g = Graph(weighted=True)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B", weight=1.0)
+        g.add_edge(source="B", target="C", weight=1.0)
+        g.add_edge(source="A", target="C", weight=5.0)
+
+        spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
+        # The direct A-C edge might be omitted since going A→B→C
+        # gives distance 2, which is < 3 × (distance 5)
+        print(spanner.num_edges() <= 2)  # True
+        ```
 
         Compare sparsity for different stretch values:
 

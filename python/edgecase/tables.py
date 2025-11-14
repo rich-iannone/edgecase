@@ -29,10 +29,18 @@ def tbl_network_summary(
 
     Examples
     --------
-    >>> import edgecase as ec
-    >>> G = ec.Graph(directed=False)
-    >>> # ... build graph ...
-    >>> summary = ec.tbl_network_summary(G)
+    ```python
+    import edgecase as ec
+
+    G = ec.Graph(directed=False)
+    for i in range(10):
+        G.add_node(label=str(i))
+    for i in range(9):
+        G.add_edge(source=str(i), target=str(i+1))
+
+    summary = ec.tbl_network_summary(G)
+    print(summary)
+    ```
     """
     stats = {
         "n_nodes": graph.num_nodes(),
@@ -72,10 +80,18 @@ def tbl_centrality(
 
     Examples
     --------
-    >>> import edgecase as ec
-    >>> G = ec.Graph(directed=False)
-    >>> # ... build graph ...
-    >>> centrality_df = ec.tbl_centrality(G, measures=['pagerank', 'degree'])
+    ```python
+    import edgecase as ec
+
+    G = ec.Graph(directed=False)
+    for i in range(10):
+        G.add_node(label=str(i))
+    for i in range(9):
+        G.add_edge(source=str(i), target=str(i+1))
+
+    centrality_df = ec.tbl_centrality(G, measures=['pagerank', 'degree'])
+    print(centrality_df)
+    ```
     """
     if measures is None:
         measures = ["betweenness", "pagerank", "degree"]
