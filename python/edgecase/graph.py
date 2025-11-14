@@ -3637,7 +3637,9 @@ class Graph:
         node_id = self._resolve_node_id(node)
         return self._graph.neighbors(node_id)
 
-    def get_common_neighbors(self, node_id1: str, node_id2: str) -> list[str]:
+    def get_common_neighbors(
+        self, node_id1: Union[int, str], node_id2: Union[int, str]
+    ) -> list[int]:
         """Get nodes that are neighbors of both specified nodes.
 
         Returns the intersection of neighbor sets for two nodes, useful for finding
@@ -3645,14 +3647,14 @@ class Graph:
 
         Parameters
         ---
-        node_id1 : str
-            First node ID.
-        node_id2 : str
-            Second node ID.
+        node_id1 : int | str
+            First node ID or label.
+        node_id2 : int | str
+            Second node ID or label.
 
         Returns
         ---
-        list of str
+        list[int]
             List of node IDs that are neighbors to both `node_id1` and `node_id2`.
 
         Examples
@@ -3661,24 +3663,36 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
+        graph.add_node("D")
         graph.add_edge("A", "C")
         graph.add_edge("B", "C")
         graph.add_edge("A", "D")
         graph.add_edge("B", "D")
 
-        # Find nodes connected to both A and B
-        common = graph.get_common_neighbors("A", "B")
-        print(common)  # ['C', 'D']
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+
+        # Find nodes connected to both A and B - returns node IDs
+        common = graph.get_common_neighbors(a_id, b_id)
+        # Convert to labels: ['C', 'D']
+        common_labels = [graph.get_label_from_id(nid) for nid in common]
+        print(common_labels)  # ['C', 'D']
         ```
 
         Triangle detection using common neighbors:
 
         ```python
         # Find all triangles involving node A
-        for neighbor in graph.neighbors("A"):
-            common = graph.get_common_neighbors("A", neighbor)
-            for third_node in common:
-                print(f"Triangle: A - {neighbor} - {third_node}")
+        a_id = graph.get_id_from_label("A")
+        for neighbor_id in graph.neighbors(a_id):
+            common = graph.get_common_neighbors(a_id, neighbor_id)
+            for third_id in common:
+                neighbor_label = graph.get_label_from_id(neighbor_id)
+                third_label = graph.get_label_from_id(third_id)
+                print(f"Triangle: A - {neighbor_label} - {third_label}")
         ```
 
         See Also
@@ -3690,7 +3704,7 @@ class Graph:
         neighbors2 = set(self.get_neighbors(node_id2, mode="all"))
         return list(neighbors1 & neighbors2)
 
-    def get_predecessors(self, node_id: str) -> list[str]:
+    def get_predecessors(self, node_id: Union[int, str]) -> list[int]:
         """Get direct predecessors of a node (incoming neighbors).
 
         Returns nodes that have outgoing edges to the specified node. Only available
@@ -3698,12 +3712,12 @@ class Graph:
 
         Parameters
         ---
-        node_id : str
-            Node ID to find predecessors for.
+        node_id : int | str
+            Node ID or label to find predecessors for.
 
         Returns
         ---
-        list of str
+        list[int]
             List of predecessor node IDs (nodes with edges pointing to `node_id`).
 
         Raises
@@ -3717,12 +3731,19 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
         graph.add_edge("A", "C")
         graph.add_edge("B", "C")
 
-        # Find nodes with edges pointing to C
-        predecessors = graph.get_predecessors("C")
-        print(predecessors)  # ['A', 'B']
+        c_id = graph.get_id_from_label("C")
+
+        # Find nodes with edges pointing to C - returns node IDs
+        predecessors = graph.get_predecessors(c_id)
+        # Convert to labels: ['A', 'B']
+        labels = [graph.get_label_from_id(nid) for nid in predecessors]
+        print(labels)  # ['A', 'B']
         ```
 
         See Also
@@ -3735,7 +3756,7 @@ class Graph:
             raise ValueError("get_predecessors only available for directed graphs")
         return self.get_neighbors(node_id, mode="in")
 
-    def get_successors(self, node_id: str) -> list[str]:
+    def get_successors(self, node_id: Union[int, str]) -> list[int]:
         """Get direct successors of a node (outgoing neighbors).
 
         Returns nodes that are targets of outgoing edges from the specified node.
@@ -3743,12 +3764,12 @@ class Graph:
 
         Parameters
         ---
-        node_id : str
-            Node ID to find successors for.
+        node_id : int | str
+            Node ID or label to find successors for.
 
         Returns
         ---
-        list of str
+        list[int]
             List of successor node IDs (nodes that `node_id` points to).
 
         Raises
@@ -3762,12 +3783,19 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
         graph.add_edge("A", "B")
         graph.add_edge("A", "C")
 
-        # Find nodes that A points to
-        successors = graph.get_successors("A")
-        print(successors)  # ['B', 'C']
+        a_id = graph.get_id_from_label("A")
+
+        # Find nodes that A points to - returns node IDs
+        successors = graph.get_successors(a_id)
+        # Convert to labels: ['B', 'C']
+        labels = [graph.get_label_from_id(nid) for nid in successors]
+        print(labels)  # ['B', 'C']
         ```
 
         See Also
@@ -3780,7 +3808,7 @@ class Graph:
             raise ValueError("get_successors only available for directed graphs")
         return self.get_neighbors(node_id, mode="out")
 
-    def get_non_neighbors(self, node_id: str) -> list[str]:
+    def get_non_neighbors(self, node_id: Union[int, str]) -> list[int]:
         """Get nodes that are NOT neighbors of the specified node.
 
         Returns all nodes in the graph except the specified node itself and its
@@ -3788,12 +3816,12 @@ class Graph:
 
         Parameters
         ---
-        node_id : str
-            Node ID to find non-neighbors for.
+        node_id : int | str
+            Node ID or label to find non-neighbors for.
 
         Returns
         ---
-        list of str
+        list[int]
             Sorted list of node IDs that are not neighbors of `node_id` and are not
             `node_id` itself.
 
@@ -3806,21 +3834,21 @@ class Graph:
         graph.add_path_graph(5)  # 1 → 2 → 3 → 4 → 5
 
         # Node 2 is connected to 1 and 3
-        # Non-neighbors are 4 and 5
-        non_neighbors = graph.get_non_neighbors("2")
-        print(non_neighbors)  # ['4', '5']
+        # Non-neighbors are 4 and 5 (returns node IDs)
+        non_neighbors = graph.get_non_neighbors(2)
+        print(non_neighbors)  # [4, 5]
         ```
 
         Find potential new connections:
 
         ```python
-        # Recommend connections for a node
-        node = "A"
-        candidates = graph.get_non_neighbors(node)
+        # Recommend connections for a node (using node ID)
+        node_id = graph.get_id_from_label("A")
+        candidates = graph.get_non_neighbors(node_id)
 
         # Score candidates by common neighbors
         scores = [
-            (candidate, len(graph.get_common_neighbors(node, candidate)))
+            (candidate, len(graph.get_common_neighbors(node_id, candidate)))
             for candidate in candidates
         ]
         ```
@@ -3840,11 +3868,11 @@ class Graph:
 
     def get_similar_neighbors(
         self,
-        node_id: str,
+        node_id: Union[int, str],
         node_attr: str,
         tol_abs: tuple[float, float] | None = None,
         tol_pct: tuple[float, float] | None = None,
-    ) -> list[str]:
+    ) -> list[int]:
         """Get neighbors with similar attribute values.
 
         Returns neighbors whose numeric attribute values fall within a specified
@@ -3853,8 +3881,8 @@ class Graph:
 
         Parameters
         ---
-        node_id : str
-            Starting node ID to compare against.
+        node_id : int | str
+            Starting node ID or label to compare against.
         node_attr : str
             Name of the numeric attribute to compare.
         tol_abs : tuple of (float, float), optional
@@ -3868,7 +3896,7 @@ class Graph:
 
         Returns
         ---
-        list of str
+        list[int]
             List of neighbor node IDs with similar attribute values. Empty list if
             the starting node lacks the attribute or has no neighbors in range.
 
@@ -3956,7 +3984,7 @@ class Graph:
 
         return similar
 
-    def get_all_connected_nodes(self, node_id: str) -> list[str]:
+    def get_all_connected_nodes(self, node_id: Union[int, str]) -> list[int]:
         """Get all nodes reachable from the specified node.
 
         Uses breadth-first search (BFS) to find all nodes in the same connected
@@ -3964,12 +3992,12 @@ class Graph:
 
         Parameters
         ---
-        node_id : str
-            Starting node ID for the search.
+        node_id : int | str
+            Starting node ID or label for the search.
 
         Returns
         ---
-        list of str
+        list[int]
             List of all reachable node IDs, excluding the starting node itself.
             Empty list if the node is isolated.
 
@@ -11524,8 +11552,8 @@ class Graph:
         return pl.DataFrame(data)
 
     def get_neighbors(
-        self, node_id: str, mode: str = "all", predicate: Optional[Callable] = None
-    ) -> list[str]:
+        self, node_id: Union[int, str], mode: str = "all", predicate: Optional[Callable] = None
+    ) -> list[int]:
         """Get neighbors of a node with optional filtering.
 
         Returns the neighboring nodes of a specified node, with control over
@@ -11533,20 +11561,20 @@ class Graph:
 
         Parameters
         ---
-        node_id : str
-            The node ID to find neighbors for.
+        node_id : int | str
+            The node ID or label to find neighbors for.
         mode : str, default 'all'
             Direction mode for neighbor lookup:
             - `'out'` : Only successors (outgoing edges)
             - `'in'` : Only predecessors (incoming edges)
             - `'all'` : Both successors and predecessors
         predicate : callable, optional
-            Filter function that takes a node ID and returns `True` to include it
+            Filter function that takes a node ID (int) and returns `True` to include it
             in the results. If `None`, all neighbors are returned.
 
         Returns
         ---
-        list of str
+        list[int]
             List of neighbor node IDs matching the specified criteria.
 
         Raises
@@ -11561,29 +11589,40 @@ class Graph:
 
         # Directed graph example
         graph = ec.Graph(directed=True)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
         graph.add_edge("A", "B", weight=1.0)
         graph.add_edge("C", "A", weight=2.0)
 
-        # Get successors (outgoing neighbors)
-        out_neighbors = graph.get_neighbors("A", mode="out")
-        print(out_neighbors)  # ['B']
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+        c_id = graph.get_id_from_label("C")
+
+        # Get successors (outgoing neighbors) - returns node IDs
+        out_neighbors = graph.get_neighbors(a_id, mode="out")
+        print(out_neighbors)  # [<b_id>] - node IDs, not labels
 
         # Get predecessors (incoming neighbors)
-        in_neighbors = graph.get_neighbors("A", mode="in")
-        print(in_neighbors)  # ['C']
+        in_neighbors = graph.get_neighbors(a_id, mode="in")
+        print(in_neighbors)  # [<c_id>]
 
         # Get all neighbors
-        all_neighbors = graph.get_neighbors("A", mode="all")
-        print(all_neighbors)  # ['B', 'C']
+        all_neighbors = graph.get_neighbors(a_id, mode="all")
+        print(all_neighbors)  # [<b_id>, <c_id>]
+
+        # Convert IDs to labels if needed
+        neighbor_labels = [graph.get_label_from_id(nid) for nid in out_neighbors]
+        print(neighbor_labels)  # ['B']
         ```
 
         Filtered neighbor lookup with predicate:
 
         ```python
-        # Find neighbors with high degree
+        # Predicate receives node IDs (int), not labels
         high_degree_neighbors = graph.get_neighbors(
-            "A",
-            predicate=lambda n: graph.get_degree(n) > 2
+            a_id,
+            predicate=lambda node_id: graph.get_degree(node_id) > 2
         )
         ```
 
