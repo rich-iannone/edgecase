@@ -3157,7 +3157,9 @@ class Graph:
 
     # ========== Similarity Methods ==========
 
-    def similarity(self, nodes: list[str] = None, method: str = "jaccard") -> list[list[float]]:
+    def pairwise_similarity(
+        self, nodes: list[str] = None, method: str = "jaccard"
+    ) -> list[list[float]]:
         """Calculate pairwise similarity between nodes based on neighborhoods.
 
         Computes structural similarity using various metrics that compare the
@@ -3202,7 +3204,7 @@ class Graph:
         g.add_edge("Eve", "Frank")
 
         # Alice and Dave have similar patterns (both connect to 2 people)
-        sim = g.similarity(["Alice", "Dave"], method="jaccard")
+        sim = g.pairwise_similarity(["Alice", "Dave"], method="jaccard")
         # sim[0][1] = similarity between Alice and Dave
         ```
 
@@ -3217,9 +3219,9 @@ class Graph:
         g.add_edge("B", "Y")
 
         # A and B have identical neighborhoods
-        jaccard = g.similarity(["A", "B"], method="jaccard")
-        dice = g.similarity(["A", "B"], method="dice")
-        cosine = g.similarity(["A", "B"], method="cosine")
+        jaccard = g.pairwise_similarity(["A", "B"], method="jaccard")
+        dice = g.pairwise_similarity(["A", "B"], method="dice")
+        cosine = g.pairwise_similarity(["A", "B"], method="cosine")
 
         # All should show high similarity (≈ 1.0)
         assert jaccard[0][1] == 1.0
@@ -3239,7 +3241,7 @@ class Graph:
 
         # P1 and P2 connected through high-degree hub
         # Inverse log-weighted gives lower weight to high-degree nodes
-        sim = g.similarity(["P1", "P2"], method="invlogweighted")
+        sim = g.pairwise_similarity(["P1", "P2"], method="invlogweighted")
         # Lower similarity due to common high-degree neighbor
         ```
 
@@ -3254,7 +3256,7 @@ class Graph:
                 g.add_edge(f"C1_{i}", f"C1_{j}")
 
         # Get all pairwise similarities
-        all_sim = g.similarity(method="jaccard")
+        all_sim = g.pairwise_similarity(method="jaccard")
         # Nodes in same dense community have high similarity
         ```
 
@@ -3302,7 +3304,7 @@ class Graph:
         """
         if nodes is None:
             nodes = []
-        return self._graph.similarity(nodes, method)
+        return self._graph.pairwise_similarity(nodes, method)
 
     def get_dice_similarity(self) -> dict[str, dict[str, float]]:
         """Get Dice similarity coefficient between all node pairs.
