@@ -8692,7 +8692,7 @@ class Graph:
 
     # ========== Centrality Methods ==========
 
-    def get_closeness_vitality(self) -> dict[str, float]:
+    def get_closeness_vitality(self) -> dict[int, float]:
         """Get closeness vitality centrality for each node.
 
         Closeness vitality measures a node's importance by computing the change
@@ -8706,7 +8706,7 @@ class Graph:
 
         Returns
         -------
-        dict[str, float]
+        dict[int, float]
             Dictionary mapping node IDs to vitality scores. Higher scores indicate
             more structurally important nodes.
 
@@ -8727,8 +8727,14 @@ class Graph:
         )
 
         vitality = graph.get_closeness_vitality()
+        hub_id = graph.get_id_from_label("hub")
+        a_id = graph.get_id_from_label("A")
+
         # Hub has highest vitality (removal disconnects graph)
-        # Leaves have low vitality (removal has minimal impact)
+        assert vitality[hub_id] > vitality[a_id]
+
+        # Convert to labels if needed
+        label_vitality = {graph.get_label_from_id(nid): score for nid, score in vitality.items()}
         ```
 
         Notes
