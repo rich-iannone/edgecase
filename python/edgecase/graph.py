@@ -3346,7 +3346,8 @@ class Graph:
 
         sim = graph.get_dice_similarity()
         # A and D share neighbors B and C
-        print(sim["A"]["D"])  # 1.0 (perfect overlap)
+        # Access using node IDs (1 and 4)
+        print(sim[1][4])  # 1.0 (perfect overlap)
         ```
 
         Notes
@@ -3363,16 +3364,7 @@ class Graph:
         get_cosine_similarity : Geometric similarity measure
         get_overlap_similarity : Emphasizes subset relationships
         """
-        result_ids = self._graph.get_dice_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
+        return self._graph.get_dice_similarity()
 
     def get_jaccard_similarity(self) -> dict[str, dict[str, float]]:
         """Get Jaccard similarity index between all node pairs.
@@ -3408,8 +3400,8 @@ class Graph:
         )
 
         sim = graph.get_jaccard_similarity()
-        # Leaves have no common neighbors
-        print(sim["A"]["B"])  # 0.0
+        # Leaves (nodes 2 and 3) have no common neighbors
+        print(sim[2][3])  # 0.0
         ```
 
         Notes
@@ -3426,16 +3418,7 @@ class Graph:
         get_cosine_similarity : Geometric similarity measure
         get_overlap_similarity : Emphasizes subset relationships
         """
-        result_ids = self._graph.get_jaccard_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
+        return self._graph.get_jaccard_similarity()
 
     def get_cosine_similarity(self) -> dict[str, dict[str, float]]:
         """Get cosine similarity between all node pairs.
@@ -3471,7 +3454,8 @@ class Graph:
 
         sim = graph.get_cosine_similarity()
         # Each node shares 1 neighbor with the others
-        print(sim["A"]["B"])  # 0.5 (1 common / sqrt(2 * 2))
+        # Access using node IDs (1 and 2)
+        print(sim[1][2])  # 0.5 (1 common / sqrt(2 * 2))
         ```
 
         Notes
@@ -3488,16 +3472,7 @@ class Graph:
         get_jaccard_similarity : Set-theoretic similarity
         get_overlap_similarity : Min-based similarity
         """
-        result_ids = self._graph.get_cosine_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
+        return self._graph.get_cosine_similarity()
 
     def get_overlap_similarity(self) -> dict[str, dict[str, float]]:
         """Get overlap coefficient between all node pairs.
@@ -3533,7 +3508,8 @@ class Graph:
 
         sim = graph.get_overlap_similarity()
         # Hub's neighborhood is subset of spoke's
-        print(sim["hub"]["spoke"])  # 1.0
+        # Access using node IDs (1 and 2)
+        print(sim[1][2])  # 1.0
         ```
 
         Notes
@@ -3550,16 +3526,7 @@ class Graph:
         get_dice_similarity : Harmonic mean alternative
         get_cosine_similarity : Geometric interpretation
         """
-        result_ids = self._graph.get_overlap_similarity()
-        # Convert node IDs to labels in the result
-        result = {}
-        for node1_id, inner_dict in result_ids.items():
-            node1_label = self.get_label_from_id(node1_id)
-            result[node1_label] = {}
-            for node2_id, score in inner_dict.items():
-                node2_label = self.get_label_from_id(node2_id)
-                result[node1_label][node2_label] = score
-        return result
+        return self._graph.get_overlap_similarity()
 
     # ========== Neighbor & Connectivity Methods ==========
 
