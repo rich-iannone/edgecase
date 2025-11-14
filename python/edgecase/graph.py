@@ -8796,7 +8796,7 @@ class Graph:
         """
         return self._graph.get_coreness()
 
-    def betweenness_centrality(self) -> dict[str, float]:
+    def betweenness_centrality(self) -> dict[int, float]:
         """Calculate betweenness centrality scores for all nodes.
 
         Betweenness centrality measures how often a node appears on the shortest paths
@@ -8813,8 +8813,8 @@ class Graph:
 
         Returns
         -------
-        dict[str, float]
-            Dictionary mapping node labels to their betweenness centrality scores.
+        dict[int, float]
+            Dictionary mapping node IDs to their betweenness centrality scores.
             Scores are normalized to the range [0, 1].
 
         Examples
@@ -8837,7 +8837,12 @@ class Graph:
         )
 
         scores = graph.betweenness_centrality()
-        print(scores["Bridge"])  # High score - bridges two clusters
+        bridge_id = graph.get_id_from_label("Bridge")
+        print(scores[bridge_id])  # High score - bridges two clusters
+
+        # Convert to labels if needed
+        label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
+        print(label_scores["Bridge"])  # Same result
         ```
 
         Identify the most important connectors:
@@ -8846,8 +8851,9 @@ class Graph:
         scores = graph.betweenness_centrality()
         connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
 
-        for node, score in connectors:
-            print(f"{node}: {score:.4f}")
+        for node_id, score in connectors:
+            label = graph.get_label_from_id(node_id)
+            print(f"{label} (ID {node_id}): {score:.4f}")
         ```
 
         See Also
@@ -8856,8 +8862,7 @@ class Graph:
         get_closeness_centrality : Measure based on distance to all nodes
         """
         result_ids = rust.betweenness_centrality(self._graph)
-        # Convert node IDs to labels
-        return {self.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
+        return result_ids
 
     def get_authority_centrality(
         self, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None

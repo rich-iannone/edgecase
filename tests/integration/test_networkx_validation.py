@@ -633,12 +633,12 @@ class TestBetweennessCentralityValidation:
         nx_graph = to_networkx(G)
         nx_bc = nx.betweenness_centrality(nx_graph)
 
-        # Both EdgeCase and NetworkX now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01, (
-                f"Betweenness mismatch for {nx_node}: EC={ec_bc[label]}, NX={nx_bc[nx_node]}"
+            assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01, (
+                f"Betweenness mismatch for {nx_node}: EC={ec_bc[node_id]}, NX={nx_bc[nx_node]}"
             )
 
     def test_betweenness_star_graph(self):
@@ -660,14 +660,16 @@ class TestBetweennessCentralityValidation:
         nx_bc = nx.betweenness_centrality(nx_graph)
 
         # Center should have highest betweenness
-        # Both EdgeCase and NetworkX now use labels as keys
-        assert ec_bc["center"] > ec_bc["A"]
+        # EdgeCase returns node IDs
+        center_id = G.get_id_from_label("center")
+        a_id = G.get_id_from_label("A")
+        assert ec_bc[center_id] > ec_bc[a_id]
 
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01, (
-                f"Betweenness mismatch for {nx_node}: EC={ec_bc[label]}, NX={nx_bc[nx_node]}"
+            assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01, (
+                f"Betweenness mismatch for {nx_node}: EC={ec_bc[node_id]}, NX={nx_bc[nx_node]}"
             )
 
     def test_betweenness_complete_graph(self):
@@ -688,12 +690,11 @@ class TestBetweennessCentralityValidation:
         nx_bc = nx.betweenness_centrality(nx_graph)
 
         # In complete graph, all nodes should have equal betweenness (0)
-        # Both EdgeCase and NetworkX now use labels as keys
+        # EdgeCase returns node IDs
         for node_id in G.node_ids(limit=None):
-            label = G.get_label_from_id(node_id)
-            assert abs(ec_bc[label]) < 0.01
+            assert abs(ec_bc[node_id]) < 0.01
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01
+            assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01
 
 
 class TestComplexAlgorithmsValidation:
@@ -1489,11 +1490,12 @@ class TestWeightedMetrics:
             for node_id in G.node_ids(limit=None):
                 label = G.get_label_from_id(node_id)
                 nx_node = node_to_nx(G, node_id)
-                assert abs(ec_bc[label] - nx_bc[nx_node]) < 0.01
+                assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01
 
             # In unweighted triangle graph, all nodes have zero betweenness
             # (this is correct - no shortest paths go through intermediate nodes)
-            assert ec_bc["B"] == 0.0
+            b_id = G.get_id_from_label("B")
+            assert ec_bc[b_id] == 0.0
 
     def test_weighted_pagerank(self):
         """Test PageRank with edge weights."""
@@ -1691,9 +1693,10 @@ class TestNumericalStability:
             ec_bc = G.betweenness_centrality()
             nx_bc = nx.betweenness_centrality(nx_graph)
 
-            # Check a few nodes (both use labels as keys now)
+            # Check a few nodes (EdgeCase returns node IDs, NetworkX returns labels)
             for label in ["0,0", "5,5", "9,9"]:
-                assert abs(ec_bc[label] - nx_bc[label]) < 0.01
+                node_id = G.get_id_from_label(label)
+                assert abs(ec_bc[node_id] - nx_bc[label]) < 0.01
 
 
 class TestMultiEdgeHandling:

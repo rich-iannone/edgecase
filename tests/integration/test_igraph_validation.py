@@ -563,7 +563,7 @@ class TestBetweennessCentrality:
 
         ig_graph = to_igraph(G)
 
-        # EdgeCase betweenness
+        # EdgeCase betweenness - returns dict[int, float]
         ec_between = G.betweenness_centrality()
 
         # igraph betweenness
@@ -571,11 +571,14 @@ class TestBetweennessCentrality:
         node_names = ig_graph.vs["name"]
         ig_between = {node_names[i]: ig_between_values[i] for i in range(len(node_names))}
 
+        # Convert EdgeCase results to labels for comparison
+        ec_between_labels = {G.get_label_from_id(nid): score for nid, score in ec_between.items()}
+
         # Verify relative ordering matches (middle nodes have higher betweenness)
-        assert ec_between["B"] > ec_between["A"]
-        assert ec_between["C"] > ec_between["A"]
-        assert ec_between["B"] == ec_between["C"]  # Symmetric
-        assert ec_between["A"] == ec_between["D"] == 0.0  # Endpoints have 0
+        assert ec_between_labels["B"] > ec_between_labels["A"]
+        assert ec_between_labels["C"] > ec_between_labels["A"]
+        assert ec_between_labels["B"] == ec_between_labels["C"]  # Symmetric
+        assert ec_between_labels["A"] == ec_between_labels["D"] == 0.0  # Endpoints have 0
 
         # Same relative ordering for igraph
         assert ig_between["B"] > ig_between["A"]
@@ -596,7 +599,7 @@ class TestBetweennessCentrality:
 
         ig_graph = to_igraph(G)
 
-        # EdgeCase betweenness
+        # EdgeCase betweenness - returns dict[int, float]
         ec_between = G.betweenness_centrality()
 
         # igraph betweenness
@@ -604,10 +607,13 @@ class TestBetweennessCentrality:
         node_names = ig_graph.vs["name"]
         ig_between = {node_names[i]: ig_between_values[i] for i in range(len(node_names))}
 
+        # Convert EdgeCase results to labels for comparison
+        ec_between_labels = {G.get_label_from_id(nid): score for nid, score in ec_between.items()}
+
         # Verify center node has highest betweenness, leaves have zero
-        assert ec_between["center"] > 0
-        assert all(ec_between[f"leaf{i}"] == 0.0 for i in range(5))
-        assert ec_between["center"] > ec_between["leaf0"]
+        assert ec_between_labels["center"] > 0
+        assert all(ec_between_labels[f"leaf{i}"] == 0.0 for i in range(5))
+        assert ec_between_labels["center"] > ec_between_labels["leaf0"]
 
         # Same pattern for igraph
         assert ig_between["center"] > 0

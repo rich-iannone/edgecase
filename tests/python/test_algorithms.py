@@ -53,8 +53,8 @@ def test_betweenness_star_graph() -> None:
         graph.add_edge(Edge(0, 1, node_id, None, None))
 
     centrality = graph.betweenness_centrality()
-    # Center should have highest centrality (placeholder checks existence)
-    assert "center" in centrality
+    # Center (node ID 1) should have highest centrality
+    assert 1 in centrality
 
 
 # Shortest path tests
