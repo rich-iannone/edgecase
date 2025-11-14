@@ -458,6 +458,7 @@ class Graph:
         target: Optional[Union[int, str]] = None,
         weight: Optional[float] = None,
         edge_id: Optional[int] = None,
+        auto_create_nodes: bool = False,
         **attributes,
     ) -> "Graph":
         """Add an edge between two existing nodes in the graph.
@@ -478,6 +479,9 @@ class Graph:
             Optional edge weight for weighted graphs. Ignored if the graph is unweighted.
         edge_id : int | None, default None
             Optional edge ID. If `None`, an ID is auto-assigned.
+        auto_create_nodes : bool, default False
+            If `True`, automatically create nodes (with labels) if they don't exist.
+            If `False`, raises an error if source or target nodes don't exist.
         **attributes : dict
             Arbitrary key-value pairs to store as edge attributes.
 
@@ -558,20 +562,22 @@ class Graph:
             self._graph.add_edge(source)
             return self
 
-        # Resolve source and target to u64 IDs (DO NOT auto-create)
-        source_id = self._resolve_node_id(source, auto_create=False)
-        target_id = self._resolve_node_id(target, auto_create=False)
+        # Resolve source and target to u64 IDs
+        source_id = self._resolve_node_id(source, auto_create=auto_create_nodes)
+        target_id = self._resolve_node_id(target, auto_create=auto_create_nodes)
 
-        # Verify nodes exist
-        if not self._graph.has_node_id(source_id):
-            raise ValueError(
-                f"Source node {source} (ID {source_id}) does not exist. Add it with add_node() first."
-            )
-
-        if not self._graph.has_node_id(target_id):
-            raise ValueError(
-                f"Target node {target} (ID {target_id}) does not exist. Add it with add_node() first."
-            )
+        # Verify nodes exist if not auto-creating
+        if not auto_create_nodes:
+            if not self._graph.has_node_id(source_id):
+                raise ValueError(
+                    f"Source node {source} (ID {source_id}) does not exist. "
+                    f"Add it with add_node() first or use auto_create_nodes=True."
+                )
+            if not self._graph.has_node_id(target_id):
+                raise ValueError(
+                    f"Target node {target} (ID {target_id}) does not exist. "
+                    f"Add it with add_node() first or use auto_create_nodes=True."
+                )
 
         # Create edge
         edge = rust.Edge(
@@ -620,8 +626,9 @@ class Graph:
             except (ValueError, Exception):
                 # Label not found
                 if auto_create:
-                    # Create a new node with this label
-                    return self.add_node(label=node)
+                    # Create a new node with this label and return its ID
+                    self.add_node(label=node)
+                    return self._graph.id_from_label(node)
                 else:
                     raise ValueError(f"Node with label '{node}' not found in graph")
         else:
@@ -1199,6 +1206,42 @@ class Graph:
         target_id = self._resolve_node_id(target)
         edge_ids = self._graph.find_edge_ids(source_id, target_id)
         return len(edge_ids) > 0
+
+    def find_edge_ids(self, source: Union[int, str], target: Union[int, str]) -> list[int]:
+        """Find edge IDs between two nodes.
+
+        Returns a list of all edge IDs connecting the source and target nodes.
+        For undirected graphs, edges are found regardless of direction.
+        Supports multi-edges (multiple edges between the same pair of nodes).
+
+        Parameters
+        ----------
+        source : int | str
+            Source node ID or label.
+        target : int | str
+            Target node ID or label.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs. Empty list if no edges exist.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "B")  # Multi-edge
+
+        edge_ids = graph.find_edge_ids("A", "B")
+        print(len(edge_ids))  # 2
+        ```
+        """
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        return self._graph.find_edge_ids(source_id, target_id)
 
     def delete_node(self, node: Union[int, str]) -> "Graph":
         """Delete a node from the graph.
@@ -3052,15 +3095,16 @@ class Graph:
 
         ```python
         graph = Graph()
-        graph.add_path_graph(5)  # 1-2-3-4-5
+        graph.add_path_graph(5)  # Creates nodes 1-2-3-4-5
 
-        # Find shortest path
-        path = graph.shortest_path("1", "5")
-        print(path)  # ['1', '2', '3', '4', '5']
+        # Find shortest path using node IDs
+        path = graph.shortest_path(1, 5)
+        print(path)  # [1, 2, 3, 4, 5]
 
         # No path between disconnected components
-        graph.add_node("isolated")
-        path = graph.shortest_path("1", "isolated")
+        graph.add_node(label="isolated")
+        iso_id = graph.get_id_from_label("isolated")
+        path = graph.shortest_path(1, iso_id)
         print(path)  # None
         ```
 
@@ -3121,14 +3165,18 @@ class Graph:
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
-            .add_edge("Alice", "Bob")
-            .add_edge("Alice", "Charlie")
-            .add_edge("Bob", "Charlie")
         )
+        alice_id = graph.get_id_from_label("Alice")
+        bob_id = graph.get_id_from_label("Bob")
+        charlie_id = graph.get_id_from_label("Charlie")
+
+        graph.add_edge(alice_id, bob_id)
+        graph.add_edge(alice_id, charlie_id)
+        graph.add_edge(bob_id, charlie_id)
 
         scores = graph.pagerank()
         print(scores)
-        # {'Charlie': 0.475, 'Bob': 0.262, 'Alice': 0.262}
+        # {3: 0.475, 2: 0.262, 1: 0.262}  # Node IDs to scores
         ```
 
         Use custom damping factor for more exploration:
@@ -3142,8 +3190,9 @@ class Graph:
         ```python
         scores = graph.pagerank()
         top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
-        for node, score in top_nodes:
-            print(f"{node}: {score:.4f}")
+        for node_id, score in top_nodes:
+            label = graph.get_label_from_id(node_id)
+            print(f"{label} (ID {node_id}): {score:.4f}")
         ```
 
         See Also
@@ -4418,7 +4467,7 @@ class Graph:
         """
         return self._graph.edge_connectivity()
 
-    def get_min_cut_between(self, source: str, sink: str) -> int:
+    def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
         """Get minimum cut between source and sink nodes.
 
         Computes the minimum number of edges that must be removed to disconnect
@@ -4431,10 +4480,10 @@ class Graph:
 
         Parameters
         ----------
-        source : str
-            Source node ID.
-        sink : str
-            Sink node ID.
+        source : int | str
+            Source node (integer ID or string label).
+        sink : int | str
+            Sink node (integer ID or string label).
 
         Returns
         -------
@@ -4457,12 +4506,13 @@ class Graph:
             .add_node(label="B")
             .add_node(label="C")
             .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("B", "C", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
         )
 
-        print(graph.get_min_cut_between("A", "D"))  # 1 (bottleneck)
+        a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
+        print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
         ```
 
         See Also
@@ -4470,7 +4520,9 @@ class Graph:
         get_adhesion : Get minimum edge cut for entire graph
         is_connected : Check if graph is connected
         """
-        return self._graph.get_min_cut_between(source, sink)
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.get_min_cut_between(source_id, sink_id)
 
     # ========== Structural Properties ==========
 
@@ -9583,7 +9635,7 @@ class Graph:
 
     # ========== Selection Methods ==========
 
-    def select_nodes_by_id(self, node_ids: list[str]) -> "Graph":
+    def select_nodes_by_id(self, node_ids: list[int]) -> "Graph":
         """Select nodes by their IDs.
 
         Marks specified nodes as selected for subsequent operations like building
@@ -9591,8 +9643,8 @@ class Graph:
 
         Parameters
         ----------
-        node_ids : list[str]
-            List of node IDs to select.
+        node_ids : list[int]
+            List of node IDs (integers) to select.
 
         Returns
         -------
@@ -9616,8 +9668,12 @@ class Graph:
             .add_node(label="C")
             .add_edge("A", "B")
             .add_edge("B", "C")
-            .select_nodes_by_id(["A", "B"])
         )
+
+        # Get IDs for nodes A and B
+        id_a = graph.get_id_from_label("A")
+        id_b = graph.get_id_from_label("B")
+        graph.select_nodes_by_id([id_a, id_b])
 
         selected = graph.get_selected_nodes()
         print(selected)  # ['A', 'B']
@@ -9979,7 +10035,7 @@ class Graph:
         self._graph.invert_edge_selection()
         return self
 
-    def get_selected_nodes(self) -> list[str]:
+    def get_selected_nodes(self) -> list[int]:
         """Get currently selected node IDs.
 
         Returns the list of node IDs that are currently marked as selected.
@@ -9987,7 +10043,7 @@ class Graph:
 
         Returns
         -------
-        list[str]
+        list[int]
             List of selected node IDs, empty if no nodes selected.
 
         Examples

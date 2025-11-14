@@ -44,8 +44,9 @@ build-release:
 	maturin develop --release
 
 # Default test runs Python tests only (Rust core not yet compiling with PyO3 0.23)
+# Excludes benchmarks which can be run separately with 'make test-benchmarks'
 test: clean-pyc
-	python3 -m pytest tests/unit tests/integration tests/python -v
+	python3 -m pytest tests/ -v --ignore=tests/benchmarks/
 
 test-all: clean-pyc
 	python3 -m pytest tests/unit tests/integration tests/python tests/property -v

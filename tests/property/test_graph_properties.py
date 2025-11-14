@@ -25,26 +25,26 @@ def node_ids(draw):
 
 @st.composite
 def small_graphs(draw, directed=None):
-    """Generate small random graphs"""
+    """Generate small random graphs using integer node IDs"""
     is_directed = draw(st.booleans()) if directed is None else directed
     is_weighted = draw(st.booleans())
 
     G = Graph(directed=is_directed, weighted=is_weighted)
 
-    # Generate nodes
+    # Generate nodes - use labels so we can reference them, then get their IDs
     num_nodes = draw(st.integers(min_value=0, max_value=20))
-    nodes = [f"n{i}" for i in range(num_nodes)]
 
-    for node in nodes:
-        G.add_node(node)
+    for i in range(num_nodes):
+        G.add_node(label=f"n{i}")
 
-    # Generate edges
+    # Generate edges using node IDs
     if num_nodes > 1:
+        node_ids = G.node_ids(limit=None)
         num_edges = draw(st.integers(min_value=0, max_value=num_nodes * 2))
 
         for _ in range(num_edges):
-            src = draw(st.sampled_from(nodes))
-            tgt = draw(st.sampled_from(nodes))
+            src = draw(st.sampled_from(node_ids))
+            tgt = draw(st.sampled_from(node_ids))
 
             if is_weighted:
                 weight = draw(st.floats(min_value=0.1, max_value=10.0))
@@ -158,7 +158,13 @@ def test_pagerank_covers_all_nodes(G):
 
         if ranks:
             assert len(ranks) == G.num_nodes()
-            assert set(ranks.keys()) == set(G.node_ids(limit=None))
+            # PageRank returns dict with node labels as keys
+            # Get all node labels
+            node_labels = set()
+            for node_id in G.node_ids(limit=None):
+                label = G.get_label_from_id(node_id)
+                node_labels.add(label)
+            assert set(ranks.keys()) == node_labels
 
 
 # Shortest path property tests
@@ -173,28 +179,39 @@ def test_shortest_path_starts_and_ends_correctly(G, seed):
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
 
-        path = shortest_path(G, source, target)
+        path = G.shortest_path(source, target)
 
         if path and len(path) > 0:
-            assert path[0] == source
-            assert path[-1] == target
+            # Path returns node labels, so convert source/target to labels
+            source_label = G.get_label_from_id(source)
+            target_label = G.get_label_from_id(target)
+            assert path[0] == source_label
+            assert path[-1] == target_label
 
 
 @given(G=small_graphs(), seed=st.integers(min_value=0, max_value=1000))
 @settings(max_examples=50, deadline=1000)
 def test_shortest_path_consecutive_edges_exist(G, seed):
-    """All consecutive nodes in path should be connected by edges"""
+    """All consecutive nodes in shortest path should be connected"""
     if G.num_nodes() >= 2:
         nodes = G.node_ids(limit=None)
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
 
-        path = shortest_path(G, source, target)
+        path = G.shortest_path(source, target)
 
         if path and len(path) > 1:
             for i in range(len(path) - 1):
+                # Path contains labels, convert current node label to ID
+                current_label = path[i]
+                current_id = G.get_id_from_label(current_label)
+                # Get neighbor IDs
+                neighbor_ids = G.neighbors(current_id)
+                # Convert next label to ID for comparison
+                next_label = path[i + 1]
+                next_id = G.get_id_from_label(next_label)
                 # Next node should be in current node's neighbors
-                assert path[i + 1] in G.neighbors(path[i])
+                assert next_id in neighbor_ids
 
 
 if __name__ == "__main__":

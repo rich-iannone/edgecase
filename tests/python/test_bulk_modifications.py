@@ -204,7 +204,8 @@ class TestSetNodeAttrsWS:
 
         assert G.get_node(1).attributes["color"] == "red"
         assert G.get_node(2).attributes["color"] == "red"
-        assert G.get_node(3).attributes is None or "color" not in G.get_node(3).attributes
+        node3 = G.get_node(3)
+        assert node3.attributes is None or "color" not in node3.attributes
 
     def test_set_multiple_attributes(self):
         """Set multiple attributes at once."""
