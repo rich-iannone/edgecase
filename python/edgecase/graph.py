@@ -3155,69 +3155,6 @@ class Graph:
         # Convert node IDs to labels
         return {self.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
 
-    def betweenness_centrality(self) -> dict[str, float]:
-        """Calculate betweenness centrality scores for all nodes.
-
-        Betweenness centrality measures how often a node appears on the shortest paths
-        between other nodes in the graph. Nodes with high betweenness act as bridges or
-        bottlenecks, controlling the flow of information or resources through the network.
-
-        This metric is particularly useful for:
-        - Identifying key connectors in social networks
-        - Finding critical infrastructure nodes in transportation/communication networks
-        - Detecting potential bottlenecks or points of failure
-
-        The algorithm computes shortest paths between all pairs of nodes and counts how
-        many times each node appears on these paths.
-
-        Returns
-        -------
-        dict[str, float]
-            Dictionary mapping node labels to their betweenness centrality scores.
-            Scores are normalized to the range [0, 1].
-
-        Examples
-        --------
-        Find bridge nodes in a network:
-
-        ```python
-        # Create two clusters connected by a bridge node
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="Bridge")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "Bridge")
-            .add_edge("Bridge", "C")
-            .add_edge("C", "D")
-        )
-
-        scores = graph.betweenness_centrality()
-        print(scores["Bridge"])  # High score - bridges two clusters
-        ```
-
-        Identify the most important connectors:
-
-        ```python
-        scores = graph.betweenness_centrality()
-        connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-
-        for node, score in connectors:
-            print(f"{node}: {score:.4f}")
-        ```
-
-        See Also
-        --------
-        pagerank : Measure node importance by incoming connections
-        get_closeness_centrality : Measure based on distance to all nodes
-        """
-        result_ids = rust.betweenness_centrality(self._graph)
-        # Convert node IDs to labels
-        return {self.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
-
     # ========== Similarity Methods ==========
 
     def similarity(self, nodes: list[str] = None, method: str = "jaccard") -> list[list[float]]:
@@ -8801,6 +8738,69 @@ class Graph:
         density : Get overall graph density
         """
         return self._graph.get_coreness()
+
+    def betweenness_centrality(self) -> dict[str, float]:
+        """Calculate betweenness centrality scores for all nodes.
+
+        Betweenness centrality measures how often a node appears on the shortest paths
+        between other nodes in the graph. Nodes with high betweenness act as bridges or
+        bottlenecks, controlling the flow of information or resources through the network.
+
+        This metric is particularly useful for:
+        - Identifying key connectors in social networks
+        - Finding critical infrastructure nodes in transportation/communication networks
+        - Detecting potential bottlenecks or points of failure
+
+        The algorithm computes shortest paths between all pairs of nodes and counts how
+        many times each node appears on these paths.
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary mapping node labels to their betweenness centrality scores.
+            Scores are normalized to the range [0, 1].
+
+        Examples
+        --------
+        Find bridge nodes in a network:
+
+        ```python
+        # Create two clusters connected by a bridge node
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="Bridge")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "Bridge")
+            .add_edge("Bridge", "C")
+            .add_edge("C", "D")
+        )
+
+        scores = graph.betweenness_centrality()
+        print(scores["Bridge"])  # High score - bridges two clusters
+        ```
+
+        Identify the most important connectors:
+
+        ```python
+        scores = graph.betweenness_centrality()
+        connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        for node, score in connectors:
+            print(f"{node}: {score:.4f}")
+        ```
+
+        See Also
+        --------
+        pagerank : Measure node importance by incoming connections
+        get_closeness_centrality : Measure based on distance to all nodes
+        """
+        result_ids = rust.betweenness_centrality(self._graph)
+        # Convert node IDs to labels
+        return {self.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
 
     def get_authority_centrality(
         self, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
