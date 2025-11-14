@@ -2901,6 +2901,132 @@ class Graph:
         """
         return self._graph.get_radiality()
 
+    def bellman_ford_shortest_path(
+        self, source: Union[int, str], target: Union[int, str]
+    ) -> tuple[list[str], float] | None:
+        """Find shortest path using Bellman-Ford algorithm (supports negative weights).
+
+        Computes the shortest weighted path from source to target using the Bellman-Ford
+        algorithm. Unlike Dijkstra's algorithm, Bellman-Ford can handle negative edge weights
+        and will detect negative weight cycles.
+
+        The Bellman-Ford algorithm is slower than Dijkstra (O(VE) vs O(E log V)) but more
+        versatile. Use it when:
+        - Graph has negative edge weights
+        - Need to detect negative cycles
+        - Graph is sparse with few edges
+
+        Parameters
+        ----------
+        source : int | str
+            Source node (integer ID or string label).
+        target : int | str
+            Target node (integer ID or string label).
+
+        Returns
+        -------
+        tuple[list[str], float] | None
+            Tuple of (path, distance) where:
+            - path: List of node labels from source to target (inclusive)
+            - distance: Total weight of the shortest path
+            Returns None if target is unreachable.
+
+        Raises
+        ------
+        ValueError
+            If the graph contains a negative weight cycle.
+
+        Examples
+        --------
+        Find shortest path with negative weights:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B", weight=4.0)
+            .add_edge("A", "C", weight=2.0)
+            .add_edge("C", "B", weight=-3.0)  # Negative weight
+            .add_edge("B", "D", weight=1.0)
+        )
+
+        path, distance = graph.bellman_ford_shortest_path("A", "D")
+        # Path: A -> C -> B -> D (takes negative weight edge)
+        # Distance: 2 + (-3) + 1 = 0
+        print(path)      # ['A', 'C', 'B', 'D']
+        print(distance)  # 0.0
+        ```
+
+        Detect negative cycle:
+
+        ```python
+        bad_graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=1.0)
+            .add_edge("B", "C", weight=-3.0)
+            .add_edge("C", "A", weight=1.0)  # Creates negative cycle
+        )
+
+        try:
+            path = bad_graph.bellman_ford_shortest_path("A", "B")
+        except ValueError as e:
+            print(e)  # "Graph contains a negative weight cycle"
+        ```
+
+        Compare with unreachable target:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_node(label="A")
+        graph.add_node(label="isolated")
+
+        result = graph.bellman_ford_shortest_path("A", "isolated")
+        print(result)  # None (no path exists)
+        ```
+
+        Notes
+        -----
+        **Algorithm complexity:**
+        - Time: O(V × E) where V is vertices, E is edges
+        - Space: O(V) for distance and predecessor arrays
+        - Slower than Dijkstra but handles negative weights
+
+        **When to use:**
+        - Graph has negative edge weights (debt, cost reductions)
+        - Need to detect negative cycles (arbitrage opportunities)
+        - Graph is sparse (few edges relative to nodes)
+
+        **Applications:**
+        - Financial modeling (debt, arbitrage detection)
+        - Network routing with cost penalties
+        - Game theory (negative payoffs)
+        - Resource allocation with penalties
+
+        See Also
+        --------
+        get_mean_distance : Average shortest path length
+        get_graph_diameter : Maximum shortest path length
+        ada_star_search : A* pathfinding with heuristics
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+
+        result = rust.bellman_ford_shortest_path(self._graph, source_id, target_id)
+
+        if result is None:
+            return None
+
+        path_ids, distance = result
+        # Convert node IDs to labels
+        path_labels = [self.get_label_from_id(node_id) for node_id in path_ids]
+        return (path_labels, distance)
+
     # ========== Similarity Methods ==========
 
     def similarity(self, nodes: list[str] = None, method: str = "jaccard") -> list[list[float]]:

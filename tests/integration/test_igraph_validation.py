@@ -305,6 +305,184 @@ class TestShortestPaths:
         assert ec_path == ["A", "C", "D"]
 
 
+class TestBellmanFord:
+    """Test Bellman-Ford algorithm against igraph."""
+
+    def test_bellman_ford_positive_weights(self):
+        """Test Bellman-Ford with positive weights matches igraph."""
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
+        G.add_edge("A", "B", weight=1.0)
+        G.add_edge("B", "D", weight=5.0)
+        G.add_edge("A", "C", weight=2.0)
+        G.add_edge("C", "D", weight=1.0)
+
+        ig_graph = to_igraph(G)
+
+        # EdgeCase Bellman-Ford
+        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+
+        # igraph shortest path with weights (uses Bellman-Ford for negative weights, Dijkstra otherwise)
+        node_names = ig_graph.vs["name"]
+        idx_a = node_names.index("A")
+        idx_d = node_names.index("D")
+        ig_path_obj = ig_graph.get_shortest_path(idx_a, idx_d, weights="weight", output="epath")
+        ig_path_indices = ig_graph.get_shortest_path(idx_a, idx_d, weights="weight")
+        ig_path = [node_names[i] for i in ig_path_indices]
+
+        # Calculate distance from igraph path
+        ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
+
+        # Both should find path A -> C -> D (total weight 3.0)
+        assert ec_path == ig_path
+        assert ec_path == ["A", "C", "D"]
+        assert approx_equal(ec_dist, ig_dist)
+        assert approx_equal(ec_dist, 3.0)
+
+    def test_bellman_ford_negative_weights(self):
+        """Test Bellman-Ford with negative weights matches igraph."""
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
+        G.add_edge("A", "B", weight=4.0)
+        G.add_edge("A", "C", weight=2.0)
+        G.add_edge("C", "B", weight=-3.0)  # Negative weight
+        G.add_edge("B", "D", weight=1.0)
+
+        ig_graph = to_igraph(G)
+
+        # EdgeCase Bellman-Ford
+        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+
+        # igraph shortest path (Bellman-Ford handles negative weights)
+        node_names = ig_graph.vs["name"]
+        idx_a = node_names.index("A")
+        idx_d = node_names.index("D")
+        ig_path_obj = ig_graph.get_shortest_path(idx_a, idx_d, weights="weight", output="epath")
+        ig_path_indices = ig_graph.get_shortest_path(idx_a, idx_d, weights="weight")
+        ig_path = [node_names[i] for i in ig_path_indices]
+
+        # Calculate distance from igraph path
+        ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
+
+        # Should take advantage of negative weight: A -> C -> B -> D (2 + -3 + 1 = 0)
+        assert ec_path == ig_path
+        assert ec_path == ["A", "C", "B", "D"]
+        assert approx_equal(ec_dist, ig_dist)
+        assert approx_equal(ec_dist, 0.0)
+
+    def test_bellman_ford_mixed_weights(self):
+        """Test Bellman-Ford with mixed positive and negative weights."""
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_node("D")
+        G.add_node("E")
+        G.add_edge("A", "B", weight=5.0)
+        G.add_edge("B", "C", weight=-2.0)
+        G.add_edge("C", "D", weight=3.0)
+        G.add_edge("A", "E", weight=1.0)
+        G.add_edge("E", "D", weight=10.0)
+
+        ig_graph = to_igraph(G)
+
+        # EdgeCase Bellman-Ford
+        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+
+        # igraph shortest path
+        node_names = ig_graph.vs["name"]
+        idx_a = node_names.index("A")
+        idx_d = node_names.index("D")
+        ig_path_obj = ig_graph.get_shortest_path(idx_a, idx_d, weights="weight", output="epath")
+        ig_path_indices = ig_graph.get_shortest_path(idx_a, idx_d, weights="weight")
+        ig_path = [node_names[i] for i in ig_path_indices]
+
+        # Calculate distance from igraph path
+        ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
+
+        # Should be A -> B -> C -> D = 5 + (-2) + 3 = 6
+        assert ec_path == ig_path
+        assert ec_path == ["A", "B", "C", "D"]
+        assert approx_equal(ec_dist, ig_dist)
+        assert approx_equal(ec_dist, 6.0)
+
+    def test_bellman_ford_no_path(self):
+        """Test Bellman-Ford when no path exists."""
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("isolated")
+        G.add_edge("A", "B", weight=1.0)
+
+        # EdgeCase Bellman-Ford
+        ec_result = G.bellman_ford_shortest_path("A", "isolated")
+
+        # EdgeCase should return None for unreachable nodes
+        assert ec_result is None
+
+        # Note: igraph raises an error for unreachable nodes,
+        # so we just verify EdgeCase handles it gracefully
+
+    def test_bellman_ford_undirected(self):
+        """Test Bellman-Ford on undirected graph."""
+        G = ec.Graph(directed=False, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_node("C")
+        G.add_edge("A", "B", weight=1.0)
+        G.add_edge("B", "C", weight=2.0)
+
+        ig_graph = to_igraph(G)
+
+        # EdgeCase Bellman-Ford
+        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "C")
+
+        # igraph shortest path
+        node_names = ig_graph.vs["name"]
+        idx_a = node_names.index("A")
+        idx_c = node_names.index("C")
+        ig_path_obj = ig_graph.get_shortest_path(idx_a, idx_c, weights="weight", output="epath")
+        ig_path_indices = ig_graph.get_shortest_path(idx_a, idx_c, weights="weight")
+        ig_path = [node_names[i] for i in ig_path_indices]
+
+        # Calculate distance from igraph path
+        ig_dist = sum(ig_graph.es[e]["weight"] for e in ig_path_obj)
+
+        assert ec_path == ig_path
+        assert ec_path == ["A", "B", "C"]
+        assert approx_equal(ec_dist, ig_dist)
+        assert approx_equal(ec_dist, 3.0)
+
+    def test_bellman_ford_self_loop(self):
+        """Test Bellman-Ford with self-loop (zero distance to self)."""
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_node("A")
+        G.add_node("B")
+        G.add_edge("A", "B", weight=5.0)
+
+        ig_graph = to_igraph(G)
+
+        # EdgeCase Bellman-Ford (A to A)
+        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "A")
+
+        # igraph shortest path (A to A)
+        node_names = ig_graph.vs["name"]
+        idx_a = node_names.index("A")
+        ig_path_indices = ig_graph.get_shortest_path(idx_a, idx_a, weights="weight")
+        ig_path = [node_names[i] for i in ig_path_indices]
+
+        # Both should return just the source node with distance 0
+        assert ec_path == ig_path
+        assert ec_path == ["A"]
+        assert approx_equal(ec_dist, 0.0)
+
+
 class TestPageRank:
     """Test PageRank algorithm against igraph."""
 

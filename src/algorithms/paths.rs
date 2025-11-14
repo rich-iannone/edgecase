@@ -37,7 +37,7 @@ pub fn shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
     if !graph.has_node_id(source) || !graph.has_node_id(target) {
         return Ok(None);
     }
-    
+
     // Check if graph is weighted - use Dijkstra if so, BFS otherwise
     if graph.is_weighted() {
         dijkstra_shortest_path(graph, source, target)
@@ -51,36 +51,36 @@ fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<O
     let node_ids = graph.get_node_ids();
     let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
     let mut idx_to_node: Vec<u64> = Vec::new();
-    
+
     // Build node index mappings
     for (idx, &node_id) in node_ids.iter().enumerate() {
         node_to_idx.insert(node_id, idx);
         idx_to_node.push(node_id);
     }
-    
+
     let source_idx = *node_to_idx.get(&source).unwrap();
     let target_idx = *node_to_idx.get(&target).unwrap();
-    
+
     // Initialize distances and predecessors
     let n = node_ids.len();
     let mut dist = vec![f64::INFINITY; n];
     let mut prev: Vec<Option<usize>> = vec![None; n];
     let mut heap = BinaryHeap::new();
-    
+
     dist[source_idx] = 0.0;
     heap.push(State { cost: 0.0, node: source_idx });
-    
+
     while let Some(State { cost, node }) = heap.pop() {
         // Skip if we've found a better path already
         if cost > dist[node] {
             continue;
         }
-        
+
         // Found target
         if node == target_idx {
             break;
         }
-        
+
         // Explore neighbors
         let node_id = idx_to_node[node];
         if let Ok(neighbors) = graph.neighbors(node_id) {
@@ -89,7 +89,7 @@ fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<O
                     // Get edge weight
                     let weight = graph.get_edge_weight(node_id, neighbor_id);
                     let new_cost = cost + weight;
-                    
+
                     // Relaxation step
                     if new_cost < dist[neighbor_idx] {
                         dist[neighbor_idx] = new_cost;
@@ -100,22 +100,22 @@ fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<O
             }
         }
     }
-    
+
     // Reconstruct path
     if dist[target_idx].is_infinite() {
         return Ok(None);
     }
-    
+
     let mut path = Vec::new();
     let mut current = target_idx;
-    
+
     while let Some(p) = prev[current] {
         path.push(idx_to_node[current]);
         current = p;
     }
     path.push(idx_to_node[current]);
     path.reverse();
-    
+
     Ok(Some(path))
 }
 
@@ -125,25 +125,25 @@ fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
     let mut queue = VecDeque::new();
     let mut visited = FxHashMap::default();
     let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
-    
+
     queue.push_back(source);
     visited.insert(source, true);
-    
+
     while let Some(current) = queue.pop_front() {
         if current == target {
             // Reconstruct path
             let mut path = vec![current];
             let mut node = current;
-            
+
             while let Some(&p) = parent.get(&node) {
                 path.push(p);
                 node = p;
             }
-            
+
             path.reverse();
             return Ok(Some(path));
         }
-        
+
         if let Ok(neighbors) = graph.neighbors(current) {
             for neighbor in neighbors {
                 if !visited.contains_key(&neighbor) {
@@ -154,9 +154,119 @@ fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
             }
         }
     }
-    
+
     // No path found
     Ok(None)
+}
+
+/// Bellman-Ford algorithm for graphs with negative weights
+///
+/// Returns (path, distance) tuple, or None if target is unreachable
+/// Returns error if a negative cycle is detected
+#[pyfunction]
+pub fn bellman_ford_shortest_path(
+    graph: &Graph,
+    source: u64,
+    target: u64,
+) -> PyResult<Option<(Vec<u64>, f64)>> {
+    // Check if nodes exist
+    if !graph.has_node_id(source) || !graph.has_node_id(target) {
+        return Ok(None);
+    }
+
+    let node_ids = graph.get_node_ids();
+    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
+    let mut idx_to_node: Vec<u64> = Vec::new();
+
+    // Build node index mappings
+    for (idx, &node_id) in node_ids.iter().enumerate() {
+        node_to_idx.insert(node_id, idx);
+        idx_to_node.push(node_id);
+    }
+
+    let source_idx = *node_to_idx.get(&source).unwrap();
+    let target_idx = *node_to_idx.get(&target).unwrap();
+
+    let n = node_ids.len();
+    let mut dist = vec![f64::INFINITY; n];
+    let mut prev: Vec<Option<usize>> = vec![None; n];
+
+    dist[source_idx] = 0.0;
+
+    // Relax edges |V| - 1 times
+    for _ in 0..n - 1 {
+        let mut updated = false;
+
+        for &node_id in &node_ids {
+            if let Some(&node_idx) = node_to_idx.get(&node_id) {
+                if dist[node_idx].is_infinite() {
+                    continue;
+                }
+
+                if let Ok(neighbors) = graph.neighbors(node_id) {
+                    for neighbor_id in neighbors {
+                        if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
+                            let weight = graph.get_edge_weight(node_id, neighbor_id);
+                            let new_dist = dist[node_idx] + weight;
+
+                            if new_dist < dist[neighbor_idx] {
+                                dist[neighbor_idx] = new_dist;
+                                prev[neighbor_idx] = Some(node_idx);
+                                updated = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Early termination if no updates in this iteration
+        if !updated {
+            break;
+        }
+    }
+
+    // Check for negative cycles
+    for &node_id in &node_ids {
+        if let Some(&node_idx) = node_to_idx.get(&node_id) {
+            if dist[node_idx].is_infinite() {
+                continue;
+            }
+
+            if let Ok(neighbors) = graph.neighbors(node_id) {
+                for neighbor_id in neighbors {
+                    if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
+                        let weight = graph.get_edge_weight(node_id, neighbor_id);
+                        let new_dist = dist[node_idx] + weight;
+
+                        if new_dist < dist[neighbor_idx] {
+                            return Err(pyo3::exceptions::PyValueError::new_err(
+                                "Graph contains a negative weight cycle"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check if target is reachable
+    if dist[target_idx].is_infinite() {
+        return Ok(None);
+    }
+
+    // Reconstruct path
+    let mut path = Vec::new();
+    let mut current = target_idx;
+
+    while let Some(p) = prev[current] {
+        path.push(idx_to_node[current]);
+        current = p;
+    }
+    path.push(idx_to_node[current]);
+    path.reverse();
+
+    Ok(Some((path, dist[target_idx])))
 }
 
 #[cfg(test)]
@@ -169,11 +279,11 @@ mod tests {
         let mut graph = Graph::new(false, false);
         graph.add_node(Node::new("A".to_string(), None)).unwrap();
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        
+
         graph
             .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
             .unwrap();
-        
+
         let path = shortest_path(&graph, "A", "B").unwrap();
         assert_eq!(path, vec!["A", "B"]);
     }
@@ -184,14 +294,14 @@ mod tests {
         graph.add_node(Node::new("A".to_string(), None)).unwrap();
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
         graph.add_node(Node::new("C".to_string(), None)).unwrap();
-        
+
         graph
             .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
             .unwrap();
         graph
             .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
             .unwrap();
-        
+
         let path = shortest_path(&graph, "A", "C").unwrap();
         assert_eq!(path, vec!["A", "B", "C"]);
     }
@@ -201,7 +311,7 @@ mod tests {
         let mut graph = Graph::new(false, false);
         graph.add_node(Node::new("A".to_string(), None)).unwrap();
         graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        
+
         let result = shortest_path(&graph, "A", "B");
         assert!(result.is_err());
     }
