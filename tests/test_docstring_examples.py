@@ -117,6 +117,20 @@ def execute_code_example(code: str, context: str) -> Tuple[bool, str]:
     try:
         exec('from edgecase import Graph', namespace)
         exec('import edgecase', namespace)
+        exec('import edgecase as ec', namespace)  # Common alias
+        
+        # Mock plot_graph to prevent browser windows from opening during tests
+        exec('''
+# Patch the plot_graph function to disable browser opening
+import edgecase.viz
+_original_plot_graph = edgecase.viz.plot_graph
+
+def _mock_plot_graph(*args, open_browser=True, **kwargs):
+    # Force browser opening to False during tests
+    return _original_plot_graph(*args, open_browser=False, **kwargs)
+
+edgecase.viz.plot_graph = _mock_plot_graph
+''', namespace)
     except ImportError as e:
         return False, f"Failed to import edgecase: {e}"
     
