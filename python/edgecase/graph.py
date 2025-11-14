@@ -7953,7 +7953,7 @@ class Graph:
 
     # ========== Clustering Methods ==========
 
-    def local_clustering_coefficient(self) -> dict[str, Optional[float]]:
+    def local_clustering_coefficient(self) -> dict[int, Optional[float]]:
         """Compute local clustering coefficient for each node.
 
         The local clustering coefficient measures how close a node's neighbors are
@@ -7972,8 +7972,8 @@ class Graph:
 
         Returns
         -------
-        dict[str, Optional[float]]
-            Dictionary mapping node labels to clustering coefficients (0.0 to 1.0),
+        dict[int, Optional[float]]
+            Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0),
             or None for nodes with degree < 2.
 
         Examples
@@ -7990,9 +7990,16 @@ class Graph:
         )
 
         clustering = graph.local_clustering_coefficient()
-        print(f"Node A: {clustering['A']:.3f}")  # Lower (not all neighbors connected)
-        print(f"Node B: {clustering['B']:.3f}")  # 1.0 (all neighbors connected)
-        print(f"Node D: {clustering['D']}")      # None (degree 1)
+        node_a_id = graph.get_id_from_label("A")
+        node_b_id = graph.get_id_from_label("B")
+        node_d_id = graph.get_id_from_label("D")
+        print(f"Node A: {clustering[node_a_id]:.3f}")  # Lower (not all neighbors connected)
+        print(f"Node B: {clustering[node_b_id]:.3f}")  # 1.0 (all neighbors connected)
+        print(f"Node D: {clustering[node_d_id]}")      # None (degree 1)
+
+        # Convert to labels if needed
+        clustering_by_label = {graph.get_label_from_id(nid): coeff for nid, coeff in clustering.items()}
+        print(f"Node A: {clustering_by_label['A']:.3f}")
         ```
 
         Find highly clustered nodes (hubs):
@@ -8000,11 +8007,11 @@ class Graph:
         ```python
         clustering = graph.local_clustering_coefficient()
         hubs = {
-            node: coeff
-            for node, coeff in clustering.items()
+            node_id: coeff
+            for node_id, coeff in clustering.items()
             if coeff and coeff > 0.5
         }
-        print(f"Highly clustered nodes: {hubs}")
+        print(f"Highly clustered node IDs: {hubs}")
         ```
 
         See Also

@@ -229,7 +229,7 @@ class TestLocalClustering:
     """Test local clustering coefficient."""
 
     def test_local_clustering_triangle(self):
-        """Perfect triangle has clustering 1.0 for all nodes."""
+        """Triangle has clustering coefficient of 1.0 for all nodes."""
         g = ec.Graph()
         g.add_node(label="A")
         g.add_node(label="B")
@@ -239,9 +239,12 @@ class TestLocalClustering:
         g.add_edge("C", "A")
 
         clustering = g.local_clustering_coefficient()
-        assert abs(clustering["A"] - 1.0) < 1e-10
-        assert abs(clustering["B"] - 1.0) < 1e-10
-        assert abs(clustering["C"] - 1.0) < 1e-10
+        node_a_id = g.get_id_from_label("A")
+        node_b_id = g.get_id_from_label("B")
+        node_c_id = g.get_id_from_label("C")
+        assert abs(clustering[node_a_id] - 1.0) < 1e-10
+        assert abs(clustering[node_b_id] - 1.0) < 1e-10
+        assert abs(clustering[node_c_id] - 1.0) < 1e-10
 
     def test_local_clustering_chain(self):
         """Middle node of chain has clustering 0.0."""
@@ -255,8 +258,9 @@ class TestLocalClustering:
         g.add_edge("B", "D")
 
         clustering = g.local_clustering_coefficient()
-        assert clustering["B"] is not None
-        assert abs(clustering["B"] - 0.0) < 1e-10
+        node_b_id = g.get_id_from_label("B")
+        assert clustering[node_b_id] is not None
+        assert abs(clustering[node_b_id] - 0.0) < 1e-10
 
     def test_local_clustering_partial(self):
         """Node with some connected neighbors has partial clustering."""
@@ -276,9 +280,10 @@ class TestLocalClustering:
         clustering = g.local_clustering_coefficient()
         # A has 3 neighbors, 1 triangle out of C(3,2)=3 possible
         # So clustering = 1/3
-        assert clustering["A"] is not None
+        node_a_id = g.get_id_from_label("A")
+        assert clustering[node_a_id] is not None
         expected = 1.0 / 3.0
-        assert abs(clustering["A"] - expected) < 1e-10
+        assert abs(clustering[node_a_id] - expected) < 1e-10
 
     def test_local_clustering_degree_zero(self):
         """Isolated node has None clustering."""
@@ -289,7 +294,8 @@ class TestLocalClustering:
         g.add_edge("B", "C")
 
         clustering = g.local_clustering_coefficient()
-        assert clustering["A"] is None
+        node_a_id = g.get_id_from_label("A")
+        assert clustering[node_a_id] is None
 
     def test_local_clustering_degree_one(self):
         """Node with degree 1 has None clustering."""
@@ -301,9 +307,12 @@ class TestLocalClustering:
         g.add_edge("B", "C")
 
         clustering = g.local_clustering_coefficient()
-        assert clustering["A"] is None  # Degree 1
-        assert clustering["B"] is not None  # Degree 2
-        assert clustering["C"] is None  # Degree 1
+        node_a_id = g.get_id_from_label("A")
+        node_b_id = g.get_id_from_label("B")
+        node_c_id = g.get_id_from_label("C")
+        assert clustering[node_a_id] is None  # Degree 1
+        assert clustering[node_b_id] is not None  # Degree 2
+        assert clustering[node_c_id] is None  # Degree 1
 
     def test_local_clustering_star_graph(self):
         """Hub of star graph has clustering 0.0."""
@@ -320,12 +329,14 @@ class TestLocalClustering:
         g.add_edge("Hub", "D")
 
         clustering = g.local_clustering_coefficient()
-        assert clustering["Hub"] is not None
-        assert abs(clustering["Hub"] - 0.0) < 1e-10
+        hub_id = g.get_id_from_label("Hub")
+        assert clustering[hub_id] is not None
+        assert abs(clustering[hub_id] - 0.0) < 1e-10
 
         # Leaves have degree 1, so None
         for leaf in ["A", "B", "C", "D"]:
-            assert clustering[leaf] is None
+            leaf_id = g.get_id_from_label(leaf)
+            assert clustering[leaf_id] is None
 
     def test_local_clustering_complete_graph(self):
         """Complete graph has clustering 1.0 for all nodes."""
@@ -340,7 +351,8 @@ class TestLocalClustering:
 
         clustering = g.local_clustering_coefficient()
         for node in nodes:
-            assert abs(clustering[node] - 1.0) < 1e-10
+            node_id = g.get_id_from_label(node)
+            assert abs(clustering[node_id] - 1.0) < 1e-10
 
 
 class TestDirectedGraphs:

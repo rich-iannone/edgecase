@@ -2631,22 +2631,17 @@ impl Graph {
     /// g = ec.Graph()
     /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "D")])
     /// clustering = g.local_clustering_coefficient()
-    /// # Returns clustering coefficient for each node
+    /// # Returns clustering coefficient for each node (by node ID)
     /// ```
     pub fn local_clustering_coefficient(&self, py: Python) -> PyResult<Py<PyDict>> {
         let clustering = crate::algorithms::structural::local_clustering_coefficient(self);
 
-        // Convert to Python dict with node labels
+        // Convert to Python dict with node IDs
         let result = PyDict::new(py);
         for (node_id, coeff_opt) in clustering {
-            let label = match self.label_from_id(node_id)? {
-                Some(l) => l,
-                None => node_id.to_string(),
-            };
-
             match coeff_opt {
-                Some(coeff) => result.set_item(label, coeff)?,
-                None => result.set_item(label, py.None())?,
+                Some(coeff) => result.set_item(node_id, coeff)?,
+                None => result.set_item(node_id, py.None())?,
             }
         }
 
