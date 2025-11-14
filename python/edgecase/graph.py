@@ -4078,7 +4078,7 @@ class Graph:
 
     # ========== Connectivity & Flow Methods ==========
 
-    def get_articulation_points(self) -> list[str]:
+    def get_articulation_points(self) -> list[int]:
         """Find articulation points (cut nodes) in the graph.
 
         An articulation point is a node whose removal disconnects the graph or
@@ -4087,7 +4087,7 @@ class Graph:
 
         Returns
         -------
-        list[str]
+        list[int]
             List of node IDs that are articulation points.
 
         Raises
@@ -4102,10 +4102,13 @@ class Graph:
         ```python
         graph = Graph().add_path_graph(5)
 
-        # In a path: A-B-C-D-E
-        # Middle nodes B, C, D are articulation points
-        cut_nodes = graph.get_articulation_points()
-        print(len(cut_nodes))  # 3
+        # In a path: 1-2-3-4-5
+        # Middle nodes 2, 3, 4 are articulation points
+        cut_node_ids = graph.get_articulation_points()
+        print(len(cut_node_ids))  # 3
+
+        # Convert to labels if needed
+        cut_node_labels = [graph.get_label_from_id(nid) for nid in cut_node_ids]
         ```
 
         Notes
@@ -4122,7 +4125,7 @@ class Graph:
         """
         return self._graph.get_articulation_points()
 
-    def get_periphery(self) -> list[str]:
+    def get_periphery(self) -> list[int]:
         """Get periphery nodes (nodes with maximum eccentricity).
 
         Periphery nodes are farthest from the graph's center. These nodes have
@@ -4131,7 +4134,7 @@ class Graph:
 
         Returns
         -------
-        list[str]
+        list[int]
             List of node IDs in the periphery, empty if disconnected.
 
         Examples
@@ -4141,9 +4144,12 @@ class Graph:
         ```python
         graph = Graph().add_path_graph(5)
 
-        # In path A-B-C-D-E, ends A and E are periphery
-        periphery = graph.get_periphery()
-        print(sorted(periphery))  # ['0', '4']
+        # In path 1-2-3-4-5, ends (1 and 5) are periphery
+        periphery_ids = graph.get_periphery()
+        print(len(periphery_ids))  # 2
+
+        # Convert to labels if needed
+        periphery_labels = sorted([graph.get_label_from_id(nid) for nid in periphery_ids])
         ```
 
         Notes
@@ -4254,7 +4260,7 @@ class Graph:
         """
         return self._graph.get_cohesion()
 
-    def cohesive_blocks(self) -> tuple[list[list[str]], list[int], list[int | None]]:
+    def cohesive_blocks(self) -> tuple[list[list[int]], list[int], list[int | None]]:
         """Find hierarchical cohesive block structure.
 
         Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal
@@ -4268,9 +4274,9 @@ class Graph:
 
         Returns
         -------
-        tuple[list[list[str]], list[int], list[int | None]]
+        tuple[list[list[int]], list[int], list[int | None]]
             A tuple containing:
-            - blocks: List of node sets (each as list of node labels)
+            - blocks: List of node sets (each as list of node IDs)
             - cohesion: List of k-values (cohesion of each block)
             - parent: List of parent block indices (None for root blocks)
 
@@ -4288,7 +4294,10 @@ class Graph:
                 graph.add_edge(str(i), str(j))
 
         blocks, cohesions, parents = graph.cohesive_blocks()
-        # Returns: ([['1','2','3','4','5']], [4], [None])
+        # Returns: ([[1,2,3,4,5]], [4], [None]) - node IDs
+
+        # Convert to labels if needed
+        blocks_labels = [[graph.get_label_from_id(nid) for nid in block] for block in blocks]
         ```
 
         Find hierarchical structure:
@@ -4313,7 +4322,7 @@ class Graph:
         graph.add_edge("6", "2")
 
         blocks, cohesions, parents = graph.cohesive_blocks()
-        # Returns hierarchical structure with root block and K_4 sub-block
+        # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
         ```
 
         See Also
@@ -6950,7 +6959,7 @@ class Graph:
         """
         return self._graph.random_edge_walk(start, steps, mode, stuck, seed)
 
-    def topological_sort(self) -> list[str]:
+    def topological_sort(self) -> list[int]:
         """Sort nodes in topological order (DAG only).
 
         Returns a linear ordering of nodes such that for every directed edge
@@ -6966,8 +6975,8 @@ class Graph:
 
         Returns
         -------
-        list[str]
-            node labels in topological order.
+        list[int]
+            node IDs in topological order.
 
         Raises
         ------
@@ -6992,8 +7001,10 @@ class Graph:
             .add_edge("utils.h", "config.h")     # utils.h depends on config.h
         )
 
-        order = graph.topological_sort()
-        print("Build order:", " → ".join(order))
+        order_ids = graph.topological_sort()
+        # Convert to labels for display
+        order_labels = [graph.get_label_from_id(nid) for nid in order_ids]
+        print("Build order:", " → ".join(order_labels))
         # Output: config.h → utils.h → main.cpp → utils.cpp (or similar valid order)
         ```
 
@@ -7012,8 +7023,9 @@ class Graph:
             .add_edge("Algorithms", "Machine Learning")
         )
 
-        curriculum = graph.topological_sort()
-        for i, course in enumerate(curriculum, 1):
+        curriculum_ids = graph.topological_sort()
+        for i, node_id in enumerate(curriculum_ids, 1):
+            course = graph.get_label_from_id(node_id)
             print(f"Semester {i}: {course}")
         ```
 

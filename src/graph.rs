@@ -2302,13 +2302,12 @@ impl Graph {
 
         // Handle empty or trivial graphs
         if n == 0 {
-            return Ok((vec![] as Vec<Vec<String>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).to_object(py));
+            return Ok((vec![] as Vec<Vec<u64>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).to_object(py));
         }
 
         if n == 1 {
             let node_id = *self.nodes.keys().next().unwrap();
-            let label = self.nodes.get(&node_id).unwrap().label.clone().unwrap_or_else(|| node_id.to_string());
-            return Ok((vec![vec![label]], vec![0_usize], vec![None::<usize>]).to_object(py));
+            return Ok((vec![vec![node_id]], vec![0_usize], vec![None::<usize>]).to_object(py));
         }
 
         // If graph is disconnected, process each component separately
@@ -2344,18 +2343,8 @@ impl Graph {
                 }
             }
 
-            // Convert node IDs to labels
-            let blocks_with_labels: Vec<Vec<String>> = all_blocks.iter()
-                .map(|block| {
-                    block.iter()
-                        .map(|&node_id| {
-                            self.nodes.get(&node_id).unwrap().label.clone().unwrap_or_else(|| node_id.to_string())
-                        })
-                        .collect()
-                })
-                .collect();
-
-            return Ok((blocks_with_labels, all_cohesions, all_parents).to_object(py));
+            // Return node IDs directly (no label conversion)
+            return Ok((all_blocks, all_cohesions, all_parents).to_object(py));
         }
 
         // Process connected graph
@@ -2364,18 +2353,8 @@ impl Graph {
         let (blocks, cohesions, parents) =
             self.cohesive_blocks_for_subgraph(&all_nodes, None, &mut all_blocks)?;
 
-        // Convert node IDs to labels
-        let blocks_with_labels: Vec<Vec<String>> = blocks.iter()
-            .map(|block| {
-                block.iter()
-                    .map(|&node_id| {
-                        self.nodes.get(&node_id).unwrap().label.clone().unwrap_or_else(|| node_id.to_string())
-                    })
-                    .collect()
-            })
-            .collect();
-
-        Ok((blocks_with_labels, cohesions, parents).to_object(py))
+        // Return node IDs directly (no label conversion)
+        Ok((blocks, cohesions, parents).to_object(py))
     }
 
     /// Get eccentricity for each node
@@ -3032,7 +3011,7 @@ impl Graph {
     ///
     /// Time complexity: O(V + E)
     /// Space complexity: O(V)
-    pub fn topological_sort(&self) -> PyResult<Vec<String>> {
+    pub fn topological_sort(&self) -> PyResult<Vec<u64>> {
         // Check if graph is directed
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -3097,18 +3076,8 @@ impl Graph {
             ));
         }
 
-        // Convert node IDs to labels
-        let labels: Vec<String> = result
-            .iter()
-            .map(|&id| {
-                self.nodes
-                    .get(&id)
-                    .and_then(|n| n.label.clone())
-                    .unwrap_or_else(|| id.to_string())
-            })
-            .collect();
-
-        Ok(labels)
+        // Return node IDs directly
+        Ok(result)
     }
 
     /// Calculate Burt's constraint for each vertex

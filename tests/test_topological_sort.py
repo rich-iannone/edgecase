@@ -15,16 +15,19 @@ class TestTopologicalSort:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int] (node IDs)
+
+        # Convert IDs to labels for checking
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # Check all nodes present
-        assert set(order) == {"A", "B", "C", "D"}
+        assert set(order_labels) == {"A", "B", "C", "D"}
 
         # Verify edge constraints
-        assert order.index("A") < order.index("B")
-        assert order.index("A") < order.index("C")
-        assert order.index("B") < order.index("D")
-        assert order.index("C") < order.index("D")
+        assert order_labels.index("A") < order_labels.index("B")
+        assert order_labels.index("A") < order_labels.index("C")
+        assert order_labels.index("B") < order_labels.index("D")
+        assert order_labels.index("C") < order_labels.index("D")
 
     def test_linear_chain(self):
         """Test topological sort on linear chain."""
@@ -35,8 +38,9 @@ class TestTopologicalSort:
         for i in range(len(nodes) - 1):
             g.add_edge(nodes[i], nodes[i + 1])
 
-        order = g.topological_sort()
-        assert order == nodes  # Should be in exact order
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
+        assert order_labels == nodes  # Should be in exact order
 
     def test_empty_graph(self):
         """Test topological sort on empty graph."""
@@ -49,8 +53,9 @@ class TestTopologicalSort:
         g = Graph(directed=True)
         g.add_node(label="A")
 
-        order = g.topological_sort()
-        assert order == ["A"]
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
+        assert order_labels == ["A"]
 
     def test_disconnected_components(self):
         """Test topological sort on disconnected DAG."""
@@ -65,14 +70,15 @@ class TestTopologicalSort:
         g.add_node(label="D")
         g.add_edge("C", "D")
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # All nodes should be present
-        assert set(order) == {"A", "B", "C", "D"}
+        assert set(order_labels) == {"A", "B", "C", "D"}
 
         # Constraints within components
-        assert order.index("A") < order.index("B")
-        assert order.index("C") < order.index("D")
+        assert order_labels.index("A") < order_labels.index("B")
+        assert order_labels.index("C") < order_labels.index("D")
 
     def test_cycle_detection(self):
         """Test that cycles are detected."""
@@ -119,11 +125,12 @@ class TestTopologicalSort:
         for src, tgt in edges:
             g.add_edge(src, tgt)
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # Verify all constraints
         for src, tgt in edges:
-            assert order.index(src) < order.index(tgt)
+            assert order_labels.index(src) < order_labels.index(tgt)
 
     def test_diamond_graph(self):
         """Test diamond-shaped DAG."""
@@ -136,11 +143,12 @@ class TestTopologicalSort:
         g.add_edge("left", "bottom")
         g.add_edge("right", "bottom")
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
-        assert order[0] == "top"
-        assert order[-1] == "bottom"
-        assert {"left", "right"} == set(order[1:3])
+        assert order_labels[0] == "top"
+        assert order_labels[-1] == "bottom"
+        assert {"left", "right"} == set(order_labels[1:3])
 
     def test_task_scheduling(self):
         """Test realistic task scheduling scenario."""
@@ -161,13 +169,14 @@ class TestTopologicalSort:
             for dep in deps:
                 g.add_edge(dep, task)
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # Verify dependencies
         for task, deps in tasks.items():
-            task_idx = order.index(task)
+            task_idx = order_labels.index(task)
             for dep in deps:
-                dep_idx = order.index(dep)
+                dep_idx = order_labels.index(dep)
                 assert dep_idx < task_idx, f"{dep} should come before {task}"
 
     def test_multiple_roots(self):
@@ -182,15 +191,16 @@ class TestTopologicalSort:
         g.add_edge("C", "D")
         g.add_edge("C", "E")
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # A and B should come before C
-        assert order.index("A") < order.index("C")
-        assert order.index("B") < order.index("C")
+        assert order_labels.index("A") < order_labels.index("C")
+        assert order_labels.index("B") < order_labels.index("C")
 
         # C should come before D and E
-        assert order.index("C") < order.index("D")
-        assert order.index("C") < order.index("E")
+        assert order_labels.index("C") < order_labels.index("D")
+        assert order_labels.index("C") < order_labels.index("E")
 
     def test_multiple_sinks(self):
         """Test DAG with multiple sink nodes."""
@@ -203,10 +213,11 @@ class TestTopologicalSort:
         g.add_edge("A", "C")
         g.add_edge("A", "D")
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
-        assert order[0] == "A"
-        assert set(order[1:]) == {"B", "C", "D"}
+        assert order_labels[0] == "A"
+        assert set(order_labels[1:]) == {"B", "C", "D"}
 
     def test_build_system(self):
         """Test realistic build system dependencies."""
@@ -224,10 +235,11 @@ class TestTopologicalSort:
         g.add_edge("utils.h", "main.c")
         g.add_edge("config.h", "main.c")
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # config.h must be first
-        assert order[0] == "config.h"
+        assert order_labels[0] == "config.h"
 
         # Verify all dependencies
         deps = [
@@ -239,7 +251,7 @@ class TestTopologicalSort:
         ]
 
         for src, tgt in deps:
-            assert order.index(src) < order.index(tgt)
+            assert order_labels.index(src) < order_labels.index(tgt)
 
     def test_university_courses(self):
         """Test course prerequisite graph."""
@@ -260,13 +272,14 @@ class TestTopologicalSort:
             for prereq in prereqs:
                 g.add_edge(prereq, course)
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # Verify prerequisites
         for course, prereqs in courses.items():
-            course_idx = order.index(course)
+            course_idx = order_labels.index(course)
             for prereq in prereqs:
-                prereq_idx = order.index(prereq)
+                prereq_idx = order_labels.index(prereq)
                 assert prereq_idx < course_idx
 
 
@@ -308,13 +321,14 @@ class TestTopologicalSortIntegration:
         g.add_edge("A", "B")
         # C, D, E are isolated
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # All nodes should be in result
-        assert set(order) == {"A", "B", "C", "D", "E"}
+        assert set(order_labels) == {"A", "B", "C", "D", "E"}
 
         # A must come before B
-        assert order.index("A") < order.index("B")
+        assert order_labels.index("A") < order_labels.index("B")
 
     def test_large_chain(self):
         """Test topological sort on large chain."""
@@ -327,8 +341,9 @@ class TestTopologicalSortIntegration:
         for i in range(n - 1):
             g.add_edge(str(i), str(i + 1))
 
-        order = g.topological_sort()
+        order = g.topological_sort()  # Returns list[int]
+        order_labels = [g.get_label_from_id(nid) for nid in order]
 
-        assert len(order) == n
+        assert len(order_labels) == n
         # Should be in exact sequential order
-        assert order == [str(i) for i in range(n)]
+        assert order_labels == [str(i) for i in range(n)]

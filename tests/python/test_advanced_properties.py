@@ -62,11 +62,11 @@ class TestArticulationPoints:
         """Path graph has middle nodes as articulation points."""
         G = ec.Graph()
         G.add_path_graph(5)
-        ap = G.get_articulation_points()
+        ap = G.get_articulation_points()  # Returns list[int] (node IDs)
         assert len(ap) == 3  # Middle 3 nodes are APs
-        # End nodes are NOT articulation points
-        assert "1" not in ap
-        assert "5" not in ap
+        # End nodes (IDs 1 and 5) are NOT articulation points
+        assert 1 not in ap
+        assert 5 not in ap
 
     def test_ap_cycle_graph(self):
         """Cycle graph has no articulation points."""
@@ -79,9 +79,10 @@ class TestArticulationPoints:
         """Star graph has hub as articulation point."""
         G = ec.Graph()
         G.add_star_graph(5)
-        ap = G.get_articulation_points()
+        ap = G.get_articulation_points()  # Returns list[int] (node IDs)
         assert len(ap) == 1
-        # The hub (first node added) is the AP
+        # The hub (first node added, ID 1) is the AP
+        assert 1 in ap
 
     def test_ap_bridge_graph(self):
         """Graph with bridge has bridge endpoints as APs."""
@@ -99,9 +100,8 @@ class TestArticulationPoints:
         G.add_edge("E", "F")
         G.add_edge("F", "D")
 
-        ap = G.get_articulation_points()
-        # get_articulation_points returns node IDs (integers)
-        # C is node 3, D is node 4
+        ap = G.get_articulation_points()  # Returns list[int] (node IDs)
+        # C is node ID 3, D is node ID 4
         assert 3 in ap
         assert 4 in ap
 
@@ -129,17 +129,17 @@ class TestPeriphery:
         """Single node is its own periphery."""
         G = ec.Graph()
         G.add_node("A")
-        periphery = G.get_periphery()
-        # Returns node ID (1), not label
+        periphery = G.get_periphery()  # Returns list[int] (node IDs)
+        # Returns node ID 1, not label "A"
         assert periphery == [1]
 
     def test_periphery_path_graph(self):
         """Path graph has end nodes as periphery."""
         G = ec.Graph()
         G.add_path_graph(5)
-        periphery = G.get_periphery()
+        periphery = G.get_periphery()  # Returns list[int] (node IDs)
         assert len(periphery) == 2
-        # Path nodes are IDs 1-5, periphery is nodes 1 and 5
+        # Path nodes have IDs 1-5, periphery is nodes 1 and 5
         assert 1 in periphery
         assert 5 in periphery
 
@@ -147,14 +147,14 @@ class TestPeriphery:
         """Star graph has leaves as periphery."""
         G = ec.Graph()
         G.add_star_graph(5)
-        periphery = G.get_periphery()
-        assert len(periphery) == 4  # All leaves
+        periphery = G.get_periphery()  # Returns list[int] (node IDs)
+        assert len(periphery) == 4  # All leaves (hub is at center)
 
     def test_periphery_cycle_graph(self):
         """Even cycle has all nodes as periphery."""
         G = ec.Graph()
         G.add_cycle_graph(6)
-        periphery = G.get_periphery()
+        periphery = G.get_periphery()  # Returns list[int] (node IDs)
         # All nodes have same eccentricity in a cycle
         assert len(periphery) == 6
 
@@ -437,8 +437,10 @@ class TestAdvancedPropertiesIntegration:
         assert G.get_graph_diameter() == 6
         assert G.get_graph_radius() == 3
         assert G.get_graph_girth() is None  # Trees have no cycles
-        assert len(G.get_periphery()) == 2
-        assert len(G.get_articulation_points()) == 5  # Middle 5 nodes
+        periphery = G.get_periphery()  # Returns list[int] (node IDs)
+        assert len(periphery) == 2
+        ap = G.get_articulation_points()  # Returns list[int] (node IDs)
+        assert len(ap) == 5  # Middle 5 nodes
         assert G.get_graph_adhesion() == 1
         assert G.get_graph_cohesion() == 1
 
@@ -450,8 +452,10 @@ class TestAdvancedPropertiesIntegration:
         assert G.get_graph_diameter() == 4
         assert G.get_graph_radius() == 4
         assert G.get_graph_girth() == 8
-        assert len(G.get_periphery()) == 8  # All nodes in even cycle
-        assert G.get_articulation_points() == []  # No APs in cycle
+        periphery = G.get_periphery()  # Returns list[int] (node IDs)
+        assert len(periphery) == 8  # All nodes in even cycle
+        ap = G.get_articulation_points()  # Returns list[int] (node IDs)
+        assert ap == []  # No APs in cycle
         assert G.get_graph_adhesion() == 2
         assert G.get_graph_cohesion() == 2
 
@@ -463,8 +467,10 @@ class TestAdvancedPropertiesIntegration:
         assert G.get_graph_diameter() == 1
         assert G.get_graph_radius() == 1
         assert G.get_graph_girth() == 3  # Triangles
-        assert len(G.get_periphery()) == 5  # All nodes have same eccentricity
-        assert G.get_articulation_points() == []  # Highly connected
+        periphery = G.get_periphery()  # Returns list[int] (node IDs)
+        assert len(periphery) == 5  # All nodes have same eccentricity
+        ap = G.get_articulation_points()  # Returns list[int] (node IDs)
+        assert ap == []  # Highly connected
         assert G.get_graph_adhesion() == 4
         assert G.get_graph_cohesion() == 4
 

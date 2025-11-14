@@ -23,6 +23,7 @@ class TestCohesiveBlocksBasic:
 
         assert len(blocks) == 1
         assert len(blocks[0]) == 1
+        assert isinstance(blocks[0][0], int)  # Returns node IDs, not labels
         assert cohesions == [0]
         assert parents == [None]
 
@@ -37,6 +38,7 @@ class TestCohesiveBlocksBasic:
 
         assert len(blocks) == 1
         assert len(blocks[0]) == 2
+        assert all(isinstance(nid, int) for nid in blocks[0])  # Returns node IDs
         assert cohesions == [1]
         assert parents == [None]
 
@@ -50,6 +52,7 @@ class TestCohesiveBlocksBasic:
 
         assert len(blocks) == 2
         assert all(len(block) == 1 for block in blocks)
+        assert all(isinstance(block[0], int) for block in blocks)  # Returns node IDs
         assert cohesions == [0, 0]
         assert parents == [None, None]
 
@@ -169,6 +172,7 @@ class TestCohesiveBlocksHierarchy:
         # Check no duplicate blocks
         block_signatures = set()
         for block in blocks:
+            assert all(isinstance(nid, int) for nid in block)  # Returns node IDs
             sig = tuple(sorted(block))
             assert sig not in block_signatures, f"Duplicate block found: {block}"
             block_signatures.add(sig)
