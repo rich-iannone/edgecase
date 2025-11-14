@@ -8014,7 +8014,7 @@ class Graph:
         """
         return self._graph.local_clustering_coefficient()
 
-    def get_clustering_coefficient(self) -> dict[str, float]:
+    def get_clustering_coefficient(self) -> dict[int, float]:
         """Get local clustering coefficient for each node.
 
         The clustering coefficient measures the degree to which a node's neighbors
@@ -8031,7 +8031,7 @@ class Graph:
 
         Returns
         -------
-        dict[str, float]
+        dict[int, float]
             Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
 
         Examples
@@ -8052,7 +8052,8 @@ class Graph:
         clustering = graph.get_clustering_coefficient()
         # All nodes have clustering coefficient 1.0 (complete triangle)
         for node_id, coeff in clustering.items():
-            print(f"{node_id}: {coeff}")
+            label = graph.get_label_from_id(node_id)
+            print(f"{label} (ID {node_id}): {coeff}")
         ```
 
         Calculate clustering in a star graph:
@@ -8070,8 +8071,11 @@ class Graph:
         )
 
         clustering = graph.get_clustering_coefficient()
-        # Center has 0.0 (no edges between spokes)
-        # Spokes have 0.0 (degree 1, can't form triangles)
+        center_id = graph.get_id_from_label("center")
+        print(f"Center clustering: {clustering[center_id]}")  # 0.0 (no edges between spokes)
+
+        # Convert to labels if needed
+        label_clustering = {graph.get_label_from_id(nid): coeff for nid, coeff in clustering.items()}
         ```
 
         Notes
