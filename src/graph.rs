@@ -5440,26 +5440,45 @@ impl Graph {
     /// - Adamic & Adar (2003). "Friends and neighbors on the Web"
     pub fn pairwise_similarity(
         &self,
-        nodes: Vec<String>,
+        py: Python,
+        nodes: Vec<PyObject>,
         method: &str,
     ) -> PyResult<Vec<Vec<f64>>> {
-        // Resolve node labels to IDs
+        // Resolve nodes (can be IDs or labels) to IDs
         let node_ids: Vec<u64> = if nodes.is_empty() {
             // Use all nodes
             self.nodes.keys().copied().collect()
         } else {
             nodes
                 .iter()
-                .map(|label| {
-                    self.node_labels
-                        .get(label)
-                        .copied()
-                        .ok_or_else(|| {
-                            pyo3::exceptions::PyValueError::new_err(format!(
-                                "Node with label '{}' not found",
-                                label
-                            ))
-                        })
+                .map(|node| {
+                    // Try as integer (node ID)
+                    if let Ok(id) = node.extract::<u64>(py) {
+                        if self.nodes.contains_key(&id) {
+                            Ok(id)
+                        } else {
+                            Err(pyo3::exceptions::PyValueError::new_err(format!(
+                                "Node with ID {} not found",
+                                id
+                            )))
+                        }
+                    }
+                    // Try as string (node label)
+                    else if let Ok(label) = node.extract::<String>(py) {
+                        self.node_labels
+                            .get(&label)
+                            .copied()
+                            .ok_or_else(|| {
+                                pyo3::exceptions::PyValueError::new_err(format!(
+                                    "Node with label '{}' not found",
+                                    label
+                                ))
+                            })
+                    } else {
+                        Err(pyo3::exceptions::PyValueError::new_err(
+                            "Node must be an integer (ID) or string (label)",
+                        ))
+                    }
                 })
                 .collect::<PyResult<Vec<u64>>>()?
         };

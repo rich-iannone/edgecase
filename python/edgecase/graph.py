@@ -3158,7 +3158,7 @@ class Graph:
     # ========== Similarity Methods ==========
 
     def pairwise_similarity(
-        self, nodes: list[str] = None, method: str = "jaccard"
+        self, nodes: list[Union[int, str]] = None, method: str = "jaccard"
     ) -> list[list[float]]:
         """Calculate pairwise similarity between nodes based on neighborhoods.
 
@@ -3168,8 +3168,9 @@ class Graph:
 
         Parameters
         ----------
-        nodes : list[str], optional
-            List of node labels to compute similarities for.
+        nodes : list[int | str], optional
+            List of node IDs (integers) or labels (strings) to compute similarities for.
+            Can mix IDs and labels in the same list.
             If None or empty, computes for all nodes in the graph.
         method : str, default="jaccard"
             Similarity metric to use. Options:
@@ -3187,7 +3188,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If a node label is not found or method is invalid.
+            If a node ID or label is not found, or if method is invalid.
 
         Examples
         --------
@@ -3206,6 +3207,9 @@ class Graph:
         # Alice and Dave have similar patterns (both connect to 2 people)
         sim = g.pairwise_similarity(["Alice", "Dave"], method="jaccard")
         # sim[0][1] = similarity between Alice and Dave
+
+        # Can also use node IDs (or mix IDs and labels)
+        sim = g.pairwise_similarity([1, 4], method="jaccard")
         ```
 
         **Comparing Similarity Metrics**

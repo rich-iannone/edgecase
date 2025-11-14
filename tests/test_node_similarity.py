@@ -572,3 +572,83 @@ class TestSimilarityRealWorldScenarios:
         # X and Y have identical neighborhoods {A, B}
         sim = g.pairwise_similarity(["X", "Y"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
+
+
+class TestSimilarityNodeIDSupport:
+    """Test that pairwise_similarity accepts both node IDs and labels."""
+
+    def test_accepts_node_ids(self):
+        """Test that node IDs work correctly."""
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_node(label="D")
+        # A and B both connect to C and D
+        g.add_edge("A", "C")
+        g.add_edge("A", "D")
+        g.add_edge("B", "C")
+        g.add_edge("B", "D")
+
+        # Using node IDs (1 and 2 for A and B)
+        sim = g.pairwise_similarity([1, 2], method="jaccard")
+        assert sim[0][1] == pytest.approx(1.0)
+        assert sim[1][0] == pytest.approx(1.0)
+
+    def test_mixed_ids_and_labels(self):
+        """Test that mixing node IDs and labels works."""
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_node(label="D")
+        g.add_edge("A", "C")
+        g.add_edge("A", "D")
+        g.add_edge("B", "C")
+        g.add_edge("B", "D")
+
+        # Mix node ID (1) and label ("B")
+        sim = g.pairwise_similarity([1, "B"], method="jaccard")
+        assert sim[0][1] == pytest.approx(1.0)
+
+    def test_node_ids_without_labels(self):
+        """Test that node IDs work when labels aren't set."""
+        g = Graph()
+        # Create nodes without explicit labels
+        g.add_node()
+        g.add_node()
+        g.add_node()
+        g.add_node()
+        # Add edges using generated IDs (1, 2, 3, 4)
+        g.add_edge(1, 3)
+        g.add_edge(1, 4)
+        g.add_edge(2, 3)
+        g.add_edge(2, 4)
+
+        # Nodes 1 and 2 have identical neighborhoods
+        sim = g.pairwise_similarity([1, 2], method="jaccard")
+        assert sim[0][1] == pytest.approx(1.0)
+
+    def test_invalid_node_id(self):
+        """Test error handling for invalid node ID."""
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+
+        with pytest.raises(ValueError, match="Node with ID 999 not found"):
+            g.pairwise_similarity([1, 999], method="jaccard")
+
+    def test_all_similarity_methods_with_ids(self):
+        """Test that all similarity methods work with node IDs."""
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge("A", "C")
+        g.add_edge("B", "C")
+
+        for method in ["jaccard", "dice", "cosine", "invlogweighted"]:
+            # Should not raise any errors
+            sim = g.pairwise_similarity([1, 2], method=method)
+            assert len(sim) == 2
+            assert len(sim[0]) == 2
