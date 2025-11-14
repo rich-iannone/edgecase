@@ -7307,7 +7307,8 @@ class Graph:
         See Also
         --------
         shortest_path : Find exact shortest paths
-        all_shortest_paths : Enumerate all shortest paths
+        bellman_ford_shortest_path : Find shortest paths with negative weights
+        get_all_simple_paths : Enumerate all simple paths between nodes
         minimum_spanning_tree : Compute minimum spanning tree (special case of spanner)
         """
         if stretch < 1.0:
