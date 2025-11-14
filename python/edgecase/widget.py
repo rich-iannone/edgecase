@@ -86,83 +86,82 @@ def _is_notebook() -> bool:
 
 class GraphWidget:
     """
-        Interactive graph visualization widget for Jupyter notebooks.
+    Interactive graph visualization widget for Jupyter notebooks.
 
-        Features:
-        - Auto-detects notebook environment
-        - Uses node attributes as aesthetics (color, size, shape)
-        - Interactive tooltips on hover
-        - Zoom, pan, and selection
-        - WebGL-accelerated for large graphs
-        - Static export to PNG/SVG
+    Features:
+    - Auto-detects notebook environment
+    - Uses node attributes as aesthetics (color, size, shape)
+    - Interactive tooltips on hover
+    - Zoom, pan, and selection
+    - WebGL-accelerated for large graphs
+    - Static export to PNG/SVG
 
-        Aesthetic Mappings:
-        - `color` attribute → node fill color (hex or category)
-        - `size` attribute → node radius
-        - `shape` attribute → node shape (circle, square, triangle)
-        - `label` attribute → tooltip text (defaults to node ID)
-        - `community` attribute → automatic color mapping
+    Aesthetic Mappings:
+    - `color` attribute → node fill color (hex or category)
+    - `size` attribute → node radius
+    - `shape` attribute → node shape (circle, square, triangle)
+    - `label` attribute → tooltip text (defaults to node ID)
+    - `community` attribute → automatic color mapping
 
-        Examples
-        --------
-        Basic visualization:
+    Examples
+    --------
+    Basic visualization:
 
-        ```python
-        from edgecase import Graph, GraphWidget
+    ```python
+    from edgecase import Graph, GraphWidget
 
-        G = Graph(directed=False)
-        G.add_node(label='A')
-        G.add_node(label='B')
-        G.add_node(label='C')
-        G.add_edge(source='A', target='B')
-        G.add_edge(source='B', target='C')
-        G.add_edge(source='C', target='A')
+    G = Graph(directed=False)
+    G.add_node(label='A')
+    G.add_node(label='B')
+    G.add_node(label='C')
+    G.add_edge(source='A', target='B')
+    G.add_edge(source='B', target='C')
+    G.add_edge(source='C', target='A')
 
-        widget = GraphWidget(G)
-        widget.show()
-        ```
+    widget = GraphWidget(G)
+    widget.show()
+    ```
 
-        With community detection:
+    With community detection:
 
-        ```python
-        from edgecase import Graph, GraphWidget
+    ```python
+    from edgecase import Graph, GraphWidget
 
-        G = Graph(directed=False)
-        for i in range(6):
-            G.add_node(label=str(i))
-        G.add_edge(source='0', target='1')
-        G.add_edge(source='1', target='2')
-        G.add_edge(source='0', target='2')
-        G.add_edge(source='3', target='4')
-        G.add_edge(source='4', target='5')
-        G.add_edge(source='3', target='5')
+    G = Graph(directed=False)
+    for i in range(6):
+        G.add_node(label=str(i))
+    G.add_edge(source='0', target='1')
+    G.add_edge(source='1', target='2')
+    G.add_edge(source='0', target='2')
+    G.add_edge(source='3', target='4')
+    G.add_edge(source='4', target='5')
+    G.add_edge(source='3', target='5')
 
-        G.get_cmty_louvain(attr_name="community")
-        widget = GraphWidget(G)
-        widget.show()
-        ```
+    G.get_cmty_louvain(attr_name="community")
+    widget = GraphWidget(G)
+    widget.show()
+    ```
 
-        Custom aesthetics:
+    Custom aesthetics:
 
-        ```python
-        from edgecase import Graph, GraphWidget
+    ```python
+    from edgecase import Graph, GraphWidget
 
-        G = Graph(directed=False)
-        G.add_node(label='A')
-        G.add_node(label='B')
-        G.add_node(label='C')
-        G.add_edge(source='A', target='B')
-        G.add_edge(source='B', target='C')
+    G = Graph(directed=False)
+    G.add_node(label='A')
+    G.add_node(label='B')
+    G.add_node(label='C')
+    G.add_edge(source='A', target='B')
+    G.add_edge(source='B', target='C')
 
-        # Size nodes by degree
-        for node_id in G.node_ids(limit=None):
-            degree = G.get_degree(node=node_id)
-            node = G.get_node(node_id=node_id)
-            node.attributes["size"] = degree * 0.5
+    # Size nodes by degree
+    for node_id in G.node_ids(limit=None):
+        degree = G.get_degree(node=node_id)
+        node = G.get_node(node=node_id)
+        node.attributes["size"] = degree * 0.5
 
-        widget = GraphWidget(G)
-        widget.show()
-        ```
+    widget = GraphWidget(G)
+    widget.show()
     ```
     """
 

@@ -1318,7 +1318,6 @@ class Graph:
 
         graph.delete_node(node="B")
         print(graph.has_node(node="B"))  # False
-        print(graph.has_edge(source="A", target="B"))  # False (incident edges removed)
         ```
 
         Delete node by ID:
@@ -2043,14 +2042,44 @@ class Graph:
         Fast suboptimal path with higher epsilon:
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="C", weight=4.0)
+            .add_edge(source="B", target="C", weight=2.0)
+            .add_edge(source="C", target="D", weight=1.0)
+            .add_edge(source="B", target="D", weight=5.0)
+        )
+
         # epsilon=5.0 explores less, finds path faster
-        path = graph.ada_star_search("A", "D", epsilon=5.0)
+        path = graph.ada_star_search(source="A", target="D", epsilon=5.0)
         # May return suboptimal path but much faster on large graphs
         ```
 
         Custom heuristic (e.g., Euclidean distance for spatial graphs):
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="C", weight=4.0)
+            .add_edge(source="B", target="C", weight=2.0)
+            .add_edge(source="C", target="D", weight=1.0)
+            .add_edge(source="B", target="D", weight=5.0)
+        )
+
         positions = {"A": (0, 0), "B": (1, 0), "C": (1, 1), "D": (2, 1)}
 
         def euclidean(node: str, target: str) -> float:
@@ -2058,20 +2087,35 @@ class Graph:
             x2, y2 = positions[target]
             return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
 
-        path = graph.ada_star_search("A", "D", heuristic=euclidean)
+        path = graph.ada_star_search(source="A", target="D", heuristic=euclidean)
         ```
 
         Iterative refinement (anytime behavior):
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="C", weight=4.0)
+            .add_edge(source="B", target="C", weight=2.0)
+            .add_edge(source="C", target="D", weight=1.0)
+            .add_edge(source="B", target="D", weight=5.0)
+        )
+
         # Quick suboptimal path first
-        path1 = graph.ada_star_search("A", "D", epsilon=5.0, reuse_planner=True)
+        path1 = graph.ada_star_search(source="A", target="D", epsilon=5.0, reuse_planner=True)
 
         # Refine to better path (reuses previous work)
-        path2 = graph.ada_star_search("A", "D", epsilon=2.0, reuse_planner=True)
+        path2 = graph.ada_star_search(source="A", target="D", epsilon=2.0, reuse_planner=True)
 
         # Get optimal path (reuses previous work)
-        path3 = graph.ada_star_search("A", "D", epsilon=1.0, reuse_planner=True)
+        path3 = graph.ada_star_search(source="A", target="D", epsilon=1.0, reuse_planner=True)
         ```
 
         Notes
@@ -2453,7 +2497,7 @@ class Graph:
         # Filtered aggregation: mean indegree of high-degree nodes
         high_degree_mean = graph.get_agg_degree_in(
             'mean',
-            conditions=lambda n: graph.get_degree(n) > 3
+            conditions=lambda n: graph.get_degree(node=n.id) > 3
         )
         ```
 
@@ -2546,9 +2590,14 @@ class Graph:
         print(median_out)  # 1.0
 
         # Filtered aggregation: max outdegree of nodes with attributes
+        # First set an attribute on some nodes
+        for node_id in list(graph.node_ids(limit=5)):
+            node = graph.get_node(node=node_id)
+            node.attributes['type'] = 'special'
+
         max_out = graph.get_agg_degree_out(
             'max',
-            conditions=lambda n: 'type' in n.attributes
+            conditions=lambda n: n.attributes and 'type' in n.attributes
         )
         ```
 
@@ -3304,16 +3353,40 @@ class Graph:
         Use custom damping factor for more exploration:
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+        )
+        graph.add_edge(source="Alice", target="Bob")
+        graph.add_edge(source="Alice", target="Charlie")
+        graph.add_edge(source="Bob", target="Charlie")
+
         scores = graph.pagerank(damping=0.5)  # More random jumping
         ```
 
         Find the most influential nodes:
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+        )
+        graph.add_edge(source="Alice", target="Bob")
+        graph.add_edge(source="Alice", target="Charlie")
+        graph.add_edge(source="Bob", target="Charlie")
+
         scores = graph.pagerank()
         top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
         for node_id, score in top_nodes:
-            label = graph.get_label_from_id(node_id)
+            label = graph.get_label_from_id(node_id=node_id)
             print(f"{label} (ID {node_id}): {score:.4f}")
         ```
 
@@ -3367,12 +3440,14 @@ class Graph:
         ```python
         # Find similar users for recommendation
         g = Graph(directed=False)
-        g.add_edge("Alice", "Bob")
-        g.add_edge("Alice", "Carol")
-        g.add_edge("Bob", "Carol")
-        g.add_edge("Dave", "Eve")
-        g.add_edge("Dave", "Frank")
-        g.add_edge("Eve", "Frank")
+        for name in ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"]:
+            g.add_node(label=name)
+        g.add_edge(source="Alice", target="Bob")
+        g.add_edge(source="Alice", target="Carol")
+        g.add_edge(source="Bob", target="Carol")
+        g.add_edge(source="Dave", target="Eve")
+        g.add_edge(source="Dave", target="Frank")
+        g.add_edge(source="Eve", target="Frank")
 
         # Alice and Dave have similar patterns (both connect to 2 people)
         sim = g.pairwise_similarity(["Alice", "Dave"], method="jaccard")
@@ -3387,10 +3462,12 @@ class Graph:
         ```python
         # Bipartite-like structure
         g = Graph(directed=False)
-        g.add_edge("A", "X")
-        g.add_edge("A", "Y")
-        g.add_edge("B", "X")
-        g.add_edge("B", "Y")
+        for name in ["A", "B", "X", "Y"]:
+            g.add_node(label=name)
+        g.add_edge(source="A", target="X")
+        g.add_edge(source="A", target="Y")
+        g.add_edge(source="B", target="X")
+        g.add_edge(source="B", target="Y")
 
         # A and B have identical neighborhoods
         jaccard = g.pairwise_similarity(["A", "B"], method="jaccard")
@@ -3408,10 +3485,12 @@ class Graph:
         ```python
         # Protein interaction network
         g = Graph(directed=False)
-        g.add_edge("P1", "Hub")
-        g.add_edge("P2", "Hub")
-        g.add_edge("Hub", "P3")
-        g.add_edge("Hub", "P4")
+        for name in ["P1", "P2", "Hub", "P3", "P4"]:
+            g.add_node(label=name)
+        g.add_edge(source="P1", target="Hub")
+        g.add_edge(source="P2", target="Hub")
+        g.add_edge(source="Hub", target="P3")
+        g.add_edge(source="Hub", target="P4")
 
         # P1 and P2 connected through high-degree hub
         # Inverse log-weighted gives lower weight to high-degree nodes
@@ -3424,10 +3503,13 @@ class Graph:
         ```python
         # Identify similar nodes within network
         g = Graph(directed=False)
+        # Create nodes first
+        for i in range(5):
+            g.add_node(label=f"C1_{i}")
         # Add edges for a community structure
         for i in range(5):
             for j in range(i+1, 5):
-                g.add_edge(f"C1_{i}", f"C1_{j}")
+                g.add_edge(source=f"C1_{i}", target=f"C1_{j}")
 
         # Get all pairwise similarities
         all_sim = g.pairwise_similarity(method="jaccard")
@@ -3676,15 +3758,16 @@ class Graph:
             .add_node(label="hub")
             .add_node(label="spoke")
             .add_node(label="extended")
-            .add_edge("hub", "spoke")
-            .add_edge("hub", "extended")
-            .add_edge("spoke", "extra")
+            .add_node(label="extra")
+            .add_edge(source="hub", target="spoke")
+            .add_edge(source="hub", target="extended")
+            .add_edge(source="spoke", target="extra")
         )
 
         sim = graph.get_overlap_similarity()
         # Hub's neighborhood is subset of spoke's - returns dict with node IDs
-        hub_id = graph.get_id_from_label("hub")
-        spoke_id = graph.get_id_from_label("spoke")
+        hub_id = graph.get_id_from_label(label="hub")
+        spoke_id = graph.get_id_from_label(label="spoke")
         print(sim[hub_id][spoke_id])  # 1.0
         ```
 
@@ -3813,12 +3896,24 @@ class Graph:
 
         ```python
         # Find all triangles involving node A
-        a_id = graph.get_id_from_label("A")
-        for neighbor_id in graph.neighbors(a_id):
-            common = graph.get_common_neighbors(a_id, neighbor_id)
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="B", target="C")
+            .add_edge(source="A", target="D")
+        )
+
+        a_id = graph.get_id_from_label(label="A")
+        for neighbor_id in graph.neighbors(node=a_id):
+            common = graph.get_common_neighbors(node1=a_id, node2=neighbor_id)
             for third_id in common:
-                neighbor_label = graph.get_label_from_id(neighbor_id)
-                third_label = graph.get_label_from_id(third_id)
+                neighbor_label = graph.get_label_from_id(node_id=neighbor_id)
+                third_label = graph.get_label_from_id(node_id=third_id)
                 print(f"Triangle: A - {neighbor_label} - {third_label}")
         ```
 
@@ -4159,13 +4254,20 @@ class Graph:
         Component size analysis:
 
         ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        # Create two separate components
+        graph.add_path_graph(n=3)  # Component 1: nodes 0-1-2
+        graph.add_path_graph(n=2)  # Component 2: nodes 3-4
+
         # Find size of each component
         visited = set()
         components = []
 
         for node in graph.node_ids(limit=None):
             if node not in visited:
-                component = graph.get_all_connected_nodes(node)
+                component = graph.get_all_connected_nodes(node_id=node)
                 component.append(node)  # Include starting node
                 components.append(component)
                 visited.update(component)
@@ -4582,7 +4684,9 @@ class Graph:
         get_edge_connectivity : Minimum edge cut
         get_cohesive_blocks : Find hierarchical cohesive structure
         """
-        return self._graph.node_connectivity_between(source, target)
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        return self._graph.node_connectivity_between(source_id, target_id)
 
     def get_edge_connectivity(self) -> int:
         """Compute edge connectivity (minimum edge cut).
@@ -5070,9 +5174,17 @@ class Graph:
         Perfect triangle has transitivity 1.0:
 
         ```python
-        triangle = Graph().add_edges([
-            ("A", "B"), ("B", "C"), ("C", "A")
-        ])
+        from edgecase import Graph
+
+        triangle = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
 
         print(triangle.get_graph_transitivity())  # 1.0 (all triples are closed)
         ```
@@ -5080,9 +5192,18 @@ class Graph:
         Chain graph has transitivity 0.0:
 
         ```python
-        chain = Graph().add_edges([
-            ("A", "B"), ("B", "C"), ("C", "D")
-        ])
+        from edgecase import Graph
+
+        chain = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+        )
 
         print(chain.get_graph_transitivity())  # 0.0 (no triangles, only open triples)
         ```
@@ -5090,11 +5211,20 @@ class Graph:
         Real-world networks typically have values between 0.1 and 0.5:
 
         ```python
-        social_network = Graph().add_edges([
-            ("Alice", "Bob"), ("Bob", "Charlie"),
-            ("Charlie", "David"), ("David", "Alice"),
-            ("Alice", "Charlie")  # Creates some triangles
-        ])
+        from edgecase import Graph
+
+        social_network = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+            .add_node(label="David")
+            .add_edge(source="Alice", target="Bob")
+            .add_edge(source="Bob", target="Charlie")
+            .add_edge(source="Charlie", target="David")
+            .add_edge(source="David", target="Alice")
+            .add_edge(source="Alice", target="Charlie")  # Creates some triangles
+        )
 
         trans = social_network.get_graph_transitivity()
         print(f"Clustering: {trans:.3f}")
@@ -5152,15 +5282,30 @@ class Graph:
         Analyze communication patterns:
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Carol")
+            .add_edge(source="Alice", target="Bob")   # Edge 1
+            .add_edge(source="Bob", target="Alice")   # Edge 2 - mutual with 1
+            .add_edge(source="Alice", target="Carol") # Edge 3 - no reciprocal
+            .add_edge(source="Bob", target="Carol")   # Edge 4
+            .add_edge(source="Carol", target="Bob")   # Edge 5 - mutual with 4
+        )
+
         # Find bidirectional communication
         mutual_pairs = graph.which_mutual()
         print(f"Bidirectional connections: {len(mutual_pairs)}")
 
         # Get details of mutual relationships
         for edge1_id, edge2_id in mutual_pairs:
-            e1 = graph.get_node_ids_by_edge_id(edge1_id)
-            e2 = graph.get_node_ids_by_edge_id(edge2_id)
-            print(f"Mutual: {e1[0]} ↔ {e1[1]}")
+            e1 = graph.get_node_ids_by_edge_id(edge_id=edge1_id)
+            e2 = graph.get_node_ids_by_edge_id(edge_id=edge2_id)
+            if e1:
+                print(f"Mutual: {e1[0]} ↔ {e1[1]}")
         ```
 
         See Also
@@ -5219,19 +5364,35 @@ class Graph:
         Compare different networks:
 
         ```python
+        from edgecase import Graph
+
         # Highly reciprocal network (e.g., friendships)
-        friendship = Graph(directed=True).add_edges([
-            ("A", "B"), ("B", "A"),
-            ("B", "C"), ("C", "B"),
-            ("A", "C"), ("C", "A"),
-        ])
+        friendship = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="A")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="C", target="A")
+        )
         print(f"Friendship reciprocity: {friendship.get_graph_reciprocity():.2f}")  # 1.00
 
         # Low reciprocity network (e.g., followers)
-        followers = Graph(directed=True).add_edges([
-            ("A", "B"), ("A", "C"),
-            ("B", "C"), ("D", "A"),
-        ])
+        followers = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="B", target="C")
+            .add_edge(source="D", target="A")
+        )
         print(f"Follower reciprocity: {followers.get_graph_reciprocity():.2f}")  # 0.00
         ```
 
@@ -5281,11 +5442,16 @@ class Graph:
         **Data Cleaning: Finding Duplicate Relationships**
 
         ```python
+        from edgecase import Graph
+
         g = Graph(directed=True)
-        g.add_edge("Alice", "Bob", weight=1.0)
-        g.add_edge("Alice", "Bob", weight=2.0)  # Duplicate connection
-        g.add_edge("Alice", "Bob", weight=3.0)  # Another duplicate
-        g.add_edge("Bob", "Carol", weight=1.0)  # Single edge
+        g.add_node(label="Alice")
+        g.add_node(label="Bob")
+        g.add_node(label="Carol")
+        g.add_edge(source="Alice", target="Bob", weight=1.0)
+        g.add_edge(source="Alice", target="Bob", weight=2.0)  # Duplicate connection
+        g.add_edge(source="Alice", target="Bob", weight=3.0)  # Another duplicate
+        g.add_edge(source="Bob", target="Carol", weight=1.0)  # Single edge
 
         multiples = g.which_multiple()
         len(multiples)  # All 3 Alice->Bob edges
@@ -5484,11 +5650,16 @@ class Graph:
         **Social Network Analysis**
 
         ```python
+        from edgecase import Graph
+
         # Find self-mentions or self-citations
         social = Graph(directed=True)
-        social.add_edge("@alice", "@bob")
-        social.add_edge("@alice", "@alice")  # Self-mention
-        social.add_edge("@bob", "@carol")
+        social.add_node(label="@alice")
+        social.add_node(label="@bob")
+        social.add_node(label="@carol")
+        social.add_edge(source="@alice", target="@bob")
+        social.add_edge(source="@alice", target="@alice")  # Self-mention
+        social.add_edge(source="@bob", target="@carol")
 
         self_mentions = social.which_loop()
         # These might be removed for certain analyses
@@ -5499,10 +5670,15 @@ class Graph:
         **Network Simplification**
 
         ```python
+        from edgecase import Graph
+
         g = Graph(directed=False)
-        g.add_edge("A", "B")
-        g.add_edge("B", "B")  # Self-loop
-        g.add_edge("C", "C")  # Self-loop
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="B", target="B")  # Self-loop
+        g.add_edge(source="C", target="C")  # Self-loop
 
         # Identify edges to remove for simple graph
         loops_to_remove = g.which_loop()
@@ -5541,12 +5717,18 @@ class Graph:
         **Data Quality Analysis**
 
         ```python
+        from edgecase import Graph
+
         g = Graph(directed=True)
-        g.add_edge("A", "B")
-        g.add_edge("A", "A")  # Self-loop
-        g.add_edge("A", "A")  # Another self-loop
-        g.add_edge("B", "B")  # Self-loop
-        g.add_edge("C", "D")  # No self-loop
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_node(label="D")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="A", target="A")  # Self-loop
+        g.add_edge(source="A", target="A")  # Another self-loop
+        g.add_edge(source="B", target="B")  # Self-loop
+        g.add_edge(source="C", target="D")  # No self-loop
 
         loop_counts = g.count_loops()
         loop_counts
@@ -5556,13 +5738,19 @@ class Graph:
         **State Machine Analysis**
 
         ```python
+        from edgecase import Graph
+
         # Identify states with self-transitions
         fsm = Graph(directed=True)
-        fsm.add_edge("Loading", "Loading")  # Retry loop
-        fsm.add_edge("Loading", "Loading")  # Another retry path
-        fsm.add_edge("Loading", "Ready")
-        fsm.add_edge("Processing", "Processing")  # Busy wait
-        fsm.add_edge("Processing", "Complete")
+        fsm.add_node(label="Loading")
+        fsm.add_node(label="Ready")
+        fsm.add_node(label="Processing")
+        fsm.add_node(label="Complete")
+        fsm.add_edge(source="Loading", target="Loading")  # Retry loop
+        fsm.add_edge(source="Loading", target="Loading")  # Another retry path
+        fsm.add_edge(source="Loading", target="Ready")
+        fsm.add_edge(source="Processing", target="Processing")  # Busy wait
+        fsm.add_edge(source="Processing", target="Complete")
 
         wait_states = fsm.count_loops()
         # Shows which states have self-transitions
@@ -5674,15 +5862,19 @@ class Graph:
         **Random Network**
 
         ```python
-        # Erdős-Rényi random graph typically shows no correlation
+        from edgecase import Graph
         import random
+
+        # Erdős-Rényi random graph typically shows no correlation
         random.seed(42)
 
         g = Graph(directed=False)
         nodes = [f"N{i}" for i in range(20)]
+        for node in nodes:
+            g.add_node(label=node)
         for i in range(30):
             u, v = random.sample(nodes, 2)
-            g.add_edge(u, v)
+            g.add_edge(source=u, target=v)
 
         r = g.get_graph_assortativity_degree()
         # r ≈ 0: no systematic degree correlation
@@ -6042,24 +6234,28 @@ class Graph:
         **Spectral Clustering Using Leading Eigenvector**
 
         ```python
+        from edgecase import Graph
+
         # Use second eigenvector (Fiedler vector) for graph clustering
         g = Graph(directed=False)
 
         # Add two communities with a weak bridge
         # Community 1: nodes 0-4
         for i in range(5):
-            g.add_node(f"n{i}")
+            g.add_node(label=f"n{i}")
+        for i in range(5):
             for j in range(i+1, 5):
-                g.add_edge(f"n{i}", f"n{j}")
+                g.add_edge(source=f"n{i}", target=f"n{j}")
 
         # Community 2: nodes 5-9
         for i in range(5, 10):
-            g.add_node(f"n{i}")
+            g.add_node(label=f"n{i}")
+        for i in range(5, 10):
             for j in range(i+1, 10):
-                g.add_edge(f"n{i}", f"n{j}")
+                g.add_edge(source=f"n{i}", target=f"n{j}")
 
         # Bridge
-        g.add_edge("n4", "n5")
+        g.add_edge(source="n4", target="n5")
 
         spec = g.spectrum(which="largest", k=2)
         # Use eigenvector to partition graph
@@ -6070,6 +6266,15 @@ class Graph:
         **Computing Spectral Radius**
 
         ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        for i in range(5):
+            g.add_node(label=f"v{i}")
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(source=f"v{i}", target=f"v{j}")
+
         # Spectral radius = max absolute eigenvalue
         spec = g.spectrum(which="all")
         spectral_radius = max(abs(v) for v in spec['values'])
@@ -6178,13 +6383,20 @@ class Graph:
         **Detecting Disconnected Components**
 
         ```python
+        from edgecase import Graph
+
         # Graph with 2 components
         g = Graph(directed=False)
         # Component 1
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="B", target="C")
         # Component 2
-        g.add_edge("X", "Y")
+        g.add_node(label="X")
+        g.add_node(label="Y")
+        g.add_edge(source="X", target="Y")
 
         spec = g.laplacian_spectrum(which="smallest", k=3)
         zero_eigenvalues = sum(1 for v in spec['values'] if abs(v) < 1e-6)
@@ -6224,6 +6436,17 @@ class Graph:
         **Measuring Graph Expansion**
 
         ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        for i in range(6):
+            g.add_node(label=f"n{i}")
+        g.add_edge(source="n0", target="n1")
+        g.add_edge(source="n1", target="n2")
+        g.add_edge(source="n3", target="n4")
+        g.add_edge(source="n4", target="n5")
+        g.add_edge(source="n2", target="n3")
+
         # Algebraic connectivity measures expansion
         spec = g.laplacian_spectrum(which="smallest", k=2)
         algebraic_connectivity = spec['algebraic_connectivity']
@@ -6237,10 +6460,15 @@ class Graph:
         **Normalized Laplacian for Weighted Graphs**
 
         ```python
+        from edgecase import Graph
+
         g = Graph(directed=False)
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=2.0)
-        g.add_edge("C", "A", weight=0.5)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B", weight=1.0)
+        g.add_edge(source="B", target="C", weight=2.0)
+        g.add_edge(source="C", target="A", weight=0.5)
 
         # Normalized Laplacian accounts for degree variations
         spec = g.laplacian_spectrum(which="all", normalized=True)
@@ -7072,10 +7300,21 @@ class Graph:
         Analyze edge usage frequency:
 
         ```python
+        from edgecase import Graph
         from collections import Counter
 
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
         # Long random walk
-        edges = graph.random_edge_walk("A", steps=1000, seed=42)
+        edges = graph.random_edge_walk(start="A", steps=1000, seed=42)
 
         # Count edge usage
         edge_counts = Counter((src, tgt) for _, src, tgt in edges)
@@ -7291,27 +7530,28 @@ class Graph:
         Analyze structural holes:
 
         ```python
+        from edgecase import Graph
+
         # Compare dense vs. sparse ego networks
         g = Graph()
-        for i in range(5):
+        for i in range(6):
             g.add_node(label=str(i))
 
         # Node 0: connects to 1,2 which are connected (no structural hole)
-        g.add_edge("0", "1")
-        g.add_edge("0", "2")
-        g.add_edge("1", "2")
+        g.add_edge(source="0", target="1")
+        g.add_edge(source="0", target="2")
+        g.add_edge(source="1", target="2")
 
         # Node 3: connects to 4,5 which are NOT connected (structural hole)
-        g.add_node(label="3")
-        g.add_node(label="4")
-        g.add_node(label="5")
-        g.add_edge("3", "4")
-        g.add_edge("3", "5")
+        g.add_edge(source="3", target="4")
+        g.add_edge(source="3", target="5")
         # Note: 4 and 5 are not connected
 
         constraints = g.constraint()
-        print(f"Node 0 (dense): {constraints['0']:.3f}")  # Higher
-        print(f"Node 3 (sparse): {constraints['3']:.3f}")  # Lower
+        if constraints['0'] is not None:
+            print(f"Node 0 (dense): {constraints['0']:.3f}")  # Higher
+        if constraints['3'] is not None:
+            print(f"Node 3 (sparse): {constraints['3']:.3f}")  # Lower
         ```
 
         Weighted networks:
@@ -7438,7 +7678,16 @@ class Graph:
         Total number of walks in the graph:
 
         ```python
-        walks = g.number_of_walks(2)
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(3):
+            g.add_node(label=str(i))
+        g.add_edge(source="0", target="1")
+        g.add_edge(source="1", target="2")
+        g.add_edge(source="2", target="0")
+
+        walks = g.number_of_walks(walk_length=2)
         total = sum(
             sum(targets.values()) for targets in walks.values()
         )
@@ -7448,7 +7697,16 @@ class Graph:
         Walks from a specific source:
 
         ```python
-        walks = g.number_of_walks(3)
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(3):
+            g.add_node(label=str(i))
+        g.add_edge(source="0", target="1")
+        g.add_edge(source="1", target="2")
+        g.add_edge(source="2", target="0")
+
+        walks = g.number_of_walks(walk_length=3)
         source_walks = walks["0"]
         print(f"Walks from node 0: {sum(source_walks.values())}")
         ```
@@ -7899,11 +8157,20 @@ class Graph:
         Enumerate with limit:
 
         ```python
-        graph = Graph()
-        # Add nodes and edges...
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="start")
+            .add_node(label="middle")
+            .add_node(label="end")
+            .add_edge(source="start", target="middle")
+            .add_edge(source="middle", target="end")
+            .add_edge(source="start", target="end")
+        )
 
         # Get first 100 trails only
-        trails = graph.enumerate_trails("start", "end", max_trails=100)
+        trails = graph.enumerate_trails(source="start", target="end", max_trails=100)
         print(f"Found {len(trails)} trails (may be more)")
         ```
 
@@ -7911,15 +8178,25 @@ class Graph:
 
         ```python
         from edgecase import karate_club
+
         G = karate_club()
 
-        # Get sample of trails
-        trails = G.enumerate_trails("1", "34", max_trails=100)
+        # Karate club has nodes 0-33, get any two node IDs
+        node_ids = list(G.node_ids(limit=None))
+        if len(node_ids) >= 2:
+            source_id = node_ids[0]
+            target_id = node_ids[-1]
+            source_label = G.get_label_from_id(node_id=source_id) or str(source_id)
+            target_label = G.get_label_from_id(node_id=target_id) or str(target_id)
 
-        # Analyze lengths
-        lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
-        print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
-        print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
+            # Get sample of trails
+            trails = G.enumerate_trails(source=source_label, target=target_label, max_trails=100)
+
+            if trails:
+                # Analyze lengths
+                lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
+                print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
+                print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
         ```
 
         Notes
@@ -8137,30 +8414,53 @@ class Graph:
         Measure clustering in a network:
 
         ```python
+        from edgecase import Graph
+
         graph = (
             Graph()
-            .add_edges([
-                ("A", "B"), ("B", "C"), ("C", "A"),  # Triangle: A,B,C
-                ("A", "D"), ("A", "E")  # A has additional neighbors
-            ])
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Triangle: A,B,C
+            .add_edge(source="A", target="D")
+            .add_edge(source="A", target="E")  # A has additional neighbors
         )
 
         clustering = graph.local_clustering_coefficient()
-        node_a_id = graph.get_id_from_label("A")
-        node_b_id = graph.get_id_from_label("B")
-        node_d_id = graph.get_id_from_label("D")
-        print(f"Node A: {clustering[node_a_id]:.3f}")  # Lower (not all neighbors connected)
-        print(f"Node B: {clustering[node_b_id]:.3f}")  # 1.0 (all neighbors connected)
+        node_a_id = graph.get_id_from_label(label="A")
+        node_b_id = graph.get_id_from_label(label="B")
+        node_d_id = graph.get_id_from_label(label="D")
+        if clustering[node_a_id] is not None:
+            print(f"Node A: {clustering[node_a_id]:.3f}")  # Lower (not all neighbors connected)
+        if clustering[node_b_id] is not None:
+            print(f"Node B: {clustering[node_b_id]:.3f}")  # 1.0 (all neighbors connected)
         print(f"Node D: {clustering[node_d_id]}")      # None (degree 1)
 
         # Convert to labels if needed
-        clustering_by_label = {graph.get_label_from_id(nid): coeff for nid, coeff in clustering.items()}
-        print(f"Node A: {clustering_by_label['A']:.3f}")
+        clustering_by_label = {graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()}
+        if clustering_by_label['A'] is not None:
+            print(f"Node A: {clustering_by_label['A']:.3f}")
         ```
 
         Find highly clustered nodes (hubs):
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
         clustering = graph.local_clustering_coefficient()
         hubs = {
             node_id: coeff
@@ -8372,9 +8672,24 @@ class Graph:
         Store as node attributes and chain:
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Clique 1
+            .add_edge(source="D", target="E")  # Clique 2
+        )
+
         (graph
             .get_cmty_fast_greedy(attr_name="community")
-            .colorize_node_attrs("community", palette="Set1")
+            .colorize_node_attrs(attr_name="community", palette="Set1")
             .show())
         ```
 
@@ -8461,9 +8776,28 @@ class Graph:
         Store as node attributes and chain:
 
         ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Triangle 1
+            .add_edge(source="C", target="D")  # Bridge edge
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")  # Triangle 2
+        )
+
         (graph
             .get_cmty_edge_btwns(attr_name="community")
-            .colorize_node_attrs("community", palette="Pastel1")
+            .colorize_node_attrs(attr_name="community", palette="Pastel1")
             .show())
         ```
 
