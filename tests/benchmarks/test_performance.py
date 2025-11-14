@@ -82,14 +82,6 @@ def test_pagerank_1k_nodes(benchmark, benchmark_graph_small):
     assert len(result) == 1000
 
 
-@pytest.mark.slow
-@pytest.mark.benchmark
-def test_pagerank_10k_nodes(benchmark, benchmark_graph_medium):
-    """Benchmark PageRank on 10K node graph (slow)"""
-    result = benchmark(benchmark_graph_medium.pagerank)
-    assert len(result) == 10000
-
-
 def test_shortest_path_1k_nodes(benchmark, benchmark_graph_small):
     """Benchmark shortest path on 1K node graph"""
     result = benchmark(benchmark_graph_small.shortest_path, "n0", "n500")

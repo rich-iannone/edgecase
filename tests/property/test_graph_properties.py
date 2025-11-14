@@ -158,13 +158,9 @@ def test_pagerank_covers_all_nodes(G):
 
         if ranks:
             assert len(ranks) == G.num_nodes()
-            # PageRank returns dict with node labels as keys
-            # Get all node labels
-            node_labels = set()
-            for node_id in G.node_ids(limit=None):
-                label = G.get_label_from_id(node_id)
-                node_labels.add(label)
-            assert set(ranks.keys()) == node_labels
+            # PageRank returns dict with node IDs as keys
+            node_ids = set(G.node_ids(limit=None))
+            assert set(ranks.keys()) == node_ids
 
 
 # Shortest path property tests

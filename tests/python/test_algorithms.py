@@ -14,7 +14,7 @@ def test_pagerank_single_node() -> None:
 
     ranks = graph.pagerank()
     assert len(ranks) == 1
-    assert abs(ranks["A"] - 1.0) < 1e-6
+    assert abs(ranks[1] - 1.0) < 1e-6
 
 
 def test_pagerank_simple_chain() -> None:

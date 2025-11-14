@@ -498,16 +498,19 @@ class TestPageRank:
 
         ig_graph = to_igraph(G)
 
-        # EdgeCase PageRank (uses damping parameter)
+        # EdgeCase PageRank (uses damping parameter) - returns dict[int, float]
         ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6)
 
-        # igraph PageRank (uses damping parameter)
+        # igraph PageRank (uses damping parameter) - returns list indexed by vertex
         ig_pr_values = ig_graph.pagerank(damping=0.85)
         node_names = ig_graph.vs["name"]
         ig_pr = {node_names[i]: ig_pr_values[i] for i in range(len(node_names))}
 
+        # Convert EdgeCase results from node IDs to labels for comparison
+        ec_pr_labels = {G.get_label_from_id(nid): score for nid, score in ec_pr.items()}
+
         # Compare results
-        assert dict_approx_equal(ec_pr, ig_pr, rel_tol=1e-5)
+        assert dict_approx_equal(ec_pr_labels, ig_pr, rel_tol=1e-5)
 
     def test_pagerank_star_graph(self):
         """Test PageRank on a star graph (one central node)."""
@@ -520,7 +523,7 @@ class TestPageRank:
 
         ig_graph = to_igraph(G)
 
-        # EdgeCase PageRank
+        # EdgeCase PageRank - returns dict[int, float]
         ec_pr = G.pagerank(damping=0.85)
 
         # igraph PageRank
@@ -528,11 +531,16 @@ class TestPageRank:
         node_names = ig_graph.vs["name"]
         ig_pr = {node_names[i]: ig_pr_values[i] for i in range(len(node_names))}
 
+        # Convert EdgeCase results from node IDs to labels for comparison
+        ec_pr_labels = {G.get_label_from_id(nid): score for nid, score in ec_pr.items()}
+        center_id = G.get_id_from_label("center")
+        node0_id = G.get_id_from_label("node0")
+
         # Central node should have highest PageRank
-        assert ec_pr["center"] > ec_pr["node0"]
+        assert ec_pr[center_id] > ec_pr[node0_id]
 
         # Compare with igraph
-        assert dict_approx_equal(ec_pr, ig_pr, rel_tol=1e-5)
+        assert dict_approx_equal(ec_pr_labels, ig_pr, rel_tol=1e-5)
 
 
 class TestBetweennessCentrality:

@@ -124,19 +124,19 @@ class TestPageRankValidation:
         G.add_edge("B", "C")
         G.add_edge("C", "A")
 
-        # EdgeCase PageRank (uses damping, max_iter, tol)
+        # EdgeCase PageRank (uses damping, max_iter, tol) - returns dict[int, float]
         ec_ranks = G.pagerank(damping=0.85, max_iter=100, tol=1e-6)
 
-        # NetworkX PageRank (uses alpha, max_iter, tol)
+        # NetworkX PageRank (uses alpha, max_iter, tol) - returns dict[str, float]
         nx_graph = to_networkx(G)
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, tol=1e-6)
 
         # Compare results (should be very close)
-        # Both NetworkX and EdgeCase now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
-            assert abs(ec_ranks[label] - nx_ranks[label]) < 0.01, (
-                f"PageRank mismatch for node {label}: EC={ec_ranks[label]}, NX={nx_ranks[label]}"
+            assert abs(ec_ranks[node_id] - nx_ranks[label]) < 0.01, (
+                f"PageRank mismatch for node {label}: EC={ec_ranks[node_id]}, NX={nx_ranks[label]}"
             )
 
     @pytest.mark.parametrize("name,graph", create_test_graphs())
@@ -145,10 +145,10 @@ class TestPageRankValidation:
         if not graph.is_directed:
             pytest.skip("PageRank requires directed graphs")
 
-        # EdgeCase PageRank (uses damping, max_iter, tol)
+        # EdgeCase PageRank (uses damping, max_iter, tol) - returns dict[int, float]
         ec_ranks = graph.pagerank(damping=0.85, max_iter=100, tol=1e-6)
 
-        # NetworkX PageRank
+        # NetworkX PageRank - returns dict[str, float]
         nx_graph = to_networkx(graph)
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, tol=1e-6)
 
@@ -156,11 +156,11 @@ class TestPageRankValidation:
         # Note: Some graphs like weighted_dag may show ~3% difference due to
         # different convergence behavior - this is acceptable for most use cases
         tolerance = 0.05 if name == "weighted_dag" else 0.015
-        # Both NetworkX and EdgeCase now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in graph.node_ids(limit=None):
             label = graph.get_label_from_id(node_id)
-            assert abs(ec_ranks[label] - nx_ranks[label]) < tolerance, (
-                f"{name}: PageRank mismatch for node {label}: EC={ec_ranks[label]:.6f}, NX={nx_ranks[label]:.6f}"
+            assert abs(ec_ranks[node_id] - nx_ranks[label]) < tolerance, (
+                f"{name}: PageRank mismatch for node {label}: EC={ec_ranks[node_id]:.6f}, NX={nx_ranks[label]:.6f}"
             )
 
     def test_pagerank_normalization(self):
@@ -737,12 +737,12 @@ class TestComplexAlgorithmsValidation:
         nx_graph = to_networkx(G)
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=100)
 
-        # Both EdgeCase and NetworkX now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_ranks[label] - nx_ranks[nx_node]) < 0.01, (
-                f"PageRank mismatch for {nx_node}: EC={ec_ranks[label]}, NX={nx_ranks[nx_node]}"
+            assert abs(ec_ranks[node_id] - nx_ranks[nx_node]) < 0.01, (
+                f"PageRank mismatch for {nx_node}: EC={ec_ranks[node_id]}, NX={nx_ranks[nx_node]}"
             )
 
         # Verify normalization
@@ -798,12 +798,12 @@ class TestComplexAlgorithmsValidation:
         ec_values = list(ec_ranks.values())
         assert max(ec_values) - min(ec_values) < 0.01, "PageRank not uniform on cycle"
 
-        # Both EdgeCase and NetworkX now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_ranks[label] - nx_ranks[nx_node]) < 0.01
-            assert abs(ec_ranks[label] - 0.25) < 0.01  # Should be ~1/4 for 4 nodes
+            assert abs(ec_ranks[node_id] - nx_ranks[nx_node]) < 0.01
+            assert abs(ec_ranks[node_id] - 0.25) < 0.01  # Should be ~1/4 for 4 nodes
 
 
 class TestEdgeCases:
@@ -1510,11 +1510,11 @@ class TestWeightedMetrics:
         ec_pr = G.pagerank(damping=0.85, max_iter=100)
         nx_pr = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, weight="weight")
 
-        # Both EdgeCase and NetworkX now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.001
+            assert abs(ec_pr[node_id] - nx_pr[nx_node]) < 0.001
 
     def test_weighted_degree_strength(self):
         """Test weighted degree (strength) calculation."""
@@ -1622,11 +1622,11 @@ class TestNumericalStability:
         # Should still sum to 1.0
         assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
 
-        # Both EdgeCase and NetworkX now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.01
+            assert abs(ec_pr[node_id] - nx_pr[nx_node]) < 0.01
 
     def test_pagerank_huge_weights(self):
         """Test PageRank with very large edge weights."""
@@ -1646,11 +1646,11 @@ class TestNumericalStability:
         # Should still sum to 1.0
         assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
 
-        # Both EdgeCase and NetworkX now use labels as keys
+        # EdgeCase returns node IDs, NetworkX returns labels
         for node_id in G.node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
-            assert abs(ec_pr[label] - nx_pr[nx_node]) < 0.01
+            assert abs(ec_pr[node_id] - nx_pr[nx_node]) < 0.01
 
     def test_shortest_path_negative_detection(self):
         """Test that negative weights are handled correctly."""

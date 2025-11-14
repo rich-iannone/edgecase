@@ -3125,7 +3125,7 @@ class Graph:
 
     def pagerank(
         self, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-6
-    ) -> dict[str, float]:
+    ) -> dict[int, float]:
         """Calculate PageRank scores for all nodes in the graph.
 
         PageRank is a link analysis algorithm that assigns importance scores to nodes
@@ -3151,8 +3151,8 @@ class Graph:
 
         Returns
         -------
-        dict[str, float]
-            Dictionary mapping node labels to their PageRank scores. Scores sum to 1.0
+        dict[int, float]
+            Dictionary mapping node IDs to their PageRank scores. Scores sum to 1.0
             across all nodes.
 
         Examples
@@ -3176,7 +3176,12 @@ class Graph:
 
         scores = graph.pagerank()
         print(scores)
-        # {3: 0.475, 2: 0.262, 1: 0.262}  # Node IDs to scores
+        # {1: 0.262, 2: 0.262, 3: 0.475}  # Node IDs to scores
+
+        # Convert to labels if needed
+        label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
+        print(label_scores)
+        # {'Alice': 0.262, 'Bob': 0.262, 'Charlie': 0.475}
         ```
 
         Use custom damping factor for more exploration:
@@ -3201,8 +3206,7 @@ class Graph:
         get_eigenvector_centrality : Alternative centrality measure
         """
         result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
-        # Convert node IDs to labels
-        return {self.get_label_from_id(node_id): score for node_id, score in result_ids.items()}
+        return result_ids
 
     # ========== Similarity Methods ==========
 
