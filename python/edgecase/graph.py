@@ -9816,7 +9816,7 @@ class Graph:
         self._graph.select_edges_by_id(edge_ids)
         return self
 
-    def select_edges_by_node_id(self, node_ids: list[str]) -> "Graph":
+    def select_edges_by_node_id(self, node_ids: list[int | str]) -> "Graph":
         """Select all edges connected to specified nodes.
 
         Selects all edges where at least one endpoint is in the provided node list.
@@ -9825,8 +9825,8 @@ class Graph:
 
         Parameters
         ----------
-        node_ids : list[str]
-            List of node IDs whose incident edges should be selected.
+        node_ids : list[int | str]
+            List of node IDs (int) or labels (str) whose incident edges should be selected.
 
         Returns
         -------
@@ -9835,7 +9835,7 @@ class Graph:
 
         Examples
         --------
-        Select edges incident to a specific node:
+        Select edges incident to a specific node using node ID:
 
         ```python
         graph = (
@@ -9843,12 +9843,20 @@ class Graph:
             .add_edge("A", "B")
             .add_edge("B", "C")
             .add_edge("C", "D")
-            .select_edges_by_node_id(["B"])
         )
+
+        b_id = graph.get_id_from_label("B")
+        graph.select_edges_by_node_id([b_id])
 
         # Selects A-B and B-C edges
         selected = graph.count_selected_edges()
         print(selected)  # 2
+        ```
+
+        Can also use labels directly:
+
+        ```python
+        graph.select_edges_by_node_id(["B"])
         ```
 
         See Also
@@ -9856,7 +9864,9 @@ class Graph:
         select_nodes_by_id : Select specific nodes
         neighbors : Get neighbors of a node
         """
-        self._graph.select_edges_by_node_id(node_ids)
+        # Resolve labels to IDs
+        resolved_ids = [self._resolve_node_id(nid) for nid in node_ids]
+        self._graph.select_edges_by_node_id(resolved_ids)
         return self
 
     def select_nodes_by_degree(
@@ -9925,7 +9935,7 @@ class Graph:
         )
         return self
 
-    def deselect_nodes(self, node_ids: list[str]) -> "Graph":
+    def deselect_nodes(self, node_ids: list[int | str]) -> "Graph":
         """Remove nodes from selection.
 
         Unmarks specified nodes, removing them from the current selection set.
@@ -9933,8 +9943,8 @@ class Graph:
 
         Parameters
         ----------
-        node_ids : list[str]
-            List of node IDs to deselect.
+        node_ids : list[int | str]
+            List of node IDs (int) or labels (str) to deselect.
 
         Returns
         -------
@@ -9943,19 +9953,32 @@ class Graph:
 
         Examples
         --------
-        Refine a selection by removing specific nodes:
+        Refine a selection by removing specific nodes using node IDs:
 
         ```python
         graph = (
             Graph()
             .add_path_graph(5)
-            .select_nodes_by_id(["0", "1", "2", "3", "4"])
-            .deselect_nodes(["0", "4"])
         )
+
+        # Select all nodes first
+        all_ids = graph.node_ids(limit=None)
+        graph.select_nodes_by_id(all_ids)
+
+        # Deselect first and last nodes
+        first_id = graph.get_id_from_label("0")
+        last_id = graph.get_id_from_label("4")
+        graph.deselect_nodes([first_id, last_id])
 
         # Only middle nodes remain selected
         selected = graph.get_selected_nodes()
-        print(selected)  # ['1', '2', '3']
+        print(len(selected))  # 3
+        ```
+
+        Can also use labels directly:
+
+        ```python
+        graph.deselect_nodes(["0", "4"])
         ```
 
         See Also
@@ -9963,7 +9986,9 @@ class Graph:
         select_nodes_by_id : Select specific nodes
         clear_selection : Clear all selections
         """
-        self._graph.deselect_nodes(node_ids)
+        # Resolve labels to IDs
+        resolved_ids = [self._resolve_node_id(nid) for nid in node_ids]
+        self._graph.deselect_nodes(resolved_ids)
         return self
 
     def deselect_edges(self, edge_ids: list[int]) -> "Graph":

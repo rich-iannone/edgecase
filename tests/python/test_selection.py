@@ -152,6 +152,39 @@ class TestNodeSelection:
         assert 1 in selected  # A
         assert 3 in selected  # C
 
+    def test_deselect_nodes_accepts_labels(self):
+        """Test that deselect_nodes accepts both IDs and labels."""
+        G = Graph()
+        for label in ["A", "B", "C", "D"]:
+            G.add_node(label)
+
+        # Select all using IDs
+        G.select_nodes_by_id([1, 2, 3, 4])
+
+        # Deselect using node IDs
+        G.clear_selection()
+        G.select_nodes_by_id([1, 2, 3, 4])
+        G.deselect_nodes([2, 4])  # B=2, D=4
+        selected_by_id = set(G.get_selected_nodes())
+        assert selected_by_id == {1, 3}  # A and C
+
+        # Deselect using node labels
+        G.clear_selection()
+        G.select_nodes_by_id([1, 2, 3, 4])
+        G.deselect_nodes(["B", "D"])
+        selected_by_label = set(G.get_selected_nodes())
+        assert selected_by_label == {1, 3}  # A and C
+
+        # Should get same results
+        assert selected_by_id == selected_by_label
+
+        # Mixed usage
+        G.clear_selection()
+        G.select_nodes_by_id([1, 2, 3, 4])
+        G.deselect_nodes([1, "D"])  # A (ID) and D (label)
+        selected_mixed = set(G.get_selected_nodes())
+        assert selected_mixed == {2, 3}  # B and C
+
     def test_clear_selection_nodes(self):
         """Clear node selection."""
         G = Graph()
@@ -300,6 +333,35 @@ class TestEdgeSelection:
         assert (1, 2) in sources_targets  # A-B
         assert (3, 4) in sources_targets  # C-D
         assert (4, 5) in sources_targets  # D-E
+
+    def test_select_edges_by_node_id_accepts_labels(self):
+        """Test that select_edges_by_node_id accepts both IDs and labels."""
+        G = Graph()
+        for label in ["A", "B", "C", "D"]:
+            G.add_node(label)
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+        G.add_edge("C", "D")
+
+        # Using node IDs
+        G.clear_selection()
+        G.select_edges_by_node_id([2])  # B=2
+        selected_by_id = set(G.get_selected_edges())
+
+        # Using node labels
+        G.clear_selection()
+        G.select_edges_by_node_id(["B"])
+        selected_by_label = set(G.get_selected_edges())
+
+        # Should select same edges
+        assert selected_by_id == selected_by_label
+        assert len(selected_by_id) == 2  # A-B and B-C
+
+        # Mixed usage
+        G.clear_selection()
+        G.select_edges_by_node_id([1, "D"])  # A (ID) and D (label)
+        selected_mixed = G.get_selected_edges()
+        assert len(selected_mixed) == 2  # A-B and C-D
 
     def test_deselect_edges(self):
         """Deselect specific edges."""
