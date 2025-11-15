@@ -4074,41 +4074,65 @@ impl Graph {
     /// x = alpha * A^T * x + beta
     /// where alpha is attenuation (must be < 1/lambda_max), beta is bias vector
     /// For directed graphs, uses transpose to count incoming paths
+    ///
+    /// OPTIMIZED: Pre-computes transpose graph to avoid O(n²) iteration
     fn get_katz_centrality(&self, alpha: f64, beta: f64, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
             return FxHashMap::default();
         }
 
-        // Initialize centrality to beta for all nodes
-        let mut centrality: FxHashMap<u64, f64> = self.nodes.keys()
-            .map(|&id| (id, beta))
+        // Pre-compute transpose adjacency list (incoming edges)
+        // This is the key optimization: O(m) instead of O(n²)
+        let mut transpose: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+        for &node in self.nodes.keys() {
+            transpose.insert(node, Vec::new());
+        }
+
+        for (&from_node, neighbors) in &self.adjacency_list {
+            for &to_node in neighbors {
+                transpose.entry(to_node).or_insert_with(Vec::new).push(from_node);
+            }
+        }
+
+        // Use dense arrays for better cache locality (like PageRank optimization)
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let node_to_idx: FxHashMap<u64, usize> = node_ids
+            .iter()
+            .enumerate()
+            .map(|(idx, &id)| (id, idx))
             .collect();
 
+        // Initialize centrality arrays
+        let mut centrality = vec![beta; n];
+        let mut new_centrality = vec![beta; n];
+
         for _ in 0..max_iter {
-            let prev_centrality = centrality.clone();
             let mut max_change: f64 = 0.0;
 
-            for &node in self.nodes.keys() {
-                // For Katz, we use A^T (transpose), meaning we look at incoming edges
-                // For each node, sum centrality of nodes that point TO it
-                let mut incoming_sum = 0.0;
-
-                // Iterate through all potential predecessors
-                for (&other_node, neighbors) in &self.adjacency_list {
-                    if neighbors.contains(&node) {
-                        // other_node has an edge TO current node
-                        incoming_sum += prev_centrality.get(&other_node).unwrap_or(&0.0);
-                    }
-                }
+            // Compute new centrality for each node
+            for (idx, &node) in node_ids.iter().enumerate() {
+                // Sum centrality from incoming neighbors
+                let incoming_sum: f64 = transpose
+                    .get(&node)
+                    .map(|predecessors| {
+                        predecessors.iter()
+                            .filter_map(|&pred| node_to_idx.get(&pred))
+                            .map(|&pred_idx| centrality[pred_idx])
+                            .sum()
+                    })
+                    .unwrap_or(0.0);
 
                 // x_new = alpha * (incoming sum) + beta
                 let new_value = alpha * incoming_sum + beta;
-                centrality.insert(node, new_value);
+                new_centrality[idx] = new_value;
 
-                let change = (new_value - prev_centrality.get(&node).unwrap()).abs();
+                let change = (new_value - centrality[idx]).abs();
                 max_change = max_change.max(change);
             }
+
+            // Swap arrays (zero-cost with move semantics)
+            std::mem::swap(&mut centrality, &mut new_centrality);
 
             if max_change < tol {
                 break;
@@ -4116,14 +4140,19 @@ impl Graph {
         }
 
         // Normalize by the sum
-        let total: f64 = centrality.values().sum();
+        let total: f64 = centrality.iter().sum();
         if total > 0.0 {
-            for val in centrality.values_mut() {
+            for val in centrality.iter_mut() {
                 *val /= total;
             }
         }
 
-        centrality
+        // Convert back to HashMap with node IDs
+        node_ids
+            .iter()
+            .enumerate()
+            .map(|(idx, &node_id)| (node_id, centrality[idx]))
+            .collect()
     }
 
     /// Get alpha centrality
