@@ -8,6 +8,8 @@ use rustc_hash::FxHashMap;
 ///
 /// Brandes, U. (2001). A faster algorithm for betweenness centrality.
 /// Journal of Mathematical Sociology, 25(2), 163-177.
+/// 
+/// Optimized with array-based storage for better cache locality
 #[pyfunction]
 pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     use std::collections::VecDeque;
@@ -19,89 +21,90 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
         return Ok(FxHashMap::default());
     }
 
-    // Initialize betweenness centrality for all nodes
-    let mut betweenness: FxHashMap<u64, f64> = FxHashMap::default();
-    for &node_id in &node_ids {
-        betweenness.insert(node_id, 0.0);
-    }
+    // Create node_id to index mapping for array-based storage
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    // Initialize betweenness centrality (use vec for better cache locality)
+    let mut betweenness: Vec<f64> = vec![0.0; n];
+
+    // Pre-allocate reusable arrays
+    let mut stack: Vec<usize> = Vec::with_capacity(n);
+    let mut predecessors: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut sigma: Vec<f64> = vec![0.0; n];
+    let mut distance: Vec<i32> = vec![-1; n];
+    let mut delta: Vec<f64> = vec![0.0; n];
+    let mut queue: VecDeque<usize> = VecDeque::with_capacity(n);
 
     // For each node as source
     for &source in &node_ids {
-        // Stack to store nodes in order of non-increasing distance from source
-        let mut stack: Vec<u64> = Vec::new();
-
-        // Predecessors on shortest paths from source
-        let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-        for &node_id in &node_ids {
-            predecessors.insert(node_id, Vec::new());
+        let source_idx = node_to_idx[&source];
+        
+        // Clear reusable data structures
+        stack.clear();
+        for pred in predecessors.iter_mut() {
+            pred.clear();
         }
+        sigma.fill(0.0);
+        distance.fill(-1);
+        delta.fill(0.0);
+        queue.clear();
 
-        // Number of shortest paths from source to each node
-        let mut sigma: FxHashMap<u64, f64> = FxHashMap::default();
-        for &node_id in &node_ids {
-            sigma.insert(node_id, 0.0);
-        }
-        sigma.insert(source, 1.0);
-
-        // Distance from source
-        let mut distance: FxHashMap<u64, i32> = FxHashMap::default();
-        for &node_id in &node_ids {
-            distance.insert(node_id, -1);
-        }
-        distance.insert(source, 0);
+        // Initialize source
+        sigma[source_idx] = 1.0;
+        distance[source_idx] = 0;
+        queue.push_back(source_idx);
 
         // BFS to find shortest paths
-        let mut queue: VecDeque<u64> = VecDeque::new();
-        queue.push_back(source);
-
-        while let Some(v) = queue.pop_front() {
-            stack.push(v);
+        while let Some(v_idx) = queue.pop_front() {
+            stack.push(v_idx);
+            let v = node_ids[v_idx];
 
             // Get neighbors of v
             if let Ok(neighbors) = graph.neighbors(v) {
+                let dist_v = distance[v_idx];
+                let sigma_v = sigma[v_idx];
+                
                 for w in neighbors {
+                    let w_idx = node_to_idx[&w];
+                    
                     // First time we see w?
-                    if distance[&w] < 0 {
-                        queue.push_back(w);
-                        distance.insert(w, distance[&v] + 1);
+                    if distance[w_idx] < 0 {
+                        queue.push_back(w_idx);
+                        distance[w_idx] = dist_v + 1;
                     }
 
                     // Shortest path to w via v?
-                    if distance[&w] == distance[&v] + 1 {
-                        let sigma_w = sigma[&w] + sigma[&v];
-                        sigma.insert(w, sigma_w);
-                        predecessors.get_mut(&w).unwrap().push(v);
+                    if distance[w_idx] == dist_v + 1 {
+                        sigma[w_idx] += sigma_v;
+                        predecessors[w_idx].push(v_idx);
                     }
                 }
             }
         }
 
         // Accumulation: back-propagation of dependencies
-        let mut delta: FxHashMap<u64, f64> = FxHashMap::default();
-        for &node_id in &node_ids {
-            delta.insert(node_id, 0.0);
-        }
-
-        // S returns vertices in order of non-increasing distance from source
-        while let Some(w) = stack.pop() {
-            for &v in &predecessors[&w] {
-                let contribution = (sigma[&v] / sigma[&w]) * (1.0 + delta[&w]);
-                let delta_v = delta[&v] + contribution;
-                delta.insert(v, delta_v);
+        while let Some(w_idx) = stack.pop() {
+            let delta_w = delta[w_idx];
+            let sigma_w = sigma[w_idx];
+            
+            for &v_idx in &predecessors[w_idx] {
+                delta[v_idx] += (sigma[v_idx] / sigma_w) * (1.0 + delta_w);
             }
 
-            if w != source {
-                let betweenness_w = betweenness[&w] + delta[&w];
-                betweenness.insert(w, betweenness_w);
+            if w_idx != source_idx {
+                betweenness[w_idx] += delta_w;
             }
         }
     }
 
     // Normalization
     // For undirected graphs, divide by 2 since each shortest path is counted twice
-    // For directed graphs, no division needed
     if !graph.is_directed() {
-        for value in betweenness.values_mut() {
+        for value in betweenness.iter_mut() {
             *value /= 2.0;
         }
     }
@@ -116,12 +119,19 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
             2.0 / ((n - 1) * (n - 2)) as f64
         };
 
-        for value in betweenness.values_mut() {
+        for value in betweenness.iter_mut() {
             *value *= normalization;
         }
     }
 
-    Ok(betweenness)
+    // Convert back to HashMap with node IDs
+    let result: FxHashMap<u64, f64> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, betweenness[idx]))
+        .collect();
+
+    Ok(result)
 }
 
 /// Calculate PageRank for all nodes
