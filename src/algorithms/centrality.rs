@@ -140,6 +140,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
 /// Time complexity: O(iterations × edges) instead of O(iterations × nodes²)
 #[pyfunction]
 #[pyo3(signature = (graph, damping=0.85, max_iter=100, tol=1e-6))]
+#[inline]
 pub fn pagerank(
     graph: &Graph,
     damping: f64,
@@ -153,22 +154,33 @@ pub fn pagerank(
 
     let node_ids: Vec<u64> = graph.get_node_ids();
 
+    // Build node_id -> index mapping for dense array access (cache-friendly)
+    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
+    node_to_idx.reserve(n);
+    for (idx, &node_id) in node_ids.iter().enumerate() {
+        node_to_idx.insert(node_id, idx);
+    }
+
     // Build incoming edges map: target -> [(source, weight)]
     // This is the transpose of the adjacency list
     let mut incoming_edges: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-    let mut out_degree: FxHashMap<u64, usize> = FxHashMap::default();
+    incoming_edges.reserve(n);
 
-    // Initialize all nodes in incoming_edges
+    // Use Vec for out_degree (dense array is faster than HashMap for hot path)
+    let mut out_degree: Vec<usize> = vec![0; n];
+
+    // Initialize all nodes in incoming_edges with capacity hints
     for &node_id in &node_ids {
-        incoming_edges.insert(node_id, Vec::new());
-        out_degree.insert(node_id, 0);
+        incoming_edges.insert(node_id, Vec::with_capacity(8)); // Preallocate typical size
     }
 
     // Build transpose: for each edge u->v, add u to v's incoming list
     for &source_node in &node_ids {
         if let Ok(neighbors) = graph.neighbors(source_node) {
             let degree = neighbors.len();
-            out_degree.insert(source_node, degree);
+            if let Some(&source_idx) = node_to_idx.get(&source_node) {
+                out_degree[source_idx] = degree;
+            }
 
             for &target_node in &neighbors {
                 if let Some(incoming) = incoming_edges.get_mut(&target_node) {
@@ -178,55 +190,42 @@ pub fn pagerank(
         }
     }
 
-    // Initialize ranks
-    let mut ranks = FxHashMap::default();
-    let mut new_ranks = FxHashMap::default();
-    let initial_rank = 1.0 / n as f64;
+    // Use dense Vec arrays for ranks (better cache locality than HashMap)
+    let mut ranks: Vec<f64> = vec![1.0 / n as f64; n];
+    let mut new_ranks: Vec<f64> = vec![0.0; n];
 
-    for &node_id in &node_ids {
-        ranks.insert(node_id, initial_rank);
-        new_ranks.insert(node_id, 0.0);
-    }
-
-    // Power iteration
+    // Hoist invariant computation outside loop
     let base_rank = (1.0 - damping) / n as f64;
-
     for _iter in 0..max_iter {
-        // Reset new_ranks
-        for value in new_ranks.values_mut() {
-            *value = base_rank;
-        }
+        // Reset new_ranks using fast slice fill
+        new_ranks.fill(base_rank);
 
         // Sum contributions from incoming edges
-        for &node_id in &node_ids {
+        for (idx, &node_id) in node_ids.iter().enumerate() {
             if let Some(incoming) = incoming_edges.get(&node_id) {
                 let mut rank_sum = 0.0;
 
+                // Hot loop: optimized for cache locality and branch prediction
                 for &source_node in incoming {
-                    if let Some(&source_rank) = ranks.get(&source_node) {
-                        if let Some(&out_deg) = out_degree.get(&source_node) {
-                            if out_deg > 0 {
-                                rank_sum += source_rank / out_deg as f64;
-                            }
+                    if let Some(&source_idx) = node_to_idx.get(&source_node) {
+                        let out_deg = out_degree[source_idx];
+                        if out_deg > 0 {
+                            rank_sum += ranks[source_idx] / out_deg as f64;
                         }
                     }
                 }
 
-                if let Some(new_rank) = new_ranks.get_mut(&node_id) {
-                    *new_rank += damping * rank_sum;
-                }
+                new_ranks[idx] += damping * rank_sum;
             }
         }
 
-        // Check convergence using L1 norm
-        let mut delta = 0.0;
-        for &node_id in &node_ids {
-            let old = ranks.get(&node_id).unwrap_or(&0.0);
-            let new = new_ranks.get(&node_id).unwrap_or(&0.0);
-            delta += (new - old).abs();
-        }
+        // Check convergence using L1 norm - vectorized iteration
+        let delta: f64 = ranks.iter()
+            .zip(new_ranks.iter())
+            .map(|(old, new)| (new - old).abs())
+            .sum();
 
-        // Swap ranks
+        // Swap ranks (zero-cost with move semantics)
         std::mem::swap(&mut ranks, &mut new_ranks);
 
         // Early exit if converged
@@ -236,14 +235,22 @@ pub fn pagerank(
     }
 
     // Normalize ranks to sum to 1.0
-    let sum: f64 = ranks.values().sum();
+    let sum: f64 = ranks.iter().sum();
     if sum > 0.0 {
-        for rank in ranks.values_mut() {
-            *rank /= sum;
+        let inv_sum = 1.0 / sum; // Multiplication is faster than division
+        for rank in ranks.iter_mut() {
+            *rank *= inv_sum;
         }
     }
 
-    Ok(ranks)
+    // Convert Vec back to HashMap with node_id keys
+    let mut result = FxHashMap::default();
+    result.reserve(n);
+    for (idx, &node_id) in node_ids.iter().enumerate() {
+        result.insert(node_id, ranks[idx]);
+    }
+
+    Ok(result)
 }
 
 #[cfg(test)]

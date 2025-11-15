@@ -51,6 +51,7 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 strip = true
+panic = "abort"  # Remove panic unwinding code for better performance
 
 [profile.dev]
 opt-level = 0
