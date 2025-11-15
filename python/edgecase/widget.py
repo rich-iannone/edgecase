@@ -119,7 +119,7 @@ class GraphWidget:
     G.add_edge(source='C', target='A')
 
     widget = GraphWidget(G)
-    widget.show()
+    # widget.show()
     ```
 
     With community detection:
@@ -139,7 +139,7 @@ class GraphWidget:
 
     G.get_cmty_louvain(attr_name="community")
     widget = GraphWidget(G)
-    widget.show()
+    # widget.show()
     ```
 
     Custom aesthetics:
@@ -162,7 +162,7 @@ class GraphWidget:
     G.set_node_attrs(node_attr="size", values=sizes)
 
     widget = GraphWidget(G)
-    widget.show()
+    # widget.show()
     ```
     """
 
@@ -908,7 +908,7 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     G.add_edge(source='B', target='C')
 
     widget = graph_widget(G)
-    widget.show()
+    # widget.show()
     ```
 
     With community detection:
@@ -928,7 +928,7 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
 
     G.get_cmty_louvain(attr_name="community")
     widget = graph_widget(G)
-    widget.show()
+    # widget.show()
     ```
     """
     return GraphWidget(graph, **kwargs)

@@ -15226,10 +15226,9 @@ class Graph:
         >>> G.add_node(label="C")
         >>> G.add_edge(source="A", target="B")
         >>> G.add_edge(source="B", target="C")
-        >>> G.show()  # Auto-detects notebook vs browser
-
-        >>> G.show(target="browser")  # Force browser
-        >>> G.show(target="notebook")  # Force notebook display
+        >>> # G.show()  # Auto-detects notebook vs browser
+        >>> # G.show(target="browser")  # Force browser
+        >>> # G.show(target="notebook")  # Force notebook display
         """
         from edgecase.viz import plot_graph
 
