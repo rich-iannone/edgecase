@@ -32,6 +32,7 @@ impl PartialOrd for State {
 
 /// Find shortest path between two nodes
 #[pyfunction]
+#[inline]
 pub fn shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option<Vec<u64>>> {
     // Check if nodes exist
     if !graph.has_node_id(source) || !graph.has_node_id(target) {
@@ -47,10 +48,12 @@ pub fn shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
 }
 
 /// Dijkstra's algorithm for weighted graphs
+#[inline]
 fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option<Vec<u64>>> {
     let node_ids = graph.get_node_ids();
-    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
-    let mut idx_to_node: Vec<u64> = Vec::new();
+    let n = node_ids.len();
+    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut idx_to_node: Vec<u64> = Vec::with_capacity(n);
 
     // Build node index mappings
     for (idx, &node_id) in node_ids.iter().enumerate() {
@@ -106,7 +109,7 @@ fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<O
         return Ok(None);
     }
 
-    let mut path = Vec::new();
+    let mut path = Vec::with_capacity(n / 10);
     let mut current = target_idx;
 
     while let Some(p) = prev[current] {
@@ -120,11 +123,13 @@ fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<O
 }
 
 /// BFS for unweighted graphs
+#[inline]
 fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option<Vec<u64>>> {
     // Simple BFS for unweighted graphs
-    let mut queue = VecDeque::new();
-    let mut visited = FxHashMap::default();
-    let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
+    let n = graph.num_nodes();
+    let mut queue = VecDeque::with_capacity(n);
+    let mut visited = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut parent: FxHashMap<u64, u64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     queue.push_back(source);
     visited.insert(source, true);
@@ -132,7 +137,8 @@ fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
     while let Some(current) = queue.pop_front() {
         if current == target {
             // Reconstruct path
-            let mut path = vec![current];
+            let mut path = Vec::with_capacity(n / 10);
+            path.push(current);
             let mut node = current;
 
             while let Some(&p) = parent.get(&node) {
@@ -164,6 +170,7 @@ fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
 /// Returns (path, distance) tuple, or None if target is unreachable
 /// Returns error if a negative cycle is detected
 #[pyfunction]
+#[inline]
 pub fn bellman_ford_shortest_path(
     graph: &Graph,
     source: u64,
@@ -175,8 +182,9 @@ pub fn bellman_ford_shortest_path(
     }
 
     let node_ids = graph.get_node_ids();
-    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
-    let mut idx_to_node: Vec<u64> = Vec::new();
+    let n = node_ids.len();
+    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut idx_to_node: Vec<u64> = Vec::with_capacity(n);
 
     // Build node index mappings
     for (idx, &node_id) in node_ids.iter().enumerate() {
@@ -256,7 +264,7 @@ pub fn bellman_ford_shortest_path(
     }
 
     // Reconstruct path
-    let mut path = Vec::new();
+    let mut path = Vec::with_capacity(n / 10);
     let mut current = target_idx;
 
     while let Some(p) = prev[current] {
