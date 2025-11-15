@@ -29,6 +29,7 @@ use rustc_hash::FxHashMap;
 /// HashMap of node_id -> dominance score, along with sigma value and convergence status
 #[pyfunction]
 #[pyo3(signature = (graph, sigma=None, alpha=0.95, dt=0.1, epsilon=1e-5, max_iter=1000, patience=10, max_depth=50))]
+#[inline]
 pub fn domirank(
     graph: &Graph,
     sigma: Option<f64>,
@@ -69,8 +70,8 @@ pub fn domirank(
     }
 
     // Build adjacency structure with degrees
-    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-    let mut degrees: FxHashMap<u64, f64> = FxHashMap::default();
+    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
+    let mut degrees: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
 
     for &node_id in &node_ids {
         let neighbors = graph.neighbors(node_id).unwrap_or_default();
@@ -125,6 +126,7 @@ pub fn domirank(
 ///
 /// # Returns
 /// (dominance scores, converged flag)
+#[inline]
 fn domirank_iterative(
     adj_list: &FxHashMap<u64, Vec<u64>>,
     degrees: &FxHashMap<u64, f64>,
@@ -137,20 +139,24 @@ fn domirank_iterative(
     let num_nodes = degrees.len();
 
     // Initialize psi with small uniform values
-    let mut psi: FxHashMap<u64, f64> = FxHashMap::default();
+    let mut psi: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
+    let initial_val = 1.0 / (num_nodes as f64);
     for &node_id in degrees.keys() {
-        psi.insert(node_id, 1.0 / (num_nodes as f64));
+        psi.insert(node_id, initial_val);
     }
 
     // Track convergence
-    let mut max_vals: Vec<f64> = Vec::with_capacity(max_iter / patience);
+    let mut max_vals: Vec<f64> = Vec::with_capacity(max_iter / patience + 1);
     let boundary = epsilon * (num_nodes as f64) * dt;
+
+    // Preallocate new_psi outside loop for swap optimization
+    let mut new_psi: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
 
     for i in 0..max_iter {
         // Compute update: temp_val = σ(d - A·psi) - psi
         let mut max_temp_val: f64 = 0.0;
         let mut sum_abs_temp_val = 0.0;
-        let mut new_psi: FxHashMap<u64, f64> = FxHashMap::default();
+        new_psi.clear();
 
         for (&node_id, &degree) in degrees.iter() {
             let current_psi = *psi.get(&node_id).unwrap_or(&0.0);
@@ -176,7 +182,8 @@ fn domirank_iterative(
             sum_abs_temp_val += temp_val.abs();
         }
 
-        psi = new_psi;
+        // Swap instead of reassignment to avoid allocation
+        std::mem::swap(&mut psi, &mut new_psi);
 
         // Check convergence periodically
         if i % patience == 0 {
@@ -220,6 +227,7 @@ fn domirank_iterative(
 ///
 /// # Returns
 /// Smallest (most negative) eigenvalue
+#[inline]
 fn find_smallest_eigenvalue(
     adj_list: &FxHashMap<u64, Vec<u64>>,
     degrees: &FxHashMap<u64, f64>,
