@@ -157,8 +157,7 @@ class GraphWidget:
     # Size nodes by degree
     for node_id in G.node_ids(limit=None):
         degree = G.get_degree(node=node_id)
-        node = G.get_node(node=node_id)
-        node.attributes["size"] = degree * 0.5
+        G.set_node_attr(node_id=node_id, attr="size", value=degree * 0.5)
 
     widget = GraphWidget(G)
     widget.show()
