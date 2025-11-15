@@ -5092,10 +5092,15 @@ class Graph:
         # Graph with 2 triangles sharing an edge
         graph = (
             Graph()
-            .add_edges([
-                ("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
-                ("B", "D"), ("D", "C")  # Triangle 2 with B-C
-            ])
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Triangle 1
+            .add_edge(source="B", target="D")
+            .add_edge(source="D", target="C")  # Triangle 2 with B-C
         )
 
         counts = graph.count_triangles()
@@ -5132,10 +5137,15 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_edges([
-                ("A", "B"), ("B", "C"), ("C", "A"),  # One triangle
-                ("A", "D"), ("D", "B")  # Another triangle
-            ])
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # One triangle
+            .add_edge(source="A", target="D")
+            .add_edge(source="D", target="B")  # Another triangle
         )
 
         triangles = graph.list_triangles()
@@ -5146,10 +5156,18 @@ class Graph:
 
         ```python
         # Social network
-        graph = Graph().add_edges([
-            ("Alice", "Bob"), ("Bob", "Charlie"), ("Charlie", "Alice"),
-            ("Alice", "David"), ("David", "Bob")
-        ])
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+            .add_node(label="David")
+            .add_edge(source="Alice", target="Bob")
+            .add_edge(source="Bob", target="Charlie")
+            .add_edge(source="Charlie", target="Alice")
+            .add_edge(source="Alice", target="David")
+            .add_edge(source="David", target="Bob")
+        )
 
         for tri in graph.list_triangles():
             print(f"Triangle: {tri}")
@@ -5475,10 +5493,15 @@ class Graph:
 
         ```python
         # Check if graph is a simple graph (no multiple edges)
-        g = Graph(directed=False)
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
-        g.add_edge("C", "A")
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
 
         is_simple = len(g.which_multiple()) == 0
         is_simple
@@ -5489,11 +5512,16 @@ class Graph:
 
         ```python
         # Social network with multiple interactions
-        social = Graph(directed=True)
-        social.add_edge("User1", "User2", interaction="like")
-        social.add_edge("User1", "User2", interaction="comment")
-        social.add_edge("User1", "User2", interaction="share")
-        social.add_edge("User2", "User3", interaction="like")
+        social = (
+            Graph(directed=True)
+            .add_node(label="User1")
+            .add_node(label="User2")
+            .add_node(label="User3")
+            .add_edge(source="User1", target="User2", interaction="like")
+            .add_edge(source="User1", target="User2", interaction="comment")
+            .add_edge(source="User1", target="User2", interaction="share")
+            .add_edge(source="User2", target="User3", interaction="like")
+        )
 
         # Find which edges represent multiple interactions
         multiple_edges = social.which_multiple()
@@ -5505,10 +5533,15 @@ class Graph:
         **Undirected Graph: Bidirectional Edges**
 
         ```python
-        g = Graph(directed=False)
-        g.add_edge("A", "B")
-        g.add_edge("A", "B")  # Duplicate in undirected graph
-        g.add_edge("B", "C")
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="B")  # Duplicate in undirected graph
+            .add_edge(source="B", target="C")
+        )
 
         multiples = g.which_multiple()
         len(multiples)
@@ -7201,9 +7234,17 @@ class Graph:
         Random walk on directed graph:
 
         ```python
-        graph = Graph(directed=True)
-        graph.add_nodes_from(["A", "B", "C", "D"])
-        graph.add_edges_from([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="A")
+        )
 
         # Follow edge directions
         path = graph.random_walk("A", steps=10, mode="out", seed=42)
@@ -7215,8 +7256,14 @@ class Graph:
         Handle stuck situations:
 
         ```python
-        graph = Graph(directed=True)
-        graph.add_edges_from([("A", "B"), ("B", "C")])  # C has no outgoing edges
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")  # C has no outgoing edges
+        )
 
         # Return partial walk when stuck
         path = graph.random_walk("A", steps=10, stuck="return")
@@ -7300,8 +7347,15 @@ class Graph:
         Track edges in a random walk:
 
         ```python
-        graph = Graph()
-        graph.add_edges_from([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
 
         edges = graph.random_edge_walk("A", steps=5, seed=42)
 
@@ -7885,22 +7939,26 @@ class Graph:
 
         Compare sparsity for different stretch values:
 
-        >>> import networkx as nx
-        >>> # Create a random graph
-        >>> nx_g = nx.erdos_renyi_graph(50, 0.1, seed=42)
-        >>> g = Graph()
-        >>> for node in nx_g.node_ids(limit=None):
-        ...     g.add_node(label=str(node))
-        >>> for u, v in nx_g.edges():
-        ...     g.add_edge(str(u), str(v))
-        >>>
-        >>> original_edges = g.num_edges()
-        >>> spanner2 = g.transform_with_spanner(stretch=2.0, seed=42)
-        >>> spanner3 = g.transform_with_spanner(stretch=3.0, seed=42)
-        >>>
-        >>> # Higher stretch → fewer edges
-        >>> spanner3.num_edges() < spanner2.num_edges() < original_edges
-        True
+        ```python
+        import networkx as nx
+        from edgecase import Graph
+
+        # Create a random graph
+        nx_g = nx.erdos_renyi_graph(50, 0.1, seed=42)
+        g = Graph()
+        for node in nx_g.nodes():
+            g.add_node(label=str(node))
+        for u, v in nx_g.edges():
+            g.add_edge(source=str(u), target=str(v))
+
+        original_edges = g.num_edges()
+        spanner2 = g.transform_with_spanner(stretch=2.0, seed=42)
+        spanner3 = g.transform_with_spanner(stretch=3.0, seed=42)
+
+        # Higher stretch → fewer edges
+        result = spanner3.num_edges() < spanner2.num_edges() < original_edges
+        print(result)  # True
+        ```
 
         Extract network backbone for visualization:
 
@@ -8044,8 +8102,13 @@ class Graph:
         from edgecase import karate_club
         G = karate_club()
 
+        # Get actual node IDs (karate_club uses integer IDs)
+        node_ids = list(G.node_ids())
+        first_node = node_ids[0]
+        last_node = node_ids[-1]
+
         # Limit to 10000 trails to avoid long computation
-        count = G.count_trails("1", "34", max_trails=10000)
+        count = G.count_trails(first_node, last_node, max_trails=10000)
         if count is None:
             print("More than 10,000 trails exist")
         else:
@@ -9543,7 +9606,7 @@ class Graph:
 
         (graph
             .get_hub_centrality(attr_name="hub")
-            .rescale_node_attrs(attr_name="hub", node_attr_to="size")
+            .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
             .show())
         ```
 
@@ -9631,7 +9694,7 @@ class Graph:
 
         (graph
             .get_eigen_centrality(attr_name="centrality")
-            .scale_node_attrs(attr_name="centrality", node_attr_to="size", range=(0.5, 2.0))
+            .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", to_lower_bound=0.5, to_upper_bound=2.0)
             .show())
         ```
 
@@ -9808,8 +9871,16 @@ class Graph:
         import edgecase as ec
 
         # Create star: center connected to 3 leaves
-        g = ec.Graph(directed=True)
-        g.add_edges([("center", "leaf1"), ("center", "leaf2"), ("center", "leaf3")])
+        g = (
+            ec.Graph(directed=True)
+            .add_node(label="center")
+            .add_node(label="leaf1")
+            .add_node(label="leaf2")
+            .add_node(label="leaf3")
+            .add_edge(source="center", target="leaf1")
+            .add_edge(source="center", target="leaf2")
+            .add_edge(source="center", target="leaf3")
+        )
 
         # Cooperative: powerful neighbors increase your power
         power = g.get_bonacich_power_centrality(beta=0.1)
@@ -9853,7 +9924,7 @@ class Graph:
         g.add_edge(source="B", target="C")
         g.add_edge(source="B", target="D")
 
-        max_deg = max(g.get_degree_table()["degree"])
+        max_deg = max(g.get_degree(node=nid) for nid in g.node_ids())
         bonacich = g.get_bonacich_power_centrality(beta=0.9/max_deg)
         eigen = g.get_eigen_centrality()
         # Should be similar
@@ -10418,9 +10489,13 @@ class Graph:
         ```python
         graph = (
             Graph()
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
         )
 
         b_id = graph.get_id_from_label("B")
