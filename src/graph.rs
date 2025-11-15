@@ -3561,6 +3561,7 @@ impl Graph {
 
     /// Helper: Optimized BFS to compute distances from a start node
     /// Preallocates capacity for better performance
+    #[inline]
     fn bfs_distances_optimized(&self, start: u64) -> FxHashMap<u64, usize> {
         let n = self.num_nodes();
         let mut distances = FxHashMap::with_capacity_and_hasher(n, Default::default());
@@ -3592,6 +3593,7 @@ impl Graph {
     }
 
     /// Helper: Optimized BFS excluding a specific node
+    #[inline]
     fn bfs_distances_excluding_optimized(&self, start: u64, excluded: u64) -> FxHashMap<u64, usize> {
         let n = self.num_nodes();
         let mut distances = FxHashMap::with_capacity_and_hasher(n, Default::default());
