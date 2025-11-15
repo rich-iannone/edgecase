@@ -11,6 +11,7 @@ use rustc_hash::FxHashMap;
 ///
 /// Optimized with array-based storage for better cache locality
 #[pyfunction]
+#[inline]
 pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     use std::collections::VecDeque;
 
@@ -22,11 +23,10 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     }
 
     // Create node_id to index mapping for array-based storage
-    let node_to_idx: FxHashMap<u64, usize> = node_ids
-        .iter()
-        .enumerate()
-        .map(|(idx, &node_id)| (node_id, idx))
-        .collect();
+    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for (idx, &node_id) in node_ids.iter().enumerate() {
+        node_to_idx.insert(node_id, idx);
+    }
 
     // Initialize betweenness centrality (use vec for better cache locality)
     let mut betweenness: Vec<f64> = vec![0.0; n];
@@ -104,14 +104,15 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     // Normalization
     // For undirected graphs, divide by 2 since each shortest path is counted twice
     if !graph.is_directed() {
+        let half = 0.5;
         for value in betweenness.iter_mut() {
-            *value /= 2.0;
+            *value *= half;
         }
     }
 
     // Normalization to match NetworkX:
-    // - For undirected graphs: divide by ((n-1)*(n-2))/2
-    // - For directed graphs: divide by (n-1)*(n-2)
+    // - For undirected graphs: multiply by 2.0 / ((n-1)*(n-2))
+    // - For directed graphs: multiply by 1.0 / (n-1)*(n-2)
     if n > 2 {
         let normalization = if graph.is_directed() {
             1.0 / ((n - 1) * (n - 2)) as f64
@@ -125,11 +126,10 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     }
 
     // Convert back to HashMap with node IDs
-    let result: FxHashMap<u64, f64> = node_ids
-        .iter()
-        .enumerate()
-        .map(|(idx, &node_id)| (node_id, betweenness[idx]))
-        .collect();
+    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for (idx, &node_id) in node_ids.iter().enumerate() {
+        result.insert(node_id, betweenness[idx]);
+    }
 
     Ok(result)
 }

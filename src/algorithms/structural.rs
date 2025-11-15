@@ -16,11 +16,14 @@ use std::collections::HashSet;
 ///
 /// Time complexity: O(m * d_max) where d_max is maximum degree
 /// Space complexity: O(n) for the result map
+#[inline]
 pub fn count_triangles(graph: &Graph) -> FxHashMap<u64, usize> {
-    let mut triangle_count: FxHashMap<u64, usize> = FxHashMap::default();
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    let mut triangle_count: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     // Initialize all nodes to 0
-    for &node_id in graph.get_node_ids().iter() {
+    for &node_id in node_ids.iter() {
         triangle_count.insert(node_id, 0);
     }
 
@@ -38,16 +41,19 @@ pub fn count_triangles(graph: &Graph) -> FxHashMap<u64, usize> {
 /// Count triangles in undirected graphs
 /// Uses the NodeIterator algorithm: for each edge (u,v), count common neighbors
 /// OPTIMIZED: Uses FxHashSet and node ordering to avoid double-counting
+#[inline]
 fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64, usize>) {
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
     // Convert adjacency list to FxHashSet for fast lookup (faster than std::HashSet)
-    let adj_sets: FxHashMap<u64, FxHashSet<u64>> = graph.get_node_ids()
-        .iter()
-        .filter_map(|&node_id| {
-            graph.neighbors(node_id).ok().map(|neighbors| {
-                (node_id, neighbors.into_iter().collect::<FxHashSet<u64>>())
-            })
-        })
-        .collect();
+    let mut adj_sets: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for &node_id in node_ids.iter() {
+        if let Ok(neighbors) = graph.neighbors(node_id) {
+            let neighbor_set: FxHashSet<u64> = neighbors.into_iter().collect();
+            adj_sets.insert(node_id, neighbor_set);
+        }
+    }
 
     // Process each edge, but only count triangles once by enforcing u < v < w ordering
     // This eliminates the need for a seen_triangles HashSet
@@ -74,6 +80,7 @@ fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64,
 
 /// Count triangles in directed graphs
 /// Counts closed triplets where edges form a cycle
+#[inline]
 fn count_triangles_directed(graph: &Graph, triangle_count: &mut FxHashMap<u64, usize>) {
     let nodes = graph.get_node_ids();
 
@@ -262,11 +269,15 @@ fn transitivity_directed(graph: &Graph) -> Option<f64> {
 /// For directed graphs: C(v) = triangles(v) / (out_degree(v) * (out_degree(v) - 1))
 ///
 /// Returns None for nodes with degree < 2 (no triangles possible)
+#[inline]
 pub fn local_clustering_coefficient(graph: &Graph) -> FxHashMap<u64, Option<f64>> {
     let triangle_counts = count_triangles(graph);
-    let mut clustering: FxHashMap<u64, Option<f64>> = FxHashMap::default();
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    let mut clustering: FxHashMap<u64, Option<f64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let is_directed = graph.is_directed();
 
-    for &node_id in graph.get_node_ids().iter() {
+    for &node_id in node_ids.iter() {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             let degree = neighbors.len();
 
@@ -276,15 +287,18 @@ pub fn local_clustering_coefficient(graph: &Graph) -> FxHashMap<u64, Option<f64>
             }
 
             let triangles = triangle_counts.get(&node_id).copied().unwrap_or(0);
+            let triangles_f64 = triangles as f64;
 
-            if graph.is_directed() {
+            if is_directed {
                 // Directed: triangles / (degree * (degree - 1))
-                let denominator = degree * (degree - 1);
-                clustering.insert(node_id, Some(triangles as f64 / denominator as f64));
+                let denominator = (degree * (degree - 1)) as f64;
+                let inv_denominator = 1.0 / denominator;
+                clustering.insert(node_id, Some(triangles_f64 * inv_denominator));
             } else {
-                // Undirected: triangles / C(degree, 2)
-                let denominator = degree * (degree - 1) / 2;
-                clustering.insert(node_id, Some(triangles as f64 / denominator as f64));
+                // Undirected: triangles / C(degree, 2) = 2 * triangles / (degree * (degree - 1))
+                let denominator = (degree * (degree - 1)) as f64;
+                let inv_denominator = 2.0 / denominator;
+                clustering.insert(node_id, Some(triangles_f64 * inv_denominator));
             }
         } else {
             clustering.insert(node_id, None);
