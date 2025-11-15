@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 ///
 /// Brandes, U. (2001). A faster algorithm for betweenness centrality.
 /// Journal of Mathematical Sociology, 25(2), 163-177.
-/// 
+///
 /// Optimized with array-based storage for better cache locality
 #[pyfunction]
 pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
@@ -42,7 +42,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     // For each node as source
     for &source in &node_ids {
         let source_idx = node_to_idx[&source];
-        
+
         // Clear reusable data structures
         stack.clear();
         for pred in predecessors.iter_mut() {
@@ -67,10 +67,10 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
             if let Ok(neighbors) = graph.neighbors(v) {
                 let dist_v = distance[v_idx];
                 let sigma_v = sigma[v_idx];
-                
+
                 for w in neighbors {
                     let w_idx = node_to_idx[&w];
-                    
+
                     // First time we see w?
                     if distance[w_idx] < 0 {
                         queue.push_back(w_idx);
@@ -90,7 +90,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
         while let Some(w_idx) = stack.pop() {
             let delta_w = delta[w_idx];
             let sigma_w = sigma[w_idx];
-            
+
             for &v_idx in &predecessors[w_idx] {
                 delta[v_idx] += (sigma[v_idx] / sigma_w) * (1.0 + delta_w);
             }

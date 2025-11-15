@@ -125,43 +125,37 @@ pub fn list_triangles(graph: &Graph) -> Vec<(u64, u64, u64)> {
 }
 
 /// List triangles in undirected graphs
-/// Optimized node-iterator with adjacency sets
-/// Ensures u < v < w ordering to avoid duplicates
+/// Compact forward algorithm with sorted adjacency lists
 fn list_triangles_undirected(
     graph: &Graph,
     triangles: &mut Vec<(u64, u64, u64)>,
 ) {
-    // Pre-build adjacency sets for O(1) lookups
-    let adj_sets: FxHashMap<u64, FxHashSet<u64>> = graph.get_node_ids()
-        .iter()
-        .filter_map(|&node_id| {
-            graph.neighbors(node_id).ok().map(|neighbors| {
-                (node_id, neighbors.into_iter().collect())
-            })
-        })
-        .collect();
+    let node_ids = graph.get_node_ids();
 
-    let nodes: Vec<u64> = graph.get_node_ids().iter().copied().collect();
-
-    // For each node u, iterate over pairs of its neighbors
-    for i in 0..nodes.len() {
-        let u = nodes[i];
-
-        if let Some(u_neighbors) = adj_sets.get(&u) {
-            let neighbors: Vec<u64> = u_neighbors.iter().copied()
-                .filter(|&v| v > u)  // Only consider neighbors with ID > u
+    // Build sorted adjacency lists
+    let mut adj_lists: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+    for &node_id in node_ids.iter() {
+        if let Ok(neighbors) = graph.neighbors(node_id) {
+            let mut sorted_neighbors: Vec<u64> = neighbors.into_iter()
+                .filter(|&n| n > node_id)  // Only keep neighbors with higher IDs
                 .collect();
+            sorted_neighbors.sort_unstable();
+            if !sorted_neighbors.is_empty() {
+                adj_lists.insert(node_id, sorted_neighbors);
+            }
+        }
+    }
 
-            // Check all pairs of neighbors
-            for j in 0..neighbors.len() {
-                let v = neighbors[j];
-
-                if let Some(v_neighbors) = adj_sets.get(&v) {
-                    for k in (j + 1)..neighbors.len() {
-                        let w = neighbors[k];
-
-                        // Check if edge (v, w) exists - if so, triangle found
-                        if v_neighbors.contains(&w) {
+    // For each node u with neighbors
+    for &u in node_ids.iter() {
+        if let Some(u_neighbors) = adj_lists.get(&u) {
+            // For each pair of neighbors (v, w) where v < w
+            for (i, &v) in u_neighbors.iter().enumerate() {
+                if let Some(v_neighbors) = adj_lists.get(&v) {
+                    // Only check w's that are after v in u's neighbor list
+                    for &w in &u_neighbors[i+1..] {
+                        // Binary search for w in v's sorted neighbor list
+                        if v_neighbors.binary_search(&w).is_ok() {
                             triangles.push((u, v, w));
                         }
                     }
