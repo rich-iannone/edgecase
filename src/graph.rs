@@ -3855,8 +3855,8 @@ impl Graph {
         // Preallocate HashMaps with capacity for better performance
         let mut authorities: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut hubs: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut prev_authorities: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut prev_hubs: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut new_authorities: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut new_hubs: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         // Initialize all scores to 1.0
         for &id in self.nodes.keys() {
@@ -3865,11 +3865,9 @@ impl Graph {
         }
 
         for _ in 0..max_iter {
-            // Use swap instead of clone for zero-cost move (same as Alpha Centrality optimization)
-            std::mem::swap(&mut authorities, &mut prev_authorities);
-            std::mem::swap(&mut hubs, &mut prev_hubs);
-            authorities.clear();
-            hubs.clear();
+            // Clear new maps for this iteration
+            new_authorities.clear();
+            new_hubs.clear();
 
             // Update authority scores: sum of hub scores of incoming neighbors
             for &node in self.nodes.keys() {
@@ -3877,10 +3875,10 @@ impl Graph {
                 // Find all nodes that point to this node
                 for (&source, targets) in &self.adjacency_list {
                     if targets.contains(&node) {
-                        auth_score += prev_hubs.get(&source).unwrap_or(&0.0);
+                        auth_score += hubs.get(&source).unwrap_or(&0.0);
                     }
                 }
-                authorities.insert(node, auth_score);
+                new_authorities.insert(node, auth_score);
             }
 
             // Update hub scores: sum of authority scores of outgoing neighbors
@@ -3888,40 +3886,45 @@ impl Graph {
                 let mut hub_score = 0.0;
                 if let Some(neighbors) = self.adjacency_list.get(&node) {
                     for &neighbor in neighbors {
-                        hub_score += prev_authorities.get(&neighbor).unwrap_or(&0.0);
+                        hub_score += authorities.get(&neighbor).unwrap_or(&0.0);
                     }
                 }
-                hubs.insert(node, hub_score);
+                new_hubs.insert(node, hub_score);
             }
 
             // Normalize using multiplication instead of division
-            let auth_norm: f64 = authorities.values().map(|&v| v * v).sum::<f64>().sqrt();
-            let hub_norm: f64 = hubs.values().map(|&v| v * v).sum::<f64>().sqrt();
+            let auth_norm: f64 = new_authorities.values().map(|&v| v * v).sum::<f64>().sqrt();
+            let hub_norm: f64 = new_hubs.values().map(|&v| v * v).sum::<f64>().sqrt();
 
             if auth_norm > 0.0 {
                 let inv_auth_norm = 1.0 / auth_norm;
-                for val in authorities.values_mut() {
+                for val in new_authorities.values_mut() {
                     *val *= inv_auth_norm;
                 }
             }
             if hub_norm > 0.0 {
                 let inv_hub_norm = 1.0 / hub_norm;
-                for val in hubs.values_mut() {
+                for val in new_hubs.values_mut() {
                     *val *= inv_hub_norm;
                 }
             }
 
             // Check convergence
-            let auth_diff: f64 = authorities.iter()
-                .map(|(&k, &v)| (v - prev_authorities.get(&k).unwrap()).abs())
+            let auth_diff: f64 = new_authorities.iter()
+                .map(|(&k, &v)| (v - authorities.get(&k).unwrap()).abs())
                 .sum();
-            let hub_diff: f64 = hubs.iter()
-                .map(|(&k, &v)| (v - prev_hubs.get(&k).unwrap()).abs())
+            let hub_diff: f64 = new_hubs.iter()
+                .map(|(&k, &v)| (v - hubs.get(&k).unwrap()).abs())
                 .sum();
 
             if auth_diff < tol && hub_diff < tol {
-                break;
+                // Return the new values on convergence
+                return (new_authorities, new_hubs);
             }
+
+            // Swap for next iteration - zero-cost move
+            std::mem::swap(&mut authorities, &mut new_authorities);
+            std::mem::swap(&mut hubs, &mut new_hubs);
         }
 
         (authorities, hubs)
