@@ -2,7 +2,7 @@
 //! Includes triangle counting, clustering coefficients, and transitivity
 
 use crate::graph::Graph;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;
 
 /// Count triangles in the graph
@@ -113,51 +113,58 @@ fn count_triangles_directed(graph: &Graph, triangle_count: &mut FxHashMap<u64, u
 /// Space complexity: O(t) where t is the number of triangles
 pub fn list_triangles(graph: &Graph) -> Vec<(u64, u64, u64)> {
     let mut triangles = Vec::new();
-    let mut seen_triangles: HashSet<(u64, u64, u64)> = HashSet::new();
 
     if graph.is_directed() {
+        let mut seen_triangles: HashSet<(u64, u64, u64)> = HashSet::new();
         list_triangles_directed(graph, &mut triangles, &mut seen_triangles);
     } else {
-        list_triangles_undirected(graph, &mut triangles, &mut seen_triangles);
+        list_triangles_undirected(graph, &mut triangles);
     }
 
     triangles
 }
 
 /// List triangles in undirected graphs
+/// Optimized node-iterator with adjacency sets
+/// Ensures u < v < w ordering to avoid duplicates
 fn list_triangles_undirected(
     graph: &Graph,
     triangles: &mut Vec<(u64, u64, u64)>,
-    seen_triangles: &mut HashSet<(u64, u64, u64)>,
 ) {
-    // Convert adjacency list to HashSet for fast lookup
-    let adj_sets: FxHashMap<u64, HashSet<u64>> = graph.get_node_ids()
+    // Pre-build adjacency sets for O(1) lookups
+    let adj_sets: FxHashMap<u64, FxHashSet<u64>> = graph.get_node_ids()
         .iter()
         .filter_map(|&node_id| {
             graph.neighbors(node_id).ok().map(|neighbors| {
-                (node_id, neighbors.into_iter().collect::<HashSet<u64>>())
+                (node_id, neighbors.into_iter().collect())
             })
         })
         .collect();
 
-    // For each edge (u, v)
-    for (_, u, v) in graph.edges() {
-        // Find common neighbors of u and v (excluding u and v themselves)
-        if let (Some(u_neighbors), Some(v_neighbors)) = (adj_sets.get(&u), adj_sets.get(&v)) {
-            let common: Vec<_> = u_neighbors
-                .intersection(v_neighbors)
-                .filter(|&&w| w != u && w != v)  // Exclude the edge endpoints
+    let nodes: Vec<u64> = graph.get_node_ids().iter().copied().collect();
+
+    // For each node u, iterate over pairs of its neighbors
+    for i in 0..nodes.len() {
+        let u = nodes[i];
+
+        if let Some(u_neighbors) = adj_sets.get(&u) {
+            let neighbors: Vec<u64> = u_neighbors.iter().copied()
+                .filter(|&v| v > u)  // Only consider neighbors with ID > u
                 .collect();
 
-            // Each common neighbor w forms a triangle (u, v, w)
-            for &&w in &common {
-                // Sort to create canonical representation
-                let mut tri = vec![u, v, w];
-                tri.sort_unstable();
-                let triangle = (tri[0], tri[1], tri[2]);
+            // Check all pairs of neighbors
+            for j in 0..neighbors.len() {
+                let v = neighbors[j];
 
-                if seen_triangles.insert(triangle) {
-                    triangles.push(triangle);
+                if let Some(v_neighbors) = adj_sets.get(&v) {
+                    for k in (j + 1)..neighbors.len() {
+                        let w = neighbors[k];
+
+                        // Check if edge (v, w) exists - if so, triangle found
+                        if v_neighbors.contains(&w) {
+                            triangles.push((u, v, w));
+                        }
+                    }
                 }
             }
         }
