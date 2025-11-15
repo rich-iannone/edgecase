@@ -305,11 +305,13 @@ impl Graph {
     }
 
     /// Get the number of nodes
+    #[inline]
     pub fn num_nodes(&self) -> usize {
         self.nodes.len()
     }
 
     /// Get the number of edges
+    #[inline]
     pub fn num_edges(&self) -> usize {
         self.edges.len()
     }
@@ -1477,6 +1479,7 @@ impl Graph {
 
     /// Calculate graph density
     /// Density = actual edges / possible edges
+    #[inline]
     fn density(&self) -> f64 {
         let n = self.num_nodes();
         if n <= 1 {
@@ -1487,19 +1490,21 @@ impl Graph {
         let possible_edges = if self.directed {
             (n * (n - 1)) as f64
         } else {
-            (n * (n - 1) / 2) as f64
+            (n * (n - 1)) as f64 * 0.5
         };
 
         if possible_edges == 0.0 {
             0.0
         } else {
-            actual_edges / possible_edges
+            actual_edges * (1.0 / possible_edges)
         }
     }
 
     /// Check if graph is connected (for undirected) or weakly connected (for directed)
+    #[inline]
     fn is_connected(&self) -> bool {
-        if self.num_nodes() == 0 {
+        let n = self.num_nodes();
+        if n == 0 {
             return true;
         }
 
@@ -1509,8 +1514,9 @@ impl Graph {
             None => return true,
         };
 
-        let mut visited: FxHashSet<u64> = FxHashSet::default();
-        let mut queue: Vec<u64> = vec![start_node];
+        let mut visited: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        let mut queue: Vec<u64> = Vec::with_capacity(n);
+        queue.push(start_node);
         visited.insert(start_node);
 
         while let Some(current) = queue.pop() {
@@ -1538,6 +1544,7 @@ impl Graph {
     }
 
     /// Check if directed graph is a DAG (Directed Acyclic Graph)
+    #[inline]
     fn is_dag(&self) -> PyResult<bool> {
         if !self.directed {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -1545,8 +1552,9 @@ impl Graph {
             ));
         }
 
+        let n = self.num_nodes();
         // Use DFS with coloring: white (unvisited), gray (visiting), black (visited)
-        let mut color: FxHashMap<u64, u8> = FxHashMap::default();
+        let mut color: FxHashMap<u64, u8> = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for &node_id in self.nodes.keys() {
             color.insert(node_id, 0); // white
         }
@@ -1587,6 +1595,7 @@ impl Graph {
     }
 
     /// Check if graph is simple (no self-loops or multi-edges)
+    #[inline]
     fn is_simple(&self) -> bool {
         // Check for self-loops
         for edge in &self.edges {
@@ -1596,7 +1605,7 @@ impl Graph {
         }
 
         // Check for multi-edges
-        let mut seen_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
+        let mut seen_edges: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
         for edge in &self.edges {
             let edge_key = if self.directed {
                 (edge.source, edge.target)
@@ -1619,8 +1628,10 @@ impl Graph {
     }
 
     /// Get degree distribution as a map from degree to count
+    #[inline]
     fn degree_distribution(&self) -> FxHashMap<usize, usize> {
-        let mut distribution: FxHashMap<usize, usize> = FxHashMap::default();
+        let n = self.num_nodes();
+        let mut distribution: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         for &node_id in self.nodes.keys() {
             let deg = self.degree(node_id);
@@ -1631,12 +1642,14 @@ impl Graph {
     }
 
     /// Check if graph is bipartite using BFS coloring
+    #[inline]
     fn is_bipartite(&self) -> bool {
-        if self.num_nodes() == 0 {
+        let n = self.num_nodes();
+        if n == 0 {
             return true;
         }
 
-        let mut color: FxHashMap<u64, i8> = FxHashMap::default();
+        let mut color: FxHashMap<u64, i8> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         // Check all connected components
         for &start_node in self.nodes.keys() {
@@ -1645,7 +1658,8 @@ impl Graph {
             }
 
             // BFS coloring
-            let mut queue: Vec<u64> = vec![start_node];
+            let mut queue: Vec<u64> = Vec::with_capacity(n);
+            queue.push(start_node);
             color.insert(start_node, 0);
 
             while let Some(current) = queue.pop() {
@@ -1671,6 +1685,7 @@ impl Graph {
     }
 
     /// Count self-loops in the graph
+    #[inline]
     fn count_selfloops(&self) -> usize {
         self.edges
             .iter()
@@ -1680,8 +1695,9 @@ impl Graph {
 
     /// Count multi-edges (multiple edges between same node pair)
     /// Only counts parallel edges beyond the first one
+    #[inline]
     fn count_multi_edges(&self) -> usize {
-        let mut edge_pairs: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+        let mut edge_pairs: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(self.num_edges(), Default::default());
 
         for edge in &self.edges {
             *edge_pairs.entry((edge.source, edge.target)).or_insert(0) += 1;
@@ -5258,7 +5274,8 @@ impl Graph {
     /// # Returns: {"A": 2, "B": 1}
     /// ```
     pub fn count_loops(&self) -> PyResult<std::collections::HashMap<String, usize>> {
-        let mut loop_counts: std::collections::HashMap<u64, usize> = std::collections::HashMap::new();
+        let n = self.num_nodes();
+        let mut loop_counts: std::collections::HashMap<u64, usize> = std::collections::HashMap::with_capacity(n);
 
         // Count self-loops per node
         for edge in &self.edges {
@@ -5268,7 +5285,7 @@ impl Graph {
         }
 
         // Convert node IDs to labels
-        let mut result = std::collections::HashMap::new();
+        let mut result = std::collections::HashMap::with_capacity(loop_counts.len());
         for (node_id, count) in loop_counts.iter() {
             let label = self.nodes.get(node_id)
                 .and_then(|n| n.label.clone())
