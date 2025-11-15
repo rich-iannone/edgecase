@@ -3571,13 +3571,17 @@ impl Graph {
     /// Get k-core decomposition (coreness for each node)
     /// k-core is maximal subgraph where all nodes have degree >= k
     /// Coreness is the highest k for which a node belongs to the k-core
+    #[inline]
     fn get_coreness(&self) -> FxHashMap<u64, usize> {
-        let mut coreness = FxHashMap::default();
-        let mut degrees: FxHashMap<u64, usize> = self.nodes.keys()
-            .map(|&id| (id, self.degree(id)))
-            .collect();
+        let n = self.nodes.len();
+        let mut coreness: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for &id in self.nodes.keys() {
+            degrees.insert(id, self.degree(id));
+        }
 
-        let mut remaining: FxHashSet<u64> = self.nodes.keys().copied().collect();
+        let mut remaining: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        remaining.extend(self.nodes.keys().copied());
         let mut k = 0;
 
         while !remaining.is_empty() {
@@ -3591,7 +3595,7 @@ impl Graph {
             k = k.max(min_deg);
 
             // Remove all nodes with degree <= min_deg
-            let mut to_remove = Vec::new();
+            let mut to_remove = Vec::with_capacity(remaining.len());
             for &node in &remaining {
                 if *degrees.get(&node).unwrap() <= min_deg {
                     to_remove.push(node);
@@ -4179,6 +4183,7 @@ impl Graph {
     /// Generalization of eigenvector centrality with attenuation factor
     /// x = alpha * A * x + e
     /// where alpha is attenuation, A is adjacency matrix, e is exogenous factor
+    #[inline]
     fn get_alpha_centrality(&self, alpha: f64, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
@@ -4186,36 +4191,43 @@ impl Graph {
         }
 
         // Initialize centrality to 1.0 for all nodes
-        let mut centrality: FxHashMap<u64, f64> = self.nodes.keys()
-            .map(|&id| (id, 1.0))
-            .collect();
+        let mut centrality: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for &id in self.nodes.keys() {
+            centrality.insert(id, 1.0);
+        }
+        let mut prev_centrality: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         for _ in 0..max_iter {
-            let prev_centrality = centrality.clone();
+            // Swap instead of clone
+            std::mem::swap(&mut centrality, &mut prev_centrality);
             let mut max_change: f64 = 0.0;
 
             for &node in self.nodes.keys() {
                 // Sum of centralities of neighbors
-                let mut neighbor_sum = 0.0;
-                if let Some(neighbors) = self.adjacency_list.get(&node) {
-                    for &neighbor in neighbors {
-                        neighbor_sum += prev_centrality.get(&neighbor).unwrap_or(&0.0);
-                    }
-                }
+                let neighbor_sum: f64 = self.adjacency_list
+                    .get(&node)
+                    .map(|neighbors| {
+                        neighbors.iter()
+                            .filter_map(|&neighbor| prev_centrality.get(&neighbor))
+                            .sum()
+                    })
+                    .unwrap_or(0.0);
 
                 // alpha * (sum of neighbor centralities) + 1.0 (exogenous)
                 let new_value = alpha * neighbor_sum + 1.0;
+                let prev_value = *prev_centrality.get(&node).unwrap();
                 centrality.insert(node, new_value);
 
-                let change = (new_value - prev_centrality.get(&node).unwrap()).abs();
+                let change = (new_value - prev_value).abs();
                 max_change = max_change.max(change);
             }
 
-            // Normalize
+            // Normalize with multiplication
             let total: f64 = centrality.values().sum();
             if total > 0.0 {
+                let inv_total = 1.0 / total;
                 for val in centrality.values_mut() {
-                    *val /= total;
+                    *val *= inv_total;
                 }
             }
 
@@ -5274,6 +5286,7 @@ impl Graph {
     ///
     /// # References
     /// Newman, M.E.J. "Assortative mixing in networks" (2002)
+    #[inline]
     pub fn assortativity_degree(&self) -> PyResult<f64> {
         let m = self.edges.len();
         if m == 0 {
@@ -5288,8 +5301,9 @@ impl Graph {
 
         let (degree_source, degree_target): (Vec<f64>, Vec<f64>) = if self.directed {
             // Directed: out-degree for source, in-degree for target
-            let mut out_degrees: FxHashMap<u64, usize> = FxHashMap::default();
-            let mut in_degrees: FxHashMap<u64, usize> = FxHashMap::default();
+            let n = self.nodes.len();
+            let mut out_degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut in_degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             for edge in &self.edges {
                 *out_degrees.entry(edge.source).or_insert(0) += 1;
@@ -5306,7 +5320,8 @@ impl Graph {
             (sources, targets)
         } else {
             // Undirected: total degree for both ends
-            let mut degrees: FxHashMap<u64, usize> = FxHashMap::default();
+            let n = self.nodes.len();
+            let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
             for edge in &self.edges {
                 *degrees.entry(edge.source).or_insert(0) += 1;
                 *degrees.entry(edge.target).or_insert(0) += 1;

@@ -4,21 +4,24 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// Count weakly connected components in a graph.
 /// For undirected graphs, this is the same as regular connected components.
 /// For directed graphs, ignores edge direction (treats as undirected).
+#[inline]
 pub fn count_weakly_connected_components(graph: &Graph) -> usize {
     let node_ids: Vec<u64> = graph.get_node_ids();
-    
-    if node_ids.is_empty() {
+    let n = node_ids.len();
+
+    if n == 0 {
         return 0;
     }
 
-    let mut visited: FxHashSet<u64> = FxHashSet::default();
+    let mut visited: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
     let mut component_count = 0;
 
     for &node_id in &node_ids {
         if !visited.contains(&node_id) {
             component_count += 1;
             // BFS to find all nodes in this component
-            let mut queue: Vec<u64> = vec![node_id];
+            let mut queue: Vec<u64> = Vec::with_capacity(n);
+            queue.push(node_id);
             visited.insert(node_id);
 
             while let Some(current) = queue.pop() {
@@ -53,20 +56,22 @@ pub fn count_weakly_connected_components(graph: &Graph) -> usize {
 /// 1. Fill order by finishing times (DFS)
 /// 2. Transpose the graph
 /// 3. DFS on transposed graph in reverse finish order
+#[inline]
 pub fn count_strongly_connected_components(graph: &Graph) -> Result<usize, String> {
     if !graph.is_directed() {
         return Err("Strongly connected components only defined for directed graphs".to_string());
     }
 
     let node_ids: Vec<u64> = graph.get_node_ids();
-    
-    if node_ids.is_empty() {
+    let n = node_ids.len();
+
+    if n == 0 {
         return Ok(0);
     }
 
     // Step 1: Fill vertices in stack according to their finishing times
-    let mut visited: FxHashSet<u64> = FxHashSet::default();
-    let mut stack: Vec<u64> = Vec::new();
+    let mut visited: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
+    let mut stack: Vec<u64> = Vec::with_capacity(n);
 
     fn fill_order(
         node: u64,
@@ -94,8 +99,8 @@ pub fn count_strongly_connected_components(graph: &Graph) -> Result<usize, Strin
     }
 
     // Step 2: Create transposed graph (reverse all edges)
-    let mut transposed: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-    
+    let mut transposed: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+
     for edge in graph.get_edges_internal() {
         transposed
             .entry(edge.target)
