@@ -1054,6 +1054,7 @@ impl Graph {
 
     /// Generate Erdős-Rényi G(n,p) random graph
     /// Each possible edge is included independently with probability p
+    #[inline]
     fn generate_gnp_graph(
         &mut self,
         n: usize,
@@ -1072,13 +1073,12 @@ impl Graph {
         };
 
         // Add nodes with integer IDs
-        let node_ids: Vec<u64> = (0..n)
-            .map(|_| {
-                let id = self.next_node_id;
-                self.next_node_id += 1;
-                id
-            })
-            .collect();
+        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+        for _ in 0..n {
+            let id = self.next_node_id;
+            self.next_node_id += 1;
+            node_ids.push(id);
+        }
 
         for &node_id in &node_ids {
             self.add_node(Node::new(node_id, None, None))?;
@@ -1122,6 +1122,7 @@ impl Graph {
 
     /// Generate Erdős-Rényi G(n,m) random graph
     /// Graph with n nodes and exactly m randomly placed edges
+    #[inline]
     fn generate_gnm_graph(
         &mut self,
         n: usize,
@@ -1148,13 +1149,12 @@ impl Graph {
         }
 
         // Add nodes using next_node_id counter
-        let node_ids: Vec<u64> = (0..n)
-            .map(|_| {
-                let id = self.next_node_id;
-                self.next_node_id += 1;
-                id
-            })
-            .collect();
+        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+        for _ in 0..n {
+            let id = self.next_node_id;
+            self.next_node_id += 1;
+            node_ids.push(id);
+        }
 
         for &node_id in &node_ids {
             self.add_node(Node::new(node_id, None, None))?;
@@ -1190,6 +1190,7 @@ impl Graph {
 
     /// Generate Barabási-Albert preferential attachment graph
     /// Grows a graph by adding nodes one at a time with preferential attachment
+    #[inline]
     fn generate_pa_graph(
         &mut self,
         n: usize,
@@ -1213,13 +1214,12 @@ impl Graph {
         };
 
         // Generate node IDs using next_node_id counter
-        let node_ids: Vec<u64> = (0..n)
-            .map(|_| {
-                let id = self.next_node_id;
-                self.next_node_id += 1;
-                id
-            })
-            .collect();
+        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+        for _ in 0..n {
+            let id = self.next_node_id;
+            self.next_node_id += 1;
+            node_ids.push(id);
+        }
 
         // Add first m+1 nodes in a clique
         for i in 0..=m {
@@ -1239,7 +1239,7 @@ impl Graph {
         }
 
         // Track degree for preferential attachment
-        let mut degrees: FxHashMap<u64, usize> = FxHashMap::default();
+        let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for i in 0..=m {
             degrees.insert(node_ids[i], m);
         }
@@ -1249,7 +1249,7 @@ impl Graph {
             self.add_node(Node::new(node_ids[i], None, None))?;
 
             // Select m targets with probability proportional to degree
-            let mut targets: FxHashSet<u64> = FxHashSet::default();
+            let mut targets: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(m, Default::default());
             let total_degree: usize = degrees.values().sum();
 
             while targets.len() < m {
@@ -1285,6 +1285,7 @@ impl Graph {
 
     /// Generate Watts-Strogatz small-world graph
     /// Creates a ring lattice with rewiring probability p
+    #[inline]
     fn generate_smallworld_graph(
         &mut self,
         n: usize,
@@ -1314,13 +1315,12 @@ impl Graph {
         };
 
         // Generate node IDs using next_node_id counter
-        let node_ids: Vec<u64> = (0..n)
-            .map(|_| {
-                let id = self.next_node_id;
-                self.next_node_id += 1;
-                id
-            })
-            .collect();
+        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+        for _ in 0..n {
+            let id = self.next_node_id;
+            self.next_node_id += 1;
+            node_ids.push(id);
+        }
 
         // Add nodes
         for &node_id in &node_ids {
@@ -1328,7 +1328,8 @@ impl Graph {
         }
 
         // Create ring lattice: connect each node to k/2 neighbors on each side
-        let mut edges: Vec<(usize, usize)> = Vec::new();
+        let expected_edges = n * (k / 2);
+        let mut edges: Vec<(usize, usize)> = Vec::with_capacity(expected_edges);
         for i in 0..n {
             for j in 1..=(k / 2) {
                 let neighbor_idx = (i + j) % n;
@@ -1337,7 +1338,7 @@ impl Graph {
         }
 
         // Rewire edges with probability p
-        let mut rewired_edges: FxHashSet<(usize, usize)> = FxHashSet::default();
+        let mut rewired_edges: FxHashSet<(usize, usize)> = FxHashSet::with_capacity_and_hasher(expected_edges, Default::default());
 
         for (u_idx, v_idx) in edges {
             if rng.gen::<f64>() < p {
@@ -1414,6 +1415,7 @@ impl Graph {
     ///
     /// Time complexity: O(C(n,k)^2 * k) where C(n,k) is binomial coefficient
     #[pyo3(signature = (n, k))]
+    #[inline]
     fn generate_johnson_graph(&mut self, n: usize, k: usize) -> PyResult<()> {
         if k > n {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -1427,7 +1429,7 @@ impl Graph {
 
         // Add nodes for each combination
         // Node IDs are assigned sequentially, labels are comma-separated subsets
-        let mut node_ids = Vec::new();
+        let mut node_ids = Vec::with_capacity(combinations.len());
         for combo in &combinations {
             let node_id = self.next_node_id;
             self.next_node_id += 1;
@@ -4412,7 +4414,9 @@ impl Graph {
                 let size2 = neighbors2.len();
 
                 let cosine = if size1 > 0 && size2 > 0 {
-                    intersection as f64 / ((size1 as f64).sqrt() * (size2 as f64).sqrt())
+                    let result = intersection as f64 / ((size1 as f64).sqrt() * (size2 as f64).sqrt());
+                    // Clamp to [0, 1] to handle floating-point precision issues
+                    result.clamp(0.0, 1.0)
                 } else {
                     0.0
                 };
@@ -7264,6 +7268,7 @@ impl Graph {
 
     /// Generate all k-combinations of elements
     /// Helper function for Johnson graph generation
+    #[inline]
     fn generate_combinations<T: Clone>(elements: &[T], k: usize) -> Vec<Vec<T>> {
         if k == 0 {
             return vec![vec![]];
@@ -7275,7 +7280,19 @@ impl Graph {
             return vec![elements.to_vec()];
         }
 
-        let mut result = Vec::new();
+        // Estimate capacity: binomial coefficient C(n,k) ≈ n^k/k! for small k
+        let n = elements.len();
+        let estimated_size = if k <= 3 {
+            match k {
+                1 => n,
+                2 => n * (n - 1) / 2,
+                3 => n * (n - 1) * (n - 2) / 6,
+                _ => 100,
+            }
+        } else {
+            100 // Reasonable default for larger k
+        };
+        let mut result = Vec::with_capacity(estimated_size);
 
         // Generate combinations recursively
         fn combine<T: Clone>(
