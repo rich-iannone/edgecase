@@ -2461,6 +2461,7 @@ impl Graph {
     ///
     /// Performance: Uses parallel BFS (via Rayon) for ~linear speedup with cores
     /// Complexity: O(V²E / num_cores) with parallelization
+    #[inline]
     fn get_closeness_vitality(&self) -> FxHashMap<u64, f64> {
         use rayon::prelude::*;
 
@@ -2473,7 +2474,8 @@ impl Graph {
         let original_total = self.compute_total_distances_parallel();
 
         // Collect node IDs to iterate over
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let mut node_ids = Vec::with_capacity(n);
+        node_ids.extend(self.nodes.keys().copied());
 
         // Compute vitality for each node in parallel
         let vitality_vec: Vec<(u64, f64)> = node_ids
@@ -2488,8 +2490,10 @@ impl Graph {
             })
             .collect();
 
-        // Convert to HashMap
-        vitality_vec.into_iter().collect()
+        // Convert to HashMap with preallocated capacity
+        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        result.extend(vitality_vec);
+        result
     }
 
     /// Get reciprocity (fraction of reciprocal edges in a directed graph)
@@ -3517,10 +3521,13 @@ impl Graph {
     }
 
     /// Helper: compute sum of all pairwise shortest path distances (parallel)
+    #[inline]
     fn compute_total_distances_parallel(&self) -> f64 {
         use rayon::prelude::*;
 
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = self.num_nodes();
+        let mut node_ids = Vec::with_capacity(n);
+        node_ids.extend(self.nodes.keys().copied());
 
         node_ids
             .par_iter()
@@ -3544,6 +3551,7 @@ impl Graph {
     }
 
     /// Helper: compute total distances excluding a specific node
+    #[inline]
     fn compute_total_distances_without_node(&self, excluded: u64) -> f64 {
         let mut total = 0.0;
 
@@ -4088,6 +4096,7 @@ impl Graph {
     /// β < 0: competitive relations (weak neighbors increase power)
     /// β = 1/λ_max: equivalent to eigenvector centrality
     /// Returns empty HashMap if matrix is singular
+    #[inline]
     fn get_bonacich_power_centrality(&self, beta: f64, normalized: bool) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
@@ -4095,11 +4104,13 @@ impl Graph {
         }
 
         // Create node ID to index mapping
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let _node_to_idx: FxHashMap<u64, usize> = node_ids.iter()
-            .enumerate()
-            .map(|(idx, &id)| (id, idx))
-            .collect();
+        let mut node_ids = Vec::with_capacity(n);
+        node_ids.extend(self.nodes.keys().copied());
+
+        let mut _node_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for (idx, &id) in node_ids.iter().enumerate() {
+            _node_to_idx.insert(id, idx);
+        }
 
         // Build adjacency matrix A using nalgebra
         let mut a_matrix = na::DMatrix::<f64>::zeros(n, n);
@@ -4133,18 +4144,19 @@ impl Graph {
         };
 
         // Extract centrality scores
-        let mut centrality: FxHashMap<u64, f64> = node_ids.iter()
-            .enumerate()
-            .map(|(idx, &id)| (id, solution[idx]))
-            .collect();
+        let mut centrality = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for (idx, &id) in node_ids.iter().enumerate() {
+            centrality.insert(id, solution[idx]);
+        }
 
         // Normalize
         if normalized {
             // Sum normalization: scores sum to 1
             let sum: f64 = centrality.values().sum();
             if sum.abs() > 1e-10 {
+                let inv_sum = 1.0 / sum;
                 for val in centrality.values_mut() {
-                    *val /= sum;
+                    *val *= inv_sum;
                 }
             }
         } else {

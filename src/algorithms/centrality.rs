@@ -141,6 +141,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
 #[pyfunction]
 #[pyo3(signature = (graph, damping=0.85, max_iter=100, tol=1e-6))]
 #[inline]
+#[inline]
 pub fn pagerank(
     graph: &Graph,
     damping: f64,
@@ -155,16 +156,14 @@ pub fn pagerank(
     let node_ids: Vec<u64> = graph.get_node_ids();
 
     // Build node_id -> index mapping for dense array access (cache-friendly)
-    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
-    node_to_idx.reserve(n);
+    let mut node_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
     for (idx, &node_id) in node_ids.iter().enumerate() {
         node_to_idx.insert(node_id, idx);
     }
 
     // Build incoming edges map: target -> [(source, weight)]
     // This is the transpose of the adjacency list
-    let mut incoming_edges: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-    incoming_edges.reserve(n);
+    let mut incoming_edges = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     // Use Vec for out_degree (dense array is faster than HashMap for hot path)
     let mut out_degree: Vec<usize> = vec![0; n];
@@ -244,8 +243,7 @@ pub fn pagerank(
     }
 
     // Convert Vec back to HashMap with node_id keys
-    let mut result = FxHashMap::default();
-    result.reserve(n);
+    let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
     for (idx, &node_id) in node_ids.iter().enumerate() {
         result.insert(node_id, ranks[idx]);
     }
