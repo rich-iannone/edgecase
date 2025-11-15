@@ -3149,8 +3149,10 @@ impl Graph {
     /// where p_ij = (a_ij + a_ji) / Σ_k (a_ik + a_ki) are proportional tie strengths
     ///
     /// Returns None for isolated vertices (no connections)
+    #[inline]
     pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<String, Option<f64>>> {
-        let mut result: FxHashMap<String, Option<f64>> = FxHashMap::default();
+        let n = self.num_nodes();
+        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         // Process each node
         for &node_id in self.nodes.keys() {
@@ -3160,7 +3162,7 @@ impl Graph {
                 .unwrap_or_else(|| node_id.to_string());
 
             // Get all neighbors (for undirected: direct neighbors, for directed: both in and out)
-            let mut neighbor_weights: FxHashMap<u64, f64> = FxHashMap::default();
+            let mut neighbor_weights = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             // Get outgoing neighbors
             if let Some(neighbors) = self.adjacency_list.get(&node_id) {
@@ -3211,9 +3213,10 @@ impl Graph {
             }
 
             // Calculate proportional tie strengths (p_ij)
-            let mut prop_strengths: FxHashMap<u64, f64> = FxHashMap::default();
+            let inv_total_strength = 1.0 / total_strength;
+            let mut prop_strengths = FxHashMap::with_capacity_and_hasher(neighbor_weights.len(), Default::default());
             for (&neighbor, &strength) in &neighbor_weights {
-                prop_strengths.insert(neighbor, strength / total_strength);
+                prop_strengths.insert(neighbor, strength * inv_total_strength);
             }
 
             // Calculate constraint: C_i = Σ_j (p_ij + Σ_q p_iq * p_qj)²
@@ -3224,7 +3227,7 @@ impl Graph {
                 let mut indirect = 0.0;
 
                 // Get neighbors of j
-                let mut j_neighbors: FxHashSet<u64> = FxHashSet::default();
+                let mut j_neighbors = FxHashSet::with_capacity_and_hasher(n, Default::default());
                 if let Some(j_adj) = self.adjacency_list.get(&j) {
                     j_neighbors.extend(j_adj.iter().copied());
                 }
@@ -3282,7 +3285,8 @@ impl Graph {
                             }
 
                             if j_total > 0.0 {
-                                let p_qj = q_to_j_weight / j_total;
+                                let inv_j_total = 1.0 / j_total;
+                                let p_qj = q_to_j_weight * inv_j_total;
                                 indirect += p_iq * p_qj;
                             }
                         }
@@ -3316,14 +3320,16 @@ impl Graph {
     /// # Time Complexity
     /// O(V³ × log k) using fast matrix exponentiation where V is number of vertices
     /// and k is walk_length
+    #[inline]
     pub fn number_of_walks(&self, walk_length: usize) -> PyResult<FxHashMap<String, FxHashMap<String, u64>>> {
         // Get sorted list of node IDs for consistent matrix indexing
-        let mut node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = self.num_nodes();
+        let mut node_ids = Vec::with_capacity(n);
+        node_ids.extend(self.nodes.keys().copied());
         node_ids.sort_unstable();
-        let n = node_ids.len();
 
         // Create node_id -> matrix index mapping
-        let mut id_to_idx = FxHashMap::default();
+        let mut id_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (idx, &node_id) in node_ids.iter().enumerate() {
             id_to_idx.insert(node_id, idx);
         }
@@ -3361,14 +3367,14 @@ impl Graph {
         };
 
         // Convert result matrix to nested HashMap with node labels
-        let mut result = FxHashMap::default();
+        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (i, &source_id) in node_ids.iter().enumerate() {
             let source_label = self.nodes
                 .get(&source_id)
                 .and_then(|n| n.label.clone())
                 .unwrap_or_else(|| source_id.to_string());
 
-            let mut target_map = FxHashMap::default();
+            let mut target_map = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             for (j, &target_id) in node_ids.iter().enumerate() {
                 let target_label = self.nodes
@@ -8667,6 +8673,7 @@ impl Graph {
     }
 
     /// Compute P^t (matrix to the power of t)
+    #[inline]
     fn matrix_power(&self, P: &[Vec<f64>], t: usize) -> Vec<Vec<f64>> {
         let n = P.len();
         let mut result = vec![vec![0.0; n]; n];
@@ -8685,6 +8692,7 @@ impl Graph {
     }
 
     /// Matrix multiplication
+    #[inline]
     fn matrix_multiply(&self, A: &[Vec<f64>], B: &[Vec<f64>]) -> Vec<Vec<f64>> {
         let n = A.len();
         let mut C = vec![vec![0.0; n]; n];
@@ -9439,6 +9447,7 @@ impl AdaStar {
 // ============================================================================
 
 /// Multiply two square matrices
+#[inline]
 fn multiply_matrices(a: &[Vec<u64>], b: &[Vec<u64>]) -> Vec<Vec<u64>> {
     let n = a.len();
     let mut result = vec![vec![0u64; n]; n];
@@ -9456,6 +9465,7 @@ fn multiply_matrices(a: &[Vec<u64>], b: &[Vec<u64>]) -> Vec<Vec<u64>> {
 
 /// Compute matrix power using fast exponentiation
 /// Time complexity: O(n³ × log k) where n is matrix size and k is the power
+#[inline]
 fn matrix_power(matrix: &[Vec<u64>], power: usize) -> Vec<Vec<u64>> {
     let n = matrix.len();
 
