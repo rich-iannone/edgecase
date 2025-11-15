@@ -2,7 +2,8 @@
 //! Includes triangle counting, clustering coefficients, and transitivity
 
 use crate::graph::Graph;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use std::collections::HashSet;
 
 /// Count triangles in the graph
@@ -36,39 +37,32 @@ pub fn count_triangles(graph: &Graph) -> FxHashMap<u64, usize> {
 
 /// Count triangles in undirected graphs
 /// Uses the NodeIterator algorithm: for each edge (u,v), count common neighbors
+/// OPTIMIZED: Uses FxHashSet and node ordering to avoid double-counting
 fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64, usize>) {
-    // Convert adjacency list to HashSet for fast lookup
-    let adj_sets: FxHashMap<u64, HashSet<u64>> = graph.get_node_ids()
+    // Convert adjacency list to FxHashSet for fast lookup (faster than std::HashSet)
+    let adj_sets: FxHashMap<u64, FxHashSet<u64>> = graph.get_node_ids()
         .iter()
         .filter_map(|&node_id| {
             graph.neighbors(node_id).ok().map(|neighbors| {
-                (node_id, neighbors.into_iter().collect::<HashSet<u64>>())
+                (node_id, neighbors.into_iter().collect::<FxHashSet<u64>>())
             })
         })
         .collect();
 
-    // Track which triangles we've already counted
-    let mut seen_triangles: HashSet<(u64, u64, u64)> = HashSet::new();
-
-    // For each edge (u, v)
+    // Process each edge, but only count triangles once by enforcing u < v < w ordering
+    // This eliminates the need for a seen_triangles HashSet
     for (_, u, v) in graph.edges() {
-        // Find common neighbors of u and v (excluding u and v themselves)
+        // Only process if u < v to avoid counting each edge twice
+        if u >= v {
+            continue;
+        }
+
+        // Find common neighbors of u and v
         if let (Some(u_neighbors), Some(v_neighbors)) = (adj_sets.get(&u), adj_sets.get(&v)) {
-            // Intersection of neighbors, excluding the edge endpoints
-            let common: Vec<_> = u_neighbors
-                .intersection(v_neighbors)
-                .filter(|&&w| w != u && w != v)
-                .collect();
-
-            // Each common neighbor w forms a triangle (u, v, w)
-            for &&w in &common {
-                // Create canonical representation (sorted triple)
-                let mut tri = vec![u, v, w];
-                tri.sort_unstable();
-                let triangle = (tri[0], tri[1], tri[2]);
-
-                // Only count if we haven't seen this triangle before
-                if seen_triangles.insert(triangle) {
+            // For each common neighbor w where v < w, we have a triangle (u, v, w)
+            // The ordering u < v < w ensures we count each triangle exactly once
+            for &w in u_neighbors.intersection(v_neighbors) {
+                if w > v {
                     *triangle_count.entry(u).or_insert(0) += 1;
                     *triangle_count.entry(v).or_insert(0) += 1;
                     *triangle_count.entry(w).or_insert(0) += 1;

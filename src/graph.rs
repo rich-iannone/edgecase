@@ -3624,54 +3624,17 @@ impl Graph {
     /// = (number of edges between neighbors) / (k * (k-1) / 2)
     /// where k is the degree of v
     /// Returns 0.0 for nodes with degree < 2
+    ///
+    /// OPTIMIZED: Uses pre-computed triangle counts instead of recounting edges
     fn get_clustering_coefficient(&self) -> FxHashMap<u64, f64> {
-        let mut clustering = FxHashMap::default();
+        // Use the optimized version from algorithms::structural
+        let clustering_opt = crate::algorithms::structural::local_clustering_coefficient(self);
 
-        for &node in self.nodes.keys() {
-            let degree = self.degree(node);
-
-            // Nodes with degree < 2 have clustering coefficient 0
-            if degree < 2 {
-                clustering.insert(node, 0.0);
-                continue;
-            }
-
-            // Get neighbors
-            let neighbors: Vec<u64> = if let Some(neighs) = self.adjacency_list.get(&node) {
-                neighs.iter().copied().collect()
-            } else {
-                clustering.insert(node, 0.0);
-                continue;
-            };
-
-            // Count edges between neighbors
-            let mut edges_between_neighbors = 0;
-            for i in 0..neighbors.len() {
-                for j in (i + 1)..neighbors.len() {
-                    let n1 = neighbors[i];
-                    let n2 = neighbors[j];
-
-                    // Check if edge exists between n1 and n2
-                    if let Some(n1_neighbors) = self.adjacency_list.get(&n1) {
-                        if n1_neighbors.contains(&n2) {
-                            edges_between_neighbors += 1;
-                        }
-                    }
-                }
-            }
-
-            // Calculate clustering coefficient
-            let possible_edges = (degree * (degree - 1)) / 2;
-            let coeff = if possible_edges > 0 {
-                edges_between_neighbors as f64 / possible_edges as f64
-            } else {
-                0.0
-            };
-
-            clustering.insert(node, coeff);
-        }
-
-        clustering
+        // Convert Option<f64> to f64, mapping None to 0.0
+        clustering_opt
+            .into_iter()
+            .map(|(node_id, opt_coeff)| (node_id, opt_coeff.unwrap_or(0.0)))
+            .collect()
     }
 
     /// Get average clustering coefficient for the graph
