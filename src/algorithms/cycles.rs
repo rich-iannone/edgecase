@@ -28,15 +28,17 @@ pub fn find_cycles(graph: &Graph, min_amount: Option<f64>) -> PyResult<Vec<Vec<u
         ));
     }
 
-    let mut all_cycles = Vec::new();
     let node_ids: Vec<u64> = graph.get_node_ids();
+    let n = node_ids.len();
 
-    if node_ids.is_empty() {
-        return Ok(all_cycles);
+    if n == 0 {
+        return Ok(Vec::new());
     }
 
+    let mut all_cycles = Vec::with_capacity(n); // Estimated capacity
+
     // Build adjacency list for efficient traversal
-    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
     for &node_id in &node_ids {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             adj_list.insert(node_id, neighbors);
@@ -50,7 +52,9 @@ pub fn find_cycles(graph: &Graph, min_amount: Option<f64>) -> PyResult<Vec<Vec<u
         let start_node = node_ids[start_idx];
 
         // Build subgraph containing start_node and all nodes with higher indices
-        let subgraph_nodes: FxHashSet<u64> = node_ids[start_idx..].iter().copied().collect();
+        let remaining = n - start_idx;
+        let mut subgraph_nodes: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(remaining, Default::default());
+        subgraph_nodes.extend(node_ids[start_idx..].iter().copied());
 
         // Find strongly connected component containing start_node in subgraph
         let scc = find_scc_containing_node(start_node, &adj_list, &subgraph_nodes);
@@ -58,10 +62,11 @@ pub fn find_cycles(graph: &Graph, min_amount: Option<f64>) -> PyResult<Vec<Vec<u
         if scc.len() > 1 || (scc.len() == 1 && adj_list.get(&start_node)
             .map_or(false, |neighbors| neighbors.contains(&start_node))) {
             // There might be cycles in this SCC
-            let mut blocked: FxHashSet<u64> = FxHashSet::default();
-            let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::default();
-            let mut path = vec![start_node];
-            let mut path_set = FxHashSet::default();
+            let mut blocked: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut path = Vec::with_capacity(scc.len());
+            path.push(start_node);
+            let mut path_set = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
             path_set.insert(start_node);
 
             find_cycles_from_node(
@@ -89,12 +94,13 @@ fn find_scc_containing_node(
     subgraph: &FxHashSet<u64>,
 ) -> FxHashSet<u64> {
     // Use Tarjan's algorithm simplified for finding one SCC
-    let mut scc = FxHashSet::default();
-    let mut visited = FxHashSet::default();
-    let mut stack = Vec::new();
+    let subgraph_size = subgraph.len();
+    let mut scc = FxHashSet::with_capacity_and_hasher(subgraph_size, Default::default());
+    let mut visited = FxHashSet::with_capacity_and_hasher(subgraph_size, Default::default());
+    let mut stack = Vec::with_capacity(subgraph_size);
 
     // DFS from start node
-    let mut queue = VecDeque::new();
+    let mut queue = VecDeque::with_capacity(subgraph_size);
     queue.push_back(start);
     visited.insert(start);
 
@@ -113,7 +119,7 @@ fn find_scc_containing_node(
     }
 
     // Find nodes that can reach start (for strong connectivity)
-    let mut can_reach_start = FxHashSet::default();
+    let mut can_reach_start = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
     can_reach_start.insert(start);
 
     for &node in &scc {
@@ -126,14 +132,16 @@ fn find_scc_containing_node(
 }
 
 /// Check if we can reach target from source within the given node set
+#[inline]
 fn can_reach_start_from(
     source: u64,
     target: u64,
     adj_list: &FxHashMap<u64, Vec<u64>>,
     allowed_nodes: &FxHashSet<u64>,
 ) -> bool {
-    let mut visited = FxHashSet::default();
-    let mut queue = VecDeque::new();
+    let capacity = allowed_nodes.len();
+    let mut visited = FxHashSet::with_capacity_and_hasher(capacity, Default::default());
+    let mut queue = VecDeque::with_capacity(capacity);
     queue.push_back(source);
     visited.insert(source);
 
@@ -231,6 +239,7 @@ fn find_cycles_from_node(
 }
 
 /// Unblock a node and recursively unblock nodes that depend on it
+#[inline]
 fn unblock(
     node: u64,
     blocked: &mut FxHashSet<u64>,
@@ -249,10 +258,12 @@ fn unblock(
 
 /// Detect if graph has any cycle using DFS
 pub fn has_cycle(graph: &Graph) -> bool {
-    let mut visited = FxHashSet::default();
-    let mut rec_stack = FxHashSet::default();
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+    let mut rec_stack = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
-    for node_id in graph.get_node_ids() {
+    for node_id in node_ids {
         if !visited.contains(&node_id)
             && has_cycle_util(graph, node_id, &mut visited, &mut rec_stack) {
                 return true;
@@ -262,6 +273,7 @@ pub fn has_cycle(graph: &Graph) -> bool {
     false
 }
 
+#[inline]
 fn has_cycle_util(
     graph: &Graph,
     node: u64,
