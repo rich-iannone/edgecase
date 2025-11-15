@@ -120,6 +120,7 @@ struct UnionFind {
 }
 
 impl UnionFind {
+    #[inline]
     fn new() -> Self {
         UnionFind {
             parent: FxHashMap::default(),
@@ -127,7 +128,16 @@ impl UnionFind {
         }
     }
 
+    #[inline]
+    fn with_capacity(capacity: usize) -> Self {
+        UnionFind {
+            parent: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+            rank: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+        }
+    }
+
     /// Find the root of element x with path-halving
+    #[inline]
     fn find(&mut self, mut x: u64) -> u64 {
         // Initialize if not seen
         if !self.parent.contains_key(&x) {
@@ -147,6 +157,7 @@ impl UnionFind {
     }
 
     /// Union two sets. Returns true if they were merged (not already connected)
+    #[inline]
     fn union(&mut self, a: u64, b: u64) -> bool {
         let ra = self.find(a);
         let rb = self.find(b);
@@ -1709,6 +1720,7 @@ impl Graph {
 
     /// Count mutual node pairs (bidirectional edges in directed graphs)
     /// Returns number of node pairs (a,b) where both (a->b) and (b->a) edges exist
+    #[inline]
     fn count_mutual_node_pairs(&self) -> PyResult<usize> {
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -1716,7 +1728,7 @@ impl Graph {
             ));
         }
 
-        let mut forward_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
+        let mut forward_edges: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
         let mut mutual_count = 0;
 
         for edge in &self.edges {
@@ -1741,6 +1753,7 @@ impl Graph {
 
     /// Count asymmetric node pairs (one-way edges in directed graphs)
     /// Returns number of node pairs (a,b) where edge (a->b) exists but not (b->a)
+    #[inline]
     fn count_asymmetric_node_pairs(&self) -> PyResult<usize> {
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -1748,7 +1761,7 @@ impl Graph {
             ));
         }
 
-        let mut edge_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
+        let mut edge_pairs: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
 
         // Collect all edges
         for edge in &self.edges {
@@ -1770,6 +1783,7 @@ impl Graph {
     }
 
     /// Get average degree
+    #[inline]
     fn average_degree(&self) -> f64 {
         let n = self.num_nodes();
         if n == 0 {
@@ -1777,7 +1791,7 @@ impl Graph {
         }
 
         let total_degree: usize = self.nodes.keys().map(|&id| self.degree(id)).sum();
-        total_degree as f64 / n as f64
+        total_degree as f64 * (1.0 / n as f64)
     }
 
     /// Get degree histogram (degree -> count mapping)
@@ -7043,8 +7057,9 @@ impl Graph {
         });
 
         // Run Kruskal's algorithm with union-find
-        let mut uf = UnionFind::new();
-        let mut mst_edges = Vec::new();
+        let n = self.num_nodes();
+        let mut uf = UnionFind::with_capacity(n);
+        let mut mst_edges = Vec::with_capacity(edges_needed);
 
         for (_, edge_id, source, target) in weighted_edges {
             if uf.union(source, target) {
