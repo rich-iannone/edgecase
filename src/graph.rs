@@ -3941,6 +3941,8 @@ impl Graph {
     /// Standard eigenvector centrality: principal eigenvector of adjacency matrix
     /// x = A * x (power iteration method)
     /// Measures importance based on connections to other important nodes
+    /// 
+    /// Optimized implementation using dense arrays instead of HashMaps for better cache locality
     fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
@@ -3954,61 +3956,71 @@ impl Graph {
                 .collect();
         }
 
-        // Initialize centrality to 1.0 for all nodes
-        let mut centrality: FxHashMap<u64, f64> = self.nodes.keys()
-            .map(|&id| (id, 1.0))
+        // Create node_id -> index mapping for dense array access
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let node_to_idx: FxHashMap<u64, usize> = node_ids.iter()
+            .enumerate()
+            .map(|(idx, &id)| (id, idx))
             .collect();
 
-        let mut converged = false;
-
-        for _ in 0..max_iter {
-            let prev_centrality = centrality.clone();
-            let mut max_change: f64 = 0.0;
-
-            for &node in self.nodes.keys() {
-                // For eigenvector centrality: sum of centralities of neighbors
-                let mut neighbor_sum = 0.0;
-
-                // Consider all neighbors (incoming for directed, all for undirected)
-                if let Some(neighbors) = self.adjacency_list.get(&node) {
-                    for &neighbor in neighbors {
-                        neighbor_sum += prev_centrality.get(&neighbor).unwrap_or(&0.0);
-                    }
+        // Build neighbor list using indices for cache-friendly access
+        let mut neighbor_indices: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for (&node_id, neighbors) in &self.adjacency_list {
+            let node_idx = node_to_idx[&node_id];
+            for &neighbor_id in neighbors {
+                if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
+                    neighbor_indices[node_idx].push(neighbor_idx);
                 }
+            }
+        }
 
-                centrality.insert(node, neighbor_sum);
+        // Use dense arrays for centrality values
+        let mut centrality = vec![1.0; n];
+        let mut new_centrality = vec![0.0; n];
 
-                let prev_val = prev_centrality.get(&node).unwrap();
-                let change = if *prev_val > 0.0 {
-                    (neighbor_sum - prev_val).abs() / prev_val
-                } else {
-                    neighbor_sum.abs()
-                };
-                max_change = max_change.max(change);
+        for _iter in 0..max_iter {
+            // Matrix-vector multiply: new = A * centrality
+            for node_idx in 0..n {
+                let mut sum = 0.0;
+                for &neighbor_idx in &neighbor_indices[node_idx] {
+                    sum += centrality[neighbor_idx];
+                }
+                new_centrality[node_idx] = sum;
             }
 
-            // Normalize (L2 norm)
-            let norm: f64 = centrality.values().map(|&v| v * v).sum::<f64>().sqrt();
-            if norm > 1e-10 {
-                for val in centrality.values_mut() {
-                    *val /= norm;
-                }
-                converged = max_change < tol;
-            } else {
-                // If converged to zero (e.g., DAG), use uniform distribution
+            // Normalize using L2 norm
+            let norm: f64 = new_centrality.iter()
+                .map(|&v| v * v)
+                .sum::<f64>()
+                .sqrt();
+
+            if norm < 1e-10 {
+                // Converged to zero (disconnected or DAG), use uniform
                 let uniform_value = 1.0 / (n as f64).sqrt();
-                for val in centrality.values_mut() {
-                    *val = uniform_value;
-                }
+                new_centrality.fill(uniform_value);
                 break;
             }
 
-            if converged {
+            // Normalize and check convergence using L1 norm
+            let mut delta = 0.0;
+            for i in 0..n {
+                new_centrality[i] /= norm;
+                delta += (new_centrality[i] - centrality[i]).abs();
+            }
+
+            // Swap arrays (no allocation)
+            std::mem::swap(&mut centrality, &mut new_centrality);
+
+            if delta < tol {
                 break;
             }
         }
 
-        centrality
+        // Convert back to HashMap with node IDs
+        node_ids.iter()
+            .enumerate()
+            .map(|(idx, &node_id)| (node_id, centrality[idx]))
+            .collect()
     }
 
     /// Get Bonacich power centrality
