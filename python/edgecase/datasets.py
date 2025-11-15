@@ -65,7 +65,7 @@ def karate_club() -> Graph:
     print(f"Communities detected: {num_communities}")
 
     # Find most central members
-    betweenness = G.get_betweenness()
+    betweenness = G.betweenness_centrality()
     top_nodes = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:3]
     for node_id, score in top_nodes:
         label = G.get_label_from_id(node_id)

@@ -155,9 +155,11 @@ class GraphWidget:
     G.add_edge(source='B', target='C')
 
     # Size nodes by degree
+    sizes = {}
     for node_id in G.node_ids(limit=None):
         degree = G.get_degree(node=node_id)
-        G.set_node_attr(node_id=node_id, attr="size", value=degree * 0.5)
+        sizes[node_id] = degree * 0.5
+    G.set_node_attrs(node_attr="size", values=sizes)
 
     widget = GraphWidget(G)
     widget.show()

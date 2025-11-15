@@ -47,20 +47,21 @@ def from_matrix_market(
     ```python
     from edgecase.io import from_matrix_market
 
+    # Example assumes .mtx files exist in your working directory
     # Auto-detect graph properties from file header
-    G = from_matrix_market("soc-karate.mtx")
-    print(f"Directed: {G.is_directed}, Weighted: {G.is_weighted}")
+    # G = from_matrix_market("soc-karate.mtx")
+    # print(f"Directed: {G.is_directed}, Weighted: {G.is_weighted}")
     # Directed: False, Weighted: False
 
     # Override auto-detection
-    G = from_matrix_market("network.mtx", directed=True, weighted=False)
+    # G = from_matrix_market("network.mtx", directed=True, weighted=False)
 
     # Load with a custom name
-    G = from_matrix_market(
-        "network.mtx",
-        graph_name="My Network"
-    )
-    print(G.name)
+    # G = from_matrix_market(
+    #     "network.mtx",
+    #     graph_name="My Network"
+    # )
+    # print(G.name)
     # My Network
     ```
 

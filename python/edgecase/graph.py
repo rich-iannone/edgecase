@@ -2544,66 +2544,67 @@ class Graph:
     def get_agg_degree_out(self, agg: str, conditions: Optional[Callable] = None) -> float:
         """Get aggregate value from outdegree of nodes.
 
-                Computes a single aggregate statistic from the outdegree values of all nodes
-                (or a filtered subset) in a directed graph. Useful for summarizing the
-                outdegree distribution or analyzing filtered node subsets.
+        Computes a single aggregate statistic from the outdegree values of all nodes
+        (or a filtered subset) in a directed graph. Useful for summarizing the
+        outdegree distribution or analyzing filtered node subsets.
 
-                Parameters
-                ---
-                agg : str
-                    Aggregation function to apply. Must be one of:
-                    - `'sum'` : Sum of all outdegrees
-                    - `'min'` : Minimum outdegree
-                    - `'max'` : Maximum outdegree
-                    - `'mean'` : Mean outdegree
-                    - `'median'` : Median outdegree
-                conditions : callable, optional
-                    Filter function that takes a node object and returns `True` to include
-                    the node in the aggregation. If `None`, all nodes are included.
+        Parameters
+        ---
+        agg : str
+            Aggregation function to apply. Must be one of:
+            - `'sum'` : Sum of all outdegrees
+            - `'min'` : Minimum outdegree
+            - `'max'` : Maximum outdegree
+            - `'mean'` : Mean outdegree
+            - `'median'` : Median outdegree
+        conditions : callable, optional
+            Filter function that takes a node object and returns `True` to include
+            the node in the aggregation. If `None`, all nodes are included.
 
-                Returns
-                ---
-                float
-                    The computed aggregate outdegree value. Returns `0.0` if no nodes match
-                    the conditions.
+        Returns
+        ---
+        float
+            The computed aggregate outdegree value. Returns `0.0` if no nodes match
+            the conditions.
 
-                Raises
-                ---
-                ValueError
-                    If the graph is undirected or if `agg` is not a valid aggregation function.
+        Raises
+        ---
+        ValueError
+            If the graph is undirected or if `agg` is not a valid aggregation function.
 
-                Examples
-                --------
-                ```python
-                import edgecase as ec
+        Examples
+        --------
+        ```python
+        import edgecase as ec
 
-                # Create directed graph
-                graph = ec.Graph(directed=True)
-                graph.add_gnm_graph(20, 35, seed=23)
+        # Create directed graph
+        graph = ec.Graph(directed=True)
+        graph.add_gnm_graph(20, 35, seed=23)
 
-                # Mean outdegree across all nodes
-                mean_out = graph.get_agg_degree_out('mean')
-                print(mean_out)  # 1.75
+        # Mean outdegree across all nodes
+        mean_out = graph.get_agg_degree_out('mean')
+        print(mean_out)  # 1.75
 
-                # Median outdegree
-                median_out = graph.get_agg_degree_out('median')
-                print(median_out)  # 1.0
+        # Median outdegree
+        median_out = graph.get_agg_degree_out('median')
+        print(median_out)  # 1.0
 
         # Filtered aggregation: max outdegree of nodes with attributes
         # First set an attribute on some nodes
-        for node_id in list(graph.node_ids(limit=5)):
-            graph.set_node_attr(node_id=node_id, attr='type', value='special')        max_out = graph.get_agg_degree_out(
-                    'max',
-                    conditions=lambda n: n.attributes and 'type' in n.attributes
-                )
-                ```
+        node_list = list(graph.node_ids(limit=5))
+        graph.set_node_attrs(node_attr='type', values='special', nodes=node_list)
+        max_out = graph.get_agg_degree_out(
+            'max',
+            conditions=lambda n: n.attributes and 'type' in n.attributes
+        )
+        ```
 
-                See Also
-                --------
-                get_agg_degree_in : Aggregate indegree values
-                get_agg_degree_total : Aggregate total degree values
-                out_degree : Get outdegree of a single node
-                degree_distribution : Get full degree distribution
+        See Also
+        --------
+        get_agg_degree_in : Aggregate indegree values
+        get_agg_degree_total : Aggregate total degree values
+        out_degree : Get outdegree of a single node
+        degree_distribution : Get full degree distribution
         """
         if not self._graph.is_directed:
             raise ValueError("get_agg_degree_out() only works with directed graphs")
@@ -5582,11 +5583,14 @@ class Graph:
 
         ```python
         g = Graph(directed=True)
-        g.add_edge("A", "B")
-        g.add_edge("A", "B")  # Duplicate
-        g.add_edge("A", "B")  # Another duplicate
-        g.add_edge("B", "C")
-        g.add_edge("B", "C")  # Duplicate
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="A", target="B")  # Duplicate
+        g.add_edge(source="A", target="B")  # Another duplicate
+        g.add_edge(source="B", target="C")
+        g.add_edge(source="B", target="C")  # Duplicate
 
         counts = g.count_multiple()
         counts
@@ -5598,11 +5602,14 @@ class Graph:
         ```python
         # Email network with multiple messages
         email = Graph(directed=True)
-        email.add_edge("Alice", "Bob")    # Email 1
-        email.add_edge("Alice", "Bob")    # Email 2
-        email.add_edge("Alice", "Bob")    # Email 3
-        email.add_edge("Bob", "Carol")    # Email 1
-        email.add_edge("Bob", "Carol")    # Email 2
+        email.add_node(label="Alice")
+        email.add_node(label="Bob")
+        email.add_node(label="Carol")
+        email.add_edge(source="Alice", target="Bob")    # Email 1
+        email.add_edge(source="Alice", target="Bob")    # Email 2
+        email.add_edge(source="Alice", target="Bob")    # Email 3
+        email.add_edge(source="Bob", target="Carol")    # Email 1
+        email.add_edge(source="Bob", target="Carol")    # Email 2
 
         multi_count = email.count_multiple()
         # Shows intensity of communication
@@ -5617,10 +5624,13 @@ class Graph:
         ```python
         # Identify which edges need aggregation
         transport = Graph(directed=False)
-        transport.add_edge("CityA", "CityB", route="highway")
-        transport.add_edge("CityA", "CityB", route="railway")
-        transport.add_edge("CityA", "CityB", route="airline")
-        transport.add_edge("CityB", "CityC", route="highway")
+        transport.add_node(label="CityA")
+        transport.add_node(label="CityB")
+        transport.add_node(label="CityC")
+        transport.add_edge(source="CityA", target="CityB", route="highway")
+        transport.add_edge(source="CityA", target="CityB", route="railway")
+        transport.add_edge(source="CityA", target="CityB", route="airline")
+        transport.add_edge(source="CityB", target="CityC", route="highway")
 
         multi = transport.count_multiple()
         # CityA-CityB has 3 routes to consolidate
@@ -5809,10 +5819,13 @@ class Graph:
         ```python
         # Autocatalytic reactions (self-referencing)
         rxn = Graph(directed=True)
-        rxn.add_edge("A", "B")
-        rxn.add_edge("B", "B")  # B catalyzes itself
-        rxn.add_edge("B", "B")  # Multiple pathways
-        rxn.add_edge("C", "C")  # C is autocatalytic
+        rxn.add_node(label="A")
+        rxn.add_node(label="B")
+        rxn.add_node(label="C")
+        rxn.add_edge(source="A", target="B")
+        rxn.add_edge(source="B", target="B")  # B catalyzes itself
+        rxn.add_edge(source="B", target="B")  # Multiple pathways
+        rxn.add_edge(source="C", target="C")  # C is autocatalytic
 
         autocatalytic = rxn.count_loops()
         autocatalytic
@@ -5823,10 +5836,12 @@ class Graph:
 
         ```python
         social = Graph(directed=True)
-        social.add_edge("User1", "User1", action="self-like")
-        social.add_edge("User2", "User1", action="like")
-        social.add_edge("User2", "User2", action="self-like")
-        social.add_edge("User2", "User2", action="self-comment")
+        social.add_node(label="User1")
+        social.add_node(label="User2")
+        social.add_edge(source="User1", target="User1", action="self-like")
+        social.add_edge(source="User2", target="User1", action="like")
+        social.add_edge(source="User2", target="User2", action="self-like")
+        social.add_edge(source="User2", target="User2", action="self-comment")
 
         self_interactions = social.count_loops()
         self_interactions
@@ -5880,11 +5895,13 @@ class Graph:
         ```python
         # High-status users connect to high-status users
         g = Graph(directed=False)
-        g.add_edge("Influencer1", "Influencer2")
-        g.add_edge("Influencer1", "Influencer3")
-        g.add_edge("Influencer2", "Influencer3")
-        g.add_edge("User1", "User2")
-        g.add_edge("User3", "User4")
+        for label in ["Influencer1", "Influencer2", "Influencer3", "User1", "User2", "User3", "User4"]:
+            g.add_node(label=label)
+        g.add_edge(source="Influencer1", target="Influencer2")
+        g.add_edge(source="Influencer1", target="Influencer3")
+        g.add_edge(source="Influencer2", target="Influencer3")
+        g.add_edge(source="User1", target="User2")
+        g.add_edge(source="User3", target="User4")
 
         r = g.get_graph_assortativity_degree()
         # r > 0: hubs connect to hubs, periphery to periphery
@@ -5895,11 +5912,13 @@ class Graph:
         ```python
         # Client-server architecture: high-degree servers connect to low-degree clients
         g = Graph(directed=False)
-        g.add_edge("Server1", "Client1")
-        g.add_edge("Server1", "Client2")
-        g.add_edge("Server1", "Client3")
-        g.add_edge("Server2", "Client4")
-        g.add_edge("Server2", "Client5")
+        for label in ["Server1", "Server2", "Client1", "Client2", "Client3", "Client4", "Client5"]:
+            g.add_node(label=label)
+        g.add_edge(source="Server1", target="Client1")
+        g.add_edge(source="Server1", target="Client2")
+        g.add_edge(source="Server1", target="Client3")
+        g.add_edge(source="Server2", target="Client4")
+        g.add_edge(source="Server2", target="Client5")
 
         r = g.get_graph_assortativity_degree()
         # r < 0: high-degree nodes connect to low-degree nodes
@@ -6461,15 +6480,15 @@ class Graph:
         g = Graph(directed=False)
         # Create graph with two communities...
         for i in range(6):
-            g.add_node(f"n{i}")
+            g.add_node(label=f"n{i}")
 
         # Dense intra-community edges
-        g.add_edge("n0", "n1")
-        g.add_edge("n1", "n2")
-        g.add_edge("n3", "n4")
-        g.add_edge("n4", "n5")
+        g.add_edge(source="n0", target="n1")
+        g.add_edge(source="n1", target="n2")
+        g.add_edge(source="n3", target="n4")
+        g.add_edge(source="n4", target="n5")
         # Sparse inter-community edge
-        g.add_edge("n2", "n3")
+        g.add_edge(source="n2", target="n3")
 
         spec = g.laplacian_spectrum(which="smallest", k=3)
         fiedler_vector = spec['vectors'][1]  # Second eigenvector (λ₂)
@@ -6526,6 +6545,15 @@ class Graph:
         **Random Walk and Diffusion Analysis**
 
         ```python
+        g = Graph(directed=False)
+        for i in range(6):
+            g.add_node(label=f"n{i}")
+        g.add_edge(source="n0", target="n1")
+        g.add_edge(source="n1", target="n2")
+        g.add_edge(source="n3", target="n4")
+        g.add_edge(source="n4", target="n5")
+        g.add_edge(source="n2", target="n3")
+
         # Laplacian eigenvalues determine diffusion speed
         spec = g.laplacian_spectrum(which="smallest", k=5)
 
@@ -7098,6 +7126,17 @@ class Graph:
         Validate computed paths:
 
         ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+        )
+
         # Get all paths and validate them
         paths = graph.get_all_simple_paths("A", "D")
 
@@ -7110,6 +7149,13 @@ class Graph:
         Edge cases:
 
         ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+        )
+
         # Empty path is valid
         assert graph.is_simple_path([]) == True
 
@@ -8765,7 +8811,7 @@ class Graph:
 
         (graph
             .get_cmty_fast_greedy(attr_name="community")
-            .colorize_node_attrs(attr_name="community", palette="Set1")
+            .colorize_node_attrs(node_attr_from="community", palette="Set1")
             .show())
         ```
 
@@ -8873,7 +8919,7 @@ class Graph:
 
         (graph
             .get_cmty_edge_btwns(attr_name="community")
-            .colorize_node_attrs(attr_name="community", palette="Pastel1")
+            .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
             .show())
         ```
 
@@ -8969,9 +9015,26 @@ class Graph:
         Store as node attributes and chain:
 
         ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")
+        )
+
         (graph
             .get_cmty_l_eigenvec(attr_name="community")
-            .colorize_node_attrs("community", palette="Spectral")
+            .colorize_node_attrs(node_attr_from="community", palette="Spectral")
             .show())
         ```
 
@@ -9087,9 +9150,26 @@ class Graph:
         Store as node attributes and chain:
 
         ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")
+        )
+
         (graph
             .get_cmty_louvain(attr_name="community")
-            .colorize_node_attrs("community", palette="viridis")
+            .colorize_node_attrs(node_attr_from="community", palette="viridis")
             .show())
         ```
 
@@ -9212,9 +9292,26 @@ class Graph:
         Store as node attributes and chain:
 
         ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")
+        )
+
         (graph
             .get_cmty_walktrap(attr_name="community")
-            .colorize_node_attrs("community", palette="tab10")
+            .colorize_node_attrs(node_attr_from="community", palette="tab10")
             .show())
         ```
 
@@ -9431,6 +9528,19 @@ class Graph:
         Identify the most important connectors:
 
         ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+        )
+
         scores = graph.betweenness_centrality()
         connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
 
@@ -9518,7 +9628,7 @@ class Graph:
 
         (graph
             .get_authority_centrality(attr_name="authority")
-            .rescale_node_attrs(attr_name="authority", node_attr_to="size")
+            .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
             .show())
         ```
 
@@ -10509,6 +10619,17 @@ class Graph:
         Can also use labels directly:
 
         ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+        )
+
         graph.select_edges_by_node_id(["B"])
         ```
 
@@ -10615,12 +10736,13 @@ class Graph:
         )
 
         # Select all nodes first
-        all_ids = graph.node_ids(limit=None)
+        all_ids = list(graph.node_ids(limit=None))
         graph.select_nodes_by_id(all_ids)
 
         # Deselect first and last nodes
-        first_id = graph.get_id_from_label("0")
-        last_id = graph.get_id_from_label("4")
+        node_list = list(graph.node_ids(limit=None))
+        first_id = node_list[0]
+        last_id = node_list[4]
         graph.deselect_nodes([first_id, last_id])
 
         # Only middle nodes remain selected
@@ -10631,6 +10753,24 @@ class Graph:
         Can also use labels directly:
 
         ```python
+        graph = (
+            Graph()
+            .add_node(label="0")
+            .add_node(label="1")
+            .add_node(label="2")
+            .add_node(label="3")
+            .add_node(label="4")
+            .add_edge(source="0", target="1")
+            .add_edge(source="1", target="2")
+            .add_edge(source="2", target="3")
+            .add_edge(source="3", target="4")
+        )
+
+        # Select all nodes first
+        all_ids = list(graph.node_ids(limit=None))
+        graph.select_nodes_by_id(all_ids)
+
+        # Deselect first and last nodes using labels
         graph.deselect_nodes(["0", "4"])
         ```
 
@@ -10843,7 +10983,7 @@ class Graph:
         graph = (
             Graph()
             .add_cycle_graph(4)
-            .select_edges(lambda e: e.weight and e.weight > 0.5)
+            .select_edges(lambda e: e.weight is not None and e.weight > 0.5)
         )
 
         selected = graph.get_selected_edges()
@@ -11357,8 +11497,12 @@ class Graph:
         graph = (
             Graph(directed=True)
             .add_path_graph(10)
-            .select_nodes_in_neighborhood("0", k=2, mode="out")
         )
+
+        # Get first node ID
+        node_ids_list = list(graph.node_ids(limit=None))
+        first_node_id = node_ids_list[0]
+        graph.select_nodes_in_neighborhood(node_ids=[first_node_id], k=2, mode="out")
 
         # Selects nodes 1 and 2 (reachable within 2 hops)
         ```
@@ -11506,13 +11650,26 @@ class Graph:
         Get attribute from specific nodes using node IDs:
 
         ```python
-        user_scores = graph.get_node_attrs("score", nodes=[1, 3])
+        graph = (
+            Graph()
+            .add_node(label="A", type="user", score=95)
+            .add_node(label="B", type="admin", score=88)
+            .add_node(label="C", type="user", score=92)
+        )
+        node_ids = list(graph.node_ids())
+        user_scores = graph.get_node_attrs("score", nodes=[node_ids[0], node_ids[2]])
         print(user_scores)  # {1: 95, 3: 92}
         ```
 
         Can also use labels:
 
         ```python
+        graph = (
+            Graph()
+            .add_node(label="A", type="user", score=95)
+            .add_node(label="B", type="admin", score=88)
+            .add_node(label="C", type="user", score=92)
+        )
         user_scores = graph.get_node_attrs("score", nodes=["A", "C"])
         print(user_scores)  # {1: 95, 3: 92}
         ```
@@ -11592,6 +11749,12 @@ class Graph:
         Can also use labels:
 
         ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+        )
         graph.set_node_attrs("color", "red", nodes=["A", "B"])
         ```
 
@@ -12314,7 +12477,8 @@ class Graph:
         Combine selection with DataFrame analysis:
 
         ```python
-        edge_ids = graph.edge_ids()[:5]
+        graph = Graph().add_path_graph(10)
+        edge_ids = list(graph.edge_ids())[:5]
         graph.select_edges_by_id(edge_ids)
 
         selected_df = graph.get_edge_df_ws()
@@ -12439,6 +12603,17 @@ class Graph:
         Filtered neighbor lookup with predicate:
 
         ```python
+        graph = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="C", target="D")
+        )
+        a_id = graph.get_id_from_label("A")
         # Predicate receives node IDs (int), not labels
         high_degree_neighbors = graph.get_neighbors(
             a_id,
@@ -12518,6 +12693,7 @@ class Graph:
         Select recently created nodes:
 
         ```python
+        graph = ec.Graph().add_path_graph(10)
         # Select the last 5 nodes created
         recent = graph.get_node_creation_order()[-5:]
         graph.select_nodes_by_id(recent)
@@ -12550,10 +12726,15 @@ class Graph:
         ```python
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_edge("A", "B")
-        graph.add_edge("B", "C")
-        graph.add_edge("C", "A")
+        graph = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
 
         creation_order = graph.get_edge_creation_order()
         print(len(creation_order))  # 3
@@ -12567,6 +12748,7 @@ class Graph:
         Analyze edge addition patterns:
 
         ```python
+        graph = ec.Graph().add_path_graph(20)
         # Select first 10 edges added
         early_edges = graph.get_edge_creation_order()[:10]
         graph.select_edges_by_id(early_edges)
@@ -12609,8 +12791,8 @@ class Graph:
         graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
 
         # Select and delete middle nodes
-        node_ids = [graph.get_id_from_label(2), graph.get_id_from_label(3)]
-        graph.select_nodes_by_id(node_ids)
+        node_ids = list(graph.node_ids())
+        graph.select_nodes_by_id([node_ids[2], node_ids[3]])
         graph.delete_nodes_ws()
 
         print(graph.num_nodes())  # 3 (nodes 0, 1, 4 remain)
@@ -13063,11 +13245,13 @@ class Graph:
 
         ```python
         graph_directed = ec.Graph(directed=True)
-        graph_directed.add_node('X')
-        graph_directed.add_node('Y')
+        graph_directed.add_node(label='X')
+        graph_directed.add_node(label='Y')
 
+        x_id = graph_directed.get_id_from_label('X')
+        y_id = graph_directed.get_id_from_label('Y')
         (graph_directed
-            .select_nodes_by_id(['X', 'Y'])
+            .select_nodes_by_id([x_id, y_id])
             .fully_connect_nodes_ws()
         )
 
@@ -13138,12 +13322,17 @@ class Graph:
         ```python
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_edge('A', 'B', weight=1.0)
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label='A')
+            .add_node(label='B')
+            .add_edge(source='A', target='B', weight=1.0)
+        )
 
         # Add reverse edge
+        edge_ids = list(graph.edge_ids())
         (graph
-            .select_edges_by_id([1])
+            .select_edges_by_id([edge_ids[0]])
             .add_reverse_edges_ws(weight=1.0)
         )
 
@@ -13153,9 +13342,18 @@ class Graph:
         Make selected edges bidirectional:
 
         ```python
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label='A')
+            .add_node(label='B')
+            .add_node(label='C')
+            .add_edge(source='A', target='B', weight=10.0)
+            .add_edge(source='B', target='C', weight=3.0)
+        )
+
         # Add reverse edges for all edges with high weight
         (graph
-            .select_edges(lambda e: e.weight and e.weight > 5.0)
+            .select_edges(lambda e: e.weight is not None and e.weight > 5.0)
             .add_reverse_edges_ws()
         )
         ```
@@ -14247,8 +14445,11 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_edge("A", "B")
-        graph.add_edge("C", "B")
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_edge(source="A", target="B")
+        graph.add_edge(source="C", target="B")
 
         node_b_id = graph.get_id_from_label("B")
         graph.select_nodes_by_id([node_b_id]).trav_both()
@@ -14282,8 +14483,11 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "C")
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_edge(source="A", target="B")
+        graph.add_edge(source="A", target="C")
 
         node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out_edge()
@@ -14315,8 +14519,11 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_edge("A", "C")
-        graph.add_edge("B", "C")
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_edge(source="A", target="C")
+        graph.add_edge(source="B", target="C")
 
         node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in_edge()
@@ -14361,7 +14568,7 @@ class Graph:
         # Select A→B edge
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
-        graph.select_edges_by_node_id(a_id, b_id)
+        graph.select_edges_by_node_id([a_id, b_id])
 
         # Traverse to reverse edge (B→A)
         graph.trav_reverse_edge()
@@ -14853,6 +15060,9 @@ class Graph:
         With custom hook for additional properties:
 
         ```python
+        from edgecase import karate_club
+        graph = karate_club()
+
         def custom_stats(g):
             return {
                 "Clustering": g.get_avg_clustering_coefficient(),
@@ -15011,8 +15221,11 @@ class Graph:
         --------
         >>> from edgecase import Graph
         >>> G = Graph()
-        >>> G.add_edge("A", "B")
-        >>> G.add_edge("B", "C")
+        >>> G.add_node(label="A")
+        >>> G.add_node(label="B")
+        >>> G.add_node(label="C")
+        >>> G.add_edge(source="A", target="B")
+        >>> G.add_edge(source="B", target="C")
         >>> G.show()  # Auto-detects notebook vs browser
 
         >>> G.show(target="browser")  # Force browser
@@ -15510,8 +15723,6 @@ class AdaStar:
     # Edge weight changes (e.g., traffic, road closure)
     b_id = g.get_id_from_label("B")
     c_id = g.get_id_from_label("C")
-    bc_edge_id = g.find_edge_ids(b_id, c_id)[0]
-    g.set_edge_attr_by_id(bc_edge_id, "weight", 10.0)
 
     # Update planner with changes
     planner.update_graph([(b_id, c_id, 10.0)])
@@ -15657,7 +15868,13 @@ class AdaStar:
 
         Examples
         --------
-        >>> planner = ec.AdaStar(graph, "A", "Z", initial_epsilon=2.0)
+        >>> import edgecase as ec
+        >>> from edgecase.graph import AdaStar
+        >>> graph = ec.Graph()
+        >>> graph.add_node(label="A")
+        >>> graph.add_node(label="Z")
+        >>> graph.add_edge(source="A", target="Z", weight=1.0)
+        >>> planner = AdaStar(graph, "A", "Z", initial_epsilon=2.0)
         >>> path = planner.compute_or_improve_path(epsilon=2.0)  # Fast, suboptimal
         >>> path = planner.compute_or_improve_path(epsilon=1.5)  # Better
         >>> path = planner.compute_or_improve_path(epsilon=1.0)  # Optimal
@@ -15683,17 +15900,22 @@ class AdaStar:
 
         Examples
         --------
-        >>> planner = ec.AdaStar(graph, "A", "Z")
+        >>> import edgecase as ec
+        >>> from edgecase.graph import AdaStar
+        >>> graph = ec.Graph()
+        >>> graph.add_node(label="A")
+        >>> graph.add_node(label="B")
+        >>> graph.add_node(label="C")
+        >>> graph.add_node(label="Z")
+        >>> graph.add_edge(source="A", target="B", weight=1.0)
+        >>> graph.add_edge(source="B", target="C", weight=1.0)
+        >>> graph.add_edge(source="C", target="Z", weight=1.0)
+        >>> planner = AdaStar(graph, "A", "Z")
         >>> path = planner.compute_or_improve_path(epsilon=1.0)
-        >>>
-        >>> # Edge weight changes
-        >>> graph.update_edge("B", "C", {"weight": 10.0})
-        >>>
-        >>> # Update planner
-        >>> planner.update_graph([
-        ...     (graph.get_node_id("B"), graph.get_node_id("C"), 10.0)
-        ... ])
-        >>>
+        >>> # Notify planner of edge weight changes
+        >>> b_id = graph.get_id_from_label("B")
+        >>> c_id = graph.get_id_from_label("C")
+        >>> planner.update_graph([(b_id, c_id, 10.0)])
         >>> # Recompute path (reuses previous work)
         >>> new_path = planner.compute_or_improve_path(epsilon=1.0)
         """
