@@ -8008,11 +8008,13 @@ class Graph:
 
         Extract network backbone for visualization:
 
-        >>> g = Graph()
-        >>> # ... build large social network ...
-        >>> # Extract 2-spanner for cleaner visualization
-        >>> backbone = g.transform_with_spanner(stretch=2.0)
-        >>> # Now visualize backbone instead of full graph
+        ```python
+        g = Graph()
+        # ... build large social network ...
+        # Extract 2-spanner for cleaner visualization
+        backbone = g.transform_with_spanner(stretch=2.0)
+        # Now visualize backbone instead of full graph
+        ```
 
         References
         ----------
@@ -15219,16 +15221,18 @@ class Graph:
 
         Examples
         --------
-        >>> from edgecase import Graph
-        >>> G = Graph()
-        >>> G.add_node(label="A")
-        >>> G.add_node(label="B")
-        >>> G.add_node(label="C")
-        >>> G.add_edge(source="A", target="B")
-        >>> G.add_edge(source="B", target="C")
-        >>> # G.show()  # Auto-detects notebook vs browser
-        >>> # G.show(target="browser")  # Force browser
-        >>> # G.show(target="notebook")  # Force notebook display
+        ```python
+        from edgecase import Graph
+        G = Graph()
+        G.add_node(label="A")
+        G.add_node(label="B")
+        G.add_node(label="C")
+        G.add_edge(source="A", target="B")
+        G.add_edge(source="B", target="C")
+        # G.show()  # Auto-detects notebook vs browser
+        # G.show(target="browser")  # Force browser
+        # G.show(target="notebook")  # Force notebook display
+        ```
         """
         from edgecase.viz import plot_graph
 
@@ -15867,16 +15871,18 @@ class AdaStar:
 
         Examples
         --------
-        >>> import edgecase as ec
-        >>> from edgecase.graph import AdaStar
-        >>> graph = ec.Graph()
-        >>> graph.add_node(label="A")
-        >>> graph.add_node(label="Z")
-        >>> graph.add_edge(source="A", target="Z", weight=1.0)
-        >>> planner = AdaStar(graph, "A", "Z", initial_epsilon=2.0)
-        >>> path = planner.compute_or_improve_path(epsilon=2.0)  # Fast, suboptimal
-        >>> path = planner.compute_or_improve_path(epsilon=1.5)  # Better
-        >>> path = planner.compute_or_improve_path(epsilon=1.0)  # Optimal
+        ```python
+        import edgecase as ec
+        from edgecase.graph import AdaStar
+        graph = ec.Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="Z")
+        graph.add_edge(source="A", target="Z", weight=1.0)
+        planner = AdaStar(graph, "A", "Z", initial_epsilon=2.0)
+        path = planner.compute_or_improve_path(epsilon=2.0)  # Fast, suboptimal
+        path = planner.compute_or_improve_path(epsilon=1.5)  # Better
+        path = planner.compute_or_improve_path(epsilon=1.0)  # Optimal
+        ```
         """
         # Run search in Rust
         self.ada_star.compute_or_improve_path(self.graph._graph, epsilon)
@@ -15899,24 +15905,26 @@ class AdaStar:
 
         Examples
         --------
-        >>> import edgecase as ec
-        >>> from edgecase.graph import AdaStar
-        >>> graph = ec.Graph()
-        >>> graph.add_node(label="A")
-        >>> graph.add_node(label="B")
-        >>> graph.add_node(label="C")
-        >>> graph.add_node(label="Z")
-        >>> graph.add_edge(source="A", target="B", weight=1.0)
-        >>> graph.add_edge(source="B", target="C", weight=1.0)
-        >>> graph.add_edge(source="C", target="Z", weight=1.0)
-        >>> planner = AdaStar(graph, "A", "Z")
-        >>> path = planner.compute_or_improve_path(epsilon=1.0)
-        >>> # Notify planner of edge weight changes
-        >>> b_id = graph.get_id_from_label("B")
-        >>> c_id = graph.get_id_from_label("C")
-        >>> planner.update_graph([(b_id, c_id, 10.0)])
-        >>> # Recompute path (reuses previous work)
-        >>> new_path = planner.compute_or_improve_path(epsilon=1.0)
+        ```python
+        import edgecase as ec
+        from edgecase.graph import AdaStar
+        graph = ec.Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_node(label="Z")
+        graph.add_edge(source="A", target="B", weight=1.0)
+        graph.add_edge(source="B", target="C", weight=1.0)
+        graph.add_edge(source="C", target="Z", weight=1.0)
+        planner = AdaStar(graph, "A", "Z")
+        path = planner.compute_or_improve_path(epsilon=1.0)
+        # Notify planner of edge weight changes
+        b_id = graph.get_id_from_label("B")
+        c_id = graph.get_id_from_label("C")
+        planner.update_graph([(b_id, c_id, 10.0)])
+        # Recompute path (reuses previous work)
+        new_path = planner.compute_or_improve_path(epsilon=1.0)
+        ```
         """
         self.ada_star.update_graph(self.graph._graph, changes)
 

@@ -103,10 +103,12 @@ def to_polars(graph: Graph) -> pl.DataFrame:
 
     Examples
     --------
-    >>> import edgecase as ec
-    >>> G = ec.Graph(directed=False)
-    >>> # ... build graph ...
-    >>> df = ec.to_polars(G)
+    ```python
+    import edgecase as ec
+    G = ec.Graph(directed=False)
+    # ... build graph ...
+    df = ec.to_polars(G)
+    ```
     """
     # Placeholder implementation
     return pl.DataFrame(
