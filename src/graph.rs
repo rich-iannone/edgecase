@@ -6283,6 +6283,7 @@ impl Graph {
     ///
     /// # References
     /// Clauset, Newman, Moore. "Finding community structure in very large networks" (2004)
+    #[inline]
     fn get_cmty_fast_greedy(&self) -> PyResult<FxHashMap<u64, usize>> {
         // Require undirected graph
         if self.is_directed() {
@@ -6307,10 +6308,10 @@ impl Graph {
 
         // Initialize: each node in own community
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let mut communities: FxHashMap<u64, usize> = node_ids.iter()
-            .enumerate()
-            .map(|(idx, &id)| (id, idx))
-            .collect();
+        let mut communities: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for (idx, &id) in node_ids.iter().enumerate() {
+            communities.insert(id, idx);
+        }
 
         // Calculate total edge weight (m)
         let m = self.num_edges() as f64;
@@ -6326,7 +6327,7 @@ impl Graph {
 
         // Track edges between communities (sparse representation)
         // (comm_i, comm_j) -> edge_weight
-        let mut edge_weights: FxHashMap<(usize, usize), f64> = FxHashMap::default();
+        let mut edge_weights: FxHashMap<(usize, usize), f64> = FxHashMap::with_capacity_and_hasher(n * 5, Default::default());
 
         // Initialize edge weights from graph edges
         for (&from_id, neighbors) in &self.adjacency_list {
@@ -6383,15 +6384,17 @@ impl Graph {
             }
         }
 
-        let mut heap: BinaryHeap<MergeCandidate> = BinaryHeap::new();
+        let mut heap: BinaryHeap<MergeCandidate> = BinaryHeap::with_capacity(n);
 
         // Populate initial heap with all community pairs that have edges
+        let inv_m = 1.0 / m;
+        let inv_two_m_sq = 1.0 / (2.0 * m * m);
         for (&(comm_a, comm_b), &e_ij) in &edge_weights {
             let a_i = community_degrees[comm_a];
             let a_j = community_degrees[comm_b];
 
             // ΔQ = e_ij/m - (a_i * a_j)/(2m²)
-            let delta_q = (e_ij / m) - (a_i * a_j) / (2.0 * m * m);
+            let delta_q = (e_ij * inv_m) - (a_i * a_j * inv_two_m_sq);
 
             heap.push(MergeCandidate {
                 delta_q,
@@ -6493,7 +6496,7 @@ impl Graph {
                 if let Some(&e_ij) = edge_weights.get(&key) {
                     let a_i = community_degrees[comm_a];
                     let a_j = community_degrees[other_comm];
-                    let delta_q = (e_ij / m) - (a_i * a_j) / (2.0 * m * m);
+                    let delta_q = (e_ij * inv_m) - (a_i * a_j * inv_two_m_sq);
 
                     heap.push(MergeCandidate {
                         delta_q,
@@ -6505,7 +6508,7 @@ impl Graph {
         }
 
         // Renumber communities to be contiguous (0, 1, 2, ...)
-        let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
+        let mut community_map: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n / 5, Default::default());
         let mut next_id = 0;
 
         for comm_id in best_partition.values() {
@@ -6548,6 +6551,7 @@ impl Graph {
     /// # References
     /// Girvan & Newman. "Community structure in social and biological networks" (2002)
     /// Brandes. "A faster algorithm for betweenness centrality" (2001)
+    #[inline]
     fn get_cmty_edge_btwns(&self) -> PyResult<FxHashMap<u64, usize>> {
         // Require undirected graph
         if self.is_directed() {
@@ -6580,10 +6584,11 @@ impl Graph {
         }
 
         // Create mutable working graph (adjacency list that we'll modify)
-        let mut working_adj: FxHashMap<u64, FxHashSet<u64>> = self.adjacency_list
-            .iter()
-            .map(|(&k, v)| (k, v.iter().copied().collect()))
-            .collect();
+        let mut working_adj: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for (&k, v) in self.adjacency_list.iter() {
+            let neighbors: FxHashSet<u64> = v.iter().copied().collect();
+            working_adj.insert(k, neighbors);
+        }
 
         // Track best partition and modularity
         let mut best_modularity = -1.0;
@@ -6644,7 +6649,7 @@ impl Graph {
         }
 
         // Renumber communities to be contiguous
-        let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
+        let mut community_map: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
         let mut next_id = 0;
 
         for comm_id in best_partition.values() {
@@ -6688,6 +6693,7 @@ impl Graph {
     /// # References
     /// Newman, M. E. J. "Finding community structure in networks using the
     /// eigenvectors of matrices" (2006)
+    #[inline]
     fn get_cmty_l_eigenvec(&self) -> PyResult<FxHashMap<u64, usize>> {
         // Require undirected graph
         if self.is_directed() {
@@ -6721,13 +6727,15 @@ impl Graph {
 
         // Start with all nodes in one community
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let mut communities: FxHashMap<u64, usize> = node_ids.iter()
-            .map(|&id| (id, 0))
-            .collect();
+        let mut communities: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for &id in &node_ids {
+            communities.insert(id, 0);
+        }
 
         // Recursive splitting
         let mut next_community_id = 1;
-        let mut to_split: Vec<Vec<u64>> = vec![node_ids];
+        let mut to_split: Vec<Vec<u64>> = Vec::with_capacity(n / 10);
+        to_split.push(node_ids);
 
         while let Some(group) = to_split.pop() {
             if group.len() <= 1 {
@@ -6760,7 +6768,7 @@ impl Graph {
         }
 
         // Renumber communities to be contiguous
-        let mut community_map: FxHashMap<usize, usize> = FxHashMap::default();
+        let mut community_map: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
         let mut next_id = 0;
 
         for comm_id in communities.values() {
@@ -6790,6 +6798,7 @@ impl Graph {
     ///
     /// # Errors
     /// * Returns error if graph is directed (requires undirected graph)
+    #[inline]
     fn get_cmty_louvain(&self, resolution: f64) -> PyResult<FxHashMap<u64, usize>> {
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -6798,11 +6807,12 @@ impl Graph {
         }
 
         // Handle edge cases
-        if self.num_nodes() == 0 {
+        let n = self.num_nodes();
+        if n == 0 {
             return Ok(FxHashMap::default());
         }
 
-        if self.num_nodes() == 1 {
+        if n == 1 {
             let mut result = FxHashMap::default();
             if let Some(&node_id) = self.nodes.keys().next() {
                 result.insert(node_id, 0);
@@ -6822,7 +6832,7 @@ impl Graph {
 
         // Build node index mapping
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
+        let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (idx, &node_id) in node_ids.iter().enumerate() {
             node_to_idx.insert(node_id, idx);
         }
@@ -6857,12 +6867,13 @@ impl Graph {
         unique_comms.sort_unstable();
         unique_comms.dedup();
 
-        let mut comm_remap = FxHashMap::default();
+        let num_comms = unique_comms.len();
+        let mut comm_remap = FxHashMap::with_capacity_and_hasher(num_comms, Default::default());
         for (new_id, &old_id) in unique_comms.iter().enumerate() {
             comm_remap.insert(old_id, new_id);
         }
 
-        let mut result = FxHashMap::default();
+        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (idx, node_id) in node_ids.iter().enumerate() {
             let old_comm = node_to_comm[idx];
             let new_comm = comm_remap.get(&old_comm).copied().unwrap_or(0);
@@ -6882,6 +6893,7 @@ impl Graph {
     ///
     /// # Returns
     /// A mapping from node ID (String) to community ID (usize)
+    #[inline]
     fn get_cmty_walktrap(&self, steps: usize) -> PyResult<FxHashMap<u64, usize>> {
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -6903,7 +6915,7 @@ impl Graph {
         // Create node index mapping
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
         let n = node_ids.len();
-        let mut node_to_idx = FxHashMap::default();
+        let mut node_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (idx, &node_id) in node_ids.iter().enumerate() {
             node_to_idx.insert(node_id, idx);
         }
@@ -6933,7 +6945,7 @@ impl Graph {
         let best_partition = self.find_best_partition(&dendrogram, &node_ids, &node_to_idx);
 
         // Convert to result format
-        let mut result = FxHashMap::default();
+        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (idx, &node_id) in node_ids.iter().enumerate() {
             result.insert(node_id, best_partition[idx]);
         }
@@ -7327,6 +7339,7 @@ impl Graph {
 
     /// Try to split a group of nodes using eigenvector method
     /// Returns Some((group1, group2)) if split improves modularity, None otherwise
+    #[inline]
     fn try_split_eigenvector(&self, nodes: &[u64]) -> Option<(Vec<u64>, Vec<u64>)> {
         if nodes.len() <= 1 {
             return None;
@@ -7338,10 +7351,10 @@ impl Graph {
         }
 
         // Create node index mapping
-        let node_to_idx: FxHashMap<u64, usize> = nodes.iter()
-            .enumerate()
-            .map(|(idx, &id)| (id, idx))
-            .collect();
+        let n = nodes.len();
+        let node_to_idx: FxHashMap<u64, usize> = FxHashMap::from_iter(
+            nodes.iter().enumerate().map(|(idx, &id)| (id, idx))
+        );
 
         let n = nodes.len();
 
@@ -7349,8 +7362,8 @@ impl Graph {
         let eigenvector = self.compute_leading_eigenvector(nodes, &node_to_idx, m)?;
 
         // Split by sign of eigenvector
-        let mut group1 = Vec::new();
-        let mut group2 = Vec::new();
+        let mut group1 = Vec::with_capacity(n / 2);
+        let mut group2 = Vec::with_capacity(n / 2);
 
         for (idx, &node_id) in nodes.iter().enumerate() {
             if eigenvector[idx] >= 0.0 {
@@ -7384,6 +7397,7 @@ impl Graph {
 
         // Compute B^(g) matrix (same as used in eigenvector computation)
         let mut b_matrix: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
+        let inv_two_m = 1.0 / (2.0 * m);
 
         for (i, &node_i) in nodes.iter().enumerate() {
             // First compute row sum: Σ_k B_ik
@@ -7393,7 +7407,7 @@ impl Graph {
                     .map(|neighbors| neighbors.contains(&node_k))
                     .unwrap_or(false);
                 let a_ik = if has_edge { 1.0 } else { 0.0 };
-                let b_ik = a_ik - (degrees[i] * degrees[k]) / (2.0 * m);
+                let b_ik = a_ik - (degrees[i] * degrees[k] * inv_two_m);
                 row_sum += b_ik;
             }
 
@@ -7403,7 +7417,7 @@ impl Graph {
                     .map(|neighbors| neighbors.contains(&node_j))
                     .unwrap_or(false);
                 let a_ij = if has_edge { 1.0 } else { 0.0 };
-                let b_ij = a_ij - (degrees[i] * degrees[j]) / (2.0 * m);
+                let b_ij = a_ij - (degrees[i] * degrees[j] * inv_two_m);
 
                 if i == j {
                     b_matrix[i][j] = b_ij - row_sum;
@@ -7520,8 +7534,10 @@ impl Graph {
     }
 
     /// Compute edge betweenness using Brandes' algorithm
+    #[inline]
     fn compute_edge_betweenness(&self, adj_list: &FxHashMap<u64, FxHashSet<u64>>) -> FxHashMap<(u64, u64), f64> {
-        let mut betweenness: FxHashMap<(u64, u64), f64> = FxHashMap::default();
+        let n = self.nodes.len();
+        let mut betweenness: FxHashMap<(u64, u64), f64> = FxHashMap::with_capacity_and_hasher(n * 5, Default::default());
 
         // Initialize all edges with 0
         for (&u, neighbors) in adj_list {
@@ -7534,12 +7550,12 @@ impl Graph {
         // Run BFS from each node
         for &source in self.nodes.keys() {
             // BFS to find shortest paths
-            let mut distance: FxHashMap<u64, usize> = FxHashMap::default();
-            let mut num_paths: FxHashMap<u64, f64> = FxHashMap::default();
-            let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-            let mut stack: Vec<u64> = Vec::new();
+            let mut distance: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut num_paths: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut stack: Vec<u64> = Vec::with_capacity(n);
 
-            let mut queue = std::collections::VecDeque::new();
+            let mut queue = std::collections::VecDeque::with_capacity(n);
             queue.push_back(source);
             distance.insert(source, 0);
             num_paths.insert(source, 1.0);
@@ -7561,14 +7577,14 @@ impl Graph {
                         if *distance.get(&neighbor).unwrap() == node_dist + 1 {
                             let node_paths = *num_paths.get(&node).unwrap();
                             *num_paths.entry(neighbor).or_insert(0.0) += node_paths;
-                            predecessors.entry(neighbor).or_insert_with(Vec::new).push(node);
+                            predecessors.entry(neighbor).or_insert_with(|| Vec::with_capacity(4)).push(node);
                         }
                     }
                 }
             }
 
             // Backward accumulation
-            let mut dependency: FxHashMap<u64, f64> = FxHashMap::default();
+            let mut dependency: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
             for &node in self.nodes.keys() {
                 dependency.insert(node, 0.0);
             }
@@ -7598,12 +7614,14 @@ impl Graph {
     }
 
     /// Compute modularity for a given partition
+    #[inline]
     fn compute_modularity_for_partition(&self, partition: &FxHashMap<u64, usize>, m: f64) -> f64 {
         if m == 0.0 {
             return 0.0;
         }
 
         let mut Q = 0.0;
+        let inv_two_m = 1.0 / (2.0 * m);
 
         for (&node_i, comm_i) in partition {
             for (&node_j, comm_j) in partition {
@@ -7618,12 +7636,12 @@ impl Graph {
                     let k_i = self.degree(node_i) as f64;
                     let k_j = self.degree(node_j) as f64;
 
-                    Q += A_ij - (k_i * k_j) / (2.0 * m);
+                    Q += A_ij - (k_i * k_j * inv_two_m);
                 }
             }
         }
 
-        Q / (2.0 * m)
+        Q * inv_two_m
     }
 
     /// Helper: BFS to find augmenting path in residual graph (for min cut)
@@ -8348,6 +8366,7 @@ impl Graph {
     }
 
     /// Louvain local optimization phase.
+    #[inline]
     fn louvain_optimize(
         &self,
         node_to_comm: &mut Vec<usize>,
@@ -8359,6 +8378,7 @@ impl Graph {
         let mut changed = true;
         let max_passes = 10;
         let mut pass = 0;
+        let n = node_to_idx.len();
 
         let mut node_ids: Vec<u64> = node_to_idx.keys().copied().collect();
 
@@ -8382,7 +8402,7 @@ impl Graph {
                 let weight_all = k_i;
 
                 // Calculate edges from this node to each community
-                let mut comm_weights: FxHashMap<usize, f64> = FxHashMap::default();
+                let mut comm_weights: FxHashMap<usize, f64> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
 
                 if let Some(neighbors) = self.adjacency_list.get(&node_id) {
                     for &neighbor_id in neighbors {
@@ -8396,7 +8416,7 @@ impl Graph {
                 }
 
                 // Calculate sum of degrees for each community (BEFORE removing current node)
-                let mut comm_degree_sum: FxHashMap<usize, f64> = FxHashMap::default();
+                let mut comm_degree_sum: FxHashMap<usize, f64> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
                 for (&nid, &idx) in node_to_idx {
                     let comm = node_to_comm[idx];
                     let deg = self.degree(nid) as f64;
@@ -8415,6 +8435,7 @@ impl Graph {
                 // Collect all communities the node has edges to
                 let communities_to_try: Vec<usize> = comm_weights.keys().copied().collect();
 
+                let inv_two_m = 1.0 / (2.0 * m);
                 for target_comm in communities_to_try {
                     let k_i_in = comm_weights.get(&target_comm).copied().unwrap_or(0.0);
 
@@ -8422,7 +8443,7 @@ impl Graph {
                     // gain = k_i_in - resolution * sigma_tot * k_i / (2*m)
                     // where sigma_tot is the sum of degrees in target community (with node removed if it's current)
                     let sigma_tot = comm_degree_sum.get(&target_comm).copied().unwrap_or(0.0);
-                    let gain = k_i_in - resolution * sigma_tot * weight_all / (2.0 * m);
+                    let gain = k_i_in - resolution * sigma_tot * weight_all * inv_two_m;
 
                     if gain > best_gain {
                         best_gain = gain;
@@ -8443,6 +8464,7 @@ impl Graph {
     }
 
     /// Compute modularity for Louvain.
+    #[inline]
     fn louvain_compute_modularity(
         &self,
         node_to_comm: &[usize],
@@ -8455,7 +8477,7 @@ impl Graph {
         }
 
         let mut q = 0.0;
-        let two_m = 2.0 * m;
+        let inv_two_m = 1.0 / (2.0 * m);
 
         for (&node_i_id, &idx_i) in node_to_idx {
             for (&node_j_id, &idx_j) in node_to_idx {
@@ -8468,12 +8490,12 @@ impl Graph {
                     };
                     let k_i = self.degree(node_i_id) as f64;
                     let k_j = self.degree(node_j_id) as f64;
-                    q += a_ij - resolution * (k_i * k_j) / two_m;
+                    q += a_ij - resolution * (k_i * k_j * inv_two_m);
                 }
             }
         }
 
-        q / two_m
+        q * inv_two_m
     }
 
     // ===== Walktrap Helper Methods =====
