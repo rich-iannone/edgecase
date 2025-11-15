@@ -3941,7 +3941,7 @@ impl Graph {
     /// Standard eigenvector centrality: principal eigenvector of adjacency matrix
     /// x = A * x (power iteration method)
     /// Measures importance based on connections to other important nodes
-    /// 
+    ///
     /// Optimized implementation using dense arrays instead of HashMaps for better cache locality
     fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
@@ -3974,14 +3974,17 @@ impl Graph {
             }
         }
 
-        // Use dense arrays for centrality values
+        // Power iteration with shift to handle degenerate eigenvalues
+        // Add small diagonal shift: (A + εI) ensures largest eigenvalue is unique
+        let shift = 0.01; // Small positive shift
+
         let mut centrality = vec![1.0; n];
         let mut new_centrality = vec![0.0; n];
 
         for _iter in 0..max_iter {
-            // Matrix-vector multiply: new = A * centrality
+            // Matrix-vector multiply: new = (A + εI) * centrality
             for node_idx in 0..n {
-                let mut sum = 0.0;
+                let mut sum = shift * centrality[node_idx]; // Diagonal shift term
                 for &neighbor_idx in &neighbor_indices[node_idx] {
                     sum += centrality[neighbor_idx];
                 }
