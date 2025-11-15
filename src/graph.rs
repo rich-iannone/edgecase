@@ -1817,11 +1817,11 @@ impl Graph {
             return Ok(Vec::new());
         }
 
-        let mut visited = FxHashSet::default();
-        let mut disc = FxHashMap::default(); // Discovery time
-        let mut low = FxHashMap::default(); // Lowest reachable ancestor
-        let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::default();
-        let mut ap = FxHashSet::default(); // Articulation points
+        let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        let mut disc = FxHashMap::with_capacity_and_hasher(n, Default::default()); // Discovery time
+        let mut low = FxHashMap::with_capacity_and_hasher(n, Default::default()); // Lowest reachable ancestor
+        let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut ap = FxHashSet::with_capacity_and_hasher(n, Default::default()); // Articulation points
         let mut time = 0usize;
 
         // DFS helper function
@@ -2087,6 +2087,7 @@ impl Graph {
     /// Returns minimum number of edges whose removal disconnects the graph
     /// Uses simple approach: try removing each edge and check connectivity
     /// For larger graphs, use max-flow based algorithms (future optimization)
+    #[inline]
     fn get_adhesion(&self) -> PyResult<usize> {
         if self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -2119,6 +2120,7 @@ impl Graph {
     /// Returns minimum number of nodes whose removal disconnects the graph
     /// Uses Menger's theorem: min node cut = max number of node-disjoint paths
     /// Simplified implementation for now
+    #[inline]
     fn get_cohesion(&self) -> PyResult<usize> {
         if self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -2188,7 +2190,9 @@ impl Graph {
         // Build transformed graph for node connectivity
         // Each node v becomes v_in (v*2) and v_out (v*2+1) with capacity 1 edge between them
         // Exception: source and target nodes are not split (to measure connectivity between them)
-        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+        let n = self.num_nodes();
+        let estimated_capacity = n + self.edges.len() * 2;
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(estimated_capacity, Default::default());
 
         // Add internal edges for split nodes (except source and target)
         for &node in self.nodes.keys() {
@@ -2297,7 +2301,8 @@ impl Graph {
 
         // Compute minimum over all non-adjacent pairs
         let mut min_connectivity = usize::MAX;
-        let mut nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        let mut nodes: Vec<u64> = Vec::with_capacity(n);
+        nodes.extend(self.nodes.keys().copied());
         nodes.sort(); // Ensure consistent ordering
 
         for i in 0..nodes.len() {
@@ -2365,7 +2370,7 @@ impl Graph {
             let mut all_parents = Vec::new();
 
             // Group nodes by component ID
-            let mut comp_groups: FxHashMap<usize, Vec<u64>> = FxHashMap::default();
+            let mut comp_groups: FxHashMap<usize, Vec<u64>> = FxHashMap::with_capacity_and_hasher(component_map.len(), Default::default());
             for (&node, &comp_id) in &component_map {
                 comp_groups.entry(comp_id).or_insert_with(Vec::new).push(node);
             }
@@ -2698,7 +2703,8 @@ impl Graph {
 
         // Build capacity matrix (using adjacency list representation for efficiency)
         // For unweighted graphs, each edge has capacity 1
-        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+        let estimated_size = if self.directed { self.edges.len() } else { self.edges.len() * 2 };
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(estimated_size, Default::default());
 
         for edge in &self.edges {
             let key = (edge.source, edge.target);
@@ -2788,11 +2794,11 @@ impl Graph {
 
         // For small graphs, check all pairs
         // For larger graphs, use heuristic: check min_degree + 1 random pairs
-        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
         let mut min_cut = usize::MAX;
 
         // Strategy: compute min-cut from node with minimum degree to several other nodes
         // This is much faster than checking all pairs and usually finds the minimum
+        let nodes: Vec<u64> = Vec::from_iter(self.nodes.keys().copied());
 
         if let Some(&source) = nodes.iter().min_by_key(|&&id| self.degree(id)) {
             // Check cuts to several other nodes
@@ -7713,9 +7719,10 @@ impl Graph {
         sink: u64,
         residual: &FxHashMap<(u64, u64), usize>,
     ) -> Vec<u64> {
-        let mut visited = FxHashSet::default();
-        let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
-        let mut queue = std::collections::VecDeque::new();
+        let n = self.num_nodes();
+        let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        let mut parent: FxHashMap<u64, u64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut queue = std::collections::VecDeque::with_capacity(n);
 
         visited.insert(source);
         queue.push_back(source);
@@ -7759,9 +7766,11 @@ impl Graph {
         sink: u64,
         residual: &FxHashMap<(u64, u64), usize>,
     ) -> Vec<u64> {
-        let mut visited = FxHashSet::default();
-        let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
-        let mut queue = std::collections::VecDeque::new();
+        let n = self.num_nodes();
+        let capacity = n * 2; // Transformed graph has split nodes
+        let mut visited = FxHashSet::with_capacity_and_hasher(capacity, Default::default());
+        let mut parent: FxHashMap<u64, u64> = FxHashMap::with_capacity_and_hasher(capacity, Default::default());
+        let mut queue = std::collections::VecDeque::with_capacity(capacity);
 
         visited.insert(source);
         queue.push_back(source);
