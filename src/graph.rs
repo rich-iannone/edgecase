@@ -1900,13 +1900,14 @@ impl Graph {
     /// Returns HashMap of node -> eccentricity
     /// Eccentricity is infinity if graph is disconnected
     fn compute_eccentricities(&self) -> FxHashMap<u64, Option<usize>> {
-        let mut eccentricities = FxHashMap::default();
+        let n = self.num_nodes();
+        let mut eccentricities = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         for &node in self.nodes.keys() {
             // BFS to find max distance from this node
-            let mut visited = FxHashSet::default();
-            let mut queue = std::collections::VecDeque::new();
-            let mut distances: FxHashMap<u64, usize> = FxHashMap::default();
+            let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+            let mut queue = std::collections::VecDeque::with_capacity(n);
+            let mut distances: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             visited.insert(node);
             queue.push_back(node);
@@ -1942,6 +1943,7 @@ impl Graph {
     /// Get periphery nodes (nodes with maximum eccentricity)
     /// Returns list of node IDs
     /// Returns empty list if graph is disconnected
+    #[inline]
     fn get_periphery(&self) -> Vec<u64> {
         let eccentricities = self.compute_eccentricities();
 
@@ -1957,15 +1959,18 @@ impl Graph {
 
         let max_ecc = *valid_eccentricities.iter().map(|(_, e)| e).max().unwrap();
 
-        valid_eccentricities
-            .into_iter()
-            .filter(|(_, e)| *e == max_ecc)
-            .map(|(node, _)| node)
-            .collect()
+        let mut result = Vec::with_capacity(valid_eccentricities.len());
+        for (node, e) in valid_eccentricities {
+            if e == max_ecc {
+                result.push(node);
+            }
+        }
+        result
     }
 
     /// Get graph diameter (maximum eccentricity)
     /// Returns None if graph is disconnected
+    #[inline]
     fn get_graph_diameter(&self) -> Option<usize> {
         let eccentricities = self.compute_eccentricities();
 
@@ -1977,6 +1982,7 @@ impl Graph {
 
     /// Get graph radius (minimum eccentricity)
     /// Returns None if graph is disconnected
+    #[inline]
     fn get_graph_radius(&self) -> Option<usize> {
         let eccentricities = self.compute_eccentricities();
 
@@ -1989,6 +1995,7 @@ impl Graph {
     /// Get mean distance (average shortest path length)
     /// Returns None if graph is disconnected
     /// Computes the average of all pairwise shortest path lengths
+    #[inline]
     fn get_mean_distance(&self) -> Option<f64> {
         if self.num_nodes() == 0 {
             return None;
@@ -2019,7 +2026,7 @@ impl Graph {
         if path_count == 0 {
             None
         } else {
-            Some(total_distance as f64 / path_count as f64)
+            Some(total_distance as f64 * (1.0 / path_count as f64))
         }
     }
 
@@ -2027,7 +2034,8 @@ impl Graph {
     /// Returns None if graph is acyclic
     /// Uses BFS from each node to find shortest cycle through that node
     fn get_girth(&self) -> Option<usize> {
-        if self.num_nodes() == 0 {
+        let n = self.num_nodes();
+        if n == 0 {
             return None;
         }
 
@@ -2035,9 +2043,9 @@ impl Graph {
 
         // Try BFS from each node to find shortest cycle
         for &start_node in self.nodes.keys() {
-            let mut distances: FxHashMap<u64, usize> = FxHashMap::default();
-            let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::default();
-            let mut queue = std::collections::VecDeque::new();
+            let mut distances: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut queue = std::collections::VecDeque::with_capacity(n);
 
             distances.insert(start_node, 0);
             parent.insert(start_node, None);
@@ -2399,6 +2407,7 @@ impl Graph {
     /// Get eccentricity for each node
     /// Eccentricity is the maximum distance from a node to any other node
     /// Returns HashMap mapping node ID to eccentricity (None if disconnected)
+    #[inline]
     fn get_eccentricity(&self) -> FxHashMap<u64, Option<usize>> {
         self.compute_eccentricities()
     }
@@ -2407,6 +2416,7 @@ impl Graph {
     /// Radiality = (diameter + 1 - eccentricity) / (n - 1)
     /// Measures how central a node is based on eccentricity
     /// Returns HashMap mapping node ID to radiality (None if graph disconnected)
+    #[inline]
     fn get_radiality(&self) -> FxHashMap<u64, Option<f64>> {
         let n = self.num_nodes();
         if n <= 1 {
@@ -2420,11 +2430,11 @@ impl Graph {
 
         match diameter {
             Some(d) => {
-                let denom = (n - 1) as f64;
+                let inv_denom = 1.0 / (n - 1) as f64;
                 eccentricities
                     .into_iter()
                     .map(|(node, ecc)| {
-                        let radiality = ecc.map(|e| (d + 1 - e) as f64 / denom);
+                        let radiality = ecc.map(|e| (d + 1 - e) as f64 * inv_denom);
                         (node, radiality)
                     })
                     .collect()
