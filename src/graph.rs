@@ -1462,8 +1462,10 @@ impl Graph {
         // Two k-subsets are adjacent if they intersect in k-1 elements
         for i in 0..combinations.len() {
             for j in (i + 1)..combinations.len() {
-                let set_i: FxHashSet<_> = combinations[i].iter().copied().collect();
-                let set_j: FxHashSet<_> = combinations[j].iter().copied().collect();
+                let mut set_i = FxHashSet::with_capacity_and_hasher(k, Default::default());
+                set_i.extend(combinations[i].iter().copied());
+                let mut set_j = FxHashSet::with_capacity_and_hasher(k, Default::default());
+                set_j.extend(combinations[j].iter().copied());
 
                 // Intersection size
                 let intersection_size = set_i.intersection(&set_j).count();
@@ -7404,7 +7406,7 @@ impl Graph {
             }
         }
 
-        let mut current = Vec::new();
+        let mut current = Vec::with_capacity(k);
         combine(elements, k, 0, &mut current, &mut result);
         result
     }
