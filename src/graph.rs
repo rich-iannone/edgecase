@@ -3814,6 +3814,7 @@ impl Graph {
     /// Hyperlink-Induced Topic Search algorithm for directed graphs
     /// Authority score: sum of hub scores of nodes pointing to this node
     /// Returns HashMap of node -> authority score
+    #[inline]
     fn get_authority_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<u64, f64>> {
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -3828,6 +3829,7 @@ impl Graph {
     /// Get HITS hub scores
     /// Hub score: sum of authority scores of nodes this node points to
     /// Returns HashMap of node -> hub score
+    #[inline]
     fn get_hub_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<u64, f64>> {
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -3841,23 +3843,31 @@ impl Graph {
 
     /// Helper: compute HITS (Hyperlink-Induced Topic Search) scores
     /// Returns (authorities, hubs)
+    #[inline]
     fn compute_hits(&self, max_iter: usize, tol: f64) -> (FxHashMap<u64, f64>, FxHashMap<u64, f64>) {
         let n = self.num_nodes();
         if n == 0 {
             return (FxHashMap::default(), FxHashMap::default());
         }
 
+        // Preallocate HashMaps with capacity for better performance
+        let mut authorities: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut hubs: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut prev_authorities: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut prev_hubs: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+
         // Initialize all scores to 1.0
-        let mut authorities: FxHashMap<u64, f64> = self.nodes.keys()
-            .map(|&id| (id, 1.0))
-            .collect();
-        let mut hubs: FxHashMap<u64, f64> = self.nodes.keys()
-            .map(|&id| (id, 1.0))
-            .collect();
+        for &id in self.nodes.keys() {
+            authorities.insert(id, 1.0);
+            hubs.insert(id, 1.0);
+        }
 
         for _ in 0..max_iter {
-            let prev_authorities = authorities.clone();
-            let prev_hubs = hubs.clone();
+            // Use swap instead of clone for zero-cost move (same as Alpha Centrality optimization)
+            std::mem::swap(&mut authorities, &mut prev_authorities);
+            std::mem::swap(&mut hubs, &mut prev_hubs);
+            authorities.clear();
+            hubs.clear();
 
             // Update authority scores: sum of hub scores of incoming neighbors
             for &node in self.nodes.keys() {
@@ -3882,18 +3892,20 @@ impl Graph {
                 hubs.insert(node, hub_score);
             }
 
-            // Normalize
+            // Normalize using multiplication instead of division
             let auth_norm: f64 = authorities.values().map(|&v| v * v).sum::<f64>().sqrt();
             let hub_norm: f64 = hubs.values().map(|&v| v * v).sum::<f64>().sqrt();
 
             if auth_norm > 0.0 {
+                let inv_auth_norm = 1.0 / auth_norm;
                 for val in authorities.values_mut() {
-                    *val /= auth_norm;
+                    *val *= inv_auth_norm;
                 }
             }
             if hub_norm > 0.0 {
+                let inv_hub_norm = 1.0 / hub_norm;
                 for val in hubs.values_mut() {
-                    *val /= hub_norm;
+                    *val *= inv_hub_norm;
                 }
             }
 
