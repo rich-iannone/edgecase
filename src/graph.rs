@@ -3906,6 +3906,7 @@ impl Graph {
     /// Measures importance based on connections to other important nodes
     ///
     /// Optimized implementation using dense arrays instead of HashMaps for better cache locality
+    #[inline]
     fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
@@ -3921,24 +3922,31 @@ impl Graph {
 
         // Create node_id -> index mapping for dense array access
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let node_to_idx: FxHashMap<u64, usize> = node_ids.iter()
-            .enumerate()
-            .map(|(idx, &id)| (id, idx))
-            .collect();
+        let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
+        node_to_idx.reserve(n);
+        for (idx, &id) in node_ids.iter().enumerate() {
+            node_to_idx.insert(id, idx);
+        }
 
         // Build neighbor list using indices for cache-friendly access
-        let mut neighbor_indices: Vec<Vec<usize>> = vec![Vec::new(); n];
+        // Preallocate capacity for better performance
+        let mut neighbor_indices: Vec<Vec<usize>> = Vec::with_capacity(n);
+        for _ in 0..n {
+            neighbor_indices.push(Vec::with_capacity(8)); // Typical degree estimate
+        }
         for (&node_id, neighbors) in &self.adjacency_list {
-            let node_idx = node_to_idx[&node_id];
-            for &neighbor_id in neighbors {
-                if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
-                    neighbor_indices[node_idx].push(neighbor_idx);
+            if let Some(&node_idx) = node_to_idx.get(&node_id) {
+                for &neighbor_id in neighbors {
+                    if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
+                        neighbor_indices[node_idx].push(neighbor_idx);
+                    }
                 }
             }
         }
 
         // Power iteration with shift to handle degenerate eigenvalues
         // Add small diagonal shift: (A + εI) ensures largest eigenvalue is unique
+        // Hoist constant outside loop for better performance
         let shift = 0.01; // Small positive shift
 
         let mut centrality = vec![1.0; n];
@@ -3946,6 +3954,9 @@ impl Graph {
 
         for _iter in 0..max_iter {
             // Matrix-vector multiply: new = (A + εI) * centrality
+            // Reset array using fast fill operation
+            new_centrality.fill(0.0);
+
             for node_idx in 0..n {
                 let mut sum = shift * centrality[node_idx]; // Diagonal shift term
                 for &neighbor_idx in &neighbor_indices[node_idx] {
@@ -3968,11 +3979,15 @@ impl Graph {
             }
 
             // Normalize and check convergence using L1 norm
-            let mut delta = 0.0;
-            for i in 0..n {
-                new_centrality[i] /= norm;
-                delta += (new_centrality[i] - centrality[i]).abs();
-            }
+            // Use multiplication instead of division (3-4× faster)
+            let inv_norm = 1.0 / norm;
+            let delta: f64 = new_centrality.iter_mut()
+                .zip(centrality.iter())
+                .map(|(new, &old)| {
+                    *new *= inv_norm;
+                    (*new - old).abs()
+                })
+                .sum();
 
             // Swap arrays (no allocation)
             std::mem::swap(&mut centrality, &mut new_centrality);
@@ -4076,6 +4091,7 @@ impl Graph {
     /// For directed graphs, uses transpose to count incoming paths
     ///
     /// OPTIMIZED: Pre-computes transpose graph to avoid O(n²) iteration
+    #[inline]
     fn get_katz_centrality(&self, alpha: f64, beta: f64, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
         let n = self.num_nodes();
         if n == 0 {
@@ -4085,31 +4101,32 @@ impl Graph {
         // Pre-compute transpose adjacency list (incoming edges)
         // This is the key optimization: O(m) instead of O(n²)
         let mut transpose: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+        transpose.reserve(n);
         for &node in self.nodes.keys() {
-            transpose.insert(node, Vec::new());
+            transpose.insert(node, Vec::with_capacity(8)); // Preallocate typical size
         }
 
         for (&from_node, neighbors) in &self.adjacency_list {
             for &to_node in neighbors {
-                transpose.entry(to_node).or_insert_with(Vec::new).push(from_node);
+                if let Some(incoming) = transpose.get_mut(&to_node) {
+                    incoming.push(from_node);
+                }
             }
         }
 
         // Use dense arrays for better cache locality (like PageRank optimization)
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let node_to_idx: FxHashMap<u64, usize> = node_ids
-            .iter()
-            .enumerate()
-            .map(|(idx, &id)| (id, idx))
-            .collect();
+        let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::default();
+        node_to_idx.reserve(n);
+        for (idx, &id) in node_ids.iter().enumerate() {
+            node_to_idx.insert(id, idx);
+        }
 
         // Initialize centrality arrays
         let mut centrality = vec![beta; n];
         let mut new_centrality = vec![beta; n];
 
         for _ in 0..max_iter {
-            let mut max_change: f64 = 0.0;
-
             // Compute new centrality for each node
             for (idx, &node) in node_ids.iter().enumerate() {
                 // Sum centrality from incoming neighbors
@@ -4124,12 +4141,14 @@ impl Graph {
                     .unwrap_or(0.0);
 
                 // x_new = alpha * (incoming sum) + beta
-                let new_value = alpha * incoming_sum + beta;
-                new_centrality[idx] = new_value;
-
-                let change = (new_value - centrality[idx]).abs();
-                max_change = max_change.max(change);
+                new_centrality[idx] = alpha * incoming_sum + beta;
             }
+
+            // Check convergence using vectorized L1 norm
+            let max_change: f64 = new_centrality.iter()
+                .zip(centrality.iter())
+                .map(|(new, old)| (new - old).abs())
+                .fold(0.0, f64::max);
 
             // Swap arrays (zero-cost with move semantics)
             std::mem::swap(&mut centrality, &mut new_centrality);
@@ -4139,11 +4158,12 @@ impl Graph {
             }
         }
 
-        // Normalize by the sum
+        // Normalize by the sum using multiplication (faster than division)
         let total: f64 = centrality.iter().sum();
         if total > 0.0 {
+            let inv_total = 1.0 / total;
             for val in centrality.iter_mut() {
-                *val /= total;
+                *val *= inv_total;
             }
         }
 
