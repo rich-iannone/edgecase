@@ -4329,8 +4329,10 @@ impl Graph {
     /// Measures the degree connectivity of a node relative to its neighbors
     /// leverage(v) = (1/k_v) * sum((k_v - k_n) / (k_v + k_n))
     /// where k_v is degree of v, k_n is degree of neighbor n
+    #[inline]
     fn get_leverage_centrality(&self) -> FxHashMap<u64, f64> {
-        let mut leverage = FxHashMap::default();
+        let n = self.num_nodes();
+        let mut leverage = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         for &node in self.nodes.keys() {
             let k_v = self.degree(node) as f64;
@@ -4344,13 +4346,16 @@ impl Graph {
             if let Some(neighbors) = self.adjacency_list.get(&node) {
                 for &neighbor in neighbors {
                     let k_n = self.degree(neighbor) as f64;
-                    if k_v + k_n > 0.0 {
-                        sum += (k_v - k_n) / (k_v + k_n);
+                    let k_sum = k_v + k_n;
+                    if k_sum > 0.0 {
+                        let inv_k_sum = 1.0 / k_sum;
+                        sum += (k_v - k_n) * inv_k_sum;
                     }
                 }
             }
 
-            let lev = sum / k_v;
+            let inv_k_v = 1.0 / k_v;
+            let lev = sum * inv_k_v;
             leverage.insert(node, lev);
         }
 
@@ -4361,12 +4366,15 @@ impl Graph {
     /// Dice coefficient: 2 * |A ∩ B| / (|A| + |B|)
     /// Measures neighborhood overlap, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
+    #[inline]
     fn get_dice_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
-        let mut similarities = FxHashMap::default();
-        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = self.num_nodes();
+        let mut similarities = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut nodes = Vec::with_capacity(n);
+        nodes.extend(self.nodes.keys().copied());
 
         for &node1 in &nodes {
-            let mut node1_sims = FxHashMap::default();
+            let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
             let neighbors1: FxHashSet<&u64> = self.adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
@@ -4386,9 +4394,10 @@ impl Graph {
                 let intersection = neighbors1.intersection(&neighbors2).count();
                 let size1 = neighbors1.len();
                 let size2 = neighbors2.len();
+                let size_sum = size1 + size2;
 
-                let dice = if size1 + size2 > 0 {
-                    (2.0 * intersection as f64) / (size1 + size2) as f64
+                let dice = if size_sum > 0 {
+                    (2.0 * intersection as f64) * (1.0 / size_sum as f64)
                 } else {
                     0.0
                 };
@@ -4406,12 +4415,15 @@ impl Graph {
     /// Jaccard index: |A ∩ B| / |A ∪ B|
     /// Classic set similarity measure, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
+    #[inline]
     fn get_jaccard_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
-        let mut similarities = FxHashMap::default();
-        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = self.num_nodes();
+        let mut similarities = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut nodes = Vec::with_capacity(n);
+        nodes.extend(self.nodes.keys().copied());
 
         for &node1 in &nodes {
-            let mut node1_sims = FxHashMap::default();
+            let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
             let neighbors1: FxHashSet<&u64> = self.adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
@@ -4432,7 +4444,7 @@ impl Graph {
                 let union = neighbors1.union(&neighbors2).count();
 
                 let jaccard = if union > 0 {
-                    intersection as f64 / union as f64
+                    (intersection as f64) * (1.0 / union as f64)
                 } else {
                     0.0
                 };
@@ -4450,12 +4462,15 @@ impl Graph {
     /// Cosine similarity: A·B / (||A|| ||B||)
     /// Normalized dot product of adjacency vectors, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
+    #[inline]
     fn get_cosine_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
-        let mut similarities = FxHashMap::default();
-        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = self.num_nodes();
+        let mut similarities = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut nodes = Vec::with_capacity(n);
+        nodes.extend(self.nodes.keys().copied());
 
         for &node1 in &nodes {
-            let mut node1_sims = FxHashMap::default();
+            let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
             let neighbors1: FxHashSet<&u64> = self.adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
@@ -4477,7 +4492,8 @@ impl Graph {
                 let size2 = neighbors2.len();
 
                 let cosine = if size1 > 0 && size2 > 0 {
-                    let result = intersection as f64 / ((size1 as f64).sqrt() * (size2 as f64).sqrt());
+                    let inv_denominator = 1.0 / ((size1 as f64).sqrt() * (size2 as f64).sqrt());
+                    let result = (intersection as f64) * inv_denominator;
                     // Clamp to [0, 1] to handle floating-point precision issues
                     result.clamp(0.0, 1.0)
                 } else {
@@ -4497,12 +4513,15 @@ impl Graph {
     /// Overlap coefficient: |A ∩ B| / min(|A|, |B|)
     /// Subset-based similarity measure, range [0, 1]
     /// Returns nested HashMap: node1 -> node2 -> similarity
+    #[inline]
     fn get_overlap_similarity(&self) -> FxHashMap<u64, FxHashMap<u64, f64>> {
-        let mut similarities = FxHashMap::default();
-        let nodes: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = self.num_nodes();
+        let mut similarities = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut nodes = Vec::with_capacity(n);
+        nodes.extend(self.nodes.keys().copied());
 
         for &node1 in &nodes {
-            let mut node1_sims = FxHashMap::default();
+            let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
             let neighbors1: FxHashSet<&u64> = self.adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
@@ -4525,7 +4544,7 @@ impl Graph {
                 let min_size = size1.min(size2);
 
                 let overlap = if min_size > 0 {
-                    intersection as f64 / min_size as f64
+                    (intersection as f64) * (1.0 / min_size as f64)
                 } else {
                     0.0
                 };
