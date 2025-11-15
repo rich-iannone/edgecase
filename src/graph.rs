@@ -348,6 +348,7 @@ impl Graph {
     ///
     /// # Returns
     /// True if the node exists, false otherwise
+    #[inline]
     pub fn has_node_id(&self, node_id: u64) -> bool {
         self.nodes.contains_key(&node_id)
     }
@@ -408,6 +409,7 @@ impl Graph {
     }
 
     /// Get neighbors of a node
+    #[inline]
     pub fn neighbors(&self, node_id: u64) -> PyResult<Vec<u64>> {
         self.adjacency_list
             .get(&node_id)
@@ -472,6 +474,7 @@ impl Graph {
     }
 
     /// Check if an edge exists by ID
+    #[inline]
     pub fn has_edge_id(&self, edge_id: u64) -> bool {
         self.edges.iter().any(|e| e.id == edge_id)
     }
@@ -494,6 +497,7 @@ impl Graph {
     }
 
     /// Get weight of edge between two nodes (for internal use in algorithms)
+    #[inline]
     pub(crate) fn get_edge_weight(&self, from: u64, to: u64) -> f64 {
         self.edges
             .iter()
@@ -732,6 +736,7 @@ impl Graph {
     }
 
     /// Get the degree of a node (total neighbors)
+    #[inline]
     fn degree(&self, node_id: u64) -> usize {
         self.adjacency_list
             .get(&node_id)
@@ -740,6 +745,7 @@ impl Graph {
     }
 
     /// Get in-degree of a node (for directed graphs)
+    #[inline]
     fn in_degree(&self, node_id: u64) -> usize {
         if !self.directed {
             return self.degree(node_id);
@@ -752,6 +758,7 @@ impl Graph {
     }
 
     /// Get out-degree of a node (for directed graphs)
+    #[inline]
     fn out_degree(&self, node_id: u64) -> usize {
         if !self.directed {
             return self.degree(node_id);
@@ -3531,6 +3538,7 @@ impl Graph {
     }
 
     /// Helper: BFS to compute distances from a start node
+    #[inline]
     fn bfs_distances(&self, start: u64) -> FxHashMap<u64, usize> {
         self.bfs_distances_optimized(start)
     }
@@ -3564,6 +3572,7 @@ impl Graph {
     }
 
     /// Helper: BFS excluding a specific node
+    #[inline]
     fn bfs_distances_excluding(&self, start: u64, excluded: u64) -> FxHashMap<u64, usize> {
         self.bfs_distances_excluding_optimized(start, excluded)
     }
