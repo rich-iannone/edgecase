@@ -675,6 +675,7 @@ impl Graph {
 
     /// Select nodes by their IDs
     #[inline]
+    #[inline]
     pub fn select_nodes_by_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
         for node_id in node_ids {
             if !self.nodes.contains_key(&node_id) {
@@ -789,6 +790,7 @@ impl Graph {
     }
 
     /// Deselect specific nodes
+    #[inline]
     pub fn deselect_nodes(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
         for node_id in node_ids {
             self.selected_nodes.remove(&node_id);
@@ -797,6 +799,7 @@ impl Graph {
     }
 
     /// Deselect specific edges
+    #[inline]
     pub fn deselect_edges(&mut self, edge_ids: Vec<u64>) -> PyResult<()> {
         for edge_id in edge_ids {
             self.selected_edges.remove(&edge_id);
@@ -805,6 +808,7 @@ impl Graph {
     }
 
     /// Clear all selections
+    #[inline]
     pub fn clear_selection(&mut self) -> PyResult<()> {
         self.selected_nodes.clear();
         self.selected_edges.clear();
@@ -812,8 +816,11 @@ impl Graph {
     }
 
     /// Invert node selection
+    #[inline]
     pub fn invert_node_selection(&mut self) -> PyResult<()> {
-        let all_nodes: FxHashSet<u64> = self.nodes.keys().copied().collect();
+        let n = self.nodes.len();
+        let mut all_nodes = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        all_nodes.extend(self.nodes.keys().copied());
         self.selected_nodes = all_nodes
             .difference(&self.selected_nodes)
             .copied()
@@ -822,8 +829,11 @@ impl Graph {
     }
 
     /// Invert edge selection
+    #[inline]
     pub fn invert_edge_selection(&mut self) -> PyResult<()> {
-        let all_edges: FxHashSet<u64> = self.edges.iter().map(|e| e.id).collect();
+        let n = self.edges.len();
+        let mut all_edges = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        all_edges.extend(self.edges.iter().map(|e| e.id));
         self.selected_edges = all_edges
             .difference(&self.selected_edges)
             .cloned()
@@ -832,21 +842,25 @@ impl Graph {
     }
 
     /// Get currently selected node IDs
+    #[inline]
     pub fn get_selected_nodes(&self) -> Vec<u64> {
         self.selected_nodes.iter().copied().collect()
     }
 
     /// Get currently selected edge IDs
+    #[inline]
     pub fn get_selected_edges(&self) -> Vec<u64> {
         self.selected_edges.iter().cloned().collect()
     }
 
     /// Get count of selected nodes
+    #[inline]
     pub fn count_selected_nodes(&self) -> usize {
         self.selected_nodes.len()
     }
 
     /// Get count of selected edges
+    #[inline]
     pub fn count_selected_edges(&self) -> usize {
         self.selected_edges.len()
     }
@@ -884,6 +898,7 @@ impl Graph {
     }
 
     /// Get a node object by ID (for use with selection predicates)
+    #[inline]
     pub fn get_node(&self, node_id: u64) -> Option<Node> {
         self.nodes.get(&node_id).cloned()
     }
@@ -929,6 +944,7 @@ impl Graph {
 
     /// Select nodes in the K-hop neighborhood of specified nodes
     #[pyo3(signature = (node_ids, k=1, mode="out"))]
+    #[inline]
     #[inline]
     pub fn select_nodes_in_neighborhood(
         &mut self,
@@ -4603,6 +4619,7 @@ impl Graph {
     /// Replaces the current node selection with neighbors in the outward direction.
     /// For directed graphs, this follows edges where selected nodes are sources.
     #[inline]
+    #[inline]
     pub fn trav_out(&mut self) -> PyResult<()> {
         // Get current selected nodes
         let n = self.selected_nodes.len();
@@ -4809,7 +4826,7 @@ impl Graph {
         }
 
         // Find reverse edges
-        let mut reverse_edges = FxHashSet::default();
+        let mut reverse_edges = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
         for edge_id in current_selection {
             // Find the edge
