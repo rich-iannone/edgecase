@@ -9179,6 +9179,15 @@ impl AdaStar {
     fn initialize_search(&mut self, graph: &Graph) {
         self.graph_id = Some(graph as *const _ as usize);
 
+        // Preallocate HashMaps with graph size
+        let n = graph.nodes.len();
+        self.state_to_goal_est = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        self.one_step_lookahead = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        self.open = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        self.closed = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        self.incons = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        self.visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+
         // Initialize g and rhs values
         for &node_id in graph.nodes.keys() {
             self.state_to_goal_est.insert(node_id, f64::INFINITY);
@@ -9210,7 +9219,9 @@ impl AdaStar {
             self.incons.clear();
 
             // Update all OPEN keys
-            let open_nodes: Vec<u64> = self.open.keys().copied().collect();
+            let n = self.open.len();
+            let mut open_nodes = Vec::with_capacity(n);
+            open_nodes.extend(self.open.keys().copied());
             for node in open_nodes {
                 let key = self.compute_key(node, graph);
                 self.open.insert(node, key);
@@ -9302,7 +9313,9 @@ impl AdaStar {
         self.incons.clear();
 
         // Update all OPEN keys
-        let open_nodes: Vec<u64> = self.open.keys().copied().collect();
+        let n = self.open.len();
+        let mut open_nodes = Vec::with_capacity(n);
+        open_nodes.extend(self.open.keys().copied());
         for node in open_nodes {
             let key = self.compute_key(node, graph);
             self.open.insert(node, key);
@@ -9323,7 +9336,9 @@ impl AdaStar {
             ));
         }
 
-        let mut path = vec![self.source];
+        // Preallocate path with reasonable capacity (won't exceed n)
+        let mut path = Vec::with_capacity(graph.nodes.len());
+        path.push(self.source);
         let mut current = self.source;
 
         // Follow greedy policy: pick successor that minimizes cost(current,succ) + g(succ)
@@ -9418,6 +9433,7 @@ impl AdaStar {
     }
 
     /// Compute priority key for a node
+    #[inline]
     fn compute_key(&self, n: u64, _graph: &Graph) -> (f64, f64) {
         let g_n = self.state_to_goal_est.get(&n).copied().unwrap_or(f64::INFINITY);
         let rhs_n = self.one_step_lookahead.get(&n).copied().unwrap_or(f64::INFINITY);
@@ -9431,6 +9447,7 @@ impl AdaStar {
     }
 
     /// Get heuristic value
+    #[inline]
     fn get_heuristic(&self, from: u64, to: u64) -> f64 {
         if let Some(ref heuristic_fn) = self.heuristic {
             Python::with_gil(|py| {
@@ -9445,6 +9462,7 @@ impl AdaStar {
     }
 
     /// Get edge weight from graph
+    #[inline]
     fn get_edge_weight(&self, from: u64, to: u64, graph: &Graph) -> f64 {
         // Find edge and get weight
         for edge in &graph.edges {
