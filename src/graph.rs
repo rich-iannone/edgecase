@@ -2513,6 +2513,7 @@ impl Graph {
     /// Reciprocity is the fraction of edges that have a reverse edge
     /// Only defined for directed graphs
     /// Returns a value between 0.0 (no reciprocal edges) and 1.0 (all edges reciprocal)
+    #[inline]
     fn get_reciprocity(&self) -> PyResult<f64> {
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -2528,11 +2529,9 @@ impl Graph {
         let mut reciprocal_count = 0;
 
         // Build a set of edges for fast lookup
-        let edge_set: FxHashSet<(u64, u64)> = self
-            .edges
-            .iter()
-            .map(|e| (e.source, e.target))
-            .collect();
+        let m = self.num_edges();
+        let mut edge_set = FxHashSet::with_capacity_and_hasher(m, Default::default());
+        edge_set.extend(self.edges.iter().map(|e| (e.source, e.target)));
 
         // Check each edge for a reverse edge
         for edge in &self.edges {
@@ -2550,7 +2549,8 @@ impl Graph {
         // Each reciprocal pair is counted twice (once from each direction)
         // So we divide by 2 to get the number of reciprocal pairs
         // Then divide by total edges to get the fraction
-        let reciprocity = reciprocal_count as f64 / self.edges.len() as f64;
+        let inv_edges = 1.0 / self.edges.len() as f64;
+        let reciprocity = (reciprocal_count as f64) * inv_edges;
 
         Ok(reciprocity)
     }
@@ -5037,6 +5037,7 @@ impl Graph {
     /// let mutual = g.which_mutual();
     /// // Returns [(1, 2)]
     /// ```
+    #[inline]
     pub fn which_mutual(&self) -> PyResult<Vec<(u64, u64)>> {
         if !self.directed {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -5044,8 +5045,10 @@ impl Graph {
             ));
         }
 
-        let mut mutual_pairs: Vec<(u64, u64)> = Vec::new();
-        let mut seen_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
+        let m = self.num_edges();
+        let estimated_pairs = m / 10; // Estimate 10% mutual
+        let mut mutual_pairs = Vec::with_capacity(estimated_pairs);
+        let mut seen_pairs = FxHashSet::with_capacity_and_hasher(estimated_pairs, Default::default());
 
         // For each edge, check if reverse edge exists
         for edge in &self.edges {
@@ -5135,6 +5138,7 @@ impl Graph {
     /// // 2 mutual edges out of 3 total = 0.666...
     /// ```
     #[pyo3(signature = (mode="default"))]
+    #[inline]
     pub fn reciprocity(&self, mode: &str) -> PyResult<f64> {
         if !self.directed {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -5151,7 +5155,8 @@ impl Graph {
             "default" | "ratio" => {
                 // Count edges that are mutual
                 let mut mutual_count = 0;
-                let mut seen_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
+                let estimated_pairs = num_edges / 2;
+                let mut seen_pairs = FxHashSet::with_capacity_and_hasher(estimated_pairs, Default::default());
 
                 for edge in &self.edges {
                     let source = edge.source;
@@ -5189,7 +5194,8 @@ impl Graph {
                     }
                 }
 
-                Ok(mutual_count as f64 / num_edges as f64)
+                let inv_num_edges = 1.0 / num_edges as f64;
+                Ok((mutual_count as f64) * inv_num_edges)
             }
             _ => Err(pyo3::exceptions::PyValueError::new_err(
                 format!("Invalid mode '{}'. Use 'default' or 'ratio'", mode)
@@ -5220,9 +5226,12 @@ impl Graph {
     /// multiple = g.which_multiple()
     /// # Returns edge IDs of duplicates (e.g., [2, 4])
     /// ```
+    #[inline]
     pub fn which_multiple(&self) -> PyResult<Vec<u64>> {
-        let mut seen_pairs: std::collections::HashMap<(u64, u64), u64> = std::collections::HashMap::new();
-        let mut multiple_edges = Vec::new();
+        let m = self.num_edges();
+        let mut seen_pairs = FxHashMap::with_capacity_and_hasher(m, Default::default());
+        let estimated_multiples = m / 10; // Estimate 10% are multiples
+        let mut multiple_edges = Vec::with_capacity(estimated_multiples);
 
         // Iterate through all edges
         for edge in &self.edges {
@@ -5280,8 +5289,10 @@ impl Graph {
     /// # Returns: {("A", "B"): 3}
     /// # Single edges like ("B", "C") are not included
     /// ```
+    #[inline]
     pub fn count_multiple(&self) -> PyResult<std::collections::HashMap<(String, String), usize>> {
-        let mut pair_counts: std::collections::HashMap<(u64, u64), usize> = std::collections::HashMap::new();
+        let m = self.num_edges();
+        let mut pair_counts = FxHashMap::with_capacity_and_hasher(m, Default::default());
 
         // Count edges between each node pair
         for edge in &self.edges {
@@ -5303,7 +5314,8 @@ impl Graph {
         }
 
         // Convert to labels and filter for multiples only (count >= 2)
-        let mut result = std::collections::HashMap::new();
+        let estimated_result_size = pair_counts.len() / 2;
+        let mut result = std::collections::HashMap::with_capacity(estimated_result_size);
         for ((source_id, target_id), count) in pair_counts.iter() {
             if *count >= 2 {
                 let source_label = self.nodes.get(source_id)
@@ -5340,8 +5352,11 @@ impl Graph {
     /// loops = g.which_loop()
     /// # Returns edge IDs of self-loops (e.g., [2, 4])
     /// ```
+    #[inline]
     pub fn which_loop(&self) -> PyResult<Vec<u64>> {
-        let mut loop_edges = Vec::new();
+        let m = self.num_edges();
+        let estimated_loops = m / 20; // Estimate 5% are loops
+        let mut loop_edges = Vec::with_capacity(estimated_loops);
 
         for edge in &self.edges {
             if edge.source == edge.target {
@@ -5373,6 +5388,7 @@ impl Graph {
     /// loops = g.count_loops()
     /// # Returns: {"A": 2, "B": 1}
     /// ```
+    #[inline]
     pub fn count_loops(&self) -> PyResult<std::collections::HashMap<String, usize>> {
         let n = self.num_nodes();
         let mut loop_counts: std::collections::HashMap<u64, usize> = std::collections::HashMap::with_capacity(n);
