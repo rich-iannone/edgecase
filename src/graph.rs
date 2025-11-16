@@ -3096,10 +3096,15 @@ impl Graph {
             return Ok(Vec::new());
         }
 
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = self.nodes.len();
+        let mut node_ids = Vec::with_capacity(n);
+        node_ids.extend(self.nodes.keys().copied());
 
-        // Calculate in-degree for each node
-        let mut in_degree: FxHashMap<u64, usize> = node_ids.iter().map(|&id| (id, 0)).collect();
+        // Calculate in-degree for each node - preallocate with capacity n
+        let mut in_degree = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for &id in &node_ids {
+            in_degree.insert(id, 0);
+        }
 
         // Count incoming edges for each node
         for edge in &self.edges {
@@ -3108,14 +3113,15 @@ impl Graph {
             }
         }
 
-        // Queue of nodes with in-degree 0
-        let mut queue: VecDeque<u64> = node_ids
-            .iter()
-            .filter(|&&id| in_degree[&id] == 0)
-            .copied()
-            .collect();
+        // Queue of nodes with in-degree 0 - preallocate with reasonable capacity
+        let mut queue = VecDeque::with_capacity(n);
+        for &id in &node_ids {
+            if in_degree[&id] == 0 {
+                queue.push_back(id);
+            }
+        }
 
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(n);
 
         // Process nodes in topological order
         while let Some(node) = queue.pop_front() {
@@ -3461,7 +3467,9 @@ impl Graph {
         }
 
         // Build distance matrix in spanner (initially infinite)
-        let mut spanner_distances: FxHashMap<(u64, u64), f64> = FxHashMap::default();
+        // Preallocate with capacity n*n for all pairs
+        let n = self.nodes.len();
+        let mut spanner_distances = FxHashMap::with_capacity_and_hasher(n * n, Default::default());
         for &u in self.nodes.keys() {
             for &v in self.nodes.keys() {
                 if u == v {
@@ -3473,7 +3481,8 @@ impl Graph {
         }
 
         // Collect and sort edges by weight
-        let mut sorted_edges: Vec<_> = self.edges.iter().collect();
+        let mut sorted_edges = Vec::with_capacity(self.edges.len());
+        sorted_edges.extend(self.edges.iter());
         sorted_edges.sort_by(|a, b| {
             let w_a = if let Some(ref w) = weight {
                 a.attributes.as_ref().and_then(|attrs| {
@@ -7265,6 +7274,7 @@ impl Graph {
     /// # Check if ['A', 'B', 'C'] forms a simple path
     /// is_valid = graph.is_simple_path(['A', 'B', 'C'])
     /// ```
+    #[inline]
     fn is_simple_path(&self, nodes: Vec<String>) -> PyResult<bool> {
         // Empty path or single node is trivially a simple path
         if nodes.len() <= 1 {
@@ -7277,8 +7287,8 @@ impl Graph {
             return Ok(true);
         }
 
-        // Track visited nodes to ensure no repeats
-        let mut visited = FxHashSet::default();
+        // Track visited nodes to ensure no repeats - preallocate with path length
+        let mut visited = FxHashSet::with_capacity_and_hasher(nodes.len(), Default::default());
 
         // Iterate through consecutive pairs
         for i in 0..nodes.len() - 1 {
