@@ -32,6 +32,84 @@ DATASET_REGISTRY = {
         "location": "bundled",
         "size_kb": 2,
     },
+    "dolphins": {
+        "filename": "dolphins.mtx",
+        "name": "Dolphin Social Network",
+        "nodes": 62,
+        "edges": 159,
+        "directed": False,
+        "description": "Social network of bottlenose dolphins in Doubtful Sound, New Zealand",
+        "source": "NetworkRepository",
+        "location": "bundled",
+        "compressed_bundled": "dolphins.mtx.gz",
+        "size_kb": 3,
+        "compressed_kb": 1,
+    },
+    "football": {
+        "filename": "football.mtx",
+        "name": "American College Football",
+        "nodes": 115,
+        "edges": 613,
+        "directed": False,
+        "description": "Network of American football games between Division IA colleges in Fall 2000",
+        "source": "NetworkRepository",
+        "location": "bundled",
+        "compressed_bundled": "football.mtx.gz",
+        "size_kb": 8,
+        "compressed_kb": 2,
+    },
+    "polbooks": {
+        "filename": "polbooks.mtx",
+        "name": "Political Books",
+        "nodes": 105,
+        "edges": 441,
+        "directed": False,
+        "description": "Network of books about US politics sold by Amazon, edges link frequently co-purchased books",
+        "source": "NetworkRepository",
+        "location": "bundled",
+        "compressed_bundled": "polbooks.mtx.gz",
+        "size_kb": 6,
+        "compressed_kb": 2,
+    },
+    "jazz": {
+        "filename": "jazz.mtx",
+        "name": "Jazz Musicians Network",
+        "nodes": 198,
+        "edges": 2742,
+        "directed": False,
+        "description": "Collaboration network of jazz musicians",
+        "source": "NetworkRepository",
+        "location": "bundled",
+        "compressed_bundled": "jazz.mtx.gz",
+        "size_kb": 35,
+        "compressed_kb": 8,
+    },
+    "celegans": {
+        "filename": "celegans.mtx",
+        "name": "C. Elegans Neural Network",
+        "nodes": 297,
+        "edges": 2148,
+        "directed": True,
+        "description": "Neural network of C. Elegans (nematode worm)",
+        "source": "NetworkRepository",
+        "location": "bundled",
+        "compressed_bundled": "celegans.mtx.gz",
+        "size_kb": 28,
+        "compressed_kb": 7,
+    },
+    "power_grid": {
+        "filename": "power_grid.mtx",
+        "name": "US Power Grid",
+        "nodes": 4941,
+        "edges": 6594,
+        "directed": False,
+        "description": "Topology of the Western States Power Grid of the United States",
+        "source": "NetworkRepository",
+        "location": "bundled",
+        "compressed_bundled": "power_grid.mtx.gz",
+        "size_kb": 90,
+        "compressed_kb": 25,
+    },
     "ca_grqc": {
         "filename": "ca_grqc.mtx",
         "name": "Arxiv GR-QC Collaboration Network",
@@ -44,6 +122,19 @@ DATASET_REGISTRY = {
         "compressed_bundled": "ca_grqc.mtx.gz",
         "size_kb": 200,
         "compressed_kb": 60,
+    },
+    "erdos_collab": {
+        "filename": "erdos_collab.mtx",
+        "name": "Erdős Collaboration Network",
+        "nodes": 6927,
+        "edges": 11850,
+        "directed": False,
+        "description": "Collaboration network of scientists with Erdős number <= 2",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "erdos_collab.mtx.gz",
+        "size_kb": 150,
+        "compressed_kb": 40,
     },
     "wiki_vote": {
         "filename": "wiki_vote.mtx",
@@ -70,6 +161,32 @@ DATASET_REGISTRY = {
         "compressed_bundled": "ca_hepph.mtx.gz",
         "size_mb": 2,
         "compressed_kb": 500,
+    },
+    "pgp": {
+        "filename": "pgp.mtx",
+        "name": "PGP Trust Network",
+        "nodes": 10680,
+        "edges": 24316,
+        "directed": True,
+        "description": "Pretty-Good-Privacy (PGP) web of trust network",
+        "source": "NetworkRepository",
+        "location": "bundled",
+        "compressed_bundled": "pgp.mtx.gz",
+        "size_kb": 300,
+        "compressed_kb": 75,
+    },
+    "internet_as": {
+        "filename": "internet_as.mtx",
+        "name": "Internet Autonomous Systems",
+        "nodes": 22963,
+        "edges": 48436,
+        "directed": False,
+        "description": "Internet topology at autonomous system level from traceroute data",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "internet_as.mtx.gz",
+        "size_kb": 600,
+        "compressed_kb": 150,
     },
     "ca_condmat": {
         "filename": "ca_condmat.mtx",
@@ -698,6 +815,333 @@ def soc_livejournal() -> Graph:
     )
 
 
+def dolphins() -> Graph:
+    """
+    Dolphin social network.
+
+    Social network of frequent associations between 62 bottlenose dolphins
+    in a community living off Doubtful Sound, New Zealand.
+
+    **Network Properties**:
+    - Nodes: 62
+    - Edges: 159
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 5.13
+
+    Returns
+    -------
+    Graph
+        Dolphin social network
+
+    Notes
+    -----
+    This network is often used for community detection benchmarks.
+    The network has been observed to split into two communities.
+
+    References
+    ----------
+    D. Lusseau et al. The bottlenose dolphin community of Doubtful Sound
+    features a large proportion of long-lasting associations.
+    Behavioral Ecology and Sociobiology 54, 396-405 (2003).
+    """
+    return _load_dataset_from_file(
+        "dolphins.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="Dolphin Social Network",
+    )
+
+
+def football() -> Graph:
+    """
+    American college football network.
+
+    Network of American football games between Division IA colleges during
+    regular season Fall 2000. Nodes represent teams, edges represent games.
+
+    **Network Properties**:
+    - Nodes: 115
+    - Edges: 613
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 10.66
+
+    Returns
+    -------
+    Graph
+        College football network
+
+    Notes
+    -----
+    Teams are divided into conferences, providing natural community structure.
+    Excellent dataset for testing community detection algorithms.
+
+    References
+    ----------
+    M. Girvan and M. E. J. Newman, Community structure in social and
+    biological networks, Proc. Natl. Acad. Sci. USA 99, 7821-7826 (2002).
+    """
+    return _load_dataset_from_file(
+        "football.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="American College Football",
+    )
+
+
+def polbooks() -> Graph:
+    """
+    Political books network.
+
+    Network of books about US politics published around the time of the
+    2004 presidential election and sold by Amazon. Edges represent frequent
+    co-purchasing of books by the same buyers.
+
+    **Network Properties**:
+    - Nodes: 105
+    - Edges: 441
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 8.40
+
+    Returns
+    -------
+    Graph
+        Political books co-purchasing network
+
+    Notes
+    -----
+    Books have been classified as liberal, neutral, or conservative.
+    The network shows clear community structure along political lines.
+
+    References
+    ----------
+    V. Krebs, unpublished, http://www.orgnet.com/
+    """
+    return _load_dataset_from_file(
+        "polbooks.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="Political Books",
+    )
+
+
+def jazz() -> Graph:
+    """
+    Jazz musicians collaboration network.
+
+    Network of jazz musicians where edges represent collaboration on albums.
+
+    **Network Properties**:
+    - Nodes: 198
+    - Edges: 2,742
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 27.70
+
+    Returns
+    -------
+    Graph
+        Jazz musicians network
+
+    Notes
+    -----
+    This is a highly clustered network with small-world properties.
+    Good for testing clustering algorithms and visualization.
+
+    References
+    ----------
+    P. Gleiser and L. Danon, Adv. Complex Syst. 6, 565 (2003).
+    """
+    return _load_dataset_from_file(
+        "jazz.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="Jazz Musicians Network",
+    )
+
+
+def celegans() -> Graph:
+    """
+    C. Elegans neural network.
+
+    Neural network of the nematode worm Caenorhabditis elegans.
+    Nodes are neurons, directed edges represent synaptic connections.
+
+    **Network Properties**:
+    - Nodes: 297
+    - Edges: 2,148
+    - Directed: Yes
+    - Weighted: No
+    - Avg degree: 14.46
+
+    Returns
+    -------
+    Graph
+        C. elegans neural network
+
+    Notes
+    -----
+    This is one of the few organisms with a completely mapped neural network.
+    The network shows hierarchical organization and small-world properties.
+
+    References
+    ----------
+    D. J. Watts and S. H. Strogatz, Nature 393, 440-442 (1998).
+    """
+    return _load_dataset_from_file(
+        "celegans.mtx",
+        directed=True,
+        weighted=False,
+        graph_name="C. Elegans Neural Network",
+    )
+
+
+def power_grid() -> Graph:
+    """
+    US Power Grid network.
+
+    Topology of the Western States Power Grid of the United States.
+    An undirected, unweighted network representing high-voltage transmission lines.
+
+    **Network Properties**:
+    - Nodes: 4,941
+    - Edges: 6,594
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 2.67
+
+    Returns
+    -------
+    Graph
+        US power grid network
+
+    Notes
+    -----
+    Classic example of a sparse infrastructure network with small-world properties.
+    Used to study robustness and cascading failures.
+
+    References
+    ----------
+    D. J. Watts and S. H. Strogatz, Nature 393, 440-442 (1998).
+    """
+    return _load_dataset_from_file(
+        "power_grid.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="US Power Grid",
+    )
+
+
+def erdos_collab() -> Graph:
+    """
+    Erdős collaboration network.
+
+    Collaboration network of scientists with Erdős number <= 2.
+    Nodes are mathematicians, edges represent co-authorship on papers.
+
+    **Network Properties**:
+    - Nodes: 6,927
+    - Edges: 11,850
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 3.42
+
+    Returns
+    -------
+    Graph
+        Erdős collaboration network
+
+    Notes
+    -----
+    Named after Paul Erdős, one of the most prolific mathematicians.
+    Erdős number measures collaborative distance from Erdős.
+
+    References
+    ----------
+    SNAP datasets collection.
+    """
+    return _load_dataset_from_file(
+        "erdos_collab.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="Erdős Collaboration Network",
+    )
+
+
+def pgp() -> Graph:
+    """
+    PGP web of trust network.
+
+    Pretty-Good-Privacy (PGP) encryption software users and their trust relationships.
+    Directed edges represent trust/certification relationships between users.
+
+    **Network Properties**:
+    - Nodes: 10,680
+    - Edges: 24,316
+    - Directed: Yes
+    - Weighted: No
+    - Avg degree: 4.55
+
+    Returns
+    -------
+    Graph
+        PGP trust network
+
+    Notes
+    -----
+    Real-world trust network from cryptographic key signing.
+    Exhibits power-law degree distribution and strong clustering.
+
+    References
+    ----------
+    NetworkRepository datasets collection.
+    """
+    return _load_dataset_from_file(
+        "pgp.mtx",
+        directed=True,
+        weighted=False,
+        graph_name="PGP Trust Network",
+    )
+
+
+def internet_as() -> Graph:
+    """
+    Internet autonomous systems network.
+
+    Internet topology at the autonomous system (AS) level from traceroute data.
+    Nodes are autonomous systems, edges represent communication paths.
+
+    **Network Properties**:
+    - Nodes: 22,963
+    - Edges: 48,436
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 4.22
+
+    Returns
+    -------
+    Graph
+        Internet AS topology
+
+    Notes
+    -----
+    Snapshot of Internet backbone structure. Shows scale-free properties
+    with power-law degree distribution (few hubs, many small nodes).
+
+    References
+    ----------
+    SNAP datasets collection.
+    """
+    return _load_dataset_from_file(
+        "internet_as.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="Internet Autonomous Systems",
+    )
+
+
 def ca_grqc() -> Graph:
     """
     Arxiv GR-QC (General Relativity and Quantum Cosmology) collaboration network.
@@ -830,9 +1274,20 @@ def load_dataset(name: str, directed: bool = None, weighted: bool = False) -> Gr
 
 __all__ = [
     "karate_club",
+    "dolphins",
+    "football",
+    "polbooks",
+    "jazz",
+    "celegans",
+    "power_grid",
+    "erdos_collab",
+    "pgp",
+    "internet_as",
+    "ca_grqc",
     "web_google",
     "soc_livejournal",
-    "ca_grqc",
     "load_dataset",
     "list_available_datasets",
+    "list_registered_datasets",
+    "get_dataset_info",
 ]

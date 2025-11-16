@@ -21,8 +21,18 @@ class TestDatasetRegistry:
         """Test listing all registered datasets."""
         datasets = list_registered_datasets()
         assert isinstance(datasets, list)
-        assert len(datasets) > 0
+        assert len(datasets) >= 14  # At least our bundled datasets
         assert "karate" in datasets
+
+        # Check for small visualization datasets
+        small_datasets = ["dolphins", "polbooks", "football", "jazz", "celegans"]
+        for ds in small_datasets:
+            assert ds in datasets, f"{ds} should be registered"
+
+        # Check for medium visualization datasets (1k-5k nodes)
+        medium_datasets = ["power_grid", "erdos_collab", "pgp", "internet_as"]
+        for ds in medium_datasets:
+            assert ds in datasets, f"{ds} should be registered"
 
     def test_get_dataset_info_valid(self):
         """Test getting metadata for valid dataset."""
