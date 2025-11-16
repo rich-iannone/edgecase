@@ -208,6 +208,11 @@ pub struct Graph {
     edge_creation_order: Vec<u64>,
 }
 
+// SAFETY: Graph uses Send + Sync types (FxHashMap, Vec, primitives)
+// and has no interior mutability or non-thread-safe types
+unsafe impl Send for Graph {}
+unsafe impl Sync for Graph {}
+
 #[pymethods]
 impl Graph {
     #[new]
