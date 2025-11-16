@@ -14,7 +14,14 @@ from edgecase.colors import (
     list_palettes,
 )
 from edgecase.datasets import (
+    ca_grqc,
+    get_dataset_info,
     karate_club,
+    list_available_datasets,
+    list_registered_datasets,
+    load_dataset,
+    soc_livejournal,
+    web_google,
 )
 from edgecase.graph import (
     Edge,
@@ -80,6 +87,11 @@ __all__ = [
     # Datasets
     "from_matrix_market",
     "karate_club",
+    "web_google",
+    "soc_livejournal",
+    "ca_grqc",
+    "load_dataset",
+    "list_available_datasets",
     # Colors
     "COLOR_PALETTES",
     "list_palettes",

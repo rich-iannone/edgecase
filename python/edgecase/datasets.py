@@ -1,6 +1,387 @@
+import os
+from pathlib import Path
+from typing import Optional
+
 import polars as pl
 
 from edgecase.graph import Graph
+from edgecase.io import from_matrix_market
+
+# Path to data directory (relative to this file)
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
+
+# Cache directory for downloaded datasets
+CACHE_DIR = Path.home() / ".cache" / "edgecase" / "datasets"
+
+# Base URL for dataset downloads (GitHub releases)
+DATASET_BASE_URL = "https://github.com/rich-iannone/edgecase/releases/download/datasets-v1"
+
+# Allow users to disable auto-download
+ALLOW_DOWNLOAD = os.environ.get("EDGECASE_NO_DOWNLOAD", "0") != "1"
+
+# Dataset registry with metadata for known datasets
+# Includes location (bundled vs remote) and download info
+DATASET_REGISTRY = {
+    "karate": {
+        "filename": "karate.mtx",
+        "name": "Zachary's Karate Club",
+        "nodes": 34,
+        "edges": 78,
+        "directed": False,
+        "description": "Classic social network of karate club friendships",
+        "location": "bundled",
+        "size_kb": 2,
+    },
+    "roadnet_pa": {
+        "filename": "roadnet_pa.mtx",
+        "name": "Pennsylvania Road Network",
+        "nodes": 1087562,
+        "edges": 1541514,
+        "directed": False,
+        "description": "Road network of Pennsylvania",
+        "location": "remote",
+        "compressed": "roadnet_pa.mtx.gz",
+        "size_mb": 20,
+        "compressed_mb": 5,
+    },
+    "web_google": {
+        "filename": "web_google.mtx",
+        "name": "Google Web Graph",
+        "nodes": 875713,
+        "edges": 5105039,
+        "directed": True,
+        "description": "Web graph from Google (2002)",
+        "source": "SNAP",
+        "location": "remote",
+        "compressed": "web_google.mtx.gz",
+        "size_mb": 45,
+        "compressed_mb": 10,
+    },
+    "soc_livejournal": {
+        "filename": "soc_livejournal.mtx",
+        "name": "LiveJournal Social Network",
+        "nodes": 4847571,
+        "edges": 68993773,
+        "directed": True,
+        "description": "LiveJournal online social network",
+        "source": "SNAP",
+        "location": "remote",
+        "compressed": "soc_livejournal.mtx.gz",
+        "size_mb": 600,
+        "compressed_mb": 120,
+    },
+    "ca_grqc": {
+        "filename": "ca_grqc.mtx",
+        "name": "Arxiv GR-QC Collaboration Network",
+        "nodes": 5242,
+        "edges": 28980,
+        "directed": False,
+        "description": "Scientific collaboration network from arXiv",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "ca_grqc.mtx.gz",
+        "size_kb": 200,
+        "compressed_kb": 60,
+    },
+    "ca_condmat": {
+        "filename": "ca_condmat.mtx",
+        "name": "Condensed Matter Collaboration Network",
+        "nodes": 23133,
+        "edges": 93497,
+        "directed": False,
+        "description": "Collaboration network from arXiv Condensed Matter category",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "ca_condmat.mtx.gz",
+        "size_mb": 1.5,
+        "compressed_kb": 400,
+    },
+    "ca_hepph": {
+        "filename": "ca_hepph.mtx",
+        "name": "High Energy Physics Collaboration Network",
+        "nodes": 12008,
+        "edges": 118521,
+        "directed": False,
+        "description": "Collaboration network from arXiv High Energy Physics - Phenomenology",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "ca_hepph.mtx.gz",
+        "size_mb": 2,
+        "compressed_kb": 500,
+    },
+    "email_enron": {
+        "filename": "email_enron.mtx",
+        "name": "Enron Email Network",
+        "nodes": 36692,
+        "edges": 183831,
+        "directed": True,
+        "description": "Email communication network from Enron corpus",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "email_enron.mtx.gz",
+        "size_mb": 2.5,
+        "compressed_kb": 700,
+    },
+    "wiki_vote": {
+        "filename": "wiki_vote.mtx",
+        "name": "Wikipedia Voting Network",
+        "nodes": 7115,
+        "edges": 103689,
+        "directed": True,
+        "description": "Wikipedia adminship voting network",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "wiki_vote.mtx.gz",
+        "size_mb": 1.5,
+        "compressed_kb": 450,
+    },
+    "p2p_gnutella": {
+        "filename": "p2p_gnutella.mtx",
+        "name": "Gnutella P2P Network",
+        "nodes": 62586,
+        "edges": 147892,
+        "directed": True,
+        "description": "Gnutella peer-to-peer network snapshot from August 2002",
+        "source": "SNAP",
+        "location": "bundled",
+        "compressed_bundled": "p2p_gnutella.mtx.gz",
+        "size_mb": 2,
+        "compressed_kb": 550,
+    },
+}
+
+
+def get_dataset_info(name: str) -> dict:
+    """
+    Get metadata about a dataset.
+
+    Parameters
+    ----------
+    name : str
+        Dataset name (with or without .mtx extension)
+
+    Returns
+    -------
+    dict
+        Dataset metadata including nodes, edges, description, etc.
+
+    Examples
+    --------
+    ```python
+    info = get_dataset_info("roadnet_pa")
+    print(f"{info['name']}: {info['nodes']:,} nodes, {info['edges']:,} edges")
+    ```
+    """
+    # Remove .mtx extension if present
+    name = name.replace(".mtx", "")
+
+    if name in DATASET_REGISTRY:
+        return DATASET_REGISTRY[name].copy()
+
+    # Check if file exists even if not in registry
+    filename = f"{name}.mtx"
+    filepath = DATA_DIR / filename
+    if filepath.exists():
+        return {
+            "filename": filename,
+            "name": name,
+            "description": "Custom dataset (no metadata available)",
+        }
+
+    raise ValueError(
+        f"Dataset '{name}' not found.\n"
+        f"Available registered datasets: {list(DATASET_REGISTRY.keys())}\n"
+        f"Available files: {list_available_datasets()}"
+    )
+
+
+def list_registered_datasets() -> list[str]:
+    """
+    List all registered datasets with metadata.
+
+    Returns
+    -------
+    list[str]
+        List of registered dataset names
+
+    Examples
+    --------
+    ```python
+    for name in list_registered_datasets():
+        info = get_dataset_info(name)
+        print(f"{name}: {info['description']}")
+    ```
+    """
+    return list(DATASET_REGISTRY.keys())
+
+
+def _download_dataset(name: str, compressed_filename: str) -> Path:
+    """
+    Download a dataset from remote repository and decompress it.
+
+    Downloads to ~/.cache/edgecase/datasets/ and decompresses if needed.
+
+    Parameters
+    ----------
+    name : str
+        Dataset name (for metadata lookup)
+    compressed_filename : str
+        Filename of compressed dataset (e.g., roadnet_pa.mtx.gz)
+
+    Returns
+    -------
+    Path
+        Path to decompressed .mtx file in cache
+    """
+    import gzip
+    from urllib.request import urlretrieve
+
+    # Ensure cache directory exists
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Determine output filename (remove .gz)
+    output_filename = compressed_filename.replace(".gz", "")
+    output_path = CACHE_DIR / output_filename
+
+    # Return if already cached
+    if output_path.exists():
+        return output_path
+
+    # Construct download URL
+    url = f"{DATASET_BASE_URL}/{compressed_filename}"
+    temp_path = CACHE_DIR / f"{compressed_filename}.download"
+
+    print(f"Downloading {name} dataset...")
+    print(f"  Source: {url}")
+    print(f"  This is a one-time download, cached at: {CACHE_DIR}")
+
+    try:
+        # Download compressed file
+        urlretrieve(url, temp_path)
+
+        # Decompress if .gz
+        if compressed_filename.endswith(".gz"):
+            print("  Decompressing...")
+            with gzip.open(temp_path, "rb") as f_in:
+                with open(output_path, "wb") as f_out:
+                    f_out.write(f_in.read())
+            temp_path.unlink()  # Remove compressed file
+        else:
+            # Not compressed, just rename
+            temp_path.rename(output_path)
+
+        print("  ✓ Download complete!")
+        return output_path
+
+    except Exception as e:
+        # Clean up on failure
+        if temp_path.exists():
+            temp_path.unlink()
+        raise RuntimeError(
+            f"Failed to download dataset '{name}'.\n"
+            f"Error: {e}\n\n"
+            f"You can manually download from:\n  {url}\n"
+            f"And place it at:\n  {output_path}"
+        ) from e
+
+
+def _load_dataset_from_file(
+    filename: str,
+    directed: Optional[bool] = None,
+    weighted: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Load a dataset from a file in the data directory or cache.
+
+    Checks bundled data/ directory first, then cache directory.
+    Supports Matrix Market (.mtx and .mtx.gz) format.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the file (e.g., karate.mtx or karate.mtx.gz)
+    directed : bool, optional
+        Whether graph is directed (auto-detected from file if None)
+    weighted : bool, optional
+        Whether graph is weighted (auto-detected from file if None)
+    graph_name : str, optional
+        Name for the graph
+
+    Returns
+    -------
+    Graph
+        Loaded graph
+    """
+    import gzip
+    import tempfile
+
+    # Check bundled data directory first (try both .mtx and .mtx.gz)
+    filepath = DATA_DIR / filename
+    compressed_filepath = DATA_DIR / f"{filename}.gz"
+
+    # Determine which file exists
+    if filepath.exists():
+        final_path = filepath
+        is_compressed = False
+    elif compressed_filepath.exists():
+        final_path = compressed_filepath
+        is_compressed = True
+    else:
+        # Check cache directory
+        cache_path = CACHE_DIR / filename
+        if cache_path.exists():
+            final_path = cache_path
+            is_compressed = False
+        else:
+            raise FileNotFoundError(
+                f"Dataset file not found: {filename}\n"
+                f"Checked locations:\n"
+                f"  - Bundled: {DATA_DIR}\n"
+                f"  - Bundled compressed: {DATA_DIR} (.gz)\n"
+                f"  - Cache: {CACHE_DIR}\n"
+                f"Available bundled datasets: {list_available_datasets()}"
+            )
+
+    # Handle compressed files - decompress to temp file
+    if is_compressed or str(final_path).endswith(".gz"):
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".mtx", delete=False) as tmp_file:
+            with gzip.open(final_path, "rb") as f_in:
+                tmp_file.write(f_in.read())
+            temp_path = Path(tmp_file.name)
+
+        try:
+            result = from_matrix_market(
+                temp_path, directed=directed, weighted=weighted, graph_name=graph_name
+            )
+        finally:
+            temp_path.unlink()  # Clean up temp file
+        return result
+
+    # Support Matrix Market format
+    if filename.endswith(".mtx"):
+        return from_matrix_market(
+            final_path, directed=directed, weighted=weighted, graph_name=graph_name
+        )
+
+    # Add more format support here (e.g., .csv, .json, .graphml)
+    else:
+        raise ValueError(f"Unsupported file format: {filename}")
+
+
+def list_available_datasets() -> list[str]:
+    """
+    List all available dataset files in the data directory.
+
+    Returns
+    -------
+    list[str]
+        List of dataset filenames
+    """
+    if not DATA_DIR.exists():
+        return []
+
+    return [f.name for f in DATA_DIR.iterdir() if f.is_file() and not f.name.startswith(".")]
 
 
 def karate_club() -> Graph:
@@ -234,6 +615,224 @@ def karate_club() -> Graph:
     return graph
 
 
+# Example large dataset loaders - add your own here!
+# These will work once you place the corresponding .mtx files in the data/ directory
+
+
+def web_google() -> Graph:
+    """
+    Google web graph (released 2002).
+
+    A web graph from Google where nodes represent web pages and edges represent
+    hyperlinks between them. This is a commonly used benchmark for PageRank.
+
+    **Expected file**: `data/web_google.mtx`
+
+    **Network Properties** (from SNAP):
+    - Nodes: 875,713
+    - Edges: 5,105,039
+    - Directed: Yes
+    - Weighted: No
+    - Avg degree: 11.6
+
+    Returns
+    -------
+    Graph
+        Google web graph
+
+    Examples
+    --------
+    ```python
+    # Load the dataset (requires web-Google.mtx in data/)
+    G = web_google()
+
+    # Run PageRank
+    ranks = G.pagerank(damping=0.85, max_iter=100)
+    top_pages = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[:10]
+    print("Top 10 pages by PageRank:")
+    for node_id, rank in top_pages:
+        print(f"  Node {node_id}: {rank:.6f}")
+    ```
+
+    References
+    ----------
+    J. Leskovec, K. Lang, A. Dasgupta, M. Mahoney.
+    Community Structure in Large Networks: Natural Cluster Sizes and the Absence of Large Well-Defined Clusters.
+    Internet Mathematics 6(1) 29--123, 2009.
+    """
+    return _load_dataset_from_file(
+        "web_google.mtx", directed=True, weighted=False, graph_name="Google Web Graph"
+    )
+
+
+def soc_livejournal() -> Graph:
+    """
+    LiveJournal social network.
+
+    A large social network from LiveJournal, a free on-line blogging community.
+    Nodes are users and edges represent friendships.
+
+    **Expected file**: `data/soc_livejournal.mtx`
+
+    **Network Properties** (from SNAP):
+    - Nodes: 4,847,571
+    - Edges: 68,993,773
+    - Directed: Yes
+    - Weighted: No
+    - Avg degree: 28.5
+
+    Returns
+    -------
+    Graph
+        LiveJournal social network
+
+    Notes
+    -----
+    This is a very large graph. Requires significant RAM (~10-15GB).
+    """
+    return _load_dataset_from_file(
+        "soc_livejournal.mtx",
+        directed=True,
+        weighted=False,
+        graph_name="LiveJournal Social Network",
+    )
+
+
+def ca_grqc() -> Graph:
+    """
+    Arxiv GR-QC (General Relativity and Quantum Cosmology) collaboration network.
+
+    A scientific collaboration network from e-print arXiv. Nodes are authors,
+    edges represent co-authorship.
+
+    **Expected file**: `data/ca_grqc.mtx`
+
+    **Network Properties**:
+    - Nodes: 5,242
+    - Edges: 28,980
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 6.46
+
+    Returns
+    -------
+    Graph
+        Arxiv collaboration network
+
+    References
+    ----------
+    J. Leskovec, J. Kleinberg and C. Faloutsos.
+    Graph Evolution: Densification and Shrinking Diameters.
+    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
+    """
+    return _load_dataset_from_file(
+        "ca_grqc.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="Arxiv GR-QC Collaboration Network",
+    )
+
+
+def load_dataset(name: str, directed: bool = None, weighted: bool = False) -> Graph:
+    """
+    Load a dataset by name from the data directory.
+
+    Automatically adds '.mtx' extension if not present. For registered datasets,
+    metadata like directed/weighted flags are applied automatically unless overridden.
+
+    Parameters
+    ----------
+    name : str
+        Name of the dataset file (with or without .mtx extension)
+    directed : bool, optional
+        Override the graph type. If None, uses registry metadata or auto-detects from file.
+    weighted : bool, default=False
+        Whether to treat edge weights as significant
+
+    Returns
+    -------
+    Graph
+        The loaded graph
+
+    Examples
+    --------
+    ```python
+    # Load registered dataset (uses metadata)
+    g = load_dataset("karate")
+
+    # Load with overrides
+    g = load_dataset("web_google", directed=True)
+
+    # Load custom .mtx file from data/
+    g = load_dataset("my_graph.mtx")
+
+    # See what's available
+    print("Registered:", list_registered_datasets())
+    print("All files:", list_available_datasets())
+    ```
+
+    See Also
+    --------
+    list_registered_datasets : List datasets with metadata
+    get_dataset_info : Get metadata for a dataset
+    list_available_datasets : List all .mtx files in data/
+
+    Notes
+    -----
+    Small datasets (<100KB) are bundled with the package. Larger datasets
+    are automatically downloaded on first use from GitHub releases and cached
+    at ~/.cache/edgecase/datasets/. Set EDGECASE_NO_DOWNLOAD=1 to disable
+    auto-download.
+    """
+    # Remove .mtx extension if present to check registry
+    name_key = name.replace(".mtx", "")
+
+    # Check registry for metadata
+    if name_key in DATASET_REGISTRY:
+        metadata = DATASET_REGISTRY[name_key]
+        filename = metadata["filename"]
+        location = metadata.get("location", "bundled")
+
+        # Use registry metadata if not overridden
+        if directed is None:
+            directed = metadata.get("directed", None)
+        graph_name = metadata.get("name", name_key)
+
+        # Handle remote datasets - download if needed
+        if location == "remote":
+            compressed = metadata.get("compressed")
+            if compressed:
+                # Check if file exists locally in bundled data (for development)
+                bundled_path = DATA_DIR / filename
+                cache_path = CACHE_DIR / filename
+
+                if not bundled_path.exists() and not cache_path.exists():
+                    # Not bundled and not cached - need to download
+                    if not ALLOW_DOWNLOAD:
+                        raise RuntimeError(
+                            f"Dataset '{name_key}' requires download but "
+                            f"EDGECASE_NO_DOWNLOAD=1 is set.\n"
+                            f"To enable downloads, unset the environment variable.\n"
+                            f"Or manually download from: "
+                            f"{DATASET_BASE_URL}/{compressed}"
+                        )
+                    # Download and decompress
+                    _download_dataset(name_key, compressed)
+    else:
+        # Not in registry - use filename as-is (add .mtx if missing)
+        filename = name if name.endswith(".mtx") else f"{name}.mtx"
+        graph_name = name_key
+
+    return _load_dataset_from_file(
+        filename=filename, directed=directed, weighted=weighted, graph_name=graph_name
+    )
+
+
 __all__ = [
     "karate_club",
+    "web_google",
+    "soc_livejournal",
+    "ca_grqc",
+    "load_dataset",
+    "list_available_datasets",
 ]
