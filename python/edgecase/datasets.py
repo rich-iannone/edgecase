@@ -116,25 +116,12 @@ DATASET_REGISTRY = {
         "nodes": 5242,
         "edges": 28980,
         "directed": False,
-        "description": "Scientific collaboration network from arXiv",
+        "description": "Scientific collaboration network from arXiv General Relativity",
         "source": "SNAP",
         "location": "bundled",
         "compressed_bundled": "ca_grqc.mtx.gz",
-        "size_kb": 200,
-        "compressed_kb": 60,
-    },
-    "erdos_collab": {
-        "filename": "erdos_collab.mtx",
-        "name": "Erdős Collaboration Network",
-        "nodes": 6927,
-        "edges": 11850,
-        "directed": False,
-        "description": "Collaboration network of scientists with Erdős number <= 2",
-        "source": "SNAP",
-        "location": "bundled",
-        "compressed_bundled": "erdos_collab.mtx.gz",
-        "size_kb": 150,
-        "compressed_kb": 40,
+        "size_kb": 330,
+        "compressed_kb": 103,
     },
     "wiki_vote": {
         "filename": "wiki_vote.mtx",
@@ -146,86 +133,86 @@ DATASET_REGISTRY = {
         "source": "SNAP",
         "location": "bundled",
         "compressed_bundled": "wiki_vote.mtx.gz",
-        "size_mb": 1.5,
-        "compressed_kb": 450,
+        "size_kb": 900,
+        "compressed_kb": 279,
     },
     "ca_hepph": {
         "filename": "ca_hepph.mtx",
         "name": "High Energy Physics Collaboration Network",
         "nodes": 12008,
-        "edges": 118521,
+        "edges": 237010,
         "directed": False,
         "description": "Collaboration network from arXiv High Energy Physics - Phenomenology",
         "source": "SNAP",
         "location": "bundled",
         "compressed_bundled": "ca_hepph.mtx.gz",
-        "size_mb": 2,
-        "compressed_kb": 500,
+        "size_kb": 1900,
+        "compressed_kb": 774,
     },
     "pgp": {
         "filename": "pgp.mtx",
         "name": "PGP Trust Network",
         "nodes": 10680,
-        "edges": 24316,
+        "edges": 24340,
         "directed": True,
         "description": "Pretty-Good-Privacy (PGP) web of trust network",
         "source": "NetworkRepository",
         "location": "bundled",
         "compressed_bundled": "pgp.mtx.gz",
-        "size_kb": 300,
-        "compressed_kb": 75,
+        "size_kb": 220,
+        "compressed_kb": 81,
     },
-    "internet_as": {
-        "filename": "internet_as.mtx",
+    "internet": {
+        "filename": "internet.mtx",
         "name": "Internet Autonomous Systems",
-        "nodes": 22963,
-        "edges": 48436,
+        "nodes": 6474,
+        "edges": 13895,
         "directed": False,
-        "description": "Internet topology at autonomous system level from traceroute data",
+        "description": "Internet topology at autonomous system level from January 2000",
         "source": "SNAP",
         "location": "bundled",
-        "compressed_bundled": "internet_as.mtx.gz",
-        "size_kb": 600,
-        "compressed_kb": 150,
+        "compressed_bundled": "internet.mtx.gz",
+        "size_kb": 120,
+        "compressed_kb": 39,
     },
     "ca_condmat": {
         "filename": "ca_condmat.mtx",
         "name": "Condensed Matter Collaboration Network",
         "nodes": 23133,
-        "edges": 93497,
+        "edges": 186936,
         "directed": False,
         "description": "Collaboration network from arXiv Condensed Matter category",
         "source": "SNAP",
         "location": "bundled",
         "compressed_bundled": "ca_condmat.mtx.gz",
-        "size_mb": 1.5,
-        "compressed_kb": 400,
+        "size_kb": 1600,
+        "compressed_kb": 694,
     },
-    "email_enron": {
-        "filename": "email_enron.mtx",
+    "enron": {
+        "filename": "enron.mtx",
         "name": "Enron Email Network",
         "nodes": 36692,
-        "edges": 183831,
+        "edges": 367662,
         "directed": True,
         "description": "Email communication network from Enron corpus",
         "source": "SNAP",
         "location": "bundled",
-        "compressed_bundled": "email_enron.mtx.gz",
-        "size_mb": 2.5,
-        "compressed_kb": 700,
+        "compressed_bundled": "enron.mtx.gz",
+        "size_kb": 2900,
+        "compressed_kb": 1013,
     },
-    "p2p_gnutella": {
-        "filename": "p2p_gnutella.mtx",
+    "gnutella": {
+        "filename": "gnutella.mtx",
         "name": "Gnutella P2P Network",
-        "nodes": 62586,
-        "edges": 147892,
+        "nodes": 6301,
+        "edges": 20777,
         "directed": True,
-        "description": "Gnutella peer-to-peer network snapshot from August 2002",
+        "description": "Gnutella peer-to-peer network snapshot from August 8, 2002",
         "source": "SNAP",
         "location": "bundled",
-        "compressed_bundled": "p2p_gnutella.mtx.gz",
-        "size_mb": 2,
-        "compressed_kb": 550,
+        "compressed_bundled": "gnutella.mtx.gz",
+        "size_kb": 180,
+        "compressed_kb": 61,
     },
     "roadnet_pa": {
         "filename": "roadnet_pa.mtx",
@@ -1034,42 +1021,6 @@ def power_grid() -> Graph:
     )
 
 
-def erdos_collab() -> Graph:
-    """
-    Erdős collaboration network.
-
-    Collaboration network of scientists with Erdős number <= 2.
-    Nodes are mathematicians, edges represent co-authorship on papers.
-
-    **Network Properties**:
-    - Nodes: 6,927
-    - Edges: 11,850
-    - Directed: No
-    - Weighted: No
-    - Avg degree: 3.42
-
-    Returns
-    -------
-    Graph
-        Erdős collaboration network
-
-    Notes
-    -----
-    Named after Paul Erdős, one of the most prolific mathematicians.
-    Erdős number measures collaborative distance from Erdős.
-
-    References
-    ----------
-    SNAP datasets collection.
-    """
-    return _load_dataset_from_file(
-        "erdos_collab.mtx",
-        directed=False,
-        weighted=False,
-        graph_name="Erdős Collaboration Network",
-    )
-
-
 def pgp() -> Graph:
     """
     PGP web of trust network.
@@ -1106,36 +1057,37 @@ def pgp() -> Graph:
     )
 
 
-def internet_as() -> Graph:
+def internet() -> Graph:
     """
-    Internet autonomous systems network.
+    Internet Autonomous Systems network.
 
-    Internet topology at the autonomous system (AS) level from traceroute data.
-    Nodes are autonomous systems, edges represent communication paths.
+    Graph of autonomous systems (AS) that comprise the Internet.
+    Nodes represent autonomous systems, edges represent BGP connections.
 
     **Network Properties**:
-    - Nodes: 22,963
-    - Edges: 48,436
+    - Nodes: 6,474
+    - Edges: 13,895
     - Directed: No
     - Weighted: No
-    - Avg degree: 4.22
+    - Avg degree: 4.29
 
     Returns
     -------
     Graph
-        Internet AS topology
+        Internet AS topology network
 
     Notes
     -----
-    Snapshot of Internet backbone structure. Shows scale-free properties
-    with power-law degree distribution (few hubs, many small nodes).
+    Snapshot from January 2, 2000 from University of Oregon Route Views Project.
 
     References
     ----------
-    SNAP datasets collection.
+    J. Leskovec, J. Kleinberg and C. Faloutsos.
+    Graphs over Time: Densification Laws, Shrinking Diameters and Possible Explanations.
+    ACM SIGKDD International Conference on Knowledge Discovery and Data Mining (KDD), 2005.
     """
     return _load_dataset_from_file(
-        "internet_as.mtx",
+        "internet.mtx",
         directed=False,
         weighted=False,
         graph_name="Internet Autonomous Systems",
@@ -1174,6 +1126,177 @@ def ca_grqc() -> Graph:
         directed=False,
         weighted=False,
         graph_name="Arxiv GR-QC Collaboration Network",
+    )
+
+
+def physics() -> Graph:
+    """
+    High Energy Physics - Phenomenology collaboration network.
+
+    A scientific collaboration network from e-print arXiv. Nodes are authors,
+    edges represent co-authorship on papers in the High Energy Physics - Phenomenology category.
+
+    **Network Properties**:
+    - Nodes: 12,008
+    - Edges: 237,010
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 39.47
+
+    Returns
+    -------
+    Graph
+        High Energy Physics collaboration network
+
+    References
+    ----------
+    J. Leskovec, J. Kleinberg and C. Faloutsos.
+    Graph Evolution: Densification and Shrinking Diameters.
+    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
+    """
+    return _load_dataset_from_file(
+        "physics.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="High Energy Physics Collaboration Network",
+    )
+
+
+def wiki_vote() -> Graph:
+    """
+    Wikipedia adminship voting network.
+
+    A directed network of votes for Wikipedia adminship elections.
+    Nodes represent Wikipedia users and edges represent votes from one user to another.
+
+    **Network Properties**:
+    - Nodes: 7,115
+    - Edges: 103,689
+    - Directed: Yes
+    - Weighted: No
+    - Avg degree: 14.57
+
+    Returns
+    -------
+    Graph
+        Wikipedia voting network
+
+    Notes
+    -----
+    Includes all Wikipedia voting data from inception to January 2008.
+
+    References
+    ----------
+    J. Leskovec, D. Huttenlocher, J. Kleinberg. Signed Networks in Social Media. CHI 2010.
+    """
+    return _load_dataset_from_file(
+        "wiki_vote.mtx",
+        directed=True,
+        weighted=False,
+        graph_name="Wikipedia Voting Network",
+    )
+
+
+def condmat() -> Graph:
+    """
+    Condensed Matter Physics collaboration network.
+
+    A scientific collaboration network from e-print arXiv. Nodes are authors,
+    edges represent co-authorship on papers in the Condensed Matter category.
+
+    **Network Properties**:
+    - Nodes: 23,133
+    - Edges: 186,936
+    - Directed: No
+    - Weighted: No
+    - Avg degree: 16.17
+
+    Returns
+    -------
+    Graph
+        Condensed Matter collaboration network
+
+    References
+    ----------
+    J. Leskovec, J. Kleinberg and C. Faloutsos.
+    Graph Evolution: Densification and Shrinking Diameters.
+    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
+    """
+    return _load_dataset_from_file(
+        "condmat.mtx",
+        directed=False,
+        weighted=False,
+        graph_name="Condensed Matter Collaboration Network",
+    )
+
+
+def enron() -> Graph:
+    """
+    Enron email communication network.
+
+    A directed network of email communications within the Enron corporation.
+    Nodes are email addresses, edges represent emails sent from one address to another.
+
+    **Network Properties**:
+    - Nodes: 36,692
+    - Edges: 367,662
+    - Directed: Yes
+    - Weighted: No
+    - Avg degree: 20.04
+
+    Returns
+    -------
+    Graph
+        Enron email network
+
+    Notes
+    -----
+    Data from the Enron email corpus made public during the FERC investigation.
+
+    References
+    ----------
+    J. Leskovec, K. Lang, A. Dasgupta, M. Mahoney.
+    Community Structure in Large Networks: Natural Cluster Sizes and the Absence of Large Well-Defined Clusters.
+    Internet Mathematics 6(1) 29-123, 2009.
+    """
+    return _load_dataset_from_file(
+        "enron.mtx",
+        directed=True,
+        weighted=False,
+        graph_name="Enron Email Network",
+    )
+
+
+def gnutella() -> Graph:
+    """
+    Gnutella peer-to-peer network snapshot.
+
+    A directed graph of the Gnutella P2P file sharing network from August 8, 2002.
+    Nodes represent hosts, edges represent connections between hosts.
+
+    **Network Properties**:
+    - Nodes: 6,301
+    - Edges: 20,777
+    - Directed: Yes
+    - Weighted: No
+    - Avg degree: 6.59
+
+    Returns
+    -------
+    Graph
+        Gnutella P2P network
+
+    References
+    ----------
+    J. Leskovec, J. Kleinberg and C. Faloutsos.
+    Graph Evolution: Densification and Shrinking Diameters.
+    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
+    """
+    return _load_dataset_from_file(
+        "gnutella.mtx",
+        directed=True,
+        weighted=False,
+        graph_name="Gnutella P2P Network",
     )
 
 
@@ -1280,10 +1403,14 @@ __all__ = [
     "jazz",
     "celegans",
     "power_grid",
-    "erdos_collab",
-    "pgp",
-    "internet_as",
     "ca_grqc",
+    "physics",
+    "condmat",
+    "wiki_vote",
+    "pgp",
+    "internet",
+    "enron",
+    "gnutella",
     "web_google",
     "soc_livejournal",
     "load_dataset",

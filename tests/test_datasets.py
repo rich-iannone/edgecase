@@ -30,7 +30,7 @@ class TestDatasetRegistry:
             assert ds in datasets, f"{ds} should be registered"
 
         # Check for medium visualization datasets (1k-5k nodes)
-        medium_datasets = ["power_grid", "erdos_collab", "pgp", "internet_as"]
+        medium_datasets = ["power_grid", "pgp", "internet"]
         for ds in medium_datasets:
             assert ds in datasets, f"{ds} should be registered"
 
@@ -143,16 +143,18 @@ class TestCompressedDatasetLoading:
         if not gz_path.exists():
             pytest.skip("karate.mtx.gz not found")
 
-        # Load from uncompressed (if exists)
-        try:
-            g1 = load_dataset("karate")
-        except FileNotFoundError:
-            pytest.skip("karate.mtx not found")
+        mtx_path = DATA_DIR / "karate.mtx"
+        if not mtx_path.exists():
+            pytest.skip(
+                "Test requires uncompressed karate.mtx file (only compressed version available)"
+            )
+
+        # Load from uncompressed
+        g1 = load_dataset("karate")
 
         # Create temp compressed version and test
         import os
 
-        mtx_path = DATA_DIR / "karate.mtx"
         backup_path = mtx_path.with_suffix(".mtx.backup")
         os.rename(mtx_path, backup_path)
 
