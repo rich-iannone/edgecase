@@ -7345,6 +7345,7 @@ impl Graph {
     }
 
     /// Check if there's an edge between two nodes
+    #[inline]
     fn has_edge(&self, source: u64, target: u64) -> bool {
         if let Some(neighbors) = self.adjacency_list.get(&source) {
             neighbors.contains(&target)
@@ -7355,6 +7356,7 @@ impl Graph {
 
     /// Find node ID from a label string. Tries label lookup first,
     /// then parses as integer ID if that fails.
+    #[inline]
     fn find_node_id(&self, label: &str) -> Option<u64> {
         // First try: lookup as a label
         if let Some(&id) = self.node_labels.get(label) {
@@ -8111,7 +8113,8 @@ impl Graph {
         }
 
         // Check if subgraph is connected
-        let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+        let mut node_set = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        node_set.extend(nodes.iter().copied());
         if !self.is_subgraph_connected(&node_set) {
             return Ok(0);
         }
@@ -8178,8 +8181,8 @@ impl Graph {
         }
 
         let start = *node_set.iter().next().unwrap();
-        let mut visited = FxHashSet::default();
-        let mut queue = std::collections::VecDeque::new();
+        let mut visited = FxHashSet::with_capacity_and_hasher(node_set.len(), Default::default());
+        let mut queue = std::collections::VecDeque::with_capacity(node_set.len());
 
         visited.insert(start);
         queue.push_back(start);
@@ -8200,17 +8203,19 @@ impl Graph {
 
     /// Find connected components within a subgraph
     fn find_components_in_subgraph(&self, nodes: &[u64]) -> Vec<Vec<u64>> {
-        let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
-        let mut visited = FxHashSet::default();
-        let mut components = Vec::new();
+        let n = nodes.len();
+        let mut node_set = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        node_set.extend(nodes.iter().copied());
+        let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        let mut components = Vec::with_capacity(n.min(4));
 
         for &node in nodes {
             if visited.contains(&node) {
                 continue;
             }
 
-            let mut component = Vec::new();
-            let mut queue = std::collections::VecDeque::new();
+            let mut component = Vec::with_capacity(n);
+            let mut queue = std::collections::VecDeque::with_capacity(n);
 
             visited.insert(node);
             queue.push_back(node);
@@ -8236,22 +8241,22 @@ impl Graph {
 
     /// Find articulation points (cut vertices) in a subgraph
     fn find_articulation_points_in_subgraph(&self, nodes: &[u64]) -> Vec<u64> {
-        let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
-        let mut articulation_points = Vec::new();
+        let n = nodes.len();
+        let mut node_set = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        node_set.extend(nodes.iter().copied());
+        let mut articulation_points = Vec::with_capacity(n);
 
-        if nodes.len() <= 2 {
+        if n <= 2 {
             return articulation_points;
         }
 
         for &candidate in nodes {
             // Remove candidate and check if subgraph becomes disconnected
-            let remaining: Vec<u64> = nodes
-                .iter()
-                .filter(|&&n| n != candidate)
-                .copied()
-                .collect();
+            let mut remaining = Vec::with_capacity(n - 1);
+            remaining.extend(nodes.iter().filter(|&&n| n != candidate).copied());
 
-            let remaining_set: FxHashSet<u64> = remaining.iter().copied().collect();
+            let mut remaining_set = FxHashSet::with_capacity_and_hasher(n - 1, Default::default());
+            remaining_set.extend(remaining.iter().copied());
 
             if !self.is_subgraph_connected(&remaining_set) {
                 articulation_points.push(candidate);
