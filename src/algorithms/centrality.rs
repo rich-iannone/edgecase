@@ -141,7 +141,6 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
 #[pyfunction]
 #[pyo3(signature = (graph, damping=0.85, max_iter=100, tol=1e-6))]
 #[inline]
-#[inline]
 pub fn pagerank(
     graph: &Graph,
     damping: f64,

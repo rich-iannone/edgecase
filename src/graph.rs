@@ -674,6 +674,7 @@ impl Graph {
     // ========== Selection Methods ==========
 
     /// Select nodes by their IDs
+    #[inline]
     pub fn select_nodes_by_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
         for node_id in node_ids {
             if !self.nodes.contains_key(&node_id) {
@@ -688,6 +689,7 @@ impl Graph {
     }
 
     /// Select edges by their IDs
+    #[inline]
     pub fn select_edges_by_id(&mut self, edge_ids: Vec<u64>) -> PyResult<()> {
         for edge_id in edge_ids {
             if !self.has_edge_id(edge_id) {
@@ -702,8 +704,10 @@ impl Graph {
     }
 
     /// Select edges connected to specified nodes
+    #[inline]
     pub fn select_edges_by_node_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
-        let node_set: FxHashSet<u64> = node_ids.into_iter().collect();
+        let mut node_set = FxHashSet::with_capacity_and_hasher(node_ids.len(), Default::default());
+        node_set.extend(node_ids);
 
         for edge in &self.edges {
             if node_set.contains(&edge.source) || node_set.contains(&edge.target) {
@@ -714,6 +718,7 @@ impl Graph {
     }
 
     /// Select nodes by degree criteria
+    #[inline]
     #[pyo3(signature = (min_degree=None, max_degree=None, degree_type="total"))]
     pub fn select_nodes_by_degree(
         &mut self,
@@ -848,6 +853,7 @@ impl Graph {
 
     /// Select nodes using a Python callable/predicate function
     /// The predicate receives a Node object and should return True/False
+    #[inline]
     pub fn select_nodes(&mut self, py: Python, predicate: PyObject) -> PyResult<()> {
         for (&node_id, node) in &self.nodes {
             // Call the predicate with the node
@@ -863,6 +869,7 @@ impl Graph {
 
     /// Select edges using a Python callable/predicate function
     /// The predicate receives an Edge object and should return True/False
+    #[inline]
     pub fn select_edges(&mut self, py: Python, predicate: PyObject) -> PyResult<()> {
         for edge in &self.edges {
             // Call the predicate with the edge
@@ -922,6 +929,7 @@ impl Graph {
 
     /// Select nodes in the K-hop neighborhood of specified nodes
     #[pyo3(signature = (node_ids, k=1, mode="out"))]
+    #[inline]
     pub fn select_nodes_in_neighborhood(
         &mut self,
         node_ids: Vec<u64>,
@@ -939,8 +947,9 @@ impl Graph {
         let effective_mode = if !self.directed { "all" } else { mode };
 
         // Use BFS to find all nodes within k hops
-        let mut visited = FxHashSet::default();
-        let mut current_level = FxHashSet::default();
+        let n = self.num_nodes();
+        let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        let mut current_level = FxHashSet::with_capacity_and_hasher(node_ids.len(), Default::default());
 
         // Initialize with seed nodes
         for node_id in node_ids {
@@ -954,7 +963,7 @@ impl Graph {
 
         // BFS for k hops
         for _ in 0..k {
-            let mut next_level = FxHashSet::default();
+            let mut next_level = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
             for &node_id in &current_level {
                 visited.insert(node_id);
@@ -1015,6 +1024,7 @@ impl Graph {
 
     /// Select top-K nodes by degree (used internally for centrality-based selection)
     #[pyo3(signature = (scores, k, include_ties=false))]
+    #[inline]
     pub fn select_nodes_by_scores(
         &mut self,
         scores: FxHashMap<u64, f64>,
@@ -1026,7 +1036,8 @@ impl Graph {
         }
 
         // Convert to vector and sort by score (descending)
-        let mut scored_nodes: Vec<(u64, f64)> = scores.into_iter().collect();
+        let mut scored_nodes = Vec::with_capacity(scores.len());
+        scored_nodes.extend(scores);
         scored_nodes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         if k == 0 {
@@ -4573,16 +4584,19 @@ impl Graph {
     /// Traverse from selected nodes to outward neighbors.
     /// Replaces the current node selection with neighbors in the outward direction.
     /// For directed graphs, this follows edges where selected nodes are sources.
+    #[inline]
     pub fn trav_out(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
+        let n = self.selected_nodes.len();
+        let mut current_selection = Vec::with_capacity(n);
+        current_selection.extend(self.selected_nodes.iter().copied());
 
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
 
         // Collect all neighbors
-        let mut new_selection = FxHashSet::default();
+        let mut new_selection = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
         if !self.directed {
             // For undirected graphs, get all neighbors
@@ -4610,16 +4624,19 @@ impl Graph {
     /// Traverse from selected nodes to inward neighbors.
     /// Replaces the current node selection with neighbors in the inward direction.
     /// For directed graphs, this follows edges where selected nodes are targets.
+    #[inline]
     pub fn trav_in(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
+        let n = self.selected_nodes.len();
+        let mut current_selection = Vec::with_capacity(n);
+        current_selection.extend(self.selected_nodes.iter().copied());
 
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
 
         // Collect all neighbors
-        let mut new_selection = FxHashSet::default();
+        let mut new_selection = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
         if !self.directed {
             // For undirected graphs, get all neighbors
@@ -4647,16 +4664,19 @@ impl Graph {
     /// Traverse from selected nodes to all neighbors (both directions).
     /// Replaces the current node selection with all connected neighbors.
     /// Works the same for directed and undirected graphs.
+    #[inline]
     pub fn trav_both(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
+        let n = self.selected_nodes.len();
+        let mut current_selection = Vec::with_capacity(n);
+        current_selection.extend(self.selected_nodes.iter().copied());
 
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
         }
 
         // Collect all neighbors (both directions)
-        let mut new_selection = FxHashSet::default();
+        let mut new_selection = FxHashSet::with_capacity_and_hasher(n, Default::default());
         for node_id in current_selection {
             // For all graphs, get neighbors from adjacency list (handles undirected)
             if let Some(neighbors) = self.adjacency_list.get(&node_id) {
@@ -4680,9 +4700,12 @@ impl Graph {
 
     /// Traverse from selected nodes to outward edges.
     /// Replaces the current node selection with an edge selection of outbound edges.
+    #[inline]
     pub fn trav_out_edge(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
+        let n = self.selected_nodes.len();
+        let mut current_selection = Vec::with_capacity(n);
+        current_selection.extend(self.selected_nodes.iter().copied());
 
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
@@ -4690,7 +4713,7 @@ impl Graph {
 
         // Clear node selection and build edge selection
         self.selected_nodes.clear();
-        let mut new_edge_selection = FxHashSet::default();
+        let mut new_edge_selection = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
         for node_id in current_selection {
             // Find edges where this node is the source
@@ -4716,9 +4739,12 @@ impl Graph {
 
     /// Traverse from selected nodes to inward edges.
     /// Replaces the current node selection with an edge selection of inbound edges.
+    #[inline]
     pub fn trav_in_edge(&mut self) -> PyResult<()> {
         // Get current selected nodes
-        let current_selection: Vec<u64> = self.selected_nodes.iter().copied().collect();
+        let n = self.selected_nodes.len();
+        let mut current_selection = Vec::with_capacity(n);
+        current_selection.extend(self.selected_nodes.iter().copied());
 
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
@@ -4726,7 +4752,7 @@ impl Graph {
 
         // Clear node selection and build edge selection
         self.selected_nodes.clear();
-        let mut new_edge_selection = FxHashSet::default();
+        let mut new_edge_selection = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
         for node_id in current_selection {
             // Find edges where this node is the target
@@ -4753,9 +4779,12 @@ impl Graph {
     /// Traverse from selected edges to reverse edges.
     /// For each selected edge A→B, finds the reverse edge B→A (if it exists).
     /// If add_to_selection is true, adds reverse edges to selection; otherwise replaces.
+    #[inline]
     pub fn trav_reverse_edge(&mut self, add_to_selection: bool) -> PyResult<()> {
         // Get current selected edges
-        let current_selection: Vec<u64> = self.selected_edges.iter().cloned().collect();
+        let n = self.selected_edges.len();
+        let mut current_selection = Vec::with_capacity(n);
+        current_selection.extend(self.selected_edges.iter().cloned());
 
         if current_selection.is_empty() {
             return Ok(()); // No selection, nothing to do
