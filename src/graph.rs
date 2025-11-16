@@ -5856,6 +5856,7 @@ impl Graph {
     ///
     /// # References
     /// Newman, M.E.J. "Mixing patterns in networks" (2003)
+    #[inline]
     pub fn assortativity_nominal(&self, attribute: &str) -> PyResult<f64> {
         let m = self.edges.len();
         if m == 0 {
@@ -5866,7 +5867,8 @@ impl Graph {
 
         Python::with_gil(|py| {
             // Extract attribute values for all nodes
-            let mut node_attrs: FxHashMap<u64, String> = FxHashMap::default();
+            let n = self.nodes.len();
+            let mut node_attrs = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             for (node_id, node) in &self.nodes {
                 if let Some(ref attrs) = node.attributes {
@@ -5887,7 +5889,8 @@ impl Graph {
             }
 
             // Build mixing matrix: count edges between attribute types
-            let mut attribute_types: Vec<String> = node_attrs.values().cloned().collect();
+            let mut attribute_types = Vec::with_capacity(n);
+            attribute_types.extend(node_attrs.values().cloned());
             attribute_types.sort();
             attribute_types.dedup();
 
@@ -5899,10 +5902,10 @@ impl Graph {
             }
 
             // Map attribute values to indices
-            let attr_to_idx: FxHashMap<String, usize> = attribute_types.iter()
-                .enumerate()
-                .map(|(idx, attr)| (attr.clone(), idx))
-                .collect();
+            let mut attr_to_idx = FxHashMap::with_capacity_and_hasher(n_types, Default::default());
+            for (idx, attr) in attribute_types.iter().enumerate() {
+                attr_to_idx.insert(attr.clone(), idx);
+            }
 
             // Count edges for mixing matrix
             let mut e_matrix = vec![vec![0usize; n_types]; n_types];
@@ -5934,9 +5937,9 @@ impl Graph {
             // Calculate eᵢⱼ (edge fractions)
             // For undirected: each edge counted twice in e_matrix, so divide by 2*m
             // For directed: edges counted once, so divide by m
-            let normalization = if self.directed { m_f64 } else { 2.0 * m_f64 };
+            let inv_normalization = if self.directed { 1.0 / m_f64 } else { 1.0 / (2.0 * m_f64) };
             let e_ij: Vec<Vec<f64>> = e_matrix.iter()
-                .map(|row| row.iter().map(|&count| count as f64 / normalization).collect())
+                .map(|row| row.iter().map(|&count| count as f64 * inv_normalization).collect())
                 .collect();
 
             // Calculate aᵢ and bᵢ (marginal sums)
@@ -6009,6 +6012,7 @@ impl Graph {
     ///
     /// # References
     /// Newman, M.E.J. "Assortative mixing in networks" (2002)
+    #[inline]
     pub fn assortativity(&self, attribute: &str) -> PyResult<f64> {
         let m = self.edges.len();
         if m == 0 {
@@ -6019,7 +6023,8 @@ impl Graph {
 
         Python::with_gil(|py| {
             // Extract numeric attribute values for all nodes
-            let mut node_attrs: FxHashMap<u64, f64> = FxHashMap::default();
+            let n = self.nodes.len();
+            let mut node_attrs = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             for (node_id, node) in &self.nodes {
                 if let Some(ref attrs) = node.attributes {
@@ -6066,6 +6071,8 @@ impl Graph {
 
             if !self.directed {
                 // Undirected graph - special handling
+                let inv_m = 1.0 / m_f64;
+                let inv_2m = 1.0 / (m_f64 * 2.0);
                 let mut num1 = 0.0;
                 let mut num2 = 0.0;
                 let mut den1 = 0.0;
@@ -6076,9 +6083,9 @@ impl Graph {
                     den1 += x * x + y * y;
                 }
 
-                num1 /= m_f64;
-                den1 /= m_f64 * 2.0;
-                num2 /= m_f64 * 2.0;
+                num1 *= inv_m;
+                den1 *= inv_2m;
+                num2 *= inv_2m;
                 let num2_sq = num2 * num2;
 
                 let numerator = num1 - num2_sq;
@@ -6093,15 +6100,16 @@ impl Graph {
                 Ok(numerator / denominator)
             } else {
                 // Directed graph
+                let inv_m = 1.0 / m_f64;
                 let sum_x: f64 = x_vals.iter().sum();
                 let sum_y: f64 = y_vals.iter().sum();
                 let sum_xy: f64 = x_vals.iter().zip(y_vals.iter()).map(|(x, y)| x * y).sum();
                 let sum_x2: f64 = x_vals.iter().map(|x| x * x).sum();
                 let sum_y2: f64 = y_vals.iter().map(|y| y * y).sum();
 
-                let numerator = sum_xy - (sum_x * sum_y) / m_f64;
-                let denominator_x = sum_x2 - (sum_x * sum_x) / m_f64;
-                let denominator_y = sum_y2 - (sum_y * sum_y) / m_f64;
+                let numerator = sum_xy - (sum_x * sum_y) * inv_m;
+                let denominator_x = sum_x2 - (sum_x * sum_x) * inv_m;
+                let denominator_y = sum_y2 - (sum_y * sum_y) * inv_m;
                 let denominator = (denominator_x * denominator_y).sqrt();
 
                 if denominator.abs() < 1e-10 {
