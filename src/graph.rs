@@ -3716,19 +3716,26 @@ impl Graph {
     /// Returns 0.0 for nodes with degree < 2
     ///
     /// OPTIMIZED: Uses pre-computed triangle counts instead of recounting edges
+    #[inline]
     fn get_clustering_coefficient(&self) -> FxHashMap<u64, f64> {
         // Use the optimized version from algorithms::structural
         let clustering_opt = crate::algorithms::structural::local_clustering_coefficient(self);
 
+        // Preallocate result HashMap with exact capacity needed
+        let n = clustering_opt.len();
+        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
+
         // Convert Option<f64> to f64, mapping None to 0.0
-        clustering_opt
-            .into_iter()
-            .map(|(node_id, opt_coeff)| (node_id, opt_coeff.unwrap_or(0.0)))
-            .collect()
+        for (node_id, opt_coeff) in clustering_opt {
+            result.insert(node_id, opt_coeff.unwrap_or(0.0));
+        }
+
+        result
     }
 
     /// Get average clustering coefficient for the graph
     /// Returns the mean of all node clustering coefficients
+    #[inline]
     fn get_avg_clustering_coefficient(&self) -> f64 {
         let clustering = self.get_clustering_coefficient();
 
@@ -3736,8 +3743,10 @@ impl Graph {
             return 0.0;
         }
 
+        let n = clustering.len() as f64;
+        let inv_n = 1.0 / n;
         let sum: f64 = clustering.values().sum();
-        sum / clustering.len() as f64
+        sum * inv_n
     }
 
     /// Get edge clustering coefficient for specified edges
