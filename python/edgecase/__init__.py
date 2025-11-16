@@ -15,11 +15,17 @@ from edgecase.colors import (
 )
 from edgecase.datasets import (
     ca_grqc,
+    celegans,
+    dolphins,
+    football,
     get_dataset_info,
+    jazz,
     karate_club,
     list_available_datasets,
     list_registered_datasets,
     load_dataset,
+    polbooks,
+    power_grid,
     soc_livejournal,
     web_google,
 )

@@ -48,15 +48,15 @@ DATASET_REGISTRY = {
     "football": {
         "filename": "football.mtx",
         "name": "American College Football",
-        "nodes": 115,
-        "edges": 613,
+        "nodes": 35,
+        "edges": 119,
         "directed": False,
-        "description": "Network of American football games between Division IA colleges in Fall 2000",
+        "description": "Network of American football games",
         "source": "NetworkRepository",
         "location": "bundled",
         "compressed_bundled": "football.mtx.gz",
-        "size_kb": 8,
-        "compressed_kb": 2,
+        "size_kb": 1,
+        "compressed_kb": 0.4,
     },
     "polbooks": {
         "filename": "polbooks.mtx",
@@ -75,27 +75,27 @@ DATASET_REGISTRY = {
         "filename": "jazz.mtx",
         "name": "Jazz Musicians Network",
         "nodes": 198,
-        "edges": 2742,
+        "edges": 2743,
         "directed": False,
         "description": "Collaboration network of jazz musicians",
         "source": "NetworkRepository",
         "location": "bundled",
         "compressed_bundled": "jazz.mtx.gz",
-        "size_kb": 35,
-        "compressed_kb": 8,
+        "size_kb": 19,
+        "compressed_kb": 7,
     },
     "celegans": {
         "filename": "celegans.mtx",
-        "name": "C. Elegans Neural Network",
-        "nodes": 297,
-        "edges": 2148,
-        "directed": True,
-        "description": "Neural network of C. Elegans (nematode worm)",
+        "name": "C. Elegans Metabolic Network",
+        "nodes": 453,
+        "edges": 2041,
+        "directed": False,
+        "description": "Metabolic network of C. Elegans (nematode worm)",
         "source": "NetworkRepository",
         "location": "bundled",
         "compressed_bundled": "celegans.mtx.gz",
-        "size_kb": 28,
-        "compressed_kb": 7,
+        "size_kb": 16,
+        "compressed_kb": 5,
     },
     "power_grid": {
         "filename": "power_grid.mtx",
@@ -107,8 +107,8 @@ DATASET_REGISTRY = {
         "source": "NetworkRepository",
         "location": "bundled",
         "compressed_bundled": "power_grid.mtx.gz",
-        "size_kb": 90,
-        "compressed_kb": 25,
+        "size_kb": 63,
+        "compressed_kb": 23,
     },
     "ca_grqc": {
         "filename": "ca_grqc.mtx",
@@ -964,37 +964,37 @@ def jazz() -> Graph:
 
 def celegans() -> Graph:
     """
-    C. Elegans neural network.
+    C. Elegans metabolic network.
 
-    Neural network of the nematode worm Caenorhabditis elegans.
-    Nodes are neurons, directed edges represent synaptic connections.
+    Metabolic network of the nematode worm Caenorhabditis elegans.
+    Nodes represent metabolites, edges represent metabolic reactions.
 
     **Network Properties**:
-    - Nodes: 297
-    - Edges: 2,148
-    - Directed: Yes
+    - Nodes: 453
+    - Edges: 2,041
+    - Directed: No
     - Weighted: No
-    - Avg degree: 14.46
+    - Avg degree: 9.01
 
     Returns
     -------
     Graph
-        C. elegans neural network
+        C. elegans metabolic network
 
     Notes
     -----
-    This is one of the few organisms with a completely mapped neural network.
-    The network shows hierarchical organization and small-world properties.
+    This metabolic network shows the biochemical pathways in C. elegans.
+    Different from the neural network version.
 
     References
     ----------
-    D. J. Watts and S. H. Strogatz, Nature 393, 440-442 (1998).
+    NetworkRepository datasets collection.
     """
     return _load_dataset_from_file(
         "celegans.mtx",
-        directed=True,
+        directed=False,
         weighted=False,
-        graph_name="C. Elegans Neural Network",
+        graph_name="C. Elegans Metabolic Network",
     )
 
 
