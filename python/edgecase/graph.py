@@ -1593,7 +1593,7 @@ class Graph:
         See Also
         --------
         is_dag : Check if directed graph is acyclic
-        get_girth : Get length of shortest cycle
+        get_graph_girth : Get length of shortest cycle
         get_cycles : Get all elementary cycles in the graph
         """
         return self._graph.has_cycles()
@@ -1679,7 +1679,7 @@ class Graph:
         --------
         has_cycles : Check if graph contains any cycles
         is_dag : Check if directed graph is acyclic
-        get_girth : Get length of shortest cycle
+        get_graph_girth : Get length of shortest cycle
         """
         if not self.is_directed:
             raise ValueError("get_cycles() requires a directed graph")
@@ -5142,7 +5142,7 @@ class Graph:
 
         See Also
         --------
-        get_girth : Get length of shortest cycle
+        get_graph_girth : Get length of shortest cycle
         """
         return self._graph.is_bipartite()
 
