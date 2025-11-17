@@ -3000,10 +3000,26 @@ class Graph:
         Returns None if the graph is acyclic (a forest/tree). Uses BFS
         from each node to detect shortest cycles efficiently.
 
+        The implementation includes fast-path checks:
+        - Returns 1 for graphs with self-loops
+        - Returns 2 for undirected graphs with multi-edges
+        - Returns 3+ for cycles found via BFS
+
         Returns
         -------
         int | None
             Length of shortest cycle, or None if acyclic.
+            - 1: Graph contains a self-loop (edge from node to itself)
+            - 2: Undirected graph contains multi-edges (duplicate edges)
+            - 3+: Shortest cycle length found via BFS
+            - None: Graph is acyclic (tree/forest)
+
+        Notes
+        -----
+        For comparison with other libraries:
+        - igraph returns infinity for acyclic graphs (EdgeCase returns None)
+        - igraph removes self-loops during preprocessing (EdgeCase detects them as girth=1)
+        - NetworkX does not have a built-in girth function
 
         Examples
         --------
@@ -3023,6 +3039,28 @@ class Graph:
         )
 
         print(graph.get_graph_girth())  # 4 (cycle length)
+        ```
+
+        Self-loops have girth 1:
+
+        ```python
+        graph = Graph().add_node(label="A").add_edge("A", "A")
+        print(graph.get_graph_girth())  # 1
+        ```
+
+        Triangles have girth 3:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        print(graph.get_graph_girth())  # 3
         ```
 
         Trees have no cycles:
