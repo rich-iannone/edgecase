@@ -229,17 +229,20 @@ pub fn transitivity(graph: &Graph) -> Option<f64> {
 }
 
 /// Compute transitivity for undirected graphs
-/// Optimized to compute both triangles and triples in a single pass
+/// Optimized: uses direct adjacency list access to avoid allocations
 fn transitivity_undirected(graph: &Graph) -> Option<f64> {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 
-    // Build sorted adjacency lists once (faster than repeated neighbors() calls)
-    let mut adj_lists: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    // Get direct reference to adjacency list (zero-copy)
+    let adj_list = graph.get_adjacency_list();
+
+    // Build sorted adjacency lists + count triples in a single pass
+    let mut sorted_adj: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
     let mut connected_triples: usize = 0;
 
     for &node_id in node_ids.iter() {
-        if let Ok(neighbors) = graph.neighbors(node_id) {
+        if let Some(neighbors) = adj_list.get(&node_id) {
             let degree = neighbors.len();
 
             // Count connected triples for this node
@@ -247,10 +250,10 @@ fn transitivity_undirected(graph: &Graph) -> Option<f64> {
                 connected_triples += degree * (degree - 1) / 2;
             }
 
-            // Store sorted neighbors for efficient intersection
-            let mut sorted_neighbors = neighbors;
+            // Clone and sort neighbors only once
+            let mut sorted_neighbors = neighbors.clone();
             sorted_neighbors.sort_unstable();
-            adj_lists.insert(node_id, sorted_neighbors);
+            sorted_adj.insert(node_id, sorted_neighbors);
         }
     }
 
@@ -261,13 +264,13 @@ fn transitivity_undirected(graph: &Graph) -> Option<f64> {
     // Count triangles using sorted adjacency lists
     let mut total_triangles: usize = 0;
 
+    // Iterate over edges
     for (_, u, v) in graph.edges() {
-        if u >= v {
-            continue;
-        }
+        // Normalize edge direction for undirected graphs (always process as min < max)
+        let (u, v) = if u < v { (u, v) } else { (v, u) };
 
-        // Find common neighbors using merge-like algorithm
-        if let (Some(u_neighbors), Some(v_neighbors)) = (adj_lists.get(&u), adj_lists.get(&v)) {
+        // Use sorted adjacency for efficient intersection
+        if let (Some(u_neighbors), Some(v_neighbors)) = (sorted_adj.get(&u), sorted_adj.get(&v)) {
             let mut i = 0;
             let mut j = 0;
 
