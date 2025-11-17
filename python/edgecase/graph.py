@@ -3312,10 +3312,10 @@ class Graph:
 
         ```python
         graph = Graph()
-        graph.add_tree_graph(levels=3, children_per_node=2)
+        graph.add_balanced_tree(k=2, h=3)
 
         visited = graph.bfs(start=1)
-        print(visited)  # [1, 2, 3, 4, 5, 6, 7] (level by level)
+        print(visited)  # [1, 2, 3, 4, 5, 6, 7, ...] (level by level)
         ```
 
         BFS on a grid starts from corner:
@@ -3360,10 +3360,10 @@ class Graph:
 
         ```python
         graph = Graph()
-        graph.add_tree_graph(levels=3, children_per_node=2)
+        graph.add_balanced_tree(k=2, h=3)
 
         visited = graph.dfs(start=1)
-        print(visited)  # [1, 2, 4, 5, 3, 6, 7] (depth-first)
+        print(visited)  # [1, 2, 4, 8, ...] (depth-first)
         ```
 
         DFS on a graph to explore connected component:

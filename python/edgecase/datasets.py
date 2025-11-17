@@ -272,6 +272,8 @@ def get_dataset_info(name: str) -> dict:
     Examples
     --------
     ```python
+    from edgecase import get_dataset_info
+
     info = get_dataset_info("roadnet_pa")
     print(f"{info['name']}: {info['nodes']:,} nodes, {info['edges']:,} edges")
     ```
@@ -311,6 +313,8 @@ def list_registered_datasets() -> list[str]:
     Examples
     --------
     ```python
+    from edgecase import list_registered_datasets, get_dataset_info
+
     for name in list_registered_datasets():
         info = get_dataset_info(name)
         print(f"{name}: {info['description']}")
@@ -747,6 +751,8 @@ def web_google() -> Graph:
     Examples
     --------
     ```python
+    from edgecase import web_google
+
     # Load the dataset (requires web-Google.mtx in data/)
     G = web_google()
 
@@ -1324,6 +1330,8 @@ def load_dataset(name: str, directed: bool = None, weighted: bool = False) -> Gr
     Examples
     --------
     ```python
+    from edgecase import load_dataset, list_registered_datasets, list_available_datasets
+
     # Load registered dataset (uses metadata)
     g = load_dataset("karate")
 

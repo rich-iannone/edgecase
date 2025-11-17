@@ -627,5 +627,244 @@ class TestConditionalTraversal:
         assert nodes == ["6"]
 
 
+class TestBFS:
+    """Test breadth-first search traversal."""
+
+    def test_bfs_path_graph(self):
+        """Test BFS on simple path graph."""
+        g = ec.Graph()
+        g.add_path_graph(5)
+
+        result = g.bfs(1)
+        assert result == [1, 2, 3, 4, 5]
+        assert len(result) == 5
+
+    def test_bfs_karate_graph(self):
+        """Test BFS on karate dataset - should visit all connected nodes."""
+        g = ec.load_dataset("karate")
+
+        result = g.bfs(1)
+        # Should visit all 34 nodes starting from node 1
+        assert result[0] == 1
+        assert len(result) == 34
+        # All nodes should be unique
+        assert len(set(result)) == 34
+
+    def test_bfs_star_graph(self):
+        """Test BFS on star graph."""
+        g = ec.Graph()
+        g.add_star_graph(5)
+
+        result = g.bfs(1)  # Start from hub
+        # Hub first, then all leaves
+        assert result[0] == 1
+        assert len(result) == 5
+        assert set(result) == {1, 2, 3, 4, 5}
+
+    def test_bfs_cycle_graph(self):
+        """Test BFS on cycle graph."""
+        g = ec.Graph()
+        g.add_cycle_graph(6)
+
+        result = g.bfs(1)
+        assert len(result) == 6
+        assert set(result) == {1, 2, 3, 4, 5, 6}
+        # First node should be start
+        assert result[0] == 1
+
+    def test_bfs_disconnected_graph(self):
+        """Test BFS on disconnected graph - only visits connected component."""
+        g = ec.Graph()
+        g.add_path_graph(3)
+        g.add_node(10)
+        g.add_node(11)
+        g.add_edge(10, 11)
+
+        result = g.bfs(1)
+        # Should only visit component containing node 1
+        assert set(result) == {1, 2, 3}
+
+    def test_bfs_single_node(self):
+        """Test BFS on single isolated node."""
+        g = ec.Graph()
+        g.add_node(42)
+
+        result = g.bfs(42)
+        assert result == [42]
+
+    def test_bfs_complete_graph(self):
+        """Test BFS on complete graph."""
+        g = ec.Graph()
+        g.add_full_graph(5)
+
+        result = g.bfs(1)
+        # All nodes reachable from any node
+        assert len(result) == 5
+        assert set(result) == {1, 2, 3, 4, 5}
+        assert result[0] == 1
+
+    def test_bfs_with_label(self):
+        """Test BFS using node label instead of ID."""
+        g = ec.Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+
+        result = g.bfs("A")
+        # Returns node IDs
+        assert len(result) == 3
+
+    def test_bfs_nonexistent_node(self):
+        """Test BFS with non-existent start node."""
+        g = ec.Graph()
+        g.add_path_graph(5)
+
+        with pytest.raises(ValueError):
+            g.bfs(999)
+
+
+class TestDFS:
+    """Test depth-first search traversal."""
+
+    def test_dfs_path_graph(self):
+        """Test DFS on simple path graph."""
+        g = ec.Graph()
+        g.add_path_graph(5)
+
+        result = g.dfs(1)
+        assert result == [1, 2, 3, 4, 5]
+        assert len(result) == 5
+
+    def test_dfs_karate_graph(self):
+        """Test DFS on karate dataset - should explore depth first."""
+        g = ec.load_dataset("karate")
+
+        result = g.dfs(1)
+        # Should visit all 34 nodes starting from node 1
+        assert result[0] == 1
+        assert len(result) == 34
+        # All nodes should be unique
+        assert len(set(result)) == 34
+
+    def test_dfs_star_graph(self):
+        """Test DFS on star graph."""
+        g = ec.Graph()
+        g.add_star_graph(5)
+
+        result = g.dfs(1)  # Start from hub
+        # Hub first, then leaves
+        assert result[0] == 1
+        assert len(result) == 5
+        assert set(result) == {1, 2, 3, 4, 5}
+
+    def test_dfs_cycle_graph(self):
+        """Test DFS on cycle graph."""
+        g = ec.Graph()
+        g.add_cycle_graph(6)
+
+        result = g.dfs(1)
+        assert len(result) == 6
+        assert set(result) == {1, 2, 3, 4, 5, 6}
+        assert result[0] == 1
+
+    def test_dfs_disconnected_graph(self):
+        """Test DFS on disconnected graph - only visits connected component."""
+        g = ec.Graph()
+        g.add_path_graph(3)
+        g.add_node(10)
+        g.add_node(11)
+        g.add_edge(10, 11)
+
+        result = g.dfs(1)
+        # Should only visit component containing node 1
+        assert set(result) == {1, 2, 3}
+
+    def test_dfs_single_node(self):
+        """Test DFS on single isolated node."""
+        g = ec.Graph()
+        g.add_node(42)
+
+        result = g.dfs(42)
+        assert result == [42]
+
+    def test_dfs_complete_graph(self):
+        """Test DFS on complete graph."""
+        g = ec.Graph()
+        g.add_full_graph(5)
+
+        result = g.dfs(1)
+        # All nodes reachable from any node
+        assert len(result) == 5
+        assert set(result) == {1, 2, 3, 4, 5}
+        assert result[0] == 1
+
+    def test_dfs_with_label(self):
+        """Test DFS using node label instead of ID."""
+        g = ec.Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+
+        result = g.dfs("A")
+        # Returns node IDs
+        assert len(result) == 3
+
+    def test_dfs_nonexistent_node(self):
+        """Test DFS with non-existent start node."""
+        g = ec.Graph()
+        g.add_path_graph(5)
+
+        with pytest.raises(ValueError):
+            g.dfs(999)
+
+
+class TestBFSvsDFS:
+    """Compare BFS and DFS behavior."""
+
+    def test_same_nodes_visited(self):
+        """BFS and DFS should visit the same set of nodes."""
+        g = ec.Graph()
+        g.add_balanced_tree(k=3, h=4)
+
+        start = 1
+        bfs_result = g.bfs(start)
+        dfs_result = g.dfs(start)
+
+        # Same nodes visited
+        assert set(bfs_result) == set(dfs_result)
+        # Same count
+        assert len(bfs_result) == len(dfs_result)
+
+    def test_different_order_on_tree(self):
+        """BFS and DFS should visit nodes in different order on tree."""
+        g = ec.Graph()
+        g.add_balanced_tree(k=2, h=3)
+
+        bfs_result = g.bfs(1)
+        dfs_result = g.dfs(1)
+
+        # Same nodes
+        assert set(bfs_result) == set(dfs_result)
+        # Different order (except for root)
+        assert bfs_result[0] == dfs_result[0]  # Both start at root
+        # At least one difference in order
+        assert bfs_result != dfs_result
+
+    def test_same_order_on_path(self):
+        """BFS and DFS should have same order on path graph."""
+        g = ec.Graph()
+        g.add_path_graph(10)
+
+        bfs_result = g.bfs(1)
+        dfs_result = g.dfs(1)
+
+        # Same order for path
+        assert bfs_result == dfs_result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

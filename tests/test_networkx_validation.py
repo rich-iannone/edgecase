@@ -1,11 +1,3 @@
-"""
-Integration tests for validating EdgeCase algorithms against NetworkX.
-
-These tests convert graphs between EdgeCase and NetworkX to verify that
-our implementations produce consistent results with the well-established
-NetworkX library.
-"""
-
 import pytest
 import math
 
@@ -969,8 +961,10 @@ class TestGraphTraversal:
 
         # BFS from A
         if hasattr(G, "bfs"):
-            ec_bfs = list(G.bfs("A"))
-            nx_bfs = list(nx.bfs_tree(nx_graph, "A").node_ids(limit=None))
+            ec_bfs_ids = list(G.bfs("A"))
+            # Convert node IDs back to labels for comparison
+            ec_bfs = [G.get_label_from_id(nid) or nid for nid in ec_bfs_ids]
+            nx_bfs = list(nx.bfs_tree(nx_graph, "A").nodes())
 
             # Both should visit all nodes
             assert set(ec_bfs) == set(nx_bfs)
@@ -993,8 +987,10 @@ class TestGraphTraversal:
 
         # DFS from A
         if hasattr(G, "dfs"):
-            ec_dfs = list(G.dfs("A"))
-            nx_dfs = list(nx.dfs_tree(nx_graph, "A").node_ids(limit=None))
+            ec_dfs_ids = list(G.dfs("A"))
+            # Convert node IDs back to labels for comparison
+            ec_dfs = [G.get_label_from_id(nid) or nid for nid in ec_dfs_ids]
+            nx_dfs = list(nx.dfs_tree(nx_graph, "A").nodes())
 
             # Both should visit all nodes
             assert set(ec_dfs) == set(nx_dfs)
