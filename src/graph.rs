@@ -5696,34 +5696,43 @@ impl Graph {
             let mut out_degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
             let mut in_degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
+            // Build degree maps
             for edge in &self.edges {
                 *out_degrees.entry(edge.source).or_insert(0) += 1;
                 *in_degrees.entry(edge.target).or_insert(0) += 1;
             }
 
-            let sources: Vec<f64> = self.edges.iter()
-                .map(|e| *out_degrees.get(&e.source).unwrap_or(&0) as f64)
-                .collect();
-            let targets: Vec<f64> = self.edges.iter()
-                .map(|e| *in_degrees.get(&e.target).unwrap_or(&0) as f64)
-                .collect();
+            // Build degree vectors with pre-allocated capacity
+            let mut sources: Vec<f64> = Vec::with_capacity(m);
+            let mut targets: Vec<f64> = Vec::with_capacity(m);
+
+            for edge in &self.edges {
+                // Use unchecked get since we know keys exist
+                sources.push(*out_degrees.get(&edge.source).unwrap() as f64);
+                targets.push(*in_degrees.get(&edge.target).unwrap() as f64);
+            }
 
             (sources, targets)
         } else {
             // Undirected: total degree for both ends
             let n = self.nodes.len();
             let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+
+            // Build degree map
             for edge in &self.edges {
                 *degrees.entry(edge.source).or_insert(0) += 1;
                 *degrees.entry(edge.target).or_insert(0) += 1;
             }
 
-            let sources: Vec<f64> = self.edges.iter()
-                .map(|e| *degrees.get(&e.source).unwrap_or(&0) as f64)
-                .collect();
-            let targets: Vec<f64> = self.edges.iter()
-                .map(|e| *degrees.get(&e.target).unwrap_or(&0) as f64)
-                .collect();
+            // Build degree vectors with pre-allocated capacity
+            let mut sources: Vec<f64> = Vec::with_capacity(m);
+            let mut targets: Vec<f64> = Vec::with_capacity(m);
+
+            for edge in &self.edges {
+                // Use unchecked get since we know keys exist
+                sources.push(*degrees.get(&edge.source).unwrap() as f64);
+                targets.push(*degrees.get(&edge.target).unwrap() as f64);
+            }
 
             (sources, targets)
         };
