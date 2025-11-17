@@ -229,8 +229,10 @@ pub fn transitivity(graph: &Graph) -> Option<f64> {
 }
 
 /// Compute transitivity for undirected graphs
-/// Optimized: uses direct adjacency list access to avoid allocations
+/// Optimized: uses direct adjacency list access and SIMD-accelerated intersection
 fn transitivity_undirected(graph: &Graph) -> Option<f64> {
+    use crate::algorithms::simd_intersection::count_intersection_sorted_above;
+
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 
@@ -261,7 +263,7 @@ fn transitivity_undirected(graph: &Graph) -> Option<f64> {
         return None;
     }
 
-    // Count triangles using sorted adjacency lists
+    // Count triangles using SIMD-accelerated sorted intersection
     let mut total_triangles: usize = 0;
 
     // Iterate over edges
@@ -269,26 +271,10 @@ fn transitivity_undirected(graph: &Graph) -> Option<f64> {
         // Normalize edge direction for undirected graphs (always process as min < max)
         let (u, v) = if u < v { (u, v) } else { (v, u) };
 
-        // Use sorted adjacency for efficient intersection
+        // Use SIMD-accelerated intersection for efficient counting
         if let (Some(u_neighbors), Some(v_neighbors)) = (sorted_adj.get(&u), sorted_adj.get(&v)) {
-            let mut i = 0;
-            let mut j = 0;
-
-            while i < u_neighbors.len() && j < v_neighbors.len() {
-                let un = u_neighbors[i];
-                let vn = v_neighbors[j];
-
-                if un == vn && un > v {
-                    // Found a common neighbor w > v, forming triangle (u, v, w)
-                    total_triangles += 1;
-                    i += 1;
-                    j += 1;
-                } else if un < vn {
-                    i += 1;
-                } else {
-                    j += 1;
-                }
-            }
+            // Count common neighbors > v
+            total_triangles += count_intersection_sorted_above(u_neighbors, v_neighbors, v);
         }
     }
 
