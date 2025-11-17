@@ -2218,72 +2218,6 @@ class Graph:
 
     # ========== Degree Methods ==========
 
-    def get_degree(self, node: Union[int, str]) -> int:
-        """Get the degree of a node.
-
-        For directed graphs, returns total degree (in-degree + out-degree).
-        For undirected graphs, returns the number of neighbors.
-
-        Parameters
-        ----------
-        node : int | str
-            Node ID or label.
-
-        Returns
-        -------
-        int
-            Degree of the node.
-
-        Examples
-        --------
-        Get node degree in undirected graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-        )
-
-        print(graph.get_degree("A"))  # 2
-        print(graph.get_degree("B"))  # 1
-        ```
-
-        In directed graphs, counts both incoming and outgoing:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")  # A -> B (out for A, in for B)
-            .add_edge("C", "A")  # C -> A (in for A)
-        )
-
-        print(graph.get_degree("A"))  # 2 (1 in + 1 out)
-        ```
-
-        See Also
-        --------
-        get_in_degree : Get in-degree for directed graphs
-        get_out_degree : Get out-degree for directed graphs
-        average_degree : Get average degree across all nodes
-        """
-        node_id = self._resolve_node_id(node)
-        neighbors = self._graph.neighbors(node_id)
-        if self._graph.is_directed:
-            # For directed, count both in and out
-            # edges() returns (edge_id, source, target) tuples
-            in_count = sum(1 for edge in self._graph.edges() if edge[2] == node_id)
-            out_count = len(neighbors)
-            return in_count + out_count
-        else:
-            return len(neighbors)
-
     def degrees(
         self, attr_name: str = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
@@ -2371,6 +2305,72 @@ class Graph:
         if return_dict:
             return degrees
         return self
+
+    def get_degree(self, node: Union[int, str]) -> int:
+        """Get the degree of a node.
+
+        For directed graphs, returns total degree (in-degree + out-degree).
+        For undirected graphs, returns the number of neighbors.
+
+        Parameters
+        ----------
+        node : int | str
+            Node ID or label.
+
+        Returns
+        -------
+        int
+            Degree of the node.
+
+        Examples
+        --------
+        Get node degree in undirected graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+        )
+
+        print(graph.get_degree("A"))  # 2
+        print(graph.get_degree("B"))  # 1
+        ```
+
+        In directed graphs, counts both incoming and outgoing:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")  # A -> B (out for A, in for B)
+            .add_edge("C", "A")  # C -> A (in for A)
+        )
+
+        print(graph.get_degree("A"))  # 2 (1 in + 1 out)
+        ```
+
+        See Also
+        --------
+        get_in_degree : Get in-degree for directed graphs
+        get_out_degree : Get out-degree for directed graphs
+        average_degree : Get average degree across all nodes
+        """
+        node_id = self._resolve_node_id(node)
+        neighbors = self._graph.neighbors(node_id)
+        if self._graph.is_directed:
+            # For directed, count both in and out
+            # edges() returns (edge_id, source, target) tuples
+            in_count = sum(1 for edge in self._graph.edges() if edge[2] == node_id)
+            out_count = len(neighbors)
+            return in_count + out_count
+        else:
+            return len(neighbors)
 
     def get_in_degree(self, node: Union[int, str]) -> int:
         """Get the in-degree of a node (directed graphs only).
