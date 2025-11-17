@@ -227,3 +227,6 @@ __marimo__/
 
 # Benchmark Quarto files
 benchmarks_qmd/
+
+# Distribution datasets
+dist_datasets/
