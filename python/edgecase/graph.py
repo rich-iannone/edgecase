@@ -2340,8 +2340,7 @@ class Graph:
             .rescale_node_attrs(
                 node_attr_from="degree",
                 node_attr_to="size",
-                to_lower_bound=0.5,
-                to_upper_bound=2.0,
+                range=[0.5, 2.0],
             )
             .show()
         )
@@ -9686,7 +9685,9 @@ class Graph:
 
     # ========== Centrality Methods ==========
 
-    def get_closeness_vitality(self) -> dict[int, float]:
+    def closeness_vitality(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
         """Get closeness vitality centrality for each node.
 
         Closeness vitality measures a node's importance by computing the change
@@ -9698,11 +9699,21 @@ class Graph:
         significantly increase average path lengths. Uses parallel BFS with Rayon
         for efficient computation.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("closeness_vitality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
+
         Returns
         -------
-        dict[int, float]
-            Dictionary mapping node IDs to vitality scores. Higher scores indicate
-            more structurally important nodes.
+        Union[dict[int, float], Graph]
+            If return_dict is True: dictionary mapping node IDs to vitality scores.
+            If return_dict is False: returns self for method chaining.
+            Higher scores indicate more structurally important nodes.
 
         Examples
         --------
@@ -9720,7 +9731,7 @@ class Graph:
             .add_edge("hub", "C")
         )
 
-        vitality = graph.get_closeness_vitality()
+        vitality = graph.closeness_vitality(return_dict=True)
         hub_id = graph.get_id_from_label("hub")
         a_id = graph.get_id_from_label("A")
 
@@ -9748,9 +9759,23 @@ class Graph:
         betweenness_centrality : Measures flow control
         get_radiality : Eccentricity-based centrality
         """
-        return self._graph.get_closeness_vitality()
+        vitality = self._graph.get_closeness_vitality()
 
-    def get_coreness(self) -> dict[str, int]:
+        if return_dict:
+            return vitality
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "closeness_vitality"
+
+        self.set_node_attrs(attr_name, vitality)
+
+        # Track computation (no non-default params)
+        self._computations.append(("closeness_vitality", {}, attr_name))
+
+        return self
+
+    def get_coreness(self) -> dict[int, int]:
         """Get k-core decomposition (coreness for each node).
 
         The k-core is the maximal subgraph where every node has degree >= k.
@@ -9904,9 +9929,13 @@ class Graph:
             return result_ids
         return self
 
-    def get_authority_centrality(
-        self, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
-    ) -> Union[dict[str, float], "Graph"]:
+    def authority_centrality(
+        self,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
         """Get HITS authority scores for each node (directed graphs only).
 
         HITS (Hyperlink-Induced Topic Search) computes authority and hub scores
@@ -9925,15 +9954,17 @@ class Graph:
         tol : float, default 1e-6
             Convergence tolerance threshold.
         attr_name : str, optional
-            If provided, automatically stores centrality values as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the centrality dictionary.
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("authority_centrality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
 
         Returns
         -------
-        Union[dict[str, float], Graph]
-            If attr_name is None: dictionary mapping node IDs to normalized authority scores.
-            If attr_name is provided: returns self for method chaining.
+        Union[dict[int, float], Graph]
+            If return_dict is True: dictionary mapping node IDs to normalized authority scores.
+            If return_dict is False: returns self for method chaining.
 
         Raises
         ------
@@ -9954,7 +9985,7 @@ class Graph:
             .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
         )
 
-        auth = graph.get_authority_centrality()
+        auth = graph.authority_centrality(return_dict=True, )
         # Paper2 and Paper3 have high authority (cited)
         # Paper1 has low authority (not cited)
         ```
@@ -9974,27 +10005,44 @@ class Graph:
         )
 
         # (graph
-        #     .get_authority_centrality(attr_name="authority")
+        #     .authority_centrality(attr_name="authority")
         #     .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
         #     .show())
         ```
 
         See Also
         --------
-        get_hub_centrality : Get hub scores
+        hub_centrality : Get hub scores
         pagerank : Alternative prestige measure
         """
         centrality = self._graph.get_authority_centrality(max_iter, tol)
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, centrality)
-            return self
+        if return_dict:
+            return centrality
 
-        return centrality
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "authority_centrality"
 
-    def get_hub_centrality(
-        self, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
-    ) -> Union[dict[str, float], "Graph"]:
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation
+        params = {}
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("authority_centrality", params, attr_name))
+
+        return self
+
+    def hub_centrality(
+        self,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
         """Get HITS hub scores for each node (directed graphs only).
 
         HITS (Hyperlink-Induced Topic Search) computes authority and hub scores
@@ -10013,15 +10061,17 @@ class Graph:
         tol : float, default 1e-6
             Convergence tolerance threshold.
         attr_name : str, optional
-            If provided, automatically stores centrality values as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the centrality dictionary.
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("hub_centrality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
 
         Returns
         -------
-        Union[dict[str, float], Graph]
-            If attr_name is None: dictionary mapping node IDs to normalized hub scores.
-            If attr_name is provided: returns self for method chaining.
+        Union[dict[int, float], Graph]
+            If return_dict is True: dictionary mapping node IDs to normalized hub scores.
+            If return_dict is False: returns self for method chaining.
 
         Raises
         ------
@@ -10042,7 +10092,7 @@ class Graph:
             .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
         )
 
-        hub = graph.get_hub_centrality()
+        hub = graph.hub_centrality(return_dict=True, )
         # Paper1 has high hub score (cites many papers)
         # Paper2 and Paper3 have low hub scores
         ```
@@ -10062,23 +10112,36 @@ class Graph:
         )
 
         # (graph
-        #     .get_hub_centrality(attr_name="hub")
+        #     .hub_centrality(attr_name="hub")
         #     .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
         #     .show())
         ```
 
         See Also
         --------
-        get_authority_centrality : Get authority scores
+        authority_centrality : Get authority scores
         pagerank : Alternative prestige measure
         """
         centrality = self._graph.get_hub_centrality(max_iter, tol)
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, centrality)
-            return self
+        if return_dict:
+            return centrality
 
-        return centrality
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "hub_centrality"
+
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation
+        params = {}
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("hub_centrality", params, attr_name))
+
+        return self
 
     def eigen_centrality(
         self,
@@ -10086,7 +10149,7 @@ class Graph:
         tol: float = 1e-6,
         attr_name: str = None,
         return_dict: bool = False,
-    ) -> Union[dict[str, float], "Graph"]:
+    ) -> Union[dict[int, float], "Graph"]:
         """Get eigenvector centrality for each node.
 
         Eigenvector centrality measures node importance based on connections
@@ -10115,7 +10178,7 @@ class Graph:
 
         Returns
         -------
-        Union[dict[str, float], Graph]
+        Union[dict[int, float], Graph]
             If return_dict is True: dictionary mapping node IDs to centrality scores.
             If return_dict is False (default): returns self for method chaining.
 
@@ -10158,7 +10221,7 @@ class Graph:
 
         # (graph
         #     .eigen_centrality(attr_name="centrality")
-        #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", to_lower_bound=0.5, to_upper_bound=2.0)
+        #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", range=[0.5, 2.0])
         #     .show())
         ```
 
@@ -10191,9 +10254,14 @@ class Graph:
             return centrality
         return self
 
-    def get_alpha_centrality(
-        self, alpha: float = 0.1, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
-    ) -> Union[dict[str, float], "Graph"]:
+    def alpha_centrality(
+        self,
+        alpha: float = 0.1,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
         """Get alpha centrality for each node.
 
         Alpha centrality is a generalization of eigenvector centrality that adds
@@ -10215,15 +10283,17 @@ class Graph:
         tol : float, default 1e-6
             Convergence tolerance threshold.
         attr_name : str, optional
-            If provided, automatically stores centrality values as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the centrality dictionary.
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("alpha_centrality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
 
         Returns
         -------
         Union[dict[str, float], Graph]
-            If attr_name is None: dictionary mapping node IDs to centrality scores.
-            If attr_name is provided: returns self for method chaining.
+            If return_dict is True: dictionary mapping node IDs to centrality scores.
+            If return_dict is False: returns self for method chaining.
 
         Examples
         --------
@@ -10241,8 +10311,8 @@ class Graph:
             .add_edge("hub", "C")
         )
 
-        alpha_local = graph.get_alpha_centrality(alpha=0.05)  # Local emphasis
-        alpha_global = graph.get_alpha_centrality(alpha=0.5)  # Global emphasis
+        alpha_local = graph.alpha_centrality(return_dict=True, alpha=0.05)  # Local emphasis
+        alpha_global = graph.alpha_centrality(return_dict=True, alpha=0.5)  # Global emphasis
         ```
 
         Store as node attributes and chain visualization:
@@ -10262,7 +10332,7 @@ class Graph:
         )
 
         # (graph
-        #     .get_alpha_centrality(attr_name="alpha_cent")
+        #     .alpha_centrality(attr_name="alpha_cent")
         #     .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
         #     .show())
         ```
@@ -10274,14 +10344,33 @@ class Graph:
         """
         centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, centrality)
-            return self
+        if return_dict:
+            return centrality
 
-        return centrality
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "alpha_centrality"
 
-    def get_bonacich_power_centrality(
-        self, beta: float = 0.1, normalized: bool = False, attr_name: str = None
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation
+        params = {}
+        if alpha != 0.1:
+            params["alpha"] = alpha
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("alpha_centrality", params, attr_name))
+
+        return self
+
+    def bonacich_power_centrality(
+        self,
+        beta: float = 0.1,
+        normalized: bool = False,
+        attr_name: str = None,
+        return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """Get Bonacich power centrality for each node.
 
@@ -10323,15 +10412,17 @@ class Graph:
                      (Bonacich 1987 original formulation)
             - True: Sum normalization where sum(c) = 1 (probability distribution)
         attr_name : str, optional
-            If provided, automatically stores centrality values as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the centrality dictionary.
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("bonacich_power_centrality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If attr_name is None: dictionary mapping node IDs to centrality scores.
-            If attr_name is provided: returns self for method chaining.
+            If return_dict is True: dictionary mapping node IDs to centrality scores.
+            If return_dict is False: returns self for method chaining.
             Interpretation depends on β:
             - β > 0: Higher scores = more powerful due to powerful neighbors
             - β < 0: Higher scores = more powerful due to weak neighbors
@@ -10362,7 +10453,7 @@ class Graph:
         )
 
         # Cooperative: powerful neighbors increase your power
-        power = g.get_bonacich_power_centrality(beta=0.1)
+        power = g.bonacich_power_centrality(return_dict=True, beta=0.1)
         # center will have highest centrality (connected to many)
         ```
 
@@ -10383,7 +10474,7 @@ class Graph:
         g.add_edge(source="C", target="D")
 
         # Negative beta: weak neighbors increase your power
-        power = g.get_bonacich_power_centrality(beta=-0.2)
+        power = g.bonacich_power_centrality(return_dict=True, beta=-0.2)
         # End nodes (A, D) have higher power - fewer alternatives
         ```
 
@@ -10404,7 +10495,7 @@ class Graph:
         g.add_edge(source="B", target="D")
 
         max_deg = max(g.get_degree(node=nid) for nid in g.node_ids())
-        bonacich = g.get_bonacich_power_centrality(beta=0.9/max_deg)
+        bonacich = g.bonacich_power_centrality(return_dict=True, beta=0.9/max_deg)
         eigen = g.eigen_centrality()
         # Should be similar
         ```
@@ -10436,8 +10527,8 @@ class Graph:
         See Also
         --------
         eigen_centrality : Special case when β = 1/λ_max
-        get_katz_centrality : Similar walk-based centrality with different formulation
-        get_alpha_centrality : Attenuation-based centrality measure
+        katz_centrality : Similar walk-based centrality with different formulation
+        alpha_centrality : Attenuation-based centrality measure
         pagerank : PageRank algorithm with teleportation
         """
         result = self._graph.get_bonacich_power_centrality(beta, normalized)
@@ -10448,19 +10539,33 @@ class Graph:
                 "Try a smaller |β| value (e.g., reduce by half)."
             )
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, result)
-            return self
+        if return_dict:
+            return result
 
-        return result
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "bonacich_power_centrality"
 
-    def get_katz_centrality(
+        self.set_node_attrs(attr_name, result)
+
+        # Track computation
+        params = {}
+        if beta != 0.1:
+            params["beta"] = beta
+        if normalized:
+            params["normalized"] = normalized
+        self._computations.append(("bonacich_power_centrality", params, attr_name))
+
+        return self
+
+    def katz_centrality(
         self,
         alpha: float = 0.1,
         beta: float = 1.0,
         max_iter: int = 100,
         tol: float = 1e-6,
         attr_name: str = None,
+        return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """Get Katz centrality for each node.
 
@@ -10496,15 +10601,17 @@ class Graph:
         tol : float, default 1e-6
             Convergence tolerance threshold.
         attr_name : str, optional
-            If provided, automatically stores centrality values as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the centrality dictionary.
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("katz_centrality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If attr_name is None: dictionary mapping node IDs to normalized Katz centrality scores.
-            If attr_name is provided: returns self for method chaining.
+            If return_dict is True: dictionary mapping node IDs to normalized Katz centrality scores.
+            If return_dict is False: returns self for method chaining.
             Scores sum to 1.0.
 
         Examples
@@ -10524,7 +10631,7 @@ class Graph:
             .add_edge("A", "D")
         )
 
-        katz = graph.get_katz_centrality(alpha=0.1)
+        katz = graph.katz_centrality(return_dict=True, alpha=0.1)
         # D has highest Katz (receives edges from A and C via B)
         ```
 
@@ -10545,8 +10652,8 @@ class Graph:
             .add_edge(source="A", target="D")
         )
 
-        katz_local = graph.get_katz_centrality(alpha=0.05)  # Emphasis on short paths
-        katz_global = graph.get_katz_centrality(alpha=0.15) # Include longer paths
+        katz_local = graph.katz_centrality(return_dict=True, alpha=0.05)  # Emphasis on short paths
+        katz_global = graph.katz_centrality(return_dict=True, alpha=0.15) # Include longer paths
         ```
 
         Notes
@@ -10565,18 +10672,37 @@ class Graph:
         See Also
         --------
         eigen_centrality : Eigenvector centrality (infinite walks)
-        get_alpha_centrality : Uses outgoing edges instead of incoming
+        alpha_centrality : Uses outgoing edges instead of incoming
         pagerank : Alternative prestige measure with damping
         """
         scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, scores_by_id)
-            return self
+        if return_dict:
+            return scores_by_id
 
-        return scores_by_id
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "katz_centrality"
 
-    def get_leverage_centrality(self, attr_name: str = None) -> Union[dict[int, float], "Graph"]:
+        self.set_node_attrs(attr_name, scores_by_id)
+
+        # Track computation
+        params = {}
+        if alpha != 0.1:
+            params["alpha"] = alpha
+        if beta != 1.0:
+            params["beta"] = beta
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("katz_centrality", params, attr_name))
+
+        return self
+
+    def leverage_centrality(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
         """Get leverage centrality for each node.
 
         Leverage centrality measures the degree connectivity of a node relative
@@ -10594,15 +10720,17 @@ class Graph:
         Parameters
         ----------
         attr_name : str, optional
-            If provided, automatically stores centrality values as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the centrality dictionary.
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("leverage_centrality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If attr_name is None: dictionary mapping node IDs to leverage centrality scores.
-            If attr_name is provided: returns self for method chaining.
+            If return_dict is True: dictionary mapping node IDs to leverage centrality scores.
+            If return_dict is False: returns self for method chaining.
 
         Examples
         --------
@@ -10620,7 +10748,7 @@ class Graph:
             .add_edge("hub", "C")
         )
 
-        leverage = graph.get_leverage_centrality()
+        leverage = graph.leverage_centrality(return_dict=True)
         # Hub has positive leverage (high degree, low-degree neighbors)
         # Leaves have negative leverage (low degree, high-degree neighbor)
         ```
@@ -10642,25 +10770,33 @@ class Graph:
         )
 
         # (graph
-        #     .get_leverage_centrality(attr_name="leverage")
+        #     .leverage_centrality(attr_name="leverage")
         #     .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
         #     .show())
         ```
 
         See Also
         --------
-        degree : Get node degree
+        degrees : Get node degree
         eigen_centrality : Alternative importance measure
         """
         centrality = self._graph.get_leverage_centrality()
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, centrality)
-            return self
+        if return_dict:
+            return centrality
 
-        return centrality
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "leverage_centrality"
 
-    def get_domirank_centrality(
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation (no non-default params)
+        self._computations.append(("leverage_centrality", {}, attr_name))
+
+        return self
+
+    def domirank_centrality(
         self,
         sigma: float | None = None,
         alpha: float = 0.95,
@@ -10670,7 +10806,9 @@ class Graph:
         patience: int = 10,
         max_depth: int = 50,
         return_sigma: bool = False,
-    ) -> dict[int, float] | tuple[dict[int, float], float]:
+        attr_name: str = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], tuple[dict[int, float], float], "Graph", tuple["Graph", float]]:
         """Get DomiRank centrality for each node.
 
         DomiRank centrality quantifies node dominance in their neighborhoods.
@@ -10716,15 +10854,23 @@ class Graph:
             Maximum bisection steps for finding smallest eigenvalue
             (when auto-computing sigma).
         return_sigma : bool, default False
-            If True, return (centrality_dict, sigma) tuple instead of just dict.
+            If True, return (centrality_dict, sigma) tuple or (Graph, sigma) tuple
+            instead of just dict or Graph.
+        attr_name : str, optional
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("domirank_centrality").
+        return_dict : bool, default False
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
 
         Returns
         -------
-        dict[int, float] or tuple[dict[int, float], float]
-            Dictionary mapping node IDs to dominance scores. Nodes with positive
-            scores are dominant in their neighborhoods. Nodes with negative scores
-            are submissive (give up resources to neighbors). If return_sigma=True,
-            returns tuple of (centrality dict, sigma value).
+        dict[int, float] or tuple[dict[int, float], float] or Graph or tuple[Graph, float]
+            If return_dict is True and return_sigma is False: dictionary mapping node IDs to dominance scores.
+            If return_dict is True and return_sigma is True: tuple of (centrality dict, sigma value).
+            If return_dict is False and return_sigma is False: returns self for method chaining.
+            If return_dict is False and return_sigma is True: tuple of (self, sigma value).
+            Nodes with positive scores are dominant; negative scores indicate submissive nodes.
 
         Raises
         ------
@@ -10747,11 +10893,11 @@ class Graph:
         )
 
         # Auto-optimize sigma based on graph structure
-        domirank = graph.get_domirank_centrality()
+        domirank = graph.domirank_centrality(return_dict=True, )
         # Middle nodes often have high dominance scores
 
         # Get sigma value used
-        domirank, sigma = graph.get_domirank_centrality(return_sigma=True)
+        domirank, sigma = graph.domirank_centrality(return_dict=True, return_sigma=True)
         print(f"Used sigma={sigma:.3f}")
         ```
 
@@ -10771,10 +10917,10 @@ class Graph:
         )
 
         # High competition (more global)
-        dr_high = graph.get_domirank_centrality(sigma=2.0)
+        dr_high = graph.domirank_centrality(return_dict=True, sigma=2.0)
 
         # Low competition (more local, like degree)
-        dr_low = graph.get_domirank_centrality(sigma=0.1)
+        dr_low = graph.domirank_centrality(return_dict=True, sigma=0.1)
         ```
 
         Notes
@@ -10800,8 +10946,8 @@ class Graph:
         --------
         eigen_centrality : Traditional eigenvector centrality
         pagerank : Google's PageRank algorithm
-        get_alpha_centrality : Generalized eigenvector centrality
-        degree : Simple degree-based importance
+        alpha_centrality : Generalized eigenvector centrality
+        degrees : Simple degree-based importance
         """
         if method != "iterative":
             raise ValueError("Only method='iterative' is currently supported")
@@ -10830,9 +10976,36 @@ class Graph:
                 RuntimeWarning,
             )
 
+        if return_dict:
+            if return_sigma:
+                return scores_by_id, final_sigma
+            return scores_by_id
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "domirank_centrality"
+
+        self.set_node_attrs(attr_name, scores_by_id)
+
+        # Track computation
+        params = {}
+        if sigma is not None:
+            params["sigma"] = sigma
+        if alpha != 0.95:
+            params["alpha"] = alpha
+        if tolerance != 1e-5:
+            params["tolerance"] = tolerance
+        if max_iter != 1000:
+            params["max_iter"] = max_iter
+        if patience != 10:
+            params["patience"] = patience
+        if max_depth != 50:
+            params["max_depth"] = max_depth
+        self._computations.append(("domirank_centrality", params, attr_name))
+
         if return_sigma:
-            return scores_by_id, final_sigma
-        return scores_by_id
+            return self, final_sigma
+        return self
 
     # ========== Selection Methods ==========
 
