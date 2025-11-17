@@ -16,14 +16,14 @@ class TestLeadingEigenvectorBasic:
     def test_empty_graph(self):
         """Empty graph should return empty dict."""
         G = ec.Graph(directed=False)
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         assert communities == {}
 
     def test_single_node(self):
         """Single node should be in community 0."""
         G = ec.Graph(directed=False)
         G.add_node("A")
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         a_id = G.get_id_from_label("A")
         assert communities == {a_id: 0}
 
@@ -32,14 +32,14 @@ class TestLeadingEigenvectorBasic:
         G = ec.Graph(directed=False)
         G.add_node("A")
         G.add_node("B")
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         assert len(set(communities.values())) == 2
 
     def test_two_nodes_with_edge(self):
         """Two connected nodes should be in same community."""
         G = ec.Graph(directed=False)
         G.add_edge("A", "B", auto_create_nodes=True)
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         a_id, b_id = G.get_id_from_label("A"), G.get_id_from_label("B")
         assert communities[a_id] == communities[b_id]
 
@@ -48,7 +48,7 @@ class TestLeadingEigenvectorBasic:
         G = ec.Graph(directed=True)
         G.add_edge("A", "B", auto_create_nodes=True)
         with pytest.raises(ValueError, match="undirected"):
-            G.get_cmty_l_eigenvec()
+            G.cmty_l_eigenvec(return_dict=True)
 
 
 class TestLeadingEigenvectorBisection:
@@ -71,7 +71,7 @@ class TestLeadingEigenvectorBisection:
         G.add_edge("E", "F", auto_create_nodes=True)
         G.add_edge("F", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -106,7 +106,7 @@ class TestLeadingEigenvectorBisection:
                 if i < j:
                     G.add_edge(i, j, auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -151,7 +151,7 @@ class TestLeadingEigenvectorBisection:
         G.add_edge("F", "G", auto_create_nodes=True)  # 2-3
         G.add_edge("I", "J", auto_create_nodes=True)  # 3-4
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Should find 2-4 communities depending on recursive splitting
         num_communities = len(set(communities.values()))
@@ -181,7 +181,7 @@ class TestLeadingEigenvectorKnownStructures:
         G.add_edge("17", "18", auto_create_nodes=True)
         G.add_edge("16", "19", auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Should find at least 2 communities
         num_communities = len(set(communities.values()))
@@ -224,7 +224,7 @@ class TestLeadingEigenvectorModularity:
         # Single bridge
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Should have positive modularity
@@ -235,7 +235,7 @@ class TestLeadingEigenvectorModularity:
         G = ec.Graph(directed=False)
         G.add_full_graph(6)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Complete graph has no clear structure, Q should be small
@@ -253,7 +253,7 @@ class TestLeadingEigenvectorProperties:
                 if abs(i - j) <= 2:
                     G.add_edge(str(i), str(j), auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         node_ids = G.node_ids(limit=None)
 
         assert len(communities) == len(node_ids)
@@ -270,7 +270,7 @@ class TestLeadingEigenvectorProperties:
                 for j in range(i + 1, 3):
                     G.add_edge(str(offset + i), str(offset + j), auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
         comm_ids = sorted(set(communities.values()))
 
         # Should be [0, 1, 2, ...]
@@ -290,8 +290,8 @@ class TestLeadingEigenvectorProperties:
             G.add_edge("E", "F", auto_create_nodes=True)
             G.add_edge("F", "D", auto_create_nodes=True)
 
-        comm1 = G1.get_cmty_l_eigenvec()
-        comm2 = G2.get_cmty_l_eigenvec()
+        comm1 = G1.cmty_l_eigenvec(return_dict=True)
+        comm2 = G2.cmty_l_eigenvec(return_dict=True)
 
         assert comm1 == comm2
 
@@ -317,7 +317,7 @@ class TestLeadingEigenvectorPerformance:
         G.add_edge("29", "30", auto_create_nodes=True)
         G.add_edge("39", "40", auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Should find multiple communities
         num_communities = len(set(communities.values()))
@@ -331,7 +331,7 @@ class TestLeadingEigenvectorPerformance:
         for i in range(29):
             G.add_edge(str(i), str(i + 1), auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Should split chain
         num_communities = len(set(communities.values()))
@@ -346,7 +346,7 @@ class TestLeadingEigenvectorEdgeCases:
         G = ec.Graph(directed=False)
         G.add_full_graph(5)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Complete graph might be single community
         # (no clear split via eigenvector)
@@ -362,7 +362,7 @@ class TestLeadingEigenvectorEdgeCases:
         for i in range(10):
             G.add_edge("hub", str(i), auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # All nodes assigned
         assert len(communities) == 11
@@ -382,7 +382,7 @@ class TestLeadingEigenvectorEdgeCases:
         # Component 3
         G.add_edge("G", "H", auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # Should find at least 3 communities
         assert len(set(communities.values())) >= 3
@@ -400,7 +400,7 @@ class TestLeadingEigenvectorEdgeCases:
         for i in range(10):
             G.add_edge(str(i), str((i + 1) % 10), auto_create_nodes=True)
 
-        communities = G.get_cmty_l_eigenvec()
+        communities = G.cmty_l_eigenvec(return_dict=True)
 
         # All nodes assigned
         assert len(communities) == 10

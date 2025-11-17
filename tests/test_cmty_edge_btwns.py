@@ -16,14 +16,14 @@ class TestEdgeBetweennessBasic:
     def test_empty_graph(self):
         """Empty graph should return empty dict."""
         G = ec.Graph(directed=False)
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         assert communities == {}
 
     def test_single_node(self):
         """Single node should be in community 0."""
         G = ec.Graph(directed=False)
         G.add_node("A")
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         a_id = G.get_id_from_label("A")
         assert communities == {a_id: 0}
 
@@ -32,14 +32,14 @@ class TestEdgeBetweennessBasic:
         G = ec.Graph(directed=False)
         G.add_node("A")
         G.add_node("B")
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         assert len(set(communities.values())) == 2
 
     def test_two_nodes_with_edge(self):
         """Two connected nodes should be in same community."""
         G = ec.Graph(directed=False)
         G.add_edge("A", "B", auto_create_nodes=True)
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         a_id, b_id = G.get_id_from_label("A"), G.get_id_from_label("B")
         assert communities[a_id] == communities[b_id]
 
@@ -48,7 +48,7 @@ class TestEdgeBetweennessBasic:
         G = ec.Graph(directed=True)
         G.add_edge("A", "B", auto_create_nodes=True)
         with pytest.raises(ValueError, match="undirected"):
-            G.get_cmty_edge_btwns()
+            G.cmty_edge_btwns(return_dict=True)
 
 
 class TestEdgeBetweennessBridge:
@@ -71,7 +71,7 @@ class TestEdgeBetweennessBridge:
         G.add_edge("E", "F", auto_create_nodes=True)
         G.add_edge("F", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -106,7 +106,7 @@ class TestEdgeBetweennessBridge:
                 if i < j:
                     G.add_edge(i, j, auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -147,7 +147,7 @@ class TestEdgeBetweennessBridge:
         G.add_edge("H", "I", auto_create_nodes=True)
         G.add_edge("I", "G", auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # Should find 3 communities
         assert len(set(communities.values())) == 3
@@ -189,7 +189,7 @@ class TestEdgeBetweennessKnownStructures:
         G.add_edge("17", "18", auto_create_nodes=True)
         G.add_edge("16", "19", auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # Should find at least 2 communities
         num_communities = len(set(communities.values()))
@@ -238,7 +238,7 @@ class TestEdgeBetweennessModularity:
         # Single bridge
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Should have positive modularity
@@ -249,7 +249,7 @@ class TestEdgeBetweennessModularity:
         G = ec.Graph(directed=False)
         G.add_full_graph(6)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Complete graph has no clear structure, Q should be small
@@ -267,7 +267,7 @@ class TestEdgeBetweennessProperties:
                 if abs(i - j) <= 2:
                     G.add_edge(str(i), str(j), auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         node_ids = G.node_ids(limit=None)
 
         assert len(communities) == len(node_ids)
@@ -284,7 +284,7 @@ class TestEdgeBetweennessProperties:
                 for j in range(i + 1, 3):
                     G.add_edge(str(offset + i), str(offset + j), auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
         comm_ids = sorted(set(communities.values()))
 
         # Should be [0, 1, 2, ...]
@@ -304,8 +304,8 @@ class TestEdgeBetweennessProperties:
             G.add_edge("E", "F", auto_create_nodes=True)
             G.add_edge("F", "D", auto_create_nodes=True)
 
-        comm1 = G1.get_cmty_edge_btwns()
-        comm2 = G2.get_cmty_edge_btwns()
+        comm1 = G1.cmty_edge_btwns(return_dict=True)
+        comm2 = G2.cmty_edge_btwns(return_dict=True)
 
         assert comm1 == comm2
 
@@ -331,7 +331,7 @@ class TestEdgeBetweennessPerformance:
         G.add_edge("29", "30", auto_create_nodes=True)
         G.add_edge("39", "40", auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # Should find multiple communities
         num_communities = len(set(communities.values()))
@@ -345,7 +345,7 @@ class TestEdgeBetweennessPerformance:
         for i in range(29):
             G.add_edge(str(i), str(i + 1), auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # Should split chain into communities
         num_communities = len(set(communities.values()))
@@ -363,7 +363,7 @@ class TestEdgeBetweennessEdgeCases:
         for i in range(10):
             G.add_edge("hub", str(i), auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # All nodes assigned
         assert len(communities) == 11
@@ -376,7 +376,7 @@ class TestEdgeBetweennessEdgeCases:
         for i in range(10):
             G.add_edge(str(i), str((i + 1) % 10), auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # All nodes assigned
         assert len(communities) == 10
@@ -396,7 +396,7 @@ class TestEdgeBetweennessEdgeCases:
         # Component 3
         G.add_edge("G", "H", auto_create_nodes=True)
 
-        communities = G.get_cmty_edge_btwns()
+        communities = G.cmty_edge_btwns(return_dict=True)
 
         # Should find at least 3 communities
         assert len(set(communities.values())) >= 3

@@ -16,14 +16,14 @@ class TestWalktrapBasic:
     def test_empty_graph(self):
         """Empty graph should return empty communities."""
         G = ec.Graph()
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         assert communities == {}
 
     def test_single_node(self):
         """Single node should form one community."""
         G = ec.Graph()
         G.add_node("A")
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         a_id = G.get_id_from_label("A")
         assert communities == {a_id: 0}
 
@@ -31,7 +31,7 @@ class TestWalktrapBasic:
         """Two connected nodes should be in same community."""
         G = ec.Graph()
         G.add_edge("A", "B", auto_create_nodes=True)
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert communities[a_id] == communities[b_id]
@@ -42,7 +42,7 @@ class TestWalktrapBasic:
         G = ec.Graph()
         G.add_node("A")
         G.add_node("B")
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         # Disconnected components should be separate
@@ -54,7 +54,7 @@ class TestWalktrapBasic:
         G = ec.Graph(directed=True)
         G.add_edge("A", "B", auto_create_nodes=True)
         with pytest.raises(ValueError, match="undirected"):
-            G.get_cmty_walktrap()
+            G.cmty_walktrap(return_dict=True)
 
 
 class TestWalktrapKnownStructures:
@@ -72,7 +72,7 @@ class TestWalktrapKnownStructures:
         G.add_edge("E", "F", auto_create_nodes=True)
         G.add_edge("F", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Get node IDs
         a_id, b_id, c_id = [G.get_id_from_label(x) for x in ["A", "B", "C"]]
@@ -100,7 +100,7 @@ class TestWalktrapKnownStructures:
         # Bridge
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Should detect 2 communities
         num_communities = len(set(communities.values()))
@@ -141,7 +141,7 @@ class TestWalktrapKnownStructures:
         G.add_edge("B3", "C1", auto_create_nodes=True)
         G.add_edge("C3", "D1", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         num_communities = len(set(communities.values()))
 
         # Should find 2-4 communities
@@ -234,7 +234,7 @@ class TestWalktrapKnownStructures:
         for u, v in edges:
             G.add_edge(str(u), str(v), auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         num_communities = len(set(communities.values()))
 
         # Karate club typically has 2-4 communities
@@ -260,7 +260,7 @@ class TestWalktrapModularity:
         G.add_edge("F", "D", auto_create_nodes=True)  # Triangle 2
         G.add_edge("C", "D", auto_create_nodes=True)  # Weak bridge
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         Q = compute_modularity(G, communities)
         assert Q > 0, f"Modularity should be positive, got {Q:.4f}"
 
@@ -272,7 +272,7 @@ class TestWalktrapModularity:
             for v in nodes[i + 1 :]:
                 G.add_edge(u, v, auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         Q = compute_modularity(G, communities)
 
         # Complete graph has no clear structure
@@ -290,7 +290,7 @@ class TestWalktrapProperties:
         G.add_edge("C", "D", auto_create_nodes=True)
         G.add_edge("D", "E", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # All nodes should be in communities dict
         expected_ids = {G.get_id_from_label(x) for x in ["A", "B", "C", "D", "E"]}
@@ -303,7 +303,7 @@ class TestWalktrapProperties:
         G.add_edge("C", "D", auto_create_nodes=True)
         G.add_edge("E", "F", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
         community_ids = set(communities.values())
 
         # IDs should be 0, 1, 2, ..., k-1
@@ -320,8 +320,8 @@ class TestWalktrapProperties:
         G.add_edge("F", "D", auto_create_nodes=True)
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        communities1 = G.get_cmty_walktrap()
-        communities2 = G.get_cmty_walktrap()
+        communities1 = G.cmty_walktrap(return_dict=True)
+        communities2 = G.cmty_walktrap(return_dict=True)
 
         # Should be identical
         assert communities1 == communities2
@@ -341,7 +341,7 @@ class TestWalktrapStepParameter:
         G.add_edge("F", "D", auto_create_nodes=True)
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap(steps=2)
+        communities = G.cmty_walktrap(steps=2, return_dict=True)
 
         # Should still detect communities
         num_communities = len(set(communities.values()))
@@ -358,7 +358,7 @@ class TestWalktrapStepParameter:
         G.add_edge("F", "D", auto_create_nodes=True)
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap(steps=6)
+        communities = G.cmty_walktrap(steps=6, return_dict=True)
 
         # Should still detect communities
         num_communities = len(set(communities.values()))
@@ -376,7 +376,7 @@ class TestWalktrapStepParameter:
         G.add_edge("C", "D", auto_create_nodes=True)
 
         # Default behavior
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Should work
         num_communities = len(set(communities.values()))
@@ -394,7 +394,7 @@ class TestWalktrapEdgeCases:
             for v in nodes[i + 1 :]:
                 G.add_edge(u, v, auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # All nodes in same community
         assert len(set(communities.values())) == 1
@@ -406,7 +406,7 @@ class TestWalktrapEdgeCases:
         for i in range(5):
             G.add_edge(center, f"S{i}", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Should be 1 community (well-connected)
         assert len(set(communities.values())) == 1
@@ -424,7 +424,7 @@ class TestWalktrapEdgeCases:
         G.add_edge("G", "H", auto_create_nodes=True)
         G.add_edge("H", "I", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Each component should be separate
         assert len(set(communities.values())) >= 3
@@ -436,7 +436,7 @@ class TestWalktrapEdgeCases:
         for i in range(len(nodes)):
             G.add_edge(nodes[i], nodes[(i + 1) % len(nodes)], auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Cycle has no clear structure, likely 1 community
         num_communities = len(set(communities.values()))
@@ -450,7 +450,7 @@ class TestWalktrapEdgeCases:
         G.add_edge("C", "D", auto_create_nodes=True)
         G.add_edge("D", "E", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Path is weakly structured
         num_communities = len(set(communities.values()))
@@ -466,7 +466,7 @@ class TestWalktrapEdgeCases:
             for r in right:
                 G.add_edge(l, r, auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Should detect bipartite structure
         num_communities = len(set(communities.values()))
@@ -493,7 +493,7 @@ class TestWalktrapPerformance:
         G.add_edge("C0_N0", "C1_N0", auto_create_nodes=True)
         G.add_edge("C1_N0", "C2_N0", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Should find 2-4 communities
         num_communities = len(set(communities.values()))
@@ -514,7 +514,7 @@ class TestWalktrapPerformance:
         # Sparse inter-group connections
         G.add_edge("G0_N0", "G1_N0", auto_create_nodes=True)
 
-        communities = G.get_cmty_walktrap()
+        communities = G.cmty_walktrap(return_dict=True)
 
         # Should find 2 main communities (allow up to 4 due to algorithm variance)
         num_communities = len(set(communities.values()))

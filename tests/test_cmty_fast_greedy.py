@@ -18,14 +18,14 @@ class TestFastGreedyBasic:
     def test_empty_graph(self):
         """Test with empty graph."""
         G = ec.Graph(directed=False)
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
         assert communities == {}
 
     def test_single_node(self):
         """Test with single isolated node."""
         G = ec.Graph(directed=False)
         G.add_node("A")
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
         a_id = G.get_id_from_label("A")
         assert communities == {a_id: 0}
         assert len(set(communities.values())) == 1
@@ -35,7 +35,7 @@ class TestFastGreedyBasic:
         G = ec.Graph(directed=False)
         G.add_node("A")
         G.add_node("B")
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should be in separate communities (no edges to merge)
         assert len(set(communities.values())) == 2
@@ -46,7 +46,7 @@ class TestFastGreedyBasic:
         """Test with two connected nodes."""
         G = ec.Graph(directed=False)
         G.add_edge("A", "B", auto_create_nodes=True)
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should merge into single community
         assert len(set(communities.values())) == 1
@@ -59,7 +59,7 @@ class TestFastGreedyBasic:
         G.add_edge("A", "B", auto_create_nodes=True)
 
         with pytest.raises(ValueError, match="undirected"):
-            G.get_cmty_fast_greedy()
+            G.cmty_fast_greedy(return_dict=True)
 
 
 class TestFastGreedyDisconnected:
@@ -79,7 +79,7 @@ class TestFastGreedyDisconnected:
         G.add_edge("E", "F", auto_create_nodes=True)
         G.add_edge("F", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -111,7 +111,7 @@ class TestFastGreedyDisconnected:
         # Component 3: Single edge
         G.add_edge("G", "H", auto_create_nodes=True)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should find 3 communities
         assert len(set(communities.values())) == 3
@@ -132,7 +132,7 @@ class TestFastGreedyComplete:
         G = ec.Graph(directed=False)
         G.add_full_graph(5)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Complete graph should be single community
         assert len(set(communities.values())) == 1
@@ -142,7 +142,7 @@ class TestFastGreedyComplete:
         G = ec.Graph(directed=False)
         G.add_full_graph(20)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should remain as single community
         assert len(set(communities.values())) == 1
@@ -168,7 +168,7 @@ class TestFastGreedyKnownStructures:
             for j in range(i + 1, 8):
                 G.add_edge(str(i), str(j), auto_create_nodes=True)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should find 2 communities (the two cliques)
         assert len(set(communities.values())) == 2
@@ -207,7 +207,7 @@ class TestFastGreedyKnownStructures:
         # Bridge between factions (weak connection)
         G.add_edge("E", "F", auto_create_nodes=True)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -259,7 +259,7 @@ class TestFastGreedyModularity:
         G.add_edge("E", "F", auto_create_nodes=True)
         G.add_edge("F", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Should have positive modularity
@@ -270,7 +270,7 @@ class TestFastGreedyModularity:
         G = ec.Graph(directed=False)
         G.add_full_graph(5)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Complete graph has zero modularity (one community)
@@ -285,7 +285,7 @@ class TestFastGreedyProperties:
         G = ec.Graph(directed=False)
         G.add_cycle_graph(10)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # All nodes should be present
         assert len(communities) == G.num_nodes()
@@ -301,7 +301,7 @@ class TestFastGreedyProperties:
                 for j in range(i + 1, 3):
                     G.add_edge(str(base + i), str(base + j), auto_create_nodes=True)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
         community_ids = set(communities.values())
 
         # Should be 0, 1, 2 (or just fewer communities)
@@ -313,8 +313,8 @@ class TestFastGreedyProperties:
         G.add_star_graph(10)
 
         # Run twice
-        comm1 = G.get_cmty_fast_greedy()
-        comm2 = G.get_cmty_fast_greedy()
+        comm1 = G.cmty_fast_greedy(return_dict=True)
+        comm2 = G.cmty_fast_greedy(return_dict=True)
 
         # Should get same result
         assert comm1 == comm2
@@ -328,7 +328,7 @@ class TestFastGreedyPerformance:
         G = ec.Graph(directed=False)
         G.add_pa_graph(n=100, m=3, seed=23)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should complete successfully
         assert len(communities) == 100
@@ -339,7 +339,7 @@ class TestFastGreedyPerformance:
         G = ec.Graph(directed=False)
         G.add_gnp_graph(n=50, p=0.05, seed=23)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should handle sparse graphs
         assert len(communities) == 50
@@ -349,7 +349,7 @@ class TestFastGreedyPerformance:
         G = ec.Graph(directed=False)
         G.add_gnp_graph(n=30, p=0.8, seed=23)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Should handle dense graphs
         assert len(communities) == 30
@@ -363,7 +363,7 @@ class TestFastGreedyEdgeCases:
         G = ec.Graph(directed=False)
         G.add_star_graph(10)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Star graph should be single community
         assert len(set(communities.values())) == 1
@@ -373,7 +373,7 @@ class TestFastGreedyEdgeCases:
         G = ec.Graph(directed=False)
         G.add_path_graph(10)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Path should likely be single community (no clear split)
         # But algorithm might split, so just check it runs
@@ -384,7 +384,7 @@ class TestFastGreedyEdgeCases:
         G = ec.Graph(directed=False)
         G.add_cycle_graph(10)
 
-        communities = G.get_cmty_fast_greedy()
+        communities = G.cmty_fast_greedy(return_dict=True)
 
         # Cycle has no natural split point
         assert len(communities) == 10
