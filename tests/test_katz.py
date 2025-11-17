@@ -8,14 +8,18 @@ class TestKatzBasic:
     def test_empty_graph(self):
         """Empty graph returns empty scores."""
         g = Graph()
-        result = g.get_katz_centrality()
+        result = g.katz_centrality(
+            return_dict=True,
+        )
         assert result == {}
 
     def test_single_node(self):
         """Single node gets normalized score of 1.0."""
         g = Graph()
         g.add_node("A")
-        result = g.get_katz_centrality()
+        result = g.katz_centrality(
+            return_dict=True,
+        )
         a_id = g.get_id_from_label("A")
         assert a_id in result
         assert abs(result[a_id] - 1.0) < 1e-6
@@ -27,7 +31,7 @@ class TestKatzBasic:
         g.add_node("B")
         g.add_edge("A", "B")
 
-        result = g.get_katz_centrality(alpha=0.1)
+        result = g.katz_centrality(return_dict=True, alpha=0.1)
         # B receives from A, so B should have higher centrality
         assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
 
@@ -38,7 +42,7 @@ class TestKatzBasic:
         g.add_node("B")
         g.add_edge("A", "B")
 
-        result = g.get_katz_centrality(alpha=0.1)
+        result = g.katz_centrality(return_dict=True, alpha=0.1)
         # Should be symmetric
         assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
 
@@ -51,7 +55,7 @@ class TestKatzBasic:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        result = g.get_katz_centrality(alpha=0.1)
+        result = g.katz_centrality(return_dict=True, alpha=0.1)
         # C receives from B (direct) and A (via B)
         # B receives from A (direct)
         # A receives nothing
@@ -67,7 +71,7 @@ class TestKatzBasic:
             g.add_node(leaf)
             g.add_edge(leaf, "hub")  # Leaves point TO hub
 
-        result = g.get_katz_centrality(alpha=0.1)
+        result = g.katz_centrality(return_dict=True, alpha=0.1)
         # Hub receives from all leaves
         hub_id = g.get_id_from_label("hub")
         for i in range(3):
@@ -84,7 +88,7 @@ class TestKatzBasic:
         g.add_edge("B", "C")
         g.add_edge("C", "A")
 
-        result = g.get_katz_centrality(alpha=0.1)
+        result = g.katz_centrality(return_dict=True, alpha=0.1)
         # Symmetric cycle - all equal
         assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
         assert abs(result[g.get_id_from_label("B")] - result[g.get_id_from_label("C")]) < 1e-6
@@ -102,8 +106,8 @@ class TestKatzParameters:
         g.add_edge("B", "C")
         g.add_edge("C", "D")
 
-        low_alpha = g.get_katz_centrality(alpha=0.05)
-        high_alpha = g.get_katz_centrality(alpha=0.15)
+        low_alpha = g.katz_centrality(return_dict=True, alpha=0.05)
+        high_alpha = g.katz_centrality(return_dict=True, alpha=0.15)
 
         # D receives via long path - should benefit more from high alpha
         d_id = g.get_id_from_label("D")
@@ -116,8 +120,8 @@ class TestKatzParameters:
         g.add_node("B")
         g.add_edge("A", "B")
 
-        low_beta = g.get_katz_centrality(alpha=0.1, beta=0.5)
-        high_beta = g.get_katz_centrality(alpha=0.1, beta=2.0)
+        low_beta = g.katz_centrality(return_dict=True, alpha=0.1, beta=0.5)
+        high_beta = g.katz_centrality(return_dict=True, alpha=0.1, beta=2.0)
 
         # Both betas should maintain same normalized scores after normalization
         # The key is that beta affects the absolute values before normalization
@@ -134,8 +138,8 @@ class TestKatzParameters:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        loose = g.get_katz_centrality(tol=1e-3)
-        tight = g.get_katz_centrality(tol=1e-8)
+        loose = g.katz_centrality(return_dict=True, tol=1e-3)
+        tight = g.katz_centrality(return_dict=True, tol=1e-8)
 
         # Both should give similar results
         for label in ["A", "B", "C"]:
@@ -149,7 +153,7 @@ class TestKatzParameters:
         g.add_node("B")
         g.add_edge("A", "B")
 
-        result = g.get_katz_centrality(max_iter=10)
+        result = g.katz_centrality(return_dict=True, max_iter=10)
         assert len(result) == 2
         assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
 
@@ -166,7 +170,9 @@ class TestKatzNormalization:
         g.add_edge("B", "C")
         g.add_edge("C", "D")
 
-        result = g.get_katz_centrality()
+        result = g.katz_centrality(
+            return_dict=True,
+        )
         total = sum(result.values())
         assert abs(total - 1.0) < 1e-6
 
@@ -178,7 +184,9 @@ class TestKatzNormalization:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        result = g.get_katz_centrality()
+        result = g.katz_centrality(
+            return_dict=True,
+        )
         for score in result.values():
             assert score > 0
 
@@ -198,7 +206,9 @@ class TestKatzEdgeCases:
         g.add_node("D")
         g.add_edge("C", "D")
 
-        result = g.get_katz_centrality()
+        result = g.katz_centrality(
+            return_dict=True,
+        )
         assert len(result) == 4
         # Within each component, receiver should have higher score
         assert result[g.get_id_from_label("B")] > result[g.get_id_from_label("A")]
@@ -212,7 +222,9 @@ class TestKatzEdgeCases:
         g.add_node("B")
         g.add_edge("A", "B")
 
-        result = g.get_katz_centrality()
+        result = g.katz_centrality(
+            return_dict=True,
+        )
         # Isolated node and A (no incoming edges) should have equal scores
         # B should have highest (receives from A)
         assert result[g.get_id_from_label("isolated")] == result[g.get_id_from_label("A")]
@@ -225,7 +237,7 @@ class TestKatzEdgeCases:
         g.add_node("B")
         g.add_edge("A", "A")  # Self-loop
 
-        result = g.get_katz_centrality(alpha=0.1)
+        result = g.katz_centrality(return_dict=True, alpha=0.1)
         # A receives from itself
         assert result[g.get_id_from_label("A")] > result[g.get_id_from_label("B")]
 
@@ -241,8 +253,8 @@ class TestKatzComparison:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        katz = g.get_katz_centrality(alpha=0.1, beta=1.0)
-        alpha_c = g.get_alpha_centrality(alpha=0.1)
+        katz = g.katz_centrality(return_dict=True, alpha=0.1, beta=1.0)
+        alpha_c = g.alpha_centrality(return_dict=True, alpha=0.1)
 
         # Both now return node IDs as keys
         # Should be very similar for undirected graphs
@@ -263,7 +275,9 @@ class TestKatzComparison:
         g.add_edge("B", "leader")
         g.add_edge("C", "leader")
 
-        katz = g.get_katz_centrality()
+        katz = g.katz_centrality(
+            return_dict=True,
+        )
         # Leader receives from all others
         assert katz[g.get_id_from_label("leader")] > katz[g.get_id_from_label("A")]
         assert katz[g.get_id_from_label("leader")] > katz[g.get_id_from_label("B")]
@@ -283,7 +297,7 @@ class TestKatzLargeGraph:
         for i in range(n - 1):
             g.add_edge(nodes[i], nodes[i + 1])
 
-        result = g.get_katz_centrality(alpha=0.05)
+        result = g.katz_centrality(return_dict=True, alpha=0.05)
 
         # Get node IDs
         node_ids = [g.get_id_from_label(label) for label in nodes]
@@ -304,7 +318,9 @@ class TestKatzLargeGraph:
             for j in range(i + 1, len(nodes)):
                 g.add_edge(nodes[i], nodes[j])
 
-        result = g.get_katz_centrality()
+        result = g.katz_centrality(
+            return_dict=True,
+        )
         scores = list(result.values())
         # All should be equal (within tolerance)
         assert all(abs(s - scores[0]) < 1e-6 for s in scores)
