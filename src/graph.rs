@@ -1961,14 +1961,12 @@ impl Graph {
                 }
             }
 
-            // Check if all nodes are reachable
-            if visited.len() == self.num_nodes() {
-                let max_dist = distances.values().max().copied().unwrap_or(0);
-                eccentricities.insert(node, Some(max_dist));
-            } else {
-                // Graph is disconnected from this node's perspective
-                eccentricities.insert(node, None);
-            }
+            // For unconnected graphs:
+            // - If all nodes reachable: eccentricity = max distance
+            // - If only some reachable: eccentricity = max distance within component (for unconnected=true)
+            //   or None (for unconnected=false, handled by caller)
+            let max_dist = distances.values().max().copied().unwrap_or(0);
+            eccentricities.insert(node, Some(max_dist));
         }
 
         eccentricities
@@ -2006,8 +2004,25 @@ impl Graph {
     /// Returns None if graph is disconnected
     #[inline]
     fn get_graph_diameter(&self) -> Option<usize> {
-        let eccentricities = self.compute_eccentricities();
+        self.get_graph_diameter_with_unconnected(true)
+    }
 
+    /// Get graph diameter with optional handling of disconnected graphs
+    ///
+    /// # Arguments
+    /// * `unconnected` - If true (default), compute max diameter across all components.
+    ///                   If false, return None for disconnected graphs.
+    fn get_graph_diameter_with_unconnected(&self, unconnected: bool) -> Option<usize> {
+        // Check if graph is connected
+        let is_connected = self.count_weakly_connected_components() == 1;
+
+        // If unconnected=false and graph is disconnected, return None
+        if !unconnected && !is_connected {
+            return None;
+        }
+
+        // Compute eccentricities and return max
+        let eccentricities = self.compute_eccentricities();
         eccentricities
             .values()
             .filter_map(|&ecc| ecc)
@@ -2015,11 +2030,28 @@ impl Graph {
     }
 
     /// Get graph radius (minimum eccentricity)
-    /// Returns None if graph is disconnected
+    /// Returns None if graph is disconnected (by default handles disconnected graphs)
     #[inline]
     fn get_graph_radius(&self) -> Option<usize> {
-        let eccentricities = self.compute_eccentricities();
+        self.get_graph_radius_with_unconnected(true)
+    }
 
+    /// Get graph radius with optional handling of disconnected graphs
+    ///
+    /// # Arguments
+    /// * `unconnected` - If true (default), compute min radius across all components.
+    ///                   If false, return None for disconnected graphs.
+    fn get_graph_radius_with_unconnected(&self, unconnected: bool) -> Option<usize> {
+        // Check if graph is connected
+        let is_connected = self.count_weakly_connected_components() == 1;
+
+        // If unconnected=false and graph is disconnected, return None
+        if !unconnected && !is_connected {
+            return None;
+        }
+
+        // Compute eccentricities and return min
+        let eccentricities = self.compute_eccentricities();
         eccentricities
             .values()
             .filter_map(|&ecc| ecc)
@@ -2027,10 +2059,19 @@ impl Graph {
     }
 
     /// Get mean distance (average shortest path length)
-    /// Returns None if graph is disconnected
+    /// Returns None if graph is disconnected (by default handles disconnected graphs)
     /// Computes the average of all pairwise shortest path lengths
     #[inline]
     fn get_mean_distance(&self) -> Option<f64> {
+        self.get_mean_distance_with_unconnected(true)
+    }
+
+    /// Get mean distance with optional handling of disconnected graphs
+    ///
+    /// # Arguments
+    /// * `unconnected` - If true (default), compute weighted average across all components.
+    ///                   If false, return None for disconnected graphs.
+    fn get_mean_distance_with_unconnected(&self, unconnected: bool) -> Option<f64> {
         if self.num_nodes() == 0 {
             return None;
         }
@@ -2042,9 +2083,8 @@ impl Graph {
         for &start_node in self.nodes.keys() {
             let distances = self.bfs_distances(start_node);
 
-            // Check if all nodes are reachable
-            if distances.len() != self.num_nodes() {
-                // Graph is disconnected
+            // If unconnected=false and graph is disconnected, return None
+            if !unconnected && distances.len() != self.num_nodes() {
                 return None;
             }
 

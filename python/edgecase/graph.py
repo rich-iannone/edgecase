@@ -2782,17 +2782,22 @@ class Graph:
 
     # ========== Distance & Path Metrics ==========
 
-    def get_mean_distance(self) -> float | None:
+    def get_mean_distance(self, unconnected: bool = True) -> float | None:
         """Get mean distance (average shortest path length).
 
         Computes average shortest path length between all reachable node pairs.
-        Also known as average path length or characteristic path length. Returns
-        None if graph is disconnected (infinite distances exist).
+        Also known as average path length or characteristic path length.
+
+        Parameters
+        ----------
+        unconnected : bool, default=True
+            If True, computes weighted average across all connected components.
+            If False, returns None for disconnected graphs.
 
         Returns
         -------
         float | None
-            Average shortest path length, or None if graph is disconnected.
+            Average shortest path length, or None if graph is disconnected (when unconnected=False).
 
         Examples
         --------
@@ -2828,19 +2833,24 @@ class Graph:
         get_graph_diameter : Maximum shortest path length
         get_graph_radius : Minimum eccentricity
         """
-        return self._graph.get_mean_distance()
+        return self._graph.get_mean_distance_with_unconnected(unconnected)
 
-    def get_min_eccentricity(self) -> int | None:
+    def get_min_eccentricity(self, unconnected: bool = True) -> int | None:
         """Get minimum eccentricity (graph radius).
 
         Alias for `get_graph_radius()`. The minimum eccentricity is the smallest
-        maximum distance from any node to all other nodes. Returns None if graph
-        is disconnected.
+        maximum distance from any node to all other nodes.
+
+        Parameters
+        ----------
+        unconnected : bool, default=True
+            If True, computes minimum radius across all connected components.
+            If False, returns None for disconnected graphs.
 
         Returns
         -------
         int | None
-            Minimum eccentricity (radius), or None if disconnected.
+            Minimum eccentricity (radius), or None if disconnected (when unconnected=False).
 
         Examples
         --------
@@ -2859,18 +2869,24 @@ class Graph:
         get_max_eccentricity : Maximum eccentricity (diameter)
         get_eccentricity : Eccentricity of each node
         """
-        return self.get_graph_radius()
+        return self.get_graph_radius(unconnected)
 
-    def get_max_eccentricity(self) -> int | None:
+    def get_max_eccentricity(self, unconnected: bool = True) -> int | None:
         """Get maximum eccentricity (graph diameter).
 
         Alias for `get_graph_diameter()`. The maximum eccentricity is the longest
-        shortest path between any two nodes. Returns None if graph is disconnected.
+        shortest path between any two nodes.
+
+        Parameters
+        ----------
+        unconnected : bool, default=True
+            If True, computes maximum diameter across all connected components.
+            If False, returns None for disconnected graphs.
 
         Returns
         -------
         int | None
-            Maximum eccentricity (diameter), or None if disconnected.
+            Maximum eccentricity (diameter), or None if disconnected (when unconnected=False).
 
         Examples
         --------
@@ -2889,19 +2905,24 @@ class Graph:
         get_min_eccentricity : Minimum eccentricity (radius)
         get_eccentricity : Eccentricity of each node
         """
-        return self.get_graph_diameter()
+        return self.get_graph_diameter(unconnected)
 
-    def get_graph_diameter(self) -> int | None:
+    def get_graph_diameter(self, unconnected: bool = True) -> int | None:
         """Get graph diameter (maximum eccentricity).
 
         The diameter is the longest shortest path between any two nodes.
-        Returns None if the graph is disconnected. This metric is useful
-        for understanding the "width" of a network.
+        This metric is useful for understanding the "width" of a network.
+
+        Parameters
+        ----------
+        unconnected : bool, default=True
+            If True, computes maximum diameter across all connected components.
+            If False, returns None for disconnected graphs.
 
         Returns
         -------
         int | None
-            Maximum distance between any two nodes, or None if disconnected.
+            Maximum distance between any two nodes, or None if disconnected (when unconnected=False).
 
         Examples
         --------
@@ -2927,19 +2948,24 @@ class Graph:
         get_graph_radius : Get minimum eccentricity
         eccentricity : Get eccentricity of a specific node
         """
-        return self._graph.get_graph_diameter()
+        return self._graph.get_graph_diameter_with_unconnected(unconnected)
 
-    def get_graph_radius(self) -> int | None:
+    def get_graph_radius(self, unconnected: bool = True) -> int | None:
         """Get graph radius (minimum eccentricity).
 
         The radius is the minimum of all node eccentricities. Nodes with
         eccentricity equal to the radius form the center of the graph.
-        Returns None if the graph is disconnected.
+
+        Parameters
+        ----------
+        unconnected : bool, default=True
+            If True, computes minimum radius across all connected components.
+            If False, returns None for disconnected graphs.
 
         Returns
         -------
         int | None
-            Minimum eccentricity, or None if disconnected.
+            Minimum eccentricity, or None if disconnected (when unconnected=False).
 
         Examples
         --------
@@ -2965,7 +2991,7 @@ class Graph:
         get_graph_diameter : Get maximum eccentricity
         eccentricity : Get eccentricity of a specific node
         """
-        return self._graph.get_graph_radius()
+        return self._graph.get_graph_radius_with_unconnected(unconnected)
 
     def get_graph_girth(self) -> int | None:
         """Get girth (length of shortest cycle).
