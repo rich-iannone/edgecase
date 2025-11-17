@@ -160,8 +160,14 @@ fn compute_betweenness_from_source(
 
 /// Calculate PageRank for all nodes
 ///
-/// Optimized implementation using incoming edge lists instead of O(n²) neighbor checks.
-/// Time complexity: O(iterations × edges) instead of O(iterations × nodes²)
+/// Highly optimized implementation for large graphs using:
+/// - CSR-like format with index-based storage (no HashMap lookups in hot loop)
+/// - Precomputed inverse out-degrees (multiplication instead of division)
+/// - Parallel computation with Rayon for large graphs
+/// - Contiguous memory layout for cache efficiency
+///
+/// Time complexity: O(iterations × edges)
+/// Space complexity: O(nodes + edges)
 #[pyfunction]
 #[pyo3(signature = (graph, damping=0.85, max_iter=100, tol=1e-6))]
 #[inline]
@@ -171,6 +177,8 @@ pub fn pagerank(
     max_iter: usize,
     tol: f64,
 ) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+
     let n = graph.num_nodes();
     if n == 0 {
         return Ok(FxHashMap::default());
@@ -178,70 +186,116 @@ pub fn pagerank(
 
     let node_ids: Vec<u64> = graph.get_node_ids();
 
-    // Build node_id -> index mapping for dense array access (cache-friendly)
-    let mut node_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
-    for (idx, &node_id) in node_ids.iter().enumerate() {
-        node_to_idx.insert(node_id, idx);
-    }
+    // Build node_id -> index mapping
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
 
-    // Build incoming edges map: target -> [(source, weight)]
-    // This is the transpose of the adjacency list
-    let mut incoming_edges = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    // ============================================================
+    // BUILD CSR-LIKE INCOMING EDGES STRUCTURE
+    // Store indices instead of node IDs to eliminate HashMap lookups
+    // ============================================================
 
-    // Use Vec for out_degree (dense array is faster than HashMap for hot path)
+    // First pass: count incoming edges per node
+    let mut in_degree: Vec<usize> = vec![0; n];
     let mut out_degree: Vec<usize> = vec![0; n];
 
-    // Initialize all nodes in incoming_edges with capacity hints
-    for &node_id in &node_ids {
-        incoming_edges.insert(node_id, Vec::with_capacity(8)); // Preallocate typical size
-    }
-
-    // Build transpose: for each edge u->v, add u to v's incoming list
-    for &source_node in &node_ids {
+    for (source_idx, &source_node) in node_ids.iter().enumerate() {
         if let Ok(neighbors) = graph.neighbors(source_node) {
             let degree = neighbors.len();
-            if let Some(&source_idx) = node_to_idx.get(&source_node) {
-                out_degree[source_idx] = degree;
-            }
+            out_degree[source_idx] = degree;
 
             for &target_node in &neighbors {
-                if let Some(incoming) = incoming_edges.get_mut(&target_node) {
-                    incoming.push(source_node);
+                if let Some(&target_idx) = node_to_idx.get(&target_node) {
+                    in_degree[target_idx] += 1;
                 }
             }
         }
     }
 
-    // Use dense Vec arrays for ranks (better cache locality than HashMap)
+    // Build CSR structure: incoming_data stores all source indices contiguously
+    // incoming_offsets[i] = start position of node i's incoming edges
+    let total_edges: usize = in_degree.iter().sum();
+    let mut incoming_data: Vec<usize> = vec![0; total_edges];
+    let mut incoming_offsets: Vec<usize> = Vec::with_capacity(n + 1);
+    incoming_offsets.push(0);
+
+    for &count in &in_degree {
+        incoming_offsets.push(incoming_offsets.last().unwrap() + count);
+    }
+
+    // Temporary counter for filling incoming_data (tracks current write position per node)
+    let mut write_pos: Vec<usize> = incoming_offsets[..n].to_vec();
+
+    // Second pass: fill incoming edges
+    for (source_idx, &source_node) in node_ids.iter().enumerate() {
+        if let Ok(neighbors) = graph.neighbors(source_node) {
+            for &target_node in &neighbors {
+                if let Some(&target_idx) = node_to_idx.get(&target_node) {
+                    let pos = write_pos[target_idx];
+                    incoming_data[pos] = source_idx;
+                    write_pos[target_idx] += 1;
+                }
+            }
+        }
+    }
+
+    // ============================================================
+    // PRECOMPUTE INVERSE OUT-DEGREES (avoid division in hot loop)
+    // ============================================================
+    let inv_out_degree: Vec<f64> = out_degree
+        .iter()
+        .map(|&deg| if deg > 0 { 1.0 / deg as f64 } else { 0.0 })
+        .collect();
+
+    // ============================================================
+    // POWER ITERATION WITH PARALLELIZATION
+    // ============================================================
     let mut ranks: Vec<f64> = vec![1.0 / n as f64; n];
     let mut new_ranks: Vec<f64> = vec![0.0; n];
-
-    // Hoist invariant computation outside loop
     let base_rank = (1.0 - damping) / n as f64;
+
     for _iter in 0..max_iter {
-        // Reset new_ranks using fast slice fill
-        new_ranks.fill(base_rank);
+        // Parallel computation for large graphs (threshold: 1000 nodes)
+        if n >= 1000 {
+            // Parallel version
+            new_ranks.par_iter_mut().enumerate().for_each(|(target_idx, new_rank)| {
+                *new_rank = base_rank;
 
-        // Sum contributions from incoming edges
-        for (idx, &node_id) in node_ids.iter().enumerate() {
-            if let Some(incoming) = incoming_edges.get(&node_id) {
+                // Get incoming edges for this target node
+                let start = incoming_offsets[target_idx];
+                let end = incoming_offsets[target_idx + 1];
+
+                // Sum contributions from all incoming edges
                 let mut rank_sum = 0.0;
-
-                // Hot loop: optimized for cache locality and branch prediction
-                for &source_node in incoming {
-                    if let Some(&source_idx) = node_to_idx.get(&source_node) {
-                        let out_deg = out_degree[source_idx];
-                        if out_deg > 0 {
-                            rank_sum += ranks[source_idx] / out_deg as f64;
-                        }
-                    }
+                for i in start..end {
+                    let source_idx = incoming_data[i];
+                    rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
                 }
 
-                new_ranks[idx] += damping * rank_sum;
+                *new_rank += damping * rank_sum;
+            });
+        } else {
+            // Sequential version for small graphs
+            for target_idx in 0..n {
+                new_ranks[target_idx] = base_rank;
+
+                let start = incoming_offsets[target_idx];
+                let end = incoming_offsets[target_idx + 1];
+
+                let mut rank_sum = 0.0;
+                for i in start..end {
+                    let source_idx = incoming_data[i];
+                    rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
+                }
+
+                new_ranks[target_idx] += damping * rank_sum;
             }
         }
 
-        // Check convergence using L1 norm - vectorized iteration
+        // Check convergence using L1 norm
         let delta: f64 = ranks.iter()
             .zip(new_ranks.iter())
             .map(|(old, new)| (new - old).abs())
@@ -259,7 +313,7 @@ pub fn pagerank(
     // Normalize ranks to sum to 1.0
     let sum: f64 = ranks.iter().sum();
     if sum > 0.0 {
-        let inv_sum = 1.0 / sum; // Multiplication is faster than division
+        let inv_sum = 1.0 / sum;
         for rank in ranks.iter_mut() {
             *rank *= inv_sum;
         }
