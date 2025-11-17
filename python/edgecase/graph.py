@@ -2302,7 +2302,7 @@ class Graph:
             If None (default), automatically uses 'degree'.
             Overwrites column if it already exists.
         return_dict : bool, default False
-            If True, returns dictionary instead of self (for backward compatibility).
+            If True, returns dictionary instead of self.
             If False (default), stores in NDF and returns self for chaining.
 
         Returns
@@ -3591,7 +3591,7 @@ class Graph:
             If None (default), automatically uses 'pagerank'.
             Overwrites column if it already exists.
         return_dict : bool, default False
-            If True, returns dictionary instead of self (for backward compatibility).
+            If True, returns dictionary instead of self.
             If False (default), stores in NDF and returns self for chaining.
 
         Returns
@@ -9043,7 +9043,9 @@ class Graph:
 
     # ========== Community Detection Methods ==========
 
-    def get_cmty_fast_greedy(self, attr_name: str = None) -> Union[dict[int, int], "Graph"]:
+    def cmty_fast_greedy(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
 
         This is a greedy modularity optimization algorithm that merges communities
@@ -9059,15 +9061,18 @@ class Graph:
         Parameters
         ----------
         attr_name : str, optional
-            If provided, automatically stores community assignments as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the community dictionary.
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_fast_greedy'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
-        Union[dict[str, int], Graph]
-            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed).
-            If attr_name is provided: returns self for method chaining.
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed).
+            If return_dict is False (default): returns self for method chaining.
 
         Raises
         ------
@@ -9092,7 +9097,7 @@ class Graph:
             .add_edge("D", "E")  # Clique 2
         )
 
-        communities = graph.get_cmty_fast_greedy()
+        communities = graph.cmty_fast_greedy(return_dict=True)
         print(len(set(communities.values())))  # 2 communities
         ```
 
@@ -9115,7 +9120,7 @@ class Graph:
         )
 
         # (graph
-        #     .get_cmty_fast_greedy(attr_name="community")
+        #     .cmty_fast_greedy(attr_name="community")
         #     .colorize_node_attrs(node_attr_from="community", palette="Set1")
         #     .show())
         ```
@@ -9133,17 +9138,29 @@ class Graph:
         See Also
         --------
         cmty_louvain : Faster for very large graphs
-        get_cmty_edge_btwns : More accurate but slower
+        cmty_edge_btwns : More accurate but slower
         """
         communities = self._graph.get_cmty_fast_greedy()
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, communities)
-            return self
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_fast_greedy"
 
-        return communities
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
 
-    def get_cmty_edge_btwns(self, attr_name: str = None) -> Union[dict[int, int], "Graph"]:
+        # Track computation
+        if not return_dict:
+            self._computations.append(("cmty_fast_greedy", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
+
+    def cmty_edge_btwns(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
 
         Iteratively removes edges with highest betweenness centrality to reveal
@@ -9158,15 +9175,18 @@ class Graph:
         Parameters
         ----------
         attr_name : str, optional
-            If provided, automatically stores community assignments as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the community dictionary.
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_edge_btwns'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
-        Union[dict[str, int], Graph]
-            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If attr_name is provided: returns self for method chaining.
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
 
         Raises
         ------
@@ -9195,7 +9215,7 @@ class Graph:
             .add_edge("F", "D")  # Triangle 2
         )
 
-        communities = graph.get_cmty_edge_btwns()
+        communities = graph.cmty_edge_btwns(return_dict=True)
         # Bridge edge C-D has highest betweenness and is removed first
         # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
         ```
@@ -9223,7 +9243,7 @@ class Graph:
         )
 
         # (graph
-        #     .get_cmty_edge_btwns(attr_name="community")
+        #     .cmty_edge_btwns(attr_name="community")
         #     .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
         #     .show())
         ```
@@ -9250,19 +9270,31 @@ class Graph:
 
         See Also
         --------
-        get_cmty_fast_greedy : Faster greedy modularity optimization
+        cmty_fast_greedy : Faster greedy modularity optimization
         cmty_louvain : Best for very large graphs
-        get_cmty_walktrap : Alternative hierarchical method
+        cmty_walktrap : Alternative hierarchical method
         """
         communities = self._graph.get_cmty_edge_btwns()
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, communities)
-            return self
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_edge_btwns"
 
-        return communities
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
 
-    def get_cmty_l_eigenvec(self, attr_name: str = None) -> Union[dict[int, int], "Graph"]:
+        # Track computation
+        if not return_dict:
+            self._computations.append(("cmty_edge_btwns", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
+
+    def cmty_l_eigenvec(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Leading Eigenvector (Newman) algorithm.
 
         Spectral optimization method using recursive bisection based on the leading
@@ -9273,15 +9305,18 @@ class Graph:
         Parameters
         ----------
         attr_name : str, optional
-            If provided, automatically stores community assignments as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the community dictionary.
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_l_eigenvec'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
-        Union[dict[str, int], Graph]
-            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If attr_name is provided: returns self for method chaining.
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
 
         Raises
         ------
@@ -9312,7 +9347,7 @@ class Graph:
         for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
             graph.add_edge(i, j)
 
-        communities = graph.get_cmty_l_eigenvec()
+        communities = graph.cmty_l_eigenvec(return_dict=True)
         # Eigenvector method finds natural split at bridge
         # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
         ```
@@ -9338,7 +9373,7 @@ class Graph:
         )
 
         # (graph
-        #     .get_cmty_l_eigenvec(attr_name="community")
+        #     .cmty_l_eigenvec(attr_name="community")
         #     .colorize_node_attrs(node_attr_from="community", palette="Spectral")
         #     .show())
         ```
@@ -9369,17 +9404,27 @@ class Graph:
 
         See Also
         --------
-        get_cmty_fast_greedy : Faster but less principled
-        get_cmty_edge_btwns : More accurate but slower
+        cmty_fast_greedy : Faster but less principled
+        cmty_edge_btwns : More accurate but slower
         cmty_louvain : Best for very large graphs
         """
         communities = self._graph.get_cmty_l_eigenvec()
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, communities)
-            return self
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_l_eigenvec"
 
-        return communities
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("cmty_l_eigenvec", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
 
     def cmty_louvain(
         self, resolution: float = 1.0, attr_name: str = None, return_dict: bool = False
@@ -9403,7 +9448,7 @@ class Graph:
             If None (default), automatically uses 'cmty_louvain'.
             Overwrites column if it already exists.
         return_dict : bool, default False
-            If True, returns dictionary instead of self (for backward compatibility).
+            If True, returns dictionary instead of self.
             If False (default), stores in NDF and returns self for chaining.
 
         Returns
@@ -9534,8 +9579,8 @@ class Graph:
             return communities
         return self
 
-    def get_cmty_walktrap(
-        self, steps: int = 4, attr_name: str = None
+    def cmty_walktrap(
+        self, steps: int = 4, attr_name: str = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Walktrap random walk algorithm.
 
@@ -9556,15 +9601,18 @@ class Graph:
             - steps=4: Good balance (default, recommended)
             - steps=6+: Longer-range patterns, more computation
         attr_name : str, optional
-            If provided, automatically stores community assignments as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the community dictionary.
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_walktrap'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
-        Union[dict[str, int], Graph]
-            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If attr_name is provided: returns self for method chaining.
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
 
         Raises
         ------
@@ -9595,7 +9643,7 @@ class Graph:
 
         graph.add_edge("C", "D")  # Bridge
 
-        communities = graph.get_cmty_walktrap()
+        communities = graph.cmty_walktrap(return_dict=True)
         node_a = graph.get_id_from_label("A")
         node_b = graph.get_id_from_label("B")
         node_c = graph.get_id_from_label("C")
@@ -9604,8 +9652,8 @@ class Graph:
         assert communities[node_d] == communities[graph.get_id_from_label("E")]
 
         # Try different step lengths for different scales
-        local_cmty = graph.get_cmty_walktrap(steps=2)   # More local communities
-        global_cmty = graph.get_cmty_walktrap(steps=6)  # More global communities
+        local_cmty = graph.cmty_walktrap(return_dict=True, steps=2)   # More local communities
+        global_cmty = graph.cmty_walktrap(return_dict=True, steps=6)  # More global communities
         ```
 
         Store as node attributes and chain:
@@ -9629,7 +9677,7 @@ class Graph:
         )
 
         # (graph
-        #     .get_cmty_walktrap(attr_name="community")
+        #     .cmty_walktrap(attr_name="community")
         #     .colorize_node_attrs(node_attr_from="community", palette="tab10")
         #     .show())
         ```
@@ -9671,17 +9719,30 @@ class Graph:
         See Also
         --------
         cmty_louvain : Faster for large graphs
-        get_cmty_fast_greedy : Alternative greedy approach
-        get_cmty_edge_btwns : Divisive hierarchical method
-        get_cmty_l_eigenvec : Spectral method
+        cmty_fast_greedy : Alternative greedy approach
+        cmty_edge_btwns : Divisive hierarchical method
+        cmty_l_eigenvec : Spectral method
         """
         communities = self._graph.get_cmty_walktrap(steps)
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, communities)
-            return self
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_walktrap"
 
-        return communities
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+
+        # Track computation
+        params = {}
+        if steps != 4:
+            params["steps"] = steps
+        if not return_dict:
+            self._computations.append(("cmty_walktrap", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
 
     # ========== Centrality Methods ==========
 
@@ -9845,7 +9906,7 @@ class Graph:
             If None (default), automatically uses 'betweenness_centrality'.
             Overwrites column if it already exists.
         return_dict : bool, default False
-            If True, returns dictionary instead of self (for backward compatibility).
+            If True, returns dictionary instead of self.
             If False (default), stores in NDF and returns self for chaining.
 
         Returns
@@ -10173,7 +10234,7 @@ class Graph:
             If None (default), automatically uses 'eigen_centrality'.
             Overwrites column if it already exists.
         return_dict : bool, default False
-            If True, returns dictionary instead of self (for backward compatibility).
+            If True, returns dictionary instead of self.
             If False (default), stores in NDF and returns self for chaining.
 
         Returns
@@ -16131,13 +16192,8 @@ class Graph:
 
 
 # ==============================================================================
-# Community Detection Helper Functions
+# Standalone Helper Functions
 # ==============================================================================
-
-
-def detect_communities(graph: Graph) -> dict[str, int]:
-    """Detect communities in the graph."""
-    return rust.detect_communities(graph._graph)
 
 
 def get_cycles(graph: Graph, min_length: int = 2) -> list[list[int]]:
@@ -16163,82 +16219,6 @@ def get_cycles(graph: Graph, min_length: int = 2) -> list[list[int]]:
     Graph.get_cycles : Method version with full documentation
     """
     return graph.get_cycles(min_length=min_length)
-
-
-# Community detection algorithms
-def get_cmty_fast_greedy(graph: Graph) -> dict[str, int]:
-    """Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
-
-    This is a greedy modularity optimization algorithm that merges communities
-    to maximize modularity. It's efficient for medium to large graphs and provides
-    good quality communities.
-
-    Algorithm
-    ---
-    1. Start with each node in its own community
-    2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
-    3. Repeatedly merge the pair with highest ΔQ until no improvement
-    4. Return the partition with maximum modularity
-
-    Parameters
-    ---
-    graph : Graph
-        An undirected Graph instance.
-
-    Returns
-    ---
-    dict of str to int
-        Mapping from node ID to community ID (0-indexed).
-
-    Raises
-    ---
-    ValueError
-        If the graph is directed (requires undirected graph).
-
-    Complexity
-    ---
-    - Time: O(n log²n) on sparse graphs
-    - Space: O(n + m)
-
-    Examples
-    --------
-    ```python
-    import edgecase as ec
-
-    # Two disconnected cliques
-    graph = ec.Graph(directed=False)
-    for node in ['A', 'B', 'C', 'D', 'E', 'F']:
-        graph.add_node(node)
-    for src, tgt in [('A','B'), ('B','C'), ('C','A'), ('D','E'), ('E','F'), ('F','D')]:
-        graph.add_edge(src, tgt)
-
-    communities = graph.get_cmty_fast_greedy()
-
-    # Should find 2 communities: {A,B,C} and {D,E,F}
-    print(len(set(communities.values())))  # 2
-    ```
-
-    Karate club example:
-
-    ```python
-    graph = ec.Graph(directed=False)
-    # Add karate club edges...
-    communities = graph.get_cmty_fast_greedy()
-    # Modularity typically > 0.40 for karate club
-    ```
-
-    References
-    ---
-    Clauset, A., Newman, M. E., & Moore, C. (2004).
-    "Finding community structure in very large networks."
-    Physical review E, 70(6), 066111.
-
-    See Also
-    --------
-    cmty_louvain : Faster for very large graphs
-    get_cmty_edge_btwns : More accurate but slower
-    """
-    return graph._graph.get_cmty_fast_greedy()
 
 
 # ============================================================================

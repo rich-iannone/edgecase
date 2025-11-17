@@ -40,7 +40,6 @@ from edgecase.graph import (
     Edge,
     Graph,
     Node,
-    detect_communities,
     get_cycles,
 )
 from edgecase.io import (
@@ -81,7 +80,6 @@ __all__ = [
     "Node",
     "Edge",
     # Core algorithms
-    "detect_communities",
     "get_cycles",
     # I/O
     "from_polars",
