@@ -41,13 +41,16 @@ pub fn count_triangles(graph: &Graph) -> FxHashMap<u64, usize> {
 /// Count triangles in undirected graphs
 /// Uses the NodeIterator algorithm: for each edge (u,v), count common neighbors
 /// OPTIMIZED: Uses FxHashSet, node ordering, and efficient memory access patterns
+/// PARALLELIZED: Uses Rayon for parallel edge processing on very large graphs
 #[inline]
 fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64, usize>) {
+    use rayon::prelude::*;
+
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 
     // Convert adjacency lists to sorted vectors for binary search
-    // This is faster than FxHashSet for intersection operations on small-medium sets
+    // Sequential construction is faster for most graphs (avoids parallel overhead)
     let mut adj_vecs: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
     for &node_id in node_ids.iter() {
         if let Ok(neighbors) = graph.neighbors(node_id) {
@@ -57,36 +60,86 @@ fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64,
         }
     }
 
-    // Process each edge, but only count triangles once by enforcing u < v < w ordering
-    for (_, u, v) in graph.edges() {
-        // Only process if u < v to avoid counting each edge twice
-        if u >= v {
-            continue;
-        }
+    // Get edges and filter to u < v
+    let edges: Vec<(u64, u64)> = graph.edges()
+        .into_iter()
+        .filter_map(|(_, u, v)| if u < v { Some((u, v)) } else { None })
+        .collect();
 
-        // Find common neighbors using merge-like algorithm (faster than repeated binary search)
-        if let (Some(u_neighbors), Some(v_neighbors)) = (adj_vecs.get(&u), adj_vecs.get(&v)) {
-            let mut i = 0;
-            let mut j = 0;
+    // Parallelize triangle counting only for very large graphs
+    // Threshold chosen to avoid Rayon overhead on medium graphs
+    let local_counts: FxHashMap<u64, usize> = if edges.len() >= 50000 {
+        edges.par_iter()
+            .fold(
+                || FxHashMap::with_capacity_and_hasher(n / 10, Default::default()),
+                |mut local_map, &(u, v)| {
+                    // Find common neighbors using merge-like algorithm
+                    if let (Some(u_neighbors), Some(v_neighbors)) = (adj_vecs.get(&u), adj_vecs.get(&v)) {
+                        let mut i = 0;
+                        let mut j = 0;
 
-            while i < u_neighbors.len() && j < v_neighbors.len() {
-                let un = u_neighbors[i];
-                let vn = v_neighbors[j];
+                        while i < u_neighbors.len() && j < v_neighbors.len() {
+                            let un = u_neighbors[i];
+                            let vn = v_neighbors[j];
 
-                if un == vn && un > v {
-                    // Found a common neighbor w > v, forming triangle (u, v, w)
-                    *triangle_count.entry(u).or_insert(0) += 1;
-                    *triangle_count.entry(v).or_insert(0) += 1;
-                    *triangle_count.entry(un).or_insert(0) += 1;
-                    i += 1;
-                    j += 1;
-                } else if un < vn {
-                    i += 1;
-                } else {
-                    j += 1;
+                            if un == vn && un > v {
+                                // Found a common neighbor w > v, forming triangle (u, v, w)
+                                *local_map.entry(u).or_insert(0) += 1;
+                                *local_map.entry(v).or_insert(0) += 1;
+                                *local_map.entry(un).or_insert(0) += 1;
+                                i += 1;
+                                j += 1;
+                            } else if un < vn {
+                                i += 1;
+                            } else {
+                                j += 1;
+                            }
+                        }
+                    }
+                    local_map
+                },
+            )
+            .reduce(
+                || FxHashMap::with_capacity_and_hasher(n / 10, Default::default()),
+                |mut acc, local_map| {
+                    for (node, count) in local_map {
+                        *acc.entry(node).or_insert(0) += count;
+                    }
+                    acc
+                },
+            )
+    } else {
+        // Sequential for small graphs
+        let mut local_map = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for (u, v) in edges {
+            if let (Some(u_neighbors), Some(v_neighbors)) = (adj_vecs.get(&u), adj_vecs.get(&v)) {
+                let mut i = 0;
+                let mut j = 0;
+
+                while i < u_neighbors.len() && j < v_neighbors.len() {
+                    let un = u_neighbors[i];
+                    let vn = v_neighbors[j];
+
+                    if un == vn && un > v {
+                        *local_map.entry(u).or_insert(0) += 1;
+                        *local_map.entry(v).or_insert(0) += 1;
+                        *local_map.entry(un).or_insert(0) += 1;
+                        i += 1;
+                        j += 1;
+                    } else if un < vn {
+                        i += 1;
+                    } else {
+                        j += 1;
+                    }
                 }
             }
         }
+        local_map
+    };
+
+    // Merge local counts into the result
+    for (node, count) in local_counts {
+        *triangle_count.entry(node).or_insert(0) += count;
     }
 }
 
@@ -139,43 +192,78 @@ pub fn list_triangles(graph: &Graph) -> Vec<(u64, u64, u64)> {
 
 /// List triangles in undirected graphs
 /// Compact forward algorithm with sorted adjacency lists
+/// PARALLELIZED: Uses Rayon for parallel node processing on large graphs
 fn list_triangles_undirected(
     graph: &Graph,
     triangles: &mut Vec<(u64, u64, u64)>,
 ) {
+    use rayon::prelude::*;
+
     let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
 
-    // Build sorted adjacency lists
-    let mut adj_lists: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-    for &node_id in node_ids.iter() {
-        if let Ok(neighbors) = graph.neighbors(node_id) {
-            let mut sorted_neighbors: Vec<u64> = neighbors.into_iter()
-                .filter(|&n| n > node_id)  // Only keep neighbors with higher IDs
-                .collect();
-            sorted_neighbors.sort_unstable();
-            if !sorted_neighbors.is_empty() {
-                adj_lists.insert(node_id, sorted_neighbors);
-            }
-        }
-    }
+    // Build sorted adjacency lists - can be done in parallel
+    let adj_lists: FxHashMap<u64, Vec<u64>> = node_ids.par_iter()
+        .filter_map(|&node_id| {
+            graph.neighbors(node_id).ok().and_then(|neighbors| {
+                let mut sorted_neighbors: Vec<u64> = neighbors.into_iter()
+                    .filter(|&n| n > node_id)  // Only keep neighbors with higher IDs
+                    .collect();
+                sorted_neighbors.sort_unstable();
+                if !sorted_neighbors.is_empty() {
+                    Some((node_id, sorted_neighbors))
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
 
-    // For each node u with neighbors
-    for &u in node_ids.iter() {
-        if let Some(u_neighbors) = adj_lists.get(&u) {
-            // For each pair of neighbors (v, w) where v < w
-            for (i, &v) in u_neighbors.iter().enumerate() {
-                if let Some(v_neighbors) = adj_lists.get(&v) {
-                    // Only check w's that are after v in u's neighbor list
-                    for &w in &u_neighbors[i+1..] {
-                        // Binary search for w in v's sorted neighbor list
-                        if v_neighbors.binary_search(&w).is_ok() {
-                            triangles.push((u, v, w));
+    // For very large graphs, parallelize triangle enumeration per node
+    // High threshold to avoid Rayon overhead
+    let all_triangles: Vec<(u64, u64, u64)> = if n >= 10000 {
+        node_ids.par_iter()
+            .filter_map(|&u| adj_lists.get(&u).map(|u_neighbors| (u, u_neighbors)))
+            .flat_map(|(u, u_neighbors)| {
+                let mut local_triangles = Vec::new();
+                // For each pair of neighbors (v, w) where v < w
+                for (i, &v) in u_neighbors.iter().enumerate() {
+                    if let Some(v_neighbors) = adj_lists.get(&v) {
+                        // Only check w's that are after v in u's neighbor list
+                        for &w in &u_neighbors[i+1..] {
+                            // Binary search for w in v's sorted neighbor list
+                            if v_neighbors.binary_search(&w).is_ok() {
+                                local_triangles.push((u, v, w));
+                            }
+                        }
+                    }
+                }
+                local_triangles
+            })
+            .collect()
+    } else {
+        // Sequential for small graphs
+        let mut local_triangles = Vec::new();
+        for &u in node_ids.iter() {
+            if let Some(u_neighbors) = adj_lists.get(&u) {
+                // For each pair of neighbors (v, w) where v < w
+                for (i, &v) in u_neighbors.iter().enumerate() {
+                    if let Some(v_neighbors) = adj_lists.get(&v) {
+                        // Only check w's that are after v in u's neighbor list
+                        for &w in &u_neighbors[i+1..] {
+                            // Binary search for w in v's sorted neighbor list
+                            if v_neighbors.binary_search(&w).is_ok() {
+                                local_triangles.push((u, v, w));
+                            }
                         }
                     }
                 }
             }
         }
-    }
+        local_triangles
+    };
+
+    triangles.extend(all_triangles);
 }
 
 /// List triangles in directed graphs
@@ -334,43 +422,81 @@ fn transitivity_directed(graph: &Graph) -> Option<f64> {
 /// For directed graphs: C(v) = triangles(v) / (out_degree(v) * (out_degree(v) - 1))
 ///
 /// Returns None for nodes with degree < 2 (no triangles possible)
+/// PARALLELIZED: Uses Rayon for parallel coefficient computation on large graphs
 #[inline]
 pub fn local_clustering_coefficient(graph: &Graph) -> FxHashMap<u64, Option<f64>> {
+    use rayon::prelude::*;
+
     let triangle_counts = count_triangles(graph);
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let mut clustering: FxHashMap<u64, Option<f64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
     let is_directed = graph.is_directed();
 
-    for &node_id in node_ids.iter() {
-        if let Ok(neighbors) = graph.neighbors(node_id) {
-            let degree = neighbors.len();
+    // Parallelize for very large graphs
+    // High threshold to avoid Rayon overhead on medium graphs
+    if n >= 10000 {
+        node_ids.par_iter()
+            .map(|&node_id| {
+                let coeff = if let Ok(neighbors) = graph.neighbors(node_id) {
+                    let degree = neighbors.len();
 
-            if degree < 2 {
-                clustering.insert(node_id, None);
-                continue;
-            }
+                    if degree < 2 {
+                        None
+                    } else {
+                        let triangles = triangle_counts.get(&node_id).copied().unwrap_or(0);
+                        let triangles_f64 = triangles as f64;
 
-            let triangles = triangle_counts.get(&node_id).copied().unwrap_or(0);
-            let triangles_f64 = triangles as f64;
+                        if is_directed {
+                            // Directed: triangles / (degree * (degree - 1))
+                            let denominator = (degree * (degree - 1)) as f64;
+                            let inv_denominator = 1.0 / denominator;
+                            Some(triangles_f64 * inv_denominator)
+                        } else {
+                            // Undirected: triangles / C(degree, 2) = 2 * triangles / (degree * (degree - 1))
+                            let denominator = (degree * (degree - 1)) as f64;
+                            let inv_denominator = 2.0 / denominator;
+                            Some(triangles_f64 * inv_denominator)
+                        }
+                    }
+                } else {
+                    None
+                };
 
-            if is_directed {
-                // Directed: triangles / (degree * (degree - 1))
-                let denominator = (degree * (degree - 1)) as f64;
-                let inv_denominator = 1.0 / denominator;
-                clustering.insert(node_id, Some(triangles_f64 * inv_denominator));
+                (node_id, coeff)
+            })
+            .collect()
+    } else {
+        // Sequential for small graphs
+        let mut clustering: FxHashMap<u64, Option<f64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for &node_id in node_ids.iter() {
+            if let Ok(neighbors) = graph.neighbors(node_id) {
+                let degree = neighbors.len();
+
+                if degree < 2 {
+                    clustering.insert(node_id, None);
+                    continue;
+                }
+
+                let triangles = triangle_counts.get(&node_id).copied().unwrap_or(0);
+                let triangles_f64 = triangles as f64;
+
+                if is_directed {
+                    // Directed: triangles / (degree * (degree - 1))
+                    let denominator = (degree * (degree - 1)) as f64;
+                    let inv_denominator = 1.0 / denominator;
+                    clustering.insert(node_id, Some(triangles_f64 * inv_denominator));
+                } else {
+                    // Undirected: triangles / C(degree, 2) = 2 * triangles / (degree * (degree - 1))
+                    let denominator = (degree * (degree - 1)) as f64;
+                    let inv_denominator = 2.0 / denominator;
+                    clustering.insert(node_id, Some(triangles_f64 * inv_denominator));
+                }
             } else {
-                // Undirected: triangles / C(degree, 2) = 2 * triangles / (degree * (degree - 1))
-                let denominator = (degree * (degree - 1)) as f64;
-                let inv_denominator = 2.0 / denominator;
-                clustering.insert(node_id, Some(triangles_f64 * inv_denominator));
+                clustering.insert(node_id, None);
             }
-        } else {
-            clustering.insert(node_id, None);
         }
+        clustering
     }
-
-    clustering
 }
 
 #[cfg(test)]
