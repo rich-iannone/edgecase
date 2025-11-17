@@ -748,22 +748,6 @@ def web_google() -> Graph:
     Graph
         Google web graph
 
-    Examples
-    --------
-    ```python
-    from edgecase import web_google
-
-    # Load the dataset (requires web-Google.mtx in data/)
-    G = web_google()
-
-    # Run PageRank
-    ranks = G.pagerank(damping=0.85, max_iter=100)
-    top_pages = sorted(ranks.items(), key=lambda x: x[1], reverse=True)[:10]
-    print("Top 10 pages by PageRank:")
-    for node_id, rank in top_pages:
-        print(f"  Node {node_id}: {rank:.6f}")
-    ```
-
     References
     ----------
     J. Leskovec, K. Lang, A. Dasgupta, M. Mahoney.
@@ -1326,25 +1310,6 @@ def load_dataset(name: str, directed: bool = None, weighted: bool = False) -> Gr
     -------
     Graph
         The loaded graph
-
-    Examples
-    --------
-    ```python
-    from edgecase import load_dataset, list_registered_datasets, list_available_datasets
-
-    # Load registered dataset (uses metadata)
-    g = load_dataset("karate")
-
-    # Load with overrides
-    g = load_dataset("web_google", directed=True)
-
-    # Load custom .mtx file from data/
-    g = load_dataset("my_graph.mtx")
-
-    # See what's available
-    print("Registered:", list_registered_datasets())
-    print("All files:", list_available_datasets())
-    ```
 
     See Also
     --------
