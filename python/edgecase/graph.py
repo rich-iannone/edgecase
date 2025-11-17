@@ -209,6 +209,10 @@ class Graph:
         self._graph = rust.Graph(directed=directed, weighted=weighted)
         self._graph_name = graph_name
         self._nodes_df_provided = nodes_df is not None
+        
+        # Track computations and aesthetics for describe()
+        self._computations = []  # List of (method_name, params, attr_name) tuples
+        self._aesthetics = []    # List of (attr_name, source_attr, operation) tuples
 
         # Initialize from DataFrames if provided
         id_to_label_map = {}
@@ -1747,7 +1751,7 @@ class Graph:
         G.add_edge(source="3", target="5")
 
         # Detect communities and colorize
-        G.get_cmty_louvain(attr_name="community")
+        G.cmty_louvain(attr_name="community")
         G.colorize_node_attrs(node_attr_from="community", palette="vibrant")
         ```
 
@@ -1820,6 +1824,11 @@ class Graph:
                 node_label if isinstance(node_label, int) else self.get_id_from_label(node_label)
             )
             self._graph.set_node_attr(node_id, node_attr_to, color)
+        
+        # Track aesthetic
+        source = node_attr_from if node_attr_from else "values"
+        palette_name = palette if isinstance(palette, str) else "custom"
+        self._aesthetics.append((node_attr_to, source, "colorize", {"palette": palette_name}))
 
         return self
 
@@ -1934,6 +1943,10 @@ class Graph:
                 node_label if isinstance(node_label, int) else self.get_id_from_label(node_label)
             )
             self._graph.set_node_attr(node_id, node_attr_to, rescaled)
+        
+        # Track aesthetic
+        source = node_attr_from if node_attr_from else "values"
+        self._aesthetics.append((node_attr_to, source, "rescale", {"range": [to_lower_bound, to_upper_bound]}))
 
         return self
 
@@ -2264,6 +2277,95 @@ class Graph:
             return in_count + out_count
         else:
             return len(neighbors)
+
+    def degrees(
+        self, attr_name: str = None, return_dict: bool = True
+    ) -> Union[dict[int, int], "Graph"]:
+        """Get degree for all nodes in the graph.
+
+        For directed graphs, returns total degree (in-degree + out-degree).
+        For undirected graphs, returns the number of neighbors.
+
+        This batch method is more efficient than calling get_degree() for each node
+        individually and automatically stores results in the node DataFrame.
+
+        Parameters
+        ----------
+        attr_name : str, optional
+            Column name to store degree values in the node DataFrame.
+            If None (default), automatically uses 'degree'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self (for backward compatibility).
+            If False (default), stores in NDF and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to degree values.
+            If return_dict is False (default): returns self for method chaining.
+
+        Examples
+        --------
+        Compute degrees for all nodes:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .degrees(return_dict=False)  # Stores in 'degree' column, returns self
+        )
+
+        # Access via node DataFrame
+        ndf = graph.get_node_df()
+        print(ndf.select(["id", "degree"]))
+        ```
+
+        Use in method chain for visualization:
+
+        ```python
+        graph = (
+            ec.karate_club()
+            .degrees(return_dict=False)
+            .rescale_node_attrs(
+                node_attr_from="degree",
+                node_attr_to="size",
+                to_lower_bound=0.5,
+                to_upper_bound=2.0,
+            )
+            .show()
+        )
+        ```
+
+        See Also
+        --------
+        get_degree : Get degree for a single node
+        get_in_degree : Get in-degree for directed graphs
+        get_out_degree : Get out-degree for directed graphs
+        """
+        # Compute degrees for all nodes
+        node_ids = self.node_ids(limit=None)
+        degrees = {node_id: self.get_degree(node_id) for node_id in node_ids}
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "degree"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, degrees)
+        
+        # Track computation
+        if not return_dict:
+            self._computations.append(("degrees", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return degrees
+        return self
 
     def get_in_degree(self, node: Union[int, str]) -> int:
         """Get the in-degree of a node (directed graphs only).
@@ -3450,8 +3552,13 @@ class Graph:
         return self._graph.dfs(start_id)
 
     def pagerank(
-        self, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-6
-    ) -> dict[int, float]:
+        self,
+        damping: float = 0.85,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
         """Calculate PageRank scores for all nodes in the graph.
 
         PageRank is a link analysis algorithm that assigns importance scores to nodes
@@ -3474,12 +3581,19 @@ class Graph:
         tol : float, default=1e-6
             Convergence tolerance. The algorithm stops when the sum of absolute differences
             between iterations is less than this value.
+        attr_name : str, optional
+            Column name to store PageRank scores in the node DataFrame.
+            If None (default), automatically uses 'pagerank'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self (for backward compatibility).
+            If False (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
-        dict[int, float]
-            Dictionary mapping node IDs to their PageRank scores. Scores sum to 1.0
-            across all nodes.
+        Union[dict[int, float], Graph]
+            If return_dict is True: dictionary mapping node IDs to PageRank scores (sum to 1.0).
+            If return_dict is False (default): returns self for method chaining.
 
         Examples
         --------
@@ -3500,7 +3614,7 @@ class Graph:
         graph.add_edge(alice_id, charlie_id)
         graph.add_edge(bob_id, charlie_id)
 
-        scores = graph.pagerank()
+        scores = graph.pagerank(return_dict=True)
         print(scores)
         # {1: 0.262, 2: 0.262, 3: 0.475}  # Node IDs to scores
 
@@ -3543,7 +3657,7 @@ class Graph:
         graph.add_edge(source="Alice", target="Charlie")
         graph.add_edge(source="Bob", target="Charlie")
 
-        scores = graph.pagerank()
+        scores = graph.pagerank(return_dict=True)
         top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
         for node_id, score in top_nodes:
             label = graph.get_label_from_id(node_id=node_id)
@@ -3556,7 +3670,29 @@ class Graph:
         get_eigenvector_centrality : Alternative centrality measure
         """
         result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
-        return result_ids
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "pagerank"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+        
+        # Track computation
+        if not return_dict:
+            params = {}
+            if damping != 0.85:
+                params["damping"] = damping
+            if max_iter != 100:
+                params["max_iter"] = max_iter
+            if tol != 1e-6:
+                params["tol"] = tol
+            self._computations.append(("pagerank", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
 
     # ========== Similarity Methods ==========
 
@@ -8991,7 +9127,7 @@ class Graph:
 
         See Also
         --------
-        get_cmty_louvain : Faster for very large graphs
+        cmty_louvain : Faster for very large graphs
         get_cmty_edge_btwns : More accurate but slower
         """
         communities = self._graph.get_cmty_fast_greedy()
@@ -9097,7 +9233,7 @@ class Graph:
         5. Return partition with maximum modularity
 
         Complexity: O(m²n) where m = edges, n = nodes. For graphs with > 10K nodes,
-        consider `get_cmty_fast_greedy()` or `get_cmty_louvain()` instead.
+        consider `get_cmty_fast_greedy()` or `cmty_louvain()` instead.
 
         References
         ----------
@@ -9110,7 +9246,7 @@ class Graph:
         See Also
         --------
         get_cmty_fast_greedy : Faster greedy modularity optimization
-        get_cmty_louvain : Best for very large graphs
+        cmty_louvain : Best for very large graphs
         get_cmty_walktrap : Alternative hierarchical method
         """
         communities = self._graph.get_cmty_edge_btwns()
@@ -9213,7 +9349,7 @@ class Graph:
         6. Recursively split each community
 
         Complexity: O(n²) per split (recursive). For very large graphs (> 50K nodes),
-        consider `get_cmty_fast_greedy()` or `get_cmty_louvain()` instead.
+        consider `get_cmty_fast_greedy()` or `cmty_louvain()` instead.
 
         The algorithm only splits when modularity improves, so it may return fewer
         communities than other methods if the structure is not hierarchically organized.
@@ -9230,7 +9366,7 @@ class Graph:
         --------
         get_cmty_fast_greedy : Faster but less principled
         get_cmty_edge_btwns : More accurate but slower
-        get_cmty_louvain : Best for very large graphs
+        cmty_louvain : Best for very large graphs
         """
         communities = self._graph.get_cmty_l_eigenvec()
 
@@ -9240,8 +9376,8 @@ class Graph:
 
         return communities
 
-    def get_cmty_louvain(
-        self, resolution: float = 1.0, attr_name: str = None
+    def cmty_louvain(
+        self, resolution: float = 1.0, attr_name: str = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """Detect communities using Louvain multi-level optimization algorithm.
 
@@ -9258,15 +9394,18 @@ class Graph:
             Resolution parameter controlling community size. Higher values favor
             smaller communities. Standard modularity uses resolution=1.0.
         attr_name : str, optional
-            If provided, automatically stores community assignments as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the community dictionary.
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_louvain'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self (for backward compatibility).
+            If False (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
-        Union[dict[str, int], Graph]
-            If attr_name is None: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If attr_name is provided: returns self for method chaining.
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
 
         Raises
         ------
@@ -9297,7 +9436,7 @@ class Graph:
         for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
             graph.add_edge(i, j)
 
-        communities = graph.get_cmty_louvain()
+        communities = graph.cmty_louvain(return_dict=True)
         # Nodes in same triangle have same community ID
         node_a = graph.get_id_from_label("A")
         node_b = graph.get_id_from_label("B")
@@ -9307,8 +9446,8 @@ class Graph:
         assert communities[node_d] == communities[graph.get_id_from_label("E")]
 
         # Control community granularity with resolution
-        fine = graph.get_cmty_louvain(resolution=1.5)  # Smaller communities
-        coarse = graph.get_cmty_louvain(resolution=0.5)  # Larger communities
+        fine = graph.cmty_louvain(resolution=1.5, return_dict=True)  # Smaller communities
+        coarse = graph.cmty_louvain(resolution=0.5, return_dict=True)  # Larger communities
         ```
 
         Store as node attributes and chain:
@@ -9332,7 +9471,7 @@ class Graph:
         )
 
         # (graph
-        #     .get_cmty_louvain(attr_name="community")
+        #     .cmty_louvain(attr_name="community")
         #     .colorize_node_attrs(node_attr_from="community", palette="viridis")
         #     .show())
         ```
@@ -9373,11 +9512,22 @@ class Graph:
         """
         communities = self._graph.get_cmty_louvain(resolution)
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, communities)
-            return self
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_louvain"
 
-        return communities
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+        
+        # Track computation
+        if not return_dict:
+            params = {"resolution": resolution} if resolution != 1.0 else {}
+            self._computations.append(("cmty_louvain", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
 
     def get_cmty_walktrap(
         self, steps: int = 4, attr_name: str = None
@@ -9515,7 +9665,7 @@ class Graph:
 
         See Also
         --------
-        get_cmty_louvain : Faster for large graphs
+        cmty_louvain : Faster for large graphs
         get_cmty_fast_greedy : Alternative greedy approach
         get_cmty_edge_btwns : Divisive hierarchical method
         get_cmty_l_eigenvec : Spectral method
@@ -9640,7 +9790,9 @@ class Graph:
         """
         return self._graph.get_coreness()
 
-    def betweenness_centrality(self) -> dict[int, float]:
+    def betweenness_centrality(
+        self, attr_name: str = None, return_dict: bool = True
+    ) -> Union[dict[int, float], "Graph"]:
         """Calculate betweenness centrality scores for all nodes.
 
         Betweenness centrality measures how often a node appears on the shortest paths
@@ -9655,11 +9807,21 @@ class Graph:
         The algorithm computes shortest paths between all pairs of nodes and counts how
         many times each node appears on these paths.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            Column name to store betweenness scores in the node DataFrame.
+            If None (default), automatically uses 'betweenness_centrality'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self (for backward compatibility).
+            If False (default), stores in NDF and returns self for chaining.
+
         Returns
         -------
-        dict[int, float]
-            Dictionary mapping node IDs to their betweenness centrality scores.
-            Scores are normalized to the range [0, 1].
+        Union[dict[int, float], Graph]
+            If return_dict is True: dictionary mapping node IDs to betweenness scores (range [0, 1]).
+            If return_dict is False (default): returns self for method chaining.
 
         Examples
         --------
@@ -9719,7 +9881,22 @@ class Graph:
         get_closeness_centrality : Measure based on distance to all nodes
         """
         result_ids = rust.betweenness_centrality(self._graph)
-        return result_ids
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "betweenness_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+        
+        # Track computation
+        if not return_dict:
+            self._computations.append(("betweenness_centrality", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
 
     def get_authority_centrality(
         self, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
@@ -9897,8 +10074,12 @@ class Graph:
 
         return centrality
 
-    def get_eigen_centrality(
-        self, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
+    def eigen_centrality(
+        self,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str = None,
+        return_dict: bool = False,
     ) -> Union[dict[str, float], "Graph"]:
         """Get eigenvector centrality for each node.
 
@@ -9919,15 +10100,18 @@ class Graph:
         tol : float, default 1e-6
             Convergence tolerance threshold.
         attr_name : str, optional
-            If provided, automatically stores centrality values as node attributes
-            with this name and returns self for method chaining. If not provided,
-            returns the centrality dictionary.
+            Column name to store eigenvector centrality scores in the node DataFrame.
+            If None (default), automatically uses 'eigen_centrality'.
+            Overwrites column if it already exists.
+        return_dict : bool, default False
+            If True, returns dictionary instead of self (for backward compatibility).
+            If False (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
         Union[dict[str, float], Graph]
-            If attr_name is None: dictionary mapping node IDs to centrality scores.
-            If attr_name is provided: returns self for method chaining.
+            If return_dict is True: dictionary mapping node IDs to centrality scores.
+            If return_dict is False (default): returns self for method chaining.
 
         Examples
         --------
@@ -9945,7 +10129,7 @@ class Graph:
             .add_edge("hub", "C")
         )
 
-        eigen = graph.get_eigen_centrality()
+        eigen = graph.eigen_centrality()
         # Hub has highest eigenvector centrality
         # All connected nodes have non-zero centrality
         ```
@@ -9967,7 +10151,7 @@ class Graph:
         )
 
         # (graph
-        #     .get_eigen_centrality(attr_name="centrality")
+        #     .eigen_centrality(attr_name="centrality")
         #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", to_lower_bound=0.5, to_upper_bound=2.0)
         #     .show())
         ```
@@ -9980,11 +10164,26 @@ class Graph:
         """
         centrality = self._graph.get_eigen_centrality(max_iter, tol)
 
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, centrality)
-            return self
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "eigen_centrality"
 
-        return centrality
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, centrality)
+        
+        # Track computation
+        if not return_dict:
+            params = {}
+            if max_iter != 100:
+                params["max_iter"] = max_iter
+            if tol != 1e-6:
+                params["tol"] = tol
+            self._computations.append(("eigen_centrality", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return centrality
+        return self
 
     def get_alpha_centrality(
         self, alpha: float = 0.1, max_iter: int = 100, tol: float = 1e-6, attr_name: str = None
@@ -10064,7 +10263,7 @@ class Graph:
 
         See Also
         --------
-        get_eigen_centrality : Special case with α → 1
+        eigen_centrality : Special case with α → 1
         pagerank : Alternative prestige measure
         """
         centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
@@ -10200,7 +10399,7 @@ class Graph:
 
         max_deg = max(g.get_degree(node=nid) for nid in g.node_ids())
         bonacich = g.get_bonacich_power_centrality(beta=0.9/max_deg)
-        eigen = g.get_eigen_centrality()
+        eigen = g.eigen_centrality()
         # Should be similar
         ```
 
@@ -10230,7 +10429,7 @@ class Graph:
 
         See Also
         --------
-        get_eigen_centrality : Special case when β = 1/λ_max
+        eigen_centrality : Special case when β = 1/λ_max
         get_katz_centrality : Similar walk-based centrality with different formulation
         get_alpha_centrality : Attenuation-based centrality measure
         pagerank : PageRank algorithm with teleportation
@@ -10359,7 +10558,7 @@ class Graph:
 
         See Also
         --------
-        get_eigen_centrality : Eigenvector centrality (infinite walks)
+        eigen_centrality : Eigenvector centrality (infinite walks)
         get_alpha_centrality : Uses outgoing edges instead of incoming
         pagerank : Alternative prestige measure with damping
         """
@@ -10445,7 +10644,7 @@ class Graph:
         See Also
         --------
         degree : Get node degree
-        get_eigen_centrality : Alternative importance measure
+        eigen_centrality : Alternative importance measure
         """
         centrality = self._graph.get_leverage_centrality()
 
@@ -10593,7 +10792,7 @@ class Graph:
 
         See Also
         --------
-        get_eigen_centrality : Traditional eigenvector centrality
+        eigen_centrality : Traditional eigenvector centrality
         pagerank : Google's PageRank algorithm
         get_alpha_centrality : Generalized eigenvector centrality
         degree : Simple degree-based importance
@@ -11755,9 +11954,9 @@ class Graph:
                 node_id: self.get_out_degree(node_id) for node_id in self.node_ids(limit=None)
             }
         elif measure == "pagerank":
-            scores = self.pagerank(**kwargs)
+            scores = self.pagerank(return_dict=True, **kwargs)
         elif measure == "betweenness":
-            scores = self.betweenness_centrality()
+            scores = self.betweenness_centrality(return_dict=True)
         else:
             raise ValueError(
                 f"Unknown centrality measure '{measure}'. "
@@ -15280,6 +15479,81 @@ class Graph:
         for key, val in info_dict.items():
             print(f"{key:<{max_key_len}} : {val}")
 
+        # Print computations section if any
+        if hasattr(self, '_computations') and self._computations:
+            print()
+            print("Computations on nodes:")
+            for method_name, params, attr_name in self._computations:
+                # Format parameters
+                if params:
+                    param_str = ", ".join(f"{k}={v}" for k, v in params.items())
+                    param_str = f"({param_str})"
+                else:
+                    param_str = "()"
+                # Get count of non-null values
+                try:
+                    ndf = self.get_node_df()
+                    if attr_name in ndf.columns:
+                        n_values = ndf.select(pl.col(attr_name).is_not_null().sum()).item()
+                        n_total = ndf.height
+                        coverage = f"{n_values} of {n_total} nodes"
+                    else:
+                        coverage = "attr not found"
+                except Exception:
+                    coverage = "unknown"
+                print(f"  - {method_name}{param_str} -> attr: '{attr_name}' ({coverage})")
+
+        # Print aesthetics section if any
+        if hasattr(self, '_aesthetics') and self._aesthetics:
+            print()
+            print("Node aesthetics:")
+            for item in self._aesthetics:
+                # Handle both old format (3-tuple) and new format (4-tuple)
+                if len(item) == 3:
+                    attr_name, source_attr, operation = item
+                    params = {}
+                else:
+                    attr_name, source_attr, operation, params = item
+                
+                # Format operation with parameters
+                if operation == "rescale" and "range" in params:
+                    range_vals = params["range"]
+                    op_str = f"rescale (range: [{range_vals[0]}, {range_vals[1]}])"
+                elif operation == "colorize" and "palette" in params:
+                    palette = params["palette"]
+                    op_str = f"colorize (palette: \"{palette}\")"
+                else:
+                    op_str = operation
+                
+                # Get summary stats for the aesthetic attribute
+                try:
+                    ndf = self.get_node_df()
+                    if attr_name in ndf.columns:
+                        col = ndf.select(attr_name).to_series()
+                        n_values = col.drop_nulls().len()
+                        n_total = ndf.height
+                        # Try to get value summary
+                        unique_vals = col.drop_nulls().unique()
+                        if unique_vals.len() <= 3:
+                            # Show all unique values for very small sets
+                            vals = sorted([str(v) for v in unique_vals.to_list()])
+                            val_str = f"values: {', '.join(vals)}"
+                        elif unique_vals.len() <= 5:
+                            # Show first 3 + "and N more" for small sets
+                            vals = sorted([str(v) for v in unique_vals.to_list()])
+                            shown = ', '.join(vals[:3])
+                            remaining = len(vals) - 3
+                            val_str = f"values: {shown} and {remaining} more"
+                        else:
+                            # Show count for larger sets
+                            val_str = f"{unique_vals.len()} unique values"
+                        summary = f"{val_str}, {n_values} of {n_total} nodes"
+                    else:
+                        summary = "attr not found"
+                except Exception:
+                    summary = "unknown"
+                print(f"  - {attr_name} <- {source_attr} via {op_str} ({summary})")
+
     def _create_describe_info_dict(self) -> dict:
         """Create dictionary of graph properties for describe().
 
@@ -15656,7 +15930,25 @@ class Graph:
             return [str(eid) for eid in edge_ids]
 
     def __repr__(self) -> str:
-        return self._graph.__repr__()
+        """Return a detailed string representation of the graph.
+        
+        Uses the describe() method to show comprehensive graph information
+        including structure, computations, and aesthetics.
+        """
+        import io
+        import sys
+        
+        # Capture describe() output
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = io.StringIO()
+        
+        try:
+            self.describe()
+            result = captured_output.getvalue()
+        finally:
+            sys.stdout = old_stdout
+        
+        return result.rstrip()  # Remove trailing newline
 
 
 # ==============================================================================
@@ -15764,7 +16056,7 @@ def get_cmty_fast_greedy(graph: Graph) -> dict[str, int]:
 
     See Also
     --------
-    get_cmty_louvain : Faster for very large graphs
+    cmty_louvain : Faster for very large graphs
     get_cmty_edge_btwns : More accurate but slower
     """
     return graph._graph.get_cmty_fast_greedy()
