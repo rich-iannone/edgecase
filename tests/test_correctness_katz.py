@@ -200,8 +200,3 @@ def test_katz_vs_networkx(name, nx_graph, directed):
         f"  Max rel diff: {metrics['max_rel_diff']:.2%}\n"
         f"  Correlation: {metrics['correlation']:.6f}"
     )
-
-
-if __name__ == "__main__":
-    # Run tests with verbose output
-    pytest.main([__file__, "-v", "-s"])

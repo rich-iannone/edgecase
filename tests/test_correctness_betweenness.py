@@ -137,8 +137,3 @@ def test_betweenness_vs_igraph(name, nx_graph, directed):
     assert passes, format_validation_error(
         "Betweenness Centrality", name, metrics, vs_library="igraph"
     )
-
-
-if __name__ == "__main__":
-    # Run tests with verbose output
-    pytest.main([__file__, "-v", "-s"])

@@ -313,7 +313,3 @@ def test_disconnected_graph_only_visits_component():
 
     assert set(bfs_result) == {10, 11}
     assert set(dfs_result) == {10, 11}
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
