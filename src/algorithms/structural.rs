@@ -40,38 +40,50 @@ pub fn count_triangles(graph: &Graph) -> FxHashMap<u64, usize> {
 
 /// Count triangles in undirected graphs
 /// Uses the NodeIterator algorithm: for each edge (u,v), count common neighbors
-/// OPTIMIZED: Uses FxHashSet and node ordering to avoid double-counting
+/// OPTIMIZED: Uses FxHashSet, node ordering, and efficient memory access patterns
 #[inline]
 fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64, usize>) {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 
-    // Convert adjacency list to FxHashSet for fast lookup (faster than std::HashSet)
-    let mut adj_sets: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    // Convert adjacency lists to sorted vectors for binary search
+    // This is faster than FxHashSet for intersection operations on small-medium sets
+    let mut adj_vecs: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
     for &node_id in node_ids.iter() {
         if let Ok(neighbors) = graph.neighbors(node_id) {
-            let neighbor_set: FxHashSet<u64> = neighbors.into_iter().collect();
-            adj_sets.insert(node_id, neighbor_set);
+            let mut sorted_neighbors = neighbors;
+            sorted_neighbors.sort_unstable();
+            adj_vecs.insert(node_id, sorted_neighbors);
         }
     }
 
     // Process each edge, but only count triangles once by enforcing u < v < w ordering
-    // This eliminates the need for a seen_triangles HashSet
     for (_, u, v) in graph.edges() {
         // Only process if u < v to avoid counting each edge twice
         if u >= v {
             continue;
         }
 
-        // Find common neighbors of u and v
-        if let (Some(u_neighbors), Some(v_neighbors)) = (adj_sets.get(&u), adj_sets.get(&v)) {
-            // For each common neighbor w where v < w, we have a triangle (u, v, w)
-            // The ordering u < v < w ensures we count each triangle exactly once
-            for &w in u_neighbors.intersection(v_neighbors) {
-                if w > v {
+        // Find common neighbors using merge-like algorithm (faster than repeated binary search)
+        if let (Some(u_neighbors), Some(v_neighbors)) = (adj_vecs.get(&u), adj_vecs.get(&v)) {
+            let mut i = 0;
+            let mut j = 0;
+
+            while i < u_neighbors.len() && j < v_neighbors.len() {
+                let un = u_neighbors[i];
+                let vn = v_neighbors[j];
+
+                if un == vn && un > v {
+                    // Found a common neighbor w > v, forming triangle (u, v, w)
                     *triangle_count.entry(u).or_insert(0) += 1;
                     *triangle_count.entry(v).or_insert(0) += 1;
-                    *triangle_count.entry(w).or_insert(0) += 1;
+                    *triangle_count.entry(un).or_insert(0) += 1;
+                    i += 1;
+                    j += 1;
+                } else if un < vn {
+                    i += 1;
+                } else {
+                    j += 1;
                 }
             }
         }
@@ -217,19 +229,28 @@ pub fn transitivity(graph: &Graph) -> Option<f64> {
 }
 
 /// Compute transitivity for undirected graphs
+/// Optimized to compute both triangles and triples in a single pass
 fn transitivity_undirected(graph: &Graph) -> Option<f64> {
-    let triangle_counts = count_triangles(graph);
-    let total_triangles: usize = triangle_counts.values().sum::<usize>() / 3;
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
 
-    // Count connected triples (paths of length 2)
-    let mut connected_triples = 0;
-    for &node_id in graph.get_node_ids().iter() {
+    // Build sorted adjacency lists once (faster than repeated neighbors() calls)
+    let mut adj_lists: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut connected_triples: usize = 0;
+
+    for &node_id in node_ids.iter() {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             let degree = neighbors.len();
+
+            // Count connected triples for this node
             if degree >= 2 {
-                // Number of triples centered at this node is C(degree, 2)
                 connected_triples += degree * (degree - 1) / 2;
             }
+
+            // Store sorted neighbors for efficient intersection
+            let mut sorted_neighbors = neighbors;
+            sorted_neighbors.sort_unstable();
+            adj_lists.insert(node_id, sorted_neighbors);
         }
     }
 
@@ -237,25 +258,80 @@ fn transitivity_undirected(graph: &Graph) -> Option<f64> {
         return None;
     }
 
+    // Count triangles using sorted adjacency lists
+    let mut total_triangles: usize = 0;
+
+    for (_, u, v) in graph.edges() {
+        if u >= v {
+            continue;
+        }
+
+        // Find common neighbors using merge-like algorithm
+        if let (Some(u_neighbors), Some(v_neighbors)) = (adj_lists.get(&u), adj_lists.get(&v)) {
+            let mut i = 0;
+            let mut j = 0;
+
+            while i < u_neighbors.len() && j < v_neighbors.len() {
+                let un = u_neighbors[i];
+                let vn = v_neighbors[j];
+
+                if un == vn && un > v {
+                    // Found a common neighbor w > v, forming triangle (u, v, w)
+                    total_triangles += 1;
+                    i += 1;
+                    j += 1;
+                } else if un < vn {
+                    i += 1;
+                } else {
+                    j += 1;
+                }
+            }
+        }
+    }
+
     Some(3.0 * total_triangles as f64 / connected_triples as f64)
 }
 
 /// Compute transitivity for directed graphs
 fn transitivity_directed(graph: &Graph) -> Option<f64> {
+    use rayon::prelude::*;
+
     let triangle_counts = count_triangles(graph);
     let total_triangles: usize = triangle_counts.values().sum();
 
-    // For directed graphs, count directed paths of length 2
-    let mut connected_triples = 0;
-    for &node_id in graph.get_node_ids().iter() {
-        if let Ok(neighbors) = graph.neighbors(node_id) {
-            for &neighbor in neighbors.iter() {
-                if let Ok(second_neighbors) = graph.neighbors(neighbor) {
-                    connected_triples += second_neighbors.len();
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    // For directed graphs, count directed paths of length 2 in parallel
+    let connected_triples: usize = if n >= 1000 {
+        // Parallel for large graphs
+        node_ids.par_iter()
+            .map(|&node_id| {
+                if let Ok(neighbors) = graph.neighbors(node_id) {
+                    neighbors.iter()
+                        .filter_map(|&neighbor| graph.neighbors(neighbor).ok())
+                        .map(|second_neighbors| second_neighbors.len())
+                        .sum()
+                } else {
+                    0
                 }
-            }
-        }
-    }
+            })
+            .sum()
+    } else {
+        // Sequential for small graphs
+        node_ids.iter()
+            .map(|&node_id| {
+                if let Ok(neighbors) = graph.neighbors(node_id) {
+                    neighbors.iter()
+                        .filter_map(|&neighbor| graph.neighbors(neighbor).ok())
+                        .map(|second_neighbors| second_neighbors.len())
+                        .sum()
+                } else {
+                    0
+                }
+            })
+            .sum()
+    };
 
     if connected_triples == 0 {
         return None;

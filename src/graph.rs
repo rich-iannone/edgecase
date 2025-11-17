@@ -5677,6 +5677,8 @@ impl Graph {
     /// Newman, M.E.J. "Assortative mixing in networks" (2002)
     #[inline]
     pub fn assortativity_degree(&self) -> PyResult<f64> {
+        use rayon::prelude::*;
+
         let m = self.edges.len();
         if m == 0 {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -5726,31 +5728,49 @@ impl Graph {
             (sources, targets)
         };
 
-        // Use the numeric assortativity function with degree values
+        // Compute sums in parallel for large graphs
         let m_f64 = m as f64;
 
-        let mut num1: f64 = 0.0;  // Σ(x*y)
-        let mut sum_x: f64 = 0.0;  // Σx
-        let mut sum_y: f64 = 0.0;  // Σy
-        let mut sum_x2: f64 = 0.0; // Σ(x²)
-        let mut sum_y2: f64 = 0.0; // Σ(y²)
+        let (num1, sum_x, sum_y, sum_x2, sum_y2) = if m >= 10000 {
+            // Parallel computation for large graphs
+            degree_source.par_iter()
+                .zip(degree_target.par_iter())
+                .map(|(x, y)| {
+                    (*x * *y, *x, *y, *x * *x, *y * *y)
+                })
+                .reduce(
+                    || (0.0, 0.0, 0.0, 0.0, 0.0),
+                    |acc, item| {
+                        (acc.0 + item.0, acc.1 + item.1, acc.2 + item.2, acc.3 + item.3, acc.4 + item.4)
+                    }
+                )
+        } else {
+            // Sequential for small graphs
+            let mut num1: f64 = 0.0;
+            let mut sum_x: f64 = 0.0;
+            let mut sum_y: f64 = 0.0;
+            let mut sum_x2: f64 = 0.0;
+            let mut sum_y2: f64 = 0.0;
 
-        for (x, y) in degree_source.iter().zip(degree_target.iter()) {
-            num1 += x * y;
-            sum_x += x;
-            sum_y += y;
-            sum_x2 += x * x;
-            sum_y2 += y * y;
-        }
+            for (x, y) in degree_source.iter().zip(degree_target.iter()) {
+                num1 += x * y;
+                sum_x += x;
+                sum_y += y;
+                sum_x2 += x * x;
+                sum_y2 += y * y;
+            }
+
+            (num1, sum_x, sum_y, sum_x2, sum_y2)
+        };
 
         // Apply undirected/directed normalization (same as assortativity())
         let (numerator, denominator) = if !self.directed {
             // Undirected: special formula
             let num2 = (sum_x + sum_y) / (m_f64 * 2.0);
             let den1 = (sum_x2 + sum_y2) / (m_f64 * 2.0);
-            num1 /= m_f64;
+            let num1_normalized = num1 / m_f64;
 
-            let num = num1 - num2 * num2;
+            let num = num1_normalized - num2 * num2;
             let den = den1 - num2 * num2;
             (num, den)
         } else {
