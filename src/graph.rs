@@ -2106,7 +2106,7 @@ impl Graph {
 
     /// Get girth (length of shortest cycle)
     /// Returns None if graph is acyclic
-    /// Uses BFS from each node to find shortest cycle through that node
+    /// Uses BFS from each node to find shortest cycle, with early termination
     #[inline]
     fn get_girth(&self) -> Option<usize> {
         let n = self.num_nodes();
@@ -2115,12 +2115,26 @@ impl Graph {
         }
 
         let mut min_cycle: Option<usize> = None;
+        let mut visited_global = FxHashSet::default();
 
         // Try BFS from each node to find shortest cycle
         for &start_node in self.nodes.keys() {
+            // Early termination: if we found a cycle of length k,
+            // we only need to search up to distance k/2 from unvisited nodes
+            if let Some(current_min) = min_cycle {
+                if visited_global.contains(&start_node) {
+                    continue; // Already part of a discovered component
+                }
+                // For very small cycles, we can stop early
+                if current_min == 3 {
+                    break; // Can't get smaller than a triangle
+                }
+            }
+
             let mut distances: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
             let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
             let mut queue = std::collections::VecDeque::with_capacity(n);
+            let mut found_cycle_from_start = false;
 
             distances.insert(start_node, 0);
             parent.insert(start_node, None);
@@ -2129,6 +2143,15 @@ impl Graph {
             while let Some(current) = queue.pop_front() {
                 let current_dist = *distances.get(&current).unwrap();
                 let current_parent = *parent.get(&current).unwrap();
+
+                visited_global.insert(current);
+
+                // Early termination: if we already found a smaller cycle, stop this BFS
+                if let Some(current_min) = min_cycle {
+                    if current_dist * 2 >= current_min {
+                        break;
+                    }
+                }
 
                 if let Some(neighbors) = self.adjacency_list.get(&current) {
                     for &neighbor in neighbors {
@@ -2143,14 +2166,34 @@ impl Graph {
                                         None => cycle_length,
                                         Some(prev) => prev.min(cycle_length),
                                     });
+                                    found_cycle_from_start = true;
+                                    // If we found a triangle, we can stop immediately
+                                    if cycle_length == 3 {
+                                        return Some(3);
+                                    }
                                 }
                             }
                         } else {
+                            // Early termination within BFS
+                            if let Some(current_min) = min_cycle {
+                                // Don't explore beyond distance that could improve result
+                                if (current_dist + 1) * 2 >= current_min {
+                                    continue;
+                                }
+                            }
                             distances.insert(neighbor, current_dist + 1);
                             parent.insert(neighbor, Some(current));
                             queue.push_back(neighbor);
                         }
                     }
+                }
+            }
+
+            // If we didn't find any cycle from this node and it's a new component,
+            // we might be in a tree - mark all reachable nodes as visited
+            if !found_cycle_from_start {
+                for node in distances.keys() {
+                    visited_global.insert(*node);
                 }
             }
         }
