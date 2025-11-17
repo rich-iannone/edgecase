@@ -3378,16 +3378,12 @@ impl Graph {
     ///
     /// Returns None for isolated vertices (no connections)
     #[inline]
-    pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<String, Option<f64>>> {
+    pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<u64, Option<f64>>> {
         let n = self.num_nodes();
         let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         // Process each node
         for &node_id in self.nodes.keys() {
-            let node_label = self.nodes
-                .get(&node_id)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| node_id.to_string());
 
             // Get all neighbors (for undirected: direct neighbors, for directed: both in and out)
             let mut neighbor_weights = FxHashMap::with_capacity_and_hasher(n, Default::default());
@@ -3428,7 +3424,7 @@ impl Graph {
 
             // If isolated vertex, constraint is undefined
             if neighbor_weights.is_empty() {
-                result.insert(node_label, None);
+                result.insert(node_id, None);
                 continue;
             }
 
@@ -3436,7 +3432,7 @@ impl Graph {
             let total_strength: f64 = neighbor_weights.values().sum();
 
             if total_strength == 0.0 {
-                result.insert(node_label, None);
+                result.insert(node_id, None);
                 continue;
             }
 
@@ -3526,7 +3522,7 @@ impl Graph {
                 constraint_sum += term * term;
             }
 
-            result.insert(node_label, Some(constraint_sum));
+            result.insert(node_id, Some(constraint_sum));
         }
 
         Ok(result)

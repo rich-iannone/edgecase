@@ -7938,7 +7938,9 @@ class Graph:
         """
         return self._graph.topological_sort()
 
-    def constraint(self, weights: str | None = None) -> dict[str, float | None]:
+    def constraint(
+        self, weights: str | None = None, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, float | None], "Graph"]:
         """Calculate Burt's constraint for each node.
 
         Burt's constraint measures the extent to which ego's contacts are
@@ -7965,16 +7967,23 @@ class Graph:
         weights : str, optional
             Name of edge attribute to use as weights. If None, uses edge
             weight field. If weights don't exist, treats all edges equally.
+        attr_name : str, optional
+            Name of the node attribute to store constraint values.
+            If None, uses "constraint" as the attribute name.
+        return_dict : bool, default False
+            If True, returns a dictionary mapping node IDs to constraint values.
+            If False, stores values as node attributes and returns the Graph for chaining.
 
         Returns
         -------
-        dict[str, float | None]
-            Dictionary mapping node labels to constraint values. Returns
-            None for isolated nodes (undefined constraint).
+        dict[int, float | None] or Graph
+            If return_dict is True: Dictionary mapping node IDs to constraint values.
+            Returns None for isolated nodes (undefined constraint).
+            If return_dict is False: Returns self for method chaining.
 
         Examples
         --------
-        Identify brokers in a social network:
+        Calculate and store constraint values:
 
         ```python
         # Simple network with a broker (B)
@@ -7988,11 +7997,15 @@ class Graph:
             .add_edge("B", "C")
             .add_edge("B", "D")
             # Note: C and D are not connected
+            .constraint()  # Stores as 'constraint' attribute
         )
 
-        constraints = g.constraint()
-        print(f"B (broker): {constraints['B']:.3f}")  # Low constraint
-        print(f"A (connected): {constraints['A']:.3f}")  # High constraint
+        # Access values by node ID
+        b_id = g.get_id_from_label("B")
+        a_id = g.get_id_from_label("A")
+        constraints = g.constraint(return_dict=True)
+        print(f"B (broker): {constraints[b_id]:.3f}")  # Low constraint
+        print(f"A (connected): {constraints[a_id]:.3f}")  # High constraint
         ```
 
         Analyze structural holes:
@@ -8015,11 +8028,13 @@ class Graph:
         g.add_edge(source="3", target="5")
         # Note: 4 and 5 are not connected
 
-        constraints = g.constraint()
-        if constraints['0'] is not None:
-            print(f"Node 0 (dense): {constraints['0']:.3f}")  # Higher
-        if constraints['3'] is not None:
-            print(f"Node 3 (sparse): {constraints['3']:.3f}")  # Lower
+        constraints = g.constraint(return_dict=True)
+        node_0_id = g.get_id_from_label("0")
+        node_3_id = g.get_id_from_label("3")
+        if constraints[node_0_id] is not None:
+            print(f"Node 0 (dense): {constraints[node_0_id]:.3f}")  # Higher
+        if constraints[node_3_id] is not None:
+            print(f"Node 3 (sparse): {constraints[node_3_id]:.3f}")  # Lower
         ```
 
         Weighted networks:
@@ -8036,7 +8051,7 @@ class Graph:
         )
 
         # Strong tie to B dominates A's network
-        constraints = g.constraint()
+        constraints = g.constraint(return_dict=True)
         print(constraints)
         ```
 
@@ -8072,10 +8087,28 @@ class Graph:
 
         See Also
         --------
-        local_clustering_coefficient : Alternative measure of ego network density
-        transitivity : Global clustering coefficient
+        clustering_coefficient : Alternative measure of ego network density
+        get_graph_transitivity : Global clustering coefficient
         """
-        return self._graph.constraint(weights)
+        if attr_name is None:
+            attr_name = "constraint"
+
+        constraint_values = self._graph.constraint(weights)
+
+        if return_dict:
+            return constraint_values
+
+        # Store as node attributes
+        for node_id, value in constraint_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        params = {}
+        if weights is not None:
+            params["weights"] = weights
+        self._computations.append(("constraint", params, attr_name))
+
+        return self
 
     def number_of_walks(self, walk_length: int) -> dict[str, dict[str, int]]:
         """Count walks of a specific length between all pairs of nodes.
