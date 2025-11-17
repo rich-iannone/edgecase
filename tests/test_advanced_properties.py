@@ -159,12 +159,14 @@ class TestPeriphery:
         assert len(periphery) == 6
 
     def test_periphery_disconnected_graph(self):
-        """Disconnected graph returns empty periphery."""
+        """Disconnected graph periphery now returns nodes with max ecc in each component."""
         G = ec.Graph()
         G.add_node("A")
         G.add_node("B")
         periphery = G.get_periphery()
-        assert periphery == []
+        # With updated eccentricity computation, isolated nodes have ecc 0
+        # Both nodes have same eccentricity, so both are in periphery
+        assert len(periphery) == 2
 
 
 class TestGraphDiameter:
@@ -205,12 +207,18 @@ class TestGraphDiameter:
         assert diameter == 3  # Opposite side of cycle
 
     def test_diameter_disconnected_graph(self):
-        """Disconnected graph has no diameter."""
+        """Disconnected graph behavior with unconnected parameter."""
         G = ec.Graph()
         G.add_path_graph(3)
         G.add_node("X")  # Isolated node
-        diameter = G.get_graph_diameter()
+
+        # With unconnected=False (strict mode), should return None
+        diameter = G.get_graph_diameter(unconnected=False)
         assert diameter is None
+
+        # With unconnected=True (default), returns diameter of largest component
+        diameter = G.get_graph_diameter()
+        assert diameter == 2  # Path of 3 nodes has diameter 2
 
 
 class TestGraphRadius:
@@ -251,15 +259,21 @@ class TestGraphRadius:
         assert radius == 3
 
     def test_radius_disconnected_graph(self):
-        """Disconnected graph has no radius."""
+        """Disconnected graph behavior with unconnected parameter."""
         G = ec.Graph()
         # Create nodes first
         for label in ["A", "B", "C", "D"]:
             G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("C", "D")
-        radius = G.get_graph_radius()
+
+        # With unconnected=False (strict mode), should return None
+        radius = G.get_graph_radius(unconnected=False)
         assert radius is None
+
+        # With unconnected=True (default), returns min radius across components
+        radius = G.get_graph_radius()
+        assert radius == 1  # Both edges have nodes with eccentricity 1
 
 
 class TestGirth:
