@@ -561,7 +561,7 @@ def karate_club() -> Graph:
         print(f"Node {label}: {score:.3f}")
 
     # Check k-core decomposition
-    coreness = G.get_coreness()
+    coreness = G.coreness(return_dict=True)
     max_core = max(coreness.values())
     print(f"Maximum k-core: {max_core}")
 
