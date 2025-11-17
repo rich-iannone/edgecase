@@ -3184,23 +3184,35 @@ class Graph:
         """
         return self._graph.get_girth()
 
-    def get_eccentricity(self) -> dict[int, int | None]:
-        """Get eccentricity for each node in the graph.
+    def eccentricity(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, int | None], "Graph"]:
+        """Calculate eccentricity for each node in the graph.
 
         Eccentricity of a node is the maximum distance from that node to any
         other reachable node in the graph. It measures how far a node is from
         the most distant node it can reach. Returns None for nodes in disconnected
         graphs where some nodes are unreachable.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name of the node attribute to store eccentricity values.
+            If None, uses "eccentricity" as the attribute name.
+        return_dict : bool, default False
+            If True, returns a dictionary mapping node IDs to eccentricity values.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
         Returns
         -------
-        dict[int, int | None]
-            Dictionary mapping node IDs to eccentricity values. Values are None
-            for nodes in disconnected components.
+        dict[int, int | None] or Graph
+            If return_dict is True: Dictionary mapping node IDs to eccentricity values.
+            Values are None for nodes in disconnected components.
+            If return_dict is False: Returns self for method chaining.
 
         Examples
         --------
-        Calculate eccentricities in a path graph:
+        Calculate and store eccentricities:
 
         ```python
         graph = (
@@ -3214,9 +3226,8 @@ class Graph:
             .add_edge("B", "C")
             .add_edge("C", "D")
             .add_edge("D", "E")
+            .eccentricity()  # Stores as 'eccentricity' attribute
         )
-
-        ecc = graph.get_eccentricity()
         # End nodes have max eccentricity (4)
         # Middle node C has min eccentricity (2)
         ```
@@ -3227,10 +3238,27 @@ class Graph:
         get_graph_radius : Get minimum eccentricity
         get_periphery : Get nodes with maximum eccentricity
         """
-        return self._graph.get_eccentricity()
+        if attr_name is None:
+            attr_name = "eccentricity"
 
-    def get_radiality(self) -> dict[int, float | None]:
-        """Get radiality centrality for each node in the graph.
+        eccentricity_values = self._graph.get_eccentricity()
+
+        if return_dict:
+            return eccentricity_values
+
+        # Store as node attributes
+        for node_id, value in eccentricity_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("eccentricity", {}, attr_name))
+
+        return self
+
+    def radiality(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, float | None], "Graph"]:
+        """Calculate radiality centrality for each node in the graph.
 
         Radiality measures how central a node is based on its eccentricity
         relative to the graph diameter. The formula is:
@@ -3241,15 +3269,25 @@ class Graph:
         central position in the network. Returns None for nodes in disconnected
         graphs.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name of the node attribute to store radiality values.
+            If None, uses "radiality" as the attribute name.
+        return_dict : bool, default False
+            If True, returns a dictionary mapping node IDs to radiality scores.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
         Returns
         -------
-        dict[int, float | None]
-            Dictionary mapping node IDs to radiality scores (0.0 to 1.0).
+        dict[int, float | None] or Graph
+            If return_dict is True: Dictionary mapping node IDs to radiality scores (0.0 to 1.0).
             Values are None for nodes in disconnected components.
+            If return_dict is False: Returns self for method chaining.
 
         Examples
         --------
-        Calculate radiality in a star graph:
+        Calculate and store radiality:
 
         ```python
         graph = (
@@ -3261,20 +3299,34 @@ class Graph:
             .add_edge("hub", "A")
             .add_edge("hub", "B")
             .add_edge("hub", "C")
+            .radiality()  # Stores as 'radiality' attribute
         )
-
-        rad = graph.get_radiality()
         # Hub has highest radiality (most central)
         # Leaves have lower radiality (peripheral)
         ```
 
         See Also
         --------
-        get_eccentricity : Get eccentricity values
+        eccentricity : Get eccentricity values
         get_graph_diameter : Get graph diameter
-        get_closeness_vitality : Alternative centrality measure
+        closeness_centrality : Alternative centrality measure
         """
-        return self._graph.get_radiality()
+        if attr_name is None:
+            attr_name = "radiality"
+
+        radiality_values = self._graph.get_radiality()
+
+        if return_dict:
+            return radiality_values
+
+        # Store as node attributes
+        for node_id, value in radiality_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("radiality", {}, attr_name))
+
+        return self
 
     def bellman_ford_shortest_path(
         self, source: Union[int, str], target: Union[int, str]
@@ -8904,14 +8956,16 @@ class Graph:
         """
         return self._graph.local_clustering_coefficient()
 
-    def get_clustering_coefficient(self) -> dict[int, float]:
-        """Get local clustering coefficient for each node.
+    def clustering_coefficient(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
+        """Calculate local clustering coefficient for each node.
 
         The clustering coefficient measures the degree to which a node's neighbors
         are connected to each other. For a node v:
 
         C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
-             = (2 × triangles through v) / (get_degree(v) × (get_degree(v) - 1))
+             = (2 × triangles through v) / (degree(v) × (degree(v) - 1))
 
         Returns 0.0 for nodes with degree < 2 (cannot form triangles).
 
@@ -8919,14 +8973,24 @@ class Graph:
         - 0 = neighbors are not connected at all
         - 1 = neighbors form a complete graph (clique)
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name of the node attribute to store clustering coefficient values.
+            If None, uses "clustering_coefficient" as the attribute name.
+        return_dict : bool, default False
+            If True, returns a dictionary mapping node IDs to clustering coefficients.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
         Returns
         -------
-        dict[int, float]
-            Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
+        dict[int, float] or Graph
+            If return_dict is True: Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
+            If return_dict is False: Returns self for method chaining.
 
         Examples
         --------
-        Calculate clustering in a triangle:
+        Calculate and store clustering coefficients:
 
         ```python
         graph = (
@@ -8937,13 +9001,9 @@ class Graph:
             .add_edge("A", "B")
             .add_edge("B", "C")
             .add_edge("C", "A")
+            .clustering_coefficient()  # Stores as 'clustering_coefficient' attribute
         )
-
-        clustering = graph.get_clustering_coefficient()
         # All nodes have clustering coefficient 1.0 (complete triangle)
-        for node_id, coeff in clustering.items():
-            label = graph.get_label_from_id(node_id)
-            print(f"{label} (ID {node_id}): {coeff}")
         ```
 
         Calculate clustering in a star graph:
@@ -8960,12 +9020,9 @@ class Graph:
             .add_edge("center", "C")
         )
 
-        clustering = graph.get_clustering_coefficient()
+        clustering = graph.clustering_coefficient(return_dict=True)
         center_id = graph.get_id_from_label("center")
         print(f"Center clustering: {clustering[center_id]}")  # 0.0 (no edges between spokes)
-
-        # Convert to labels if needed
-        label_clustering = {graph.get_label_from_id(nid): coeff for nid, coeff in clustering.items()}
         ```
 
         Notes
@@ -8977,9 +9034,24 @@ class Graph:
         See Also
         --------
         get_avg_clustering_coefficient : Get graph-level average
-        get_coreness : K-core decomposition
+        coreness : K-core decomposition
         """
-        return self._graph.get_clustering_coefficient()
+        if attr_name is None:
+            attr_name = "clustering_coefficient"
+
+        clustering_values = self._graph.get_clustering_coefficient()
+
+        if return_dict:
+            return clustering_values
+
+        # Store as node attributes
+        for node_id, value in clustering_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("clustering_coefficient", {}, attr_name))
+
+        return self
 
     def get_avg_clustering_coefficient(self) -> float:
         """Get average clustering coefficient for the graph.
@@ -9836,8 +9908,10 @@ class Graph:
 
         return self
 
-    def get_coreness(self) -> dict[int, int]:
-        """Get k-core decomposition (coreness for each node).
+    def coreness(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
+        """Calculate k-core decomposition (coreness for each node).
 
         The k-core is the maximal subgraph where every node has degree >= k.
         A node's coreness is the highest k-value for which it belongs to the k-core.
@@ -9847,14 +9921,24 @@ class Graph:
         Higher coreness indicates nodes in denser, more cohesive parts of the graph.
         The k-core decomposition is useful for finding the "nucleus" of a network.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name of the node attribute to store coreness values.
+            If None, uses "coreness" as the attribute name.
+        return_dict : bool, default False
+            If True, returns a dictionary mapping node IDs to coreness values.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
         Returns
         -------
-        dict[str, int]
-            Dictionary mapping node IDs to coreness values (non-negative integers).
+        dict[int, int] or Graph
+            If return_dict is True: Dictionary mapping node IDs to coreness values (non-negative integers).
+            If return_dict is False: Returns self for method chaining.
 
         Examples
         --------
-        Calculate coreness in a complete graph:
+        Calculate and store coreness:
 
         ```python
         graph = (
@@ -9869,9 +9953,8 @@ class Graph:
             .add_edge("B", "C")
             .add_edge("B", "D")
             .add_edge("C", "D")
+            .coreness()  # Stores as 'coreness' attribute
         )
-
-        coreness = graph.get_coreness()
         # All nodes in K4 have coreness 3
         ```
 
@@ -9879,8 +9962,24 @@ class Graph:
         --------
         degree : Get node degree
         density : Get overall graph density
+        clustering_coefficient : Local clustering measure
         """
-        return self._graph.get_coreness()
+        if attr_name is None:
+            attr_name = "coreness"
+
+        coreness_values = self._graph.get_coreness()
+
+        if return_dict:
+            return coreness_values
+
+        # Store as node attributes
+        for node_id, value in coreness_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("coreness", {}, attr_name))
+
+        return self
 
     def betweenness_centrality(
         self, attr_name: str = None, return_dict: bool = True
