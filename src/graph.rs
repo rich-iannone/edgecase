@@ -2114,6 +2114,34 @@ impl Graph {
             return None;
         }
 
+        // Fast path 1: Check for self-loops (girth = 1)
+        // This is O(E) but typically very fast due to early termination
+        for edge in &self.edges {
+            if !self.deleted_edge_ids.contains(&edge.id) && edge.source == edge.target {
+                return Some(1);
+            }
+        }
+
+        // Fast path 2: Check for multi-edges (girth = 2)
+        // In undirected graphs, parallel edges create a 2-cycle
+        if !self.directed {
+            let mut seen_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
+            for edge in &self.edges {
+                if self.deleted_edge_ids.contains(&edge.id) {
+                    continue;
+                }
+                // Normalize pair (smaller, larger) for undirected comparison
+                let pair = if edge.source < edge.target {
+                    (edge.source, edge.target)
+                } else {
+                    (edge.target, edge.source)
+                };
+                if !seen_pairs.insert(pair) {
+                    return Some(2); // Found duplicate edge = 2-cycle
+                }
+            }
+        }
+
         let mut min_cycle: Option<usize> = None;
         let mut visited_global = FxHashSet::default();
 
