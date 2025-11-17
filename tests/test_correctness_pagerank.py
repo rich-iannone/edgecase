@@ -1,10 +1,3 @@
-"""
-Correctness validation for PageRank algorithm.
-
-Compares EdgeCase implementation against NetworkX and igraph across diverse graph types
-to ensure numerical accuracy within tight tolerances.
-"""
-
 import warnings
 
 import networkx as nx
