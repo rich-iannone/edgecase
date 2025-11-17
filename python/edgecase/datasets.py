@@ -549,12 +549,12 @@ def karate_club() -> Graph:
     # Mr. Hi's faction: 1
 
     # Analyze community structure
-    communities = G.get_cmty_louvain()
+    communities = G.cmty_louvain(return_dict=True)
     num_communities = len(set(communities.values()))
     print(f"Communities detected: {num_communities}")
 
     # Find most central members
-    betweenness = G.betweenness_centrality()
+    betweenness = G.betweenness_centrality(return_dict=True)
     top_nodes = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:3]
     for node_id, score in top_nodes:
         label = G.get_label_from_id(node_id)

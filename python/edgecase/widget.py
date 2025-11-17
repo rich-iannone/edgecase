@@ -137,7 +137,7 @@ class GraphWidget:
     G.add_edge(source='4', target='5')
     G.add_edge(source='3', target='5')
 
-    G.get_cmty_louvain(attr_name="community")
+    G.cmty_louvain(attr_name="community")
     widget = GraphWidget(G)
     # widget.show()
     ```
@@ -926,7 +926,7 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     G.add_edge(source='4', target='5')
     G.add_edge(source='3', target='5')
 
-    G.get_cmty_louvain(attr_name="community")
+    G.cmty_louvain(attr_name="community")
     widget = graph_widget(G)
     # widget.show()
     ```
