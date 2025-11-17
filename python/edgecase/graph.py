@@ -8909,10 +8909,10 @@ class Graph:
             .add_edge(source="D", target="E")  # Clique 2
         )
 
-        (graph
-            .get_cmty_fast_greedy(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="Set1")
-            .show())
+        # (graph
+        #     .get_cmty_fast_greedy(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="Set1")
+        #     .show())
         ```
 
         Notes
@@ -9017,10 +9017,10 @@ class Graph:
             .add_edge(source="F", target="D")  # Triangle 2
         )
 
-        (graph
-            .get_cmty_edge_btwns(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
-            .show())
+        # (graph
+        #     .get_cmty_edge_btwns(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
+        #     .show())
         ```
 
         Notes
@@ -9132,10 +9132,10 @@ class Graph:
             .add_edge(source="F", target="D")
         )
 
-        (graph
-            .get_cmty_l_eigenvec(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="Spectral")
-            .show())
+        # (graph
+        #     .get_cmty_l_eigenvec(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="Spectral")
+        #     .show())
         ```
 
         Notes
@@ -9267,10 +9267,10 @@ class Graph:
             .add_edge(source="F", target="D")
         )
 
-        (graph
-            .get_cmty_louvain(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="viridis")
-            .show())
+        # (graph
+        #     .get_cmty_louvain(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="viridis")
+        #     .show())
         ```
 
         Notes
@@ -9409,10 +9409,10 @@ class Graph:
             .add_edge(source="F", target="D")
         )
 
-        (graph
-            .get_cmty_walktrap(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="tab10")
-            .show())
+        # (graph
+        #     .get_cmty_walktrap(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="tab10")
+        #     .show())
         ```
 
         Notes
@@ -9726,10 +9726,10 @@ class Graph:
             .add_edge(source="Paper1", target="Paper3")
         )
 
-        (graph
-            .get_authority_centrality(attr_name="authority")
-            .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
-            .show())
+        # (graph
+        #     .get_authority_centrality(attr_name="authority")
+        #     .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
+        #     .show())
         ```
 
         See Also
@@ -9814,10 +9814,10 @@ class Graph:
             .add_edge(source="Paper1", target="Paper3")
         )
 
-        (graph
-            .get_hub_centrality(attr_name="hub")
-            .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
-            .show())
+        # (graph
+        #     .get_hub_centrality(attr_name="hub")
+        #     .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
+        #     .show())
         ```
 
         See Also
@@ -9902,10 +9902,10 @@ class Graph:
             .add_edge(source="hub", target="C")
         )
 
-        (graph
-            .get_eigen_centrality(attr_name="centrality")
-            .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", to_lower_bound=0.5, to_upper_bound=2.0)
-            .show())
+        # (graph
+        #     .get_eigen_centrality(attr_name="centrality")
+        #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", to_lower_bound=0.5, to_upper_bound=2.0)
+        #     .show())
         ```
 
         See Also
@@ -9992,10 +9992,10 @@ class Graph:
             .add_edge(source="hub", target="C")
         )
 
-        (graph
-            .get_alpha_centrality(attr_name="alpha_cent")
-            .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
-            .show())
+        # (graph
+        #     .get_alpha_centrality(attr_name="alpha_cent")
+        #     .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
+        #     .show())
         ```
 
         See Also
@@ -10372,10 +10372,10 @@ class Graph:
             .add_edge(source="hub", target="C")
         )
 
-        (graph
-            .get_leverage_centrality(attr_name="leverage")
-            .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
-            .show())
+        # (graph
+        #     .get_leverage_centrality(attr_name="leverage")
+        #     .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
+        #     .show())
         ```
 
         See Also
