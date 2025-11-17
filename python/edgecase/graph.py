@@ -209,10 +209,10 @@ class Graph:
         self._graph = rust.Graph(directed=directed, weighted=weighted)
         self._graph_name = graph_name
         self._nodes_df_provided = nodes_df is not None
-        
+
         # Track computations and aesthetics for describe()
         self._computations = []  # List of (method_name, params, attr_name) tuples
-        self._aesthetics = []    # List of (attr_name, source_attr, operation) tuples
+        self._aesthetics = []  # List of (attr_name, source_attr, operation) tuples
 
         # Initialize from DataFrames if provided
         id_to_label_map = {}
@@ -1824,7 +1824,7 @@ class Graph:
                 node_label if isinstance(node_label, int) else self.get_id_from_label(node_label)
             )
             self._graph.set_node_attr(node_id, node_attr_to, color)
-        
+
         # Track aesthetic
         source = node_attr_from if node_attr_from else "values"
         palette_name = palette if isinstance(palette, str) else "custom"
@@ -1837,8 +1837,7 @@ class Graph:
         node_attr_from: str = None,
         values: dict[str, int | float] = None,
         node_attr_to: str = "size",
-        to_lower_bound: float = 0.5,
-        to_upper_bound: float = 1.0,
+        range: list[float] = None,
         nodes: Optional[list[str]] = None,
     ) -> "Graph":
         """Rescale node attribute values to a range.
@@ -1856,10 +1855,8 @@ class Graph:
             If None, reads from node_attr_from attribute
         node_attr_to : str, default "size"
             Attribute name to write rescaled values to
-        to_lower_bound : float, default 0.5
-            Minimum value in output range
-        to_upper_bound : float, default 1.0
-            Maximum value in output range
+        range : list[float], default [0.5, 1.0]
+            Output range as [min, max]. Values will be rescaled to this range.
         nodes : list, optional
             Subset of nodes to rescale (default: all nodes)
 
@@ -1887,8 +1884,7 @@ class Graph:
         G.rescale_node_attrs(
             values=betweenness,
             node_attr_to="size",
-            to_lower_bound=5,
-            to_upper_bound=20
+            range=[5, 20]
         )
         ```
 
@@ -1908,11 +1904,19 @@ class Graph:
         G.rescale_node_attrs(
             values=degrees,
             node_attr_to="width",
-            to_lower_bound=1,
-            to_upper_bound=10
+            range=[1, 10]
         )
         ```
         """
+        # Default range
+        if range is None:
+            range = [0.5, 1.0]
+
+        if len(range) != 2:
+            raise ValueError("range must be a list of two values [min, max]")
+
+        to_lower_bound, to_upper_bound = range[0], range[1]
+
         if nodes is None:
             nodes = self.node_ids(limit=None)
 
@@ -1943,10 +1947,12 @@ class Graph:
                 node_label if isinstance(node_label, int) else self.get_id_from_label(node_label)
             )
             self._graph.set_node_attr(node_id, node_attr_to, rescaled)
-        
+
         # Track aesthetic
         source = node_attr_from if node_attr_from else "values"
-        self._aesthetics.append((node_attr_to, source, "rescale", {"range": [to_lower_bound, to_upper_bound]}))
+        self._aesthetics.append(
+            (node_attr_to, source, "rescale", {"range": [to_lower_bound, to_upper_bound]})
+        )
 
         return self
 
@@ -2357,7 +2363,7 @@ class Graph:
 
         # Store in node DataFrame
         self.set_node_attrs(attr_name, degrees)
-        
+
         # Track computation
         if not return_dict:
             self._computations.append(("degrees", {}, attr_name))
@@ -3677,7 +3683,7 @@ class Graph:
 
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
-        
+
         # Track computation
         if not return_dict:
             params = {}
@@ -9518,7 +9524,7 @@ class Graph:
 
         # Store in node DataFrame
         self.set_node_attrs(attr_name, communities)
-        
+
         # Track computation
         if not return_dict:
             params = {"resolution": resolution} if resolution != 1.0 else {}
@@ -9888,7 +9894,7 @@ class Graph:
 
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
-        
+
         # Track computation
         if not return_dict:
             self._computations.append(("betweenness_centrality", {}, attr_name))
@@ -10170,7 +10176,7 @@ class Graph:
 
         # Store in node DataFrame
         self.set_node_attrs(attr_name, centrality)
-        
+
         # Track computation
         if not return_dict:
             params = {}
@@ -15480,7 +15486,7 @@ class Graph:
             print(f"{key:<{max_key_len}} : {val}")
 
         # Print computations section if any
-        if hasattr(self, '_computations') and self._computations:
+        if hasattr(self, "_computations") and self._computations:
             print()
             print("Computations on nodes:")
             for method_name, params, attr_name in self._computations:
@@ -15504,7 +15510,7 @@ class Graph:
                 print(f"  - {method_name}{param_str} -> attr: '{attr_name}' ({coverage})")
 
         # Print aesthetics section if any
-        if hasattr(self, '_aesthetics') and self._aesthetics:
+        if hasattr(self, "_aesthetics") and self._aesthetics:
             print()
             print("Node aesthetics:")
             for item in self._aesthetics:
@@ -15514,17 +15520,17 @@ class Graph:
                     params = {}
                 else:
                     attr_name, source_attr, operation, params = item
-                
+
                 # Format operation with parameters
                 if operation == "rescale" and "range" in params:
                     range_vals = params["range"]
                     op_str = f"rescale (range: [{range_vals[0]}, {range_vals[1]}])"
                 elif operation == "colorize" and "palette" in params:
                     palette = params["palette"]
-                    op_str = f"colorize (palette: \"{palette}\")"
+                    op_str = f'colorize (palette: "{palette}")'
                 else:
                     op_str = operation
-                
+
                 # Get summary stats for the aesthetic attribute
                 try:
                     ndf = self.get_node_df()
@@ -15541,7 +15547,7 @@ class Graph:
                         elif unique_vals.len() <= 5:
                             # Show first 3 + "and N more" for small sets
                             vals = sorted([str(v) for v in unique_vals.to_list()])
-                            shown = ', '.join(vals[:3])
+                            shown = ", ".join(vals[:3])
                             remaining = len(vals) - 3
                             val_str = f"values: {shown} and {remaining} more"
                         else:
@@ -15931,23 +15937,23 @@ class Graph:
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the graph.
-        
+
         Uses the describe() method to show comprehensive graph information
         including structure, computations, and aesthetics.
         """
         import io
         import sys
-        
+
         # Capture describe() output
         old_stdout = sys.stdout
         sys.stdout = captured_output = io.StringIO()
-        
+
         try:
             self.describe()
             result = captured_output.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         return result.rstrip()  # Remove trailing newline
 
 
