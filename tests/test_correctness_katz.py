@@ -1,9 +1,3 @@
-"""
-Correctness tests for Katz centrality algorithm.
-
-Compares EdgeCase implementation against NetworkX and igraph.
-"""
-
 import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
