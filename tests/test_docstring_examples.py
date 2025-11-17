@@ -119,7 +119,7 @@ def execute_code_example(code: str, context: str) -> Tuple[bool, str]:
         exec("import edgecase", namespace)
         exec("import edgecase as ec", namespace)  # Common alias
 
-        # Mock plot_graph to prevent browser windows from opening during tests
+        # Mock plot_graph and webbrowser to prevent browser windows from opening during tests
         exec(
             """
 # Patch the plot_graph function to disable browser opening
@@ -131,6 +131,16 @@ def _mock_plot_graph(*args, open_browser=True, **kwargs):
     return _original_plot_graph(*args, open_browser=False, **kwargs)
 
 edgecase.viz.plot_graph = _mock_plot_graph
+
+# Also mock webbrowser.open to catch any direct calls
+import webbrowser
+_original_webbrowser_open = webbrowser.open
+
+def _mock_webbrowser_open(url, new=0, autoraise=True):
+    # Silently ignore browser open requests during tests
+    pass
+
+webbrowser.open = _mock_webbrowser_open
 """,
             namespace,
         )
