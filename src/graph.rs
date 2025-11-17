@@ -2067,6 +2067,7 @@ impl Graph {
     /// Get girth (length of shortest cycle)
     /// Returns None if graph is acyclic
     /// Uses BFS from each node to find shortest cycle through that node
+    #[inline]
     fn get_girth(&self) -> Option<usize> {
         let n = self.num_nodes();
         if n == 0 {
@@ -2115,6 +2116,82 @@ impl Graph {
         }
 
         min_cycle
+    }
+
+    /// Breadth-first search (BFS) traversal from a start node
+    /// Returns list of node IDs in BFS order
+    ///
+    /// # Arguments
+    /// * `start` - Starting node ID
+    ///
+    /// # Returns
+    /// Vector of node IDs visited in BFS order
+    #[inline]
+    fn bfs(&self, start: u64) -> PyResult<Vec<u64>> {
+        if !self.nodes.contains_key(&start) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Node {} not found in graph", start)
+            ));
+        }
+
+        let mut visited = FxHashSet::default();
+        let mut queue = std::collections::VecDeque::new();
+        let mut result = Vec::new();
+
+        visited.insert(start);
+        queue.push_back(start);
+        result.push(start);
+
+        while let Some(current) = queue.pop_front() {
+            if let Some(neighbors) = self.adjacency_list.get(&current) {
+                for &neighbor in neighbors {
+                    if visited.insert(neighbor) {
+                        queue.push_back(neighbor);
+                        result.push(neighbor);
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Depth-first search (DFS) traversal from a start node
+    /// Returns list of node IDs in DFS order
+    ///
+    /// # Arguments
+    /// * `start` - Starting node ID
+    ///
+    /// # Returns
+    /// Vector of node IDs visited in DFS order
+    #[inline]
+    fn dfs(&self, start: u64) -> PyResult<Vec<u64>> {
+        if !self.nodes.contains_key(&start) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Node {} not found in graph", start)
+            ));
+        }
+
+        let mut visited = FxHashSet::default();
+        let mut stack = vec![start];
+        let mut result = Vec::new();
+
+        while let Some(current) = stack.pop() {
+            if visited.insert(current) {
+                result.push(current);
+
+                if let Some(neighbors) = self.adjacency_list.get(&current) {
+                    // Push neighbors in reverse order to maintain left-to-right traversal
+                    for &neighbor in neighbors.iter().rev() {
+                        if !visited.contains(&neighbor) {
+                            stack.push(neighbor);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(result)
     }
 
     /// Get adhesion (minimum edge cut size)

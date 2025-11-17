@@ -3277,6 +3277,8 @@ class Graph:
 
         See Also
         --------
+        bfs : Breadth-first search traversal
+        dfs : Depth-first search traversal
         bellman_ford_shortest_path : Shortest paths with negative weights
         get_graph_diameter : Get longest shortest path in the graph
         get_mean_distance : Get average shortest path length
@@ -3286,6 +3288,102 @@ class Graph:
         target_id = self._resolve_node_id(target, auto_create=False)
         path_ids = rust.shortest_path(self._graph, source_id, target_id)
         return path_ids
+
+    def bfs(self, start: Union[int, str]) -> list[int]:
+        """Perform breadth-first search (BFS) traversal from a start node.
+
+        BFS explores the graph layer by layer, visiting all neighbors of a
+        node before moving to their neighbors. Returns nodes in the order
+        they are visited.
+
+        Parameters
+        ----------
+        start : int | str
+            Starting node (integer ID or string label).
+
+        Returns
+        -------
+        list[int]
+            List of node IDs visited in BFS order.
+
+        Examples
+        --------
+        BFS traversal from root of a tree:
+
+        ```python
+        graph = Graph()
+        graph.add_tree_graph(levels=3, children_per_node=2)
+
+        visited = graph.bfs(start=1)
+        print(visited)  # [1, 2, 3, 4, 5, 6, 7] (level by level)
+        ```
+
+        BFS on a grid starts from corner:
+
+        ```python
+        graph = Graph()
+        graph.add_grid_2d(rows=3, cols=3)
+
+        # Start from top-left corner
+        visited = graph.bfs(start=1)
+        # Visits neighbors layer by layer from start
+        ```
+
+        See Also
+        --------
+        dfs : Depth-first search traversal
+        shortest_path : Find shortest path between two nodes
+        connected_component : Get all nodes in same component
+        """
+        start_id = self._resolve_node_id(start, auto_create=False)
+        return self._graph.bfs(start_id)
+
+    def dfs(self, start: Union[int, str]) -> list[int]:
+        """Perform depth-first search (DFS) traversal from a start node.
+
+        DFS explores as far as possible along each branch before backtracking.
+        Returns nodes in the order they are visited.
+
+        Parameters
+        ----------
+        start : int | str
+            Starting node (integer ID or string label).
+
+        Returns
+        -------
+        list[int]
+            List of node IDs visited in DFS order.
+
+        Examples
+        --------
+        DFS traversal from root of a tree:
+
+        ```python
+        graph = Graph()
+        graph.add_tree_graph(levels=3, children_per_node=2)
+
+        visited = graph.dfs(start=1)
+        print(visited)  # [1, 2, 4, 5, 3, 6, 7] (depth-first)
+        ```
+
+        DFS on a graph to explore connected component:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        visited = graph.dfs(start=1)
+        print(visited)  # [1, 2, 3, 4, 5]
+        ```
+
+        See Also
+        --------
+        bfs : Breadth-first search traversal
+        has_cycles : Check for cycles using DFS
+        connected_component : Get all nodes in same component
+        """
+        start_id = self._resolve_node_id(start, auto_create=False)
+        return self._graph.dfs(start_id)
 
     def pagerank(
         self, damping: float = 0.85, max_iter: int = 100, tol: float = 1e-6
