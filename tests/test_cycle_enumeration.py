@@ -1,5 +1,3 @@
-"""Tests for Johnson's cycle enumeration algorithm."""
-
 import pytest
 import edgecase as ec
 
