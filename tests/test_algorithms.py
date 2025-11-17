@@ -12,7 +12,7 @@ def test_pagerank_single_node() -> None:
     graph = Graph(directed=True)
     graph.add_node(Node(1, "A"))
 
-    ranks = graph.pagerank()
+    ranks = graph.pagerank(return_dict=True)
     assert len(ranks) == 1
     assert abs(ranks[1] - 1.0) < 1e-6
 
@@ -26,7 +26,7 @@ def test_pagerank_simple_chain() -> None:
     graph.add_edge(Edge(0, 1, 2, None, None))
     graph.add_edge(Edge(0, 2, 3, None, None))
 
-    ranks = graph.pagerank()
+    ranks = graph.pagerank(return_dict=True)
     assert len(ranks) == 3
 
 
@@ -36,7 +36,7 @@ def test_pagerank_simple_chain() -> None:
 def test_betweenness_empty_graph() -> None:
     """Test betweenness centrality on empty graph."""
     graph = Graph(directed=False)
-    centrality = graph.betweenness_centrality()
+    centrality = graph.betweenness_centrality(return_dict=True)
     assert len(centrality) == 0
 
 
@@ -52,7 +52,7 @@ def test_betweenness_star_graph() -> None:
         graph.add_node(Node(node_id, node_label))
         graph.add_edge(Edge(0, 1, node_id, None, None))
 
-    centrality = graph.betweenness_centrality()
+    centrality = graph.betweenness_centrality(return_dict=True)
     # Center (node ID 1) should have highest centrality
     assert 1 in centrality
 
@@ -112,7 +112,7 @@ def test_pagerank_damping_factor_property(n_nodes: int, damping: float) -> None:
     for i in range(n_nodes):
         graph.add_node(Node(i + 1, f"Node{i}"))
 
-    ranks = graph.pagerank(damping=damping)
+    ranks = graph.pagerank(damping=damping, return_dict=True)
 
     # Sum of ranks should be approximately 1.0
     total_rank = sum(ranks.values())

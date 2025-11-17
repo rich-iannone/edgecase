@@ -105,7 +105,7 @@ def nx_to_igraph(nx_graph, directed=False):
 def compare_pagerank_networkx(ec_graph, nx_graph, directed=False):
     """Compare PageRank between EdgeCase and NetworkX."""
     # Run PageRank
-    ec_pr = ec_graph.pagerank(damping=0.85, max_iter=100, tol=1e-6)
+    ec_pr = ec_graph.pagerank(damping=0.85, max_iter=100, tol=1e-6, return_dict=True)
     nx_pr = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, tol=1e-6)
 
     # Build label->node_id mapping for EdgeCase
@@ -160,7 +160,7 @@ def compare_pagerank_igraph(ec_graph, nx_graph, directed=False):
     ig_graph, node_list = nx_to_igraph(nx_graph, directed)
 
     # Run PageRank
-    ec_pr = ec_graph.pagerank(damping=0.85, max_iter=100, tol=1e-6)
+    ec_pr = ec_graph.pagerank(damping=0.85, max_iter=100, tol=1e-6, return_dict=True)
     ig_pr = ig_graph.pagerank(damping=0.85)
 
     # Build label->node_id mapping for EdgeCase

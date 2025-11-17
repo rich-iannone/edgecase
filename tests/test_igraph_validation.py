@@ -523,7 +523,7 @@ class TestPageRank:
         ig_graph = to_igraph(G)
 
         # EdgeCase PageRank (uses damping parameter) - returns dict[int, float]
-        ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6)
+        ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6, return_dict=True)
 
         # igraph PageRank (uses damping parameter) - returns list indexed by vertex
         ig_pr_values = ig_graph.pagerank(damping=0.85)
@@ -548,7 +548,7 @@ class TestPageRank:
         ig_graph = to_igraph(G)
 
         # EdgeCase PageRank - returns dict[int, float]
-        ec_pr = G.pagerank(damping=0.85)
+        ec_pr = G.pagerank(damping=0.85, return_dict=True)
 
         # igraph PageRank
         ig_pr_values = ig_graph.pagerank(damping=0.85)
@@ -588,7 +588,7 @@ class TestBetweennessCentrality:
         ig_graph = to_igraph(G)
 
         # EdgeCase betweenness - returns dict[int, float]
-        ec_between = G.betweenness_centrality()
+        ec_between = G.betweenness_centrality(return_dict=True)
 
         # igraph betweenness
         ig_between_values = ig_graph.betweenness(directed=False, normalized=True)
@@ -624,7 +624,7 @@ class TestBetweennessCentrality:
         ig_graph = to_igraph(G)
 
         # EdgeCase betweenness - returns dict[int, float]
-        ec_between = G.betweenness_centrality()
+        ec_between = G.betweenness_centrality(return_dict=True)
 
         # igraph betweenness
         ig_between_values = ig_graph.betweenness(directed=False, normalized=True)

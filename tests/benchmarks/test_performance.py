@@ -78,7 +78,7 @@ def test_add_10000_edges(benchmark):
 
 def test_pagerank_1k_nodes(benchmark, benchmark_graph_small):
     """Benchmark PageRank on 1K node graph"""
-    result = benchmark(benchmark_graph_small.pagerank)
+    result = benchmark(lambda: benchmark_graph_small.pagerank(return_dict=True))
     assert len(result) == 1000
 
 
@@ -136,7 +136,7 @@ def test_pagerank_scaling(benchmark, size):
         tgt = f"n{random.randint(0, size - 1)}"
         G.add_edge(src, tgt)
 
-    result = benchmark(G.pagerank)
+    result = benchmark(lambda: G.pagerank(return_dict=True))
     assert len(result) == size
 
 

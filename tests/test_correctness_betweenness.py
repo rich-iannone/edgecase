@@ -78,7 +78,7 @@ def create_test_graphs():
 def compare_betweenness_networkx(ec_graph, nx_graph, directed=False):
     """Compare Betweenness Centrality between EdgeCase and NetworkX."""
     # Run Betweenness Centrality
-    ec_btw = ec_graph.betweenness_centrality()
+    ec_btw = ec_graph.betweenness_centrality(return_dict=True)
     nx_btw = nx.betweenness_centrality(nx_graph, normalized=True)
 
     # Align results
@@ -95,7 +95,7 @@ def compare_betweenness_igraph(ec_graph, nx_graph, directed=False):
     ig_graph, node_list = nx_to_igraph(nx_graph, directed)
 
     # Run Betweenness Centrality
-    ec_btw = ec_graph.betweenness_centrality()
+    ec_btw = ec_graph.betweenness_centrality(return_dict=True)
     ig_btw_raw = ig_graph.betweenness(directed=directed)
 
     # igraph returns unnormalized betweenness, need to normalize

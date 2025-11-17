@@ -117,7 +117,7 @@ class TestPageRankValidation:
         G.add_edge("C", "A")
 
         # EdgeCase PageRank (uses damping, max_iter, tol) - returns dict[int, float]
-        ec_ranks = G.pagerank(damping=0.85, max_iter=100, tol=1e-6)
+        ec_ranks = G.pagerank(damping=0.85, max_iter=100, tol=1e-6, return_dict=True)
 
         # NetworkX PageRank (uses alpha, max_iter, tol) - returns dict[str, float]
         nx_graph = to_networkx(G)
@@ -138,7 +138,7 @@ class TestPageRankValidation:
             pytest.skip("PageRank requires directed graphs")
 
         # EdgeCase PageRank (uses damping, max_iter, tol) - returns dict[int, float]
-        ec_ranks = graph.pagerank(damping=0.85, max_iter=100, tol=1e-6)
+        ec_ranks = graph.pagerank(damping=0.85, max_iter=100, tol=1e-6, return_dict=True)
 
         # NetworkX PageRank - returns dict[str, float]
         nx_graph = to_networkx(graph)
@@ -167,7 +167,7 @@ class TestPageRankValidation:
         G.add_edge("C", "D")
         G.add_edge("D", "A")
 
-        ec_ranks = G.pagerank()
+        ec_ranks = G.pagerank(return_dict=True)
         nx_graph = to_networkx(G)
         nx_ranks = nx.pagerank(nx_graph)
 
@@ -620,7 +620,7 @@ class TestBetweennessCentralityValidation:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        ec_bc = G.betweenness_centrality()
+        ec_bc = G.betweenness_centrality(return_dict=True)
 
         nx_graph = to_networkx(G)
         nx_bc = nx.betweenness_centrality(nx_graph)
@@ -646,7 +646,7 @@ class TestBetweennessCentralityValidation:
         G.add_edge("center", "C")
         G.add_edge("center", "D")
 
-        ec_bc = G.betweenness_centrality()
+        ec_bc = G.betweenness_centrality(return_dict=True)
 
         nx_graph = to_networkx(G)
         nx_bc = nx.betweenness_centrality(nx_graph)
@@ -676,7 +676,7 @@ class TestBetweennessCentralityValidation:
             for v in nodes[i + 1 :]:
                 G.add_edge(u, v)
 
-        ec_bc = G.betweenness_centrality()
+        ec_bc = G.betweenness_centrality(return_dict=True)
 
         nx_graph = to_networkx(G)
         nx_bc = nx.betweenness_centrality(nx_graph)
@@ -725,7 +725,7 @@ class TestComplexAlgorithmsValidation:
         G.add_edge("A", "D")
         # D is a dangling node (no outgoing edges)
 
-        ec_ranks = G.pagerank(damping=0.85, max_iter=100)
+        ec_ranks = G.pagerank(damping=0.85, max_iter=100, return_dict=True)
 
         nx_graph = to_networkx(G)
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=100)
@@ -782,7 +782,7 @@ class TestComplexAlgorithmsValidation:
         G.add_edge("C", "D")
         G.add_edge("D", "A")
 
-        ec_ranks = G.pagerank(damping=0.85, max_iter=200)
+        ec_ranks = G.pagerank(damping=0.85, max_iter=200, return_dict=True)
 
         nx_graph = to_networkx(G)
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=200)
@@ -1480,7 +1480,7 @@ class TestWeightedMetrics:
         if hasattr(G, "betweenness_centrality"):
             # EdgeCase betweenness_centrality doesn't support weighted parameter yet
             # So we compare unweighted versions
-            ec_bc = G.betweenness_centrality()
+            ec_bc = G.betweenness_centrality(return_dict=True)
             nx_bc = nx.betweenness_centrality(nx_graph)  # Unweighted
 
             for node_id in G.node_ids(limit=None):
@@ -1505,7 +1505,7 @@ class TestWeightedMetrics:
 
         nx_graph = to_networkx(G)
 
-        ec_pr = G.pagerank(damping=0.85, max_iter=100)
+        ec_pr = G.pagerank(damping=0.85, max_iter=100, return_dict=True)
         nx_pr = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, weight="weight")
 
         # EdgeCase returns node IDs, NetworkX returns labels
@@ -1614,7 +1614,7 @@ class TestNumericalStability:
 
         nx_graph = to_networkx(G)
 
-        ec_pr = G.pagerank(damping=0.85)
+        ec_pr = G.pagerank(damping=0.85, return_dict=True)
         nx_pr = nx.pagerank(nx_graph, alpha=0.85, weight="weight")
 
         # Should still sum to 1.0
@@ -1638,7 +1638,7 @@ class TestNumericalStability:
 
         nx_graph = to_networkx(G)
 
-        ec_pr = G.pagerank(damping=0.85)
+        ec_pr = G.pagerank(damping=0.85, return_dict=True)
         nx_pr = nx.pagerank(nx_graph, alpha=0.85, weight="weight")
 
         # Should still sum to 1.0
@@ -1686,7 +1686,7 @@ class TestNumericalStability:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "betweenness_centrality"):
-            ec_bc = G.betweenness_centrality()
+            ec_bc = G.betweenness_centrality(return_dict=True)
             nx_bc = nx.betweenness_centrality(nx_graph)
 
             # Check a few nodes (EdgeCase returns node IDs, NetworkX returns labels)
@@ -1852,7 +1852,7 @@ class TestPerformanceBaseline:
                 G.add_edge(f"n{i}", f"n{j}")
 
         # Should converge in < 100 iterations
-        ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6)
+        ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6, return_dict=True)
 
         # Should sum to 1.0
         assert abs(sum(ec_pr.values()) - 1.0) < 1e-4

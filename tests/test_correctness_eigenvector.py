@@ -112,7 +112,7 @@ def compare_eigenvector_networkx(ec_graph, nx_graph):
         pytest.skip("Graph is not connected")
 
     # Run Eigenvector Centrality
-    ec_eigen = ec_graph.get_eigen_centrality(max_iter=1000, tol=1e-6)
+    ec_eigen = ec_graph.eigen_centrality(max_iter=1000, tol=1e-6, return_dict=True)
     nx_eigen = nx.eigenvector_centrality(nx_graph, max_iter=1000, tol=1e-6)
 
     # Build label->node_id mapping for EdgeCase
@@ -179,7 +179,7 @@ def compare_eigenvector_igraph(ec_graph, nx_graph):
     ig_graph, node_list = nx_to_igraph(nx_graph, directed=False)
 
     # Run Eigenvector Centrality
-    ec_eigen = ec_graph.get_eigen_centrality(max_iter=1000, tol=1e-6)
+    ec_eigen = ec_graph.eigen_centrality(max_iter=1000, tol=1e-6, return_dict=True)
     ig_eigen = ig_graph.eigenvector_centrality()
 
     # Build label->node_id mapping for EdgeCase

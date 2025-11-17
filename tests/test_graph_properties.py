@@ -130,7 +130,7 @@ def test_undirected_neighbors_symmetric(G):
 def test_pagerank_sum_to_one(G):
     """PageRank scores should sum to 1.0"""
     if G.num_nodes() > 0:
-        ranks = G.pagerank()
+        ranks = G.pagerank(return_dict=True)
 
         if ranks:  # If PageRank succeeded
             total = sum(ranks.values())
@@ -142,7 +142,7 @@ def test_pagerank_sum_to_one(G):
 def test_pagerank_all_positive(G):
     """All PageRank scores should be positive"""
     if G.num_nodes() > 0:
-        ranks = G.pagerank()
+        ranks = G.pagerank(return_dict=True)
 
         if ranks:
             for score in ranks.values():
@@ -154,7 +154,7 @@ def test_pagerank_all_positive(G):
 def test_pagerank_covers_all_nodes(G):
     """PageRank should return scores for all nodes"""
     if G.num_nodes() > 0:
-        ranks = G.pagerank()
+        ranks = G.pagerank(return_dict=True)
 
         if ranks:
             assert len(ranks) == G.num_nodes()
