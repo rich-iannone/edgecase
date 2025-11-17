@@ -2285,7 +2285,7 @@ class Graph:
             return len(neighbors)
 
     def degrees(
-        self, attr_name: str = None, return_dict: bool = True
+        self, attr_name: str = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """Get degree for all nodes in the graph.
 
