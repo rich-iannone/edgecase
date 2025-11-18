@@ -919,12 +919,12 @@ class Graph:
         See Also
         --------
         has_edge_id : Check if edge ID exists
-        edges : Get all edges
-        edge_ids : Get all edge IDs
+        get_edges_as_tuples : Get all edges
+        get_edge_ids : Get all edge IDs
         """
         return self._graph.get_edge_by_id(edge_id)
 
-    def edges_as_tuples(self) -> list[tuple[int, str, str]]:
+    def get_edges_as_tuples(self) -> list[tuple[int, int, int]]:
         """Return list of edges as (id, source, target) tuples.
 
         Returns all edges in the graph as tuples containing the edge ID and the
@@ -933,7 +933,7 @@ class Graph:
 
         Returns
         -------
-        list[tuple[int, str, str]]
+        list[tuple[int, int, int]]
             List of tuples where each tuple is (edge_id, source_id, target_id).
 
         Examples
@@ -952,14 +952,14 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        for edge_id, source, target in graph.edges_as_tuples():
+        for edge_id, source, target in graph.get_edges_as_tuples():
             print(f"Edge {edge_id}: {source} -> {target}")
         ```
 
         See Also
         --------
         edges_str_repr : Get edges as formatted strings
-        edge_ids : Get list of edge IDs only
+        get_edge_ids : Get list of edge IDs only
         num_edges : Get count of edges
         """
         return self._graph.edges()
@@ -1076,14 +1076,14 @@ class Graph:
 
         See Also
         --------
-        edges : Get edges as (id, source, target) tuples
-        edge_ids : Get list of edge IDs only
+        get_edges_as_tuples : Get edges as (id, source, target) tuples
+        get_edge_ids : Get list of edge IDs only
         num_edges : Get count of edges
         """
         if use_labels:
             # Build edge strings using labels when available
             separator = "->" if self.is_directed else "--"
-            edge_list = self.edges_as_tuples()
+            edge_list = self.get_edges_as_tuples()
             edge_strs = []
 
             for edge_id, source_id, target_id in edge_list:
@@ -1141,7 +1141,7 @@ class Graph:
         --------
         get_node_ids_by_edge_id : Get edge node IDs by edge ID
         has_edge : Check if edge exists between two nodes
-        edge_ids : Get all edge IDs
+        get_edge_ids : Get all edge IDs
         """
         return self._graph.has_edge_id(edge_id)
 
@@ -1502,7 +1502,7 @@ class Graph:
         --------
         delete_edge : Delete edge by source and target nodes
         has_edge_id : Check if edge ID exists
-        edge_ids : Get all edge IDs
+        get_edge_ids : Get all edge IDs
         """
         self._graph.delete_edge_by_id(edge_id)
         return self
@@ -14325,7 +14325,7 @@ class Graph:
                 has_edge = any(
                     (s == source and t == target)
                     or (not self.directed and s == target and t == source)
-                    for _, s, t in self.edges_as_tuples()
+                    for _, s, t in self.get_edges_as_tuples()
                 )
 
                 if not has_edge:
@@ -14334,7 +14334,7 @@ class Graph:
                 # For directed graphs, add reverse edge
                 if self.directed:
                     has_reverse = any(
-                        s == target and t == source for _, s, t in self.edges_as_tuples()
+                        s == target and t == source for _, s, t in self.get_edges_as_tuples()
                     )
                     if not has_reverse:
                         self.add_edge(target, source, **edge_attributes)
@@ -14420,7 +14420,9 @@ class Graph:
             if edge_tuple:
                 source, target = edge_tuple
                 # Check if reverse edge exists
-                has_reverse = any(s == target and t == source for _, s, t in self.edges_as_tuples())
+                has_reverse = any(
+                    s == target and t == source for _, s, t in self.get_edges_as_tuples()
+                )
                 if not has_reverse:
                     edges_to_add.append((target, source))
 
@@ -16468,7 +16470,7 @@ class Graph:
         print(mst.num_edges())  # 3
 
         # Calculate total weight
-        total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.edges_as_tuples()]
+        total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
                     if e and e.weight is not None)
         print(total)  # 6.0
         ```
@@ -16563,7 +16565,7 @@ class Graph:
         max_st = g.maximum_spanning_tree()
 
         # Calculate total weight
-        total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.edges_as_tuples()]
+        total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.get_edges_as_tuples()]
                     if e and e.weight is not None)
         print(total)  # 5.0 (chooses edges with weights 3.0 and 2.0)
         ```
