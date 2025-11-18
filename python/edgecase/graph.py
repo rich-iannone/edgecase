@@ -1828,7 +1828,144 @@ class Graph:
         count_selfloops : Count self-loops in the graph
         count_multi_edges : Count parallel edges
         """
-        return self._graph.is_graph_simple()
+        return self._graph.is_simple()
+
+    def is_dag(self) -> bool:
+        """Check if directed graph is a DAG (Directed Acyclic Graph).
+
+        A DAG is a directed graph with no cycles - you cannot follow directed edges
+        and return to a starting node. DAGs are fundamental for dependency resolution,
+        scheduling, and topological sorting.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is acyclic, `False` if it contains cycles.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph.
+
+        Examples
+        --------
+        Check if a directed graph is acyclic:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.is_dag())  # True
+
+        # Adding a cycle makes it not a DAG
+        graph.add_edge("C", "A")  # Creates cycle A->B->C->A
+        print(graph.is_dag())  # False
+        ```
+
+        See Also
+        --------
+        has_cycles : Check for cycles in any graph
+        """
+        return self._graph.is_dag()
+
+    def is_connected(self) -> bool:
+        """Check if graph is connected.
+
+        A graph is connected if there is a path between every pair of nodes.
+        For directed graphs, checks weak connectivity (treating edges as undirected).
+
+        Returns
+        -------
+        bool
+            `True` if all nodes are reachable from any node, `False` if the graph
+            has disconnected components.
+
+        Examples
+        --------
+        Check connectivity of a simple path:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.is_connected())  # True
+
+        # Adding isolated nodes breaks connectivity
+        graph.add_node(label="D")  # Isolated node
+        print(graph.is_connected())  # False
+        ```
+
+        See Also
+        --------
+        count_weakly_connected_components : Count connected components
+        count_strongly_connected_components : For directed graphs
+        """
+        return self._graph.is_connected()
+
+    def is_bipartite(self) -> bool:
+        """Check if graph is bipartite (2-colorable).
+
+        A graph is bipartite if its nodes can be divided into two independent sets
+        such that every edge connects nodes from different sets. Equivalently, the
+        graph can be colored with 2 colors such that no adjacent nodes share a color.
+
+        All trees and forests are bipartite. Graphs with odd-length cycles are not.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is bipartite, `False` otherwise.
+
+        Examples
+        --------
+        A simple path is bipartite:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.is_bipartite())  # True
+        ```
+
+        Triangles are not bipartite (odd cycle):
+
+        ```python
+        triangle = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Creates odd-length cycle
+        )
+
+        print(triangle.is_bipartite())  # False
+        ```
+
+        See Also
+        --------
+        get_graph_girth : Get length of shortest cycle
+        """
+        return self._graph.is_bipartite()
 
     # ========== Cycle Detection Methods ==========
 
@@ -5575,143 +5712,6 @@ class Graph:
         num_edges : Get number of edges
         """
         return self._graph.density()
-
-    def is_connected(self) -> bool:
-        """Check if graph is connected.
-
-        A graph is connected if there is a path between every pair of nodes.
-        For directed graphs, checks weak connectivity (treating edges as undirected).
-
-        Returns
-        -------
-        bool
-            `True` if all nodes are reachable from any node, `False` if the graph
-            has disconnected components.
-
-        Examples
-        --------
-        Check connectivity of a simple path:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        print(graph.is_connected())  # True
-
-        # Adding isolated nodes breaks connectivity
-        graph.add_node(label="D")  # Isolated node
-        print(graph.is_connected())  # False
-        ```
-
-        See Also
-        --------
-        count_weakly_connected_components : Count connected components
-        count_strongly_connected_components : For directed graphs
-        """
-        return self._graph.is_connected()
-
-    def is_dag(self) -> bool:
-        """Check if directed graph is a DAG (Directed Acyclic Graph).
-
-        A DAG is a directed graph with no cycles - you cannot follow directed edges
-        and return to a starting node. DAGs are fundamental for dependency resolution,
-        scheduling, and topological sorting.
-
-        Returns
-        -------
-        bool
-            `True` if the graph is acyclic, `False` if it contains cycles.
-
-        Raises
-        ------
-        ValueError
-            If called on an undirected graph.
-
-        Examples
-        --------
-        Check if a directed graph is acyclic:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        print(graph.is_dag())  # True
-
-        # Adding a cycle makes it not a DAG
-        graph.add_edge("C", "A")  # Creates cycle A->B->C->A
-        print(graph.is_dag())  # False
-        ```
-
-        See Also
-        --------
-        has_cycles : Check for cycles in any graph
-        """
-        return self._graph.is_dag()
-
-    def is_bipartite(self) -> bool:
-        """Check if graph is bipartite (2-colorable).
-
-        A graph is bipartite if its nodes can be divided into two independent sets
-        such that every edge connects nodes from different sets. Equivalently, the
-        graph can be colored with 2 colors such that no adjacent nodes share a color.
-
-        All trees and forests are bipartite. Graphs with odd-length cycles are not.
-
-        Returns
-        -------
-        bool
-            `True` if the graph is bipartite, `False` otherwise.
-
-        Examples
-        --------
-        A simple path is bipartite:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        print(graph.is_bipartite())  # True
-        ```
-
-        Triangles are not bipartite (odd cycle):
-
-        ```python
-        triangle = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Creates odd-length cycle
-        )
-
-        print(triangle.is_bipartite())  # False
-        ```
-
-        See Also
-        --------
-        get_graph_girth : Get length of shortest cycle
-        """
-        return self._graph.is_bipartite()
 
     # --- Triangle & Transitivity Analysis ---
 
