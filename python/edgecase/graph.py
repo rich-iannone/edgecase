@@ -8898,7 +8898,9 @@ class Graph:
 
     # ========== Clustering Methods ==========
 
-    def local_clustering_coefficient(self) -> dict[int, Optional[float]]:
+    def local_clustering_coefficient(
+        self, attr_name: str = None, return_dict: bool = False
+    ) -> Union[dict[int, Optional[float]], "Graph"]:
         """Compute local clustering coefficient for each node.
 
         The local clustering coefficient measures how close a node's neighbors are
@@ -8915,11 +8917,21 @@ class Graph:
 
         Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
 
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name of the node attribute to store clustering coefficient values.
+            If None, uses "local_clustering_coefficient" as the attribute name.
+        return_dict : bool, default False
+            If True, returns a dictionary mapping node IDs to clustering coefficients.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
         Returns
         -------
-        dict[int, Optional[float]]
-            Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0),
+        Union[dict[int, Optional[float]], Graph]
+            If return_dict is True: Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0),
             or None for nodes with degree < 2.
+            If return_dict is False: Returns self for method chaining.
 
         Examples
         --------
@@ -8942,7 +8954,7 @@ class Graph:
             .add_edge(source="A", target="E")  # A has additional neighbors
         )
 
-        clustering = graph.local_clustering_coefficient()
+        clustering = graph.local_clustering_coefficient(return_dict=True)
         node_a_id = graph.get_id_from_label(label="A")
         node_b_id = graph.get_id_from_label(label="B")
         node_d_id = graph.get_id_from_label(label="D")
@@ -8956,6 +8968,27 @@ class Graph:
         clustering_by_label = {graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()}
         if clustering_by_label['A'] is not None:
             print(f"Node A: {clustering_by_label['A']:.3f}")
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .local_clustering_coefficient()  # Stores as 'local_clustering_coefficient' attribute
+        )
+
+        # Access stored values
+        node = graph.get_node(graph.get_id_from_label("A"))
+        print(f"Node A clustering: {node.attributes['local_clustering_coefficient']}")
         ```
 
         Find highly clustered nodes (hubs):
@@ -8973,7 +9006,7 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        clustering = graph.local_clustering_coefficient()
+        clustering = graph.local_clustering_coefficient(return_dict=True)
         hubs = {
             node_id: coeff
             for node_id, coeff in clustering.items()
@@ -8984,10 +9017,26 @@ class Graph:
 
         See Also
         --------
+        clustering_coefficient : Alternative method that converts None to 0.0
         transitivity : Global clustering coefficient
         count_triangles : Triangle counts used in calculation
         """
-        return self._graph.local_clustering_coefficient()
+        if attr_name is None:
+            attr_name = "local_clustering_coefficient"
+
+        clustering_values = self._graph.local_clustering_coefficient()
+
+        if return_dict:
+            return clustering_values
+
+        # Store as node attributes
+        for node_id, value in clustering_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("local_clustering_coefficient", {}, attr_name))
+
+        return self
 
     def clustering_coefficient(
         self, attr_name: str = None, return_dict: bool = False
