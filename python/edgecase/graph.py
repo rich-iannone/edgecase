@@ -1325,49 +1325,6 @@ class Graph:
             edge_strs = self._graph.get_edges()
             return edge_strs if limit is None else edge_strs[:limit]
 
-    def has_edge_id(self, edge_id: int) -> bool:
-        """Check if an edge with given ID exists.
-
-        Verifies whether a specific edge ID is present in the graph. Useful for
-        validating edge IDs before performing operations.
-
-        Parameters
-        ----------
-        edge_id : int
-            The edge ID to check.
-
-        Returns
-        -------
-        bool
-            True if an edge with this ID exists, False otherwise.
-
-        Examples
-        --------
-        Check if edge IDs exist:
-
-        ```python
-        import edgecase as ec
-
-        graph = (
-            ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-        )
-
-        edge_id = graph.get_edge_ids()[0]
-        print(graph.has_edge_id(edge_id=edge_id))  # True
-        print(graph.has_edge_id(edge_id=9999))     # False
-        ```
-
-        See Also
-        --------
-        get_node_ids_by_edge_id : Get edge node IDs by edge ID
-        has_edge : Check if edge exists between two nodes
-        get_edge_ids : Get all edge IDs
-        """
-        return self._graph.has_edge_id(edge_id)
-
     def has_node(self, node: Union[int, str]) -> bool:
         """Check if a node exists in the graph.
 
@@ -1411,6 +1368,49 @@ class Graph:
             return self._graph.has_node_id(node_id)
         except (ValueError, TypeError):
             return False
+
+    def has_edge_id(self, edge_id: int) -> bool:
+        """Check if an edge with given ID exists.
+
+        Verifies whether a specific edge ID is present in the graph. Useful for
+        validating edge IDs before performing operations.
+
+        Parameters
+        ----------
+        edge_id : int
+            The edge ID to check.
+
+        Returns
+        -------
+        bool
+            True if an edge with this ID exists, False otherwise.
+
+        Examples
+        --------
+        Check if edge IDs exist:
+
+        ```python
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+        )
+
+        edge_id = graph.get_edge_ids()[0]
+        print(graph.has_edge_id(edge_id=edge_id))  # True
+        print(graph.has_edge_id(edge_id=9999))     # False
+        ```
+
+        See Also
+        --------
+        get_node_ids_by_edge_id : Get edge node IDs by edge ID
+        has_edge : Check if edge exists between two nodes
+        get_edge_ids : Get all edge IDs
+        """
+        return self._graph.has_edge_id(edge_id)
 
     def has_edge(self, source: Union[int, str], target: Union[int, str]) -> bool:
         """Check if an edge exists between two nodes.
@@ -1507,6 +1507,276 @@ class Graph:
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
         return self._graph.find_edge_ids(source_id, target_id)
+
+    def count_nodes(self) -> int:
+        """Count the total number of nodes in the graph.
+
+        Returns the current number of nodes (vertices) in the graph. This count
+        includes all nodes that have been added and not deleted.
+
+        Returns
+        -------
+        int
+            The total number of nodes in the graph.
+
+        Examples
+        --------
+        Count nodes in a simple graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+        )
+        print(graph.count_nodes())  # 3
+        ```
+
+        Track nodes after deletion:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .delete_node("B")
+        )
+        print(graph.count_nodes())  # 2
+        ```
+
+        See Also
+        --------
+        count_edges : Count total number of edges
+        get_node_ids : Get list of all node IDs
+        has_node : Check if specific node exists
+        """
+        return self._graph.num_nodes()
+
+    def count_edges(self) -> int:
+        """Count the total number of edges in the graph.
+
+        Returns the current number of edges (links/connections) in the graph.
+        For undirected graphs, each edge is counted once. For directed graphs,
+        each directed edge is counted separately (A→B is different from B→A).
+
+        Returns
+        -------
+        int
+            The total number of edges in the graph.
+
+        Examples
+        --------
+        Count edges in a simple graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+        )
+        print(graph.count_edges())  # 2
+        ```
+
+        Directed vs undirected edge counting:
+
+        ```python
+        # Directed graph
+        directed = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="A")
+        )
+        print(directed.count_edges())  # 2 (A→B and B→A are separate)
+
+        # Undirected graph
+        undirected = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+        )
+        print(undirected.count_edges())  # 1
+        ```
+
+        Track edges after deletion:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .delete_edge(source="A", target="B")
+        )
+        print(graph.count_edges())  # 1
+        ```
+
+        See Also
+        --------
+        count_nodes : Count total number of nodes
+        get_edge_ids : Get list of all edge IDs
+        has_edge : Check if specific edge exists
+        """
+        return self._graph.num_edges()
+
+    def get_graph_name(self) -> Optional[str]:
+        """Get the name of the graph.
+
+        Returns the human-readable name assigned to this graph, if any. The name
+        is an optional identifier that can be set when creating the graph or
+        updated later. It's useful for distinguishing between multiple graphs
+        in analysis or visualization contexts.
+
+        Returns
+        -------
+        str | None
+            The graph's name if set, or None if no name was assigned.
+
+        Examples
+        --------
+        Get graph name:
+
+        ```python
+        graph = Graph(graph_name="Social Network")
+        print(graph.get_graph_name())  # "Social Network"
+        ```
+
+        Handle graphs without names:
+
+        ```python
+        graph = Graph()
+        name = graph.get_graph_name()
+        print(name)  # None
+
+        if name:
+            print(f"Analyzing {name}")
+        else:
+            print("Analyzing unnamed graph")
+        ```
+
+        See Also
+        --------
+        count_nodes : Count total number of nodes
+        count_edges : Count total number of edges
+        is_directed : Check if graph is directed
+        """
+        return self._graph_name
+
+    def is_directed(self) -> bool:
+        """Check if the graph is directed.
+
+        Returns whether this graph treats edges as directed (with distinct source
+        and target) or undirected (bidirectional connections). This property is
+        set when the graph is created and cannot be changed afterward.
+
+        In directed graphs:
+        - Edge A→B is different from B→A
+        - Each direction must be explicitly added
+        - Useful for modeling asymmetric relationships (follows, citations, etc.)
+
+        In undirected graphs:
+        - Edge A--B is the same as B--A
+        - Adding A--B automatically adds B--A
+        - Useful for modeling symmetric relationships (friendship, proximity, etc.)
+
+        Returns
+        -------
+        bool
+            True if the graph is directed, False if undirected.
+
+        Examples
+        --------
+        Check graph directionality:
+
+        ```python
+        directed_graph = Graph(directed=True)
+        print(directed_graph.is_directed())  # True
+
+        undirected_graph = Graph(directed=False)
+        print(undirected_graph.is_directed())  # False
+        ```
+
+        Use directionality to customize behavior:
+
+        ```python
+        graph = Graph(directed=True).add_node(label="A").add_node(label="B")
+
+        if graph.is_directed():
+            # Add both directions for bidirectional relationship
+            graph.add_edge(source="A", target="B")
+            graph.add_edge(source="B", target="A")
+        else:
+            # Single edge suffices for undirected
+            graph.add_edge(source="A", target="B")
+        ```
+
+        See Also
+        --------
+        is_weighted : Check if graph is weighted
+        """
+        return self._graph.is_directed
+
+    def is_weighted(self) -> bool:
+        """Check if the graph is weighted.
+
+        Returns whether this graph supports edge weights. This property is set
+        when the graph is created and cannot be changed afterward. Weighted graphs
+        can store numeric weights on edges, which are used in algorithms like
+        shortest path, minimum spanning tree, etc.
+
+        In weighted graphs:
+        - Each edge can have an associated numeric weight
+        - Weights represent costs, distances, capacities, etc.
+        - Algorithms consider weights when computing paths and metrics
+
+        In unweighted graphs:
+        - All edges are treated equally (implicit weight of 1)
+        - Weights are ignored or unavailable
+        - Algorithms use hop count instead of weight sum
+
+        Returns
+        -------
+        bool
+            True if the graph supports weights, False otherwise.
+
+        Examples
+        --------
+        Check if graph is weighted:
+
+        ```python
+        weighted_graph = Graph(weighted=True)
+        print(weighted_graph.is_weighted())  # True
+
+        unweighted_graph = Graph()
+        print(unweighted_graph.is_weighted())  # False
+        ```
+
+        Add weighted edges only if supported:
+
+        ```python
+        graph = Graph(weighted=True).add_node(label="A").add_node(label="B")
+
+        if graph.is_weighted():
+            graph.add_edge(source="A", target="B", weight=2.5)
+        else:
+            graph.add_edge(source="A", target="B")
+        ```
+
+        See Also
+        --------
+        is_directed : Check if graph is directed
+        add_edge : Add edge with optional weight
+        """
+        return self._graph.is_weighted
 
     def is_graph_simple(self) -> bool:
         """Check if the graph is simple (no self-loops or multi-edges).
@@ -2183,276 +2453,6 @@ class Graph:
             self._ada_star_planner = (planner, planner_key)
 
         return planner.compute_or_improve_path(epsilon)
-
-    def count_nodes(self) -> int:
-        """Count the total number of nodes in the graph.
-
-        Returns the current number of nodes (vertices) in the graph. This count
-        includes all nodes that have been added and not deleted.
-
-        Returns
-        -------
-        int
-            The total number of nodes in the graph.
-
-        Examples
-        --------
-        Count nodes in a simple graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-        )
-        print(graph.count_nodes())  # 3
-        ```
-
-        Track nodes after deletion:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .delete_node("B")
-        )
-        print(graph.count_nodes())  # 2
-        ```
-
-        See Also
-        --------
-        count_edges : Count total number of edges
-        get_node_ids : Get list of all node IDs
-        has_node : Check if specific node exists
-        """
-        return self._graph.num_nodes()
-
-    def count_edges(self) -> int:
-        """Count the total number of edges in the graph.
-
-        Returns the current number of edges (links/connections) in the graph.
-        For undirected graphs, each edge is counted once. For directed graphs,
-        each directed edge is counted separately (A→B is different from B→A).
-
-        Returns
-        -------
-        int
-            The total number of edges in the graph.
-
-        Examples
-        --------
-        Count edges in a simple graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-        )
-        print(graph.count_edges())  # 2
-        ```
-
-        Directed vs undirected edge counting:
-
-        ```python
-        # Directed graph
-        directed = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="A")
-        )
-        print(directed.count_edges())  # 2 (A→B and B→A are separate)
-
-        # Undirected graph
-        undirected = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-        )
-        print(undirected.count_edges())  # 1
-        ```
-
-        Track edges after deletion:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .delete_edge(source="A", target="B")
-        )
-        print(graph.count_edges())  # 1
-        ```
-
-        See Also
-        --------
-        count_nodes : Count total number of nodes
-        get_edge_ids : Get list of all edge IDs
-        has_edge : Check if specific edge exists
-        """
-        return self._graph.num_edges()
-
-    def is_directed(self) -> bool:
-        """Check if the graph is directed.
-
-        Returns whether this graph treats edges as directed (with distinct source
-        and target) or undirected (bidirectional connections). This property is
-        set when the graph is created and cannot be changed afterward.
-
-        In directed graphs:
-        - Edge A→B is different from B→A
-        - Each direction must be explicitly added
-        - Useful for modeling asymmetric relationships (follows, citations, etc.)
-
-        In undirected graphs:
-        - Edge A--B is the same as B--A
-        - Adding A--B automatically adds B--A
-        - Useful for modeling symmetric relationships (friendship, proximity, etc.)
-
-        Returns
-        -------
-        bool
-            True if the graph is directed, False if undirected.
-
-        Examples
-        --------
-        Check graph directionality:
-
-        ```python
-        directed_graph = Graph(directed=True)
-        print(directed_graph.is_directed())  # True
-
-        undirected_graph = Graph(directed=False)
-        print(undirected_graph.is_directed())  # False
-        ```
-
-        Use directionality to customize behavior:
-
-        ```python
-        graph = Graph(directed=True).add_node(label="A").add_node(label="B")
-
-        if graph.is_directed():
-            # Add both directions for bidirectional relationship
-            graph.add_edge(source="A", target="B")
-            graph.add_edge(source="B", target="A")
-        else:
-            # Single edge suffices for undirected
-            graph.add_edge(source="A", target="B")
-        ```
-
-        See Also
-        --------
-        is_weighted : Check if graph is weighted
-        """
-        return self._graph.is_directed
-
-    def is_weighted(self) -> bool:
-        """Check if the graph is weighted.
-
-        Returns whether this graph supports edge weights. This property is set
-        when the graph is created and cannot be changed afterward. Weighted graphs
-        can store numeric weights on edges, which are used in algorithms like
-        shortest path, minimum spanning tree, etc.
-
-        In weighted graphs:
-        - Each edge can have an associated numeric weight
-        - Weights represent costs, distances, capacities, etc.
-        - Algorithms consider weights when computing paths and metrics
-
-        In unweighted graphs:
-        - All edges are treated equally (implicit weight of 1)
-        - Weights are ignored or unavailable
-        - Algorithms use hop count instead of weight sum
-
-        Returns
-        -------
-        bool
-            True if the graph supports weights, False otherwise.
-
-        Examples
-        --------
-        Check if graph is weighted:
-
-        ```python
-        weighted_graph = Graph(weighted=True)
-        print(weighted_graph.is_weighted())  # True
-
-        unweighted_graph = Graph()
-        print(unweighted_graph.is_weighted())  # False
-        ```
-
-        Add weighted edges only if supported:
-
-        ```python
-        graph = Graph(weighted=True).add_node(label="A").add_node(label="B")
-
-        if graph.is_weighted():
-            graph.add_edge(source="A", target="B", weight=2.5)
-        else:
-            graph.add_edge(source="A", target="B")
-        ```
-
-        See Also
-        --------
-        is_directed : Check if graph is directed
-        add_edge : Add edge with optional weight
-        """
-        return self._graph.is_weighted
-
-    def get_graph_name(self) -> Optional[str]:
-        """Get the name of the graph.
-
-        Returns the human-readable name assigned to this graph, if any. The name
-        is an optional identifier that can be set when creating the graph or
-        updated later. It's useful for distinguishing between multiple graphs
-        in analysis or visualization contexts.
-
-        Returns
-        -------
-        str | None
-            The graph's name if set, or None if no name was assigned.
-
-        Examples
-        --------
-        Get graph name:
-
-        ```python
-        graph = Graph(graph_name="Social Network")
-        print(graph.get_graph_name())  # "Social Network"
-        ```
-
-        Handle graphs without names:
-
-        ```python
-        graph = Graph()
-        name = graph.get_graph_name()
-        print(name)  # None
-
-        if name:
-            print(f"Analyzing {name}")
-        else:
-            print("Analyzing unnamed graph")
-        ```
-
-        See Also
-        --------
-        count_nodes : Count total number of nodes
-        count_edges : Count total number of edges
-        is_directed : Check if graph is directed
-        """
-        return self._graph_name
 
     # ========== Degree Methods ==========
 
