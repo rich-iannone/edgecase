@@ -2888,7 +2888,7 @@ class Graph:
         """
         return self._graph.degree_distribution()
 
-    def get_graph_average_degree(self) -> float:
+    def get_average_degree(self) -> float:
         """Calculate average degree across all nodes.
 
         For directed graphs, this returns the average of (in-degree + out-degree).
@@ -2916,7 +2916,7 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_graph_average_degree())  # 2.0 (cycle graph)
+        print(graph.get_average_degree())  # 2.0 (cycle graph)
         ```
 
         See Also
