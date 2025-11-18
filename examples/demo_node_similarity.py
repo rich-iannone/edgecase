@@ -50,7 +50,7 @@ def main():
     print("\nSimilarity scores (higher = more similar):")
 
     for method in ["jaccard", "dice", "cosine", "invlogweighted"]:
-        sim = g.pairwise_similarity(people, method=method)
+        sim = g.get_pairwise_similarity(people, method=method)
         print(f"  {method:15s}: {sim[0][1]:.4f}")
 
     print(
@@ -75,7 +75,7 @@ def main():
     for person1, person2 in pairs_to_compare:
         scores = []
         for method in ["jaccard", "dice", "cosine", "invlogweighted"]:
-            sim = g.pairwise_similarity([person1, person2], method=method)
+            sim = g.get_pairwise_similarity([person1, person2], method=method)
             scores.append(sim[0][1])
 
         print(
@@ -90,7 +90,7 @@ def main():
     all_people = ["Alice", "Bob", "Carol", "David", "Eve", "Frank", "Grace"]
 
     # Compute full similarity matrix
-    sim_matrix = g.pairwise_similarity(all_people, method="jaccard")
+    sim_matrix = g.get_pairwise_similarity(all_people, method="jaccard")
 
     print("\nMost similar person (by Jaccard similarity):")
     for i, person in enumerate(all_people):
@@ -114,7 +114,7 @@ def main():
         for person2 in all_people[i + 1 :]:
             # Check if they're not already friends
             if not g.has_edge(person1, person2):
-                sim = g.pairwise_similarity([person1, person2], method="invlogweighted")
+                sim = g.get_pairwise_similarity([person1, person2], method="invlogweighted")
                 potential_links.append((person1, person2, sim[0][1]))
 
     # Sort by similarity (higher = more likely to form friendship)
@@ -186,7 +186,7 @@ Metric Characteristics:
     # Compare metrics
     print("\nSimilarity between Person1 and Person2:")
     for method in ["jaccard", "dice", "cosine", "invlogweighted"]:
-        sim = g2.pairwise_similarity(["Person1", "Person2"], method=method)
+        sim = g2.get_pairwise_similarity(["Person1", "Person2"], method=method)
         print(f"  {method:15s}: {sim[0][1]:.4f}")
 
     print("\n→ Note: Inverse log-weighted gives lower score due to high-degree hub!")

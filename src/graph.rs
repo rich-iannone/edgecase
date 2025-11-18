@@ -5840,14 +5840,14 @@ impl Graph {
     /// g = Graph(directed=False)
     /// g.add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D")])
     ///
-    /// sim = g.pairwise_similarity(["A", "B"], method="jaccard")
+    /// sim = g.get_pairwise_similarity(["A", "B"], method="jaccard")
     /// # A and B have identical neighborhoods → high similarity
     /// ```
     ///
     /// # References
     /// - Liben-Nowell & Kleinberg (2007). "The link-prediction problem for social networks"
     /// - Adamic & Adar (2003). "Friends and neighbors on the Web"
-    pub fn pairwise_similarity(
+    pub fn get_pairwise_similarity(
         &self,
         py: Python,
         nodes: Vec<PyObject>,

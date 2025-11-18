@@ -16,7 +16,7 @@ class TestSimilarityBasics:
         g.add_edge("B", "C")
         g.add_edge("B", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
         assert sim[1][0] == pytest.approx(1.0)
 
@@ -28,7 +28,7 @@ class TestSimilarityBasics:
         g.add_edge("A", "C")
         g.add_edge("B", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B"], method="jaccard")
         assert sim[0][1] == pytest.approx(0.0)
 
     def test_jaccard_partial_overlap(self):
@@ -45,7 +45,7 @@ class TestSimilarityBasics:
         g.add_edge("B", "C")
         g.add_edge("B", "E")
 
-        sim = g.pairwise_similarity(["A", "B"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0 / 3.0)
 
     def test_dice_identical_neighborhoods(self):
@@ -58,7 +58,7 @@ class TestSimilarityBasics:
         g.add_edge("B", "C")
         g.add_edge("B", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="dice")
+        sim = g.get_pairwise_similarity(["A", "B"], method="dice")
         assert sim[0][1] == pytest.approx(1.0)
 
     def test_dice_no_common_neighbors(self):
@@ -69,7 +69,7 @@ class TestSimilarityBasics:
         g.add_edge("A", "C")
         g.add_edge("B", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="dice")
+        sim = g.get_pairwise_similarity(["A", "B"], method="dice")
         assert sim[0][1] == pytest.approx(0.0)
 
     def test_dice_partial_overlap(self):
@@ -85,7 +85,7 @@ class TestSimilarityBasics:
         g.add_edge("B", "C")
         g.add_edge("B", "E")
 
-        sim = g.pairwise_similarity(["A", "B"], method="dice")
+        sim = g.get_pairwise_similarity(["A", "B"], method="dice")
         assert sim[0][1] == pytest.approx(0.5)
 
     def test_cosine_identical_neighborhoods(self):
@@ -98,7 +98,7 @@ class TestSimilarityBasics:
         g.add_edge("B", "C")
         g.add_edge("B", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="cosine")
+        sim = g.get_pairwise_similarity(["A", "B"], method="cosine")
         assert sim[0][1] == pytest.approx(1.0)
 
     def test_cosine_no_common_neighbors(self):
@@ -109,7 +109,7 @@ class TestSimilarityBasics:
         g.add_edge("A", "C")
         g.add_edge("B", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="cosine")
+        sim = g.get_pairwise_similarity(["A", "B"], method="cosine")
         assert sim[0][1] == pytest.approx(0.0)
 
     def test_cosine_partial_overlap(self):
@@ -125,7 +125,7 @@ class TestSimilarityBasics:
         g.add_edge("B", "C")
         g.add_edge("B", "E")
 
-        sim = g.pairwise_similarity(["A", "B"], method="cosine")
+        sim = g.get_pairwise_similarity(["A", "B"], method="cosine")
         assert sim[0][1] == pytest.approx(0.5)
 
     def test_invlogweighted_identical_neighborhoods(self):
@@ -141,7 +141,7 @@ class TestSimilarityBasics:
         # Each has degree 2
         # Score = 1/log(2) + 1/log(2) = 2/log(2) ≈ 2.885
 
-        sim = g.pairwise_similarity(["A", "B"], method="invlogweighted")
+        sim = g.get_pairwise_similarity(["A", "B"], method="invlogweighted")
         import math
 
         expected = 2.0 / math.log(2)
@@ -155,7 +155,7 @@ class TestSimilarityBasics:
         g.add_edge("A", "C")
         g.add_edge("B", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="invlogweighted")
+        sim = g.get_pairwise_similarity(["A", "B"], method="invlogweighted")
         assert sim[0][1] == pytest.approx(0.0)
 
     def test_invlogweighted_rare_neighbor(self):
@@ -171,7 +171,7 @@ class TestSimilarityBasics:
         g.add_edge("C", "E")
         g.add_edge("C", "F")
 
-        sim = g.pairwise_similarity(["A", "B"], method="invlogweighted")
+        sim = g.get_pairwise_similarity(["A", "B"], method="invlogweighted")
         import math
 
         # C has degree 5
@@ -189,7 +189,7 @@ class TestSimilarityDiagonal:
             g.add_node(node)
         g.add_edge("A", "B")
 
-        sim = g.pairwise_similarity(["A", "B", "C"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B", "C"], method="jaccard")
         assert sim[0][0] == pytest.approx(1.0)
         assert sim[1][1] == pytest.approx(1.0)
         assert sim[2][2] == pytest.approx(1.0)
@@ -201,7 +201,7 @@ class TestSimilarityDiagonal:
             g.add_node(node)
         g.add_edge("A", "B")
 
-        sim = g.pairwise_similarity(["A", "B", "C"], method="dice")
+        sim = g.get_pairwise_similarity(["A", "B", "C"], method="dice")
         assert sim[0][0] == pytest.approx(1.0)
         assert sim[1][1] == pytest.approx(1.0)
         assert sim[2][2] == pytest.approx(1.0)
@@ -213,7 +213,7 @@ class TestSimilarityDiagonal:
             g.add_node(node)
         g.add_edge("A", "B")
 
-        sim = g.pairwise_similarity(["A", "B", "C"], method="cosine")
+        sim = g.get_pairwise_similarity(["A", "B", "C"], method="cosine")
         assert sim[0][0] == pytest.approx(1.0)
         assert sim[1][1] == pytest.approx(1.0)
         assert sim[2][2] == pytest.approx(1.0)
@@ -225,7 +225,7 @@ class TestSimilarityDiagonal:
             g.add_node(node)
         g.add_edge("A", "B")
 
-        sim = g.pairwise_similarity(["A", "B", "C"], method="invlogweighted")
+        sim = g.get_pairwise_similarity(["A", "B", "C"], method="invlogweighted")
         assert sim[0][0] == pytest.approx(1.0)
         assert sim[1][1] == pytest.approx(1.0)
         assert sim[2][2] == pytest.approx(1.0)
@@ -243,7 +243,7 @@ class TestSimilaritySymmetry:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        sim = g.pairwise_similarity(["A", "B", "C", "D"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B", "C", "D"], method="jaccard")
         for i in range(4):
             for j in range(4):
                 assert sim[i][j] == pytest.approx(sim[j][i])
@@ -257,7 +257,7 @@ class TestSimilaritySymmetry:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        sim = g.pairwise_similarity(["A", "B", "C", "D"], method="dice")
+        sim = g.get_pairwise_similarity(["A", "B", "C", "D"], method="dice")
         for i in range(4):
             for j in range(4):
                 assert sim[i][j] == pytest.approx(sim[j][i])
@@ -271,7 +271,7 @@ class TestSimilaritySymmetry:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        sim = g.pairwise_similarity(["A", "B", "C", "D"], method="cosine")
+        sim = g.get_pairwise_similarity(["A", "B", "C", "D"], method="cosine")
         for i in range(4):
             for j in range(4):
                 assert sim[i][j] == pytest.approx(sim[j][i])
@@ -285,7 +285,7 @@ class TestSimilaritySymmetry:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        sim = g.pairwise_similarity(["A", "B", "C", "D"], method="invlogweighted")
+        sim = g.get_pairwise_similarity(["A", "B", "C", "D"], method="invlogweighted")
         for i in range(4):
             for j in range(4):
                 assert sim[i][j] == pytest.approx(sim[j][i])
@@ -303,7 +303,7 @@ class TestSimilarityDirectedGraphs:
         g.add_edge("B", "C")
         g.add_edge("A", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B"], method="jaccard")
         # A neighbors: {C, D}, B neighbors: {C}
         # Intersection: {C}, Union: {C, D}
         # Jaccard = 1/2 = 0.5
@@ -318,7 +318,7 @@ class TestSimilarityDirectedGraphs:
         g.add_edge("B", "C")
         g.add_edge("A", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="dice")
+        sim = g.get_pairwise_similarity(["A", "B"], method="dice")
         # A neighbors: {C, D}, B neighbors: {C}
         # Dice = 2 * 1 / (2 + 1) = 2/3
         assert sim[0][1] == pytest.approx(2.0 / 3.0)
@@ -332,7 +332,7 @@ class TestSimilarityDirectedGraphs:
         g.add_edge("B", "C")
         g.add_edge("A", "D")
 
-        sim = g.pairwise_similarity(["A", "B"], method="cosine")
+        sim = g.get_pairwise_similarity(["A", "B"], method="cosine")
         # A neighbors: {C, D}, B neighbors: {C}
         # Cosine = 1 / sqrt(2 * 1) = 1/sqrt(2) ≈ 0.707
         import math
@@ -349,7 +349,7 @@ class TestSimilarityDirectedGraphs:
         g.add_edge("C", "D")
         g.add_edge("C", "E")
 
-        sim = g.pairwise_similarity(["A", "B"], method="invlogweighted")
+        sim = g.get_pairwise_similarity(["A", "B"], method="invlogweighted")
         # Common neighbor: C (degree 2)
         import math
 
@@ -368,7 +368,7 @@ class TestSimilarityEdgeCases:
         g.add_edge("A", "B")
         # C and D are isolated
 
-        sim = g.pairwise_similarity(["A", "C", "D"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "C", "D"], method="jaccard")
         assert sim[1][0] == pytest.approx(0.0)  # C-A
         assert sim[2][0] == pytest.approx(0.0)  # D-A
         assert sim[1][2] == pytest.approx(0.0)  # C-D
@@ -378,7 +378,7 @@ class TestSimilarityEdgeCases:
         g = Graph()
         g.add_node("A")
 
-        sim = g.pairwise_similarity(["A"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A"], method="jaccard")
         assert len(sim) == 1
         assert len(sim[0]) == 1
         assert sim[0][0] == pytest.approx(1.0)
@@ -390,7 +390,7 @@ class TestSimilarityEdgeCases:
             g.add_node(node)
         g.add_edge("A", "B")
 
-        sim = g.pairwise_similarity([], method="jaccard")
+        sim = g.get_pairwise_similarity([], method="jaccard")
         assert len(sim) == 3
         assert len(sim[0]) == 3
 
@@ -405,7 +405,7 @@ class TestSimilarityEdgeCases:
 
         # A, B, C all have only 'center' as neighbor
         # So they should all have Jaccard = 1.0 with each other
-        sim = g.pairwise_similarity(["A", "B", "C"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B", "C"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
         assert sim[0][2] == pytest.approx(1.0)
         assert sim[1][2] == pytest.approx(1.0)
@@ -424,7 +424,7 @@ class TestSimilarityEdgeCases:
         # All pairs (except diagonal) should have Jaccard = 2/3
         # Each node has 3 neighbors, any two nodes share 2 common neighbors
         # Jaccard = 2 / (3 + 3 - 2) = 2/4 = 0.5
-        sim = g.pairwise_similarity(["A", "B", "C", "D"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B", "C", "D"], method="jaccard")
         for i in range(4):
             for j in range(4):
                 if i != j:
@@ -442,7 +442,7 @@ class TestSimilarityErrors:
         g.add_edge("A", "B")
 
         with pytest.raises(Exception, match="Node.*not found"):
-            g.pairwise_similarity(["A", "X"], method="jaccard")
+            g.get_pairwise_similarity(["A", "X"], method="jaccard")
 
     def test_invalid_method(self):
         """Should raise error for invalid method."""
@@ -452,13 +452,13 @@ class TestSimilarityErrors:
         g.add_edge("A", "B")
 
         with pytest.raises(Exception, match="Unknown similarity method"):
-            g.pairwise_similarity(["A", "B"], method="invalid")
+            g.get_pairwise_similarity(["A", "B"], method="invalid")
 
     def test_empty_graph(self):
         """Empty graph should handle gracefully."""
         g = Graph()
 
-        sim = g.pairwise_similarity([], method="jaccard")
+        sim = g.get_pairwise_similarity([], method="jaccard")
         assert len(sim) == 0
 
 
@@ -477,8 +477,8 @@ class TestSimilarityMetricComparison:
         g.add_edge("B", "C")
         g.add_edge("B", "E")
 
-        sim_jac = g.pairwise_similarity(["A", "B"], method="jaccard")
-        sim_dice = g.pairwise_similarity(["A", "B"], method="dice")
+        sim_jac = g.get_pairwise_similarity(["A", "B"], method="jaccard")
+        sim_dice = g.get_pairwise_similarity(["A", "B"], method="dice")
 
         # Jaccard = 1/3, Dice = 1/2
         assert sim_dice[0][1] > sim_jac[0][1]
@@ -492,7 +492,7 @@ class TestSimilarityMetricComparison:
         g.add_edge("B", "D")
 
         for method in ["jaccard", "dice", "cosine", "invlogweighted"]:
-            sim = g.pairwise_similarity(["A", "B"], method=method)
+            sim = g.get_pairwise_similarity(["A", "B"], method=method)
             assert sim[0][1] == pytest.approx(0.0)
 
     def test_all_metrics_high_for_identical(self):
@@ -506,11 +506,11 @@ class TestSimilarityMetricComparison:
         g.add_edge("B", "D")
 
         for method in ["jaccard", "dice", "cosine"]:
-            sim = g.pairwise_similarity(["A", "B"], method=method)
+            sim = g.get_pairwise_similarity(["A", "B"], method=method)
             assert sim[0][1] == pytest.approx(1.0)
 
         # Inverse log-weighted will be high but not necessarily 1.0
-        sim_inv = g.pairwise_similarity(["A", "B"], method="invlogweighted")
+        sim_inv = g.get_pairwise_similarity(["A", "B"], method="invlogweighted")
         assert sim_inv[0][1] > 2.0  # Should be 2/log(2) ≈ 2.885
 
 
@@ -529,7 +529,7 @@ class TestSimilarityRealWorldScenarios:
         # Each node has 2 neighbors
         # Any two nodes share 1 common neighbor
         # Jaccard = 1 / (2 + 2 - 1) = 1/3
-        sim = g.pairwise_similarity(["A", "B", "C"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B", "C"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0 / 3.0)
         assert sim[0][2] == pytest.approx(1.0 / 3.0)
         assert sim[1][2] == pytest.approx(1.0 / 3.0)
@@ -546,11 +546,11 @@ class TestSimilarityRealWorldScenarios:
         # A and C share B as common neighbor
         # A neighbors: {B}, C neighbors: {B, D}
         # Jaccard = 1 / 2 = 0.5
-        sim = g.pairwise_similarity(["A", "C"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "C"], method="jaccard")
         assert sim[0][1] == pytest.approx(0.5)
 
         # A and D have no common neighbors
-        sim = g.pairwise_similarity(["A", "D"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "D"], method="jaccard")
         assert sim[0][1] == pytest.approx(0.0)
 
     def test_bipartite_graph(self):
@@ -566,11 +566,11 @@ class TestSimilarityRealWorldScenarios:
         g.add_edge("B", "Y")
 
         # A and B have identical neighborhoods {X, Y}
-        sim = g.pairwise_similarity(["A", "B"], method="jaccard")
+        sim = g.get_pairwise_similarity(["A", "B"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
 
         # X and Y have identical neighborhoods {A, B}
-        sim = g.pairwise_similarity(["X", "Y"], method="jaccard")
+        sim = g.get_pairwise_similarity(["X", "Y"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
 
 
@@ -591,7 +591,7 @@ class TestSimilarityNodeIDSupport:
         g.add_edge("B", "D")
 
         # Using node IDs (1 and 2 for A and B)
-        sim = g.pairwise_similarity([1, 2], method="jaccard")
+        sim = g.get_pairwise_similarity([1, 2], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
         assert sim[1][0] == pytest.approx(1.0)
 
@@ -608,7 +608,7 @@ class TestSimilarityNodeIDSupport:
         g.add_edge("B", "D")
 
         # Mix node ID (1) and label ("B")
-        sim = g.pairwise_similarity([1, "B"], method="jaccard")
+        sim = g.get_pairwise_similarity([1, "B"], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
 
     def test_node_ids_without_labels(self):
@@ -626,7 +626,7 @@ class TestSimilarityNodeIDSupport:
         g.add_edge(2, 4)
 
         # Nodes 1 and 2 have identical neighborhoods
-        sim = g.pairwise_similarity([1, 2], method="jaccard")
+        sim = g.get_pairwise_similarity([1, 2], method="jaccard")
         assert sim[0][1] == pytest.approx(1.0)
 
     def test_invalid_node_id(self):
@@ -636,7 +636,7 @@ class TestSimilarityNodeIDSupport:
         g.add_node(label="B")
 
         with pytest.raises(ValueError, match="Node with ID 999 not found"):
-            g.pairwise_similarity([1, 999], method="jaccard")
+            g.get_pairwise_similarity([1, 999], method="jaccard")
 
     def test_all_similarity_methods_with_ids(self):
         """Test that all similarity methods work with node IDs."""
@@ -649,6 +649,6 @@ class TestSimilarityNodeIDSupport:
 
         for method in ["jaccard", "dice", "cosine", "invlogweighted"]:
             # Should not raise any errors
-            sim = g.pairwise_similarity([1, 2], method=method)
+            sim = g.get_pairwise_similarity([1, 2], method=method)
             assert len(sim) == 2
             assert len(sim[0]) == 2
