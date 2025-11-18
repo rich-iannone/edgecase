@@ -638,6 +638,227 @@ class Graph:
         else:
             raise TypeError(f"Node identifier must be int or str, got {type(node)}")
 
+    def delete_node(self, node: Union[int, str]) -> "Graph":
+        """Delete a node from the graph.
+
+        Removes a node and all its incident edges from the graph. The node can be
+        specified by its ID or label.
+
+        Parameters
+        ----------
+        node : int | str
+            Node ID (int) or label (str) to delete.
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Raises
+        ------
+        KeyError
+            If the node doesn't exist in the graph.
+
+        Examples
+        --------
+        Delete node by label:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+        )
+
+        graph.delete_node(node="B")
+        print(graph.has_node(node="B"))  # False
+        ```
+
+        Delete node by ID:
+
+        ```python
+        graph = Graph().add_node(label="Alice")
+        node_id = graph.get_id_from_label(label="Alice")
+
+        graph.delete_node(node=node_id)
+        print(graph.has_node(node=node_id))  # False
+        ```
+
+        See Also
+        --------
+        add_node : Add nodes to the graph
+        has_node : Check if node exists
+        delete_edge : Delete edges from the graph
+        """
+        try:
+            node_id = self._resolve_node_id(node, auto_create=False)
+        except ValueError as e:
+            # Convert ValueError to KeyError for consistency
+            raise KeyError(str(e))
+
+        # Rust delete_node raises PyKeyError if node doesn't exist
+        self._graph.delete_node(node_id)
+        return self
+
+    def delete_edge(
+        self,
+        source: Union[int, str, None] = None,
+        target: Union[int, str, None] = None,
+        id: int | None = None,
+    ) -> "Graph":
+        """Delete an edge from the graph.
+
+        Remove edges by specifying either the source and target nodes, or the edge ID directly. For
+        multigraphs with source/target, only the first matching edge is deleted. Returns self for
+        method chaining.
+
+        Parameters
+        ----------
+        source : int | str | None, default None
+            Source node ID or label. Required if `id` is not provided.
+        target : int | str | None, default None
+            Target node ID or label. Required if `id` is not provided.
+        id : int | None, default None
+            Edge ID to delete. If provided, `source` and `target` are ignored.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+
+        Raises
+        ------
+        KeyError
+            If no edge exists matching the criteria.
+        ValueError
+            If neither (`source`, `target`) nor `id` is provided.
+
+        Examples
+        --------
+        Delete edge by source and target:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .delete_edge(source="A", target="B")
+        )
+
+        print(graph.has_edge(source="A", target="B"))  # False
+        ```
+
+        Delete edge by ID:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+        )
+        edge_id = graph.get_edge_ids()[0]
+
+        graph.delete_edge(id=edge_id)
+        print(graph.has_edge(source="A", target="B"))  # False
+        ```
+
+        See Also
+        --------
+        add_edge : Add edges to the graph
+        has_edge : Check if edge exists
+        """
+        if id is not None:
+            # Delete by edge ID
+            self._graph.delete_edge_by_id(id)
+        elif source is not None and target is not None:
+            # Resolve labels to IDs
+            source_id = self._resolve_node_id(source)
+            target_id = self._resolve_node_id(target)
+            # Find and delete first matching edge
+            edge_ids = self._graph.find_edge_ids(source_id, target_id)
+            if len(edge_ids) > 0:
+                self._graph.delete_edge_by_id(edge_ids[0])
+            else:
+                raise KeyError(f"No edge found from '{source}' to '{target}'")
+        else:
+            raise ValueError("Must specify either (source, target) or id")
+
+        return self
+
+    def delete_edge_by_id(self, edge_id: int) -> "Graph":
+        """Delete an edge from the graph by its ID.
+
+        Removes an edge directly using its unique edge identifier. This is more
+        efficient than deleting by source and target nodes when the edge ID is known,
+        and is particularly useful for multigraphs where multiple edges may exist
+        between the same pair of nodes.
+
+        Parameters
+        ----------
+        edge_id : int
+            The unique identifier of the edge to remove.
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Raises
+        ------
+        KeyError
+            If no edge exists with the specified ID.
+
+        Examples
+        --------
+        Delete an edge by its ID:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+        )
+
+        # Get the edge ID
+        edge_id = graph.get_edge_ids()[0]
+
+        # Delete the edge
+        graph.delete_edge_by_id(edge_id=edge_id)
+        print(graph.has_edge(source="A", target="B"))  # False
+        ```
+
+        Delete specific edges in a multigraph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B", edge_id=1, weight=1.0)
+            .add_edge(source="A", target="B", edge_id=2, weight=2.0)
+        )
+
+        # Delete only the first edge
+        graph.delete_edge_by_id(edge_id=1)
+        print(graph.has_edge(source="A", target="B"))  # True (second edge remains)
+        ```
+
+        See Also
+        --------
+        delete_edge : Delete edge by source and target nodes
+        has_edge_id : Check if edge ID exists
+        get_edge_ids : Get all edge IDs
+        """
+        self._graph.delete_edge_by_id(edge_id)
+
     def get_id_from_label(self, label: str) -> Optional[int]:
         """Get the integer ID for a node by its label.
 
@@ -1286,228 +1507,6 @@ class Graph:
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
         return self._graph.find_edge_ids(source_id, target_id)
-
-    def delete_node(self, node: Union[int, str]) -> "Graph":
-        """Delete a node from the graph.
-
-        Removes a node and all its incident edges from the graph. The node can be
-        specified by its ID or label.
-
-        Parameters
-        ----------
-        node : int | str
-            Node ID (int) or label (str) to delete.
-
-        Returns
-        -------
-        Graph
-            Returns self to enable method chaining.
-
-        Raises
-        ------
-        KeyError
-            If the node doesn't exist in the graph.
-
-        Examples
-        --------
-        Delete node by label:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-        )
-
-        graph.delete_node(node="B")
-        print(graph.has_node(node="B"))  # False
-        ```
-
-        Delete node by ID:
-
-        ```python
-        graph = Graph().add_node(label="Alice")
-        node_id = graph.get_id_from_label(label="Alice")
-
-        graph.delete_node(node=node_id)
-        print(graph.has_node(node=node_id))  # False
-        ```
-
-        See Also
-        --------
-        add_node : Add nodes to the graph
-        has_node : Check if node exists
-        delete_edge : Delete edges from the graph
-        """
-        try:
-            node_id = self._resolve_node_id(node, auto_create=False)
-        except ValueError as e:
-            # Convert ValueError to KeyError for consistency
-            raise KeyError(str(e))
-
-        # Rust delete_node raises PyKeyError if node doesn't exist
-        self._graph.delete_node(node_id)
-        return self
-
-    def delete_edge(
-        self,
-        source: Union[int, str, None] = None,
-        target: Union[int, str, None] = None,
-        id: int | None = None,
-    ) -> "Graph":
-        """Delete an edge from the graph.
-
-        Remove edges by specifying either the source and target nodes, or the edge ID directly. For
-        multigraphs with source/target, only the first matching edge is deleted. Returns self for
-        method chaining.
-
-        Parameters
-        ----------
-        source : int | str | None, default None
-            Source node ID or label. Required if `id` is not provided.
-        target : int | str | None, default None
-            Target node ID or label. Required if `id` is not provided.
-        id : int | None, default None
-            Edge ID to delete. If provided, `source` and `target` are ignored.
-
-        Returns
-        -------
-        Graph
-            Self for method chaining.
-
-        Raises
-        ------
-        KeyError
-            If no edge exists matching the criteria.
-        ValueError
-            If neither (`source`, `target`) nor `id` is provided.
-
-        Examples
-        --------
-        Delete edge by source and target:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .delete_edge(source="A", target="B")
-        )
-
-        print(graph.has_edge(source="A", target="B"))  # False
-        ```
-
-        Delete edge by ID:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-        )
-        edge_id = graph.get_edge_ids()[0]
-
-        graph.delete_edge(id=edge_id)
-        print(graph.has_edge(source="A", target="B"))  # False
-        ```
-
-        See Also
-        --------
-        add_edge : Add edges to the graph
-        has_edge : Check if edge exists
-        """
-        if id is not None:
-            # Delete by edge ID
-            self._graph.delete_edge_by_id(id)
-        elif source is not None and target is not None:
-            # Resolve labels to IDs
-            source_id = self._resolve_node_id(source)
-            target_id = self._resolve_node_id(target)
-            # Find and delete first matching edge
-            edge_ids = self._graph.find_edge_ids(source_id, target_id)
-            if len(edge_ids) > 0:
-                self._graph.delete_edge_by_id(edge_ids[0])
-            else:
-                raise KeyError(f"No edge found from '{source}' to '{target}'")
-        else:
-            raise ValueError("Must specify either (source, target) or id")
-
-        return self
-
-    def delete_edge_by_id(self, edge_id: int) -> "Graph":
-        """Delete an edge from the graph by its ID.
-
-        Removes an edge directly using its unique edge identifier. This is more
-        efficient than deleting by source and target nodes when the edge ID is known,
-        and is particularly useful for multigraphs where multiple edges may exist
-        between the same pair of nodes.
-
-        Parameters
-        ----------
-        edge_id : int
-            The unique identifier of the edge to remove.
-
-        Returns
-        -------
-        Graph
-            Returns self to enable method chaining.
-
-        Raises
-        ------
-        KeyError
-            If no edge exists with the specified ID.
-
-        Examples
-        --------
-        Delete an edge by its ID:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-        )
-
-        # Get the edge ID
-        edge_id = graph.get_edge_ids()[0]
-
-        # Delete the edge
-        graph.delete_edge_by_id(edge_id=edge_id)
-        print(graph.has_edge(source="A", target="B"))  # False
-        ```
-
-        Delete specific edges in a multigraph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", edge_id=1, weight=1.0)
-            .add_edge(source="A", target="B", edge_id=2, weight=2.0)
-        )
-
-        # Delete only the first edge
-        graph.delete_edge_by_id(edge_id=1)
-        print(graph.has_edge(source="A", target="B"))  # True (second edge remains)
-        ```
-
-        See Also
-        --------
-        delete_edge : Delete edge by source and target nodes
-        has_edge_id : Check if edge ID exists
-        get_edge_ids : Get all edge IDs
-        """
-        self._graph.delete_edge_by_id(edge_id)
-        return self
 
     def is_graph_simple(self) -> bool:
         """Check if the graph is simple (no self-loops or multi-edges).
