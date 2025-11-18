@@ -2883,8 +2883,7 @@ class Graph:
         See Also
         --------
         degree : Get degree of a single node
-        average_degree : Get mean degree
-        get_degree_histogram : Alias for this method
+        get_average_degree : Get mean degree
         """
         return self._graph.degree_distribution()
 
@@ -3210,55 +3209,6 @@ class Graph:
                 return (sorted_degrees[n // 2 - 1] + sorted_degrees[n // 2]) / 2.0
             else:
                 return float(sorted_degrees[n // 2])
-
-    def get_degree_histogram(self) -> dict[int, int]:
-        """Get degree histogram for plotting.
-
-        Returns a dictionary mapping degree values to their frequencies,
-        suitable for creating degree distribution plots. This is an alias
-        for `get_degree_distribution()`.
-
-        Returns
-        -------
-        dict[int, int]
-            Dictionary where keys are degree values and values are counts of
-            nodes with that degree.
-
-        Examples
-        --------
-        Get degree histogram from a star graph:
-
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph()
-        graph.add_star_graph(5)  # 1 hub (degree 4) + 4 leaves (degree 1)
-
-        hist = graph.get_degree_histogram()
-        print(hist)  # {1: 4, 4: 1}
-        ```
-
-        Visualize degree distribution:
-
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph()
-        graph.add_gnp_graph(100, 0.05, seed=23)
-
-        hist = graph.get_degree_histogram()
-
-        # Plot with your favorite library
-        for degree, count in sorted(hist.items()):
-            print(f"Degree {degree}: {count} nodes")
-        ```
-
-        See Also
-        --------
-        get_degree_distribution : Equivalent method
-        average_degree : Get mean degree
-        """
-        return self.get_degree_distribution()
 
     # ========== Distance & Path Metrics ==========
 

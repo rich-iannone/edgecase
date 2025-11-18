@@ -1821,14 +1821,6 @@ impl Graph {
         total_degree as f64 * (1.0 / n as f64)
     }
 
-    /// Get degree histogram (degree -> count mapping)
-    /// Returns a HashMap suitable for plotting degree distribution
-    fn get_degree_histogram(&self) -> FxHashMap<usize, usize> {
-        // This is actually the same as degree_distribution, but with a clearer name
-        // for plotting purposes
-        self.degree_distribution()
-    }
-
     /// Find articulation points (cut vertices) in an undirected graph
     /// Returns list of node IDs whose removal would disconnect the graph
     /// Uses Tarjan's algorithm with DFS
