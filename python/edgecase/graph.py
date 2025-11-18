@@ -958,13 +958,15 @@ class Graph:
 
         See Also
         --------
-        edges_str_repr : Get edges as formatted strings
+        get_edges_str_repr : Get edges as formatted strings
         get_edge_ids : Get list of edge IDs only
         num_edges : Get count of edges
         """
         return self._graph.edges()
 
-    def edges_str_repr(self, limit: Optional[int] = 1000, use_labels: bool = False) -> list[str]:
+    def get_edges_str_repr(
+        self, limit: Optional[int] = 1000, use_labels: bool = False
+    ) -> list[str]:
         """Get edges as formatted string representations.
 
         Returns edge representations as strings showing node identifiers with arrow notation.
@@ -1006,7 +1008,7 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.edges_str_repr())  # ['1->2', '2->3']
+        print(graph.get_edges_str_repr())  # ['1->2', '2->3']
         ```
 
         Get formatted edges with labels:
@@ -1023,7 +1025,7 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.edges_str_repr(use_labels=True))  # ['A->B', 'B->C']
+        print(graph.get_edges_str_repr(use_labels=True))  # ['A->B', 'B->C']
         ```
 
         Undirected graphs use double dashes:
@@ -1036,8 +1038,8 @@ class Graph:
             .add_edge(source="X", target="Y")
         )
 
-        print(graph.edges_str_repr())  # ['1--2']
-        print(graph.edges_str_repr(use_labels=True))  # ['X--Y']
+        print(graph.get_edges_str_repr())  # ['1--2']
+        print(graph.get_edges_str_repr(use_labels=True))  # ['X--Y']
         ```
 
         Mixed labels (some nodes have labels, others don't):
@@ -1055,7 +1057,7 @@ class Graph:
         graph.add_edge(source=alice_id, target=bob_id)
 
         # Use labels in string representation
-        print(graph.edges_str_repr(use_labels=True))  # ['Alice--Bob']
+        print(graph.get_edges_str_repr(use_labels=True))  # ['Alice--Bob']
         ```
 
         Get all edges regardless of size:
@@ -1070,7 +1072,7 @@ class Graph:
             graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
 
         # Use None to get all edges (may be slow for large graphs!)
-        all_edges = graph.edges_str_repr(limit=None, use_labels=True)
+        all_edges = graph.get_edges_str_repr(limit=None, use_labels=True)
         print(f"Total edges: {len(all_edges)}")
         ```
 
