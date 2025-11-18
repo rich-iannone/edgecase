@@ -461,7 +461,7 @@ class TestAddReverseEdgesWS:
         # Should have original 2 + 1 reverse = 3 edges
         assert G.num_edges() == 3
         # Check reverse edge exists (edges_as_tuples() returns (id, source, target) as IDs now)
-        edges = [(s, t) for _, s, t in G.edges_as_tuples()]
+        edges = [(s, t) for _, s, t in G.get_edges_as_tuples()]
         assert (2, 1) in edges  # B->A (reverse of A->B)
 
     def test_add_reverse_with_attributes(self):
@@ -476,7 +476,7 @@ class TestAddReverseEdgesWS:
 
         # Find the reverse edge (source/target are now IDs)
         reverse_edge = None
-        for edge_id, s, t in G.edges_as_tuples():
+        for edge_id, s, t in G.get_edges_as_tuples():
             if s == 2 and t == 1:  # B=2, A=1
                 reverse_edge = G.get_edge(edge_id)
                 break

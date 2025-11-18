@@ -120,7 +120,7 @@ def test_add_duplicate_edge_directed():
 
 def test_edges_returns_list(simple_graph):
     """edges_as_tuples() should return list of edges"""
-    edges = simple_graph.edges_as_tuples()
+    edges = simple_graph.get_edges_as_tuples()
     assert isinstance(edges, list)
     assert len(edges) == 2
 
@@ -181,7 +181,7 @@ def test_num_nodes_matches_added(small_graph):
 
 def test_num_edges_matches_added(small_graph):
     """num_edges() should match actual edge count"""
-    edges = small_graph.edges_as_tuples()
+    edges = small_graph.get_edges_as_tuples()
     assert small_graph.num_edges() == len(edges)
 
 

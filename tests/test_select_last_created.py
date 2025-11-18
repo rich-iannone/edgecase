@@ -230,7 +230,7 @@ class TestSelectLastEdgesCreated:
         assert len(selected) == 2
 
         # Verify the weights of selected edges
-        edges_info = G.edges_as_tuples()
+        edges_info = G.get_edges_as_tuples()
         selected_weights = []
         for eid, src, tgt in edges_info:
             if eid in selected:
@@ -282,7 +282,7 @@ class TestSelectLastEdgesCreated:
         assert len(selected) == 3
 
         # Verify these are edges involving C, D, E, F (node IDs 3, 4, 5, 6)
-        edges_info = G.edges_as_tuples()
+        edges_info = G.get_edges_as_tuples()
         selected_nodes = set()
         for eid, src, tgt in edges_info:
             if eid in selected:

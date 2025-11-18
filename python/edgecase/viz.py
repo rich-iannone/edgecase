@@ -986,7 +986,7 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
 
     # Get node and edge IDs
     node_ids = G.get_node_ids(limit=None)
-    edges = [[e[1], e[2]] for e in G.edges_as_tuples()]
+    edges = [[e[1], e[2]] for e in G.get_edges_as_tuples()]
 
     dot = _generate_dot_string(G, node_ids, edges)
     print(dot)

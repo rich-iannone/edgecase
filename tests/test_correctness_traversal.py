@@ -28,7 +28,7 @@ def convert_to_networkx(ec_graph):
     for node_id in ec_graph.get_node_ids(limit=None):
         nx_graph.add_node(node_id)
 
-    for edge_id, source, target in ec_graph.edges_as_tuples():
+    for edge_id, source, target in ec_graph.get_edges_as_tuples():
         nx_graph.add_edge(source, target)
 
     return nx_graph
@@ -47,7 +47,7 @@ def convert_to_igraph(ec_graph):
     node_to_idx = {nid: idx for idx, nid in enumerate(node_ids)}
 
     edges = []
-    for edge_id, source, target in ec_graph.edges_as_tuples():
+    for edge_id, source, target in ec_graph.get_edges_as_tuples():
         edges.append((node_to_idx[source], node_to_idx[target]))
 
     ig_graph = ig.Graph(n=len(node_ids), edges=edges, directed=ec_graph.is_directed)

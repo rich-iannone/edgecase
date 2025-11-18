@@ -128,7 +128,7 @@ class TestJohnsonGraph:
 
         # For each edge, check that reverse edge exists
         # edges_as_tuples() returns tuples of (edge_id, source_id, target_id)
-        for edge_tuple in graph.edges_as_tuples():
+        for edge_tuple in graph.get_edges_as_tuples():
             edge_id, source, target = edge_tuple
 
             # Should find edge from target to source (symmetric)

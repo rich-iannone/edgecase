@@ -130,7 +130,7 @@ class TestSelectEdgesByPredicate:
         assert len(selected) == 2
 
         # Verify correct edges selected
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edges = [e for e in edges if e[0] in selected]
         weights = [G.get_edge(e[0]).weight for e in selected_edges]
         assert all(w > 0.5 for w in weights)
@@ -342,7 +342,7 @@ class TestCombinedPredicateSelection:
         assert len(selected) == 2
 
         # Verify they involve the right nodes (using integer IDs)
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edge_info = [e for e in edges if e[0] in selected]
         involved_nodes = set()
         for e in selected_edge_info:

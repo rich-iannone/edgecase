@@ -83,7 +83,7 @@ def test_nodes_list_length(G):
 @settings(max_examples=100)
 def test_edges_list_length(G):
     """len(edges_as_tuples()) should equal num_edges()"""
-    assert len(G.edges_as_tuples()) == G.num_edges()
+    assert len(G.get_edges_as_tuples()) == G.num_edges()
 
 
 @given(G=small_graphs())

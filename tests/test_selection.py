@@ -303,7 +303,7 @@ class TestEdgeSelection:
         assert len(selected_edges) == 2
 
         # Verify the correct edges are selected (edges_as_tuples() returns (id, source_id, target_id))
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edge_info = [e for e in edges if e[0] in selected_edges]
 
         sources_targets = [(e[1], e[2]) for e in selected_edge_info]
@@ -326,7 +326,7 @@ class TestEdgeSelection:
         selected_edges = G.get_selected_edges()
         assert len(selected_edges) == 3  # A-B, C-D, D-E
 
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edge_info = [e for e in edges if e[0] in selected_edges]
         sources_targets = [(e[1], e[2]) for e in selected_edge_info]
 
