@@ -1900,7 +1900,7 @@ class Graph:
         G.add_edge(source="0", target="3")
 
         # Calculate degrees and rescale
-        degrees = {n: len(G.neighbors(node=n)) for n in G.node_ids(limit=None)}
+        degrees = {n: len(G.neighbors(node_id=n)) for n in G.node_ids(limit=None)}
         G.rescale_node_attrs(
             values=degrees,
             node_attr_to="width",
@@ -3512,22 +3512,37 @@ class Graph:
         path_ids = rust.shortest_path(self._graph, source_id, target_id)
         return path_ids
 
-    def bfs(self, start: Union[int, str]) -> list[int]:
+    def bfs(
+        self,
+        start: Union[int, str],
+        attr_name: str = None,
+        return_list: bool = True,
+    ) -> Union[list[int], "Graph"]:
         """Perform breadth-first search (BFS) traversal from a start node.
 
         BFS explores the graph layer by layer, visiting all neighbors of a
-        node before moving to their neighbors. Returns nodes in the order
-        they are visited.
+        node before moving to their neighbors. Can return the visit order as
+        a list, or store the position of each node in the traversal as a
+        node attribute for visualization.
 
         Parameters
         ----------
         start : int | str
             Starting node (integer ID or string label).
+        attr_name : str, optional
+            Name of the node attribute to store traversal position.
+            If None, uses "bfs_order" as the attribute name.
+            Position is 0-indexed (start node = 0, first neighbor = 1, etc.).
+            Nodes not visited get no attribute set.
+        return_list : bool, default True
+            If True, returns list of node IDs in visit order.
+            If False, stores positions as node attributes and returns self for chaining.
 
         Returns
         -------
-        list[int]
-            List of node IDs visited in BFS order.
+        Union[list[int], Graph]
+            If return_list is True: list of node IDs visited in BFS order.
+            If return_list is False: returns self for method chaining.
 
         Examples
         --------
@@ -3541,7 +3556,23 @@ class Graph:
         print(visited)  # [1, 2, 3, 4, 5, 6, 7, ...] (level by level)
         ```
 
-        BFS on a grid starts from corner:
+        Store BFS order as node attributes for visualization:
+
+        ```python
+        graph = (
+            Graph()
+            .add_balanced_tree(k=2, h=3)
+            .bfs(start=1, return_list=False)
+            .rescale_node_attrs(
+                node_attr_from="bfs_order",
+                node_attr_to="size",
+                range=[0.5, 2.0]
+            )
+        )
+        # Root has position 0, visualize traversal depth
+        ```
+
+        BFS on a grid from corner:
 
         ```python
         graph = Graph()
@@ -3556,26 +3587,57 @@ class Graph:
         --------
         dfs : Depth-first search traversal
         shortest_path : Find shortest path between two nodes
-        connected_component : Get all nodes in same component
         """
         start_id = self._resolve_node_id(start, auto_create=False)
-        return self._graph.bfs(start_id)
+        visited_order = self._graph.bfs(start_id)
 
-    def dfs(self, start: Union[int, str]) -> list[int]:
+        if return_list:
+            return visited_order
+
+        # Store traversal positions as node attributes
+        if attr_name is None:
+            attr_name = "bfs_order"
+
+        # Create dict mapping node_id -> position in traversal
+        positions = {node_id: idx for idx, node_id in enumerate(visited_order)}
+        self.set_node_attrs(attr_name, positions)
+
+        # Track computation
+        params = {"start": start}
+        self._computations.append(("bfs", params, attr_name))
+
+        return self
+
+    def dfs(
+        self,
+        start: Union[int, str],
+        attr_name: str = None,
+        return_list: bool = True,
+    ) -> Union[list[int], "Graph"]:
         """Perform depth-first search (DFS) traversal from a start node.
 
         DFS explores as far as possible along each branch before backtracking.
-        Returns nodes in the order they are visited.
+        Can return the visit order as a list, or store the position of each
+        node in the traversal as a node attribute for visualization.
 
         Parameters
         ----------
         start : int | str
             Starting node (integer ID or string label).
+        attr_name : str, optional
+            Name of the node attribute to store traversal position.
+            If None, uses "dfs_order" as the attribute name.
+            Position is 0-indexed (start node = 0, first child = 1, etc.).
+            Nodes not visited get no attribute set.
+        return_list : bool, default True
+            If True, returns list of node IDs in visit order.
+            If False, stores positions as node attributes and returns self for chaining.
 
         Returns
         -------
-        list[int]
-            List of node IDs visited in DFS order.
+        Union[list[int], Graph]
+            If return_list is True: list of node IDs visited in DFS order.
+            If return_list is False: returns self for method chaining.
 
         Examples
         --------
@@ -3587,6 +3649,21 @@ class Graph:
 
         visited = graph.dfs(start=1)
         print(visited)  # [1, 2, 4, 8, ...] (depth-first)
+        ```
+
+        Store DFS order as node attributes for visualization:
+
+        ```python
+        graph = (
+            Graph()
+            .add_balanced_tree(k=2, h=3)
+            .dfs(start=1, return_list=False)
+            .colorize_node_attrs(
+                node_attr_from="dfs_order",
+                palette="viridis"
+            )
+        )
+        # Visualize depth-first traversal pattern
         ```
 
         DFS on a graph to explore connected component:
@@ -3603,10 +3680,26 @@ class Graph:
         --------
         bfs : Breadth-first search traversal
         has_cycles : Check for cycles using DFS
-        connected_component : Get all nodes in same component
         """
         start_id = self._resolve_node_id(start, auto_create=False)
-        return self._graph.dfs(start_id)
+        visited_order = self._graph.dfs(start_id)
+
+        if return_list:
+            return visited_order
+
+        # Store traversal positions as node attributes
+        if attr_name is None:
+            attr_name = "dfs_order"
+
+        # Create dict mapping node_id -> position in traversal
+        positions = {node_id: idx for idx, node_id in enumerate(visited_order)}
+        self.set_node_attrs(attr_name, positions)
+
+        # Track computation
+        params = {"start": start}
+        self._computations.append(("dfs", params, attr_name))
+
+        return self
 
     def pagerank(
         self,
@@ -4142,64 +4235,6 @@ class Graph:
 
     # ========== Neighbor & Connectivity Methods ==========
 
-    def neighbors(self, node: Union[int, str]) -> list[int]:
-        """Get neighbors of a node.
-
-        Returns the node IDs of all nodes directly connected to the specified node.
-        For directed graphs, returns only outgoing neighbors (nodes this node points to).
-
-        Parameters
-        ----------
-        node : int | str
-            Node ID or label to get neighbors for.
-
-        Returns
-        -------
-        list[int]
-            List of neighbor node IDs.
-
-        Examples
-        --------
-        Get neighbors in an undirected graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-        )
-
-        neighbors = graph.neighbors("A")
-        print(len(neighbors))  # 2
-        ```
-
-        In directed graphs, only outgoing edges count:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")  # A -> B
-            .add_edge("C", "A")  # C -> A
-        )
-
-        # A points to B, so B is a neighbor
-        print(len(graph.neighbors("A")))  # 1
-        ```
-
-        See Also
-        --------
-        degree : Get node degree
-        has_edge : Check if edge exists
-        """
-        node_id = self._resolve_node_id(node)
-        return self._graph.neighbors(node_id)
-
     def get_common_neighbors(
         self, node_id1: Union[int, str], node_id2: Union[int, str]
     ) -> list[int]:
@@ -4262,7 +4297,7 @@ class Graph:
         )
 
         a_id = graph.get_id_from_label(label="A")
-        for neighbor_id in graph.neighbors(node=a_id):
+        for neighbor_id in graph.neighbors(node_id=a_id):
             common = graph.get_common_neighbors(a_id, neighbor_id)
             for third_id in common:
                 neighbor_label = graph.get_label_from_id(node_id=neighbor_id)
@@ -4272,11 +4307,11 @@ class Graph:
 
         See Also
         --------
-        get_neighbors : Get neighbors of a single node
+        neighbors : Get neighbors of a single node
         get_similarity : Measure neighbor overlap between nodes
         """
-        neighbors1 = set(self.get_neighbors(node_id1, mode="all"))
-        neighbors2 = set(self.get_neighbors(node_id2, mode="all"))
+        neighbors1 = set(self.neighbors(node_id1, mode="all"))
+        neighbors2 = set(self.neighbors(node_id2, mode="all"))
         return list(neighbors1 & neighbors2)
 
     def get_predecessors(self, node_id: Union[int, str]) -> list[int]:
@@ -4324,12 +4359,12 @@ class Graph:
         See Also
         --------
         get_successors : Get outgoing neighbors
-        get_neighbors : Get neighbors with direction control
+        neighbors : Get neighbors with direction control
         in_degree : Get count of incoming edges
         """
         if not self._graph.is_directed:
             raise ValueError("get_predecessors only available for directed graphs")
-        return self.get_neighbors(node_id, mode="in")
+        return self.neighbors(node_id, mode="in")
 
     def get_successors(self, node_id: Union[int, str]) -> list[int]:
         """Get direct successors of a node (outgoing neighbors).
@@ -4376,12 +4411,12 @@ class Graph:
         See Also
         --------
         get_predecessors : Get incoming neighbors
-        get_neighbors : Get neighbors with direction control
+        neighbors : Get neighbors with direction control
         out_degree : Get count of outgoing edges
         """
         if not self._graph.is_directed:
             raise ValueError("get_successors only available for directed graphs")
-        return self.get_neighbors(node_id, mode="out")
+        return self.neighbors(node_id, mode="out")
 
     def get_non_neighbors(self, node_id: Union[int, str]) -> list[int]:
         """Get nodes that are NOT neighbors of the specified node.
@@ -4439,14 +4474,14 @@ class Graph:
 
         See Also
         --------
-        get_neighbors : Get neighbors of a node
+        neighbors : Get neighbors of a node
         neighbors : Get neighbor list
         """
         # Resolve node_id to integer ID
         node_id = self._resolve_node_id(node_id)
 
         all_nodes = set(self.node_ids(limit=None))
-        neighbors = set(self.get_neighbors(node_id, mode="all"))
+        neighbors = set(self.neighbors(node_id, mode="all"))
 
         # Remove the node itself and its neighbors
         non_neighbors = all_nodes - neighbors - {node_id}
@@ -4535,7 +4570,7 @@ class Graph:
 
         See Also
         --------
-        get_neighbors : Get all neighbors without filtering
+        neighbors : Get all neighbors without filtering
         get_node_attrs : Get attributes for multiple nodes
         """
         # Get starting node's attribute value
@@ -4565,7 +4600,7 @@ class Graph:
             upper_bound = start_value
 
         # Get all neighbors
-        neighbors = self.get_neighbors(node_id, mode="all")
+        neighbors = self.neighbors(node_id, mode="all")
 
         # Filter by attribute similarity
         similar = []
@@ -4648,7 +4683,7 @@ class Graph:
         --------
         is_connected : Check if graph is fully connected
         count_weakly_connected_components : Count connected components
-        get_neighbors : Get immediate neighbors only
+        neighbors : Get immediate neighbors only
         """
         # Resolve node_id to integer ID
         node_id = self._resolve_node_id(node_id)
@@ -4664,7 +4699,7 @@ class Graph:
             current = queue.pop(0)
 
             # Get all neighbors (treating directed as undirected)
-            neighbors = self.get_neighbors(current, mode="all")
+            neighbors = self.neighbors(current, mode="all")
 
             for neighbor in neighbors:
                 if neighbor not in visited:
@@ -7813,6 +7848,8 @@ class Graph:
         Uses Kahn's algorithm (BFS-based) which has O(V + E) time complexity.
         The algorithm processes nodes with zero in-degree first, then removes
         them and updates in-degrees of neighbors.
+
+        **Note:** This method returns a value and cannot be chained.
 
         Time complexity: O(V + E)
         Space complexity: O(V)
@@ -13320,21 +13357,24 @@ class Graph:
 
         return pl.DataFrame(data)
 
-    def get_neighbors(
-        self, node_id: Union[int, str], mode: str = "all", predicate: Optional[Callable] = None
+    def neighbors(
+        self, node_id: Union[int, str], mode: str = "out", predicate: Optional[Callable] = None
     ) -> list[int]:
         """Get neighbors of a node with optional filtering.
 
         Returns the neighboring nodes of a specified node, with control over
         directionality (for directed graphs) and optional predicate filtering.
 
+        For directed graphs, the default mode is "out" (outgoing neighbors only).
+        For undirected graphs, mode doesn't affect the result since all edges are bidirectional.
+
         Parameters
         ---
         node_id : int | str
             The node ID or label to find neighbors for.
-        mode : str, default 'all'
+        mode : str, default 'out'
             Direction mode for neighbor lookup:
-            - `'out'` : Only successors (outgoing edges)
+            - `'out'` : Only successors (outgoing edges) - default for directed graphs
             - `'in'` : Only predecessors (incoming edges)
             - `'all'` : Both successors and predecessors
         predicate : callable, optional
@@ -13369,15 +13409,15 @@ class Graph:
         c_id = graph.get_id_from_label("C")
 
         # Get successors (outgoing neighbors) - returns node IDs
-        out_neighbors = graph.get_neighbors(a_id, mode="out")
+        out_neighbors = graph.neighbors(a_id, mode="out")
         print(out_neighbors)  # [<b_id>] - node IDs, not labels
 
         # Get predecessors (incoming neighbors)
-        in_neighbors = graph.get_neighbors(a_id, mode="in")
+        in_neighbors = graph.neighbors(a_id, mode="in")
         print(in_neighbors)  # [<c_id>]
 
         # Get all neighbors
-        all_neighbors = graph.get_neighbors(a_id, mode="all")
+        all_neighbors = graph.neighbors(a_id, mode="all")
         print(all_neighbors)  # [<b_id>, <c_id>]
 
         # Convert IDs to labels if needed
@@ -13400,7 +13440,7 @@ class Graph:
         )
         a_id = graph.get_id_from_label("A")
         # Predicate receives node IDs (int), not labels
-        high_degree_neighbors = graph.get_neighbors(
+        high_degree_neighbors = graph.neighbors(
             a_id,
             predicate=lambda node_id: graph.get_degree(node_id) > 2
         )
@@ -13411,7 +13451,6 @@ class Graph:
         get_predecessors : Get incoming neighbors (directed only)
         get_successors : Get outgoing neighbors (directed only)
         get_common_neighbors : Get shared neighbors between two nodes
-        neighbors : Get neighbors of a node (simpler interface)
         """
         # Resolve node_id to integer ID
         node_id = self._resolve_node_id(node_id)
@@ -15498,7 +15537,7 @@ class Graph:
                 for node_id in current_level:
                     # Get outward neighbors
                     try:
-                        neighbors = self.get_neighbors(node_id, mode="out")
+                        neighbors = self.neighbors(node_id, mode="out")
                     except (ValueError, KeyError):
                         neighbors = []
 
@@ -15656,7 +15695,7 @@ class Graph:
                 for node_id in current_level:
                     # Get inward neighbors
                     try:
-                        neighbors = self.get_neighbors(node_id, mode="in")
+                        neighbors = self.neighbors(node_id, mode="in")
                     except (ValueError, KeyError):
                         neighbors = []
 
