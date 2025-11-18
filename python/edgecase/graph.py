@@ -1778,7 +1778,7 @@ class Graph:
         """
         return self._graph.is_weighted
 
-    def is_graph_simple(self) -> bool:
+    def is_simple(self) -> bool:
         """Check if the graph is simple (no self-loops or multi-edges).
 
         A simple graph contains no self-loops (edges from a node to itself) and
@@ -1802,11 +1802,11 @@ class Graph:
             .add_edge("A", "B")
         )
 
-        print(graph.is_graph_simple())  # True
+        print(graph.is_simple())  # True
 
         # Add a self-loop
         graph.add_edge("A", "A")
-        print(graph.is_graph_simple())  # False
+        print(graph.is_simple())  # False
         ```
 
         Multi-edges also make a graph non-simple:
@@ -1820,7 +1820,7 @@ class Graph:
             .add_edge("A", "B", edge_id=2)  # Duplicate edge
         )
 
-        print(graph.is_graph_simple())  # False
+        print(graph.is_simple())  # False
         ```
 
         See Also
@@ -5659,45 +5659,6 @@ class Graph:
         has_cycles : Check for cycles in any graph
         """
         return self._graph.is_dag()
-
-    def is_simple(self) -> bool:
-        """Check if graph is simple (no self-loops or multi-edges).
-
-        A simple graph has no self-loops (edges from a node to itself) and no
-        parallel edges (multiple edges between the same pair of nodes). This is
-        a fundamental property in graph theory.
-
-        Returns
-        -------
-        bool
-            `True` if the graph has no self-loops and no parallel edges.
-
-        Examples
-        --------
-        Check if a graph is simple:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-        )
-
-        print(graph.is_simple())  # True
-
-        # Self-loops make a graph non-simple
-        graph.add_edge("A", "A")  # Self-loop
-        print(graph.is_simple())  # False
-        ```
-
-        See Also
-        --------
-        count_selfloops : Count self-loops
-        count_multi_edges : Count parallel edges
-        is_graph_simple : Alias for this method
-        """
-        return self._graph.is_simple()
 
     def is_bipartite(self) -> bool:
         """Check if graph is bipartite (2-colorable).
