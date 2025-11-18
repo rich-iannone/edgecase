@@ -332,7 +332,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+        ec_path = G.bellman_ford_shortest_path("A", "D", return_list=True)
 
         # igraph shortest path with weights (uses Bellman-Ford for negative weights, Dijkstra otherwise)
         node_names = ig_graph.vs["name"]
@@ -348,11 +348,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Both should find path A -> C -> D (total weight 3.0)
+        # Both should find path A -> C -> D
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "C", "D"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 3.0)
 
     def test_bellman_ford_negative_weights(self):
         """Test Bellman-Ford with negative weights matches igraph."""
@@ -369,7 +367,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+        ec_path = G.bellman_ford_shortest_path("A", "D", return_list=True)
 
         # igraph shortest path (Bellman-Ford handles negative weights)
         node_names = ig_graph.vs["name"]
@@ -385,11 +383,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Should take advantage of negative weight: A -> C -> B -> D (2 + -3 + 1 = 0)
+        # Should take advantage of negative weight: A -> C -> B -> D
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "C", "B", "D"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 0.0)
 
     def test_bellman_ford_mixed_weights(self):
         """Test Bellman-Ford with mixed positive and negative weights."""
@@ -408,7 +404,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+        ec_path = G.bellman_ford_shortest_path("A", "D", return_list=True)
 
         # igraph shortest path
         node_names = ig_graph.vs["name"]
@@ -424,11 +420,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Should be A -> B -> C -> D = 5 + (-2) + 3 = 6
+        # Should be A -> B -> C -> D
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "B", "C", "D"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 6.0)
 
     def test_bellman_ford_no_path(self):
         """Test Bellman-Ford when no path exists."""
@@ -459,7 +453,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "C")
+        ec_path = G.bellman_ford_shortest_path("A", "C", return_list=True)
 
         # igraph shortest path
         node_names = ig_graph.vs["name"]
@@ -477,8 +471,6 @@ class TestBellmanFord:
 
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "B", "C"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 3.0)
 
     def test_bellman_ford_self_loop(self):
         """Test Bellman-Ford with self-loop (zero distance to self)."""
@@ -490,7 +482,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford (A to A)
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "A")
+        ec_path = G.bellman_ford_shortest_path("A", "A", return_list=True)
 
         # igraph shortest path (A to A)
         node_names = ig_graph.vs["name"]
@@ -501,10 +493,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Both should return just the source node with distance 0
+        # Both should return just the source node
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A"]
-        assert approx_equal(ec_dist, 0.0)
 
 
 class TestPageRank:

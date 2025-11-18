@@ -3652,13 +3652,20 @@ class Graph:
         return self
 
     def bellman_ford_shortest_path(
-        self, source: Union[int, str], target: Union[int, str]
-    ) -> tuple[list[int], float] | None:
-        """Find shortest path using Bellman-Ford algorithm (supports negative weights).
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        attr_name: str = None,
+        return_list: bool = False,
+    ) -> Union[list[int], "Graph", None]:
+        """Find shortest path using Bellman-Ford algorithm.
 
-        Computes the shortest weighted path from source to target using the Bellman-Ford
-        algorithm. Unlike Dijkstra's algorithm, Bellman-Ford can handle negative edge weights
-        and will detect negative weight cycles.
+        Computes the shortest weighted path from source to target using the Bellman-Ford algorithm.
+        Unlike Dijkstra's algorithm, Bellman-Ford can handle negative edge weights and will detect
+        negative weight cycles.
+
+        Can return the path as a list, or store the position of each node along the path as a node
+        attribute for visualization.
 
         The Bellman-Ford algorithm is slower than Dijkstra (O(VE) vs O(E log V)) but more
         versatile. Use it when:
@@ -3672,14 +3679,21 @@ class Graph:
             Source node (integer ID or string label).
         target : int | str
             Target node (integer ID or string label).
+        attr_name : str, optional
+            Name of the node attribute to store path position.
+            If None, uses "bellman_ford_path_order" as the attribute name.
+            Position is 0-indexed (source = 0, next node = 1, ..., target = n-1).
+            Only nodes on the path get this attribute set.
+        return_list : bool, default False
+            If True, returns list of node IDs in the path.
+            If False, stores positions as node attributes and returns self for chaining.
 
         Returns
         -------
-        tuple[list[int], float] | None
-            Tuple of (path, distance) where:
-            - path: List of node IDs from source to target (inclusive)
-            - distance: Total weight of the shortest path
-            Returns None if target is unreachable.
+        Union[list[int], Graph, None]
+            If return_list is True: list of node IDs from source to target (inclusive),
+            or None if no path exists.
+            If return_list is False: returns self for method chaining, or None if no path exists.
 
         Raises
         ------
@@ -3703,11 +3717,30 @@ class Graph:
             .add_edge("B", "D", weight=1.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "D")
+        path = graph.bellman_ford_shortest_path("A", "D", return_list=True)
         # Path: A -> C -> B -> D (takes negative weight edge)
-        # Distance: 2 + (-3) + 1 = 0
-        print(path)      # [1, 2, 3, 4] (node IDs)
-        print(distance)  # 0.0
+        print(path)  # [1, 3, 2, 4] (node IDs)
+        ```
+
+        Store path as node attributes for visualization:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B", weight=4.0)
+            .add_edge("A", "C", weight=2.0)
+            .add_edge("C", "B", weight=-3.0)
+            .add_edge("B", "D", weight=1.0)
+            .bellman_ford_shortest_path("A", "D", return_list=False)
+            .colorize_node_attrs(
+                node_attr_from="bellman_ford_path_order",
+                palette="plasma"
+            )
+        )
         ```
 
         Detect negative cycle:
@@ -3724,19 +3757,19 @@ class Graph:
         )
 
         try:
-            path = bad_graph.bellman_ford_shortest_path("A", "B")
+            path = bad_graph.bellman_ford_shortest_path("A", "B", return_list=True)
         except ValueError as e:
             print(e)  # "Graph contains a negative weight cycle"
         ```
 
-        Compare with unreachable target:
+        Handle unreachable target:
 
         ```python
         graph = Graph(directed=True)
         graph.add_node(label="A")
         graph.add_node(label="isolated")
 
-        result = graph.bellman_ford_shortest_path("A", "isolated")
+        result = graph.bellman_ford_shortest_path("A", "isolated", return_list=True)
         print(result)  # None (no path exists)
         ```
 
@@ -3760,6 +3793,7 @@ class Graph:
 
         See Also
         --------
+        shortest_path : Unweighted shortest path (BFS)
         get_mean_distance : Average shortest path length
         get_graph_diameter : Maximum shortest path length
         ada_star_search : A* pathfinding with heuristics
@@ -3769,11 +3803,28 @@ class Graph:
 
         result = rust.bellman_ford_shortest_path(self._graph, source_id, target_id)
 
+        # If no path exists, return None regardless of return_list
         if result is None:
             return None
 
-        path_ids, distance = result
-        return (path_ids, distance)
+        path_ids, _distance = result
+
+        if return_list:
+            return path_ids
+
+        # Store path positions as node attributes
+        if attr_name is None:
+            attr_name = "bellman_ford_path_order"
+
+        # Create dict mapping node_id -> position in path
+        positions = {node_id: idx for idx, node_id in enumerate(path_ids)}
+        self.set_node_attrs(attr_name, positions)
+
+        # Track computation
+        params = {"source": source, "target": target}
+        self._computations.append(("bellman_ford_shortest_path", params, attr_name))
+
+        return self
 
     def shortest_path(
         self,

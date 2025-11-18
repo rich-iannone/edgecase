@@ -23,9 +23,8 @@ class TestBellmanFordBasic:
             .add_edge("B", "C", weight=2.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "C")
+        path = graph.bellman_ford_shortest_path("A", "C", return_list=True)
         assert path == [1, 2, 3]  # A, B, C
-        assert distance == 3.0
 
     def test_negative_weights(self):
         """Test with negative edge weights."""
@@ -41,10 +40,9 @@ class TestBellmanFordBasic:
             .add_edge("B", "D", weight=1.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "D")
+        path = graph.bellman_ford_shortest_path("A", "D", return_list=True)
         # Should go A -> C -> B -> D to take advantage of negative weight
         assert path == [1, 3, 2, 4]  # A, C, B, D
-        assert distance == 0.0  # 2 + (-3) + 1 = 0
 
     def test_direct_connection(self):
         """Test direct edge between nodes."""
@@ -55,9 +53,8 @@ class TestBellmanFordBasic:
             .add_edge("A", "B", weight=5.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "B")
+        path = graph.bellman_ford_shortest_path("A", "B", return_list=True)
         assert path == [1, 2]  # A, B
-        assert distance == 5.0
 
     def test_no_path(self):
         """Test when no path exists."""
@@ -65,7 +62,7 @@ class TestBellmanFordBasic:
             Graph(directed=True).add_node(label="A").add_node(label="B").add_node(label="isolated")
         )
 
-        result = graph.bellman_ford_shortest_path("A", "isolated")
+        result = graph.bellman_ford_shortest_path("A", "isolated", return_list=True)
         assert result is None
 
 
@@ -118,10 +115,9 @@ class TestBellmanFordComplexGraphs:
             .add_edge("D", "B", weight=1.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "B")
+        path = graph.bellman_ford_shortest_path("A", "B", return_list=True)
         # Should go A -> C -> D -> B (total: 3) instead of A -> B (10)
         assert path == [1, 3, 4, 2]  # A, C, D, B
-        assert distance == 3.0
 
     def test_star_graph(self):
         """Test with star topology."""
@@ -136,9 +132,8 @@ class TestBellmanFordComplexGraphs:
             .add_edge("hub", "C", weight=3.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("hub", "C")
+        path = graph.bellman_ford_shortest_path("hub", "C", return_list=True)
         assert path == [1, 4]  # hub, C
-        assert distance == 3.0
 
     def test_mixed_positive_negative_weights(self):
         """Test graph with both positive and negative weights."""
@@ -154,10 +149,9 @@ class TestBellmanFordComplexGraphs:
             .add_edge("A", "D", weight=10.0)  # Alternative longer path
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "D")
+        path = graph.bellman_ford_shortest_path("A", "D", return_list=True)
         # Should be A -> B -> C -> D = 5 + (-2) + 3 = 6
         assert path == [1, 2, 3, 4]  # A, B, C, D
-        assert distance == 6.0
 
 
 class TestBellmanFordEdgeCases:
@@ -167,9 +161,8 @@ class TestBellmanFordEdgeCases:
         """Test path from node to itself."""
         graph = Graph(directed=True).add_node(label="A")
 
-        path, distance = graph.bellman_ford_shortest_path("A", "A")
+        path = graph.bellman_ford_shortest_path("A", "A", return_list=True)
         assert path == [1]  # A
-        assert distance == 0.0
 
     def test_zero_weight_edges(self):
         """Test with zero-weight edges."""
@@ -182,9 +175,8 @@ class TestBellmanFordEdgeCases:
             .add_edge("B", "C", weight=0.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "C")
+        path = graph.bellman_ford_shortest_path("A", "C", return_list=True)
         assert path == [1, 2, 3]  # A, B, C
-        assert distance == 0.0
 
     def test_large_negative_weights(self):
         """Test with large negative weights (no cycle)."""
@@ -197,9 +189,8 @@ class TestBellmanFordEdgeCases:
             .add_edge("B", "C", weight=-50.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "C")
+        path = graph.bellman_ford_shortest_path("A", "C", return_list=True)
         assert path == [1, 2, 3]  # A, B, C
-        assert distance == 50.0
 
 
 class TestBellmanFordUndirected:
@@ -216,9 +207,8 @@ class TestBellmanFordUndirected:
             .add_edge("B", "C", weight=2.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "C")
+        path = graph.bellman_ford_shortest_path("A", "C", return_list=True)
         assert path == [1, 2, 3]  # A, B, C
-        assert distance == 3.0
 
     def test_undirected_negative_weights(self):
         """Test undirected graph with negative weights."""
@@ -232,5 +222,87 @@ class TestBellmanFordUndirected:
             .add_edge("B", "C", weight=3.0)
         )
 
-        path, distance = graph.bellman_ford_shortest_path("A", "C")
-        assert distance == 8.0
+        path = graph.bellman_ford_shortest_path("A", "C", return_list=True)
+        assert path == [1, 2, 3]  # A, B, C
+
+
+class TestBellmanFordDualBehavior:
+    """Test the dual-behavior interface (return list or store as attributes)."""
+
+    def test_return_list_behavior(self):
+        """Test return_list=True returns path as list."""
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=1.0)
+            .add_edge("B", "C", weight=2.0)
+        )
+
+        path = graph.bellman_ford_shortest_path("A", "C", return_list=True)
+        assert isinstance(path, list)
+        assert path == [1, 2, 3]
+
+    def test_store_as_attributes_behavior(self):
+        """Test return_list=False stores positions as node attributes."""
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=1.0)
+            .add_edge("B", "C", weight=2.0)
+        )
+
+        result = graph.bellman_ford_shortest_path("A", "C", return_list=False)
+
+        # Should return self for chaining
+        assert result is graph
+
+        # Check that attributes were set
+        ndf = graph.get_node_df()
+        path_order_col = ndf.filter(ndf["bellman_ford_path_order"].is_not_null())
+        assert len(path_order_col) == 3  # A, B, C on path
+
+        # Verify order: A=0, B=1, C=2
+        a_order = ndf.filter(ndf["id"] == 1).select("bellman_ford_path_order")[0, 0]
+        b_order = ndf.filter(ndf["id"] == 2).select("bellman_ford_path_order")[0, 0]
+        c_order = ndf.filter(ndf["id"] == 3).select("bellman_ford_path_order")[0, 0]
+        assert a_order == 0
+        assert b_order == 1
+        assert c_order == 2
+
+    def test_custom_attr_name(self):
+        """Test custom attribute name."""
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=1.0)
+            .add_edge("B", "C", weight=2.0)
+        )
+
+        graph.bellman_ford_shortest_path("A", "C", attr_name="my_path", return_list=False)
+
+        ndf = graph.get_node_df()
+        assert "my_path" in ndf.columns
+        assert "bellman_ford_path_order" not in ndf.columns
+
+    def test_method_chaining(self):
+        """Test that return_list=False enables method chaining."""
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=-1.0)
+            .add_edge("B", "C", weight=2.0)
+            .bellman_ford_shortest_path("A", "C", return_list=False)
+        )
+
+        # Should be able to continue chaining
+        assert isinstance(graph, Graph)
+        ndf = graph.get_node_df()
+        assert "bellman_ford_path_order" in ndf.columns
