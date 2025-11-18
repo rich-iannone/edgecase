@@ -3452,10 +3452,19 @@ class Graph:
         path_ids, distance = result
         return (path_ids, distance)
 
-    def shortest_path(self, source: Union[int, str], target: Union[int, str]) -> list[int] | None:
+    def shortest_path(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        attr_name: str = None,
+        return_list: bool = False,
+    ) -> Union[list[int], "Graph", None]:
         """Find shortest path between two nodes.
 
         Uses breadth-first search (BFS) to find the shortest path by number of hops.
+        Can return the path as a list, or store the position of each node along the
+        path as a node attribute for visualization.
+
         For weighted shortest paths, use Dijkstra's algorithm instead.
 
         Parameters
@@ -3464,23 +3473,32 @@ class Graph:
             Source node (integer ID or string label).
         target : int | str
             Target node (integer ID or string label).
+        attr_name : str, optional
+            Name of the node attribute to store path position.
+            If None, uses "shortest_path_order" as the attribute name.
+            Position is 0-indexed (source = 0, next node = 1, ..., target = n-1).
+            Only nodes on the path get this attribute set.
+        return_list : bool, default False
+            If True, returns list of node IDs in the path.
+            If False, stores positions as node attributes and returns self for chaining.
 
         Returns
         -------
-        list[int] | None
-            List of node IDs in the path from source to target (inclusive), or
-            None if no path exists.
+        Union[list[int], Graph, None]
+            If return_list is True: list of node IDs from source to target (inclusive),
+            or None if no path exists.
+            If return_list is False: returns self for method chaining, or None if no path exists.
 
         Examples
         --------
-        Find shortest path in a simple graph:
+        Find shortest path and get it as a list:
 
         ```python
         graph = Graph()
         graph.add_path_graph(5)  # Creates nodes 1-2-3-4-5
 
-        # Find shortest path using node IDs
-        path = graph.shortest_path(1, 5)
+        # Get path as list (explicit)
+        path = graph.shortest_path(1, 5, return_list=True)
         print(path)  # [1, 2, 3, 4, 5]
 
         # Works with labels too - returns node IDs
@@ -3488,14 +3506,52 @@ class Graph:
         graph.add_node(label="B")
         graph.add_edge(5, 6)
         graph.add_edge(6, 7)
-        path = graph.shortest_path("A", "B")
+        path = graph.shortest_path("A", "B", return_list=True)
         print(path)  # [6, 7]
+        ```
 
-        # No path between disconnected components
+        Store path as node attributes for visualization:
+
+        ```python
+        graph = (
+            Graph()
+            .add_grid_2d(rows=5, cols=5)
+            .shortest_path(1, 25, return_list=False)
+            .colorize_node_attrs(
+                node_attr_from="shortest_path_order",
+                palette="plasma"
+            )
+        )
+        # Visualize the shortest path with gradient coloring
+        ```
+
+        Handle disconnected components:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(3)
         graph.add_node(label="isolated")
         iso_id = graph.get_id_from_label("isolated")
-        path = graph.shortest_path(1, iso_id)
+
+        # Returns None when no path exists
+        path = graph.shortest_path(1, iso_id, return_list=True)
         print(path)  # None
+
+        # With return_list=False, also returns None
+        result = graph.shortest_path(1, iso_id)
+        print(result)  # None
+        ```
+
+        Chain multiple shortest paths:
+
+        ```python
+        graph = (
+            Graph()
+            .add_grid_2d(rows=10, cols=10)
+            .shortest_path(1, 50, attr_name="path1")
+            .shortest_path(1, 100, attr_name="path2")
+        )
+        # Store multiple paths as different attributes
         ```
 
         See Also
@@ -3510,13 +3566,33 @@ class Graph:
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
         path_ids = rust.shortest_path(self._graph, source_id, target_id)
-        return path_ids
+
+        # If no path exists, return None regardless of return_list
+        if path_ids is None:
+            return None
+
+        if return_list:
+            return path_ids
+
+        # Store path positions as node attributes
+        if attr_name is None:
+            attr_name = "shortest_path_order"
+
+        # Create dict mapping node_id -> position in path
+        positions = {node_id: idx for idx, node_id in enumerate(path_ids)}
+        self.set_node_attrs(attr_name, positions)
+
+        # Track computation
+        params = {"source": source, "target": target}
+        self._computations.append(("shortest_path", params, attr_name))
+
+        return self
 
     def bfs(
         self,
         start: Union[int, str],
         attr_name: str = None,
-        return_list: bool = True,
+        return_list: bool = False,
     ) -> Union[list[int], "Graph"]:
         """Perform breadth-first search (BFS) traversal from a start node.
 
@@ -3612,7 +3688,7 @@ class Graph:
         self,
         start: Union[int, str],
         attr_name: str = None,
-        return_list: bool = True,
+        return_list: bool = False,
     ) -> Union[list[int], "Graph"]:
         """Perform depth-first search (DFS) traversal from a start node.
 
@@ -7596,17 +7672,20 @@ class Graph:
 
     def random_walk(
         self,
-        start: str,
+        start: Union[int, str],
         steps: int,
         mode: str = "out",
         stuck: str = "return",
         seed: int | None = None,
-    ) -> list[str]:
+        attr_name: str = None,
+        return_list: bool = False,
+    ) -> Union[list[int], "Graph"]:
         """Perform a random walk on the graph.
 
         Takes a random walk starting from a given node, choosing neighbors
-        uniformly at random at each step. Returns the sequence of nodes
-        visited, including the starting node.
+        uniformly at random at each step. Can return the visit order as a list
+        of node IDs, or store the position of each node in the walk as a node
+        attribute for visualization.
 
         The walk follows edges according to the `mode` parameter:
         - "out": Follow outgoing edges (default for directed graphs)
@@ -7620,8 +7699,8 @@ class Graph:
 
         Parameters
         ----------
-        start : str
-            Label of the starting node.
+        start : int | str
+            Starting node (integer ID or string label).
         steps : int
             Number of steps to take in the walk.
         mode : {"out", "in", "all"}, default="out"
@@ -7635,13 +7714,22 @@ class Graph:
             - "error": Raise an error
         seed : int, optional
             Random seed for reproducibility. If None, uses system entropy.
+        attr_name : str, optional
+            Name of the node attribute to store walk position.
+            If None, uses "random_walk_order" as the attribute name.
+            Position is 0-indexed (start node = 0, next node = 1, etc.).
+            Nodes not visited get no attribute set.
+        return_list : bool, default False
+            If True, returns list of node IDs in walk order.
+            If False, stores positions as node attributes and returns self for chaining.
 
         Returns
         -------
-        list[str]
-            Sequence of node labels visited, of length `steps + 1`
-            (includes the starting node). May be shorter if `stuck="return"`
-            and the walk terminates early.
+        Union[list[int], Graph]
+            If return_list is True: list of node IDs visited in walk order,
+            of length `steps + 1` (includes the starting node). May be shorter
+            if `stuck="return"` and the walk terminates early.
+            If return_list is False: returns self for method chaining.
 
         Raises
         ------
@@ -7661,10 +7749,25 @@ class Graph:
         for i in range(1, 7):
             graph.add_edge(str(i), str((i % 6) + 1))
 
-        # Take a 10-step walk
-        path = graph.random_walk("1", steps=10, seed=42)
+        # Take a 10-step walk, returns node IDs
+        path = graph.random_walk(1, steps=10, seed=42, return_list=True)
         print(len(path))  # 11 (including start)
-        print(path[0])    # "1" (starting node)
+        print(path[0])    # 1 (starting node ID)
+        ```
+
+        Store walk order as node attributes for visualization:
+
+        ```python
+        graph = (
+            Graph()
+            .add_cycle_graph(20)
+            .random_walk(1, steps=100, return_list=False, seed=42)
+            .colorize_node_attrs(
+                node_attr_from="random_walk_order",
+                palette="viridis"
+            )
+        )
+        # Nodes colored by visit order in the walk
         ```
 
         Random walk on directed graph:
@@ -7682,11 +7785,13 @@ class Graph:
             .add_edge(source="D", target="A")
         )
 
+        a_id = graph.get_id_from_label("A")
+
         # Follow edge directions
-        path = graph.random_walk("A", steps=10, mode="out", seed=42)
+        path = graph.random_walk(a_id, steps=10, mode="out", seed=42, return_list=True)
 
         # Reverse directions
-        path_reverse = graph.random_walk("A", steps=10, mode="in", seed=42)
+        path_reverse = graph.random_walk(a_id, steps=10, mode="in", seed=42, return_list=True)
         ```
 
         Handle stuck situations:
@@ -7701,13 +7806,15 @@ class Graph:
             .add_edge(source="B", target="C")  # C has no outgoing edges
         )
 
+        a_id = graph.get_id_from_label("A")
+
         # Return partial walk when stuck
-        path = graph.random_walk("A", steps=10, stuck="return")
-        print(len(path))  # 3: ["A", "B", "C"]
+        path = graph.random_walk(a_id, steps=10, stuck="return", return_list=True)
+        print(len(path))  # 3: node IDs for A, B, C
 
         # Or raise error
         try:
-            path = graph.random_walk("A", steps=10, stuck="error")
+            path = graph.random_walk(a_id, steps=10, stuck="error", return_list=True)
         except RuntimeError as e:
             print("Got stuck!")
         ```
@@ -7725,12 +7832,38 @@ class Graph:
 
         See Also
         --------
-        random_edge_walk : Return edges instead of nodes
+        bfs : Breadth-first search traversal
+        dfs : Depth-first search traversal
+        get_random_edge_walk : Return edges instead of nodes
         get_cmty_walktrap : Community detection via random walks
         """
-        return self._graph.random_walk(start, steps, mode, stuck, seed)
+        start_id = self._resolve_node_id(start, auto_create=False)
 
-    def random_edge_walk(
+        # Get node labels for Rust call (Rust implementation uses labels)
+        start_label = self.get_label_from_id(start_id)
+        walk_labels = self._graph.random_walk(start_label, steps, mode, stuck, seed)
+
+        # Convert labels back to IDs
+        walk_ids = [self.get_id_from_label(label) for label in walk_labels]
+
+        if return_list:
+            return walk_ids
+
+        # Store walk positions as node attributes
+        if attr_name is None:
+            attr_name = "random_walk_order"
+
+        # Create dict mapping node_id -> position in walk
+        positions = {node_id: idx for idx, node_id in enumerate(walk_ids)}
+        self.set_node_attrs(attr_name, positions)
+
+        # Track computation
+        params = {"start": start, "steps": steps, "mode": mode, "stuck": stuck, "seed": seed}
+        self._computations.append(("random_walk", params, attr_name))
+
+        return self
+
+    def get_random_edge_walk(
         self,
         start: str,
         steps: int,
@@ -7793,7 +7926,7 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        edges = graph.random_edge_walk("A", steps=5, seed=42)
+        edges = graph.get_random_edge_walk("A", steps=5, seed=42)
 
         # Each edge is (id, source, target)
         for edge_id, source, target in edges:
@@ -7817,7 +7950,7 @@ class Graph:
         )
 
         # Long random walk
-        edges = graph.random_edge_walk(start="A", steps=1000, seed=42)
+        edges = graph.get_random_edge_walk(start="A", steps=1000, seed=42)
 
         # Count edge usage
         edge_counts = Counter((src, tgt) for _, src, tgt in edges)
