@@ -56,9 +56,7 @@ class TestRandomWalk:
         g.add_edge("C", "D")
 
         # Walking forward from A should only reach B, then get stuck
-        path = g.random_walk(
-            "A", steps=10, mode="out", stuck="return", seed=42, return_list=True
-        )
+        path = g.random_walk("A", steps=10, mode="out", stuck="return", seed=42, return_list=True)
         assert len(path) <= 4  # A -> B -> C -> D
         assert path[0] == g.get_id_from_label("A")
         if len(path) > 1:
@@ -74,9 +72,7 @@ class TestRandomWalk:
         g.add_edge("C", "D")
 
         # Walking backward from C should reach B, then A
-        path = g.random_walk(
-            "C", steps=10, mode="in", stuck="return", seed=42, return_list=True
-        )
+        path = g.random_walk("C", steps=10, mode="in", stuck="return", seed=42, return_list=True)
         assert path[0] == g.get_id_from_label("C")
         if len(path) > 1:
             assert path[1] == g.get_id_from_label("B")
@@ -203,14 +199,14 @@ class TestRandomEdgeWalk:
         edges = g.get_random_edge_walk("1", steps=10, seed=42)
         assert len(edges) == 10  # exactly 'steps' edges
 
-        # Each edge should be a tuple of (id, source, target)
+        # Each edge should be a tuple of (edge_id, source_id, target_id)
         for edge in edges:
             assert isinstance(edge, tuple)
             assert len(edge) == 3
-            edge_id, source, target = edge
+            edge_id, source_id, target_id = edge
             assert isinstance(edge_id, int)
-            assert isinstance(source, str)
-            assert isinstance(target, str)
+            assert isinstance(source_id, int)
+            assert isinstance(target_id, int)
 
     def test_edge_walk_validity(self):
         """Test that edge walk returns valid edges."""
@@ -227,12 +223,13 @@ class TestRandomEdgeWalk:
         assert len(edge_path) == 10
 
         # Each edge should be valid
-        for edge_id, source, target in edge_path:
+        for edge_id, source_id, target_id in edge_path:
             assert isinstance(edge_id, int)
-            assert source in ["1", "2", "3"]
-            assert target in ["1", "2", "3"]
-            # Edge should exist in graph
-            assert {source, target} <= {"1", "2", "3"}
+            assert isinstance(source_id, int)
+            assert isinstance(target_id, int)
+            # Node IDs should be valid (1, 2, or 3)
+            assert source_id in [1, 2, 3]
+            assert target_id in [1, 2, 3]
 
     def test_edge_walk_mode(self):
         """Test edge walk with different modes."""
