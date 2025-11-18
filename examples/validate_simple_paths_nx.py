@@ -276,7 +276,7 @@ def test_petersen_graph():
 
     # Convert to EdgeCase (nodes are 0-9)
     ec_graph = ec.Graph()
-    for node in nx_graph.node_ids(limit=None):
+    for node in nx_graph.get_node_ids(limit=None):
         ec_graph.add_node(label=str(node))
 
     for src, tgt in nx_graph.edges():
@@ -305,7 +305,7 @@ def test_karate_club():
 
     # Convert to EdgeCase
     ec_graph = ec.Graph()
-    for node in nx_graph.node_ids(limit=None):
+    for node in nx_graph.get_node_ids(limit=None):
         ec_graph.add_node(label=str(node))
 
     for src, tgt in nx_graph.edges():

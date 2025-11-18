@@ -19,7 +19,7 @@ def demo_basic_multi_edges():
 
     print(f"Nodes: {g.num_nodes()}")
     print(f"Edges: {g.num_edges()}")
-    print(f"Edge IDs: {g.edge_ids()}")
+    print(f"Edge IDs: {g.get_edge_ids()}")
     print(f"\nEdges (id, source, target): {g.edges_as_tuples()}")
     print()
 
@@ -42,7 +42,7 @@ def demo_auto_increment():
     g.add_edge("A", "B")  # Third edge A->B
 
     print("Added 5 edges total")
-    print(f"Edge IDs: {g.edge_ids()}")
+    print(f"Edge IDs: {g.get_edge_ids()}")
     print("\nMultiple A->B edges:")
     for edge_id, src, tgt in g.edges_as_tuples():
         if src == "A" and tgt == "B":
@@ -65,7 +65,7 @@ def demo_edge_operations():
     g.add_edge("X", "Y", weight=2.0, label="second")
     g.add_edge("Y", "Z", weight=3.0, label="third")
 
-    edge_ids = g.edge_ids()
+    edge_ids = g.get_edge_ids()
     print(f"All edge IDs: {edge_ids}")
 
     # Get specific edge
@@ -80,7 +80,7 @@ def demo_edge_operations():
     print(f"\nDeleting edge {edge_ids[1]}...")
     g.delete_edge_by_id(edge_ids[1])
     print(f"Remaining edges: {g.num_edges()}")
-    print(f"Remaining edge IDs: {g.edge_ids()}")
+    print(f"Remaining edge IDs: {g.get_edge_ids()}")
     print()
 
 
@@ -112,7 +112,7 @@ def demo_dataframe_edge_ids():
 
     print("Created graph from DataFrames")
     print(f"Nodes: {g.num_nodes()}, Edges: {g.num_edges()}")
-    print(f"Edge IDs preserved: {g.edge_ids()}")
+    print(f"Edge IDs preserved: {g.get_edge_ids()}")
     print("\nUser1 -> User2 edges:")
     for edge_id, src, tgt in g.edges_as_tuples():
         if src == "User1" and tgt == "User2":
@@ -145,7 +145,7 @@ def demo_social_network():
     g.add_edge("Diana", "Alice", rel="follows", timestamp="2024-02-15")
 
     print(f"Social network: {g.num_nodes()} users, {g.num_edges()} interactions")
-    print(f"Edge IDs: {g.edge_ids()}")
+    print(f"Edge IDs: {g.get_edge_ids()}")
 
     # Find all Alice -> Bob interactions
     alice_bob = [(eid, s, t) for eid, s, t in g.edges_as_tuples() if s == "Alice" and t == "Bob"]
@@ -181,7 +181,7 @@ def demo_transaction_network():
         g.add_edge(src, tgt, amount=amount, date=date, type="transaction")
 
     print(f"Transaction network: {g.num_nodes()} accounts, {g.num_edges()} transactions")
-    print(f"Transaction IDs: {g.edge_ids()}")
+    print(f"Transaction IDs: {g.get_edge_ids()}")
 
     # Analyze transactions between Acct_001 and Acct_002
     acct1_to_2 = [
@@ -213,8 +213,8 @@ def demo_comparison():
     g.add_node("B")
     g.add_edge("A", "B", rel="follows")
     g.add_edge("A", "B", rel="likes")
-    print(f"  - add_edge('A', 'B', rel='follows')  # Edge ID: {g.edge_ids()[0]}")
-    print(f"  - add_edge('A', 'B', rel='likes')    # Edge ID: {g.edge_ids()[1]}")
+    print(f"  - add_edge('A', 'B', rel='follows')  # Edge ID: {g.get_edge_ids()[0]}")
+    print(f"  - add_edge('A', 'B', rel='likes')    # Edge ID: {g.get_edge_ids()[1]}")
     print(f"  - Result: {g.num_edges()} edges ✅")
 
 
