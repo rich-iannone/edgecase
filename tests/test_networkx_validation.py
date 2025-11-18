@@ -190,7 +190,7 @@ class TestShortestPathValidation:
         G.add_edge("A", "C", weight=3.0)
 
         # EdgeCase shortest path
-        ec_path = G.shortest_path("A", "C")
+        ec_path = G.shortest_path("A", "C", return_list=True)
 
         # NetworkX shortest path
         nx_graph = to_networkx(G)
@@ -215,7 +215,7 @@ class TestShortestPathValidation:
         G.add_edge("D", "C", weight=1.0)
 
         # EdgeCase shortest path (A->D->C is shorter than A->B->C)
-        ec_path = G.shortest_path("A", "C")
+        ec_path = G.shortest_path("A", "C", return_list=True)
 
         # NetworkX shortest path
         nx_graph = to_networkx(G)
@@ -239,7 +239,7 @@ class TestShortestPathValidation:
 
         # EdgeCase shortest path
         try:
-            ec_path = graph.shortest_path(source, target)
+            ec_path = graph.shortest_path(source, target, return_list=True)
         except:
             ec_path = None
 
@@ -705,7 +705,7 @@ class TestComplexAlgorithmsValidation:
         G.add_edge("B", "E", weight=1.0)
         G.add_edge("D", "E", weight=1.0)
 
-        ec_path = G.shortest_path("A", "E")
+        ec_path = G.shortest_path("A", "E", return_list=True)
 
         nx_graph = to_networkx(G)
         nx_path = nx.shortest_path(nx_graph, "A", "E", weight="weight")
@@ -757,7 +757,7 @@ class TestComplexAlgorithmsValidation:
 
         # Try to find path between components
         try:
-            ec_path = G.shortest_path("A", "D")
+            ec_path = G.shortest_path("A", "D", return_list=True)
             ec_found = ec_path is not None
         except:
             ec_found = False
@@ -856,7 +856,7 @@ class TestEdgeCases:
         G.add_edge("B", "C", weight=1.0)
         G.add_edge("A", "C", weight=1.5)  # Direct path is more expensive
 
-        ec_path_ids = G.shortest_path("A", "C")
+        ec_path_ids = G.shortest_path("A", "C", return_list=True)
         # Convert IDs to labels for comparison
         ec_path = [node_to_nx(G, node_id) for node_id in ec_path_ids]
 
@@ -961,7 +961,7 @@ class TestGraphTraversal:
 
         # BFS from A
         if hasattr(G, "bfs"):
-            ec_bfs_ids = list(G.bfs("A"))
+            ec_bfs_ids = list(G.bfs("A", return_list=True))
             # Convert node IDs back to labels for comparison
             ec_bfs = [G.get_label_from_id(nid) or nid for nid in ec_bfs_ids]
             nx_bfs = list(nx.bfs_tree(nx_graph, "A").nodes())
@@ -987,7 +987,7 @@ class TestGraphTraversal:
 
         # DFS from A
         if hasattr(G, "dfs"):
-            ec_dfs_ids = list(G.dfs("A"))
+            ec_dfs_ids = list(G.dfs("A", return_list=True))
             # Convert node IDs back to labels for comparison
             ec_dfs = [G.get_label_from_id(nid) or nid for nid in ec_dfs_ids]
             nx_dfs = list(nx.dfs_tree(nx_graph, "A").nodes())
@@ -1872,7 +1872,7 @@ class TestPerformanceBaseline:
         for i in range(50):
             G.add_edge(f"n{i}", f"n{i + 1}")
 
-        path = G.shortest_path("n0", "n50")
+        path = G.shortest_path("n0", "n50", return_list=True)
 
         assert path is not None
         assert len(path) == 51  # 51 nodes in path

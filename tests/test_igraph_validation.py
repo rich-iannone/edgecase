@@ -270,7 +270,7 @@ class TestShortestPaths:
         ig_graph = to_igraph(G)
 
         # EdgeCase shortest path (returns node IDs)
-        ec_path_ids = G.shortest_path("A", "D")
+        ec_path_ids = G.shortest_path("A", "D", return_list=True)
         # Convert EdgeCase path IDs to labels for comparison
         ec_path = [G.get_label_from_id(nid) for nid in ec_path_ids]
 
@@ -298,7 +298,7 @@ class TestShortestPaths:
         ig_graph = to_igraph(G)
 
         # EdgeCase shortest path (returns node IDs, uses Dijkstra with weights)
-        ec_path_ids = G.shortest_path("A", "D")
+        ec_path_ids = G.shortest_path("A", "D", return_list=True)
         # Convert EdgeCase path IDs to labels for comparison
         ec_path = [G.get_label_from_id(nid) for nid in ec_path_ids]
 

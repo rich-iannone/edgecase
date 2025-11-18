@@ -119,7 +119,7 @@ def test_bfs_vs_networkx(graph_name, ec_graph):
     start_node = ec_graph.node_ids(limit=1)[0]
 
     # EdgeCase BFS
-    ec_result = ec_graph.bfs(start_node)
+    ec_result = ec_graph.bfs(start_node, return_list=True)
 
     # NetworkX BFS
     nx_result = list(nx.bfs_tree(nx_graph, start_node).nodes())
@@ -152,7 +152,7 @@ def test_bfs_vs_igraph(graph_name, ec_graph):
     start_idx = node_ids.index(start_node)
 
     # EdgeCase BFS
-    ec_result = ec_graph.bfs(start_node)
+    ec_result = ec_graph.bfs(start_node, return_list=True)
 
     # igraph BFS (returns indices)
     ig_result_indices = ig_graph.bfs(start_idx)[0]
@@ -183,7 +183,7 @@ def test_dfs_vs_networkx(graph_name, ec_graph):
     start_node = ec_graph.node_ids(limit=1)[0]
 
     # EdgeCase DFS
-    ec_result = ec_graph.dfs(start_node)
+    ec_result = ec_graph.dfs(start_node, return_list=True)
 
     # NetworkX DFS
     nx_result = list(nx.dfs_preorder_nodes(nx_graph, start_node))
@@ -216,7 +216,7 @@ def test_dfs_vs_igraph(graph_name, ec_graph):
     start_idx = node_ids.index(start_node)
 
     # EdgeCase DFS
-    ec_result = ec_graph.dfs(start_node)
+    ec_result = ec_graph.dfs(start_node, return_list=True)
 
     # igraph DFS (returns indices)
     ig_result_indices = ig_graph.dfs(start_idx)[0]
@@ -244,8 +244,8 @@ def test_bfs_dfs_same_nodes(graph_name, ec_graph):
     # Get first node
     start_node = ec_graph.node_ids(limit=1)[0]
 
-    bfs_result = ec_graph.bfs(start_node)
-    dfs_result = ec_graph.dfs(start_node)
+    bfs_result = ec_graph.bfs(start_node, return_list=True)
+    dfs_result = ec_graph.dfs(start_node, return_list=True)
 
     # Same nodes visited
     assert set(bfs_result) == set(dfs_result), (
@@ -266,7 +266,7 @@ def test_bfs_visits_all_nodes():
     """Test that BFS visits all nodes in connected graph."""
     g = ec.load_dataset("karate")
 
-    result = g.bfs(1)
+    result = g.bfs(1, return_list=True)
 
     # Should visit all 34 nodes
     assert len(result) == 34
@@ -280,7 +280,7 @@ def test_dfs_visits_all_nodes():
     """Test that DFS visits all nodes in connected graph."""
     g = ec.load_dataset("karate")
 
-    result = g.dfs(1)
+    result = g.dfs(1, return_list=True)
 
     # Should visit all 34 nodes
     assert len(result) == 34
@@ -300,16 +300,16 @@ def test_disconnected_graph_only_visits_component():
     g.add_node(11)
     g.add_edge(10, 11)
 
-    bfs_result = g.bfs(1)
-    dfs_result = g.dfs(1)
+    bfs_result = g.bfs(1, return_list=True)
+    dfs_result = g.dfs(1, return_list=True)
 
     # Both should only visit component containing node 1
     assert set(bfs_result) == {1, 2, 3}
     assert set(dfs_result) == {1, 2, 3}
 
     # Now start from component 2
-    bfs_result = g.bfs(10)
-    dfs_result = g.dfs(10)
+    bfs_result = g.bfs(10, return_list=True)
+    dfs_result = g.dfs(10, return_list=True)
 
     assert set(bfs_result) == {10, 11}
     assert set(dfs_result) == {10, 11}

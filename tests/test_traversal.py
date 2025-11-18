@@ -635,7 +635,7 @@ class TestBFS:
         g = ec.Graph()
         g.add_path_graph(5)
 
-        result = g.bfs(1)
+        result = g.bfs(1, return_list=True)
         assert result == [1, 2, 3, 4, 5]
         assert len(result) == 5
 
@@ -643,7 +643,7 @@ class TestBFS:
         """Test BFS on karate dataset - should visit all connected nodes."""
         g = ec.load_dataset("karate")
 
-        result = g.bfs(1)
+        result = g.bfs(1, return_list=True)
         # Should visit all 34 nodes starting from node 1
         assert result[0] == 1
         assert len(result) == 34
@@ -655,7 +655,7 @@ class TestBFS:
         g = ec.Graph()
         g.add_star_graph(5)
 
-        result = g.bfs(1)  # Start from hub
+        result = g.bfs(1, return_list=True)  # Start from hub
         # Hub first, then all leaves
         assert result[0] == 1
         assert len(result) == 5
@@ -666,7 +666,7 @@ class TestBFS:
         g = ec.Graph()
         g.add_cycle_graph(6)
 
-        result = g.bfs(1)
+        result = g.bfs(1, return_list=True)
         assert len(result) == 6
         assert set(result) == {1, 2, 3, 4, 5, 6}
         # First node should be start
@@ -680,7 +680,7 @@ class TestBFS:
         g.add_node(11)
         g.add_edge(10, 11)
 
-        result = g.bfs(1)
+        result = g.bfs(1, return_list=True)
         # Should only visit component containing node 1
         assert set(result) == {1, 2, 3}
 
@@ -689,7 +689,7 @@ class TestBFS:
         g = ec.Graph()
         g.add_node(42)
 
-        result = g.bfs(42)
+        result = g.bfs(42, return_list=True)
         assert result == [42]
 
     def test_bfs_complete_graph(self):
@@ -697,7 +697,7 @@ class TestBFS:
         g = ec.Graph()
         g.add_full_graph(5)
 
-        result = g.bfs(1)
+        result = g.bfs(1, return_list=True)
         # All nodes reachable from any node
         assert len(result) == 5
         assert set(result) == {1, 2, 3, 4, 5}
@@ -712,7 +712,7 @@ class TestBFS:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        result = g.bfs("A")
+        result = g.bfs("A", return_list=True)
         # Returns node IDs
         assert len(result) == 3
 
@@ -722,7 +722,7 @@ class TestBFS:
         g.add_path_graph(5)
 
         with pytest.raises(ValueError):
-            g.bfs(999)
+            g.bfs(999, return_list=True)
 
 
 class TestDFS:
@@ -733,7 +733,7 @@ class TestDFS:
         g = ec.Graph()
         g.add_path_graph(5)
 
-        result = g.dfs(1)
+        result = g.dfs(1, return_list=True)
         assert result == [1, 2, 3, 4, 5]
         assert len(result) == 5
 
@@ -741,7 +741,7 @@ class TestDFS:
         """Test DFS on karate dataset - should explore depth first."""
         g = ec.load_dataset("karate")
 
-        result = g.dfs(1)
+        result = g.dfs(1, return_list=True)
         # Should visit all 34 nodes starting from node 1
         assert result[0] == 1
         assert len(result) == 34
@@ -753,7 +753,7 @@ class TestDFS:
         g = ec.Graph()
         g.add_star_graph(5)
 
-        result = g.dfs(1)  # Start from hub
+        result = g.dfs(1, return_list=True)  # Start from hub
         # Hub first, then leaves
         assert result[0] == 1
         assert len(result) == 5
@@ -764,7 +764,7 @@ class TestDFS:
         g = ec.Graph()
         g.add_cycle_graph(6)
 
-        result = g.dfs(1)
+        result = g.dfs(1, return_list=True)
         assert len(result) == 6
         assert set(result) == {1, 2, 3, 4, 5, 6}
         assert result[0] == 1
@@ -777,7 +777,7 @@ class TestDFS:
         g.add_node(11)
         g.add_edge(10, 11)
 
-        result = g.dfs(1)
+        result = g.dfs(1, return_list=True)
         # Should only visit component containing node 1
         assert set(result) == {1, 2, 3}
 
@@ -786,7 +786,7 @@ class TestDFS:
         g = ec.Graph()
         g.add_node(42)
 
-        result = g.dfs(42)
+        result = g.dfs(42, return_list=True)
         assert result == [42]
 
     def test_dfs_complete_graph(self):
@@ -794,7 +794,7 @@ class TestDFS:
         g = ec.Graph()
         g.add_full_graph(5)
 
-        result = g.dfs(1)
+        result = g.dfs(1, return_list=True)
         # All nodes reachable from any node
         assert len(result) == 5
         assert set(result) == {1, 2, 3, 4, 5}
@@ -809,7 +809,7 @@ class TestDFS:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        result = g.dfs("A")
+        result = g.dfs("A", return_list=True)
         # Returns node IDs
         assert len(result) == 3
 
@@ -819,7 +819,7 @@ class TestDFS:
         g.add_path_graph(5)
 
         with pytest.raises(ValueError):
-            g.dfs(999)
+            g.dfs(999, return_list=True)
 
 
 class TestBFSvsDFS:
@@ -831,8 +831,8 @@ class TestBFSvsDFS:
         g.add_balanced_tree(k=3, h=4)
 
         start = 1
-        bfs_result = g.bfs(start)
-        dfs_result = g.dfs(start)
+        bfs_result = g.bfs(start, return_list=True)
+        dfs_result = g.dfs(start, return_list=True)
 
         # Same nodes visited
         assert set(bfs_result) == set(dfs_result)
@@ -844,8 +844,8 @@ class TestBFSvsDFS:
         g = ec.Graph()
         g.add_balanced_tree(k=2, h=3)
 
-        bfs_result = g.bfs(1)
-        dfs_result = g.dfs(1)
+        bfs_result = g.bfs(1, return_list=True)
+        dfs_result = g.dfs(1, return_list=True)
 
         # Same nodes
         assert set(bfs_result) == set(dfs_result)
@@ -859,8 +859,8 @@ class TestBFSvsDFS:
         g = ec.Graph()
         g.add_path_graph(10)
 
-        bfs_result = g.bfs(1)
-        dfs_result = g.dfs(1)
+        bfs_result = g.bfs(1, return_list=True)
+        dfs_result = g.dfs(1, return_list=True)
 
         # Same order for path
         assert bfs_result == dfs_result

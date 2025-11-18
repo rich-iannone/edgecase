@@ -175,7 +175,7 @@ def test_shortest_path_starts_and_ends_correctly(G, seed):
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
 
-        path = G.shortest_path(source, target)
+        path = G.shortest_path(source, target, return_list=True)
 
         if path and len(path) > 0:
             # Path now returns node IDs
@@ -192,7 +192,7 @@ def test_shortest_path_consecutive_edges_exist(G, seed):
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
 
-        path = G.shortest_path(source, target)
+        path = G.shortest_path(source, target, return_list=True)
 
         if path and len(path) > 1:
             for i in range(len(path) - 1):

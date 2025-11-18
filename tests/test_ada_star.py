@@ -287,7 +287,7 @@ class TestAdaStarComparison:
         ada_path = g.ada_star_search("A", "C", epsilon=1.0)
 
         # EdgeCase's shortest_path uses Dijkstra (now returns node IDs)
-        dijkstra_path = g.shortest_path("A", "C")
+        dijkstra_path = g.shortest_path("A", "C", return_list=True)
 
         # Both should find optimal paths
         # Multiple optimal paths may exist, so we check they're both valid

@@ -67,7 +67,7 @@ def test_shortest_path_direct_connection() -> None:
     graph.add_node(Node(2, "B"))
     graph.add_edge(Edge(0, 1, 2, None, None))
 
-    path = graph.shortest_path("A", "B")
+    path = graph.shortest_path("A", "B", return_list=True)
     assert path == [1, 2]
 
 
@@ -81,7 +81,7 @@ def test_shortest_path_multiple_hops() -> None:
     graph.add_edge(Edge(0, 2, 3, None, None))
     graph.add_edge(Edge(0, 3, 4, None, None))
 
-    path = graph.shortest_path("A", "D")
+    path = graph.shortest_path("A", "D", return_list=True)
     assert len(path) == 4
     assert path[0] == 1
     assert path[-1] == 4
