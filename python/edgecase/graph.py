@@ -720,14 +720,14 @@ class Graph:
         See Also
         --------
         get_id_from_label : Get node ID from label
-        node_ids : Get all node IDs in the graph
+        get_node_ids : Get all node IDs in the graph
         """
         try:
             return self._graph.label_from_id(node_id)
         except (ValueError, Exception):
             return None
 
-    def node_ids(self, limit: Optional[int] = 1000) -> list[int]:
+    def get_node_ids(self, limit: Optional[int] = 1000) -> list[int]:
         """Return list of node IDs.
 
         Returns node IDs in the graph up to the specified limit. Node IDs are
@@ -758,7 +758,7 @@ class Graph:
             .add_node(label="C")
         )
 
-        ids = graph.node_ids()  # Returns up to 1000 node IDs
+        ids = graph.get_node_ids()  # Returns up to 1000 node IDs
         print(f"Showing {len(ids)} node IDs: {ids}")
         ```
 
@@ -770,7 +770,7 @@ class Graph:
             graph.add_node(label=f"Node_{i}")
 
         # Get only first 10 node IDs for preview
-        sample_ids = graph.node_ids(limit=10)
+        sample_ids = graph.get_node_ids(limit=10)
         print(f"Sample: {sample_ids}")
         ```
 
@@ -782,19 +782,19 @@ class Graph:
             graph.add_node(label=f"Node_{i}")
 
         # Use None to get all nodes (may be slow for large graphs!)
-        all_ids = graph.node_ids(limit=None)
+        all_ids = graph.get_node_ids(limit=None)
         print(f"Total nodes: {len(all_ids)}")
         ```
 
         See Also
         --------
         num_nodes : Get the count of nodes
-        edge_ids : Get list of edge IDs
+        get_edge_ids : Get list of edge IDs
         """
         ids = self._graph.get_node_ids()
         return ids if limit is None else ids[:limit]
 
-    def edge_ids(self, limit: Optional[int] = 1000) -> list[int]:
+    def get_edge_ids(self, limit: Optional[int] = 1000) -> list[int]:
         """Return list of edge IDs.
 
         Returns edge IDs in the graph up to the specified limit. Edge IDs are
@@ -829,7 +829,7 @@ class Graph:
             .add_edge(source="B", target="C")
         )
 
-        ids = graph.edge_ids()  # Returns up to 1000 edge IDs
+        ids = graph.get_edge_ids()  # Returns up to 1000 edge IDs
         print(f"Showing {len(ids)} edge IDs: {ids}")
         ```
 
@@ -845,7 +845,7 @@ class Graph:
             graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
 
         # Get only first 10 edge IDs for preview
-        sample_ids = graph.edge_ids(limit=10)
+        sample_ids = graph.get_edge_ids(limit=10)
         print(f"Sample: {sample_ids}")
         ```
 
@@ -861,7 +861,7 @@ class Graph:
             graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
 
         # Use None to get all edges (may be slow for large graphs!)
-        all_ids = graph.edge_ids(limit=None)
+        all_ids = graph.get_edge_ids(limit=None)
         print(f"Total edges: {len(all_ids)}")
         ```
 
@@ -905,7 +905,7 @@ class Graph:
         )
 
         # Get first edge ID
-        edge_id = graph.edge_ids()[0]
+        edge_id = graph.get_edge_ids()[0]
 
         # Look up the edge
         source, target = graph.get_node_ids_by_edge_id(edge_id=edge_id)
@@ -1132,7 +1132,7 @@ class Graph:
             .add_edge(source="A", target="B")
         )
 
-        edge_id = graph.edge_ids()[0]
+        edge_id = graph.get_edge_ids()[0]
         print(graph.has_edge_id(edge_id=edge_id))  # True
         print(graph.has_edge_id(edge_id=9999))     # False
         ```
@@ -1410,7 +1410,7 @@ class Graph:
             .add_node(label="B")
             .add_edge(source="A", target="B")
         )
-        edge_id = graph.edge_ids()[0]
+        edge_id = graph.get_edge_ids()[0]
 
         graph.delete_edge(id=edge_id)
         print(graph.has_edge(source="A", target="B"))  # False
@@ -1475,7 +1475,7 @@ class Graph:
         )
 
         # Get the edge ID
-        edge_id = graph.edge_ids()[0]
+        edge_id = graph.get_edge_ids()[0]
 
         # Delete the edge
         graph.delete_edge_by_id(edge_id=edge_id)
@@ -1786,7 +1786,7 @@ class Graph:
         from edgecase.colors import COLOR_PALETTES
 
         if nodes is None:
-            nodes = self.node_ids(limit=None)
+            nodes = self.get_node_ids(limit=None)
 
         # Get values to colorize
         if values is None:
@@ -1900,7 +1900,7 @@ class Graph:
         G.add_edge(source="0", target="3")
 
         # Calculate degrees and rescale
-        degrees = {n: len(G.neighbors(node_id=n)) for n in G.node_ids(limit=None)}
+        degrees = {n: len(G.neighbors(node_id=n)) for n in G.get_node_ids(limit=None)}
         G.rescale_node_attrs(
             values=degrees,
             node_attr_to="width",
@@ -1918,7 +1918,7 @@ class Graph:
         to_lower_bound, to_upper_bound = range[0], range[1]
 
         if nodes is None:
-            nodes = self.node_ids(limit=None)
+            nodes = self.get_node_ids(limit=None)
 
         # Get values to rescale
         if values is None:
@@ -2287,7 +2287,7 @@ class Graph:
         get_out_degree : Get out-degree for directed graphs
         """
         # Compute degrees for all nodes
-        node_ids = self.node_ids(limit=None)
+        node_ids = self.get_node_ids(limit=None)
         degrees = {node_id: self.get_degree(node_id) for node_id in node_ids}
 
         # Auto-generate attribute name if not provided
@@ -2624,7 +2624,7 @@ class Graph:
 
         # Get indegrees for all nodes (or filtered nodes)
         degrees = []
-        for node_id in self.node_ids(limit=None):
+        for node_id in self.get_node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
                 degrees.append(self.get_in_degree(node_id))
 
@@ -2698,7 +2698,7 @@ class Graph:
 
         # Filtered aggregation: max outdegree of nodes with attributes
         # First set an attribute on some nodes
-        node_list = list(graph.node_ids(limit=5))
+        node_list = list(graph.get_node_ids(limit=5))
         graph.set_node_attrs(node_attr='type', values='special', nodes=node_list)
         max_out = graph.get_agg_degree_out(
             'max',
@@ -2722,7 +2722,7 @@ class Graph:
 
         # Get outdegrees for all nodes (or filtered nodes)
         degrees = []
-        for node_id in self.node_ids(limit=None):
+        for node_id in self.get_node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
                 degrees.append(self.get_out_degree(node_id))
 
@@ -2814,7 +2814,7 @@ class Graph:
 
         # Get total degrees for all nodes (or filtered nodes)
         degrees = []
-        for node_id in self.node_ids(limit=None):
+        for node_id in self.get_node_ids(limit=None):
             if conditions is None or conditions(self.get_node(node_id)):
                 degrees.append(self.get_degree(node_id))
 
@@ -4556,7 +4556,7 @@ class Graph:
         # Resolve node_id to integer ID
         node_id = self._resolve_node_id(node_id)
 
-        all_nodes = set(self.node_ids(limit=None))
+        all_nodes = set(self.get_node_ids(limit=None))
         neighbors = set(self.neighbors(node_id, mode="all"))
 
         # Remove the node itself and its neighbors
@@ -4722,7 +4722,7 @@ class Graph:
         graph.add_path_graph(2)  # Component 2: nodes 3-4
 
         # Find all nodes reachable from node 0
-        node_ids = list(graph.node_ids())
+        node_ids = list(graph.get_node_ids())
         connected = graph.get_all_connected_nodes(node_ids[0])
         print(len(connected))  # 2 (nodes 1 and 2)
 
@@ -4745,7 +4745,7 @@ class Graph:
         visited = set()
         components = []
 
-        for node in graph.node_ids(limit=None):
+        for node in graph.get_node_ids(limit=None):
             if node not in visited:
                 component = graph.get_all_connected_nodes(node_id=node)
                 component.append(node)  # Include starting node
@@ -8794,7 +8794,7 @@ class Graph:
         G = karate_club()
 
         # Get actual node IDs (karate_club uses integer IDs)
-        node_ids = list(G.node_ids())
+        node_ids = list(G.get_node_ids())
         first_node = node_ids[0]
         last_node = node_ids[-1]
 
@@ -8949,7 +8949,7 @@ class Graph:
         G = karate_club()
 
         # Karate club has nodes 0-33, get any two node IDs
-        node_ids = list(G.node_ids(limit=None))
+        node_ids = list(G.get_node_ids(limit=None))
         if len(node_ids) >= 2:
             source_id = node_ids[0]
             target_id = node_ids[-1]
@@ -10992,7 +10992,7 @@ class Graph:
         g.add_edge(source="B", target="C")
         g.add_edge(source="B", target="D")
 
-        max_deg = max(g.get_degree(node=nid) for nid in g.node_ids())
+        max_deg = max(g.get_degree(node=nid) for nid in g.get_node_ids())
         bonacich = g.bonacich_power_centrality(return_dict=True, beta=0.9/max_deg)
         eigen = g.eigen_centrality()
         # Should be similar
@@ -11599,7 +11599,7 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        edge_ids = graph.edge_ids()
+        edge_ids = graph.get_edge_ids()
         graph.select_edges_by_id(edge_ids=[edge_ids[0], edge_ids[1]])
 
         selected_count = graph.count_selected_edges()
@@ -11776,11 +11776,11 @@ class Graph:
         )
 
         # Select all nodes first
-        all_ids = list(graph.node_ids(limit=None))
+        all_ids = list(graph.get_node_ids(limit=None))
         graph.select_nodes_by_id(all_ids)
 
         # Deselect first and last nodes
-        node_list = list(graph.node_ids(limit=None))
+        node_list = list(graph.get_node_ids(limit=None))
         first_id = node_list[0]
         last_id = node_list[4]
         graph.deselect_nodes([first_id, last_id])
@@ -11807,7 +11807,7 @@ class Graph:
         )
 
         # Select all nodes first
-        all_ids = list(graph.node_ids(limit=None))
+        all_ids = list(graph.get_node_ids(limit=None))
         graph.select_nodes_by_id(all_ids)
 
         # Deselect first and last nodes using labels
@@ -11847,7 +11847,7 @@ class Graph:
         ```python
         graph = Graph().add_cycle_graph(5)
 
-        all_edges = graph.edge_ids()
+        all_edges = graph.get_edge_ids()
         graph.select_edges_by_id(all_edges)
 
         # Remove first edge from selection
@@ -11957,7 +11957,7 @@ class Graph:
         graph = Graph().add_cycle_graph(5)
 
         # Select one edge, then invert to select all others
-        first_edge = graph.edge_ids()[0]
+        first_edge = graph.get_edge_ids()[0]
         graph.select_edges_by_id([first_edge]).invert_edge_selection()
 
         count = graph.count_selected_edges()
@@ -12132,7 +12132,7 @@ class Graph:
         graph = Graph(directed=True).add_path_graph(n=6)
 
         # Get node IDs for nodes at positions 2, 3, 4
-        all_node_ids = list(graph.node_ids(limit=None))
+        all_node_ids = list(graph.get_node_ids(limit=None))
         node_ids_to_select = [all_node_ids[2], all_node_ids[3], all_node_ids[4]]
         graph.select_nodes_by_id(node_ids=node_ids_to_select)
 
@@ -12146,7 +12146,7 @@ class Graph:
         ```python
         graph = Graph().add_cycle_graph(5)
 
-        edges = graph.edge_ids()[:2]
+        edges = graph.get_edge_ids()[:2]
         graph.select_edges_by_id(edges)
 
         subgraph = graph.transform_to_subgraph_ws()
@@ -12177,7 +12177,7 @@ class Graph:
                     subgraph.add_node(node_id)
 
             # Add edges that connect selected nodes
-            for edge_id in self.edge_ids():
+            for edge_id in self.get_edge_ids():
                 edge = self.get_edge(edge_id)
                 if edge and edge.source in node_set and edge.target in node_set:
                     # Prepare edge attributes
@@ -12378,7 +12378,7 @@ class Graph:
         ```python
         graph = Graph().add_node("A").add_node("B").add_edge("A", "B", weight=1.5, type="friend")
 
-        edge_ids = graph.edge_ids()
+        edge_ids = graph.get_edge_ids()
         edge = graph.get_edge(edge_ids[0])
 
         print(edge.source)  # Node ID for 'A'
@@ -12522,7 +12522,7 @@ class Graph:
 
         graph = Graph().add_star_graph(n=5)
         # Get the center node ID (first node created)
-        all_node_ids = list(graph.node_ids(limit=None))
+        all_node_ids = list(graph.get_node_ids(limit=None))
         center_id = all_node_ids[0]
         graph.select_nodes_in_neighborhood(node_ids=[center_id], k=1, mode="all")
 
@@ -12540,7 +12540,7 @@ class Graph:
         )
 
         # Get first node ID
-        node_ids_list = list(graph.node_ids(limit=None))
+        node_ids_list = list(graph.get_node_ids(limit=None))
         first_node_id = node_ids_list[0]
         graph.select_nodes_in_neighborhood(node_ids=[first_node_id], k=2, mode="out")
 
@@ -12619,16 +12619,20 @@ class Graph:
         """
         # Compute scores based on measure
         if measure == "degree":
-            scores = {node_id: self.get_degree(node_id) for node_id in self.node_ids(limit=None)}
+            scores = {
+                node_id: self.get_degree(node_id) for node_id in self.get_node_ids(limit=None)
+            }
         elif measure == "in_degree":
             if not self._graph.is_directed:
                 raise ValueError("in_degree only available for directed graphs")
-            scores = {node_id: self.get_in_degree(node_id) for node_id in self.node_ids(limit=None)}
+            scores = {
+                node_id: self.get_in_degree(node_id) for node_id in self.get_node_ids(limit=None)
+            }
         elif measure == "out_degree":
             if not self._graph.is_directed:
                 raise ValueError("out_degree only available for directed graphs")
             scores = {
-                node_id: self.get_out_degree(node_id) for node_id in self.node_ids(limit=None)
+                node_id: self.get_out_degree(node_id) for node_id in self.get_node_ids(limit=None)
             }
         elif measure == "pagerank":
             scores = self.pagerank(return_dict=True, **kwargs)
@@ -12696,7 +12700,7 @@ class Graph:
             .add_node(label="B", type="admin", score=88)
             .add_node(label="C", type="user", score=92)
         )
-        node_ids = list(graph.node_ids())
+        node_ids = list(graph.get_node_ids())
         user_scores = graph.get_node_attrs("score", nodes=[node_ids[0], node_ids[2]])
         print(user_scores)  # {1: 95, 3: 92}
         ```
@@ -12721,7 +12725,7 @@ class Graph:
         """
 
         if nodes is None:
-            nodes = self.node_ids(limit=None)
+            nodes = self.get_node_ids(limit=None)
         else:
             # Resolve labels to IDs
             nodes = [self._resolve_node_id(nid) for nid in nodes]
@@ -12844,7 +12848,7 @@ class Graph:
         add_node : Add node with initial attributes
         """
         if nodes is None:
-            nodes = self.node_ids(limit=None)
+            nodes = self.get_node_ids(limit=None)
         else:
             # Resolve labels to IDs
             nodes = [self._resolve_node_id(nid) for nid in nodes]
@@ -12956,7 +12960,7 @@ class Graph:
                                 result[edge_key] = edge.attributes[edge_attr]
         else:
             # Get all edges
-            for edge_id in self.edge_ids():
+            for edge_id in self.get_edge_ids():
                 edge = self.get_edge(edge_id)
                 if edge:
                     # Convert IDs to labels
@@ -13006,7 +13010,7 @@ class Graph:
             .add_edge("B", "C", weight=2.0, type="colleague")
         )
 
-        edge_ids = graph.edge_ids()
+        edge_ids = graph.get_edge_ids()
         weights_by_id = graph.get_edge_attrs_by_id("weight", edges=edge_ids[:1])
         # Returns {edge_id: 1.5} for first edge
 
@@ -13021,7 +13025,7 @@ class Graph:
         edge_ids : Get all edge IDs
         """
         if edges is None:
-            edges = self.edge_ids()
+            edges = self.get_edge_ids()
 
         result = {}
         for edge_id in edges:
@@ -13093,7 +13097,7 @@ class Graph:
         )
 
         # Set edge attributes for specific edges
-        edge_ids = list(graph.edge_ids())[:2]  # First two edges
+        edge_ids = list(graph.get_edge_ids())[:2]  # First two edges
         edge_tuples = [(graph.get_node_ids_by_edge_id(eid)[0], graph.get_node_ids_by_edge_id(eid)[1]) for eid in edge_ids]
         graph.set_edge_attrs("weight", 2.5, edges=edge_tuples)
 
@@ -13101,7 +13105,7 @@ class Graph:
         graph.set_edge_attrs("status", "active")
 
         # Set different values using a list
-        all_edge_ids = list(graph.edge_ids())
+        all_edge_ids = list(graph.get_edge_ids())
         all_edge_tuples = [(graph.get_node_ids_by_edge_id(eid)[0], graph.get_node_ids_by_edge_id(eid)[1]) for eid in all_edge_ids]
         graph.set_edge_attrs("priority", [1, 2, 3], edges=all_edge_tuples)
         ```
@@ -13142,7 +13146,7 @@ class Graph:
                         pass
         else:
             # All edges
-            target_edge_ids = self.edge_ids()
+            target_edge_ids = self.get_edge_ids()
 
         # Handle different value types
         if isinstance(values, dict):
@@ -13229,7 +13233,7 @@ class Graph:
         """
         import polars as pl
 
-        node_ids = self.node_ids(limit=None)
+        node_ids = self.get_node_ids(limit=None)
         if not node_ids:
             return pl.DataFrame()
 
@@ -13331,7 +13335,7 @@ class Graph:
         """
         import polars as pl
 
-        edge_ids = self.edge_ids()
+        edge_ids = self.get_edge_ids()
         if not edge_ids:
             return pl.DataFrame()
 
@@ -13518,7 +13522,7 @@ class Graph:
 
         ```python
         graph = Graph().add_path_graph(10)
-        edge_ids = list(graph.edge_ids())[:5]
+        edge_ids = list(graph.get_edge_ids())[:5]
         graph.select_edges_by_id(edge_ids)
 
         selected_df = graph.get_edge_df_ws()
@@ -13833,7 +13837,7 @@ class Graph:
         graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
 
         # Select and delete middle nodes
-        node_ids = list(graph.node_ids())
+        node_ids = list(graph.get_node_ids())
         graph.select_nodes_by_id([node_ids[2], node_ids[3]])
         graph.delete_nodes_ws()
 
@@ -13898,7 +13902,7 @@ class Graph:
         graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
 
         # Select and delete middle edges
-        edge_ids = graph.edge_ids()[1:3]  # Get edges 1 and 2
+        edge_ids = graph.get_edge_ids()[1:3]  # Get edges 1 and 2
         graph.select_edges_by_id(edge_ids)
         graph.delete_edges_ws()
 
@@ -14036,7 +14040,7 @@ class Graph:
         graph.add_path_graph(3)
 
         # Select and update edge attributes
-        edge_ids = graph.edge_ids()
+        edge_ids = graph.get_edge_ids()
         (graph
             .select_edges_by_id([edge_ids[0]])
             .set_edge_attrs_ws(weight=5.0, type='strong')
@@ -14189,7 +14193,7 @@ class Graph:
         )
 
         # Double the weight of selected edges
-        edge_ids = list(graph.edge_ids())
+        edge_ids = list(graph.get_edge_ids())
         (graph
             .select_edges_by_id([edge_ids[0]])
             .mutate_edge_attrs_ws('weight', lambda x: x * 2)
@@ -14211,7 +14215,7 @@ class Graph:
             .add_edge(source="B", target="C", weight=3.0)
         )
         # Get max weight for normalization
-        max_weight = max(e.weight for e in [graph.get_edge(eid) for eid in graph.edge_ids()] if e.weight)
+        max_weight = max(e.weight for e in [graph.get_edge(eid) for eid in graph.get_edge_ids()] if e.weight)
 
         # Normalize all weights to [0, 1]
         (graph
@@ -14372,7 +14376,7 @@ class Graph:
         )
 
         # Add reverse edge
-        edge_ids = list(graph.edge_ids())
+        edge_ids = list(graph.get_edge_ids())
         (graph
             .select_edges_by_id([edge_ids[0]])
             .add_reverse_edges_ws(weight=1.0)
@@ -14456,7 +14460,7 @@ class Graph:
         graph.add_edge("A", "B", weight=1.5)
 
         # Reverse the edge direction
-        edge_ids = graph.edge_ids()
+        edge_ids = graph.get_edge_ids()
         graph.select_edges_by_id([edge_ids[0]])
         graph.rev_edge_dir_ws()
 
@@ -14476,7 +14480,7 @@ class Graph:
         graph.add_path_graph(4)  # 0→1→2→3
 
         # Reverse middle edges
-        edge_ids = graph.edge_ids()[1:3]
+        edge_ids = graph.get_edge_ids()[1:3]
         graph.select_edges_by_id(edge_ids)
         graph.rev_edge_dir_ws()
 
@@ -15123,7 +15127,7 @@ class Graph:
             temp = Graph(directed=directed)
             temp._graph.generate_gnp_graph(n, p, seed)
             # Copy nodes and edges to this graph
-            for node_id in temp.node_ids(limit=None):
+            for node_id in temp.get_node_ids(limit=None):
                 self.add_node(node_id)
             for source, target in temp.edges():
                 self.add_edge(source, target)
@@ -15186,7 +15190,7 @@ class Graph:
             temp = Graph(directed=directed)
             temp._graph.generate_gnm_graph(n, m, seed)
             # Copy nodes and edges to this graph
-            for node_id in temp.node_ids(limit=None):
+            for node_id in temp.get_node_ids(limit=None):
                 self.add_node(node_id)
             for source, target in temp.edges():
                 self.add_edge(source, target)
@@ -15357,11 +15361,11 @@ class Graph:
         print(graph.num_edges())  # 12
 
         # Each node is a 2-subset
-        nodes = [graph.get_label_from_id(nid) for nid in graph.node_ids(limit=None)]
+        nodes = [graph.get_label_from_id(nid) for nid in graph.get_node_ids(limit=None)]
         print(nodes)  # ['0,1', '0,2', '0,3', '1,2', '1,3', '2,3']
 
         # Verify regularity: each node has degree k(n-k) = 2*2 = 4
-        degrees = [graph.get_degree(nid) for nid in graph.node_ids(limit=None)]
+        degrees = [graph.get_degree(nid) for nid in graph.get_node_ids(limit=None)]
         print(set(degrees))  # {4}
         ```
 
@@ -15373,7 +15377,7 @@ class Graph:
         print(johnson_5_2.num_edges())  # 30
 
         # Verify regularity: degree = k(n-k) = 2*(5-2) = 6
-        degrees = [johnson_5_2.get_degree(nid) for nid in johnson_5_2.node_ids(limit=None)]
+        degrees = [johnson_5_2.get_degree(nid) for nid in johnson_5_2.get_node_ids(limit=None)]
         print(f"Degree: {degrees[0]}")  # 6
 
         # Note: The Petersen graph is actually the Kneser graph K(5,2),
@@ -15628,7 +15632,7 @@ class Graph:
             .add_edge(source="A", target="B")
             .add_edge(source="B", target="A")
         )
-        edge_ids = list(graph.edge_ids())
+        edge_ids = list(graph.get_edge_ids())
         # Select both an edge and its reverse
         (graph
             .select_edges_by_id([edge_ids[0]])
@@ -15691,7 +15695,7 @@ class Graph:
             graph.set_node_attrs("value", {str(i): i})
 
         # Traverse from node 1 until reaching node with value 8
-        node_ids = list(graph.node_ids())
+        node_ids = list(graph.get_node_ids())
         (graph
             .select_nodes_by_id([node_ids[0]])
             .trav_out_until(lambda nid: graph.get_node(nid).attributes.get("value") == 8)
@@ -15705,10 +15709,10 @@ class Graph:
         ```python
         graph = ec.Graph(directed=True).add_path_graph(10)
         # Set value attributes
-        for i, nid in enumerate(graph.node_ids(), start=1):
+        for i, nid in enumerate(graph.get_node_ids(), start=1):
             graph.set_node_attrs("value", {nid: i})
 
-        node_ids = list(graph.node_ids())
+        node_ids = list(graph.get_node_ids())
         # Traverse from multiple nodes
         (graph
             .clear_selection()
@@ -15850,7 +15854,7 @@ class Graph:
             graph.set_node_attrs("value", {str(i): i})
 
         # Traverse from node 10 inward until reaching node with value 1
-        node_ids = list(graph.node_ids())
+        node_ids = list(graph.get_node_ids())
         (graph
             .select_nodes_by_id([node_ids[-1]])
             .trav_in_until(lambda nid: graph.get_node(nid).attributes.get("value") == 1)
@@ -15864,10 +15868,10 @@ class Graph:
         ```python
         graph = ec.Graph(directed=True).add_path_graph(12)
         # Set value attributes
-        for i, nid in enumerate(graph.node_ids(), start=1):
+        for i, nid in enumerate(graph.get_node_ids(), start=1):
             graph.set_node_attrs("value", {nid: i})
 
-        node_ids = list(graph.node_ids())
+        node_ids = list(graph.get_node_ids())
         # Find nodes with value in specific set
         (graph
             .clear_selection()
@@ -16265,7 +16269,7 @@ class Graph:
         info["Density"] = f"{density:.2f}"
 
         # Degree statistics - compute for all nodes
-        node_ids = self.node_ids(limit=None)
+        node_ids = self.get_node_ids(limit=None)
         degrees = [self.get_degree(self.get_label_from_id(nid) or str(nid)) for nid in node_ids]
 
         if degrees:
@@ -16489,7 +16493,7 @@ class Graph:
             mst = Graph(directed=self.is_directed, weighted=True)
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.node_ids(limit=None):
+            for node_id in self.get_node_ids(limit=None):
                 label = self.get_label_from_id(node_id)
                 # Try to get node attributes if they exist
                 try:
@@ -16581,7 +16585,7 @@ class Graph:
             st = Graph(directed=self.is_directed, weighted=True)
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.node_ids(limit=None):
+            for node_id in self.get_node_ids(limit=None):
                 label = self.get_label_from_id(node_id)
                 # Try to get node attributes if they exist
                 try:
