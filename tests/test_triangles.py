@@ -238,7 +238,7 @@ class TestLocalClustering:
         g.add_edge("B", "C")
         g.add_edge("C", "A")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_a_id = g.get_id_from_label("A")
         node_b_id = g.get_id_from_label("B")
         node_c_id = g.get_id_from_label("C")
@@ -257,7 +257,7 @@ class TestLocalClustering:
         g.add_edge("B", "C")
         g.add_edge("B", "D")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_b_id = g.get_id_from_label("B")
         assert clustering[node_b_id] is not None
         assert abs(clustering[node_b_id] - 0.0) < 1e-10
@@ -277,7 +277,7 @@ class TestLocalClustering:
         g.add_edge("C", "A")  # Triangle
         g.add_edge("A", "D")  # Extra connection
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         # A has 3 neighbors, 1 triangle out of C(3,2)=3 possible
         # So clustering = 1/3
         node_a_id = g.get_id_from_label("A")
@@ -293,7 +293,7 @@ class TestLocalClustering:
         g.add_node(label="C")
         g.add_edge("B", "C")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_a_id = g.get_id_from_label("A")
         assert clustering[node_a_id] is None
 
@@ -306,7 +306,7 @@ class TestLocalClustering:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_a_id = g.get_id_from_label("A")
         node_b_id = g.get_id_from_label("B")
         node_c_id = g.get_id_from_label("C")
@@ -328,7 +328,7 @@ class TestLocalClustering:
         g.add_edge("Hub", "C")
         g.add_edge("Hub", "D")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         hub_id = g.get_id_from_label("Hub")
         assert clustering[hub_id] is not None
         assert abs(clustering[hub_id] - 0.0) < 1e-10
@@ -349,7 +349,7 @@ class TestLocalClustering:
             for n2 in nodes[i + 1 :]:
                 g.add_edge(n1, n2)
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         for node in nodes:
             node_id = g.get_id_from_label(node)
             assert abs(clustering[node_id] - 1.0) < 1e-10
