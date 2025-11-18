@@ -134,7 +134,7 @@ class TestPageRankValidation:
     @pytest.mark.parametrize("name,graph", create_test_graphs())
     def test_pagerank_various_graphs(self, name, graph):
         """Compare PageRank on various graph types."""
-        if not graph.is_directed:
+        if not graph.is_directed():
             pytest.skip("PageRank requires directed graphs")
 
         # EdgeCase PageRank (uses damping, max_iter, tol) - returns dict[int, float]
@@ -272,19 +272,19 @@ class TestGraphPropertiesValidation:
     def test_node_count(self, name, graph):
         """Verify node count matches NetworkX."""
         nx_graph = to_networkx(graph)
-        assert graph.num_nodes() == nx_graph.number_of_nodes(), f"{name}: Node count mismatch"
+        assert graph.count_nodes() == nx_graph.number_of_nodes(), f"{name}: Node count mismatch"
 
     @pytest.mark.parametrize("name,graph", create_test_graphs())
     def test_edge_count(self, name, graph):
         """Verify edge count matches NetworkX."""
         nx_graph = to_networkx(graph)
-        assert graph.num_edges() == nx_graph.number_of_edges(), f"{name}: Edge count mismatch"
+        assert graph.count_edges() == nx_graph.number_of_edges(), f"{name}: Edge count mismatch"
 
     @pytest.mark.parametrize("name,graph", create_test_graphs())
     def test_directionality(self, name, graph):
         """Verify directionality matches NetworkX."""
         nx_graph = to_networkx(graph)
-        assert graph.is_directed == nx_graph.is_directed(), f"{name}: Directionality mismatch"
+        assert graph.is_directed() == nx_graph.is_directed(), f"{name}: Directionality mismatch"
 
     def test_density(self):
         """Verify graph density calculation."""
@@ -342,9 +342,9 @@ class TestConversionConsistency:
         G = from_networkx(nx_graph)
 
         # Basic properties should match
-        assert G.num_nodes() == nx_graph.number_of_nodes()
-        assert G.num_edges() == nx_graph.number_of_edges()
-        assert not G.is_directed
+        assert G.count_nodes() == nx_graph.number_of_nodes()
+        assert G.count_edges() == nx_graph.number_of_edges()
+        assert not G.is_directed()
 
         # Convert back to NetworkX
         nx_graph2 = to_networkx(G)
@@ -362,8 +362,8 @@ class TestConversionConsistency:
         G = from_networkx(nx_graph)
 
         # Should preserve structure
-        assert G.num_nodes() == 20
-        assert not G.is_directed
+        assert G.count_nodes() == 20
+        assert not G.is_directed()
 
         # Convert back
         nx_graph2 = to_networkx(G)
@@ -378,9 +378,9 @@ class TestConversionConsistency:
         # Convert to EdgeCase
         G = from_networkx(nx_graph)
 
-        assert G.num_nodes() == 10
-        assert G.num_edges() == 9
-        assert not G.is_directed
+        assert G.count_nodes() == 10
+        assert G.count_edges() == 9
+        assert not G.is_directed()
 
         # Verify it's still a path (each node has degree 1 or 2)
         for node in G.get_node_ids(limit=None):
@@ -809,7 +809,7 @@ class TestEdgeCases:
 
         nx_graph = to_networkx(G)
 
-        assert G.num_nodes() == nx_graph.number_of_nodes()
+        assert G.count_nodes() == nx_graph.number_of_nodes()
         a_id = G.get_id_from_label("A")
         assert G.get_degree(a_id) == nx_graph.degree["A"]
         assert G.get_degree(a_id) == 0
@@ -841,7 +841,7 @@ class TestEdgeCases:
 
         nx_graph = to_networkx(G)
 
-        assert G.num_nodes() == nx_graph.number_of_nodes()
+        assert G.count_nodes() == nx_graph.number_of_nodes()
         c_id = G.get_id_from_label("C")
         assert G.get_degree(c_id) == nx_graph.degree["C"]
         assert G.get_degree(c_id) == 0
@@ -1236,7 +1236,7 @@ class TestDegreeMetrics:
         nx_graph = to_networkx(G)
 
         # Average degree = 2 * edges / nodes
-        ec_avg = sum(G.get_degree(n) for n in G.get_node_ids(limit=None)) / G.num_nodes()
+        ec_avg = sum(G.get_degree(n) for n in G.get_node_ids(limit=None)) / G.count_nodes()
         nx_avg = sum(dict(nx_graph.degree()).values()) / nx_graph.number_of_nodes()
 
         assert abs(ec_avg - nx_avg) < 0.01
@@ -1310,8 +1310,8 @@ class TestGraphIsomorphism:
         G2.add_edge("Y", "Z")
 
         # Same structure, different labels
-        assert G1.num_nodes() == G2.num_nodes()
-        assert G1.num_edges() == G2.num_edges()
+        assert G1.count_nodes() == G2.count_nodes()
+        assert G1.count_edges() == G2.count_edges()
 
     def test_graph_complement(self):
         """Test graph complement."""
@@ -1421,11 +1421,11 @@ class TestEdgeRemovalAndAddition:
         G.add_edge("B", "C")
         G.add_edge("C", "A")  # Triangle
 
-        initial_edges = G.num_edges()
+        initial_edges = G.count_edges()
 
         G.delete_edge("A", "B")
 
-        assert G.num_edges() == initial_edges - 1
+        assert G.count_edges() == initial_edges - 1
         assert not G.has_edge("A", "B")
         assert G.has_edge("B", "C")
 
@@ -1439,14 +1439,14 @@ class TestEdgeRemovalAndAddition:
         G.add_edge("A", "C")
         G.add_edge("B", "C")
 
-        initial_edges = G.num_edges()
+        initial_edges = G.count_edges()
 
         if hasattr(G, "remove_node"):
             G.remove_node("A")
 
-            assert G.num_nodes() == 2
+            assert G.count_nodes() == 2
             # Removing A should remove 2 edges
-            assert G.num_edges() < initial_edges
+            assert G.count_edges() < initial_edges
             assert not G.has_node("A")
 
     def test_degree_after_edge_changes(self):
@@ -1733,7 +1733,7 @@ class TestMultiEdgeHandling:
         if not G.has_node("B"):
             G.add_node("B")
 
-        assert G.num_edges() >= 1
+        assert G.count_edges() >= 1
         assert G.has_edge("A", "B")
 
 
@@ -1762,7 +1762,7 @@ class TestAttributePreservation:
         G = from_networkx(nx_graph)
 
         # Weight should definitely be preserved
-        if G.is_weighted:
+        if G.is_weighted():
             nx_result = to_networkx(G)
             assert nx_result["A"]["B"].get("weight") == 1.5
 
@@ -1805,7 +1805,7 @@ class TestSpecialGraphTypes:
         assert is_tree
 
         # Tree properties: nodes = edges + 1
-        assert G.num_nodes() == G.num_edges() + 1
+        assert G.count_nodes() == G.count_edges() + 1
 
     def test_dag_properties(self):
         """Test directed acyclic graph properties."""

@@ -22,7 +22,7 @@ def convert_to_networkx(ec_graph):
     Note: EdgeCase uses 1-indexed node IDs, NetworkX uses 0-indexed.
     We keep the original node IDs for consistency in traversal comparison.
     """
-    is_directed = ec_graph.is_directed
+    is_directed = ec_graph.is_directed()
     nx_graph = nx.DiGraph() if is_directed else nx.Graph()
 
     for node_id in ec_graph.get_node_ids(limit=None):
@@ -50,7 +50,7 @@ def convert_to_igraph(ec_graph):
     for edge_id, source, target in ec_graph.get_edges_as_tuples():
         edges.append((node_to_idx[source], node_to_idx[target]))
 
-    ig_graph = ig.Graph(n=len(node_ids), edges=edges, directed=ec_graph.is_directed)
+    ig_graph = ig.Graph(n=len(node_ids), edges=edges, directed=ec_graph.is_directed())
     return ig_graph, node_ids  # Return mapping for index conversion
 
 

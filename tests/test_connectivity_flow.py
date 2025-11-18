@@ -259,7 +259,7 @@ class TestConnectivityFlowIntegration:
         G.add_edge("B", "C")
 
         reciprocity = G.get_reciprocity()
-        edge_count = G.num_edges()
+        edge_count = G.count_edges()
 
         # Should have consistent relationship
         assert reciprocity * edge_count == 2.0  # 2 reciprocal edges

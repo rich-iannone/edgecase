@@ -7,7 +7,7 @@ print("=" * 70)
 # Load karate club network
 G = karate_club()
 
-print(f"\nNetwork: {G.num_nodes()} nodes, {G.num_edges()} edges")
+print(f"\nNetwork: {G.count_nodes()} nodes, {G.count_edges()} edges")
 
 # Test 1: Fast Greedy with attr_name
 print("\n" + "-" * 70)

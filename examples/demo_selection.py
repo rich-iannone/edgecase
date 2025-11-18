@@ -22,7 +22,7 @@ def demo_basic_selection():
     for src, tgt in edges:
         G.add_edge(src, tgt)
 
-    print(f"\nGraph: {G.num_nodes()} nodes, {G.num_edges()} edges")
+    print(f"\nGraph: {G.count_nodes()} nodes, {G.count_edges()} edges")
 
     # Select specific nodes
     G.select_nodes_by_id(["Alice", "David"])
@@ -62,7 +62,7 @@ def demo_degree_filtering():
     G.add_edge("Node_1", "Node_3")
     G.add_edge("Node_2", "Node_3")
 
-    print(f"\nGraph: {G.num_nodes()} nodes, {G.num_edges()} edges")
+    print(f"\nGraph: {G.count_nodes()} nodes, {G.count_edges()} edges")
 
     # Find high-degree nodes (hubs)
     G.select_nodes_by_degree(min_degree=5)
@@ -104,7 +104,7 @@ def demo_directed_graph_degree():
         for cited in citations:
             G.add_edge(paper, cited)  # paper -> cited
 
-    print(f"\nCitation network: {G.num_nodes()} papers, {G.num_edges()} citations")
+    print(f"\nCitation network: {G.count_nodes()} papers, {G.count_edges()} citations")
 
     # Find highly cited papers (high in-degree)
     G.select_nodes_by_degree(min_degree=3, degree_type="in")
@@ -153,7 +153,7 @@ def demo_selection_chaining():
     for src, tgt in collaborations:
         G.add_edge(src, tgt)
 
-    print(f"\nCollaboration network: {G.num_nodes()} people")
+    print(f"\nCollaboration network: {G.count_nodes()} people")
 
     # Find well-connected people (degree >= 3)
     G.select_nodes_by_degree(min_degree=3)
@@ -200,7 +200,7 @@ def demo_complex_workflow():
     for src, tgt in transactions:
         G.add_edge(src, tgt)
 
-    print(f"\nTransaction network: {G.num_nodes()} accounts, {G.num_edges()} transactions")
+    print(f"\nTransaction network: {G.count_nodes()} accounts, {G.count_edges()} transactions")
 
     # Step 1: Find accounts with high outgoing transactions (potential sources)
     G.select_nodes_by_degree(min_degree=3, degree_type="out")
@@ -218,7 +218,7 @@ def demo_complex_workflow():
     key_transactions = G.get_selected_edges()
 
     print(f"\nKey transactions involving sources/sinks: {len(key_transactions)} transactions")
-    print(f"This represents {len(key_transactions) / G.num_edges() * 100:.1f}% of all transactions")
+    print(f"This represents {len(key_transactions) / G.count_edges() * 100:.1f}% of all transactions")
 
 
 def demo_subgraph_extraction():
@@ -248,7 +248,7 @@ def demo_subgraph_extraction():
     for src, tgt in edges:
         G.add_edge(src, tgt)
 
-    print(f"\nFull graph: {G.num_nodes()} nodes, {G.num_edges()} edges")
+    print(f"\nFull graph: {G.count_nodes()} nodes, {G.count_edges()} edges")
 
     # Select nodes from component 1 (triangle)
     G.select_nodes_by_id(["A", "B", "C"])
@@ -286,7 +286,7 @@ def demo_method_chaining():
         if i <= 5:
             G.add_edge(f"Node_{i}", f"Node_{i + 5}")
 
-    print(f"\nGraph: {G.num_nodes()} nodes, {G.num_edges()} edges")
+    print(f"\nGraph: {G.count_nodes()} nodes, {G.count_edges()} edges")
 
     # Chain multiple operations
     result = (
@@ -320,7 +320,7 @@ def demo_select_by_attributes():
     G.add_edge("NumPy", "Python", relationship="depends_on", strength=1.0)
     G.add_edge("React", "JavaScript", relationship="depends_on", strength=1.0)
 
-    print(f"\nKnowledge graph: {G.num_nodes()} nodes, {G.num_edges()} edges")
+    print(f"\nKnowledge graph: {G.count_nodes()} nodes, {G.count_edges()} edges")
 
     # Select popular languages (popularity > 90)
     G.select_nodes(
@@ -374,7 +374,7 @@ def demo_advanced_filtering():
     G.add_edge("Monitor", "Keyboard", frequency=80, conversion_rate=0.55)
     G.add_edge("Desk", "Monitor", frequency=60, conversion_rate=0.45)
 
-    print(f"\nProduct network: {G.num_nodes()} products")
+    print(f"\nProduct network: {G.count_nodes()} products")
 
     # Find premium, highly-rated, in-stock electronics
     def premium_quality_available(node):
@@ -442,7 +442,7 @@ def demo_social_network_analysis():
     G.add_edge("Charlie", "Eve", interaction_count=35, interaction_type="collaboration")
     G.add_edge("Diana", "Bob", interaction_count=15, interaction_type="discussion")
 
-    print(f"\nSocial network: {G.num_nodes()} users, {G.num_edges()} interactions")
+    print(f"\nSocial network: {G.count_nodes()} users, {G.count_edges()} interactions")
 
     # Find influential users (high reputation, verified, active)
     def influential_user(node):

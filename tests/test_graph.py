@@ -9,15 +9,15 @@ from edgecase import Graph, Node, Edge
 def test_create_empty_graph() -> None:
     """Test creating an empty graph."""
     graph = Graph(directed=False)
-    assert graph.num_nodes() == 0
-    assert graph.num_edges() == 0
-    assert not graph.is_directed
+    assert graph.count_nodes() == 0
+    assert graph.count_edges() == 0
+    assert not graph.is_directed()
 
 
 def test_create_directed_graph() -> None:
     """Test creating a directed graph."""
     graph = Graph(directed=True)
-    assert graph.is_directed
+    assert graph.is_directed()
 
 
 def test_add_single_node() -> None:
@@ -25,7 +25,7 @@ def test_add_single_node() -> None:
     graph = Graph(directed=False)
     node = Node(1, "A")
     graph.add_node(node)
-    assert graph.num_nodes() == 1
+    assert graph.count_nodes() == 1
 
 
 def test_add_multiple_nodes() -> None:
@@ -34,7 +34,7 @@ def test_add_multiple_nodes() -> None:
     nodes = [Node(i+1, f"Node{i}") for i in range(10)]
     for node in nodes:
         graph.add_node(node)
-    assert graph.num_nodes() == 10
+    assert graph.count_nodes() == 10
 
 
 def test_add_edge_between_existing_nodes() -> None:
@@ -47,7 +47,7 @@ def test_add_edge_between_existing_nodes() -> None:
     
     edge = Edge(0, 1, 2, None, None)  # edge_id=0 means auto-assign
     graph.add_edge(edge)
-    assert graph.num_edges() == 1
+    assert graph.count_edges() == 1
 
 
 def test_add_edge_nonexistent_source_raises_error() -> None:
@@ -73,14 +73,14 @@ def test_add_edge_nonexistent_target_raises_error() -> None:
 def test_weighted_graph() -> None:
     """Test creating a weighted graph."""
     graph = Graph(directed=False, weighted=True)
-    assert graph.is_weighted
+    assert graph.is_weighted()
     
     # Add nodes and weighted edge
     graph.add_node(Node(1, "A"))
     graph.add_node(Node(2, "B"))
     edge = Edge(0, 1, 2, 2.5, None)  # id, source, target, weight, attributes
     graph.add_edge(edge)
-    assert graph.num_edges() == 1
+    assert graph.count_edges() == 1
 
 
 def test_neighbors_undirected_graph() -> None:
@@ -177,7 +177,7 @@ def test_graph_node_count_property(n: int) -> None:
     graph = Graph(directed=False)
     for i in range(n):
         graph.add_node(Node(i+1, f"Node{i}"))
-    assert graph.num_nodes() == n
+    assert graph.count_nodes() == n
 
 @given(
     st.lists(st.text(min_size=1, max_size=10), min_size=2, max_size=20, unique=True)

@@ -13,7 +13,7 @@ def demo_basic_walk():
     for i in range(1, 7):
         g.add_edge(str(i), str((i % 6) + 1))
 
-    print(f"Graph: cycle with {g.num_nodes()} nodes")
+    print(f"Graph: cycle with {g.count_nodes()} nodes")
 
     # Take a 10-step walk
     path = g.random_walk("1", steps=10, seed=42, return_list=True)
@@ -43,7 +43,7 @@ def demo_edge_walk():
     g.add_edge("3", "4")
     g.add_edge("4", "1")
 
-    print(f"Graph: cycle with {g.num_nodes()} nodes")
+    print(f"Graph: cycle with {g.count_nodes()} nodes")
 
     # Track edges traversed
     edges = g.random_edge_walk("1", steps=8, seed=42, return_list=True)

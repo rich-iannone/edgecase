@@ -24,7 +24,7 @@ def main() -> None:
         directed=False,
     )
 
-    print(f"Network: {G.num_nodes()} people, {G.num_edges()} connections")
+    print(f"Network: {G.count_nodes()} people, {G.count_edges()} connections")
 
     # Example 2: Describe the network
     print("\nNetwork description:")

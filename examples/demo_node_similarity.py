@@ -30,7 +30,7 @@ def main():
     for person1, person2 in friendships:
         g.add_edge(person1, person2)
 
-    print(f"\nCreated social network with {g.num_nodes()} people and {g.num_edges()} friendships")
+    print(f"\nCreated social network with {g.count_nodes()} people and {g.count_edges()} friendships")
     print("\nFriendship groups:")
     print("  - Group 1: Alice, Bob, Carol, David (densely connected)")
     print("  - Group 2: Eve, Frank, Grace, Henry (another cluster)")

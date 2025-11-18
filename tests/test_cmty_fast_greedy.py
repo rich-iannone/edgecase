@@ -231,7 +231,7 @@ class TestFastGreedyModularity:
 
     def compute_modularity(self, G, communities):
         """Helper: compute modularity score."""
-        m = G.num_edges()
+        m = G.count_edges()
         if m == 0:
             return 0.0
 
@@ -288,7 +288,7 @@ class TestFastGreedyProperties:
         communities = G.cmty_fast_greedy(return_dict=True)
 
         # All nodes should be present
-        assert len(communities) == G.num_nodes()
+        assert len(communities) == G.count_nodes()
         assert set(communities.keys()) == set(G.get_node_ids(limit=None))
 
     def test_community_ids_contiguous(self):

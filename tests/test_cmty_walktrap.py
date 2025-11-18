@@ -539,7 +539,7 @@ def compute_modularity(G, communities):
 
     # Get all nodes and edges
     nodes = list(communities.keys())
-    m = G.num_edges()
+    m = G.count_edges()
 
     if m == 0:
         return 0.0

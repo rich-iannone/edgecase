@@ -21,8 +21,8 @@ class TestMinimumSpanningTree:
         mst = g.minimum_spanning_tree()
 
         # MST should have n-1 edges for n nodes
-        assert mst.num_edges() == 3
-        assert mst.num_nodes() == 4
+        assert mst.count_edges() == 3
+        assert mst.count_nodes() == 4
 
         # Calculate total weight
         total = sum(
@@ -70,7 +70,7 @@ class TestMinimumSpanningTree:
         # Using custom cost attribute - MST should prefer lower cost values
         mst_cost = g.minimum_spanning_tree(weight_attr="cost")
         # The MST based on cost should still have 2 edges, but selected by cost
-        assert mst_cost.num_edges() == 2
+        assert mst_cost.count_edges() == 2
 
     def test_mst_single_node(self):
         """MST with single node returns empty."""
@@ -78,15 +78,15 @@ class TestMinimumSpanningTree:
         g.add_node("A")
 
         mst = g.minimum_spanning_tree()
-        assert mst.num_nodes() == 1
-        assert mst.num_edges() == 0
+        assert mst.count_nodes() == 1
+        assert mst.count_edges() == 0
 
     def test_mst_empty_graph(self):
         """MST with empty graph returns empty."""
         g = ec.Graph(weighted=True)
         mst = g.minimum_spanning_tree()
-        assert mst.num_nodes() == 0
-        assert mst.num_edges() == 0
+        assert mst.count_nodes() == 0
+        assert mst.count_edges() == 0
 
     def test_mst_disconnected_graph(self):
         """MST on disconnected graph creates spanning forest."""
@@ -104,8 +104,8 @@ class TestMinimumSpanningTree:
         mst = g.minimum_spanning_tree()
 
         # Should have 4 nodes and 2 edges (one per component)
-        assert mst.num_nodes() == 4
-        assert mst.num_edges() == 2
+        assert mst.count_nodes() == 4
+        assert mst.count_edges() == 2
 
     def test_mst_preserves_node_attributes(self):
         """MST preserves node attributes from original graph."""
@@ -124,7 +124,7 @@ class TestMinimumSpanningTree:
         assert node_a is not None
         assert node_a.label == "A"
         # Attributes may or may not be preserved - just check structure works
-        assert mst.num_nodes() == 3
+        assert mst.count_nodes() == 3
 
     def test_mst_preserves_edge_attributes(self):
         """MST preserves edge attributes from original graph."""
@@ -139,7 +139,7 @@ class TestMinimumSpanningTree:
         mst = g.minimum_spanning_tree()
 
         # MST should have 2 edges with lowest weights (1.0 and 2.0)
-        assert mst.num_edges() == 2
+        assert mst.count_edges() == 2
 
         # Verify the structure is correct
         edges = list(mst.get_edges_as_tuples())
@@ -158,7 +158,7 @@ class TestMinimumSpanningTree:
         mst = g.minimum_spanning_tree()
 
         # Should have 2 edges for 3 nodes
-        assert mst.num_edges() == 2
+        assert mst.count_edges() == 2
         total = sum(
             e.weight
             for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
@@ -185,8 +185,8 @@ class TestMinimumSpanningTree:
         mst = g.minimum_spanning_tree()
 
         # Should have n-1 edges for n nodes
-        assert mst.num_edges() == 9
-        assert mst.num_nodes() == 10
+        assert mst.count_edges() == 9
+        assert mst.count_nodes() == 10
 
 
 class TestMaximumSpanningTree:
@@ -208,8 +208,8 @@ class TestMaximumSpanningTree:
         max_st = g.maximum_spanning_tree()
 
         # Should have n-1 edges for n nodes
-        assert max_st.num_edges() == 3
-        assert max_st.num_nodes() == 4
+        assert max_st.count_edges() == 3
+        assert max_st.count_nodes() == 4
 
         # Calculate total weight (should prefer highest weights)
         total = sum(
@@ -250,7 +250,7 @@ class TestMaximumSpanningTree:
         max_st = g.maximum_spanning_tree(weight_attr="value")
 
         # Maximum ST based on "value" should select 2 highest-value edges
-        assert max_st.num_edges() == 2
+        assert max_st.count_edges() == 2
 
     def test_mst_vs_maximum_st(self):
         """Compare minimum and maximum spanning trees."""
@@ -266,8 +266,8 @@ class TestMaximumSpanningTree:
         max_st = g.maximum_spanning_tree()
 
         # Both should have 2 edges
-        assert mst.num_edges() == 2
-        assert max_st.num_edges() == 2
+        assert mst.count_edges() == 2
+        assert max_st.count_edges() == 2
 
         # Minimum should prefer low weights
         mst_total = sum(
@@ -297,8 +297,8 @@ class TestMSTEdgeCases:
         g.add_edge("A", "B", weight=1.0)
 
         mst = g.minimum_spanning_tree()
-        assert mst.num_nodes() == 2
-        assert mst.num_edges() == 1
+        assert mst.count_nodes() == 2
+        assert mst.count_edges() == 1
 
     def test_mst_complete_graph(self):
         """MST on complete graph (K4)."""
@@ -316,8 +316,8 @@ class TestMSTEdgeCases:
         mst = g.minimum_spanning_tree()
 
         # K4 has 6 edges, MST should have 3
-        assert mst.num_edges() == 3
-        assert mst.num_nodes() == 4
+        assert mst.count_edges() == 3
+        assert mst.count_nodes() == 4
 
     def test_mst_missing_weights(self):
         """MST with edges missing explicit weights (should default to 1.0)."""
@@ -332,7 +332,7 @@ class TestMSTEdgeCases:
         mst = g.minimum_spanning_tree()
 
         # Should prefer edges with default weight 1.0 over weight 5.0
-        assert mst.num_edges() == 2
+        assert mst.count_edges() == 2
 
     def test_mst_negative_weights(self):
         """MST handles negative weights correctly."""
@@ -388,4 +388,4 @@ class TestMSTEdgeCases:
         mst = g.minimum_spanning_tree()
 
         # Should have 2 edges for 3 nodes
-        assert mst.num_edges() == 2
+        assert mst.count_edges() == 2

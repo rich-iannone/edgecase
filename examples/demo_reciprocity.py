@@ -81,14 +81,14 @@ def example_2_social_networks():
         followers.add_edge(a, b)
 
     print("\nFriendship Network:")
-    print(f"  Nodes: {friendship.num_nodes()}")
-    print(f"  Edges: {friendship.num_edges()}")
+    print(f"  Nodes: {friendship.count_nodes()}")
+    print(f"  Edges: {friendship.count_edges()}")
     print(f"  Reciprocity: {friendship.get_graph_reciprocity():.3f}")
     print("  Interpretation: Symmetric relationships (friends)")
 
     print("\nFollower Network:")
-    print(f"  Nodes: {followers.num_nodes()}")
-    print(f"  Edges: {followers.num_edges()}")
+    print(f"  Nodes: {followers.count_nodes()}")
+    print(f"  Edges: {followers.count_edges()}")
     print(f"  Reciprocity: {followers.get_graph_reciprocity():.3f}")
     print("  Interpretation: Asymmetric relationships (followers)")
     print()
@@ -129,7 +129,7 @@ def example_3_communication_patterns():
     mutual_pairs = email.which_mutual()
 
     print("\nEmail Network Statistics:")
-    print(f"  Total edges (emails): {email.num_edges()}")
+    print(f"  Total edges (emails): {email.count_edges()}")
     print(f"  Mutual pairs: {len(mutual_pairs)}")
     print(f"  Reciprocity: {recip:.3f}")
 
@@ -190,8 +190,8 @@ def example_4_citation_network():
     recip = citations.get_graph_reciprocity()
 
     print("\nCitation Network:")
-    print(f"  Papers (nodes): {citations.num_nodes()}")
-    print(f"  Citations (edges): {citations.num_edges()}")
+    print(f"  Papers (nodes): {citations.count_nodes()}")
+    print(f"  Citations (edges): {citations.count_edges()}")
     print(f"  Reciprocity: {recip:.3f}")
 
     print("\nInterpretation:")
@@ -232,7 +232,7 @@ def example_5_detecting_mutual_edges():
                 g.add_node(label=target)
             g.add_edge(source, target)
 
-    print(f"\nNetwork: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"\nNetwork: {g.count_nodes()} nodes, {g.count_edges()} edges")
 
     # Find all mutual edges
     mutual_pairs = g.which_mutual()
@@ -283,7 +283,7 @@ def example_6_comparing_modes():
     g.add_edge("A", "C")  # One-way
     g.add_edge("B", "D")  # One-way
 
-    print(f"\nGraph: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"\nGraph: {g.count_nodes()} nodes, {g.count_edges()} edges")
     print("  2 mutual pairs (4 edges)")
     print("  2 one-way edges")
 

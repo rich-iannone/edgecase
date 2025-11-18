@@ -61,7 +61,7 @@ def demo_complete_graph():
 
     print(f"Created complete graph: {g}")
     print("Expected edges for K4: 4*(4-1)/2 = 6")
-    print(f"Actual edges: {g.num_edges()}")
+    print(f"Actual edges: {g.count_edges()}")
     print("Each node connects to all others:")
     for node_id in g.get_node_ids(limit=None):
         print(f"  Node '{node_id}': {len(g.neighbors(node_id))} neighbors")
@@ -78,7 +78,7 @@ def demo_balanced_tree():
     g = ec.add_balanced_tree(g, k=2, h=2, type="tree_node", rel="parent_of")
 
     print(f"Created binary tree (k=2, h=2): {g}")
-    print(f"Nodes at each level: 1, 2, 4 (total: {g.num_nodes()})")
+    print(f"Nodes at each level: 1, 2, 4 (total: {g.count_nodes()})")
     print(f"Root '1' children: {g.neighbors('1')}")
     print()
 
@@ -94,7 +94,7 @@ def demo_grid_graph():
 
     print(f"Created 3x3 grid: {g}")
     print("Expected edges: (3-1)*3 + 3*(3-1) = 12")
-    print(f"Actual edges: {g.num_edges()}")
+    print(f"Actual edges: {g.count_edges()}")
 
     # Analyze node degrees
     corners = sum(1 for nid in g.get_node_ids(limit=None) if len(g.neighbors(nid)) == 2)
@@ -119,7 +119,7 @@ def demo_prism_graph():
     print(f"Created prism graph (2 cycles of 4): {g}")
     print("Two parallel cycles connected by matching edges")
     print("Expected edges: 4 + 4 + 4 = 12")
-    print(f"Actual edges: {g.num_edges()}")
+    print(f"Actual edges: {g.count_edges()}")
     print()
 
 

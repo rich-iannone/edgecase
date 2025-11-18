@@ -17,8 +17,8 @@ def demo_basic_multi_edges():
     g.add_edge("Alice", "Bob", rel="messages", count=42)
     g.add_edge("Alice", "Bob", rel="likes_posts", score=0.85)
 
-    print(f"Nodes: {g.num_nodes()}")
-    print(f"Edges: {g.num_edges()}")
+    print(f"Nodes: {g.count_nodes()}")
+    print(f"Edges: {g.count_edges()}")
     print(f"Edge IDs: {g.get_edge_ids()}")
     print(f"\nEdges (id, source, target): {g.get_edges_as_tuples()}")
     print()
@@ -79,7 +79,7 @@ def demo_edge_operations():
     # Delete specific edge
     print(f"\nDeleting edge {edge_ids[1]}...")
     g.delete_edge_by_id(edge_ids[1])
-    print(f"Remaining edges: {g.num_edges()}")
+    print(f"Remaining edges: {g.count_edges()}")
     print(f"Remaining edge IDs: {g.get_edge_ids()}")
     print()
 
@@ -111,7 +111,7 @@ def demo_dataframe_edge_ids():
     g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
 
     print("Created graph from DataFrames")
-    print(f"Nodes: {g.num_nodes()}, Edges: {g.num_edges()}")
+    print(f"Nodes: {g.count_nodes()}, Edges: {g.count_edges()}")
     print(f"Edge IDs preserved: {g.get_edge_ids()}")
     print("\nUser1 -> User2 edges:")
     for edge_id, src, tgt in g.get_edges_as_tuples():
@@ -144,7 +144,7 @@ def demo_social_network():
     g.add_edge("Charlie", "Diana", rel="follows", timestamp="2024-02-01")
     g.add_edge("Diana", "Alice", rel="follows", timestamp="2024-02-15")
 
-    print(f"Social network: {g.num_nodes()} users, {g.num_edges()} interactions")
+    print(f"Social network: {g.count_nodes()} users, {g.count_edges()} interactions")
     print(f"Edge IDs: {g.get_edge_ids()}")
 
     # Find all Alice -> Bob interactions
@@ -180,7 +180,7 @@ def demo_transaction_network():
     for src, tgt, amount, date in transactions:
         g.add_edge(src, tgt, amount=amount, date=date, type="transaction")
 
-    print(f"Transaction network: {g.num_nodes()} accounts, {g.num_edges()} transactions")
+    print(f"Transaction network: {g.count_nodes()} accounts, {g.count_edges()} transactions")
     print(f"Transaction IDs: {g.get_edge_ids()}")
 
     # Analyze transactions between Acct_001 and Acct_002
@@ -215,7 +215,7 @@ def demo_comparison():
     g.add_edge("A", "B", rel="likes")
     print(f"  - add_edge('A', 'B', rel='follows')  # Edge ID: {g.get_edge_ids()[0]}")
     print(f"  - add_edge('A', 'B', rel='likes')    # Edge ID: {g.get_edge_ids()[1]}")
-    print(f"  - Result: {g.num_edges()} edges ✅")
+    print(f"  - Result: {g.count_edges()} edges ✅")
 
 
 if __name__ == "__main__":

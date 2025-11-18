@@ -184,7 +184,7 @@ class TestLouvainModularity:
 
     def compute_modularity(self, G, communities):
         """Compute modularity Q for a given community assignment."""
-        m = G.num_edges()
+        m = G.count_edges()
         if m == 0:
             return 0.0
 

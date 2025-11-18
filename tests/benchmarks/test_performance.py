@@ -53,7 +53,7 @@ def test_add_1000_nodes(benchmark):
         return G
 
     G = benchmark(add_nodes)
-    assert G.num_nodes() == 1000
+    assert G.count_nodes() == 1000
 
 
 def test_add_10000_edges(benchmark):
@@ -70,7 +70,7 @@ def test_add_10000_edges(benchmark):
         return G
 
     G = benchmark(add_edges)
-    assert G.num_edges() > 0
+    assert G.count_edges() > 0
 
 
 # Algorithm performance tests
@@ -102,7 +102,7 @@ def test_from_polars_1k_edges(benchmark):
     )
 
     G = benchmark(from_polars, df, "source", "target", "weight")
-    assert G.num_edges() == 1000
+    assert G.count_edges() == 1000
 
 
 def test_from_polars_10k_edges(benchmark):
@@ -118,7 +118,7 @@ def test_from_polars_10k_edges(benchmark):
     )
 
     G = benchmark(from_polars, df, "source", "target", "weight")
-    assert G.num_edges() > 0
+    assert G.count_edges() > 0
 
 
 # Parameterized benchmarks for scaling analysis

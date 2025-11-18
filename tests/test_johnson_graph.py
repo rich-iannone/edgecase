@@ -12,11 +12,11 @@ class TestJohnsonGraph:
         graph = Graph(directed=False).add_johnson_graph(n=4, k=2)
 
         # C(4,2) = 6 nodes
-        assert graph.num_nodes() == 6
+        assert graph.count_nodes() == 6
 
         # Each node has degree k(n-k) = 2*2 = 4
         # Total edges = (6 * 4) / 2 = 12
-        assert graph.num_edges() == 12
+        assert graph.count_edges() == 12
 
     def test_johnson_4_2_node_labels(self):
         """Test J(4,2) has correct node labels (2-subsets)."""
@@ -54,11 +54,11 @@ class TestJohnsonGraph:
         graph = Graph(directed=False).add_johnson_graph(n=5, k=2)
 
         # C(5,2) = 10 nodes
-        assert graph.num_nodes() == 10
+        assert graph.count_nodes() == 10
 
         # Degree = k(n-k) = 2*3 = 6
         # Total edges = (10 * 6) / 2 = 30
-        assert graph.num_edges() == 30
+        assert graph.count_edges() == 30
 
         degrees = [graph.get_degree(nid) for nid in graph.get_node_ids(limit=None)]
         assert all(d == 6 for d in degrees)
@@ -68,13 +68,13 @@ class TestJohnsonGraph:
         graph = Graph(directed=False).add_johnson_graph(n=5, k=1)
 
         # C(5,1) = 5 nodes
-        assert graph.num_nodes() == 5
+        assert graph.count_nodes() == 5
 
         # Singletons never intersect in k-1=0 elements
         # Actually they do: {0} and {1} intersect in 0 elements
         # So all pairs are adjacent
         # Degree = 1*(5-1) = 4 (complete graph K5)
-        assert graph.num_edges() == 10  # C(5,2) = 10 edges
+        assert graph.count_edges() == 10  # C(5,2) = 10 edges
 
         degrees = [graph.get_degree(nid) for nid in graph.get_node_ids(limit=None)]
         assert all(d == 4 for d in degrees)
@@ -83,13 +83,13 @@ class TestJohnsonGraph:
         """Test edge cases: k=0, k=n."""
         # J(5,0) - single empty set, no edges
         g1 = Graph(directed=False).add_johnson_graph(n=5, k=0)
-        assert g1.num_nodes() == 1
-        assert g1.num_edges() == 0
+        assert g1.count_nodes() == 1
+        assert g1.count_edges() == 0
 
         # J(5,5) - single full set, no edges
         g2 = Graph(directed=False).add_johnson_graph(n=5, k=5)
-        assert g2.num_nodes() == 1
-        assert g2.num_edges() == 0
+        assert g2.count_nodes() == 1
+        assert g2.count_edges() == 0
 
     def test_johnson_invalid_parameters(self):
         """Test that k > n raises ValueError."""
@@ -104,7 +104,7 @@ class TestJohnsonGraph:
         result = graph.add_johnson_graph(n=4, k=2)
 
         assert result is graph
-        assert graph.num_nodes() == 6
+        assert graph.count_nodes() == 6
 
     def test_johnson_connectivity(self):
         """Test that Johnson graphs are connected for 1 <= k < n."""
@@ -120,7 +120,7 @@ class TestJohnsonGraph:
         """Test that Johnson graphs are undirected."""
         graph = Graph(directed=False).add_johnson_graph(n=4, k=2)
         # is_directed is a property, not a method
-        assert graph.is_directed == False
+        assert graph.is_directed() == False
 
     def test_johnson_symmetric_adjacency(self):
         """Test that edges are symmetric (u-v implies v-u)."""

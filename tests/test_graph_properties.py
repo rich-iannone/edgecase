@@ -62,48 +62,48 @@ def small_graphs(draw, directed=None):
 @settings(max_examples=100)
 def test_node_count_nonnegative(G):
     """Node count should always be non-negative"""
-    assert G.num_nodes() >= 0
+    assert G.count_nodes() >= 0
 
 
 @given(G=small_graphs())
 @settings(max_examples=100)
 def test_edge_count_nonnegative(G):
     """Edge count should always be non-negative"""
-    assert G.num_edges() >= 0
+    assert G.count_edges() >= 0
 
 
 @given(G=small_graphs())
 @settings(max_examples=100)
 def test_nodes_list_length(G):
     """len(nodes()) should equal num_nodes()"""
-    assert len(G.get_node_ids(limit=None)) == G.num_nodes()
+    assert len(G.get_node_ids(limit=None)) == G.count_nodes()
 
 
 @given(G=small_graphs())
 @settings(max_examples=100)
 def test_edges_list_length(G):
     """len(edges_as_tuples()) should equal num_edges()"""
-    assert len(G.get_edges_as_tuples()) == G.num_edges()
+    assert len(G.get_edges_as_tuples()) == G.count_edges()
 
 
 @given(G=small_graphs())
 @settings(max_examples=100)
 def test_add_node_increases_count(G):
     """Adding a new node should increase count by 1"""
-    initial = G.num_nodes()
+    initial = G.count_nodes()
     G.add_node("new_unique_node_xyz")
-    assert G.num_nodes() == initial + 1
+    assert G.count_nodes() == initial + 1
 
 
 @given(G=small_graphs())
 @settings(max_examples=100)
 def test_add_duplicate_node_no_change(G):
     """Adding duplicate node should not change count"""
-    if G.num_nodes() > 0:
+    if G.count_nodes() > 0:
         node = G.get_node_ids(limit=None)[0]
-        initial = G.num_nodes()
+        initial = G.count_nodes()
         G.add_node(node)
-        assert G.num_nodes() == initial
+        assert G.count_nodes() == initial
 
 
 # Undirected graph property tests
@@ -113,7 +113,7 @@ def test_add_duplicate_node_no_change(G):
 @settings(max_examples=100)
 def test_undirected_neighbors_symmetric(G):
     """In undirected graph, if B is neighbor of A, then A is neighbor of B"""
-    if G.num_nodes() > 0:
+    if G.count_nodes() > 0:
         for node in G.get_node_ids(limit=None):
             neighbors = G.neighbors(node)
             for neighbor in neighbors:
@@ -129,7 +129,7 @@ def test_undirected_neighbors_symmetric(G):
 @settings(max_examples=50, deadline=1000)
 def test_pagerank_sum_to_one(G):
     """PageRank scores should sum to 1.0"""
-    if G.num_nodes() > 0:
+    if G.count_nodes() > 0:
         ranks = G.pagerank(return_dict=True)
 
         if ranks:  # If PageRank succeeded
@@ -141,7 +141,7 @@ def test_pagerank_sum_to_one(G):
 @settings(max_examples=50, deadline=1000)
 def test_pagerank_all_positive(G):
     """All PageRank scores should be positive"""
-    if G.num_nodes() > 0:
+    if G.count_nodes() > 0:
         ranks = G.pagerank(return_dict=True)
 
         if ranks:
@@ -153,11 +153,11 @@ def test_pagerank_all_positive(G):
 @settings(max_examples=50, deadline=1000)
 def test_pagerank_covers_all_nodes(G):
     """PageRank should return scores for all nodes"""
-    if G.num_nodes() > 0:
+    if G.count_nodes() > 0:
         ranks = G.pagerank(return_dict=True)
 
         if ranks:
-            assert len(ranks) == G.num_nodes()
+            assert len(ranks) == G.count_nodes()
             # PageRank returns dict with node IDs as keys
             node_ids = set(G.get_node_ids(limit=None))
             assert set(ranks.keys()) == node_ids
@@ -170,7 +170,7 @@ def test_pagerank_covers_all_nodes(G):
 @settings(max_examples=50, deadline=1000)
 def test_shortest_path_starts_and_ends_correctly(G, seed):
     """Shortest path should start at source and end at target"""
-    if G.num_nodes() >= 2:
+    if G.count_nodes() >= 2:
         nodes = G.get_node_ids(limit=None)
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]
@@ -187,7 +187,7 @@ def test_shortest_path_starts_and_ends_correctly(G, seed):
 @settings(max_examples=50, deadline=1000)
 def test_shortest_path_consecutive_edges_exist(G, seed):
     """All consecutive nodes in shortest path should be connected"""
-    if G.num_nodes() >= 2:
+    if G.count_nodes() >= 2:
         nodes = G.get_node_ids(limit=None)
         source = nodes[seed % len(nodes)]
         target = nodes[(seed + 1) % len(nodes)]

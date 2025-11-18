@@ -18,8 +18,8 @@ class TestGraphBuilderEdgeCases:
         g = ec.Graph(directed=True)
         g = g.add_path_graph(n=1)
         
-        assert g.num_nodes() == 1
-        assert g.num_edges() == 0
+        assert g.count_nodes() == 1
+        assert g.count_edges() == 0
     
     def test_add_path_zero_nodes_fails(self):
         """Test path with zero nodes fails."""
@@ -38,8 +38,8 @@ class TestGraphBuilderEdgeCases:
         g = ec.Graph(directed=True)
         g = g.add_cycle_graph(n=3)
         
-        assert g.num_nodes() == 3
-        assert g.num_edges() == 3
+        assert g.count_nodes() == 3
+        assert g.count_edges() == 3
         
         # Each node should have exactly one neighbor
         for node_id in g.get_node_ids(limit=None):
@@ -50,8 +50,8 @@ class TestGraphBuilderEdgeCases:
         g = ec.Graph(directed=False)
         g = g.add_star_graph(n=2)
         
-        assert g.num_nodes() == 2
-        assert g.num_edges() == 1
+        assert g.count_nodes() == 2
+        assert g.count_edges() == 1
     
     def test_add_star_one_node_fails(self):
         """Test star with one node fails."""
@@ -64,8 +64,8 @@ class TestGraphBuilderEdgeCases:
         g = ec.Graph(directed=False)
         g = g.add_full_graph(n=1)
         
-        assert g.num_nodes() == 1
-        assert g.num_edges() == 0
+        assert g.count_nodes() == 1
+        assert g.count_edges() == 0
     
     def test_add_full_graph_self_loops_directed(self):
         """Test complete graph with self-loops in directed mode."""
@@ -73,16 +73,16 @@ class TestGraphBuilderEdgeCases:
         g = g.add_full_graph(n=2, keep_loops=True)
         
         # With loops: n*n = 4 edges
-        assert g.num_nodes() == 2
-        assert g.num_edges() == 4
+        assert g.count_nodes() == 2
+        assert g.count_edges() == 4
     
     def test_add_balanced_tree_height_zero(self):
         """Test tree with height 0 (just root)."""
         g = ec.Graph(directed=True)
         g = g.add_balanced_tree(k=2, h=0)
         
-        assert g.num_nodes() == 1
-        assert g.num_edges() == 0
+        assert g.count_nodes() == 1
+        assert g.count_edges() == 0
     
     def test_add_balanced_tree_k_one(self):
         """Test tree with branching factor 1 (linear)."""
@@ -90,16 +90,16 @@ class TestGraphBuilderEdgeCases:
         g = g.add_balanced_tree(k=1, h=3)
         
         # Should be like a path: 1 -> 2 -> 3 -> 4
-        assert g.num_nodes() == 4
-        assert g.num_edges() == 3
+        assert g.count_nodes() == 4
+        assert g.count_edges() == 3
     
     def test_add_grid_1x1(self):
         """Test 1x1 grid (single node)."""
         g = ec.Graph(directed=False)
         g = g.add_grid_2d(1, 1)
         
-        assert g.num_nodes() == 1
-        assert g.num_edges() == 0
+        assert g.count_nodes() == 1
+        assert g.count_edges() == 0
     
     def test_add_grid_1xn(self):
         """Test 1xN grid (linear path)."""
@@ -107,16 +107,16 @@ class TestGraphBuilderEdgeCases:
         g = g.add_grid_2d(1, 5)
         
         # Should be like a path
-        assert g.num_nodes() == 5
-        assert g.num_edges() == 4
+        assert g.count_nodes() == 5
+        assert g.count_edges() == 4
     
     def test_add_prism_triangle(self):
         """Test minimum prism (3 nodes per cycle)."""
         g = ec.Graph(directed=False)
         g = g.add_prism_graph(n=3)
         
-        assert g.num_nodes() == 6
-        assert g.num_edges() == 9  # 3 + 3 + 3
+        assert g.count_nodes() == 6
+        assert g.count_edges() == 9  # 3 + 3 + 3
 
 
 class TestGraphBuilderProperties:
@@ -128,11 +128,11 @@ class TestGraphBuilderProperties:
         g = ec.Graph(directed=True)
         g = g.add_path_graph(n=n)
         
-        assert g.num_nodes() == n
-        assert g.num_edges() == max(0, n - 1)
+        assert g.count_nodes() == n
+        assert g.count_edges() == max(0, n - 1)
         
         # Verify it's directed
-        assert g.is_directed
+        assert g.is_directed()
     
     @given(n=st.integers(min_value=3, max_value=50))
     def test_cycle_properties(self, n):
@@ -140,8 +140,8 @@ class TestGraphBuilderProperties:
         g = ec.Graph(directed=True)
         g = g.add_cycle_graph(n=n)
         
-        assert g.num_nodes() == n
-        assert g.num_edges() == n
+        assert g.count_nodes() == n
+        assert g.count_edges() == n
         
         # Each node should have exactly 1 outgoing edge
         for node_id in g.get_node_ids(limit=None):
@@ -153,8 +153,8 @@ class TestGraphBuilderProperties:
         g = ec.Graph(directed=False)
         g = g.add_star_graph(n=n)
         
-        assert g.num_nodes() == n
-        assert g.num_edges() == n - 1
+        assert g.count_nodes() == n
+        assert g.count_edges() == n - 1
         
         # Count degree distribution
         degrees = [len(g.neighbors(nid)) for nid in g.get_node_ids(limit=None)]
@@ -174,10 +174,10 @@ class TestGraphBuilderProperties:
         g = ec.Graph(directed=False)
         g = g.add_full_graph(n=n)
         
-        assert g.num_nodes() == n
+        assert g.count_nodes() == n
         # For undirected: n*(n-1)/2 edges
         expected_edges = n * (n - 1) // 2
-        assert g.num_edges() == expected_edges
+        assert g.count_edges() == expected_edges
         
         # Each node should have n-1 neighbors
         if n > 1:
@@ -195,11 +195,11 @@ class TestGraphBuilderProperties:
         
         # Total nodes: sum of k^i for i from 0 to h
         expected_nodes = sum(k**i for i in range(h + 1))
-        assert g.num_nodes() == expected_nodes
+        assert g.count_nodes() == expected_nodes
         
         # Total edges: sum of k^i for i from 1 to h
         expected_edges = sum(k**i for i in range(1, h + 1))
-        assert g.num_edges() == expected_edges
+        assert g.count_edges() == expected_edges
     
     @given(
         x=st.integers(min_value=1, max_value=10),
@@ -210,11 +210,11 @@ class TestGraphBuilderProperties:
         g = ec.Graph(directed=False)
         g = g.add_grid_2d(x, y)
         
-        assert g.num_nodes() == x * y
+        assert g.count_nodes() == x * y
         
         # Edges: horizontal + vertical
         expected_edges = (x - 1) * y + x * (y - 1)
-        assert g.num_edges() == expected_edges
+        assert g.count_edges() == expected_edges
     
     @given(n=st.integers(min_value=3, max_value=20))
     def test_prism_properties(self, n):
@@ -222,9 +222,9 @@ class TestGraphBuilderProperties:
         g = ec.Graph(directed=False)
         g = g.add_prism_graph(n=n)
         
-        assert g.num_nodes() == 2 * n
+        assert g.count_nodes() == 2 * n
         # Two cycles + connecting edges
-        assert g.num_edges() == 3 * n
+        assert g.count_edges() == 3 * n
 
 
 class TestGraphBuilderCombinations:
@@ -238,20 +238,20 @@ class TestGraphBuilderCombinations:
         g = g.add_path_graph(n=4)
         g = g.add_path_graph(n=5)
         
-        assert g.num_nodes() == 12
-        assert g.num_edges() == 9  # 2 + 3 + 4
+        assert g.count_nodes() == 12
+        assert g.count_edges() == 9  # 2 + 3 + 4
     
     def test_path_then_cycle(self):
         """Test adding path then cycle."""
         g = ec.Graph(directed=False)
         
         g = g.add_path_graph(n=5)
-        initial_nodes = g.num_nodes()
+        initial_nodes = g.count_nodes()
         
         g = g.add_cycle_graph(n=4)
         
-        assert g.num_nodes() == initial_nodes + 4
-        assert g.num_edges() == 4 + 4  # path edges + cycle edges
+        assert g.count_nodes() == initial_nodes + 4
+        assert g.count_edges() == 4 + 4  # path edges + cycle edges
     
     def test_star_then_full_graph(self):
         """Test adding star then complete graph."""
@@ -260,8 +260,8 @@ class TestGraphBuilderCombinations:
         g = g.add_star_graph(n=5)
         g = g.add_full_graph(n=3)
         
-        assert g.num_nodes() == 8  # 5 + 3
-        assert g.num_edges() == 4 + 3  # star edges + complete graph edges
+        assert g.count_nodes() == 8  # 5 + 3
+        assert g.count_edges() == 4 + 3  # star edges + complete graph edges
     
     def test_mixed_directed_undirected_attributes(self):
         """Test that attributes persist across multiple additions."""
@@ -270,8 +270,8 @@ class TestGraphBuilderCombinations:
         g = g.add_path_graph(n=3, type="path_node", rel="path_edge")
         g = g.add_cycle_graph(n=4, type="cycle_node", rel="cycle_edge")
         
-        assert g.num_nodes() == 7
-        assert g.num_edges() == 6  # 2 path edges + 4 cycle edges
+        assert g.count_nodes() == 7
+        assert g.count_edges() == 6  # 2 path edges + 4 cycle edges
 
 
 class TestCreateGraphDataFrames:
@@ -283,8 +283,8 @@ class TestCreateGraphDataFrames:
         edges = pl.DataFrame({'from': [], 'to': []})
         
         g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
-        assert g.num_nodes() == 0
-        assert g.num_edges() == 0
+        assert g.count_nodes() == 0
+        assert g.count_edges() == 0
     
     def test_create_with_integer_node_ids(self):
         """Test with integer node IDs."""
@@ -299,8 +299,8 @@ class TestCreateGraphDataFrames:
         })
         
         g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
-        assert g.num_nodes() == 3
-        assert g.num_edges() == 2
+        assert g.count_nodes() == 3
+        assert g.count_edges() == 2
         
         # IDs should be converted to strings
         assert g.has_node('1')
@@ -317,7 +317,7 @@ class TestCreateGraphDataFrames:
         })
         
         g = ec.Graph.from_dataframes(nodes_df=nodes)
-        assert g.num_nodes() == 3
+        assert g.count_nodes() == 3
     
     def test_create_with_null_values(self):
         """Test handling of null values in DataFrames."""
@@ -334,8 +334,8 @@ class TestCreateGraphDataFrames:
         })
         
         g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
-        assert g.num_nodes() == 3
-        assert g.num_edges() == 2
+        assert g.count_nodes() == 3
+        assert g.count_edges() == 2
     
     def test_create_edges_create_nodes_automatically(self):
         """Test that edges create nodes if nodes_df not provided."""
@@ -347,8 +347,8 @@ class TestCreateGraphDataFrames:
         
         g = ec.Graph.from_dataframes(edges_df=edges, directed=True)
         
-        assert g.num_nodes() == 3
-        assert g.num_edges() == 3
+        assert g.count_nodes() == 3
+        assert g.count_edges() == 3
         assert g.has_node('X')
         assert g.has_node('Y')
         assert g.has_node('Z')
@@ -363,9 +363,9 @@ class TestCreateGraphDataFrames:
         g = ec.Graph.from_dataframes(edges_df=edges, directed=False)
         
         # Duplicate edges should be handled (current impl silently ignores)
-        assert g.num_nodes() == 3
+        assert g.count_nodes() == 3
         # Exact edge count depends on duplicate handling
-        assert g.num_edges() >= 2
+        assert g.count_edges() >= 2
     
     def test_create_directed_vs_undirected(self):
         """Test that directed flag affects graph structure."""
@@ -377,8 +377,8 @@ class TestCreateGraphDataFrames:
         g_directed = ec.Graph.from_dataframes(edges_df=edges, directed=True)
         g_undirected = ec.Graph.from_dataframes(edges_df=edges, directed=False)
         
-        assert g_directed.is_directed
-        assert not g_undirected.is_directed
+        assert g_directed.is_directed()
+        assert not g_undirected.is_directed()
         
         # In directed graph, B has no outgoing edges to A
         # In undirected graph, B has edge to A
@@ -394,33 +394,33 @@ class TestGraphBuilderPerformance:
         g = ec.Graph(directed=True)
         g = g.add_path_graph(n=1000)
         
-        assert g.num_nodes() == 1000
-        assert g.num_edges() == 999
+        assert g.count_nodes() == 1000
+        assert g.count_edges() == 999
     
     def test_large_star_reasonable_time(self):
         """Test that large star graphs can be created efficiently."""
         g = ec.Graph(directed=False)
         g = g.add_star_graph(n=1000)
         
-        assert g.num_nodes() == 1000
-        assert g.num_edges() == 999
+        assert g.count_nodes() == 1000
+        assert g.count_edges() == 999
     
     def test_moderately_dense_full_graph(self):
         """Test complete graph with moderate size."""
         g = ec.Graph(directed=False)
         g = g.add_full_graph(n=50)
         
-        assert g.num_nodes() == 50
-        assert g.num_edges() == 50 * 49 // 2
+        assert g.count_nodes() == 50
+        assert g.count_edges() == 50 * 49 // 2
     
     def test_large_grid(self):
         """Test large grid graph creation."""
         g = ec.Graph(directed=False)
         g = g.add_grid_2d(50, 50)
         
-        assert g.num_nodes() == 2500
+        assert g.count_nodes() == 2500
         expected_edges = (50 - 1) * 50 + 50 * (50 - 1)
-        assert g.num_edges() == expected_edges
+        assert g.count_edges() == expected_edges
     
     def test_sequential_additions_performance(self):
         """Test that sequential additions don't degrade."""
@@ -429,8 +429,8 @@ class TestGraphBuilderPerformance:
         for _ in range(10):
             g = g.add_path_graph(n=100)
         
-        assert g.num_nodes() == 1000
-        assert g.num_edges() == 990
+        assert g.count_nodes() == 1000
+        assert g.count_edges() == 990
 
 
 class TestGraphBuilderConsistency:

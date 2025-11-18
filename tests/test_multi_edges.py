@@ -16,11 +16,11 @@ class TestMultiEdgeGraphs:
 
         # Add first edge
         g.add_edge("A", "B", rel="follows")
-        assert g.num_edges() == 1
+        assert g.count_edges() == 1
 
         # Add second edge (same nodes, different relationship)
         g.add_edge("A", "B", rel="likes")
-        assert g.num_edges() == 2
+        assert g.count_edges() == 2
 
         # Check edge IDs are different
         edge_ids = g.get_edge_ids()
@@ -61,12 +61,12 @@ class TestMultiEdgeGraphs:
         g.add_edge("A", "B", weight=2.0)
         g.add_edge("A", "B", weight=3.0)
 
-        assert g.num_edges() == 3
+        assert g.count_edges() == 3
         edge_ids = g.get_edge_ids()
 
         # Delete middle edge
         g.delete_edge_by_id(edge_ids[1])
-        assert g.num_edges() == 2
+        assert g.count_edges() == 2
 
         # Remaining edge IDs should be first and third
         remaining = g.get_edge_ids()
@@ -122,7 +122,7 @@ class TestMultiEdgeGraphs:
         g.add_edge("User1", "User2", rel="likes", count=42)
         g.add_edge("User1", "User2", rel="mentions", frequency="high")
 
-        assert g.num_edges() == 3
+        assert g.count_edges() == 3
         assert len(g.get_edge_ids()) == 3
 
     def test_create_graph_with_edge_ids(self):
@@ -182,8 +182,8 @@ class TestMultiEdgeGraphs:
         # Charlie follows Alice back
         g.add_edge("Charlie", "Alice", rel="follows", timestamp="2024-02-01")
 
-        assert g.num_nodes() == 3
-        assert g.num_edges() == 5
+        assert g.count_nodes() == 3
+        assert g.count_edges() == 5
 
         # Get all edge IDs
         edge_ids = g.get_edge_ids()
@@ -209,7 +209,7 @@ class TestMultiEdgeGraphs:
         # C back to A (potential cycle)
         g.add_edge("Account_C", "Account_A", amount=300.0, date="2024-01-15")
 
-        assert g.num_edges() == 5
+        assert g.count_edges() == 5
 
         # Each transaction has unique ID
         assert len(set(g.get_edge_ids())) == 5
@@ -232,7 +232,7 @@ class TestMultiEdgeGraphs:
         g.delete_edge_by_id(middle_id)
 
         # Should have 2 edges left
-        assert g.num_edges() == 2
+        assert g.count_edges() == 2
         remaining_ids = g.get_edge_ids()
         assert edge_ids[0] in remaining_ids
         assert edge_ids[2] in remaining_ids

@@ -204,10 +204,10 @@ class TestEdgeBetweennessModularity:
 
     def compute_modularity(self, G, communities):
         """Compute modularity Q for a given partition."""
-        if G.num_nodes() == 0 or G.num_edges() == 0:
+        if G.count_nodes() == 0 or G.count_edges() == 0:
             return 0.0
 
-        m = G.num_edges()
+        m = G.count_edges()
         Q = 0.0
 
         for node_i in G.get_node_ids(limit=None):

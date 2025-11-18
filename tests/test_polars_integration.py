@@ -18,8 +18,8 @@ def test_basic_conversion(sample_dataframe):
         target_col="target"
     )
     
-    assert G.num_nodes() == 4  # A, B, C, D
-    assert G.num_edges() == 4
+    assert G.count_nodes() == 4  # A, B, C, D
+    assert G.count_edges() == 4
 
 
 def test_with_weights(sample_dataframe):
@@ -31,8 +31,8 @@ def test_with_weights(sample_dataframe):
         weight_col="weight"
     )
     
-    assert G.is_weighted
-    assert G.num_edges() == 4
+    assert G.is_weighted()
+    assert G.count_edges() == 4
 
 
 def test_custom_column_names():
@@ -44,8 +44,8 @@ def test_custom_column_names():
     
     G = from_polars(df, source_col="from", target_col="to")
     
-    assert G.num_nodes() == 3
-    assert G.num_edges() == 2
+    assert G.count_nodes() == 3
+    assert G.count_edges() == 2
 
 
 def test_empty_dataframe():
@@ -57,8 +57,8 @@ def test_empty_dataframe():
     
     G = from_polars(df, source_col="source", target_col="target")
     
-    assert G.num_nodes() == 0
-    assert G.num_edges() == 0
+    assert G.count_nodes() == 0
+    assert G.count_edges() == 0
 
 
 def test_self_loops():
@@ -71,7 +71,7 @@ def test_self_loops():
     G = from_polars(df, source_col="source", target_col="target")
     
     # Should handle self-loops
-    assert G.num_nodes() == 2
+    assert G.count_nodes() == 2
 
 
 # to_polars tests
@@ -84,7 +84,7 @@ def test_to_polars_basic_conversion(simple_graph):
     df = to_polars(simple_graph)
     
     assert isinstance(df, pl.DataFrame)
-    assert len(df) == simple_graph.num_edges()
+    assert len(df) == simple_graph.count_edges()
     assert "source" in df.columns
     assert "target" in df.columns
 

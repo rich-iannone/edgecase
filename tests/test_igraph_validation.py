@@ -82,9 +82,9 @@ class TestGraphConversion:
 
         # Convert back
         G2 = from_igraph(ig_graph)
-        assert G2.num_nodes() == 3
-        assert G2.num_edges() == 2
-        assert G2.is_directed
+        assert G2.count_nodes() == 3
+        assert G2.count_edges() == 2
+        assert G2.is_directed()
 
     def test_simple_undirected_graph(self):
         """Test conversion of a simple undirected graph."""
@@ -103,9 +103,9 @@ class TestGraphConversion:
 
         # Convert back
         G2 = from_igraph(ig_graph)
-        assert G2.num_nodes() == 2
-        assert G2.num_edges() == 1
-        assert not G2.is_directed
+        assert G2.count_nodes() == 2
+        assert G2.count_edges() == 1
+        assert not G2.is_directed()
 
     def test_node_attributes_preservation(self):
         """Test that node attributes are preserved during conversion."""
@@ -180,7 +180,7 @@ class TestGraphConversion:
         # Convert to EdgeCase (should auto-detect weighted=True)
         G = from_igraph(ig_graph)
 
-        assert G.is_weighted
+        assert G.is_weighted()
 
 
 class TestBasicMetrics:
@@ -198,8 +198,8 @@ class TestBasicMetrics:
 
         ig_graph = to_igraph(G)
 
-        assert G.num_nodes() == ig_graph.vcount()
-        assert G.num_edges() == ig_graph.ecount()
+        assert G.count_nodes() == ig_graph.vcount()
+        assert G.count_edges() == ig_graph.ecount()
 
     def test_degree_directed(self):
         """Test degree calculations for directed graphs."""

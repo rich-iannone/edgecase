@@ -17,65 +17,65 @@ class TestDeterministicGenerators:
         G = ec.Graph()
         G.add_path_graph(5)
         
-        assert G.num_nodes() == 5
-        assert G.num_edges() == 4
+        assert G.count_nodes() == 5
+        assert G.count_edges() == 4
         
     def test_add_cycle_graph(self):
         """Generate a cycle graph."""
         G = ec.Graph()
         G.add_cycle_graph(4)
         
-        assert G.num_nodes() == 4
-        assert G.num_edges() == 4
+        assert G.count_nodes() == 4
+        assert G.count_edges() == 4
         
     def test_add_star_graph(self):
         """Generate a star graph."""
         G = ec.Graph()
         G.add_star_graph(5)
         
-        assert G.num_nodes() == 5
-        assert G.num_edges() == 4
+        assert G.count_nodes() == 5
+        assert G.count_edges() == 4
         
     def test_add_full_graph(self):
         """Generate a complete graph."""
         G = ec.Graph()
         G.add_full_graph(4)
         
-        assert G.num_nodes() == 4
-        assert G.num_edges() == 6  # n*(n-1)/2 for undirected
+        assert G.count_nodes() == 4
+        assert G.count_edges() == 6  # n*(n-1)/2 for undirected
         
     def test_add_full_graph_directed(self):
         """Generate a complete directed graph."""
         G = ec.Graph(directed=True)
         G.add_full_graph(4)
         
-        assert G.num_nodes() == 4
-        assert G.num_edges() == 12  # n*(n-1) for directed
+        assert G.count_nodes() == 4
+        assert G.count_edges() == 12  # n*(n-1) for directed
         
     def test_add_balanced_tree(self):
         """Generate a balanced tree."""
         G = ec.Graph(directed=True)
         G.add_balanced_tree(k=2, h=3)
         
-        assert G.num_nodes() == 15  # 1 + 2 + 4 + 8
-        assert G.num_edges() == 14  # n - 1 for tree
+        assert G.count_nodes() == 15  # 1 + 2 + 4 + 8
+        assert G.count_edges() == 14  # n - 1 for tree
         
     def test_add_grid_2d(self):
         """Generate a 2D grid."""
         G = ec.Graph()
         G.add_grid_2d(3, 4)
         
-        assert G.num_nodes() == 12
+        assert G.count_nodes() == 12
         # Grid edges: (rows-1)*cols + rows*(cols-1)
-        assert G.num_edges() == 2 * 4 + 3 * 3
+        assert G.count_edges() == 2 * 4 + 3 * 3
         
     def test_add_prism_graph(self):
         """Generate a prism graph."""
         G = ec.Graph()
         G.add_prism_graph(5)
         
-        assert G.num_nodes() == 10  # Two cycles of 5
-        assert G.num_edges() == 15  # 5 + 5 + 5
+        assert G.count_nodes() == 10  # Two cycles of 5
+        assert G.count_edges() == 15  # 5 + 5 + 5
 
 
 class TestRandomGenerators:
@@ -86,9 +86,9 @@ class TestRandomGenerators:
         G = ec.Graph()
         G.add_gnp_graph(50, 0.1, seed=23)
         
-        assert G.num_nodes() == 50
+        assert G.count_nodes() == 50
         # With p=0.1, expect roughly 0.1 * 50*49/2 ≈ 122 edges
-        assert 80 < G.num_edges() < 160
+        assert 80 < G.count_edges() < 160
         
     def test_add_gnp_graph_reproducibility(self):
         """G(n,p) with same seed produces same graph."""
@@ -98,35 +98,35 @@ class TestRandomGenerators:
         G2 = ec.Graph()
         G2.add_gnp_graph(30, 0.2, seed=123)
         
-        assert G1.num_edges() == G2.num_edges()
+        assert G1.count_edges() == G2.count_edges()
         
     def test_add_gnp_graph_probability_bounds(self):
         """G(n,p) respects probability bounds."""
         # p=0 should create no edges
         G_empty = ec.Graph()
         G_empty.add_gnp_graph(20, 0.0, seed=23)
-        assert G_empty.num_edges() == 0
+        assert G_empty.count_edges() == 0
         
         # p=1 should create complete graph
         G_complete = ec.Graph()
         G_complete.add_gnp_graph(10, 1.0, seed=23)
-        assert G_complete.num_edges() == 45  # 10*9/2
+        assert G_complete.count_edges() == 45  # 10*9/2
         
     def test_add_gnm_graph_basic(self):
         """Generate Erdős-Rényi G(n,m) graph."""
         G = ec.Graph()
         G.add_gnm_graph(50, 100, seed=23)
         
-        assert G.num_nodes() == 50
-        assert G.num_edges() == 100
+        assert G.count_nodes() == 50
+        assert G.count_edges() == 100
         
     def test_add_gnm_graph_directed(self):
         """G(n,m) works with directed graphs."""
         G = ec.Graph(directed=True)
         G.add_gnm_graph(20, 50, directed=True, seed=23)
         
-        assert G.num_nodes() == 20
-        assert G.num_edges() == 50
+        assert G.count_nodes() == 20
+        assert G.count_edges() == 50
         
     def test_add_gnm_graph_max_edges(self):
         """G(n,m) rejects m > max possible edges."""
@@ -140,12 +140,12 @@ class TestRandomGenerators:
         G = ec.Graph()
         G.add_pa_graph(100, m=3, seed=23)
         
-        assert G.num_nodes() == 100
+        assert G.count_nodes() == 100
         # Initial clique of m+1 nodes has m+1 choose 2 edges
         # Each additional node adds m edges
         # Total: (m+1)*m/2 + (n - m - 1) * m
         expected_edges = 4 * 3 // 2 + (100 - 4) * 3
-        assert G.num_edges() == expected_edges
+        assert G.count_edges() == expected_edges
         
     def test_add_pa_graph_parameters(self):
         """PA graph validates parameters."""
@@ -162,17 +162,17 @@ class TestRandomGenerators:
         G = ec.Graph()
         G.add_smallworld_graph(100, k=6, p=0.1, seed=23)
         
-        assert G.num_nodes() == 100
+        assert G.count_nodes() == 100
         # Should have roughly n*k/2 edges (some may be rewired)
-        assert 280 < G.num_edges() <= 300
+        assert 280 < G.count_edges() <= 300
         
     def test_add_smallworld_graph_no_rewiring(self):
         """Small-world with p=0 creates ring lattice."""
         G = ec.Graph()
         G.add_smallworld_graph(20, k=4, p=0.0, seed=23)
         
-        assert G.num_nodes() == 20
-        assert G.num_edges() == 40  # 20 * 4 / 2
+        assert G.count_nodes() == 20
+        assert G.count_edges() == 40  # 20 * 4 / 2
         
     def test_add_smallworld_graph_parameters(self):
         """Small-world validates parameters."""
@@ -195,7 +195,7 @@ class TestMethodChaining:
             .add_cycle_graph(4) \
             .add_star_graph(3)
         
-        assert G.num_nodes() == 12
+        assert G.count_nodes() == 12
         
     def test_chain_with_selection(self):
         """Chain generators with selection operations."""
@@ -204,7 +204,7 @@ class TestMethodChaining:
             .select_nodes_by_id([1, 2, 3, 4]) \
             .set_node_attrs_ws(group='A')
         
-        assert G.num_nodes() == 4
+        assert G.count_nodes() == 4
         # get_node() takes a label, so use '1' string label
         assert G.get_node('1').attributes['group'] == 'A'
         
@@ -214,7 +214,7 @@ class TestMethodChaining:
             .add_path_graph(10) \
             .add_gnp_graph(20, 0.1, seed=23)
         
-        assert G.num_nodes() == 30
+        assert G.count_nodes() == 30
 
 
 class TestGraphProperties:
@@ -262,27 +262,27 @@ class TestEdgeCases:
     def test_minimum_sizes(self):
         """Test minimum valid sizes."""
         G1 = ec.Graph().add_path_graph(1)
-        assert G1.num_nodes() == 1 and G1.num_edges() == 0
+        assert G1.count_nodes() == 1 and G1.count_edges() == 0
         
         G2 = ec.Graph().add_cycle_graph(3)
-        assert G2.num_nodes() == 3 and G2.num_edges() == 3
+        assert G2.count_nodes() == 3 and G2.count_edges() == 3
         
         G3 = ec.Graph().add_star_graph(2)
-        assert G3.num_nodes() == 2 and G3.num_edges() == 1
+        assert G3.count_nodes() == 2 and G3.count_edges() == 1
         
     def test_empty_gnp_graph(self):
         """G(n,p) with p=0 creates isolated nodes."""
         G = ec.Graph().add_gnp_graph(10, 0.0)
         
-        assert G.num_nodes() == 10
-        assert G.num_edges() == 0
+        assert G.count_nodes() == 10
+        assert G.count_edges() == 0
         
     def test_gnm_zero_edges(self):
         """G(n,m) with m=0 creates isolated nodes."""
         G = ec.Graph().add_gnm_graph(10, 0)
         
-        assert G.num_nodes() == 10
-        assert G.num_edges() == 0
+        assert G.count_nodes() == 10
+        assert G.count_edges() == 0
 
 
 class TestPerformance:
@@ -292,18 +292,18 @@ class TestPerformance:
         """Generate large path graph."""
         G = ec.Graph().add_path_graph(1000)
         
-        assert G.num_nodes() == 1000
-        assert G.num_edges() == 999
+        assert G.count_nodes() == 1000
+        assert G.count_edges() == 999
         
     def test_large_gnp(self):
         """Generate large random graph."""
         G = ec.Graph().add_gnp_graph(500, 0.01, seed=23)
         
-        assert G.num_nodes() == 500
+        assert G.count_nodes() == 500
         # Should complete quickly
         
     def test_large_pa(self):
         """Generate large scale-free graph."""
         G = ec.Graph().add_pa_graph(1000, m=3, seed=23)
         
-        assert G.num_nodes() == 1000
+        assert G.count_nodes() == 1000

@@ -118,8 +118,8 @@ def example_3_social_network_analysis():
 
     # Analyze structure
     print("\nNetwork structure analysis:")
-    print(f"  Nodes: {g.num_nodes()}")
-    print(f"  Edges: {g.num_edges()}")
+    print(f"  Nodes: {g.count_nodes()}")
+    print(f"  Edges: {g.count_edges()}")
     print(f"  Density: {g.get_graph_density():.4f}")
 
     # Triangle analysis
@@ -202,7 +202,7 @@ def example_4_compare_network_types():
         trans_str = f"{trans:.4f}" if trans is not None else "None"
 
         print(
-            f"{name:<20s} {g.num_nodes():>6d} {g.num_edges():>6d} {total_tri:>10d} {trans_str:>12s}"
+            f"{name:<20s} {g.count_nodes():>6d} {g.count_edges():>6d} {total_tri:>10d} {trans_str:>12s}"
         )
 
     print("\nObservations:")
@@ -254,8 +254,8 @@ def example_5_fraud_detection_pattern():
     triangle_counts = g.count_triangles()
 
     print("\nTransaction network analysis:")
-    print(f"  Total accounts: {g.num_nodes()}")
-    print(f"  Total transactions: {g.num_edges()}")
+    print(f"  Total accounts: {g.count_nodes()}")
+    print(f"  Total transactions: {g.count_edges()}")
 
     print(f"\n  Detected circular patterns (triangles): {len(triangles)}")
     for i, tri in enumerate(triangles, 1):
@@ -306,8 +306,8 @@ def example_6_recommendation_patterns():
     triangle_counts = g.count_triangles()
 
     print("\nUser-Item network:")
-    print(f"  Nodes (users + items): {g.num_nodes()}")
-    print(f"  Edges (likes): {g.num_edges()}")
+    print(f"  Nodes (users + items): {g.count_nodes()}")
+    print(f"  Edges (likes): {g.count_edges()}")
 
     print(f"\n  Common preference patterns (triangles): {len(triangles)}")
 
