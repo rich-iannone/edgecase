@@ -64,7 +64,7 @@ def example_2_clustering_coefficients():
     print("  (Fraction of connected triples that form triangles)")
 
     # Local clustering per node
-    clustering = g.local_clustering_coefficient()
+    clustering = g.local_clustering_coefficient(return_dict=True)
     print("\nLocal clustering coefficients:")
     for node in ["Alice", "Bob", "Charlie", "David", "Eve", "Frank"]:
         coeff = clustering[node]
@@ -129,7 +129,7 @@ def example_3_social_network_analysis():
     print(f"  Global transitivity: {g.get_graph_transitivity():.4f}")
 
     # Identify highly clustered nodes (potential community cores)
-    clustering = g.local_clustering_coefficient()
+    clustering = g.local_clustering_coefficient(return_dict=True)
     highly_clustered = [
         (node, coeff) for node, coeff in clustering.items() if coeff and coeff > 0.5
     ]
