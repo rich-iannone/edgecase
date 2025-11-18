@@ -72,7 +72,7 @@ class TestSetEdgeAttrsBasic:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
         
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.set_edge_attrs("priority", [1, 2, 3], edges=[("A", "B"), ("B", "C"), ("C", "D")])
         
         result = G.get_edge_attrs("priority")
@@ -88,7 +88,7 @@ class TestSetEdgeAttrsBasic:
         G.add_edge("A", "B")
         G.add_edge("B", "C")
         
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         value_dict = {edge_ids[0]: "high", edge_ids[1]: "low"}
         
         G.set_edge_attrs("priority", value_dict)
@@ -177,7 +177,7 @@ class TestSetEdgeAttrsMultigraph:
         G.add_edge("A", "B", type="friend")
         G.add_edge("A", "B", type="colleague")
         
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         
         # Set attribute using dict with specific edge ID
         G.set_edge_attrs("priority", {edge_ids[0]: "high"})

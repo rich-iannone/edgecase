@@ -117,7 +117,7 @@ def compare_eigenvector_networkx(ec_graph, nx_graph):
 
     # Build label->node_id mapping for EdgeCase
     label_to_id = {}
-    for node_id in ec_graph.node_ids(limit=None):
+    for node_id in ec_graph.get_node_ids(limit=None):
         node = ec_graph.get_node(node_id)
         if node:
             label_to_id[node.label] = node_id
@@ -184,7 +184,7 @@ def compare_eigenvector_igraph(ec_graph, nx_graph):
 
     # Build label->node_id mapping for EdgeCase
     label_to_id = {}
-    for node_id in ec_graph.node_ids(limit=None):
+    for node_id in ec_graph.get_node_ids(limit=None):
         node = ec_graph.get_node(node_id)
         if node:
             label_to_id[node.label] = node_id

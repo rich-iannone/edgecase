@@ -248,7 +248,7 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Select first two edges
         G.select_edges_by_id([edge_ids[0], edge_ids[1]])
@@ -268,7 +268,7 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Chain selections
         G.select_edges_by_id([edge_ids[0]]).select_edges_by_id([edge_ids[1]])
@@ -372,7 +372,7 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Select all, then deselect one
         G.select_edges_by_id(edge_ids)
@@ -392,7 +392,7 @@ class TestEdgeSelection:
         G.add_edge("A", "B")
         G.add_edge("B", "C")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id(edge_ids)
         assert G.count_selected_edges() == 2
 
@@ -409,7 +409,7 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Select first edge
         G.select_edges_by_id([edge_ids[0]])
@@ -433,7 +433,7 @@ class TestEdgeSelection:
 
         assert G.count_selected_edges() == 0
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id([edge_ids[0]])
         assert G.count_selected_edges() == 1
 
@@ -455,7 +455,7 @@ class TestCombinedSelection:
         assert G.count_selected_nodes() == 2
 
         # Select some edges
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id([edge_ids[0]])
         assert G.count_selected_edges() == 1
 
@@ -473,7 +473,7 @@ class TestCombinedSelection:
 
         # Select nodes and edges (use integer IDs)
         G.select_nodes_by_id([1, 2])  # A=1, B=2
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id([edge_ids[0]])
 
         assert G.count_selected_nodes() == 2
@@ -574,7 +574,7 @@ class TestSelectionEdgeCases:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Invert empty selection = select all
         G.invert_edge_selection()

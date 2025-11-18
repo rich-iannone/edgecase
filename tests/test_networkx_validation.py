@@ -125,7 +125,7 @@ class TestPageRankValidation:
 
         # Compare results (should be very close)
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             assert abs(ec_ranks[node_id] - nx_ranks[label]) < 0.01, (
                 f"PageRank mismatch for node {label}: EC={ec_ranks[node_id]}, NX={nx_ranks[label]}"
@@ -149,7 +149,7 @@ class TestPageRankValidation:
         # different convergence behavior - this is acceptable for most use cases
         tolerance = 0.05 if name == "weighted_dag" else 0.015
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in graph.node_ids(limit=None):
+        for node_id in graph.get_node_ids(limit=None):
             label = graph.get_label_from_id(node_id)
             assert abs(ec_ranks[node_id] - nx_ranks[label]) < tolerance, (
                 f"{name}: PageRank mismatch for node {label}: EC={ec_ranks[node_id]:.6f}, NX={nx_ranks[label]:.6f}"
@@ -230,7 +230,7 @@ class TestShortestPathValidation:
     @pytest.mark.parametrize("name,graph", create_test_graphs())
     def test_shortest_path_various_graphs(self, name, graph):
         """Compare shortest paths on various graph types."""
-        nodes = graph.node_ids(limit=None)
+        nodes = graph.get_node_ids(limit=None)
         if len(nodes) < 2:
             pytest.skip("Need at least 2 nodes")
 
@@ -321,7 +321,7 @@ class TestGraphPropertiesValidation:
         nx_graph = to_networkx(G)
 
         # Get degree for each node
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             ec_degree = G.get_degree(node_id)
             nx_node = node_to_nx(G, node_id)
             nx_degree = nx_graph.degree[nx_node]
@@ -383,7 +383,7 @@ class TestConversionConsistency:
         assert not G.is_directed
 
         # Verify it's still a path (each node has degree 1 or 2)
-        for node in G.node_ids(limit=None):
+        for node in G.get_node_ids(limit=None):
             degree = G.get_degree(node)
             assert degree in [1, 2], f"Invalid degree {degree} for path graph"
 
@@ -451,7 +451,7 @@ class TestNeighborsValidation:
         nx_graph = to_networkx(G)
 
         # Check neighbors for each node
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             ec_neighbors = set(G.neighbors(node_id))
             # Convert to labels for comparison
             ec_neighbors_labels = {node_to_nx(G, n) for n in ec_neighbors}
@@ -475,7 +475,7 @@ class TestNeighborsValidation:
 
         nx_graph = to_networkx(G)
 
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             ec_neighbors = set(G.neighbors(node_id))
             ec_neighbors_labels = {node_to_nx(G, n) for n in ec_neighbors}
             nx_node = node_to_nx(G, node_id)
@@ -498,7 +498,7 @@ class TestNeighborsValidation:
 
         nx_graph = to_networkx(G)
 
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             ec_in_deg = G.get_in_degree(node_id)
             nx_node = node_to_nx(G, node_id)
             nx_in_deg = nx_graph.in_degree(nx_node)
@@ -520,7 +520,7 @@ class TestNeighborsValidation:
 
         nx_graph = to_networkx(G)
 
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             ec_out_deg = G.get_out_degree(node_id)
             nx_node = node_to_nx(G, node_id)
             nx_out_deg = nx_graph.out_degree(nx_node)
@@ -598,7 +598,7 @@ class TestNeighborsValidation:
         """Verify neighbors match on all test graphs."""
         nx_graph = to_networkx(graph)
 
-        for node_id in graph.node_ids(limit=None):
+        for node_id in graph.get_node_ids(limit=None):
             ec_neighbors = set(graph.neighbors(node_id))
             ec_neighbors_labels = {node_to_nx(graph, n) for n in ec_neighbors}
             nx_node = node_to_nx(graph, node_id)
@@ -626,7 +626,7 @@ class TestBetweennessCentralityValidation:
         nx_bc = nx.betweenness_centrality(nx_graph)
 
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01, (
@@ -657,7 +657,7 @@ class TestBetweennessCentralityValidation:
         a_id = G.get_id_from_label("A")
         assert ec_bc[center_id] > ec_bc[a_id]
 
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01, (
@@ -683,7 +683,7 @@ class TestBetweennessCentralityValidation:
 
         # In complete graph, all nodes should have equal betweenness (0)
         # EdgeCase returns node IDs
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             assert abs(ec_bc[node_id]) < 0.01
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01
@@ -731,7 +731,7 @@ class TestComplexAlgorithmsValidation:
         nx_ranks = nx.pagerank(nx_graph, alpha=0.85, max_iter=100)
 
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_ranks[node_id] - nx_ranks[nx_node]) < 0.01, (
@@ -792,7 +792,7 @@ class TestComplexAlgorithmsValidation:
         assert max(ec_values) - min(ec_values) < 0.01, "PageRank not uniform on cycle"
 
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_ranks[node_id] - nx_ranks[nx_node]) < 0.01
@@ -1102,7 +1102,7 @@ class TestClustering:
 
         # All nodes should have clustering coefficient 1.0
         if hasattr(G, "clustering_coefficient"):
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 ec_cc = G.clustering_coefficient(node_id)
                 nx_cc = nx.clustering(nx_graph, nx_node)
@@ -1125,7 +1125,7 @@ class TestClustering:
 
         # Center has clustering 0, spokes have clustering 0
         if hasattr(G, "clustering_coefficient"):
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 ec_cc = G.clustering_coefficient(node_id)
                 nx_cc = nx.clustering(nx_graph, nx_node)
@@ -1170,7 +1170,7 @@ class TestGraphDistance:
 
         # Eccentricity: max distance from node to any other node
         if hasattr(G, "eccentricity"):
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 ec_ecc = G.eccentricity(node_id)
                 nx_ecc = nx.eccentricity(nx_graph, nx_node)
@@ -1217,7 +1217,7 @@ class TestDegreeMetrics:
             ec_dc = G.degree_centrality()
             nx_dc = nx.degree_centrality(nx_graph)
 
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 assert abs(ec_dc[node_id] - nx_dc[nx_node]) < 0.01
 
@@ -1236,7 +1236,7 @@ class TestDegreeMetrics:
         nx_graph = to_networkx(G)
 
         # Average degree = 2 * edges / nodes
-        ec_avg = sum(G.get_degree(n) for n in G.node_ids(limit=None)) / G.num_nodes()
+        ec_avg = sum(G.get_degree(n) for n in G.get_node_ids(limit=None)) / G.num_nodes()
         nx_avg = sum(dict(nx_graph.degree()).values()) / nx_graph.number_of_nodes()
 
         assert abs(ec_avg - nx_avg) < 0.01
@@ -1285,7 +1285,7 @@ class TestTriangles:
             ec_tri = G.triangles()
             nx_tri = nx.triangles(nx_graph)
 
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 assert ec_tri[node_id] == nx_tri[nx_node]
 
@@ -1355,7 +1355,7 @@ class TestClosenessAndHarmonic:
             ec_cc = G.closeness_centrality()
             nx_cc = nx.closeness_centrality(nx_graph)
 
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 assert abs(ec_cc[node_id] - nx_cc[nx_node]) < 0.01
 
@@ -1379,7 +1379,7 @@ class TestClosenessAndHarmonic:
             nx_cc = nx.closeness_centrality(nx_graph)
 
             # Center should have highest closeness
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 assert abs(ec_cc[node_id] - nx_cc[nx_node]) < 0.01
 
@@ -1403,7 +1403,7 @@ class TestClosenessAndHarmonic:
             ec_hc = G.harmonic_centrality()
             nx_hc = nx.harmonic_centrality(nx_graph)
 
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 nx_node = node_to_nx(G, node_id)
                 assert abs(ec_hc[node_id] - nx_hc[nx_node]) < 0.01
 
@@ -1486,7 +1486,7 @@ class TestWeightedMetrics:
             ec_bc = G.betweenness_centrality(return_dict=True)
             nx_bc = nx.betweenness_centrality(nx_graph)  # Unweighted
 
-            for node_id in G.node_ids(limit=None):
+            for node_id in G.get_node_ids(limit=None):
                 label = G.get_label_from_id(node_id)
                 nx_node = node_to_nx(G, node_id)
                 assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01
@@ -1512,7 +1512,7 @@ class TestWeightedMetrics:
         nx_pr = nx.pagerank(nx_graph, alpha=0.85, max_iter=100, weight="weight")
 
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_pr[node_id] - nx_pr[nx_node]) < 0.001
@@ -1624,7 +1624,7 @@ class TestNumericalStability:
         assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
 
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_pr[node_id] - nx_pr[nx_node]) < 0.01
@@ -1648,7 +1648,7 @@ class TestNumericalStability:
         assert abs(sum(ec_pr.values()) - 1.0) < 1e-6
 
         # EdgeCase returns node IDs, NetworkX returns labels
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             label = G.get_label_from_id(node_id)
             nx_node = node_to_nx(G, node_id)
             assert abs(ec_pr[node_id] - nx_pr[nx_node]) < 0.01

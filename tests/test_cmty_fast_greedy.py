@@ -289,7 +289,7 @@ class TestFastGreedyProperties:
 
         # All nodes should be present
         assert len(communities) == G.num_nodes()
-        assert set(communities.keys()) == set(G.node_ids(limit=None))
+        assert set(communities.keys()) == set(G.get_node_ids(limit=None))
 
     def test_community_ids_contiguous(self):
         """Test that community IDs are 0-indexed and contiguous."""

@@ -230,7 +230,7 @@ class TestFromNetworkX:
         G = from_networkx(nx_graph)
 
         assert G.num_nodes() == 3
-        node_labels = [G.get_label_from_id(nid) for nid in G.node_ids(limit=None)]
+        node_labels = [G.get_label_from_id(nid) for nid in G.get_node_ids(limit=None)]
         assert set(node_labels) == {"A", "B", "C"}
 
     def test_nodes_with_attributes(self):
@@ -352,7 +352,7 @@ class TestFromNetworkX:
         G = from_networkx(nx_graph)
 
         # Node IDs should be converted to strings
-        node_labels = [G.get_label_from_id(nid) for nid in G.node_ids(limit=None)]
+        node_labels = [G.get_label_from_id(nid) for nid in G.get_node_ids(limit=None)]
         assert "1" in node_labels
         assert "2" in node_labels
         assert "3" in node_labels

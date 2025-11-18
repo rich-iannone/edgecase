@@ -154,7 +154,7 @@ class TestSelectLastEdgesCreated:
         assert len(selected) == 2
 
         # Verify they're the last edges
-        all_edge_ids = G.edge_ids()
+        all_edge_ids = G.get_edge_ids()
         assert all_edge_ids[-2] in selected
         assert all_edge_ids[-1] in selected
 

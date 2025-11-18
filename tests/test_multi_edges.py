@@ -23,7 +23,7 @@ class TestMultiEdgeGraphs:
         assert g.num_edges() == 2
 
         # Check edge IDs are different
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
         assert len(edge_ids) == 2
         assert edge_ids[0] != edge_ids[1]
 
@@ -39,7 +39,7 @@ class TestMultiEdgeGraphs:
         g.add_edge("B", "C")
         g.add_edge("A", "B")  # Third A->B edge
 
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
         assert edge_ids == [1, 2, 3, 4]
 
         # Check edges_as_tuples returns (id, source_id, target_id) - IDs not labels
@@ -62,14 +62,14 @@ class TestMultiEdgeGraphs:
         g.add_edge("A", "B", weight=3.0)
 
         assert g.num_edges() == 3
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
 
         # Delete middle edge
         g.delete_edge_by_id(edge_ids[1])
         assert g.num_edges() == 2
 
         # Remaining edge IDs should be first and third
-        remaining = g.edge_ids()
+        remaining = g.get_edge_ids()
         assert edge_ids[0] in remaining
         assert edge_ids[2] in remaining
         assert edge_ids[1] not in remaining
@@ -84,7 +84,7 @@ class TestMultiEdgeGraphs:
         g.add_edge("Alice", "Bob")
         g.add_edge("Bob", "Charlie")
 
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
 
         # Get first edge - returns (source_id, target_id)
         edge1 = g.get_node_ids_by_edge_id(edge_ids[0])
@@ -105,7 +105,7 @@ class TestMultiEdgeGraphs:
         g.add_node("Y")
 
         g.add_edge("X", "Y")
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
 
         assert g.has_edge_id(edge_ids[0])
         assert not g.has_edge_id(999)
@@ -123,7 +123,7 @@ class TestMultiEdgeGraphs:
         g.add_edge("User1", "User2", rel="mentions", frequency="high")
 
         assert g.num_edges() == 3
-        assert len(g.edge_ids()) == 3
+        assert len(g.get_edge_ids()) == 3
 
     def test_create_graph_with_edge_ids(self):
         """Test creating graph from DataFrames with explicit edge IDs."""
@@ -141,7 +141,7 @@ class TestMultiEdgeGraphs:
         g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
 
         # Check edge IDs were preserved
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
         assert 10 in edge_ids
         assert 20 in edge_ids
         assert 30 in edge_ids
@@ -160,7 +160,7 @@ class TestMultiEdgeGraphs:
         g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
 
         # Edge IDs should be auto-assigned starting from 1
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
         assert edge_ids == [1, 2, 3]
 
     def test_social_network_multi_edges(self):
@@ -186,7 +186,7 @@ class TestMultiEdgeGraphs:
         assert g.num_edges() == 5
 
         # Get all edge IDs
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
         assert len(edge_ids) == 5
         assert len(set(edge_ids)) == 5  # All unique
 
@@ -212,7 +212,7 @@ class TestMultiEdgeGraphs:
         assert g.num_edges() == 5
 
         # Each transaction has unique ID
-        assert len(set(g.edge_ids())) == 5
+        assert len(set(g.get_edge_ids())) == 5
 
     def test_delete_specific_multi_edge(self):
         """Test deleting one specific edge among multiple edges."""
@@ -224,7 +224,7 @@ class TestMultiEdgeGraphs:
         g.add_edge("A", "B", label="edge2")
         g.add_edge("A", "B", label="edge3")
 
-        edge_ids = g.edge_ids()
+        edge_ids = g.get_edge_ids()
         assert len(edge_ids) == 3
 
         # Delete the second edge
@@ -233,6 +233,6 @@ class TestMultiEdgeGraphs:
 
         # Should have 2 edges left
         assert g.num_edges() == 2
-        remaining_ids = g.edge_ids()
+        remaining_ids = g.get_edge_ids()
         assert edge_ids[0] in remaining_ids
         assert edge_ids[2] in remaining_ids

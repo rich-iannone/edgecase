@@ -199,8 +199,8 @@ class TestLeadingEigenvectorModularity:
         m = G.num_edges()
         Q = 0.0
 
-        for node_i in G.node_ids(limit=None):
-            for node_j in G.node_ids(limit=None):
+        for node_i in G.get_node_ids(limit=None):
+            for node_j in G.get_node_ids(limit=None):
                 if communities[node_i] == communities[node_j]:
                     A_ij = 1.0 if G.has_edge(node_i, node_j) else 0.0
                     k_i = G.get_degree(node_i)
@@ -254,7 +254,7 @@ class TestLeadingEigenvectorProperties:
                     G.add_edge(str(i), str(j), auto_create_nodes=True)
 
         communities = G.cmty_l_eigenvec(return_dict=True)
-        node_ids = G.node_ids(limit=None)
+        node_ids = G.get_node_ids(limit=None)
 
         assert len(communities) == len(node_ids)
         for node_id in node_ids:

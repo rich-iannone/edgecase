@@ -165,7 +165,7 @@ class TestReverseEdgeTraversal:
         G.add_edge("A", "B", auto_create_nodes=True)
         G.add_edge("B", "A", auto_create_nodes=True)
 
-        edge_ids = G.edge_ids(limit=None)
+        edge_ids = G.get_edge_ids(limit=None)
         edge_id_1, edge_id_2 = edge_ids[0], edge_ids[1]
 
         # Select A->B edge
@@ -182,7 +182,7 @@ class TestReverseEdgeTraversal:
         G.add_edge("A", "B", auto_create_nodes=True)
         G.add_edge("B", "A", auto_create_nodes=True)
 
-        edge_ids = G.edge_ids(limit=None)
+        edge_ids = G.get_edge_ids(limit=None)
         edge_id_1, edge_id_2 = edge_ids[0], edge_ids[1]
 
         # Select A->B and add its reverse
@@ -199,7 +199,7 @@ class TestReverseEdgeTraversal:
         G = ec.Graph(directed=True)
         G.add_edge("A", "B", auto_create_nodes=True)
 
-        edge_ids = G.edge_ids(limit=None)
+        edge_ids = G.get_edge_ids(limit=None)
         edge_id = edge_ids[0]
 
         # Select A->B (no B->A exists)
@@ -217,7 +217,7 @@ class TestReverseEdgeTraversal:
         G.add_edge("C", "D", auto_create_nodes=True)
         G.add_edge("D", "C", auto_create_nodes=True)
 
-        edge_ids = G.edge_ids(limit=None)
+        edge_ids = G.get_edge_ids(limit=None)
         edge_id_1, edge_id_2, edge_id_3, edge_id_4 = (
             edge_ids[0],
             edge_ids[1],

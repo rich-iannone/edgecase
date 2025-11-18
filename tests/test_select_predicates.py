@@ -164,7 +164,7 @@ class TestSelectEdgesByPredicate:
         # Pre-compute node mappings to avoid borrowing issues in predicate
         node_labels = {
             node.id: node.label
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
             if (node := G.get_node(node_id))
         }
 
@@ -273,7 +273,7 @@ class TestGetNodeAndEdge:
             G.add_node(label)
         G.add_edge("A", "B", weight=0.5, rel="friend")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         edge = G.get_edge(edge_ids[0])
 
         assert edge is not None

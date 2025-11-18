@@ -979,7 +979,7 @@ class TestQueryWorkflows:
         # Get only high priority node values
         high_priority_nodes = [
             nid
-            for nid in G.node_ids(limit=None)
+            for nid in G.get_node_ids(limit=None)
             if G.get_node(nid).attributes.get("priority") == "high"
         ]
         high_values = G.get_node_attrs("value", nodes=high_priority_nodes)

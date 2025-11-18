@@ -216,7 +216,7 @@ class TestBasicMetrics:
         # In-degree - convert node IDs to labels for keys
         ec_in_degrees = {
             G.get_label_from_id(node_id): G.get_in_degree(node_id)
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
         }
         ig_in_degrees = {
             ig_graph.vs[i]["name"]: ig_graph.indegree(i) for i in range(ig_graph.vcount())
@@ -226,7 +226,7 @@ class TestBasicMetrics:
         # Out-degree - convert node IDs to labels for keys
         ec_out_degrees = {
             G.get_label_from_id(node_id): G.get_out_degree(node_id)
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
         }
         ig_out_degrees = {
             ig_graph.vs[i]["name"]: ig_graph.outdegree(i) for i in range(ig_graph.vcount())
@@ -247,7 +247,7 @@ class TestBasicMetrics:
         # Convert node IDs to labels for keys
         ec_degrees = {
             G.get_label_from_id(node_id): G.get_degree(node_id)
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
         }
         ig_degrees = {ig_graph.vs[i]["name"]: ig_graph.degree(i) for i in range(ig_graph.vcount())}
         assert ec_degrees == ig_degrees

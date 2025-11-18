@@ -50,7 +50,7 @@ def test_add_duplicate_node(empty_graph):
     # Two nodes with same label but different IDs
     assert empty_graph.num_nodes() == 2
     # Both nodes have label "A", but different internal IDs
-    node_ids = empty_graph.node_ids(limit=None)
+    node_ids = empty_graph.get_node_ids(limit=None)
     assert len(node_ids) == 2
     assert node_ids[0] != node_ids[1]
 
@@ -64,7 +64,7 @@ def test_add_multiple_nodes(empty_graph):
 
 def test_nodes_returns_list(simple_graph):
     """nodes() should return list of node IDs"""
-    nodes = simple_graph.node_ids(limit=None)
+    nodes = simple_graph.get_node_ids(limit=None)
     assert isinstance(nodes, list)
     # nodes() returns IDs, need to get labels to compare
     labels = [simple_graph.get_label_from_id(nid) for nid in nodes]
@@ -113,7 +113,7 @@ def test_add_duplicate_edge_directed():
     # With edge IDs, both edges are preserved (multi-edge support)
     assert G.num_edges() == 2
     # Each edge gets a unique ID
-    edge_ids = G.edge_ids()
+    edge_ids = G.get_edge_ids()
     assert len(edge_ids) == 2
     assert edge_ids[0] != edge_ids[1]
 
@@ -175,7 +175,7 @@ def test_directed_neighbors_asymmetric():
 
 def test_num_nodes_matches_added(small_graph):
     """num_nodes() should match actual node count"""
-    nodes = small_graph.node_ids(limit=None)
+    nodes = small_graph.get_node_ids(limit=None)
     assert small_graph.num_nodes() == len(nodes)
 
 

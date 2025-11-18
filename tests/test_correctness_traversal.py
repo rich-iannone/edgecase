@@ -25,7 +25,7 @@ def convert_to_networkx(ec_graph):
     is_directed = ec_graph.is_directed
     nx_graph = nx.DiGraph() if is_directed else nx.Graph()
 
-    for node_id in ec_graph.node_ids(limit=None):
+    for node_id in ec_graph.get_node_ids(limit=None):
         nx_graph.add_node(node_id)
 
     for edge_id, source, target in ec_graph.edges_as_tuples():
@@ -43,7 +43,7 @@ def convert_to_igraph(ec_graph):
     if not IGRAPH_AVAILABLE:
         return None
 
-    node_ids = sorted(ec_graph.node_ids(limit=None))  # Sort for consistent ordering
+    node_ids = sorted(ec_graph.get_node_ids(limit=None))  # Sort for consistent ordering
     node_to_idx = {nid: idx for idx, nid in enumerate(node_ids)}
 
     edges = []
@@ -116,7 +116,7 @@ def test_bfs_vs_networkx(graph_name, ec_graph):
     nx_graph = convert_to_networkx(ec_graph)
 
     # Get first node
-    start_node = ec_graph.node_ids(limit=1)[0]
+    start_node = ec_graph.get_node_ids(limit=1)[0]
 
     # EdgeCase BFS
     ec_result = ec_graph.bfs(start_node, return_list=True)
@@ -148,7 +148,7 @@ def test_bfs_vs_igraph(graph_name, ec_graph):
     idx_to_node = {idx: nid for idx, nid in enumerate(node_ids)}
 
     # Get first node
-    start_node = ec_graph.node_ids(limit=1)[0]
+    start_node = ec_graph.get_node_ids(limit=1)[0]
     start_idx = node_ids.index(start_node)
 
     # EdgeCase BFS
@@ -180,7 +180,7 @@ def test_dfs_vs_networkx(graph_name, ec_graph):
     nx_graph = convert_to_networkx(ec_graph)
 
     # Get first node
-    start_node = ec_graph.node_ids(limit=1)[0]
+    start_node = ec_graph.get_node_ids(limit=1)[0]
 
     # EdgeCase DFS
     ec_result = ec_graph.dfs(start_node, return_list=True)
@@ -212,7 +212,7 @@ def test_dfs_vs_igraph(graph_name, ec_graph):
     idx_to_node = {idx: nid for idx, nid in enumerate(node_ids)}
 
     # Get first node
-    start_node = ec_graph.node_ids(limit=1)[0]
+    start_node = ec_graph.get_node_ids(limit=1)[0]
     start_idx = node_ids.index(start_node)
 
     # EdgeCase DFS
@@ -242,7 +242,7 @@ def test_dfs_vs_igraph(graph_name, ec_graph):
 def test_bfs_dfs_same_nodes(graph_name, ec_graph):
     """Test that BFS and DFS visit the same nodes (just different order)."""
     # Get first node
-    start_node = ec_graph.node_ids(limit=1)[0]
+    start_node = ec_graph.get_node_ids(limit=1)[0]
 
     bfs_result = ec_graph.bfs(start_node, return_list=True)
     dfs_result = ec_graph.dfs(start_node, return_list=True)

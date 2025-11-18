@@ -123,7 +123,7 @@ def compare_katz_networkx(ec_graph, nx_graph, directed=False):
 
     # Build label->node_id mapping for EdgeCase
     label_to_id = {}
-    for node_id in ec_graph.node_ids(limit=None):
+    for node_id in ec_graph.get_node_ids(limit=None):
         node = ec_graph.get_node(node_id)
         if node:
             label_to_id[node.label] = node_id

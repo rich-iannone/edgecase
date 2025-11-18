@@ -74,7 +74,7 @@ class TestEdgesStrRepr:
         graph.add_node(label="Charlie")
 
         # Get the ID of the unlabeled node
-        all_ids = graph.node_ids(limit=None)
+        all_ids = graph.get_node_ids(limit=None)
         unlabeled_id = [nid for nid in all_ids if graph.get_label_from_id(nid) is None][0]
 
         graph.add_edge("Alice", unlabeled_id)

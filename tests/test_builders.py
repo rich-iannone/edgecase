@@ -37,7 +37,7 @@ class TestGraphBuilders:
         assert g.num_edges() == 4  # n edges for a cycle
         
         # Verify cycle structure - each node has exactly 1 outgoing edge
-        for node_id in g.node_ids(limit=None):
+        for node_id in g.get_node_ids(limit=None):
             assert len(g.neighbors(node_id)) == 1
     
     def test_add_cycle_graph_minimum(self):
@@ -231,7 +231,7 @@ class TestGraphBuildersIntegration:
         g = ec.Graph(directed=True).add_path_graph(n=10)
         
         # Path should have exactly 2 leaf nodes (endpoints)
-        leaf_count = sum(1 for nid in g.node_ids(limit=None) if len(g.neighbors(nid)) == 0)
+        leaf_count = sum(1 for nid in g.get_node_ids(limit=None) if len(g.neighbors(nid)) == 0)
         assert leaf_count == 1  # Only last node has no outgoing edges
     
     def test_star_centrality(self):
@@ -255,7 +255,7 @@ class TestGraphBuildersIntegration:
         degree_3 = 0  # Edges
         degree_4 = 0  # Interior
         
-        for nid in g.node_ids(limit=None):
+        for nid in g.get_node_ids(limit=None):
             degree = len(g.neighbors(nid))
             if degree == 2:
                 degree_2 += 1
