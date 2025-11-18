@@ -1880,7 +1880,7 @@ class Graph:
         G.add_edge(source="3", target="4")
 
         # Calculate betweenness and rescale to node sizes
-        betweenness = G.betweenness_centrality()
+        betweenness = G.betweenness_centrality(return_dict=True)
         G.rescale_node_attrs(
             values=betweenness,
             node_attr_to="size",
@@ -10015,7 +10015,7 @@ class Graph:
         return self
 
     def betweenness_centrality(
-        self, attr_name: str = None, return_dict: bool = True
+        self, attr_name: str = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
         """Calculate betweenness centrality scores for all nodes.
 
@@ -10066,7 +10066,7 @@ class Graph:
             .add_edge("C", "D")
         )
 
-        scores = graph.betweenness_centrality()
+        scores = graph.betweenness_centrality(return_dict=True)
         bridge_id = graph.get_id_from_label("Bridge")
         print(scores[bridge_id])  # High score - bridges two clusters
 
@@ -10091,7 +10091,7 @@ class Graph:
             .add_edge(source="D", target="E")
         )
 
-        scores = graph.betweenness_centrality()
+        scores = graph.betweenness_centrality(return_dict=True)
         connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
 
         for node_id, score in connectors:
