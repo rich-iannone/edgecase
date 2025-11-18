@@ -46,7 +46,7 @@ def demo_edge_walk():
     print(f"Graph: cycle with {g.num_nodes()} nodes")
 
     # Track edges traversed
-    edges = g.random_edge_walk("1", steps=8, seed=42)
+    edges = g.get_random_edge_walk("1", steps=8, seed=42)
     print("\nEdges traversed (8 steps):")
     for i, (edge_id, source, target) in enumerate(edges, 1):
         print(f"  Step {i}: Edge {edge_id} ({source} -> {target})")
