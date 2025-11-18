@@ -523,7 +523,7 @@ class TestBonacichComparison:
         # Get degrees manually (bonacich keys are now node IDs)
         degrees = {}
         for node_id in bonacich.keys():
-            degrees[node_id] = len(g.get_neighbors(node_id))
+            degrees[node_id] = len(g.neighbors(node_id))
 
         # Ordering should match degree ordering
         degree_order = sorted(degrees.items(), key=lambda x: x[1], reverse=True)

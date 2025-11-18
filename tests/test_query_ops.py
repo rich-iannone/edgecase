@@ -319,7 +319,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
 
         # Using node ID (int)
-        neighbors = G.get_neighbors(1)  # A's ID is 1
+        neighbors = G.neighbors(1)  # A's ID is 1
 
         # Should return node IDs
         assert set(neighbors) == {2, 3}
@@ -335,14 +335,14 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
 
         # Using node label (str)
-        neighbors = G.get_neighbors("A")
+        neighbors = G.neighbors("A")
 
         # Should return node IDs (not labels)
         assert set(neighbors) == {2, 3}
         assert isinstance(neighbors[0], int)
 
         # Verify we get the same results with ID vs label
-        neighbors_by_id = G.get_neighbors(1)
+        neighbors_by_id = G.neighbors(1)
         assert set(neighbors) == set(neighbors_by_id)
 
     def test_get_neighbors_directed_out(self):
@@ -355,7 +355,7 @@ class TestGetNeighbors:
         G.add_edge("D", "A")
 
         # get_neighbors expects node_id (1 = A)
-        neighbors = G.get_neighbors(1, mode="out")
+        neighbors = G.neighbors(1, mode="out")
 
         # Returns list of node IDs: [2, 3] (B, C)
         assert set(neighbors) == {2, 3}
@@ -370,7 +370,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.get_neighbors(1, mode="in")
+        neighbors = G.neighbors(1, mode="in")
 
         # Returns list of node IDs: [4] (D)
         assert set(neighbors) == {4}
@@ -386,7 +386,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.get_neighbors(1, mode="all")
+        neighbors = G.neighbors(1, mode="all")
 
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(neighbors) == {2, 3, 4}
@@ -400,7 +400,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.get_neighbors(1)
+        neighbors = G.neighbors(1)
 
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(neighbors) == {2, 3, 4}
@@ -421,7 +421,7 @@ class TestGetNeighbors:
             node = G.get_node(node_id)
             return node and node.attributes and node.attributes.get("type") == "user"
 
-        neighbors = G.get_neighbors(1, predicate=is_user)
+        neighbors = G.neighbors(1, predicate=is_user)
 
         # Returns list of node IDs: [2, 4] (B, D)
         assert set(neighbors) == {2, 4}
