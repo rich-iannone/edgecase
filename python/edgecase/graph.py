@@ -7834,7 +7834,7 @@ class Graph:
         --------
         bfs : Breadth-first search traversal
         dfs : Depth-first search traversal
-        get_random_edge_walk : Return edges instead of nodes
+        random_edge_walk : Return edges instead of nodes
         get_cmty_walktrap : Community detection via random walks
         """
         start_id = self._resolve_node_id(start, auto_create=False)
@@ -7863,19 +7863,21 @@ class Graph:
 
         return self
 
-    def get_random_edge_walk(
+    def random_edge_walk(
         self,
         start: Union[int, str],
         steps: int,
         mode: str = "out",
         stuck: str = "return",
         seed: int | None = None,
-    ) -> list[tuple[int, int, int]]:
-        """Perform a random walk and return the edges traversed.
+        attr_name: str = None,
+        return_list: bool = False,
+    ) -> Union[list[tuple[int, int, int]], "Graph"]:
+        """Perform a random walk and track the edges traversed.
 
-        Like `random_walk()`, but returns the sequence of edges traversed
-        rather than the nodes visited. Each edge is represented as a
-        tuple (edge_id, source_id, target_id).
+        Like `random_walk()`, but operates on edges instead of nodes. Can return
+        the sequence of edges as a list, or store the traversal order as an edge
+        attribute for visualization.
 
         Time complexity: O(steps), plus O(degree) per step for edge lookup.
 
@@ -7896,13 +7898,19 @@ class Graph:
             - "error": Raise an error
         seed : int, optional
             Random seed for reproducibility. If None, uses system entropy.
+        attr_name : str, optional
+            Name of the edge attribute to store traversal order. If None, uses
+            "random_edge_walk_order". Only used when `return_list=False`.
+        return_list : bool, default False
+            If True, return list of edge tuples. If False, store traversal order
+            as edge attributes and return Graph for chaining.
 
         Returns
         -------
-        list[tuple[int, int, int]]
-            Sequence of edges traversed, where each edge is a tuple of
-            (edge_id, source_id, target_id). Length is `steps`,
-            or shorter if `stuck="return"` and walk terminates early.
+        list[tuple[int, int, int]] | Graph
+            If `return_list=True`: List of (edge_id, source_id, target_id) tuples.
+            If `return_list=False`: Self for method chaining, with edge traversal
+            order stored as edge attributes.
 
         Raises
         ------
@@ -7913,7 +7921,7 @@ class Graph:
 
         Examples
         --------
-        Track edges in a random walk:
+        Return edge list (explicit mode):
 
         ```python
         graph = (
@@ -7926,17 +7934,60 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        edges = graph.get_random_edge_walk("A", steps=5, seed=42)
+        edges = graph.random_edge_walk("A", steps=5, seed=42, return_list=True)
 
         # Each edge is (edge_id, source_id, target_id)
         for edge_id, source_id, target_id in edges:
             print(f"Edge {edge_id}: {source_id} -> {target_id}")
         ```
 
-        Analyze edge usage frequency:
+        Store traversal order as edge attributes (default mode):
 
         ```python
         from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
+        # Store traversal order, returns Graph for chaining
+        graph.random_edge_walk("A", steps=100, seed=42)
+
+        # Access traversal order from edge attributes
+        orders = graph.get_edge_attrs_by_id("random_edge_walk_order")
+        for edge_id, order in orders.items():
+            print(f"Edge {edge_id} traversed at position {order}")
+        ```
+
+        Method chaining with multiple walks:
+
+        ```python
+        graph = (
+            Graph()
+            .add_cycle_graph(6)
+            .random_edge_walk(1, steps=50, seed=42, attr_name="walk1")
+            .random_edge_walk(1, steps=50, seed=123, attr_name="walk2")
+        )
+
+        # Compare which edges were used in each walk
+        walk1_orders = graph.get_edge_attrs_by_id("walk1")
+        walk2_orders = graph.get_edge_attrs_by_id("walk2")
+
+        # Find edges present in both walks
+        common_edges = set(walk1_orders.keys()) & set(walk2_orders.keys())
+        for edge_id in sorted(common_edges)[:3]:  # Show first 3
+            print(f"Edge {edge_id}: walk1={walk1_orders[edge_id]}, walk2={walk2_orders[edge_id]}")
+        ```
+
+        Analyze edge usage frequency:
+
+        ```python
         from collections import Counter
 
         graph = (
@@ -7949,8 +8000,7 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        # Long random walk
-        edges = graph.get_random_edge_walk(start="A", steps=1000, seed=42)
+        edges = graph.random_edge_walk(start="A", steps=1000, seed=42, return_list=True)
 
         # Count edge usage (by source and target IDs)
         edge_counts = Counter((src_id, tgt_id) for _, src_id, tgt_id in edges)
@@ -7964,14 +8014,47 @@ class Graph:
         - Edge-centric graph algorithms
         - Transition probability estimation
         - Graph sketching and sampling
+        - Visualizing edge usage patterns
+
+        The dual-behavior pattern enables:
+        - **Attribute storage** (default): Store traversal order on edges for
+          visualization and analysis
+        - **List return** (explicit): Get edge sequence for algorithmic operations
 
         See Also
         --------
-        random_walk : Return nodes instead of edges
+        random_walk : Traverse nodes instead of edges
+        bfs : Breadth-first traversal
+        dfs : Depth-first traversal
         """
         # Convert start to string for Rust (handles both int and str)
         start_str = str(start)
-        return self._graph.random_edge_walk(start_str, steps, mode, stuck, seed)
+        edge_tuples = self._graph.random_edge_walk(start_str, steps, mode, stuck, seed)
+
+        # Return list if requested
+        if return_list:
+            return edge_tuples
+
+        # Store traversal order as edge attributes
+        attr = attr_name if attr_name is not None else "random_edge_walk_order"
+
+        # Create dict mapping edge_id -> position in traversal
+        positions = {edge_id: idx for idx, (edge_id, _, _) in enumerate(edge_tuples)}
+
+        # Set edge attributes
+        self.set_edge_attrs(attr, positions)
+
+        # Track computation
+        params = {
+            "start": start,
+            "steps": steps,
+            "mode": mode,
+            "stuck": stuck,
+            "seed": seed,
+        }
+        self._computations.append(("random_edge_walk", params, attr))
+
+        return self
 
     def topological_sort(self) -> list[int]:
         """Sort nodes in topological order (DAG only).
