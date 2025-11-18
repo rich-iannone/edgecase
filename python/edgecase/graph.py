@@ -9018,7 +9018,7 @@ class Graph:
         See Also
         --------
         clustering_coefficient : Alternative method that converts None to 0.0
-        transitivity : Global clustering coefficient
+        get_graph_transitivity : Global clustering coefficient
         count_triangles : Triangle counts used in calculation
         """
         if attr_name is None:
@@ -9116,6 +9116,7 @@ class Graph:
         See Also
         --------
         get_avg_clustering_coefficient : Get graph-level average
+        get_graph_transitivity : Global clustering coefficient
         coreness : K-core decomposition
         """
         if attr_name is None:
