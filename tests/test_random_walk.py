@@ -196,7 +196,7 @@ class TestRandomEdgeWalk:
         g.add_edge("2", "3")
         g.add_edge("3", "1")
 
-        edges = g.get_random_edge_walk("1", steps=10, seed=42)
+        edges = g.random_edge_walk("1", steps=10, seed=42, return_list=True)
         assert len(edges) == 10  # exactly 'steps' edges
 
         # Each edge should be a tuple of (edge_id, source_id, target_id)
@@ -217,7 +217,7 @@ class TestRandomEdgeWalk:
         g.add_edge("2", "3")
         g.add_edge("3", "1")
 
-        edge_path = g.get_random_edge_walk("1", steps=10, seed=42)
+        edge_path = g.random_edge_walk("1", steps=10, seed=42, return_list=True)
 
         # Should have 10 edges
         assert len(edge_path) == 10
@@ -240,12 +240,16 @@ class TestRandomEdgeWalk:
         g.add_edge("B", "C")
 
         # Forward
-        forward = g.get_random_edge_walk("A", steps=5, mode="out", stuck="return", seed=42)
+        forward = g.random_edge_walk(
+            "A", steps=5, mode="out", stuck="return", seed=42, return_list=True
+        )
         assert len(forward) <= 2
         # Edges should connect A->B and B->C
 
         # Backward
-        backward = g.get_random_edge_walk("C", steps=5, mode="in", stuck="return", seed=42)
+        backward = g.random_edge_walk(
+            "C", steps=5, mode="in", stuck="return", seed=42, return_list=True
+        )
         assert len(backward) <= 2
         # When walking backward from C, we traverse edges in reverse
         # Edge tuples still show original direction (source, target)
@@ -259,19 +263,19 @@ class TestRandomEdgeWalk:
         g.add_edge("A", "B")
 
         # Return partial
-        edges = g.get_random_edge_walk("A", steps=10, stuck="return")
+        edges = g.random_edge_walk("A", steps=10, stuck="return", return_list=True)
         assert len(edges) == 1  # Only one edge before stuck
 
         # Raise error
         with pytest.raises(RuntimeError, match="stuck"):
-            g.get_random_edge_walk("A", steps=10, stuck="error")
+            g.random_edge_walk("A", steps=10, stuck="error", return_list=True)
 
     def test_edge_walk_zero_steps(self):
         """Test edge walk with zero steps."""
         g = Graph()
         g.add_node(label="A")
 
-        edges = g.get_random_edge_walk("A", steps=0)
+        edges = g.random_edge_walk("A", steps=0, return_list=True)
         assert len(edges) == 0
 
     def test_edge_walk_reproducibility(self):
@@ -282,8 +286,8 @@ class TestRandomEdgeWalk:
         for i in range(1, 7):
             g.add_edge(str(i), str((i % 6) + 1))
 
-        edges1 = g.get_random_edge_walk("1", steps=100, seed=42)
-        edges2 = g.get_random_edge_walk("1", steps=100, seed=42)
+        edges1 = g.random_edge_walk("1", steps=100, seed=42, return_list=True)
+        edges2 = g.random_edge_walk("1", steps=100, seed=42, return_list=True)
         assert edges1 == edges2
 
 
