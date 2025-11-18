@@ -494,6 +494,6 @@ class TestAdvancedPropertiesIntegration:
         G.add_star_graph(10)
 
         hist = G.get_degree_histogram()
-        dist = G.degree_distribution()
+        dist = G.get_degree_distribution()
 
         assert hist == dist

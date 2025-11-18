@@ -275,13 +275,13 @@ class TestDegreeDistribution:
     def test_degree_dist_empty_graph(self):
         """Empty graph has empty distribution."""
         G = ec.Graph()
-        assert G.degree_distribution() == {}
+        assert G.get_degree_distribution() == {}
 
     def test_degree_dist_path_graph(self):
         """Path graph has 2 nodes with degree 1, rest with degree 2."""
         G = ec.Graph()
         G.add_path_graph(5)
-        dist = G.degree_distribution()
+        dist = G.get_degree_distribution()
         assert dist[1] == 2  # End nodes
         assert dist[2] == 3  # Middle nodes
 
@@ -289,7 +289,7 @@ class TestDegreeDistribution:
         """Star graph has 1 hub with high degree, rest with degree 1."""
         G = ec.Graph()
         G.add_star_graph(6)  # 1 center + 5 spokes
-        dist = G.degree_distribution()
+        dist = G.get_degree_distribution()
         assert dist[1] == 5  # Spoke nodes
         assert dist[5] == 1  # Hub node
 
@@ -297,7 +297,7 @@ class TestDegreeDistribution:
         """Cycle graph has all nodes with degree 2."""
         G = ec.Graph()
         G.add_cycle_graph(6)
-        dist = G.degree_distribution()
+        dist = G.get_degree_distribution()
         assert dist[2] == 6
         assert len(dist) == 1  # Only one degree value
 

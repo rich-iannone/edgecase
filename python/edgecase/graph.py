@@ -2846,9 +2846,7 @@ class Graph:
         node_id = self._resolve_node_id(node)
         return len(self._graph.neighbors(node_id))
 
-    # ========== Degree Methods ==========
-
-    def degree_distribution(self) -> dict[int, int]:
+    def get_degree_distribution(self) -> dict[int, int]:
         """Get degree distribution as a mapping from degree to count.
 
         Returns a histogram of node degrees, showing how many nodes have each
@@ -2878,7 +2876,7 @@ class Graph:
             .add_edge("Hub", "D")
         )
 
-        dist = graph.degree_distribution()
+        dist = graph.get_degree_distribution()
         print(dist)  # {1: 4, 4: 1} - 4 nodes with degree 1, 1 node with degree 4
         ```
 
@@ -2923,7 +2921,7 @@ class Graph:
 
         See Also
         --------
-        degree_distribution : Get full degree distribution
+        get_degree_distribution : Get full degree distribution
         degree : Get degree of a specific node
         """
         return self._graph.average_degree()
@@ -2988,7 +2986,7 @@ class Graph:
         get_agg_degree_out : Aggregate outdegree values
         get_agg_degree_total : Aggregate total degree values
         in_degree : Get indegree of a single node
-        degree_distribution : Get full degree distribution
+        get_degree_distribution : Get full degree distribution
         """
         if not self._graph.is_directed:
             raise ValueError("get_agg_degree_in() only works with directed graphs")
@@ -3086,7 +3084,7 @@ class Graph:
         get_agg_degree_in : Aggregate indegree values
         get_agg_degree_total : Aggregate total degree values
         out_degree : Get outdegree of a single node
-        degree_distribution : Get full degree distribution
+        get_degree_distribution : Get full degree distribution
         """
         if not self._graph.is_directed:
             raise ValueError("get_agg_degree_out() only works with directed graphs")
@@ -3218,7 +3216,7 @@ class Graph:
 
         Returns a dictionary mapping degree values to their frequencies,
         suitable for creating degree distribution plots. This is an alias
-        for `degree_distribution()`.
+        for `get_degree_distribution()`.
 
         Returns
         -------
@@ -3257,10 +3255,10 @@ class Graph:
 
         See Also
         --------
-        degree_distribution : Equivalent method
+        get_degree_distribution : Equivalent method
         average_degree : Get mean degree
         """
-        return self.degree_distribution()
+        return self.get_degree_distribution()
 
     # ========== Distance & Path Metrics ==========
 
