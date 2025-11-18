@@ -7865,24 +7865,24 @@ class Graph:
 
     def get_random_edge_walk(
         self,
-        start: str,
+        start: Union[int, str],
         steps: int,
         mode: str = "out",
         stuck: str = "return",
         seed: int | None = None,
-    ) -> list[tuple[int, str, str]]:
+    ) -> list[tuple[int, int, int]]:
         """Perform a random walk and return the edges traversed.
 
         Like `random_walk()`, but returns the sequence of edges traversed
         rather than the nodes visited. Each edge is represented as a
-        tuple (edge_id, source_label, target_label).
+        tuple (edge_id, source_id, target_id).
 
         Time complexity: O(steps), plus O(degree) per step for edge lookup.
 
         Parameters
         ----------
-        start : str
-            Label of the starting node.
+        start : int | str
+            Starting node (integer ID or string label).
         steps : int
             Number of steps to take in the walk.
         mode : {"out", "in", "all"}, default="out"
@@ -7899,9 +7899,9 @@ class Graph:
 
         Returns
         -------
-        list[tuple[int, str, str]]
+        list[tuple[int, int, int]]
             Sequence of edges traversed, where each edge is a tuple of
-            (edge_id, source_label, target_label). Length is `steps`,
+            (edge_id, source_id, target_id). Length is `steps`,
             or shorter if `stuck="return"` and walk terminates early.
 
         Raises
@@ -7928,9 +7928,9 @@ class Graph:
 
         edges = graph.get_random_edge_walk("A", steps=5, seed=42)
 
-        # Each edge is (id, source, target)
-        for edge_id, source, target in edges:
-            print(f"Edge {edge_id}: {source} -> {target}")
+        # Each edge is (edge_id, source_id, target_id)
+        for edge_id, source_id, target_id in edges:
+            print(f"Edge {edge_id}: {source_id} -> {target_id}")
         ```
 
         Analyze edge usage frequency:
@@ -7952,8 +7952,8 @@ class Graph:
         # Long random walk
         edges = graph.get_random_edge_walk(start="A", steps=1000, seed=42)
 
-        # Count edge usage
-        edge_counts = Counter((src, tgt) for _, src, tgt in edges)
+        # Count edge usage (by source and target IDs)
+        edge_counts = Counter((src_id, tgt_id) for _, src_id, tgt_id in edges)
         print("Most used edges:", edge_counts.most_common(3))
         ```
 
@@ -7969,7 +7969,9 @@ class Graph:
         --------
         random_walk : Return nodes instead of edges
         """
-        return self._graph.random_edge_walk(start, steps, mode, stuck, seed)
+        # Convert start to string for Rust (handles both int and str)
+        start_str = str(start)
+        return self._graph.random_edge_walk(start_str, steps, mode, stuck, seed)
 
     def topological_sort(self) -> list[int]:
         """Sort nodes in topological order (DAG only).

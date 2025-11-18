@@ -3192,12 +3192,23 @@ impl Graph {
         mode: &str,
         stuck: &str,
         seed: Option<u64>,
-    ) -> PyResult<Vec<(u64, String, String)>> {
-        let start_id = self.id_from_label(start).map_err(|_| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Start vertex '{}' not found", start)
-            )
-        })?;
+    ) -> PyResult<Vec<(u64, u64, u64)>> {
+        // Try to parse as node ID first, then as label
+        let start_id = if let Ok(id) = start.parse::<u64>() {
+            if self.nodes.contains_key(&id) {
+                id
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    format!("Start node with ID {} not found", id)
+                ));
+            }
+        } else {
+            self.id_from_label(start).map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    format!("Start node '{}' not found", start)
+                )
+            })?
+        };
 
         let mut rng: ChaCha8Rng = if let Some(s) = seed {
             ChaCha8Rng::seed_from_u64(s)
@@ -3270,15 +3281,8 @@ impl Graph {
                 _ => unreachable!(),
             };
 
-            // Get labels
-            let source_label = self.nodes.get(&edge.source)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| edge.source.to_string());
-            let target_label = self.nodes.get(&edge.target)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| edge.target.to_string());
-
-            edges_traversed.push((edge.id, source_label, target_label));
+            // Store edge as (edge_id, source_id, target_id)
+            edges_traversed.push((edge.id, edge.source, edge.target));
             current = next;
         }
 
