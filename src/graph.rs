@@ -9328,7 +9328,7 @@ mod tests {
         assert_eq!(graph.num_edges(), 1);
 
         // Check edge ID was auto-assigned
-        let edge_ids = graph.edge_ids();
+        let edge_ids = graph.get_edge_ids();
         assert_eq!(edge_ids.len(), 1);
         assert_eq!(edge_ids[0], 1);
     }

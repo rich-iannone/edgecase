@@ -156,7 +156,7 @@ class GraphWidget:
 
     # Size nodes by degree
     sizes = {}
-    for node_id in G.node_ids(limit=None):
+    for node_id in G.get_node_ids(limit=None):
         degree = G.get_degree(node=node_id)
         sizes[node_id] = degree * 0.5
     G.set_node_attrs(node_attr="size", values=sizes)
@@ -237,7 +237,7 @@ class GraphWidget:
         from edgecase.viz import _circular_layout, _force_directed_layout, _random_layout
 
         # Get nodes and edges
-        nodes = self.graph.node_ids(limit=None)
+        nodes = self.graph.get_node_ids(limit=None)
         edges = []
         seen = set()
 

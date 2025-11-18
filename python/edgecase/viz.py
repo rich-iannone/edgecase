@@ -84,7 +84,7 @@ def plot_graph(
     ```
     """
     # Extract graph data (fast - direct from Rust)
-    nodes = graph.node_ids(limit=None)
+    nodes = graph.get_node_ids(limit=None)
     edges = []
 
     # Build edge list efficiently
@@ -985,7 +985,7 @@ def _generate_dot_string(graph, nodes: list[str], edges: list[list[str]]) -> str
     G.add_edge(source="A", target="B")
 
     # Get node and edge IDs
-    node_ids = G.node_ids(limit=None)
+    node_ids = G.get_node_ids(limit=None)
     edges = [[e[1], e[2]] for e in G.edges_as_tuples()]
 
     dot = _generate_dot_string(G, node_ids, edges)
@@ -1112,7 +1112,7 @@ def _generate_graphviz_svg_html(
         Complete HTML document with embedded SVG
     """
     graph_type = "Directed" if graph.is_directed else "Undirected"
-    num_nodes = len(graph.node_ids(limit=None))
+    num_nodes = len(graph.get_node_ids(limit=None))
     num_edges = graph.num_edges()
 
     # Generate unique ID suffix for this graph instance to avoid conflicts in notebooks
