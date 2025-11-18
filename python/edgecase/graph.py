@@ -314,7 +314,7 @@ class Graph:
             weight = None
             other_attrs = {}
             for col in attr_cols:
-                if col == "weight" and self.weighted:
+                if col == "weight" and self.is_weighted():
                     weight = row[col]
                 else:
                     other_attrs[col] = row[col]
@@ -1305,7 +1305,7 @@ class Graph:
         """
         if use_labels:
             # Build edge strings using labels when available
-            separator = "->" if self.is_directed else "--"
+            separator = "->" if self.is_directed() else "--"
             edge_list = self.get_edges_as_tuples()
             edge_strs = []
 
@@ -1686,7 +1686,7 @@ class Graph:
         is_dag : Check if directed graph is acyclic
         get_graph_girth : Get length of shortest cycle
         """
-        if not self.is_directed:
+        if not self.is_directed():
             raise ValueError("get_cycles() requires a directed graph")
 
         # Get cycles as node IDs from Rust
@@ -2184,37 +2184,274 @@ class Graph:
 
         return planner.compute_or_improve_path(epsilon)
 
-    def num_nodes(self) -> int:
-        """Return number of nodes."""
+    def count_nodes(self) -> int:
+        """Count the total number of nodes in the graph.
+
+        Returns the current number of nodes (vertices) in the graph. This count
+        includes all nodes that have been added and not deleted.
+
+        Returns
+        -------
+        int
+            The total number of nodes in the graph.
+
+        Examples
+        --------
+        Count nodes in a simple graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+        )
+        print(graph.count_nodes())  # 3
+        ```
+
+        Track nodes after deletion:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .delete_node("B")
+        )
+        print(graph.count_nodes())  # 2
+        ```
+
+        See Also
+        --------
+        count_edges : Count total number of edges
+        get_node_ids : Get list of all node IDs
+        has_node : Check if specific node exists
+        """
         return self._graph.num_nodes()
 
-    def num_edges(self) -> int:
-        """Return number of edges."""
+    def count_edges(self) -> int:
+        """Count the total number of edges in the graph.
+
+        Returns the current number of edges (links/connections) in the graph.
+        For undirected graphs, each edge is counted once. For directed graphs,
+        each directed edge is counted separately (A→B is different from B→A).
+
+        Returns
+        -------
+        int
+            The total number of edges in the graph.
+
+        Examples
+        --------
+        Count edges in a simple graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+        )
+        print(graph.count_edges())  # 2
+        ```
+
+        Directed vs undirected edge counting:
+
+        ```python
+        # Directed graph
+        directed = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="A")
+        )
+        print(directed.count_edges())  # 2 (A→B and B→A are separate)
+
+        # Undirected graph
+        undirected = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+        )
+        print(undirected.count_edges())  # 1
+        ```
+
+        Track edges after deletion:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .delete_edge(source="A", target="B")
+        )
+        print(graph.count_edges())  # 1
+        ```
+
+        See Also
+        --------
+        count_nodes : Count total number of nodes
+        get_edge_ids : Get list of all edge IDs
+        has_edge : Check if specific edge exists
+        """
         return self._graph.num_edges()
 
-    @property
-    def directed(self) -> bool:
-        """Check if graph is directed."""
-        return self._graph.is_directed
-
-    @property
     def is_directed(self) -> bool:
-        """Check if graph is directed (alias for directed)."""
+        """Check if the graph is directed.
+
+        Returns whether this graph treats edges as directed (with distinct source
+        and target) or undirected (bidirectional connections). This property is
+        set when the graph is created and cannot be changed afterward.
+
+        In directed graphs:
+        - Edge A→B is different from B→A
+        - Each direction must be explicitly added
+        - Useful for modeling asymmetric relationships (follows, citations, etc.)
+
+        In undirected graphs:
+        - Edge A--B is the same as B--A
+        - Adding A--B automatically adds B--A
+        - Useful for modeling symmetric relationships (friendship, proximity, etc.)
+
+        Returns
+        -------
+        bool
+            True if the graph is directed, False if undirected.
+
+        Examples
+        --------
+        Check graph directionality:
+
+        ```python
+        directed_graph = Graph(directed=True)
+        print(directed_graph.is_directed())  # True
+
+        undirected_graph = Graph(directed=False)
+        print(undirected_graph.is_directed())  # False
+        ```
+
+        Use directionality to customize behavior:
+
+        ```python
+        graph = Graph(directed=True).add_node(label="A").add_node(label="B")
+
+        if graph.is_directed():
+            # Add both directions for bidirectional relationship
+            graph.add_edge(source="A", target="B")
+            graph.add_edge(source="B", target="A")
+        else:
+            # Single edge suffices for undirected
+            graph.add_edge(source="A", target="B")
+        ```
+
+        See Also
+        --------
+        is_weighted : Check if graph is weighted
+        """
         return self._graph.is_directed
 
-    @property
-    def weighted(self) -> bool:
-        """Check if graph is weighted."""
-        return self._graph.is_weighted
-
-    @property
     def is_weighted(self) -> bool:
-        """Check if graph is weighted (alias for weighted)."""
+        """Check if the graph is weighted.
+
+        Returns whether this graph supports edge weights. This property is set
+        when the graph is created and cannot be changed afterward. Weighted graphs
+        can store numeric weights on edges, which are used in algorithms like
+        shortest path, minimum spanning tree, etc.
+
+        In weighted graphs:
+        - Each edge can have an associated numeric weight
+        - Weights represent costs, distances, capacities, etc.
+        - Algorithms consider weights when computing paths and metrics
+
+        In unweighted graphs:
+        - All edges are treated equally (implicit weight of 1)
+        - Weights are ignored or unavailable
+        - Algorithms use hop count instead of weight sum
+
+        Returns
+        -------
+        bool
+            True if the graph supports weights, False otherwise.
+
+        Examples
+        --------
+        Check if graph is weighted:
+
+        ```python
+        weighted_graph = Graph(weighted=True)
+        print(weighted_graph.is_weighted())  # True
+
+        unweighted_graph = Graph()
+        print(unweighted_graph.is_weighted())  # False
+        ```
+
+        Add weighted edges only if supported:
+
+        ```python
+        graph = Graph(weighted=True).add_node(label="A").add_node(label="B")
+
+        if graph.is_weighted():
+            graph.add_edge(source="A", target="B", weight=2.5)
+        else:
+            graph.add_edge(source="A", target="B")
+        ```
+
+        See Also
+        --------
+        is_directed : Check if graph is directed
+        add_edge : Add edge with optional weight
+        """
         return self._graph.is_weighted
 
-    @property
-    def name(self) -> Optional[str]:
-        """Get the graph's name."""
+    def get_graph_name(self) -> Optional[str]:
+        """Get the name of the graph.
+
+        Returns the human-readable name assigned to this graph, if any. The name
+        is an optional identifier that can be set when creating the graph or
+        updated later. It's useful for distinguishing between multiple graphs
+        in analysis or visualization contexts.
+
+        Returns
+        -------
+        str | None
+            The graph's name if set, or None if no name was assigned.
+
+        Examples
+        --------
+        Get graph name:
+
+        ```python
+        graph = Graph(graph_name="Social Network")
+        print(graph.get_graph_name())  # "Social Network"
+        ```
+
+        Handle graphs without names:
+
+        ```python
+        graph = Graph()
+        name = graph.get_graph_name()
+        print(name)  # None
+
+        if name:
+            print(f"Analyzing {name}")
+        else:
+            print("Analyzing unnamed graph")
+        ```
+
+        See Also
+        --------
+        count_nodes : Count total number of nodes
+        count_edges : Count total number of edges
+        is_directed : Check if graph is directed
+        """
         return self._graph_name
 
     # ========== Degree Methods ==========
@@ -8605,7 +8842,7 @@ class Graph:
             g.add_edge(source=str(i), target=str((i+1) % 5))
 
         spanner = g.transform_with_spanner(stretch=2.0)
-        print(spanner.num_edges() < g.num_edges())  # True - Fewer edges
+        print(spanner.count_edges() < g.count_edges())  # True - Fewer edges
         ```
 
         Create a 3-spanner of a weighted graph:
@@ -8624,7 +8861,7 @@ class Graph:
         spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
         # The direct A-C edge might be omitted since going A→B→C
         # gives distance 2, which is < 3 × (distance 5)
-        print(spanner.num_edges() <= 2)  # True
+        print(spanner.count_edges() <= 2)  # True
         ```
 
         Compare sparsity for different stretch values:
@@ -8641,12 +8878,12 @@ class Graph:
         for u, v in nx_g.edges():
             g.add_edge(source=str(u), target=str(v))
 
-        original_edges = g.num_edges()
+        original_edges = g.count_edges()
         spanner2 = g.transform_with_spanner(stretch=2.0, seed=42)
         spanner3 = g.transform_with_spanner(stretch=3.0, seed=42)
 
         # Higher stretch → fewer edges
-        result = spanner3.num_edges() < spanner2.num_edges() < original_edges
+        result = spanner3.count_edges() < spanner2.count_edges() < original_edges
         print(result)  # True
         ```
 
@@ -8676,7 +8913,7 @@ class Graph:
         if stretch < 1.0:
             raise ValueError("stretch must be at least 1.0")
 
-        if self.is_directed:
+        if self.is_directed():
             raise ValueError("spanner only works on undirected graphs")
 
         # Create result graph and wrap the Rust graph
@@ -11032,7 +11269,7 @@ class Graph:
         """
         result = self._graph.get_bonacich_power_centrality(beta, normalized)
         # Empty result indicates singular matrix error
-        if not result and self.num_nodes() > 0:
+        if not result and self.count_nodes() > 0:
             raise RuntimeError(
                 "Matrix (I - β·A) is singular. β is too close to 1/λ_max. "
                 "Try a smaller |β| value (e.g., reduce by half)."
@@ -12138,8 +12375,8 @@ class Graph:
         graph.select_nodes_by_id(node_ids=node_ids_to_select)
 
         subgraph = graph.transform_to_subgraph_ws()
-        print(subgraph.num_nodes())  # 3
-        print(subgraph.num_edges())  # 2 (edges between selected nodes)
+        print(subgraph.count_nodes())  # 3
+        print(subgraph.count_edges())  # 2 (edges between selected nodes)
         ```
 
         Extract an edge-induced subgraph:
@@ -12163,7 +12400,7 @@ class Graph:
         selected_edges = self.get_selected_edges()
 
         # Create new graph with same directedness
-        subgraph = Graph(directed=self.directed)
+        subgraph = Graph(directed=self.is_directed())
 
         if len(selected_nodes) > 0:
             # Node-based subgraph: include selected nodes and edges between them
@@ -12936,7 +13173,7 @@ class Graph:
         set_edge_attrs : Set edge attribute values
         """
         result = {}
-        separator = "->" if self.directed else "--"
+        separator = "->" if self.is_directed() else "--"
 
         # Determine which edges to check
         if sources is not None and targets is not None:
@@ -13842,8 +14079,8 @@ class Graph:
         graph.select_nodes_by_id([node_ids[2], node_ids[3]])
         graph.delete_nodes_ws()
 
-        print(graph.num_nodes())  # 3 (nodes 0, 1, 4 remain)
-        print(graph.num_edges())  # 1 (only edge 0-1 remains)
+        print(graph.count_nodes())  # 3 (nodes 0, 1, 4 remain)
+        print(graph.count_edges())  # 1 (only edge 0-1 remains)
         ```
 
         Delete nodes by filtering:
@@ -13860,7 +14097,7 @@ class Graph:
         graph.select_nodes(lambda n: n.attributes.get("value", 0) > 20)
         graph.delete_nodes_ws()
 
-        print(graph.num_nodes())  # 1 (only A remains)
+        print(graph.count_nodes())  # 1 (only A remains)
         ```
 
         See Also
@@ -13907,8 +14144,8 @@ class Graph:
         graph.select_edges_by_id(edge_ids)
         graph.delete_edges_ws()
 
-        print(graph.num_nodes())  # 5 (all nodes remain)
-        print(graph.num_edges())  # 2 (only first and last edges remain)
+        print(graph.count_nodes())  # 5 (all nodes remain)
+        print(graph.count_edges())  # 2 (only first and last edges remain)
         ```
 
         Delete edges by filtering:
@@ -13929,7 +14166,7 @@ class Graph:
         graph.select_edges(lambda e: e.weight and e.weight < 2.0)
         graph.delete_edges_ws()
 
-        print(graph.num_edges())  # 2 (edges with weight >= 2.0 remain)
+        print(graph.count_edges())  # 2 (edges with weight >= 2.0 remain)
         ```
 
         See Also
@@ -14285,7 +14522,7 @@ class Graph:
         )
 
         # For undirected: 3 edges (A-B, A-C, B-C)
-        print(graph.num_edges())  # 3
+        print(graph.count_edges())  # 3
         ```
 
         Directed clique (bidirectional edges):
@@ -14303,7 +14540,7 @@ class Graph:
         )
 
         # Creates X→Y and Y→X
-        print(graph_directed.num_edges())  # 2
+        print(graph_directed.count_edges())  # 2
         ```
 
         Notes
@@ -14325,7 +14562,7 @@ class Graph:
                 # Check if edge already exists
                 has_edge = any(
                     (s == source and t == target)
-                    or (not self.directed and s == target and t == source)
+                    or (not self.is_directed() and s == target and t == source)
                     for _, s, t in self.get_edges_as_tuples()
                 )
 
@@ -14333,7 +14570,7 @@ class Graph:
                     self.add_edge(source, target, **edge_attributes)
 
                 # For directed graphs, add reverse edge
-                if self.directed:
+                if self.is_directed():
                     has_reverse = any(
                         s == target and t == source for _, s, t in self.get_edges_as_tuples()
                     )
@@ -14383,7 +14620,7 @@ class Graph:
             .add_reverse_edges_ws(weight=1.0)
         )
 
-        print(graph.num_edges())  # 2 (A→B and B→A)
+        print(graph.count_edges())  # 2 (A→B and B→A)
         ```
 
         Make selected edges bidirectional:
@@ -14410,7 +14647,7 @@ class Graph:
         rev_edge_dir_ws : Reverse direction of selected edges in place
         trav_reverse_edge : Traverse to reverse edges
         """
-        if not self.directed:
+        if not self.is_directed():
             raise ValueError("add_reverse_edges_ws() only works on directed graphs")
 
         selected = self.get_selected_edges()
@@ -14501,7 +14738,7 @@ class Graph:
         add_reverse_edges_ws : Add reverse edges instead of reversing in place
         trav_reverse_edge : Traverse to reverse edges
         """
-        if not self.directed:
+        if not self.is_directed():
             raise ValueError("rev_edge_dir_ws() only works on directed graphs")
 
         selected = self.get_selected_edges()
@@ -14551,8 +14788,8 @@ class Graph:
         ```python
         graph = Graph().add_path_graph(n=5)
 
-        print(graph.num_nodes())  # 5
-        print(graph.num_edges())  # 4
+        print(graph.count_nodes())  # 5
+        print(graph.count_edges())  # 4
         ```
 
         See Also
@@ -14564,7 +14801,7 @@ class Graph:
             raise ValueError("Path must have at least 1 node")
 
         # Get starting node ID (continue from existing nodes)
-        start_id = self.num_nodes() + 1
+        start_id = self.count_nodes() + 1
 
         # Add nodes
         for i in range(n):
@@ -14622,8 +14859,8 @@ class Graph:
         ```python
         graph = Graph().add_cycle_graph(n=4)
 
-        print(graph.num_nodes())  # 4
-        print(graph.num_edges())  # 4
+        print(graph.count_nodes())  # 4
+        print(graph.count_edges())  # 4
         ```
 
         See Also
@@ -14638,8 +14875,8 @@ class Graph:
         self.add_path_graph(n, type=type, label=label, rel=rel)
 
         # Close the cycle with final edge
-        start_id = self.num_nodes() - n + 1
-        end_id = self.num_nodes()
+        start_id = self.count_nodes() - n + 1
+        end_id = self.count_nodes()
         edge_attrs = {}
         if rel:
             edge_attrs["rel"] = rel
@@ -14682,8 +14919,8 @@ class Graph:
         ```python
         graph = Graph().add_star_graph(n=5)  # 1 hub + 4 spokes
 
-        print(graph.num_nodes())  # 5
-        print(graph.num_edges())  # 4
+        print(graph.count_nodes())  # 5
+        print(graph.count_edges())  # 4
         ```
 
         See Also
@@ -14694,7 +14931,7 @@ class Graph:
         if n < 2:
             raise ValueError("Star must have at least 2 nodes")
 
-        start_id = self.num_nodes() + 1
+        start_id = self.count_nodes() + 1
         center_id = str(start_id)
 
         # Add all nodes
@@ -14755,8 +14992,8 @@ class Graph:
         ```python
         graph = Graph().add_full_graph(n=4)
 
-        print(graph.num_nodes())  # 4
-        print(graph.num_edges())  # 6
+        print(graph.count_nodes())  # 4
+        print(graph.count_edges())  # 6
         ```
 
         See Also
@@ -14767,7 +15004,7 @@ class Graph:
         if n < 1:
             raise ValueError("Complete graph must have at least 1 node")
 
-        start_id = self.num_nodes() + 1
+        start_id = self.count_nodes() + 1
 
         # Add nodes
         for i in range(n):
@@ -14791,7 +15028,7 @@ class Graph:
                     if keep_loops:
                         source = str(start_id + i)
                         self.add_edge(source, source, **edge_attrs)
-                elif i < j or self.directed:
+                elif i < j or self.is_directed():
                     # For undirected, only add each edge once (i < j)
                     # For directed, add both directions
                     source = str(start_id + i)
@@ -14841,7 +15078,7 @@ class Graph:
             .add_balanced_tree(k=2, h=3)
         )
 
-        print(graph.num_nodes())  # 15 (1 + 2 + 4 + 8)
+        print(graph.count_nodes())  # 15 (1 + 2 + 4 + 8)
         ```
 
         See Also
@@ -14854,7 +15091,7 @@ class Graph:
         if h < 0:
             raise ValueError("Height h cannot be negative")
 
-        start_id = self.num_nodes() + 1
+        start_id = self.count_nodes() + 1
         node_count = 0
 
         # Calculate total nodes: sum of k^i for i from 0 to h
@@ -14939,8 +15176,8 @@ class Graph:
         graph = Graph()
         graph.add_grid_2d(3, 4)  # 3×4 grid
 
-        print(graph.num_nodes())  # 12
-        print(graph.num_edges())  # 17 (edges: 3*3 + 2*4)
+        print(graph.count_nodes())  # 12
+        print(graph.count_edges())  # 17 (edges: 3*3 + 2*4)
         ```
 
         See Also
@@ -14951,7 +15188,7 @@ class Graph:
         if rows < 1 or cols < 1:
             raise ValueError("Grid must have at least 1 row and 1 column")
 
-        start_id = self.num_nodes() + 1
+        start_id = self.count_nodes() + 1
 
         # Add nodes in grid layout
         for i in range(rows):
@@ -15019,8 +15256,8 @@ class Graph:
         graph = Graph()
         graph.add_prism_graph(5)
 
-        print(graph.num_nodes())  # 10 (2 cycles of 5)
-        print(graph.num_edges())  # 15 (5+5 cycle edges + 5 vertical)
+        print(graph.count_nodes())  # 10 (2 cycles of 5)
+        print(graph.count_edges())  # 15 (5+5 cycle edges + 5 vertical)
         ```
 
         See Also
@@ -15031,7 +15268,7 @@ class Graph:
         if n < 3:
             raise ValueError("Prism must have at least 3 nodes per cycle")
 
-        start_id = self.num_nodes() + 1
+        start_id = self.count_nodes() + 1
 
         # Add first cycle
         cycle1_start = start_id
@@ -15116,7 +15353,7 @@ class Graph:
         graph = Graph()
         graph.add_gnp_graph(n=50, p=0.1, seed=23)
 
-        print(graph.num_nodes())  # 50
+        print(graph.count_nodes())  # 50
         # Expected ~245 edges (50*49/2 * 0.1)
         ```
 
@@ -15125,7 +15362,7 @@ class Graph:
         add_gnm_graph : Add random graph with fixed edge count
         add_pa_graph : Add preferential attachment graph
         """
-        if directed is not None and directed != self.directed:
+        if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
             temp = Graph(directed=directed)
             temp._graph.generate_gnp_graph(n, p, seed)
@@ -15179,8 +15416,8 @@ class Graph:
             .add_gnm_graph(n=50, m=100, seed=23)
         )
 
-        print(graph.num_nodes())  # 50
-        print(graph.num_edges())  # 100
+        print(graph.count_nodes())  # 50
+        print(graph.count_edges())  # 100
         ```
 
         See Also
@@ -15188,7 +15425,7 @@ class Graph:
         add_pa_graph : Add preferential attachment graph
         add_ws_graph : Add Watts-Strogatz small-world graph
         """
-        if directed is not None and directed != self.directed:
+        if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
             temp = Graph(directed=directed)
             temp._graph.generate_gnm_graph(n, m, seed)
@@ -15239,8 +15476,8 @@ class Graph:
             .add_pa_graph(n=100, m=3, seed=23)
         )
 
-        print(graph.num_nodes())  # 100
-        print(graph.num_edges())  # (100-m)*m = 294
+        print(graph.count_nodes())  # 100
+        print(graph.count_edges())  # (100-m)*m = 294
         ```
 
         See Also
@@ -15291,7 +15528,7 @@ class Graph:
             .add_smallworld_graph(n=100, k=6, p=0.1, seed=23)
         )
 
-        print(graph.num_nodes())  # 100
+        print(graph.count_nodes())  # 100
         ```
 
         See Also
@@ -15360,8 +15597,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False).add_johnson_graph(n=4, k=2)
-        print(graph.num_nodes())  # 6 (C(4,2) = 6)
-        print(graph.num_edges())  # 12
+        print(graph.count_nodes())  # 6 (C(4,2) = 6)
+        print(graph.count_edges())  # 12
 
         # Each node is a 2-subset
         nodes = [graph.get_label_from_id(nid) for nid in graph.get_node_ids(limit=None)]
@@ -15376,8 +15613,8 @@ class Graph:
 
         ```python
         johnson_5_2 = ec.Graph(directed=False).add_johnson_graph(n=5, k=2)
-        print(johnson_5_2.num_nodes())  # 10 (C(5,2) = 10)
-        print(johnson_5_2.num_edges())  # 30
+        print(johnson_5_2.count_nodes())  # 10 (C(5,2) = 10)
+        print(johnson_5_2.count_edges())  # 30
 
         # Verify regularity: degree = k(n-k) = 2*(5-2) = 6
         degrees = [johnson_5_2.get_degree(nid) for nid in johnson_5_2.get_node_ids(limit=None)]
@@ -16017,8 +16254,8 @@ class Graph:
         })
 
         graph = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
-        print(graph.num_nodes())  # 3
-        print(graph.num_edges())  # 2
+        print(graph.count_nodes())  # 3
+        print(graph.count_edges())  # 2
         ```
 
         See Also
@@ -16248,18 +16485,19 @@ class Graph:
         info = {}
 
         # Add graph name if it exists
-        if hasattr(self, "name") and self.name:
-            info["Name of Graph"] = self.name
+        name = self.get_graph_name()
+        if name:
+            info["Name of Graph"] = name
 
         # Basic properties
-        n_nodes = self.num_nodes()
-        n_edges = self.num_edges()
+        n_nodes = self.count_nodes()
+        n_edges = self.count_edges()
 
         info.update(
             {
                 "Number of nodes": n_nodes,
                 "Number of edges": n_edges,
-                "Directed": self.is_directed,
+                "Directed": self.is_directed(),
             }
         )
 
@@ -16282,7 +16520,7 @@ class Graph:
             info["Average degree (min, max)"] = f"{avg_degree:.2f} ({min_degree}, {max_degree})"
 
         # Connectivity
-        if self.is_directed:
+        if self.is_directed():
             # For directed graphs, check strong and weak connectivity via component counts
             strong_components = self.count_strongly_connected_components()
             weak_components = self.count_weakly_connected_components()
@@ -16301,13 +16539,13 @@ class Graph:
             info["Number of connected components"] = components
 
         # Tree check (only for undirected graphs, quick check)
-        if not self.is_directed and n_nodes > 0:
+        if not self.is_directed() and n_nodes > 0:
             # A tree has exactly n-1 edges and is connected
             is_tree = (n_edges == n_nodes - 1) and self.is_connected()
             info["Tree"] = is_tree
 
         # Bipartite check (only for undirected graphs)
-        if not self.is_directed:
+        if not self.is_directed():
             info["Bipartite"] = self.is_bipartite()
 
         return info
@@ -16468,7 +16706,7 @@ class Graph:
         g.add_edge("A", "C", weight=5.0)
 
         mst = g.minimum_spanning_tree()
-        print(mst.num_edges())  # 3
+        print(mst.count_edges())  # 3
 
         # Calculate total weight
         total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
@@ -16493,7 +16731,7 @@ class Graph:
 
         if return_subgraph:
             # Create a new graph with the MST edges
-            mst = Graph(directed=self.is_directed, weighted=True)
+            mst = Graph(directed=self.is_directed(), weighted=True)
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
             for node_id in self.get_node_ids(limit=None):
@@ -16585,7 +16823,7 @@ class Graph:
 
         if return_subgraph:
             # Create a new graph with the spanning tree edges
-            st = Graph(directed=self.is_directed, weighted=True)
+            st = Graph(directed=self.is_directed(), weighted=True)
 
             # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
             for node_id in self.get_node_ids(limit=None):

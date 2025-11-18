@@ -532,12 +532,12 @@ def karate_club() -> Graph:
 
     # Load the dataset
     G = karate_club()
-    print(f"Nodes: {G.num_nodes()}, Edges: {G.num_edges()}")
+    print(f"Nodes: {G.count_nodes()}, Edges: {G.count_edges()}")
     # Nodes: 34, Edges: 78
 
     # Check basic metrics
-    n = G.num_nodes()
-    e = G.num_edges()
+    n = G.count_nodes()
+    e = G.count_edges()
     density = e / (n * (n - 1) / 2)
     print(f"Density: {density:.3f}")
     # Density: 0.139

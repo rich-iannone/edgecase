@@ -1113,7 +1113,7 @@ def _generate_graphviz_svg_html(
     """
     graph_type = "Directed" if graph.is_directed else "Undirected"
     num_nodes = len(graph.get_node_ids(limit=None))
-    num_edges = graph.num_edges()
+    num_edges = graph.count_edges()
 
     # Generate unique ID suffix for this graph instance to avoid conflicts in notebooks
     import json

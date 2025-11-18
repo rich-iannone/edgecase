@@ -62,9 +62,9 @@ def to_networkx(graph, multigraph: bool = False):
 
     # Determine the appropriate NetworkX graph type
     if multigraph:
-        nx_graph = nx.MultiDiGraph() if graph.is_directed else nx.MultiGraph()
+        nx_graph = nx.MultiDiGraph() if graph.is_directed() else nx.MultiGraph()
     else:
-        nx_graph = nx.DiGraph() if graph.is_directed else nx.Graph()
+        nx_graph = nx.DiGraph() if graph.is_directed() else nx.Graph()
 
     # Add nodes with attributes
     for node_id in graph.get_node_ids(limit=None):
@@ -170,8 +170,8 @@ def from_networkx(nx_graph, weighted: Optional[bool] = None):
     nx_graph.add_edge("A", "B", weight=1.5, label="edge1")
 
     graph = from_networkx(nx_graph)
-    print(graph.num_nodes())  # 2
-    print(graph.num_edges())  # 1
+    print(graph.count_nodes())  # 2
+    print(graph.count_edges())  # 1
     node = graph.get_node(graph.get_id_from_label("A"))
     print(node.attributes["color"])  # 'red'
 
@@ -180,7 +180,7 @@ def from_networkx(nx_graph, weighted: Optional[bool] = None):
     nx_multi.add_edge("X", "Y", weight=1.0)
     nx_multi.add_edge("X", "Y", weight=2.0)
     graph = from_networkx(nx_multi)
-    print(graph.num_edges())  # 2
+    print(graph.count_edges())  # 2
     ```
 
     See Also
