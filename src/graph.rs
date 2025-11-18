@@ -396,13 +396,6 @@ impl Graph {
         Ok(dict.into())
     }
 
-    /// Check if the graph is simple (no self-loops or multi-edges)
-    ///
-    /// A simple graph is one that does not contain any loops nor any multiple edges.
-    pub fn is_graph_simple(&self) -> bool {
-        self.is_simple()
-    }
-
     /// Check if the graph contains any cycles
     ///
     /// Uses depth-first search to detect cycles in the graph.
