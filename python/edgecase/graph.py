@@ -10067,9 +10067,7 @@ class Graph:
 
         return sorted(list(non_neighbors))
 
-    def get_common_neighbors(
-        self, node_id1: Union[int, str], node_id2: Union[int, str]
-    ) -> list[int]:
+    def get_common_neighbors(self, node_1: Union[int, str], node_2: Union[int, str]) -> list[int]:
         """
         Get nodes that are neighbors of both specified nodes.
 
@@ -10078,15 +10076,15 @@ class Graph:
 
         Parameters
         ----------
-        node_id1
-            First node ID or label.
-        node_id2
-            Second node ID or label.
+        node_1
+            First node ID (int) or label (str).
+        node_2
+            Second node ID (int) or label (str).
 
         Returns
         -------
         list[int]
-            List of node IDs that are neighbors to both `node_id1` and `node_id2`.
+            List of node IDs that are neighbors to both `node_1` and `node_2`.
 
         Examples
         --------
@@ -10143,8 +10141,8 @@ class Graph:
         neighbors : Get neighbors of a single node
         get_similarity : Measure neighbor overlap between nodes
         """
-        neighbors1 = set(self.neighbors(node_id1, mode="all"))
-        neighbors2 = set(self.neighbors(node_id2, mode="all"))
+        neighbors1 = set(self.neighbors(node_1, mode="all"))
+        neighbors2 = set(self.neighbors(node_2, mode="all"))
         return list(neighbors1 & neighbors2)
 
     def get_similar_neighbors(
