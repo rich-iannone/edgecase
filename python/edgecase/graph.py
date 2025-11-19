@@ -13892,8 +13892,8 @@ class Graph:
 
     def count_trails(
         self,
-        source: str,
-        target: str,
+        source: Union[int, str],
+        target: Union[int, str],
         max_trails: int | None = None,
     ) -> int | None:
         """
@@ -13912,9 +13912,9 @@ class Graph:
         Parameters
         ----------
         source
-            Starting node ID
+            Source node ID (int) or label (str).
         target
-            Ending node ID
+            Target node ID (int) or label (str).
         max_trails
             Maximum number of trails to count before stopping.
             If None, counts all trails (may be very large).
@@ -13934,7 +13934,7 @@ class Graph:
 
         Examples
         --------
-        Count trails in a simple graph:
+        Count trails using labels:
 
         ```python
         graph = (
@@ -13950,6 +13950,23 @@ class Graph:
         # Triangle: multiple trails from A to C
         count = graph.count_trails("A", "C")
         print(f"Trails from A to C: {count}")  # 2 trails: A→C and A→B→C
+        ```
+
+        Count trails using node IDs:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_edge("A", "B")
+
+        # Get node IDs
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+
+        # Use IDs directly
+        count = graph.count_trails(a_id, b_id)
+        print(f"Found {count} trails")
         ```
 
         Count trails with limit to prevent explosion:
@@ -14030,8 +14047,8 @@ class Graph:
 
     def enumerate_trails(
         self,
-        source: str,
-        target: str,
+        source: Union[int, str],
+        target: Union[int, str],
         max_trails: int | None = 1000,
     ) -> list[list[str]]:
         """
@@ -14046,9 +14063,9 @@ class Graph:
         Parameters
         ----------
         source
-            Starting node ID
+            Source node ID (int) or label (str).
         target
-            Ending node ID
+            Target node ID (int) or label (str).
         max_trails
             Maximum number of trails to return. Default is 1000.
             If None, returns all trails (dangerous for large graphs).
@@ -14067,7 +14084,7 @@ class Graph:
 
         Examples
         --------
-        Enumerate trails in a triangle:
+        Enumerate trails using labels:
 
         ```python
         graph = (
@@ -14085,6 +14102,23 @@ class Graph:
             print(f"Trail {i}: {' → '.join(trail)}")
         # Trail 1: A → C
         # Trail 2: A → B → C
+        ```
+
+        Enumerate using node IDs:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="start")
+        graph.add_node(label="end")
+        graph.add_edge("start", "end")
+
+        # Get node IDs
+        start_id = graph.get_id_from_label("start")
+        end_id = graph.get_id_from_label("end")
+
+        # Use IDs directly
+        trails = graph.enumerate_trails(start_id, end_id)
+        print(f"Found {len(trails)} trails")
         ```
 
         Enumerate with limit:
