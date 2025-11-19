@@ -148,7 +148,7 @@ class TestCreateGraph:
     
     def test_create_empty_graph(self):
         """Test creating an empty graph."""
-        g = ec.Graph.from_dataframes(directed=False)
+        g = ec.Graph(directed=False)
         assert g.count_nodes() == 0
         assert g.count_edges() == 0
     
@@ -162,7 +162,7 @@ class TestCreateGraph:
             'label': ['Alice', 'Bob', 'Charlie']
         })
         
-        g = ec.Graph.from_dataframes(nodes_df=nodes)
+        g = ec.Graph(nodes_df=nodes)
         assert g.count_nodes() == 3
         assert g.count_edges() == 0
     
@@ -181,7 +181,7 @@ class TestCreateGraph:
             'rel': ['follows', 'follows']
         })
         
-        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
+        g = ec.Graph(nodes_df=nodes, edges_df=edges, directed=True)
         assert g.count_nodes() == 3
         assert g.count_edges() == 2
     
@@ -194,7 +194,7 @@ class TestCreateGraph:
             'to': ['B', 'C']
         })
         
-        g = ec.Graph.from_dataframes(edges_df=edges)
+        g = ec.Graph(edges_df=edges)
         assert g.count_nodes() == 3  # A, B, C created automatically
         assert g.count_edges() == 2
     
@@ -207,8 +207,8 @@ class TestCreateGraph:
             'type': ['user', 'user']
         })
         
-        with pytest.raises(ValueError, match="must have an 'id' column"):
-            ec.Graph.from_dataframes(nodes_df=nodes)
+        with pytest.raises(ValueError, match="must contain an 'id' column"):
+            ec.Graph(nodes_df=nodes)
     
     def test_create_graph_invalid_edges_df(self):
         """Test error when edges DataFrame missing required columns."""
@@ -219,8 +219,8 @@ class TestCreateGraph:
             'target': ['B']
         })
         
-        with pytest.raises(ValueError, match="must have 'from' and 'to' columns"):
-            ec.Graph.from_dataframes(edges_df=edges)
+        with pytest.raises(ValueError, match="must contain 'from' and 'to' columns"):
+            ec.Graph(edges_df=edges)
 
 
 class TestGraphBuildersIntegration:

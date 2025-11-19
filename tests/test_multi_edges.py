@@ -138,7 +138,7 @@ class TestMultiEdgeGraphs:
             }
         )
 
-        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
+        g = ec.Graph(nodes_df=nodes, edges_df=edges, directed=True)
 
         # Edge IDs are auto-assigned starting from 1
         edge_ids = g.get_edge_ids()
@@ -155,7 +155,7 @@ class TestMultiEdgeGraphs:
             }
         )
 
-        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
+        g = ec.Graph(nodes_df=nodes, edges_df=edges)
 
         # Edge IDs should be auto-assigned starting from 1
         edge_ids = g.get_edge_ids()

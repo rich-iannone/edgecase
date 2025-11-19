@@ -282,7 +282,7 @@ class TestCreateGraphDataFrames:
         nodes = pl.DataFrame({'id': []})
         edges = pl.DataFrame({'from': [], 'to': []})
         
-        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
+        g = ec.Graph(nodes_df=nodes, edges_df=edges)
         assert g.count_nodes() == 0
         assert g.count_edges() == 0
     
@@ -298,7 +298,7 @@ class TestCreateGraphDataFrames:
             'to': [2, 3]
         })
         
-        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
+        g = ec.Graph(nodes_df=nodes, edges_df=edges)
         assert g.count_nodes() == 3
         assert g.count_edges() == 2
         
@@ -316,7 +316,7 @@ class TestCreateGraphDataFrames:
             'active': [True, False, True]
         })
         
-        g = ec.Graph.from_dataframes(nodes_df=nodes)
+        g = ec.Graph(nodes_df=nodes)
         assert g.count_nodes() == 3
     
     def test_create_with_null_values(self):
@@ -333,7 +333,7 @@ class TestCreateGraphDataFrames:
             'weight': [1.0, None]
         })
         
-        g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
+        g = ec.Graph(nodes_df=nodes, edges_df=edges)
         assert g.count_nodes() == 3
         assert g.count_edges() == 2
     
@@ -345,7 +345,7 @@ class TestCreateGraphDataFrames:
             'weight': [1.0, 2.0, 3.0]
         })
         
-        g = ec.Graph.from_dataframes(edges_df=edges, directed=True)
+        g = ec.Graph(edges_df=edges, directed=True)
         
         assert g.count_nodes() == 3
         assert g.count_edges() == 3
@@ -360,7 +360,7 @@ class TestCreateGraphDataFrames:
             'to': ['B', 'B', 'C'],
         })
         
-        g = ec.Graph.from_dataframes(edges_df=edges, directed=False)
+        g = ec.Graph(edges_df=edges, directed=False)
         
         # Duplicate edges should be handled (current impl silently ignores)
         assert g.count_nodes() == 3
@@ -374,8 +374,8 @@ class TestCreateGraphDataFrames:
             'to': ['B', 'C']
         })
         
-        g_directed = ec.Graph.from_dataframes(edges_df=edges, directed=True)
-        g_undirected = ec.Graph.from_dataframes(edges_df=edges, directed=False)
+        g_directed = ec.Graph(edges_df=edges, directed=True)
+        g_undirected = ec.Graph(edges_df=edges, directed=False)
         
         assert g_directed.is_directed()
         assert not g_undirected.is_directed()
