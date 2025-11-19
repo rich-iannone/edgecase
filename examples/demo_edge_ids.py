@@ -108,7 +108,7 @@ def demo_dataframe_edge_ids():
         }
     )
 
-    g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
+    g = ec.Graph(nodes_df=nodes, edges_df=edges, directed=True)
 
     print("Created graph from DataFrames")
     print(f"Nodes: {g.count_nodes()}, Edges: {g.count_edges()}")

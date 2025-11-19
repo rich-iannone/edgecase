@@ -181,7 +181,7 @@ def demo_dataframe_creation():
     print(edges)
     print()
 
-    g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
+    g = ec.Graph(nodes_df=nodes, edges_df=edges, directed=True)
 
     print(f"Created graph from DataFrames: {g}")
     print(f"Alice follows: {g.neighbors('Alice')}")
