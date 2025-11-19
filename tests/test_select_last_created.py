@@ -250,7 +250,7 @@ class TestSelectLastEdgesCreated:
         G.select_last_edges_created(2)
 
         # Then select edges connected to A (node ID 1)
-        G.select_edges_by_node_id([1])  # A = node ID 1
+        G.select_edges_by_node([1])  # A = node ID 1
 
         selected = G.get_selected_edge_ids()
         # Should have 3 edges: last 2 + A-B

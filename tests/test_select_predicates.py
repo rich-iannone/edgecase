@@ -231,7 +231,7 @@ class TestSelectEdgesByPredicate:
         G.select_edges(lambda e: e.weight and e.weight > 0.5)
 
         # Then select additional edges by node (use integer ID)
-        G.select_edges_by_node_id([2])  # B = node ID 2
+        G.select_edges_by_node([2])  # B = node ID 2
 
         selected = G.get_selected_edge_ids()
         # Should have high-weight edges plus edges connected to B

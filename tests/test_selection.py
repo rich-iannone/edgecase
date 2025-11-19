@@ -282,7 +282,7 @@ class TestEdgeSelection:
         with pytest.raises(KeyError, match="Edge with ID 999 does not exist"):
             G.select_edges_by_id([999])
 
-    def test_select_edges_by_node_id(self):
+    def test_select_edges_by_node(self):
         """Select edges connected to specific nodes."""
         G = Graph()
         for label in ["A", "B", "C", "D", "E"]:
@@ -293,7 +293,7 @@ class TestEdgeSelection:
         G.add_edge("D", "E")
 
         # Select edges connected to B (should get A-B and B-C)
-        G.select_edges_by_node_id([2])  # B=2
+        G.select_edges_by_node([2])  # B=2
 
         selected_edges = G.get_selected_edge_ids()
         assert len(selected_edges) == 2
@@ -306,7 +306,7 @@ class TestEdgeSelection:
         assert (1, 2) in sources_targets  # A-B
         assert (2, 3) in sources_targets  # B-C
 
-    def test_select_edges_by_node_id_multiple_nodes(self):
+    def test_select_edges_by_node_multiple_nodes(self):
         """Select edges connected to multiple nodes."""
         G = Graph()
         for label in ["A", "B", "C", "D", "E"]:
@@ -317,7 +317,7 @@ class TestEdgeSelection:
         G.add_edge("D", "E")
 
         # Select edges connected to A or D
-        G.select_edges_by_node_id([1, 4])  # A=1, D=4
+        G.select_edges_by_node([1, 4])  # A=1, D=4
 
         selected_edges = G.get_selected_edge_ids()
         assert len(selected_edges) == 3  # A-B, C-D, D-E
@@ -330,8 +330,8 @@ class TestEdgeSelection:
         assert (3, 4) in sources_targets  # C-D
         assert (4, 5) in sources_targets  # D-E
 
-    def test_select_edges_by_node_id_accepts_labels(self):
-        """Test that select_edges_by_node_id accepts both IDs and labels."""
+    def test_select_edges_by_node_accepts_labels(self):
+        """Test that select_edges_by_node accepts both IDs and labels."""
         G = Graph()
         for label in ["A", "B", "C", "D"]:
             G.add_node(label)
@@ -341,12 +341,12 @@ class TestEdgeSelection:
 
         # Using node IDs
         G.clear_selection()
-        G.select_edges_by_node_id([2])  # B=2
+        G.select_edges_by_node([2])  # B=2
         selected_by_id = set(G.get_selected_edge_ids())
 
         # Using node labels
         G.clear_selection()
-        G.select_edges_by_node_id(["B"])
+        G.select_edges_by_node(["B"])
         selected_by_label = set(G.get_selected_edge_ids())
 
         # Should select same edges
@@ -355,7 +355,7 @@ class TestEdgeSelection:
 
         # Mixed usage
         G.clear_selection()
-        G.select_edges_by_node_id([1, "D"])  # A (ID) and D (label)
+        G.select_edges_by_node([1, "D"])  # A (ID) and D (label)
         selected_mixed = G.get_selected_edge_ids()
         assert len(selected_mixed) == 2  # A-B and C-D
 
@@ -505,7 +505,7 @@ class TestCombinedSelection:
         assert 2 in selected_nodes  # B
 
         # Now select edges connected to these nodes
-        G.select_edges_by_node_id(selected_nodes)
+        G.select_edges_by_node(selected_nodes)
         selected_edges = G.get_selected_edge_ids()
 
         # Should select all edges involving A or B
