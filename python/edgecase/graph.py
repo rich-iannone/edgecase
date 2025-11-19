@@ -3869,7 +3869,7 @@ class Graph:
         self._graph.select_edges_by_id(edge_ids)
         return self
 
-    def select_edges_by_node_id(self, node_ids: list[int | str]) -> "Graph":
+    def select_edges_by_node(self, nodes: list[int | str]) -> "Graph":
         """
         Select all edges connected to specified nodes.
 
@@ -3879,7 +3879,7 @@ class Graph:
 
         Parameters
         ----------
-        node_ids
+        nodes
             List of node IDs (int) or labels (str) whose incident edges should be selected.
 
         Returns
@@ -3904,7 +3904,7 @@ class Graph:
         )
 
         b_id = graph.get_id_from_label("B")
-        graph.select_edges_by_node_id([b_id])
+        graph.select_edges_by_node([b_id])
 
         # Selects A-B and B-C edges
         selected = graph.count_selected_edges()
@@ -3925,7 +3925,7 @@ class Graph:
             .add_edge(source="C", target="D")
         )
 
-        graph.select_edges_by_node_id(["B"])
+        graph.select_edges_by_node(["B"])
         ```
 
         See Also
@@ -3934,7 +3934,7 @@ class Graph:
         neighbors : Get neighbors of a node
         """
         # Resolve labels to IDs
-        resolved_ids = [self._resolve_node_id(nid) for nid in node_ids]
+        resolved_ids = [self._resolve_node_id(nid) for nid in nodes]
         self._graph.select_edges_by_node_id(resolved_ids)
         return self
 
@@ -4875,7 +4875,7 @@ class Graph:
         # Select A→B edge
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
-        graph.select_edges_by_node_id([a_id, b_id])
+        graph.select_edges_by_node([a_id, b_id])
 
         # Traverse to reverse edge (B→A)
         graph.trav_reverse_edge()
