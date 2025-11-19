@@ -13,7 +13,7 @@ class TestSelectNodesInNeighborhood:
         G.add_path_graph(5)  # Creates nodes 1-5 with labels "1"-"5"
         
         G.select_nodes_in_neighborhood([1], k=1, mode="out")  # Node ID 1 as list
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # Should select node 1 and its immediate successor
         assert 1 in selected
@@ -26,7 +26,7 @@ class TestSelectNodesInNeighborhood:
         G.add_path_graph(6)  # Creates nodes 1-6 with labels "1"-"6"
         
         G.select_nodes_in_neighborhood([1], k=2, mode="out")  # Node ID 1 as list
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # Should select nodes 1, 2, 3
         assert 1 in selected
@@ -42,7 +42,7 @@ class TestSelectNodesInNeighborhood:
         
         # From node 3, 1-hop should get 2 and 4
         G.select_nodes_in_neighborhood([3], k=1)  # Node ID 3 as list
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         assert 3 in selected
         assert 2 in selected
@@ -56,7 +56,7 @@ class TestSelectNodesInNeighborhood:
         
         # Select 1-hop from nodes 2 and 7
         G.select_nodes_in_neighborhood([2, 7], k=1, mode="out")  # Node IDs 2 and 7
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # Should get 2->3 and 7->8
         assert 2 in selected
@@ -72,7 +72,7 @@ class TestSelectNodesInNeighborhood:
         
         # From node 3, incoming should get 2 and 1
         G.select_nodes_in_neighborhood([3], k=2, mode="in")  # Node ID 3 as list
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         assert 3 in selected
         assert 2 in selected
@@ -91,7 +91,7 @@ class TestSelectNodesInNeighborhood:
         
         # From B (node ID 2), all directions should get A (1), C (3), D (4)
         G.select_nodes_in_neighborhood([2], k=1, mode="all")  # B = node ID 2 as list
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         assert 2 in selected  # B
         assert 1 in selected  # A
@@ -105,7 +105,7 @@ class TestSelectNodesInNeighborhood:
         
         # From center (node 1), 1-hop should get all spokes
         G.select_nodes_in_neighborhood([1], k=1)  # Node ID 1 as list
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # Center + 9 spokes = 10 nodes
         assert len(selected) == 10
@@ -117,7 +117,7 @@ class TestSelectNodesInNeighborhood:
         G.add_path_graph(5)  # Creates nodes 1-5
         
         G.select_nodes_in_neighborhood([3], k=0)  # Node ID 3 as list
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # k=0 means no traversal, only the current level (seed nodes)
         assert len(selected) == 0 or len(selected) == 1
@@ -139,7 +139,7 @@ class TestSelectNodesInNeighborhood:
         G.select_nodes_in_neighborhood([5], k=2, mode="out")  # Node ID 5 as list
         G.deselect_nodes([7])  # Deselect node ID 7
         
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert 5 in selected
         assert 6 in selected
         assert 7 not in selected
@@ -155,7 +155,7 @@ class TestSelectNodesByCentrality:
         
         # Center (node 1) has highest degree
         G.select_nodes_by_centrality("degree", k=1)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         assert 1 in selected
         assert len(selected) == 1
@@ -174,7 +174,7 @@ class TestSelectNodesByCentrality:
         G.add_edge("B", "C")
         
         G.select_nodes_by_centrality("degree", k=2)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # Should get A (ID 1) and B (ID 2) - highest degrees, but check actual selected
         assert len(selected) == 2
@@ -191,7 +191,7 @@ class TestSelectNodesByCentrality:
             G.add_edge(str(i), "hub")
         
         G.select_nodes_by_centrality("in_degree", k=1)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         assert 1 in selected  # hub is node ID 1
     
@@ -201,7 +201,7 @@ class TestSelectNodesByCentrality:
         G.add_star_graph(10)  # Creates nodes 1-10, node 1 (center) has high out-degree
         
         G.select_nodes_by_centrality("out_degree", k=1)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         assert 1 in selected
     
@@ -226,7 +226,7 @@ class TestSelectNodesByCentrality:
         # Note: pagerank may expect a dict parameter, skip for now or handle differently
         try:
             G.select_nodes_by_centrality("pagerank", k=1)
-            selected = G.get_selected_nodes()
+            selected = G.get_selected_node_ids()
             assert len(selected) == 1
         except TypeError:
             # If pagerank has different signature, skip this specific assertion
@@ -244,7 +244,7 @@ class TestSelectNodesByCentrality:
         
         # A, B, C all have degree 1, D has degree 3
         G.select_nodes_by_centrality("degree", k=2, include_ties=True)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # Should get D (degree 3) - node ID 4
         assert 4 in selected  # D
@@ -254,7 +254,7 @@ class TestSelectNodesByCentrality:
         G = ec.Graph(directed=True)
         
         G.select_nodes_by_centrality("degree", k=5)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         assert len(selected) == 0
     
@@ -264,7 +264,7 @@ class TestSelectNodesByCentrality:
         G.add_path_graph(3)
         
         G.select_nodes_by_centrality("degree", k=100)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         
         # Should select all 3 nodes
         assert len(selected) == 3
@@ -284,10 +284,10 @@ class TestSelectNodesByCentrality:
         
         # Select by degree, then add more by ID
         G.select_nodes_by_centrality("degree", k=3)
-        initial_count = len(G.get_selected_nodes())
+        initial_count = len(G.get_selected_node_ids())
         
         G.select_nodes_by_id([10])  # Select node ID 10
-        final_count = len(G.get_selected_nodes())
+        final_count = len(G.get_selected_node_ids())
         
         assert final_count >= initial_count
 
@@ -305,14 +305,14 @@ class TestCombinedNeighborhoodCentrality:
         
         # Get neighborhood of first hub
         G.select_nodes_in_neighborhood([1], k=1, mode="out")  # Node ID 1 as list
-        neighborhood = G.get_selected_nodes()
+        neighborhood = G.get_selected_node_ids()
         
         # Clear and select by centrality
         G.clear_selection()
         G.select_nodes_by_centrality("out_degree", k=2)
         
         # Should get the two centers (highest out-degree) - node IDs 1 and 11
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert 1 in selected or 11 in selected
     
     def test_workflow_find_influential_neighbors(self):
@@ -330,4 +330,4 @@ class TestCombinedNeighborhoodCentrality:
         G.select_nodes_in_neighborhood([1], k=2, mode="out")  # Node ID 1 as list
         
         # Node 1 has highest out-degree
-        assert 1 in G.get_selected_nodes()
+        assert 1 in G.get_selected_node_ids()

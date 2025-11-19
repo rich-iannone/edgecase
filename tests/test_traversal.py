@@ -21,7 +21,7 @@ class TestBasicTraversal:
 
         # Traverse from A to its neighbors
         G.select_nodes(lambda n: n.label == "A").trav_out()
-        nodes = sorted(G.get_selected_nodes())
+        nodes = sorted(G.get_selected_node_ids())
         assert nodes == [2, 3]  # B=2, C=3
 
     def test_trav_out_multi_hop(self):
@@ -33,7 +33,7 @@ class TestBasicTraversal:
 
         # Traverse 2 hops from A
         G.select_nodes(lambda n: n.label == "A").trav_out().trav_out()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == [3]  # C=3
 
     def test_trav_in_directed(self):
@@ -45,7 +45,7 @@ class TestBasicTraversal:
 
         # Traverse from C to predecessors
         G.select_nodes(lambda n: n.label == "C").trav_in()
-        nodes = sorted(G.get_selected_nodes())
+        nodes = sorted(G.get_selected_node_ids())
         assert nodes == [1, 3]  # A=1, B=3 (C=2, D=4)
 
     def test_trav_both_directed(self):
@@ -57,7 +57,7 @@ class TestBasicTraversal:
 
         # Traverse from B to all neighbors
         G.select_nodes(lambda n: n.label == "B").trav_both()
-        nodes = sorted(G.get_selected_nodes())
+        nodes = sorted(G.get_selected_node_ids())
         assert nodes == [1, 3, 4]  # A=1, C=3, D=4
 
     def test_trav_out_undirected(self):
@@ -68,7 +68,7 @@ class TestBasicTraversal:
 
         # In undirected, trav_out should get all neighbors
         G.select_nodes(lambda n: n.label == "A").trav_out()
-        nodes = sorted(G.get_selected_nodes())
+        nodes = sorted(G.get_selected_node_ids())
         assert nodes == [2, 3]  # B=2, C=3
 
     def test_trav_empty_selection(self):
@@ -78,7 +78,7 @@ class TestBasicTraversal:
 
         # No selection
         G.trav_out()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == []
 
     def test_trav_no_neighbors(self):
@@ -89,7 +89,7 @@ class TestBasicTraversal:
 
         # Node A has no outgoing edges
         G.select_nodes(lambda n: n.label == "A").trav_out()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == []
 
 
@@ -107,11 +107,11 @@ class TestEdgeTraversal:
         G.select_nodes(lambda n: n.label == "A").trav_out_edge()
 
         # Should select 2 edges (A->B, A->C)
-        edges = G.get_selected_edges()
+        edges = G.get_selected_edge_ids()
         assert len(edges) == 2
 
         # Node selection should be cleared
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == []
 
     def test_trav_in_edge_directed(self):
@@ -125,11 +125,11 @@ class TestEdgeTraversal:
         G.select_nodes(lambda n: n.label == "C").trav_in_edge()
 
         # Should select 2 edges (A->C, B->C)
-        edges = G.get_selected_edges()
+        edges = G.get_selected_edge_ids()
         assert len(edges) == 2
 
         # Node selection should be cleared
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == []
 
     def test_trav_out_edge_undirected(self):
@@ -140,7 +140,7 @@ class TestEdgeTraversal:
 
         # In undirected, trav_out_edge should get all incident edges
         G.select_nodes(lambda n: n.label == "A").trav_out_edge()
-        edges = G.get_selected_edges()
+        edges = G.get_selected_edge_ids()
         assert len(edges) == 2
 
     def test_trav_edge_multiple_nodes(self):
@@ -151,7 +151,7 @@ class TestEdgeTraversal:
 
         # Select both A and B
         G.select_nodes(lambda n: n.label in ["A", "B"]).trav_out_edge()
-        edges = G.get_selected_edges()
+        edges = G.get_selected_edge_ids()
         assert len(edges) == 2
 
 
@@ -172,7 +172,7 @@ class TestReverseEdgeTraversal:
         G.select_edges_by_id([edge_id_1]).trav_reverse_edge()
 
         # Should now select B->A edge
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert edge_id_2 in selected
         assert edge_id_1 not in selected
 
@@ -189,7 +189,7 @@ class TestReverseEdgeTraversal:
         G.select_edges_by_id([edge_id_1]).trav_reverse_edge(add_to_selection=True)
 
         # Should have both edges selected
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert edge_id_1 in selected
         assert edge_id_2 in selected
         assert len(selected) == 2
@@ -206,7 +206,7 @@ class TestReverseEdgeTraversal:
         G.select_edges_by_id([edge_id]).trav_reverse_edge()
 
         # Selection should be empty
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert selected == []
 
     def test_trav_reverse_edge_multiple(self):
@@ -229,7 +229,7 @@ class TestReverseEdgeTraversal:
         G.select_edges_by_id([edge_id_1, edge_id_3]).trav_reverse_edge()
 
         # Should select B->A and D->C
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert edge_id_2 in selected
         assert edge_id_4 in selected
         assert len(selected) == 2
@@ -245,7 +245,7 @@ class TestTraversalChaining:
 
         # Traverse 2 hops from node 1
         G.select_nodes(lambda n: n.label == "1").trav_out().trav_out()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == [3]  # Node ID 3
 
     def test_chain_out_in(self):
@@ -256,7 +256,7 @@ class TestTraversalChaining:
 
         # Traverse out from A (to B), then back in (to A)
         G.select_nodes(lambda n: n.label == "A").trav_out().trav_in()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == [1]  # A=1
 
     def test_chain_node_to_edge_to_node(self):
@@ -269,7 +269,7 @@ class TestTraversalChaining:
         G.select_nodes(lambda n: n.label == "A").trav_out_edge()
 
         # Edge selection active now
-        edges = G.get_selected_edges()
+        edges = G.get_selected_edge_ids()
         assert len(edges) == 1
 
 
@@ -282,7 +282,7 @@ class TestTraversalEdgeCases:
         G.add_node("A")
 
         G.select_nodes(lambda n: n.label == "A").trav_out()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == []
 
     def test_trav_self_loop(self):
@@ -291,7 +291,7 @@ class TestTraversalEdgeCases:
         G.add_edge("A", "A", auto_create_nodes=True)  # Self-loop
 
         G.select_nodes(lambda n: n.label == "A").trav_out()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == [1]  # A=1
 
     def test_trav_disconnected_graph(self):
@@ -302,7 +302,7 @@ class TestTraversalEdgeCases:
 
         # Traverse from A (should not reach C or D)
         G.select_nodes(lambda n: n.label == "A").trav_out()
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == [2]  # B=2
         assert 3 not in nodes  # C=3
         assert 4 not in nodes  # D=4
@@ -329,7 +329,7 @@ class TestConditionalTraversal:
             else False
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         assert nodes == ["8"]
 
@@ -351,7 +351,7 @@ class TestConditionalTraversal:
             else False
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         assert nodes == ["1"]
 
@@ -383,7 +383,7 @@ class TestConditionalTraversal:
             exclude_unmatched=True,
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = sorted([G.get_label_from_id(nid) for nid in node_ids])
         assert set(nodes) == {"5", "9"}  # Labels for matched nodes
 
@@ -415,7 +415,7 @@ class TestConditionalTraversal:
             exclude_unmatched=True,
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = sorted([G.get_label_from_id(nid) for nid in node_ids])
         assert set(nodes) == {"2", "10"}  # Labels for matched nodes
 
@@ -438,7 +438,7 @@ class TestConditionalTraversal:
             exclude_unmatched=False,
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         # Should stop at node 6 (5 steps from 1)
         assert "6" in nodes
@@ -463,7 +463,7 @@ class TestConditionalTraversal:
             exclude_unmatched=False,
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = sorted([G.get_label_from_id(nid) for nid in node_ids])
         # Should include 1, 2, 3, 4, 5 (all visited)
         assert set(nodes) == {"1", "2", "3", "4", "5"}
@@ -487,7 +487,7 @@ class TestConditionalTraversal:
             exclude_unmatched=False,
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = sorted([G.get_label_from_id(nid) for nid in node_ids])
         # Should include 10, 9, 8, 7, 6 (all visited)
         assert set(nodes) == {"6", "7", "8", "9", "10"}
@@ -511,7 +511,7 @@ class TestConditionalTraversal:
             exclude_unmatched=False,
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         # Should get node 3 (2 steps from 1), even though it doesn't match
         assert "3" in nodes
@@ -535,7 +535,7 @@ class TestConditionalTraversal:
             exclude_unmatched=True,
         )
 
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         # Should have no selection (no matches and exclude_unmatched=True)
         assert len(nodes) == 0
 
@@ -556,7 +556,7 @@ class TestConditionalTraversal:
             else False
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         assert nodes == ["3"]
 
@@ -585,7 +585,7 @@ class TestConditionalTraversal:
             else False
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = sorted([G.get_label_from_id(nid) for nid in node_ids])
         # Should find node 3 (value=3) in first hop
         assert "3" in nodes
@@ -598,7 +598,7 @@ class TestConditionalTraversal:
         # No selection
         G.trav_in_until(lambda nid: True)
 
-        nodes = G.get_selected_nodes()
+        nodes = G.get_selected_node_ids()
         assert nodes == []
 
     def test_trav_out_until_complex_condition(self):
@@ -622,7 +622,7 @@ class TestConditionalTraversal:
             else False
         )
 
-        node_ids = G.get_selected_nodes()
+        node_ids = G.get_selected_node_ids()
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         assert nodes == ["6"]
 

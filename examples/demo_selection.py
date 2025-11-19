@@ -26,7 +26,7 @@ def demo_basic_selection():
 
     # Select specific nodes
     G.select_nodes_by_id(["Alice", "David"])
-    print(f"\nSelected nodes: {G.get_selected_nodes()}")
+    print(f"\nSelected nodes: {G.get_selected_node_ids()}")
     print(f"Count: {G.count_selected_nodes()}")
 
     # Select edges connected to selected nodes
@@ -35,7 +35,7 @@ def demo_basic_selection():
     G.select_edges_by_node_id(["David"])
 
     print(f"\nEdges connected to David: {G.count_selected_edges()} edges")
-    selected_edge_ids = G.get_selected_edges()
+    selected_edge_ids = G.get_selected_edge_ids()
     edges_info = G.get_edges_as_tuples()
     for eid in selected_edge_ids:
         edge = [e for e in edges_info if e[0] == eid][0]
@@ -66,7 +66,7 @@ def demo_degree_filtering():
 
     # Find high-degree nodes (hubs)
     G.select_nodes_by_degree(min_degree=5)
-    hubs = G.get_selected_nodes()
+    hubs = G.get_selected_node_ids()
 
     print("\nNodes with degree >= 5 (hubs):")
     for node in hubs:
@@ -76,7 +76,7 @@ def demo_degree_filtering():
     # Find low-degree nodes (peripheral)
     G.clear_selection()
     G.select_nodes_by_degree(max_degree=2)
-    peripheral = G.get_selected_nodes()
+    peripheral = G.get_selected_node_ids()
 
     print(f"\nNodes with degree <= 2 (peripheral): {len(peripheral)} nodes")
     print(f"  Examples: {peripheral[:5]}")
@@ -108,7 +108,7 @@ def demo_directed_graph_degree():
 
     # Find highly cited papers (high in-degree)
     G.select_nodes_by_degree(min_degree=3, degree_type="in")
-    highly_cited = G.get_selected_nodes()
+    highly_cited = G.get_selected_node_ids()
 
     print("\nHighly cited papers (in-degree >= 3):")
     for paper in highly_cited:
@@ -119,7 +119,7 @@ def demo_directed_graph_degree():
     # Find papers that cite many others (high out-degree)
     G.clear_selection()
     G.select_nodes_by_degree(min_degree=3, degree_type="out")
-    review_papers = G.get_selected_nodes()
+    review_papers = G.get_selected_node_ids()
 
     print("\nReview papers (out-degree >= 3):")
     for paper in review_papers:
@@ -157,19 +157,19 @@ def demo_selection_chaining():
 
     # Find well-connected people (degree >= 3)
     G.select_nodes_by_degree(min_degree=3)
-    well_connected = G.get_selected_nodes()
+    well_connected = G.get_selected_node_ids()
 
     print(f"\nWell-connected people (degree >= 3): {well_connected}")
 
     # Now deselect one person
     G.deselect_nodes(["Bob"])
-    remaining = G.get_selected_nodes()
+    remaining = G.get_selected_node_ids()
 
     print(f"After removing Bob: {remaining}")
 
     # Invert to find less connected people
     G.invert_node_selection()
-    less_connected = G.get_selected_nodes()
+    less_connected = G.get_selected_node_ids()
 
     print(f"\nLess connected people (degree < 3): {less_connected}")
 
@@ -204,18 +204,18 @@ def demo_complex_workflow():
 
     # Step 1: Find accounts with high outgoing transactions (potential sources)
     G.select_nodes_by_degree(min_degree=3, degree_type="out")
-    sources = G.get_selected_nodes()
+    sources = G.get_selected_node_ids()
     print(f"\nAccounts with many outgoing transactions: {sources}")
 
     # Step 2: Find accounts with high incoming transactions (potential sinks/aggregators)
     G.clear_selection()
     G.select_nodes_by_degree(min_degree=3, degree_type="in")
-    sinks = G.get_selected_nodes()
+    sinks = G.get_selected_node_ids()
     print(f"Accounts with many incoming transactions: {sinks}")
 
     # Step 3: Select all transactions involving these key accounts
     G.select_edges_by_node_id(sources + sinks)
-    key_transactions = G.get_selected_edges()
+    key_transactions = G.get_selected_edge_ids()
 
     print(f"\nKey transactions involving sources/sinks: {len(key_transactions)} transactions")
     print(f"This represents {len(key_transactions) / G.count_edges() * 100:.1f}% of all transactions")
@@ -252,11 +252,11 @@ def demo_subgraph_extraction():
 
     # Select nodes from component 1 (triangle)
     G.select_nodes_by_id(["A", "B", "C"])
-    component1_nodes = G.get_selected_nodes()
+    component1_nodes = G.get_selected_node_ids()
 
     # Select edges within this component
     G.select_edges_by_node_id(component1_nodes)
-    component1_edges = G.get_selected_edges()
+    component1_edges = G.get_selected_edge_ids()
 
     print("\nComponent 1 (triangle):")
     print(f"  Nodes: {component1_nodes}")
@@ -265,10 +265,10 @@ def demo_subgraph_extraction():
     # Now select component 2 (square)
     G.clear_selection()
     G.select_nodes_by_id(["D", "E", "F", "G"])
-    G.select_edges_by_node_id(G.get_selected_nodes())
+    G.select_edges_by_node_id(G.get_selected_node_ids())
 
     print("\nComponent 2 (square):")
-    print(f"  Nodes: {G.get_selected_nodes()}")
+    print(f"  Nodes: {G.get_selected_node_ids()}")
     print(f"  Edges: {G.count_selected_edges()} edges")
 
 
@@ -296,7 +296,7 @@ def demo_method_chaining():
     )
 
     print("\nAfter chained operations:")
-    print(f"  Selected nodes: {result.get_selected_nodes()}")
+    print(f"  Selected nodes: {result.get_selected_node_ids()}")
     print(f"  Count: {result.count_selected_nodes()}")
 
     print("\nMethod chaining allows fluent, readable queries!")
@@ -331,14 +331,14 @@ def demo_select_by_attributes():
         )
     )
 
-    popular_languages = G.get_selected_nodes()
+    popular_languages = G.get_selected_node_ids()
     print(f"\nPopular languages (popularity > 90): {popular_languages}")
 
     # Select modern technologies (created after 2000)
     G.clear_selection()
     G.select_nodes(lambda n: n.attributes and n.attributes.get("year", 0) >= 2000)
 
-    modern_tech = G.get_selected_nodes()
+    modern_tech = G.get_selected_node_ids()
     print(f"Modern technologies (year >= 2000): {modern_tech}")
 
     # Select strong dependency edges
@@ -389,7 +389,7 @@ def demo_advanced_filtering():
         )
 
     G.select_nodes(premium_quality_available)
-    premium_products = G.get_selected_nodes()
+    premium_products = G.get_selected_node_ids()
 
     print("\nPremium electronics (price>100, rating>=4.5, in stock):")
     for product in premium_products:
@@ -406,7 +406,7 @@ def demo_advanced_filtering():
         )
     )
 
-    high_conversion = G.get_selected_edges()
+    high_conversion = G.get_selected_edge_ids()
     print("\nHigh-conversion product pairs (conversion>=60%, frequency>=100):")
     for edge_id in high_conversion:
         edge = G.get_edge(edge_id)
@@ -456,7 +456,7 @@ def demo_social_network_analysis():
         )
 
     G.select_nodes(influential_user)
-    influencers = G.get_selected_nodes()
+    influencers = G.get_selected_node_ids()
 
     print("\nInfluential users:")
     for user in influencers:
@@ -474,7 +474,7 @@ def demo_social_network_analysis():
         )
     )
 
-    strong_collabs = G.get_selected_edges()
+    strong_collabs = G.get_selected_edge_ids()
     print("\nStrong collaborations (40+ interactions):")
     for edge_id in strong_collabs:
         edge = G.get_edge(edge_id)
@@ -492,7 +492,7 @@ def demo_social_network_analysis():
             and n.attributes.get("verified") == True
         )
     )
-    us_verified = set(G.get_selected_nodes())
+    us_verified = set(G.get_selected_node_ids())
 
     # Find those who collaborate with influencers
     G.select_edges(

@@ -136,8 +136,8 @@ class TestSelectionCleanup:
 
         # Edge should be removed from selection
         assert G.count_selected_edges() == 2
-        assert 2 not in G.get_selected_edges()
-        assert set(G.get_selected_edges()) == {1, 3}
+        assert 2 not in G.get_selected_edge_ids()
+        assert set(G.get_selected_edge_ids()) == {1, 3}
 
     def test_delete_single_node_removes_from_selection(self):
         """Deleting a node via Rust method removes it from selection."""
@@ -153,8 +153,8 @@ class TestSelectionCleanup:
 
         # Node should be removed from selection
         assert G.count_selected_nodes() == 2
-        assert 2 not in G.get_selected_nodes()
-        assert set(G.get_selected_nodes()) == {1, 3}
+        assert 2 not in G.get_selected_node_ids()
+        assert set(G.get_selected_node_ids()) == {1, 3}
 
     def test_delete_multiple_nodes_updates_selection(self):
         """Deleting multiple nodes removes them all from selection."""
@@ -171,7 +171,7 @@ class TestSelectionCleanup:
 
         # Only 1, 3, 5 should remain selected
         assert G.count_selected_nodes() == 3
-        assert set(G.get_selected_nodes()) == {1, 3, 5}
+        assert set(G.get_selected_node_ids()) == {1, 3, 5}
 
     def test_delete_multiple_edges_updates_selection(self):
         """Deleting multiple edges removes them all from selection."""
@@ -188,7 +188,7 @@ class TestSelectionCleanup:
 
         # Only 1, 3, 5 should remain selected
         assert G.count_selected_edges() == 3
-        assert set(G.get_selected_edges()) == {1, 3, 5}
+        assert set(G.get_selected_edge_ids()) == {1, 3, 5}
 
 
 class TestSetNodeAttrsWS:

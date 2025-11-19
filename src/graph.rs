@@ -841,13 +841,13 @@ impl Graph {
 
     /// Get currently selected node IDs
     #[inline]
-    pub fn get_selected_nodes(&self) -> Vec<u64> {
+    pub fn get_selected_node_ids(&self) -> Vec<u64> {
         self.selected_nodes.iter().copied().collect()
     }
 
     /// Get currently selected edge IDs
     #[inline]
-    pub fn get_selected_edges(&self) -> Vec<u64> {
+    pub fn get_selected_edge_ids(&self) -> Vec<u64> {
         self.selected_edges.iter().cloned().collect()
     }
 

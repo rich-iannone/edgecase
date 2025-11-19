@@ -21,7 +21,7 @@ class TestSelectLastNodesCreated:
         # Select last 2 nodes (D=4, E=5)
         G.select_last_nodes_created(2)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 2
         assert 4 in selected  # D
         assert 5 in selected  # E
@@ -39,7 +39,7 @@ class TestSelectLastNodesCreated:
 
         # Select last 3 (Node_3=3, Node_4=4, Node_5=5)
         G.select_last_nodes_created(3)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
 
         assert len(selected) == 3
         assert 3 in selected  # Node_3
@@ -56,7 +56,7 @@ class TestSelectLastNodesCreated:
         # Request more than exist
         G.select_last_nodes_created(10)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 3
         assert set(selected) == {1, 2, 3}  # Integer node IDs
 
@@ -68,7 +68,7 @@ class TestSelectLastNodesCreated:
 
         G.select_last_nodes_created(0)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 0
 
     def test_select_last_nodes_with_edges(self):
@@ -83,7 +83,7 @@ class TestSelectLastNodesCreated:
         assert order == [1, 2, 3]  # Integer node IDs for A, B, C
 
         G.select_last_nodes_created(2)  # Last 2: B=2, C=3
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
 
         assert len(selected) == 2
         assert 2 in selected  # B
@@ -104,7 +104,7 @@ class TestSelectLastNodesCreated:
 
         G.select_nodes_by_id([1])  # A = node ID 1
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 3
         assert 1 in selected  # A
         assert 3 in selected  # C
@@ -126,7 +126,7 @@ class TestSelectLastNodesCreated:
         # Select only second batch (nodes 3, 4, 5)
         G.select_last_nodes_created(3)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 3
         # Nodes 3, 4, 5 are the Batch2 nodes
         assert 3 in selected
@@ -150,7 +150,7 @@ class TestSelectLastEdgesCreated:
         # Select last 2 edges
         G.select_last_edges_created(2)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
         # Verify they're the last edges
@@ -182,7 +182,7 @@ class TestSelectLastEdgesCreated:
 
         # Select last 2
         G.select_last_edges_created(2)
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
 
         assert len(selected) == 2
         assert 3 in selected
@@ -199,7 +199,7 @@ class TestSelectLastEdgesCreated:
         # Request more than exist
         G.select_last_edges_created(10)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
     def test_select_last_edges_zero(self):
@@ -212,7 +212,7 @@ class TestSelectLastEdgesCreated:
 
         G.select_last_edges_created(0)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 0
 
     def test_select_last_edges_with_weights(self):
@@ -225,7 +225,7 @@ class TestSelectLastEdgesCreated:
         G.add_edge("C", "D", weight=3.0)
 
         G.select_last_edges_created(2)
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
 
         assert len(selected) == 2
 
@@ -256,7 +256,7 @@ class TestSelectLastEdgesCreated:
         # Then select edges connected to A (node ID 1)
         G.select_edges_by_node_id([1])  # A = node ID 1
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         # Should have 3 edges: last 2 + A-B
         assert len(selected) == 3
 
@@ -278,7 +278,7 @@ class TestSelectLastEdgesCreated:
         # Select only the last 3 edges
         G.select_last_edges_created(3)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 3
 
         # Verify these are edges involving C, D, E, F (node IDs 3, 4, 5, 6)
@@ -369,7 +369,7 @@ class TestCombinedWorkflows:
 
         # Select nodes from Batch 2 (Server3=3, Server4=4)
         G.select_last_nodes_created(2)
-        batch2_nodes = G.get_selected_nodes()
+        batch2_nodes = G.get_selected_node_ids()
         assert len(batch2_nodes) == 2
         assert 3 in batch2_nodes  # Server3
         assert 4 in batch2_nodes  # Server4
@@ -377,7 +377,7 @@ class TestCombinedWorkflows:
         # Select edges from Batch 2
         G.clear_selection()
         G.select_last_edges_created(2)
-        batch2_edges = G.get_selected_edges()
+        batch2_edges = G.get_selected_edge_ids()
         assert len(batch2_edges) == 2
 
     def test_pipeline_workflow(self):
@@ -394,7 +394,7 @@ class TestCombinedWorkflows:
         G.select_last_nodes_created(2)
 
         # Further filter by predicate - only unprocessed
-        recent_unprocessed = set(G.get_selected_nodes())
+        recent_unprocessed = set(G.get_selected_node_ids())
         G.clear_selection()
         G.select_nodes(
             lambda n: (
@@ -404,7 +404,7 @@ class TestCombinedWorkflows:
             )
         )
 
-        final_selection = G.get_selected_nodes()
+        final_selection = G.get_selected_node_ids()
         assert len(final_selection) == 2
         assert 3 in final_selection  # Node3 = node ID 3
         assert 4 in final_selection  # Node4 = node ID 4
@@ -426,7 +426,7 @@ class TestCombinedWorkflows:
 
         # Select only last 3 events (most recent) - Event_8=8, Event_9=9, Event_10=10
         G.select_last_nodes_created(3)
-        recent_events = G.get_selected_nodes()
+        recent_events = G.get_selected_node_ids()
 
         assert len(recent_events) == 3
         assert 8 in recent_events  # Event_8
@@ -436,7 +436,7 @@ class TestCombinedWorkflows:
         # Select last 2 edges (connections between recent events)
         G.clear_selection()
         G.select_last_edges_created(2)
-        recent_connections = G.get_selected_edges()
+        recent_connections = G.get_selected_edge_ids()
 
         assert len(recent_connections) == 2
 
@@ -471,7 +471,7 @@ class TestEdgeCases:
 
         # Select again (C = node ID 3)
         G.select_last_nodes_created(1)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
 
         assert len(selected) == 1
         assert 3 in selected  # C

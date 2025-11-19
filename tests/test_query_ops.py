@@ -954,7 +954,7 @@ class TestQueryWorkflows:
 
         # Select high-degree nodes and their neighbors
         G.select_nodes_by_degree(min_degree=5)
-        G.select_nodes_in_neighborhood(G.get_selected_nodes(), k=1, mode="out")
+        G.select_nodes_in_neighborhood(G.get_selected_node_ids(), k=1, mode="out")
 
         # Get selected subgraph as DataFrame
         df = G.get_node_df_ws()

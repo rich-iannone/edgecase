@@ -11745,7 +11745,7 @@ class Graph:
         id_b = graph.get_id_from_label("B")
         graph.select_nodes_by_id([id_a, id_b])
 
-        selected = graph.get_selected_nodes()
+        selected = graph.get_selected_node_ids()
         print(selected)  # ['A', 'B']
         ```
 
@@ -11920,7 +11920,7 @@ class Graph:
         )
 
         # Hub node has degree 10, all others have degree 1
-        hubs = graph.get_selected_nodes()
+        hubs = graph.get_selected_node_ids()
         print(len(hubs))  # 1 (the center node)
         ```
 
@@ -11984,7 +11984,7 @@ class Graph:
         graph.deselect_nodes([first_id, last_id])
 
         # Only middle nodes remain selected
-        selected = graph.get_selected_nodes()
+        selected = graph.get_selected_node_ids()
         print(len(selected))  # 3
         ```
 
@@ -12169,7 +12169,7 @@ class Graph:
         self._graph.invert_edge_selection()
         return self
 
-    def get_selected_nodes(self) -> list[int]:
+    def get_selected_node_ids(self) -> list[int]:
         """Get currently selected node IDs.
 
         Returns the list of node IDs that are currently marked as selected.
@@ -12191,7 +12191,7 @@ class Graph:
             .select_nodes_by_degree(min_degree=3)
         )
 
-        selected = graph.get_selected_nodes()
+        selected = graph.get_selected_node_ids()
         print(len(selected))  # 1 (the center node)
         ```
 
@@ -12200,9 +12200,9 @@ class Graph:
         count_selected_nodes : Get count of selected nodes
         select_nodes_by_id : Select specific nodes
         """
-        return self._graph.get_selected_nodes()
+        return self._graph.get_selected_node_ids()
 
-    def get_selected_edges(self) -> list[int]:
+    def get_selected_edge_ids(self) -> list[int]:
         """Get currently selected edge IDs.
 
         Returns the list of edge IDs that are currently marked as selected.
@@ -12224,7 +12224,7 @@ class Graph:
             .select_edges(lambda e: e.weight is not None and e.weight > 0.5)
         )
 
-        selected = graph.get_selected_edges()
+        selected = graph.get_selected_edge_ids()
         print(len(selected))
         ```
 
@@ -12233,7 +12233,7 @@ class Graph:
         count_selected_edges : Get count of selected edges
         select_edges_by_id : Select specific edges
         """
-        return self._graph.get_selected_edges()
+        return self._graph.get_selected_edge_ids()
 
     def count_selected_nodes(self) -> int:
         """Get count of currently selected nodes.
@@ -12356,8 +12356,8 @@ class Graph:
         select_nodes_by_id : Select specific nodes
         select_edges_by_id : Select specific edges
         """
-        selected_nodes = self.get_selected_nodes()
-        selected_edges = self.get_selected_edges()
+        selected_nodes = self.get_selected_node_ids()
+        selected_edges = self.get_selected_edge_ids()
 
         # Create new graph with same directedness
         subgraph = Graph(directed=self.is_directed())
@@ -12449,7 +12449,7 @@ class Graph:
             .select_nodes(lambda n: n.attributes.get("type") == "hub")
         )
 
-        selected = graph.get_selected_nodes()
+        selected = graph.get_selected_node_ids()
         print(selected)  # Node IDs for 'A' and 'C'
 
         # Select nodes by ID pattern (if using integer IDs)
@@ -12624,7 +12624,7 @@ class Graph:
         )
 
         # C and D are selected (most recent)
-        selected = graph.get_selected_nodes()
+        selected = graph.get_selected_node_ids()
         print(selected)  # ['C', 'D']
         ```
 
@@ -12795,7 +12795,7 @@ class Graph:
         )
 
         # Selects top 3 nodes by degree
-        hubs = graph.get_selected_nodes()
+        hubs = graph.get_selected_node_ids()
         print(len(hubs))  # 3
         ```
 
@@ -13644,7 +13644,7 @@ class Graph:
         """
         import polars as pl
 
-        node_ids = self.get_selected_nodes()
+        node_ids = self.get_selected_node_ids()
         if not node_ids:
             return pl.DataFrame()
 
@@ -13742,7 +13742,7 @@ class Graph:
         """
         import polars as pl
 
-        edge_ids = self.get_selected_edges()
+        edge_ids = self.get_selected_edge_ids()
         if not edge_ids:
             return pl.DataFrame()
 
@@ -14066,7 +14066,7 @@ class Graph:
         select_nodes_by_id : Select nodes for deletion
         clear_selection : Clear selection without deleting
         """
-        selected = self.get_selected_nodes()
+        selected = self.get_selected_node_ids()
 
         # Delete each selected node (Rust handles incident edges)
         for node_id in selected:
@@ -14135,7 +14135,7 @@ class Graph:
         select_edges_by_id : Select edges for deletion
         clear_selection : Clear selection without deleting
         """
-        selected = self.get_selected_edges()
+        selected = self.get_selected_edge_ids()
 
         for edge_id in selected:
             self.delete_edge_by_id(edge_id)
@@ -14204,7 +14204,7 @@ class Graph:
         get_node_attrs : Get attributes from multiple nodes
         mutate_node_attrs_ws : Transform attributes with a function
         """
-        selected = self.get_selected_nodes()
+        selected = self.get_selected_node_ids()
 
         for node_id in selected:
             for key, value in attributes.items():
@@ -14268,7 +14268,7 @@ class Graph:
         get_edge_attrs : Get attributes from multiple edges
         mutate_edge_attrs_ws : Transform edge attributes with a function
         """
-        selected = self.get_selected_edges()
+        selected = self.get_selected_edge_ids()
 
         for edge_id in selected:
             for key, value in attributes.items():
@@ -14345,7 +14345,7 @@ class Graph:
         mutate_edge_attrs_ws : Transform edge attributes
         get_node_attrs : Get attributes for inspection before transformation
         """
-        selected = self.get_selected_nodes()
+        selected = self.get_selected_node_ids()
 
         for node_id in selected:
             node = self.get_node(node_id)
@@ -14432,7 +14432,7 @@ class Graph:
         mutate_node_attrs_ws : Transform node attributes
         get_edge_attrs : Get edge attributes for inspection
         """
-        selected = self.get_selected_edges()
+        selected = self.get_selected_edge_ids()
 
         for edge_id in selected:
             edge = self.get_edge(edge_id)
@@ -14514,7 +14514,7 @@ class Graph:
         add_full_graph : Create a complete graph from scratch
         select_nodes_by_id : Select nodes for clique formation
         """
-        selected = list(self.get_selected_nodes())
+        selected = list(self.get_selected_node_ids())
 
         # Create edges between all pairs
         for i, source in enumerate(selected):
@@ -14610,7 +14610,7 @@ class Graph:
         if not self.is_directed():
             raise ValueError("add_reverse_edges_ws() only works on directed graphs")
 
-        selected = self.get_selected_edges()
+        selected = self.get_selected_edge_ids()
         edges_to_add = []
 
         for edge_id in selected:
@@ -14701,7 +14701,7 @@ class Graph:
         if not self.is_directed():
             raise ValueError("rev_edge_dir_ws() only works on directed graphs")
 
-        selected = self.get_selected_edges()
+        selected = self.get_selected_edge_ids()
 
         for edge_id in selected:
             # Use Rust method to reverse edge direction
@@ -15630,7 +15630,7 @@ class Graph:
 
         node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out()
-        selected = graph.get_selected_nodes()
+        selected = graph.get_selected_node_ids()
         # Returns [node_id_for_B]
         ```
         """
@@ -15664,7 +15664,7 @@ class Graph:
 
         node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in()
-        selected = graph.get_selected_nodes()
+        selected = graph.get_selected_node_ids()
         # Returns [node_id_for_B]
         ```
         """
@@ -15701,7 +15701,7 @@ class Graph:
         graph.select_nodes_by_id([node_b_id]).trav_both()
 
         # Get labels of selected nodes
-        labels = [graph.get_label_from_id(nid) for nid in graph.get_selected_nodes()]
+        labels = [graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids()]
         # Returns ['A', 'C'] (or ['C', 'A'] - order may vary)
         ```
         """
@@ -15738,7 +15738,7 @@ class Graph:
         node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out_edge()
 
-        print(len(graph.get_selected_edges()))  # 2
+        print(len(graph.get_selected_edge_ids()))  # 2
         ```
         """
         self._graph.trav_out_edge()
@@ -15774,7 +15774,7 @@ class Graph:
         node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in_edge()
 
-        print(len(graph.get_selected_edges()))  # 2
+        print(len(graph.get_selected_edge_ids()))  # 2
         ```
         """
         self._graph.trav_in_edge()
@@ -15818,7 +15818,7 @@ class Graph:
 
         # Traverse to reverse edge (B→A)
         graph.trav_reverse_edge()
-        edges = graph.get_selected_edges()
+        edges = graph.get_selected_edge_ids()
         # Now selects only the B→A edge
         ```
 
@@ -15901,7 +15901,7 @@ class Graph:
             .trav_out_until(lambda nid: graph.get_node(nid).attributes.get("value") == 8)
         )
 
-        print(graph.get_selected_nodes())  # ['8']
+        print(graph.get_selected_node_ids())  # ['8']
         ```
 
         Multiple starting points:
@@ -15931,7 +15931,7 @@ class Graph:
         trav_out : Simple outward traversal (one step)
         select_nodes : Select nodes with conditions
         """
-        selected = self.get_selected_nodes()
+        selected = self.get_selected_node_ids()
         if not selected:
             return self
 
@@ -16060,7 +16060,7 @@ class Graph:
             .trav_in_until(lambda nid: graph.get_node(nid).attributes.get("value") == 1)
         )
 
-        print(graph.get_selected_nodes())  # ['1']
+        print(graph.get_selected_node_ids())  # ['1']
         ```
 
         Multiple stopping conditions:
@@ -16089,7 +16089,7 @@ class Graph:
         trav_in : Simple inward traversal (one step)
         select_nodes : Select nodes with conditions
         """
-        selected = self.get_selected_nodes()
+        selected = self.get_selected_node_ids()
         if not selected:
             return self
 
