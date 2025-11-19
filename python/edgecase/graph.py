@@ -3560,7 +3560,7 @@ class Graph:
 
         See Also
         --------
-        count_selfloops : Count self-loops in the graph
+        count_all_loops : Count total self-loops in the graph
         count_multi_edges : Count parallel edges
         """
         return self._graph.is_simple()
@@ -12652,22 +12652,25 @@ class Graph:
     # Simple Count Methods
     # ==============================================================================
 
-    def count_selfloops(self) -> int:
+    def count_all_loops(self) -> int:
         """
-        Count number of self-loops in the graph.
+        Count total number of self-loop edges in the graph.
 
         A self-loop is an edge where the source and target are the same node.
-        Self-loops are common in certain applications like state machines or
-        reflexive relationships.
+        This counts all self-loop edges in the entire graph, regardless of which
+        nodes they belong to. Use `count_loops()` to get per-node counts.
+
+        Self-loops are common in state machines, reflexive relationships, and
+        chemical reaction networks.
 
         Returns
         -------
         int
-            Number of edges where source equals target.
+            Total number of edges where source equals target.
 
         Examples
         --------
-        Count self-loops:
+        Count all self-loops in graph:
 
         ```python
         graph = (
@@ -12679,48 +12682,27 @@ class Graph:
             .add_edge("B", "B")  # Self-loop
         )
 
-        print(graph.count_selfloops())  # 2
+        print(graph.count_all_loops())  # 2
         ```
 
-        See Also
-        --------
-        is_simple : Check if graph has no self-loops or multi-edges
-        count_loop_edges : Alias for this method
-        """
-        return self._graph.count_selfloops()
+        Multiple self-loops on same node:
 
-    def count_loop_edges(self) -> int:
-        """
-        Count number of self-loops in the graph.
-
-        Alias for count_selfloops(). A self-loop is an edge where the source and target are the
-        same node.
-
-        Returns
-        -------
-        int
-            Number of edges where source equals target.
-
-        Examples
-        --------
         ```python
-        import edgecase as ec
-
-        graph = ec.Graph()
+        graph = Graph()
         graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "A")  # Self-loop
+        graph.add_edge("A", "A")  # First self-loop
+        graph.add_edge("A", "A")  # Second self-loop
 
-        print(graph.count_loop_edges())  # 1
+        print(graph.count_all_loops())  # 2
         ```
 
         See Also
         --------
-        count_selfloops : Primary method (this is an alias)
+        count_loops : Count self-loops grouped by node
+        which_loops : Get edge IDs of self-loops
         is_simple : Check if graph has no self-loops or multi-edges
         """
-        return self._graph.count_selfloops()
+        return self._graph.count_all_loops()
 
     def count_multi_edges(self) -> int:
         """
@@ -12757,7 +12739,7 @@ class Graph:
         See Also
         --------
         is_simple : Check if graph has no self-loops or multi-edges
-        count_selfloops : Count self-loop edges
+        count_all_loops : Count total self-loop edges
         """
         return self._graph.count_multi_edges()
 

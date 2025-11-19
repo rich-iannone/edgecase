@@ -1724,7 +1724,7 @@ impl Graph {
 
     /// Count self-loops in the graph
     #[inline]
-    fn count_selfloops(&self) -> usize {
+    fn count_all_loops(&self) -> usize {
         self.edges
             .iter()
             .filter(|e| e.source == e.target)
