@@ -6047,14 +6047,14 @@ impl Graph {
     /// g.add_edge("Alice", "Bob")  # student-student
     /// g.add_edge("Alice", "Prof1")  # student-professor
     ///
-    /// r = g.assortativity_nominal("type")
+    /// r = g.get_assortativity_nominal("type")
     /// # Positive if students mostly connect to students
     /// ```
     ///
     /// # References
     /// Newman, M.E.J. "Mixing patterns in networks" (2003)
     #[inline]
-    pub fn assortativity_nominal(&self, attribute: &str) -> PyResult<f64> {
+    pub fn get_assortativity_nominal(&self, attribute: &str) -> PyResult<f64> {
         let m = self.edges.len();
         if m == 0 {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -6482,7 +6482,7 @@ impl Graph {
     /// - Empty graph
     /// - Failed eigenvalue computation
     #[pyo3(signature = (which="smallest", k=None, normalized=false))]
-    pub fn laplacian_spectrum(
+    pub fn get_laplacian_spectrum(
         &self,
         py: Python,
         which: &str,

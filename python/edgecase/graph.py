@@ -5845,7 +5845,7 @@ class Graph:
         """
         return self._graph.list_triangles()
 
-    def get_graph_transitivity(self) -> Optional[float]:
+    def get_transitivity(self) -> Optional[float]:
         """Compute global transitivity (clustering coefficient).
 
         Transitivity measures the probability that two neighbors of a node are
@@ -5882,7 +5882,7 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        print(triangle.get_graph_transitivity())  # 1.0 (all triples are closed)
+        print(triangle.get_transitivity())  # 1.0 (all triples are closed)
         ```
 
         Chain graph has transitivity 0.0:
@@ -5901,7 +5901,7 @@ class Graph:
             .add_edge(source="C", target="D")
         )
 
-        print(chain.get_graph_transitivity())  # 0.0 (no triangles, only open triples)
+        print(chain.get_transitivity())  # 0.0 (no triangles, only open triples)
         ```
 
         Real-world networks typically have values between 0.1 and 0.5:
@@ -5922,7 +5922,7 @@ class Graph:
             .add_edge(source="Alice", target="Charlie")  # Creates some triangles
         )
 
-        trans = social_network.get_graph_transitivity()
+        trans = social_network.get_transitivity()
         print(f"Clustering: {trans:.3f}")
         ```
 
@@ -6011,7 +6011,7 @@ class Graph:
         """
         return self._graph.which_mutual()
 
-    def get_graph_reciprocity(self, mode: str = "default") -> float:
+    def get_reciprocity(self, mode: str = "default") -> float:
         """Calculate reciprocity (fraction of edges with reciprocal counterpart).
 
         Reciprocity measures the proportion of edges in a directed graph that are
@@ -6053,7 +6053,7 @@ class Graph:
             .add_edge("A", "C")  # No reciprocal
         )
 
-        recip = graph.get_graph_reciprocity()
+        recip = graph.get_reciprocity()
         print(f"Reciprocity: {recip:.3f}")  # 0.667 (2 mutual out of 3 edges)
         ```
 
@@ -6075,7 +6075,7 @@ class Graph:
             .add_edge(source="A", target="C")
             .add_edge(source="C", target="A")
         )
-        print(f"Friendship reciprocity: {friendship.get_graph_reciprocity():.2f}")  # 1.00
+        print(f"Friendship reciprocity: {friendship.get_reciprocity():.2f}")  # 1.00
 
         # Low reciprocity network (e.g., followers)
         followers = (
@@ -6089,7 +6089,7 @@ class Graph:
             .add_edge(source="B", target="C")
             .add_edge(source="D", target="A")
         )
-        print(f"Follower reciprocity: {followers.get_graph_reciprocity():.2f}")  # 0.00
+        print(f"Follower reciprocity: {followers.get_reciprocity():.2f}")  # 0.00
         ```
 
         Analyze communication patterns:
@@ -6099,7 +6099,7 @@ class Graph:
         email = Graph(directed=True)
         # ... add edges ...
 
-        recip = email.get_graph_reciprocity()
+        recip = email.get_reciprocity()
         if recip > 0.5:
             print("High mutual communication")
         elif recip > 0.2:
@@ -6528,7 +6528,7 @@ class Graph:
 
     # --- Assortativity Measures ---
 
-    def get_graph_assortativity_degree(self) -> float:
+    def get_assortativity_degree(self) -> float:
         """Calculate degree assortativity coefficient.
 
         Measures the tendency of nodes to connect to other nodes with similar degrees.
@@ -6567,7 +6567,7 @@ class Graph:
         g.add_edge(source="User1", target="User2")
         g.add_edge(source="User3", target="User4")
 
-        r = g.get_graph_assortativity_degree()
+        r = g.get_assortativity_degree()
         # r > 0: hubs connect to hubs, periphery to periphery
         ```
 
@@ -6584,7 +6584,7 @@ class Graph:
         g.add_edge(source="Server2", target="Client4")
         g.add_edge(source="Server2", target="Client5")
 
-        r = g.get_graph_assortativity_degree()
+        r = g.get_assortativity_degree()
         # r < 0: high-degree nodes connect to low-degree nodes
         ```
 
@@ -6605,7 +6605,7 @@ class Graph:
             u, v = random.sample(nodes, 2)
             g.add_edge(source=u, target=v)
 
-        r = g.get_graph_assortativity_degree()
+        r = g.get_assortativity_degree()
         # r ≈ 0: no systematic degree correlation
         ```
 
@@ -6620,7 +6620,7 @@ class Graph:
         See Also
         --------
         assortativity : Numeric attribute assortativity
-        assortativity_nominal : Categorical attribute assortativity
+        get_assortativity_nominal : Categorical attribute assortativity
 
         References
         ----------
@@ -6629,7 +6629,7 @@ class Graph:
         """
         return self._graph.assortativity_degree()
 
-    def assortativity_nominal(self, attribute: str) -> float:
+    def get_assortativity_nominal(self, attribute: str) -> float:
         """Calculate assortativity for categorical (nominal) node attributes.
 
         Measures the tendency of nodes with the same attribute value to connect,
@@ -6675,7 +6675,7 @@ class Graph:
         g.add_edge("Prof1", "Prof2")
         g.add_edge("Alice", "Prof1")  # One cross-group edge
 
-        r = g.assortativity_nominal("group")
+        r = g.get_assortativity_nominal("group")
         # r > 0: since students connect to students, faculty to faculty
         ```
 
@@ -6694,7 +6694,7 @@ class Graph:
         g.add_edge("Carol", "Dave")
         g.add_edge("Alice", "Carol")
 
-        r = g.assortativity_nominal("gender")
+        r = g.get_assortativity_nominal("gender")
         # Measures gender homophily in collaboration
         ```
 
@@ -6712,7 +6712,7 @@ class Graph:
         g.add_edge("Wolf", "Rabbit")
         g.add_edge("Lion", "Deer")
 
-        r = g.assortativity_nominal("type")
+        r = g.get_assortativity_nominal("type")
         # r < 0: predators connect to prey, not to each other
         ```
 
@@ -6730,7 +6730,7 @@ class Graph:
         g.add_edge("A", "B")
         g.add_edge("C", "D")
 
-        r = g.assortativity_nominal("dept")
+        r = g.get_assortativity_nominal("dept")
         # r = 1.0: perfect segregation by department
         ```
 
@@ -6752,9 +6752,9 @@ class Graph:
         Newman, M.E.J. (2003). "Mixing patterns in networks."
         Physical Review E, 67(2), 026126.
         """
-        return self._graph.assortativity_nominal(attribute)
+        return self._graph.get_assortativity_nominal(attribute)
 
-    def assortativity(self, attribute: str) -> float:
+    def get_assortativity(self, attribute: str) -> float:
         """Calculate assortativity for numeric node attributes.
 
         Measures the tendency of nodes with similar numeric attribute values to
@@ -6801,7 +6801,7 @@ class Graph:
         g.add_edge("Dave", "Eve")   # Similar ages (55-53)
         g.add_edge("Alice", "Carol")  # Similar ages (25-26)
 
-        r = g.assortativity("age")
+        r = g.get_assortativity("age")
         # r > 0: people tend to befriend similar-aged people
         ```
 
@@ -6820,7 +6820,7 @@ class Graph:
         g.add_edge("Senior1", "Junior2")
         g.add_edge("Senior2", "Junior1")
 
-        r = g.assortativity("papers")
+        r = g.get_assortativity("papers")
         # r < 0: experienced researchers often collaborate with juniors
         ```
 
@@ -6839,7 +6839,7 @@ class Graph:
         g.add_edge("Germany", "India")
         g.add_edge("USA", "Germany")
 
-        r = g.assortativity("gdp")
+        r = g.get_assortativity("gdp")
         # Measures if similar-wealth countries trade more
         ```
 
@@ -6856,7 +6856,7 @@ class Graph:
         g.add_edge("P1", "P2")  # Similar weights
         g.add_edge("P3", "P4")  # Similar weights
 
-        r = g.assortativity("weight")
+        r = g.get_assortativity("weight")
         # r > 0: similar-sized proteins tend to interact
         ```
 
@@ -6871,7 +6871,7 @@ class Graph:
         See Also
         --------
         assortativity_degree : Degree assortativity
-        assortativity_nominal : Categorical attribute assortativity
+        get_assortativity_nominal : Categorical attribute assortativity
 
         References
         ----------
@@ -6880,7 +6880,7 @@ class Graph:
         """
         return self._graph.assortativity(attribute)
 
-    def spectrum(
+    def get_spectrum(
         self,
         which: str = "largest",
         k: int | None = None,
@@ -6929,7 +6929,7 @@ class Graph:
             for j in range(i+1, 5):
                 g.add_edge(f"v{i}", f"v{j}")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         print(f"Eigenvalues: {spec['values']}")
 
         # Complete graph: λ₁ = n-1, other λᵢ = -1
@@ -6952,7 +6952,7 @@ class Graph:
         g.add_edge("B", "Y")
         g.add_edge("B", "Z")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
 
         # Bipartite: λ and -λ appear in pairs
         # Check if λ_max ≈ -λ_min
@@ -6986,7 +6986,7 @@ class Graph:
         # Bridge
         g.add_edge(source="n4", target="n5")
 
-        spec = g.spectrum(which="largest", k=2)
+        spec = g.get_spectrum(which="largest", k=2)
         # Use eigenvector to partition graph
         fiedler_vector = spec['vectors'][1]  # Second eigenvector
         partition = [1 if v > 0 else 0 for v in fiedler_vector]
@@ -7005,7 +7005,7 @@ class Graph:
                 g.add_edge(source=f"v{i}", target=f"v{j}")
 
         # Spectral radius = max absolute eigenvalue
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         spectral_radius = max(abs(v) for v in spec['values'])
 
         # For regular graphs: spectral radius = degree
@@ -7054,7 +7054,7 @@ class Graph:
 
         See Also
         --------
-        laplacian_spectrum : Laplacian matrix spectrum
+        get_laplacian_spectrum : Laplacian matrix spectrum
         pagerank : Dominant eigenvector of modified adjacency matrix
 
         References
@@ -7067,7 +7067,7 @@ class Graph:
         """
         return self._graph.spectrum(which, k)
 
-    def laplacian_spectrum(
+    def get_laplacian_spectrum(
         self,
         which: str = "smallest",
         k: int | None = None,
@@ -7127,7 +7127,7 @@ class Graph:
         g.add_node(label="Y")
         g.add_edge(source="X", target="Y")
 
-        spec = g.laplacian_spectrum(which="smallest", k=3)
+        spec = g.get_laplacian_spectrum(which="smallest", k=3)
         zero_eigenvalues = sum(1 for v in spec['values'] if abs(v) < 1e-6)
         print(f"Number of components: {zero_eigenvalues}")
         # λ₁ = 0 has multiplicity = number of connected components
@@ -7154,7 +7154,7 @@ class Graph:
         # Sparse inter-community edge
         g.add_edge(source="n2", target="n3")
 
-        spec = g.laplacian_spectrum(which="smallest", k=3)
+        spec = g.get_laplacian_spectrum(which="smallest", k=3)
         fiedler_vector = spec['vectors'][1]  # Second eigenvector (λ₂)
 
         # Partition based on sign of Fiedler vector
@@ -7177,7 +7177,7 @@ class Graph:
         g.add_edge(source="n2", target="n3")
 
         # Algebraic connectivity measures expansion
-        spec = g.laplacian_spectrum(which="smallest", k=2)
+        spec = g.get_laplacian_spectrum(which="smallest", k=2)
         algebraic_connectivity = spec['algebraic_connectivity']
 
         # Cheeger inequality: h²/(2Δ) ≤ λ₂ ≤ 2h
@@ -7200,7 +7200,7 @@ class Graph:
         g.add_edge(source="C", target="A", weight=0.5)
 
         # Normalized Laplacian accounts for degree variations
-        spec = g.laplacian_spectrum(which="all", normalized=True)
+        spec = g.get_laplacian_spectrum(which="all", normalized=True)
         # Eigenvalues in [0, 2] for undirected graphs
         # λ = 0 ⟺ connected component
         # λ = 2 ⟺ bipartite structure
@@ -7219,7 +7219,7 @@ class Graph:
         g.add_edge(source="n2", target="n3")
 
         # Laplacian eigenvalues determine diffusion speed
-        spec = g.laplacian_spectrum(which="smallest", k=5)
+        spec = g.get_laplacian_spectrum(which="smallest", k=5)
 
         # Mixing time ≈ 1 / λ₂ (algebraic connectivity)
         # Small λ₂ → slow mixing (long random walks to reach steady state)
@@ -7293,7 +7293,7 @@ class Graph:
         Shi, J., & Malik, J. (2000). "Normalized cuts and image segmentation."
         IEEE PAMI, 22(8), 888-905.
         """
-        return self._graph.laplacian_spectrum(which, k, normalized)
+        return self._graph.get_laplacian_spectrum(which, k, normalized)
 
     # --- Component Counts ---
 
@@ -8541,7 +8541,7 @@ class Graph:
         See Also
         --------
         clustering_coefficient : Alternative measure of ego network density
-        get_graph_transitivity : Global clustering coefficient
+        get_transitivity : Global clustering coefficient
         """
         if attr_name is None:
             attr_name = "constraint"
@@ -8885,49 +8885,6 @@ class Graph:
         result = Graph()
         result._graph = self._graph.spanner(stretch, weight, seed)
         return result
-
-    def get_reciprocity(self) -> float:
-        """Get reciprocity (fraction of reciprocal edges).
-
-        Reciprocity measures the proportion of edges that have a corresponding
-        reverse edge. Only defined for directed graphs. Returns a value between
-        0.0 (no reciprocal edges) and 1.0 (all edges are reciprocal). Self-loops
-        are excluded from the calculation.
-
-        Returns
-        -------
-        float
-            Fraction of reciprocal edges (0.0 to 1.0).
-
-        Raises
-        ------
-        ValueError
-            If graph is undirected.
-
-        Examples
-        --------
-        Calculate reciprocity:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # Reciprocal
-            .add_edge("A", "C")  # Not reciprocal
-        )
-
-        print(f"{graph.get_reciprocity():.3f}")  # 0.667 (2/3 edges)
-        ```
-
-        See Also
-        --------
-        count_mutual_node_pairs : Count bidirectional relationships
-        count_asymmetric_node_pairs : Count one-way relationships
-        """
-        return self._graph.get_reciprocity()
 
     def count_trails(
         self,
@@ -9465,7 +9422,7 @@ class Graph:
         See Also
         --------
         clustering_coefficient : Alternative method that converts None to 0.0
-        get_graph_transitivity : Global clustering coefficient
+        get_transitivity : Global clustering coefficient
         count_triangles : Triangle counts used in calculation
         """
         if attr_name is None:
@@ -9563,7 +9520,7 @@ class Graph:
         See Also
         --------
         get_avg_clustering_coefficient : Get graph-level average
-        get_graph_transitivity : Global clustering coefficient
+        get_transitivity : Global clustering coefficient
         coreness : K-core decomposition
         """
         if attr_name is None:
