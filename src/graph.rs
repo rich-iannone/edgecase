@@ -3517,7 +3517,7 @@ impl Graph {
     /// O(V³ × log k) using fast matrix exponentiation where V is number of vertices
     /// and k is walk_length
     #[inline]
-    pub fn get_number_of_walks(&self, walk_length: usize) -> PyResult<FxHashMap<u64, FxHashMap<u64, u64>>> {
+    pub fn count_walks(&self, walk_length: usize) -> PyResult<FxHashMap<u64, FxHashMap<u64, u64>>> {
         // Get sorted list of node IDs for consistent matrix indexing
         let n = self.num_nodes();
         let mut node_ids = Vec::with_capacity(n);

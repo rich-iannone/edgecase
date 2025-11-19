@@ -13672,7 +13672,7 @@ class Graph:
         """
         return self._graph.get_topological_sort_order()
 
-    def get_number_of_walks(self, walk_length: int) -> dict[int, dict[int, int]]:
+    def count_walks(self, walk_length: int) -> dict[int, dict[int, int]]:
         """
         Count walks of a specific length between all pairs of nodes.
 
@@ -13719,7 +13719,7 @@ class Graph:
         g.add_edge("1", "2")
 
         # Walks of length 2
-        walks = g.get_number_of_walks(2)
+        walks = g.count_walks(2)
         node_0 = g.get_id_from_label("0")
         node_1 = g.get_id_from_label("1")
         node_2 = g.get_id_from_label("2")
@@ -13738,7 +13738,7 @@ class Graph:
         g.add_edge("2", "0")
 
         # Walks of length 3 (can return to start)
-        walks = g.get_number_of_walks(3)
+        walks = g.count_walks(3)
         node_0 = g.get_id_from_label("0")
         print(walks[node_0][node_0])  # 2 (two ways to return: 0→1→2→0 and 0→1→0→0)
         ```
@@ -13755,7 +13755,7 @@ class Graph:
         g.add_edge(source="1", target="2")
         g.add_edge(source="2", target="0")
 
-        walks = g.get_number_of_walks(walk_length=2)
+        walks = g.count_walks(walk_length=2)
         total = sum(
             sum(targets.values()) for targets in walks.values()
         )
@@ -13774,7 +13774,7 @@ class Graph:
         g.add_edge(source="1", target="2")
         g.add_edge(source="2", target="0")
 
-        walks = g.get_number_of_walks(walk_length=3)
+        walks = g.count_walks(walk_length=3)
         node_0 = g.get_id_from_label("0")
         source_walks = walks[node_0]
         print(f"Walks from node 0: {sum(source_walks.values())}")
@@ -13831,7 +13831,7 @@ class Graph:
         if walk_length < 0:
             raise ValueError("walk_length must be non-negative")
 
-        return self._graph.get_number_of_walks(walk_length)
+        return self._graph.count_walks(walk_length)
 
     def count_trails(
         self,
