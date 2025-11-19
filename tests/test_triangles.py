@@ -121,9 +121,12 @@ class TestListTriangles:
         triangles = g.list_triangles()
         assert len(triangles) == 1
 
-        # Check triangle contains all three nodes
+        # Check triangle contains all three nodes (as IDs)
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
         tri_set = set(triangles[0])
-        assert tri_set == {"A", "B", "C"}
+        assert tri_set == {a_id, b_id, c_id}
 
     def test_list_triangles_multiple(self):
         """List multiple triangles."""
@@ -141,10 +144,16 @@ class TestListTriangles:
         triangles = g.list_triangles()
         assert len(triangles) == 2
 
+        # Get node IDs
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        d_id = g.get_id_from_label("D")
+
         # Convert to sets for easier comparison
         tri_sets = [set(tri) for tri in triangles]
-        assert {"A", "B", "C"} in tri_sets
-        assert {"B", "C", "D"} in tri_sets
+        assert {a_id, b_id, c_id} in tri_sets
+        assert {b_id, c_id, d_id} in tri_sets
 
     def test_list_triangles_no_triangles(self):
         """Chain graph has no triangles to list."""
