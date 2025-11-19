@@ -13648,6 +13648,7 @@ class Graph:
         Notes
         -----
         Common use cases:
+
         - Build systems and dependency resolution
         - Task scheduling with prerequisites
         - Package installation order
@@ -13656,12 +13657,14 @@ class Graph:
         - Course curriculum planning
 
         Implementation details:
+
         - Uses Kahn's algorithm (BFS-based approach)
         - Maintains in-degree count for each node
         - Processes nodes with in-degree 0 first
         - Detects cycles by checking if all nodes are processed
 
         Alternative algorithms:
+
         - DFS-based topological sort (reverse post-order)
         - Both have O(V + E) complexity
 
@@ -14078,12 +14081,14 @@ class Graph:
         Notes
         -----
         **Memory Warning**:
+
         - Each trail stores full node sequence
         - 1000 trails × 50 nodes each = ~50KB minimum
         - Can quickly consume GB of memory for large graphs
         - Always set max_trails to reasonable value
 
         **Use Cases**:
+
         - Analyzing alternative routes in networks
         - Finding redundant paths for reliability
         - Network vulnerability analysis
@@ -14229,6 +14234,7 @@ class Graph:
         Notes
         -----
         **Interpretation**:
+
         - **High constraint** (approaching 1.0): Ego's contacts are highly
           interconnected. Limited brokerage opportunities, high closure.
         - **Low constraint** (approaching 0.0): Ego's contacts are disconnected.
@@ -14236,11 +14242,13 @@ class Graph:
 
         **Structural holes** occur when ego's contacts are not connected to each
         other, providing opportunities for:
+
         - Information brokerage (access to diverse information)
         - Control benefits (mediating between disconnected groups)
         - Innovation (combining ideas from separate clusters)
 
         **Use cases**:
+
         - Social capital analysis: Who has advantageous network positions?
         - Innovation research: Individuals spanning structural holes
         - Organizational networks: Identifying key boundary spanners
@@ -14441,6 +14449,7 @@ class Graph:
         Returns 0.0 for nodes with degree < 2 (cannot form triangles).
 
         Range: [0, 1] where:
+
         - 0 = neighbors are not connected at all
         - 1 = neighbors form a complete graph (clique)
 
@@ -14539,11 +14548,13 @@ class Graph:
         around an edge is, based on k-cycles (cycles of length k) the edge participates in.
 
         For k=3 (triangles):
+
             - Counts triangles containing the edge
             - Maximum possible: min(d_i - 1, d_j - 1) where d_i, d_j are endpoint degrees
             - Value of 1.0 means edge is in a complete subgraph
 
         For k=4 (4-cycles):
+
             - Counts 4-cycles containing the edge
             - Maximum possible: (d_i - 1)(d_j - 1)
             - Measures "squareness" of edge neighborhood
@@ -14743,6 +14754,7 @@ class Graph:
         good quality communities. Only works with undirected graphs.
 
         Algorithm:
+
         1. Start with each node in its own community
         2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
         3. Repeatedly merge the pair with highest ΔQ until no improvement
