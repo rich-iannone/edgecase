@@ -155,8 +155,10 @@ class TestCountMultiple:
         g.add_edge("A", "B")
         g.add_edge("A", "B")
 
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
         counts = g.count_multiple()
-        assert counts == {("A", "B"): 2}
+        assert counts == {(a_id, b_id): 2}
 
     def test_one_pair_three_edges(self):
         """One pair with three edges."""
@@ -166,8 +168,10 @@ class TestCountMultiple:
         g.add_edge("A", "B")
         g.add_edge("A", "B")
 
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
         counts = g.count_multiple()
-        assert counts == {("A", "B"): 3}
+        assert counts == {(a_id, b_id): 3}
 
     def test_multiple_pairs_with_counts(self):
         """Multiple pairs with different counts."""
@@ -183,11 +187,15 @@ class TestCountMultiple:
         # C->D: 1 edge (not in result)
         g.add_edge("C", "D")
 
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        d_id = g.get_id_from_label("D")
         counts = g.count_multiple()
         assert len(counts) == 2
-        assert counts[("A", "B")] == 2
-        assert counts[("B", "C")] == 3
-        assert ("C", "D") not in counts
+        assert counts[(a_id, b_id)] == 2
+        assert counts[(b_id, c_id)] == 3
+        assert (c_id, d_id) not in counts
 
     def test_undirected_graph_counts(self):
         """Undirected graph counts pairs correctly."""
@@ -197,10 +205,12 @@ class TestCountMultiple:
         g.add_edge("A", "B")
         g.add_edge("A", "B")
 
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
         counts = g.count_multiple()
         assert len(counts) == 1
-        # Should normalize to (A, B) regardless of order
-        assert counts[("A", "B")] == 3
+        # Should normalize to (a_id, b_id) regardless of order
+        assert counts[(a_id, b_id)] == 3
 
     def test_undirected_both_directions_counted(self):
         """Undirected: (A,B) and (B,A) count as same pair."""
@@ -210,9 +220,11 @@ class TestCountMultiple:
         g.add_edge("B", "A")
         g.add_edge("A", "B")
 
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
         counts = g.count_multiple()
         assert len(counts) == 1
-        assert counts[("A", "B")] == 3
+        assert counts[(a_id, b_id)] == 3
 
     def test_self_loops_counted(self):
         """Self-loops are counted as multiple if there are 2+."""
@@ -221,8 +233,9 @@ class TestCountMultiple:
         g.add_edge("A", "A")
         g.add_edge("A", "A")
 
+        a_id = g.get_id_from_label("A")
         counts = g.count_multiple()
-        assert counts[("A", "A")] == 2
+        assert counts[(a_id, a_id)] == 2
 
     def test_directed_different_directions_separate(self):
         """Directed: A->B and B->A are separate pairs."""
@@ -233,10 +246,12 @@ class TestCountMultiple:
         g.add_edge("B", "A")
         g.add_edge("B", "A")
 
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
         counts = g.count_multiple()
         assert len(counts) == 2
-        assert counts[("A", "B")] == 2
-        assert counts[("B", "A")] == 2
+        assert counts[(a_id, b_id)] == 2
+        assert counts[(b_id, a_id)] == 2
 
 
 class TestWhichLoop:
@@ -487,18 +502,19 @@ class TestEdgeCases:
         # B->C: 1 edge (not multiple)
         g.add_edge("B", "C")
 
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+
         multi_counts = g.count_multiple()
         loop_counts = g.count_loops()
 
         # A->B has 3 edges, A->A has 2 edges
-        assert multi_counts[("A", "B")] == 3
-        assert multi_counts[("A", "A")] == 2
-        assert ("B", "C") not in multi_counts
+        assert multi_counts[(a_id, b_id)] == 3
+        assert multi_counts[(a_id, a_id)] == 2
+        assert (b_id, c_id) not in multi_counts
 
         # A has 2 loops, B has 1 loop
-        a_id = g.get_id_from_label("A")
-        b_id = g.get_id_from_label("B")
-        c_id = g.get_id_from_label("C")
         assert loop_counts[a_id] == 2
         assert loop_counts[b_id] == 1
         assert c_id not in loop_counts
