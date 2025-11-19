@@ -17,7 +17,8 @@ class TestTriangleCounting:
         g = ec.Graph()
         g.add_node(label="A")
         counts = g.count_triangles()
-        assert counts["A"] == 0
+        a_id = g.get_id_from_label("A")
+        assert counts[a_id] == 0
 
     def test_count_triangles_single_triangle(self):
         """Single triangle: each node participates in one triangle."""
@@ -30,9 +31,12 @@ class TestTriangleCounting:
         g.add_edge("C", "A")
 
         counts = g.count_triangles()
-        assert counts["A"] == 1
-        assert counts["B"] == 1
-        assert counts["C"] == 1
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        assert counts[a_id] == 1
+        assert counts[b_id] == 1
+        assert counts[c_id] == 1
 
     def test_count_triangles_chain(self):
         """Chain graph has no triangles."""
@@ -63,10 +67,14 @@ class TestTriangleCounting:
         g.add_edge("D", "C")  # Triangle 2
 
         counts = g.count_triangles()
-        assert counts["A"] == 1  # One triangle
-        assert counts["B"] == 2  # Two triangles
-        assert counts["C"] == 2  # Two triangles
-        assert counts["D"] == 1  # One triangle
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        d_id = g.get_id_from_label("D")
+        assert counts[a_id] == 1  # One triangle
+        assert counts[b_id] == 2  # Two triangles
+        assert counts[c_id] == 2  # Two triangles
+        assert counts[d_id] == 1  # One triangle
 
     def test_count_triangles_complete_graph_k4(self):
         """Complete graph K4 has 4 triangles per node."""
@@ -82,7 +90,8 @@ class TestTriangleCounting:
         counts = g.count_triangles()
         # Each node in K4 participates in C(3,2) = 3 triangles
         for node in nodes:
-            assert counts[node] == 3
+            node_id = g.get_id_from_label(node)
+            assert counts[node_id] == 3
 
     def test_count_triangles_directed(self):
         """Test triangle counting in directed graph."""
