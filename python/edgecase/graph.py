@@ -260,19 +260,23 @@ class Graph:
         for row in nodes_df.iter_rows(named=True):
             node_id_value = row["id"]
 
-            # If there's a 'label' column, use it; otherwise use id as label
+            # Extract label (use 'label' column if present, otherwise use id)
             if "label" in attr_cols:
                 label = str(row["label"])
                 # Track id -> label mapping for edge resolution
                 id_to_label[str(node_id_value)] = label
-                # Don't include 'label' in attributes since we're passing it explicitly
-                attributes = {col: row[col] for col in attr_cols if col != "label"}
-                self.add_node(label=label, **attributes)
             else:
                 # Use id as the label
                 label = str(node_id_value)
-                attributes = {col: row[col] for col in attr_cols}
-                self.add_node(label=label, **attributes)
+
+            # Extract type if present
+            type_value = row.get("type") if "type" in attr_cols else None
+
+            # Build attributes dict (excluding 'label' and 'type' since they're first-class)
+            attributes = {col: row[col] for col in attr_cols if col not in ["label", "type"]}
+
+            # Add node with first-class parameters
+            self.add_node(label=label, type=type_value, **attributes)
 
         return id_to_label
 
@@ -353,6 +357,7 @@ class Graph:
     def add_node(
         self,
         label: Optional[str] = None,
+        type: Optional[str] = None,
         from_node: Optional[Union[int, str]] = None,
         to_node: Optional[Union[int, str]] = None,
         **attributes,
@@ -371,6 +376,10 @@ class Graph:
             Optional string label for human-readable node access. Labels should be
             unique if you plan to use them for node lookup in operations like
             `add_edge()`.
+        type
+            Optional string type classification for the node (e.g., 'user', 'admin',
+            'organization'). This is a first-class attribute that always appears as
+            the third column in node DataFrames.
         from_node
             Optional node (ID or label) to connect FROM the new node. Creates a
             directed edge: `new_node -> from_node`.
@@ -440,6 +449,12 @@ class Graph:
         else:
             # Convert label to string if it's not None
             str_label = str(label) if label is not None else None
+
+            # Handle type as a first-class attribute
+            if type is not None:
+                attributes = attributes.copy() if attributes else {}
+                attributes["type"] = type
+
             # Let Rust auto-assign the ID (pass 0 to trigger auto-assignment)
             node = rust.Node(id=0, label=str_label, attributes=attributes if attributes else None)
             new_id = self._graph.add_node(node)
@@ -5867,11 +5882,14 @@ class Graph:
 
         Exports all nodes and their attributes to a Polars DataFrame for tabular analysis. Each
         row represents a node, with columns for the node ID and any attributes set on nodes.
+        The DataFrame always includes 'id', 'label', and 'type' as the first three columns,
+        sorted by id in ascending order.
 
         Returns
         -------
         pl.DataFrame
-            A Polars DataFrame, empty if graph has no nodes.
+            A Polars DataFrame with mandatory columns 'id', 'label', 'type' (first three),
+            followed by other attributes and 'degree'. Empty DataFrame if graph has no nodes.
 
         Examples
         --------
@@ -5886,8 +5904,8 @@ class Graph:
         )
 
         df = graph.get_node_df()
-        print(df.columns)  # ['id', 'score', 'type', 'degree']
-        print(df.shape)    # (3, 4)
+        print(df.columns)  # ['id', 'label', 'type', 'score', 'degree']
+        print(df.shape)    # (3, 5)
 
         # Calculate statistics on node attributes
         import polars as pl
@@ -5900,8 +5918,12 @@ class Graph:
 
         Notes
         -----
-        - Attributes not present on a node will have `None` values
-        - Columns are sorted alphabetically (except 'id' and 'degree')
+        - The 'id', 'label', and 'type' columns are always present (first three columns)
+        - If a node has no label, the label column will contain None
+        - If a node has no type attribute, the type column will contain None
+        - Rows are sorted by id in ascending order
+        - Other attributes not present on a node will have None values
+        - The 'degree' column is always last
 
         See Also
         --------
@@ -5915,29 +5937,38 @@ class Graph:
         if not node_ids:
             return pl.DataFrame()
 
-        # Collect all attributes
-        data = {"id": node_ids}
+        # Build data dictionary with mandatory columns first
+        nodes = [self.get_node(nid) for nid in node_ids]
 
-        # Get all unique attribute keys
+        data = {
+            "id": node_ids,
+            "label": [node.label if node else None for node in nodes],
+            "type": [
+                node.attributes.get("type") if node and node.attributes else None for node in nodes
+            ],
+        }
+
+        # Get all unique attribute keys (excluding 'type' since it's already handled)
         attr_keys = set()
-        for node_id in node_ids:
-            node = self.get_node(node_id)
+        for node in nodes:
             if node and node.attributes:
                 attr_keys.update(node.attributes.keys())
 
-        # Extract attributes
+        # Remove 'type' from attr_keys since it's a first-class column
+        attr_keys.discard("type")
+
+        # Extract other attributes (sorted alphabetically)
         for key in sorted(attr_keys):
             data[key] = [
-                self.get_node(nid).attributes.get(key)
-                if self.get_node(nid) and self.get_node(nid).attributes
-                else None
-                for nid in node_ids
+                node.attributes.get(key) if node and node.attributes else None for node in nodes
             ]
 
-        # Add degree column
+        # Add degree column last
         data["degree"] = [self.get_degree(nid) for nid in node_ids]
 
-        return pl.DataFrame(data)
+        # Create DataFrame and sort by id
+        df = pl.DataFrame(data)
+        return df.sort("id")
 
     def get_node_df_ws(self) -> "pl.DataFrame":
         """
@@ -5945,16 +5976,15 @@ class Graph:
 
         Similar to get_node_df but only exports currently selected nodes. Useful
         for analyzing subsets of nodes after filtering with selection methods.
+        The DataFrame always includes 'id', 'label', and 'type' as the first three
+        columns, sorted by id in ascending order.
 
         Returns
         -------
         pl.DataFrame
-            DataFrame with columns:
-            - 'id': Node ID (str)
-            - Attribute columns: One per unique attribute across selected nodes
-            - 'degree': Node degree (int)
-
-            Empty DataFrame if no nodes are selected.
+            DataFrame with mandatory columns 'id', 'label', 'type' (first three),
+            followed by other attributes and 'degree'. Empty DataFrame if no nodes
+            are selected.
 
         Examples
         --------
@@ -5997,8 +6027,12 @@ class Graph:
         Notes
         -----
         - Returns empty DataFrame if no nodes are selected
+        - The 'id', 'label', and 'type' columns are always present (first three)
+        - If a node has no label, the label column will contain None
+        - If a node has no type attribute, the type column will contain None
+        - Rows are sorted by id in ascending order
         - Use selection methods before calling this
-        - Same behavior as get_node_df but filtered to selection
+        - Same structure as get_node_df but filtered to selection
 
         See Also
         --------
@@ -6013,24 +6047,38 @@ class Graph:
         if not node_ids:
             return pl.DataFrame()
 
-        # Use same logic as get_node_df but with selected nodes
-        data = {"id": node_ids}
+        # Build data dictionary with mandatory columns first
+        nodes = [self.get_node(nid) for nid in node_ids]
 
+        data = {
+            "id": node_ids,
+            "label": [node.label if node else None for node in nodes],
+            "type": [
+                node.attributes.get("type") if node and node.attributes else None for node in nodes
+            ],
+        }
+
+        # Get all unique attribute keys (excluding 'type' since it's already handled)
         attr_keys = set()
-        for node_id in node_ids:
-            node = self.get_node(node_id)
+        for node in nodes:
             if node and node.attributes:
                 attr_keys.update(node.attributes.keys())
 
+        # Remove 'type' from attr_keys since it's a first-class column
+        attr_keys.discard("type")
+
+        # Extract other attributes (sorted alphabetically)
         for key in sorted(attr_keys):
             data[key] = [
-                self.get_node(nid).attributes.get(key)
-                if self.get_node(nid) and self.get_node(nid).attributes
-                else None
-                for nid in node_ids
+                node.attributes.get(key) if node and node.attributes else None for node in nodes
             ]
 
-        # Add degree column
+        # Add degree column last
+        data["degree"] = [self.get_degree(nid) for nid in node_ids]
+
+        # Create DataFrame and sort by id
+        df = pl.DataFrame(data)
+        return df.sort("id")
         data["degree"] = [self.get_degree(nid) for nid in node_ids]
 
         return pl.DataFrame(data)
