@@ -9199,11 +9199,11 @@ class Graph:
 
     def get_edge_clustering_coefficient(
         self,
-        edge_ids: list[str] | None = None,
+        edge_ids: list[int] | None = None,
         k: int = 3,
         normalize: bool = True,
         offset: bool = True,
-    ) -> dict[str, float]:
+    ) -> dict[int, float]:
         """Get edge clustering coefficient for specified edges.
 
         The edge clustering coefficient measures how "clustered" the neighborhood
@@ -9221,8 +9221,8 @@ class Graph:
 
         Parameters
         ----------
-        edge_ids : list[str] | None, optional
-            List of edge IDs to compute coefficient for. If None, computes for all edges.
+        edge_ids : list[int] | None, optional
+            List of edge IDs (integers) to compute coefficient for. If None, computes for all edges.
         k : int, default=3
             Cycle size to use. Must be 3 (triangles) or 4 (4-cycles).
         normalize : bool, default=True
@@ -9235,8 +9235,8 @@ class Graph:
 
         Returns
         -------
-        dict[str, float]
-            Mapping from edge ID to clustering coefficient.
+        dict[int, float]
+            Mapping from edge ID (integer) to clustering coefficient.
             - With normalize=True: range [0, 1+] (can exceed 1 with offset)
             - With normalize=False: raw cycle count
 
@@ -9329,25 +9329,14 @@ class Graph:
         Proceedings of the National Academy of Sciences, 101(9), 2658-2663.
         https://doi.org/10.1073/pnas.0400054101
         """
-        # Convert edge_ids from string labels to internal IDs
-        edge_id_list = []
-        if edge_ids is not None:
-            for edge_str_id in edge_ids:
-                # Find edge by string ID
-                found = False
-                for edge in self._graph.edges:
-                    if str(edge.id) == edge_str_id:
-                        edge_id_list.append(edge.id)
-                        found = True
-                        break
-                if not found:
-                    raise ValueError(f"Edge ID '{edge_str_id}' not found")
+        # Use edge_ids directly (they are already integers)
+        edge_id_list = edge_ids if edge_ids is not None else []
 
         # Call Rust implementation
         result = self._graph.get_edge_clustering_coefficient(edge_id_list, k, normalize, offset)
 
-        # Convert result keys back to string IDs
-        return {str(k): v for k, v in result.items()}
+        # Return result directly (keys are already integers)
+        return result
 
     # ========== Clustering Methods ==========
 
