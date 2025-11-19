@@ -303,29 +303,29 @@ class TestDegreeDistribution:
 
 
 class TestCountSelfloops:
-    """Test count_selfloops() method."""
+    """Test count_all_loops() method."""
 
-    def test_count_selfloops_empty(self):
+    def test_count_all_loops_empty(self):
         """Empty graph has 0 self-loops."""
         G = ec.Graph()
-        assert G.count_selfloops() == 0
+        assert G.count_all_loops() == 0
 
-    def test_count_selfloops_none(self):
+    def test_count_all_loops_none(self):
         """Graph with no self-loops."""
         G = ec.Graph()
         G.add_path_graph(4)
-        assert G.count_selfloops() == 0
+        assert G.count_all_loops() == 0
 
-    def test_count_selfloops_single(self):
+    def test_count_all_loops_single(self):
         """Graph with one self-loop."""
         G = ec.Graph()
         for label in ["A", "B"]:
             G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("A", "A")
-        assert G.count_selfloops() == 1
+        assert G.count_all_loops() == 1
 
-    def test_count_selfloops_multiple(self):
+    def test_count_all_loops_multiple(self):
         """Graph with multiple self-loops."""
         G = ec.Graph()
         for label in ["A", "B", "C"]:
@@ -334,7 +334,7 @@ class TestCountSelfloops:
         G.add_edge("B", "B")
         G.add_edge("C", "C")
         G.add_edge("A", "B")
-        assert G.count_selfloops() == 3
+        assert G.count_all_loops() == 3
 
 
 class TestAverageDegree:
@@ -375,7 +375,7 @@ class TestStructuralPropertiesIntegration:
         assert G1.is_connected()
         assert G1.is_simple()
         assert G1.is_bipartite()
-        assert G1.count_selfloops() == 0
+        assert G1.count_all_loops() == 0
 
         # Cycle graph
         G2 = ec.Graph().add_cycle_graph(6)

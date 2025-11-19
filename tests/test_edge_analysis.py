@@ -7,50 +7,50 @@ import edgecase as ec
 class TestLoopEdges:
     """Test self-loop counting."""
 
-    def test_count_loop_edges_empty(self):
+    def test_count_all_loops_empty(self):
         """Empty graph has no loops."""
         G = ec.Graph()
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
 
-    def test_count_loop_edges_no_loops(self):
+    def test_count_all_loops_no_loops(self):
         """Graph with no self-loops."""
         G = ec.Graph()
         G.add_edge("A", "B", auto_create_nodes=True)
         G.add_edge("B", "C", auto_create_nodes=True)
         G.add_edge("C", "D", auto_create_nodes=True)
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
 
-    def test_count_loop_edges_single(self):
+    def test_count_all_loops_single(self):
         """Graph with one self-loop."""
         G = ec.Graph()
         G.add_edge("A", "B", auto_create_nodes=True)
         G.add_edge("A", "A", auto_create_nodes=True)  # Self-loop
         G.add_edge("B", "C", auto_create_nodes=True)
-        assert G.count_loop_edges() == 1
+        assert G.count_all_loops() == 1
 
-    def test_count_loop_edges_multiple(self):
+    def test_count_all_loops_multiple(self):
         """Graph with multiple self-loops."""
         G = ec.Graph()
         G.add_edge("A", "A", auto_create_nodes=True)  # Loop 1
         G.add_edge("A", "B", auto_create_nodes=True)
         G.add_edge("B", "B", auto_create_nodes=True)  # Loop 2
         G.add_edge("C", "C", auto_create_nodes=True)  # Loop 3
-        assert G.count_loop_edges() == 3
+        assert G.count_all_loops() == 3
 
-    def test_count_loop_edges_only_loops(self):
+    def test_count_all_loops_only_loops(self):
         """Graph with only self-loops."""
         G = ec.Graph()
         G.add_edge("A", "A", auto_create_nodes=True)
         G.add_edge("B", "B", auto_create_nodes=True)
         G.add_edge("C", "C", auto_create_nodes=True)
-        assert G.count_loop_edges() == 3
+        assert G.count_all_loops() == 3
 
-    def test_count_selfloops_alias(self):
-        """count_selfloops() is an alias for count_loop_edges()."""
+    def test_count_all_loops_alias(self):
+        """count_all_loops() is an alias for count_all_loops()."""
         G = ec.Graph()
         G.add_edge("A", "A", auto_create_nodes=True)
         G.add_edge("B", "B", auto_create_nodes=True)
-        assert G.count_selfloops() == G.count_loop_edges() == 2
+        assert G.count_all_loops() == G.count_all_loops() == 2
 
 
 class TestMultiEdges:
@@ -274,7 +274,7 @@ class TestEdgeAnalysisIntegration:
         G.add_edge("E", "E", id=5, auto_create_nodes=True)  # Self-loop
         G.add_edge("F", "G", id=6, auto_create_nodes=True)  # Asymmetric
 
-        assert G.count_loop_edges() == 1
+        assert G.count_all_loops() == 1
         assert G.count_multi_edges() == 1
         assert G.count_mutual_node_pairs() == 1
         assert G.count_asymmetric_node_pairs() == 2
@@ -295,7 +295,7 @@ class TestEdgeAnalysisIntegration:
         G.add_edge("Dave", "Eve", auto_create_nodes=True)
 
         # No self-loops in social network
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
         # No multi-edges
         assert G.count_multi_edges() == 0
         # 2 mutual friendships
@@ -315,7 +315,7 @@ class TestEdgeAnalysisIntegration:
         G.add_edge("Paper2021", "Paper2019", auto_create_nodes=True)
 
         # No self-citations
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
         # Multiple citations to same paper (not multi-edges, different sources)
         assert G.count_multi_edges() == 0
         # No mutual citations (no time travel!)
@@ -350,13 +350,13 @@ class TestEdgeAnalysisIntegration:
         G_complex.add_edge("C", "C", auto_create_nodes=True)  # Loop
 
         # Simple graph
-        assert G_simple.count_loop_edges() == 0
+        assert G_simple.count_all_loops() == 0
         assert G_simple.count_multi_edges() == 0
         assert G_simple.count_mutual_node_pairs() == 0
         assert G_simple.count_asymmetric_node_pairs() == 3
 
         # Complex graph
-        assert G_complex.count_loop_edges() == 1
+        assert G_complex.count_all_loops() == 1
         assert G_complex.count_multi_edges() == 1
         assert G_complex.count_mutual_node_pairs() == 1
         assert G_complex.count_asymmetric_node_pairs() == 0
@@ -369,7 +369,7 @@ class TestEdgeAnalysisEdgeCases:
         """Single node with no edges."""
         G = ec.Graph(directed=True)
         G.add_node("A")
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
         assert G.count_multi_edges() == 0
         assert G.count_mutual_node_pairs() == 0
         assert G.count_asymmetric_node_pairs() == 0
@@ -378,7 +378,7 @@ class TestEdgeAnalysisEdgeCases:
         """Single node with only self-loop."""
         G = ec.Graph(directed=True)
         G.add_edge("A", "A", auto_create_nodes=True)
-        assert G.count_loop_edges() == 1
+        assert G.count_all_loops() == 1
         assert G.count_multi_edges() == 0
         assert G.count_mutual_node_pairs() == 0
         assert G.count_asymmetric_node_pairs() == 0
@@ -388,7 +388,7 @@ class TestEdgeAnalysisEdgeCases:
         G = ec.Graph(directed=True)
         G.add_edge("A", "B", auto_create_nodes=True)
         G.add_edge("B", "A", auto_create_nodes=True)
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
         assert G.count_multi_edges() == 0
         assert G.count_mutual_node_pairs() == 1
         assert G.count_asymmetric_node_pairs() == 0
@@ -400,7 +400,7 @@ class TestEdgeAnalysisEdgeCases:
         for i in range(5):
             G.add_edge(hub, f"Node{i}", auto_create_nodes=True)
 
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
         assert G.count_multi_edges() == 0
         assert G.count_mutual_node_pairs() == 0
         assert G.count_asymmetric_node_pairs() == 5
@@ -413,7 +413,7 @@ class TestEdgeAnalysisEdgeCases:
         G.add_edge("C", "D", auto_create_nodes=True)
         G.add_edge("D", "A", auto_create_nodes=True)  # Complete cycle
 
-        assert G.count_loop_edges() == 0
+        assert G.count_all_loops() == 0
         assert G.count_multi_edges() == 0
         assert G.count_mutual_node_pairs() == 0
         assert G.count_asymmetric_node_pairs() == 4
