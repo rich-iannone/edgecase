@@ -61,7 +61,7 @@ def example_2_multigraph_validation():
         has_multiples = len(multiples) > 0
 
         # Check for self-loops
-        loops = g.which_loop()
+        loops = g.which_loops()
         has_loops = len(loops) > 0
 
         # Determine graph type
@@ -144,7 +144,7 @@ def example_4_self_loop_analysis():
     print(f"\nState machine: {g.count_nodes()} states, {g.count_edges()} transitions")
 
     # Find self-loops (states that loop to themselves)
-    loops = g.which_loop()
+    loops = g.which_loops()
     loop_counts = g.count_loops()
 
     print(f"\nSelf-transitions found: {len(loops)}")
@@ -188,7 +188,7 @@ def example_5_social_network_self_mentions():
     print(f"\nMention network: {g.count_nodes()} users, {g.count_edges()} mentions")
 
     # Find self-mentions
-    self_mentions = g.which_loop()
+    self_mentions = g.which_loops()
     self_mention_counts = g.count_loops()
 
     print(f"\nUsers with self-mentions: {len(self_mention_counts)}")
