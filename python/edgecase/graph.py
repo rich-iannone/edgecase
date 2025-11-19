@@ -8899,7 +8899,7 @@ class Graph:
         target: Union[int, str],
         epsilon: float = 1.0,
         weight_attr: str = "weight",
-        heuristic: Optional[Callable[[str, str], float]] = None,
+        heuristic: Optional[Callable[[Union[int, str], Union[int, str]], float]] = None,
         reuse_planner: bool = False,
     ) -> list[int]:
         """
@@ -8923,10 +8923,10 @@ class Graph:
             Edge attribute to use as weight. Falls back to `edge.weight` if
             attribute not found.
         heuristic
-            Custom heuristic function h(node_id, target_id) -> float
-            that estimates cost from any node to target. Must be admissible
-            (never overestimate). If None, uses zero heuristic (equivalent
-            to Dijkstra's algorithm).
+            Custom heuristic function h(node, target) -> float that estimates
+            cost from any node to target. Parameters can be node IDs (int) or
+            labels (str). Must be admissible (never overestimate). If None, uses
+            zero heuristic (equivalent to Dijkstra's algorithm).
         reuse_planner
             If True, reuses planner state from previous call with same source/target.
             Enables iterative refinement by calling with decreasing epsilon values.
@@ -8994,10 +8994,10 @@ class Graph:
 
         graph = (
             Graph(directed=True, weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
+            .add_node(label="A", x=0.0, y=0.0)
+            .add_node(label="B", x=1.0, y=0.0)
+            .add_node(label="C", x=1.0, y=1.0)
+            .add_node(label="D", x=2.0, y=1.0)
             .add_edge(source="A", target="B", weight=1.0)
             .add_edge(source="A", target="C", weight=4.0)
             .add_edge(source="B", target="C", weight=2.0)
@@ -9005,14 +9005,27 @@ class Graph:
             .add_edge(source="B", target="D", weight=5.0)
         )
 
-        positions = {"A": (0, 0), "B": (1, 0), "C": (1, 1), "D": (2, 1)}
-
-        def euclidean(node: str, target: str) -> float:
-            x1, y1 = positions[node]
-            x2, y2 = positions[target]
+        # Heuristic using labels
+        def euclidean_labels(node: str, target: str) -> float:
+            n1 = graph.get_node_from_label(node)
+            n2 = graph.get_node_from_label(target)
+            x1, y1 = n1.attributes["x"], n1.attributes["y"]
+            x2, y2 = n2.attributes["x"], n2.attributes["y"]
             return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
 
-        path = graph.ada_star_search(source="A", target="D", heuristic=euclidean)
+        path = graph.ada_star_search(source="A", target="D", heuristic=euclidean_labels)
+
+        # Heuristic using node IDs
+        def euclidean_ids(node_id: int, target_id: int) -> float:
+            n1 = graph.get_node(node_id)
+            n2 = graph.get_node(target_id)
+            x1, y1 = n1.attributes["x"], n1.attributes["y"]
+            x2, y2 = n2.attributes["x"], n2.attributes["y"]
+            return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+
+        a_id = graph.get_id_from_label("A")
+        d_id = graph.get_id_from_label("D")
+        path = graph.ada_star_search(source=a_id, target=d_id, heuristic=euclidean_ids)
         ```
 
         Iterative refinement (anytime behavior):
@@ -17310,8 +17323,8 @@ class AdaStar:
     def __init__(
         self,
         graph,
-        source: str,
-        target: str,
+        source: Union[int, str],
+        target: Union[int, str],
         weight: str = "weight",
         initial_epsilon: float = 1000.0,
         heuristic=None,
@@ -17324,15 +17337,16 @@ class AdaStar:
         graph
             The graph to search.
         source
-            Label of source node.
+            Source node ID (int) or label (str).
         target
-            Label of target node.
+            Target node ID (int) or label (str).
         weight
             Edge attribute name for weights (default: "weight").
         initial_epsilon
             Initial epsilon for suboptimality bound (default: 1000.0).
         heuristic
-            Heuristic function h(u_id, v_id) -> float. If None, uses h=0.
+            Heuristic function h(u, v) -> float where u and v can be node IDs or labels.
+            If None, uses h=0.
         """
         from ._core import AdaStar as RustAdaStar
 
@@ -17340,9 +17354,9 @@ class AdaStar:
         self.source = source
         self.target = target
 
-        # Get internal node IDs
-        self.source_id = graph.get_id_from_label(source)
-        self.target_id = graph.get_id_from_label(target)
+        # Get internal node IDs - handle both IDs and labels
+        self.source_id = graph._resolve_node_id(source)
+        self.target_id = graph._resolve_node_id(target)
 
         if self.source_id is None:
             raise ValueError(f"Source node '{source}' not found in graph")
