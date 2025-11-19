@@ -98,12 +98,15 @@ def test_add_node_increases_count(G):
 @given(G=small_graphs())
 @settings(max_examples=100)
 def test_add_duplicate_node_no_change(G):
-    """Adding duplicate node should not change count"""
+    """Adding duplicate node with same label should create a new node (different ID)"""
     if G.count_nodes() > 0:
-        node = G.get_node_ids(limit=None)[0]
+        node_id = G.get_node_ids(limit=None)[0]
+        label = G.get_label_from_id(node_id)
         initial = G.count_nodes()
-        G.add_node(node)
-        assert G.count_nodes() == initial
+        # Adding node with same label creates a new node (IDs are auto-managed)
+        G.add_node(label=label)
+        # Should create a new node since IDs are different
+        assert G.count_nodes() == initial + 1
 
 
 # Undirected graph property tests

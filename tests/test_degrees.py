@@ -328,8 +328,8 @@ class TestDegreesRealWorld:
         g = ec.karate_club()
         result = g.degrees(return_dict=True)
 
-        # Karate club has 33 nodes
-        assert len(result) == 33
+        # Karate club has 34 nodes
+        assert len(result) == 34
 
         # All degrees should be positive
         assert all(d > 0 for d in result.values())
@@ -346,7 +346,7 @@ class TestDegreesRealWorld:
 
         ndf = g.get_node_df()
         assert "degree" in ndf.columns
-        assert len(ndf) == 33
+        assert len(ndf) == 34
 
         # Verify degrees were computed
         degree_col = ndf["degree"]

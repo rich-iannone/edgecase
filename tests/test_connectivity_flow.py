@@ -239,8 +239,9 @@ class TestMinCutBetween:
         G = ec.Graph()
         G.add_grid_2d(3, 3)
 
-        # In 3x3 grid, corner to opposite corner (node 1 to node 9)
-        min_cut = G.get_min_cut_between("1", "9")
+        # In 3x3 grid, corner to opposite corner
+        # Grid creates nodes with coordinate labels like "(0,0)", "(2,2)"
+        min_cut = G.get_min_cut_between("(0,0)", "(2,2)")
         # Should have multiple paths
         assert min_cut >= 2
 

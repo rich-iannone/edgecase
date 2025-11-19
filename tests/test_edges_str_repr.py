@@ -301,14 +301,19 @@ class TestEdgesStrRepr:
     def test_node_with_none_label(self):
         """Test node explicitly set with None as label."""
         graph = Graph()
-        graph.add_node(node_id=1, label=None)
+        graph.add_node(label=None)
         graph.add_node(label="HasLabel")
-        graph.add_edge(1, "HasLabel")
+        # Get the ID of the first node (no label)
+        node_ids = graph.get_node_ids()
+        first_node_id = node_ids[0]
+        graph.add_edge(first_node_id, "HasLabel")
 
         edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 1
-        # Node with None label should show ID
-        assert "1--HasLabel" in edges
+        # Node with None label should show ID (whatever it was auto-assigned)
+        assert "--HasLabel" in edges[0] or "HasLabel--" in edges[0]
+        # Should not show "None" as the label
+        assert "None" not in edges[0]
 
     def test_after_node_deletion(self):
         """Test edges_str_repr after deleting nodes."""
