@@ -328,8 +328,9 @@ class Graph:
             source = id_to_label_map.get(source_id, source_id)
             target = id_to_label_map.get(target_id, target_id)
 
-            # Extract weight and other attributes
+            # Extract weight, rel, and other attributes
             weight = None
+            rel_value = None
             other_attrs = {}
 
             for col in attr_cols:
@@ -341,14 +342,16 @@ class Graph:
                         else:
                             # If graph not weighted, treat weight as regular attribute
                             other_attrs[col] = value
+                    elif col == "rel":
+                        rel_value = value
                     else:
                         other_attrs[col] = value
 
             # Only pass weight parameter if graph is weighted
             if self.is_weighted():
-                self.add_edge(source, target, weight=weight, **other_attrs)
+                self.add_edge(source, target, weight=weight, rel=rel_value, **other_attrs)
             else:
-                self.add_edge(source, target, **other_attrs)
+                self.add_edge(source, target, rel=rel_value, **other_attrs)
 
     # ==============================================================================
     # Graph Construction
@@ -474,6 +477,7 @@ class Graph:
         self,
         source: Union[int, str, rust.Edge],
         target: Optional[Union[int, str]] = None,
+        rel: Optional[str] = None,
         weight: Optional[float] = None,
         auto_create_nodes: bool = False,
         **attributes,
@@ -493,6 +497,10 @@ class Graph:
             The target node identifier (ID or label).
         weight
             Optional edge weight for weighted graphs. Ignored if the graph is unweighted.
+        rel
+            Optional string relationship type for the edge (e.g., 'friend', 'follows',
+            'manages'). This is a first-class attribute that always appears as the
+            fourth column in edge DataFrames.
         auto_create_nodes
             If `True`, automatically create nodes (with labels) if they don't exist.
             If `False`, raises an error if source or target nodes don't exist.
@@ -555,6 +563,17 @@ class Graph:
         )
         ```
 
+        Add edges with relationship type:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_edge(source="Alice", target="Bob", rel="friend")
+        )
+        ```
+
         Add edges with custom attributes:
 
         ```python
@@ -562,7 +581,7 @@ class Graph:
             Graph()
             .add_node(label="Alice")
             .add_node(label="Bob")
-            .add_edge(source="Alice", target="Bob", relationship="friend", since=2020)
+            .add_edge(source="Alice", target="Bob", rel="friend", since=2020)
         )
         ```
 
@@ -592,6 +611,11 @@ class Graph:
                     f"Target node {target} (ID {target_id}) does not exist. "
                     f"Add it with add_node() first or use auto_create_nodes=True."
                 )
+
+        # Handle rel as a first-class attribute
+        if rel is not None:
+            attributes = attributes.copy() if attributes else {}
+            attributes["rel"] = rel
 
         # Create edge with auto-assigned ID (0 triggers auto-assignment)
         edge = rust.Edge(
@@ -6085,15 +6109,23 @@ class Graph:
 
     def get_edge_df(self) -> "pl.DataFrame":
         """
-        Get edges as a Polars DataFrame.
+        Get edges as a Polars DataFrame with standardized structure.
 
-        Exports all edges and their attributes to a Polars DataFrame for tabular analysis. Each
-        row represents an edge, with columns for the edge ID, endpoints, and any attributes.
+        Returns all edges with a consistent column structure:
+        - Column 1: `id` (i64, mandatory, sorted ascending)
+        - Column 2: `source` (i64, mandatory)
+        - Column 3: `target` (i64, mandatory)
+        - Column 4: `rel` (str, mandatory, null if not set)
+        - Columns 5-N: Other attributes (alphabetically sorted)
+        - Weight is included as a special attribute if present
+
+        The DataFrame is always sorted by edge ID in ascending order.
 
         Returns
         -------
         pl.DataFrame
-            A Polars DataFrame, empty if graph has no nodes.
+            A Polars DataFrame with edges sorted by id.
+            Returns empty DataFrame if graph has no edges.
 
         Examples
         --------
@@ -6106,57 +6138,65 @@ class Graph:
             .add_node("B")
             .add_node("C")
             .add_node("D")
-            .add_edge("A", "B", weight=1.5, type="friend")
-            .add_edge("B", "C", weight=2.0, type="colleague")
-            .add_edge("C", "D", weight=1.0, type="friend")
+            .add_edge("A", "B", weight=1.5, rel="friend")
+            .add_edge("B", "C", weight=2.0, rel="colleague")
+            .add_edge("C", "D", weight=1.0, rel="friend")
         )
 
         df = graph.get_edge_df()
-        print(df.columns)  # ['id', 'source', 'target', 'type', 'weight']
+        print(df.columns)  # ['id', 'source', 'target', 'rel', 'weight']
         print(df.shape)    # (3, 5)
 
-        # Filter edges by weight
+        # Filter edges by relationship type
         import polars as pl
-        strong_edges = df.filter(pl.col("weight") > 1.5)
+        friends = df.filter(pl.col("rel") == "friend")
 
-        # Count edge types
-        type_counts = df.group_by("type").count()
+        # Count relationship types
+        rel_counts = df.group_by("rel").count()
 
-        # Average weight per source node
-        avg_by_source = df.group_by("source").agg(pl.col("weight").mean())
+        # Average weight per relationship type
+        avg_by_rel = df.group_by("rel").agg(pl.col("weight").mean())
         ```
 
         Notes
         -----
-        - Attributes not present on an edge will have `None` values
-        - Weight is treated as a special attribute column
-        - Columns are sorted alphabetically (except 'id', 'source', 'target')
+        - First 4 columns always: id, source, target, rel (in that order)
+        - Missing rel values appear as null (not omitted)
+        - Other attributes sorted alphabetically
+        - DataFrame sorted by id ascending
+        - Weight treated as a special attribute column
 
         See Also
         --------
-        get_node_df : Get nodes as DataFrame
+        get_node_df : Get nodes as DataFrame with standardized structure
         get_edge_df_ws : Get selected edges as DataFrame
         get_edge_attrs : Get specific attribute across edges
         """
         import polars as pl
 
-        edge_ids = self.get_edge_ids()
+        edge_ids = self.get_edge_ids(limit=None)
         if not edge_ids:
             return pl.DataFrame()
 
-        # Collect basic edge info
-        data = {"id": edge_ids}
-
-        # Add source and target columns
-        edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
-        data["source"] = [e[0] if e else None for e in edges]
-        data["target"] = [e[1] if e else None for e in edges]
-
-        # Get all unique attribute keys (including weight)
-        attr_keys = set()
+        # Get edge objects (avoid repeated get_edge calls)
         edges_list = [self.get_edge(eid) for eid in edge_ids]
 
-        # Check for weight attribute
+        # Get source and target for each edge
+        endpoints = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
+
+        # Build ordered dictionary for consistent column order
+        data = {}
+        data["id"] = edge_ids
+        data["source"] = [e[0] if e else None for e in endpoints]
+        data["target"] = [e[1] if e else None for e in endpoints]
+
+        # Always include rel column (even if all null)
+        data["rel"] = [e.attributes.get("rel") if e and e.attributes else None for e in edges_list]
+
+        # Collect all attribute keys (excluding rel since it's first-class)
+        attr_keys = set()
+
+        # Check for weight
         if any(e and e.weight is not None for e in edges_list):
             attr_keys.add("weight")
 
@@ -6165,7 +6205,10 @@ class Graph:
             if edge and edge.attributes:
                 attr_keys.update(edge.attributes.keys())
 
-        # Extract attributes
+        # Remove rel from generic attributes (already handled as first-class)
+        attr_keys.discard("rel")
+
+        # Sort remaining attributes alphabetically
         for key in sorted(attr_keys):
             if key == "weight":
                 data[key] = [e.weight if e else None for e in edges_list]
@@ -6174,26 +6217,28 @@ class Graph:
                     e.attributes.get(key) if e and e.attributes else None for e in edges_list
                 ]
 
-        return pl.DataFrame(data)
+        # Create DataFrame and sort by id
+        df = pl.DataFrame(data)
+        return df.sort("id")
 
     def get_edge_df_ws(self) -> "pl.DataFrame":
         """
-        Get selected edges as a Polars DataFrame.
+        Get selected edges as a Polars DataFrame with standardized structure.
 
-        Similar to `get_edge_df()` but only exports currently selected edges. Useful for analyzing
-        subsets of edges after filtering with selection methods.
+        Similar to `get_edge_df()` but only exports currently selected edges. Uses the same
+        consistent column structure with id, source, target, and rel as first 4 columns.
 
         Returns
         -------
         pl.DataFrame
-            DataFrame with columns:
-            - 'id': Edge ID (int)
-            - 'source': Source node ID (str)
-            - 'target': Target node ID (str)
-            - Attribute columns: One per unique attribute across selected edges
-            - 'weight': Edge weight (float, if any selected edge has weight)
+            DataFrame with edges sorted by id, containing:
+            - Column 1: `id` (i64, mandatory)
+            - Column 2: `source` (i64, mandatory)
+            - Column 3: `target` (i64, mandatory)
+            - Column 4: `rel` (str, mandatory, null if not set)
+            - Columns 5-N: Other attributes (alphabetically sorted)
 
-            Empty DataFrame if no edges are selected.
+            Returns empty DataFrame if no edges are selected.
 
         Examples
         --------
@@ -6206,15 +6251,15 @@ class Graph:
             .add_node(label="B")
             .add_node(label="C")
             .add_node(label="D")
-            .add_edge(source="A", target="B", weight=1.5)
-            .add_edge(source="B", target="C", weight=0.5)
-            .add_edge(source="C", target="D", weight=2.0)
-            .select_edges(lambda e: e.weight and e.weight > 1.0)
+            .add_edge(source="A", target="B", weight=1.5, rel="friend")
+            .add_edge(source="B", target="C", weight=0.5, rel="colleague")
+            .add_edge(source="C", target="D", weight=2.0, rel="friend")
+            .select_edges(lambda e: e.attributes and e.attributes.get("rel") == "friend")
         )
 
         df = graph.get_edge_df_ws()
-        # Only high-weight edges in DataFrame
-        print(df["weight"].mean())
+        # Only friend edges in DataFrame
+        print(df["rel"].value_counts())
         ```
 
         Combine selection with DataFrame analysis:
@@ -6230,9 +6275,10 @@ class Graph:
 
         Notes
         -----
-        - Returns empty DataFrame if no edges are selected
-        - Use selection methods before calling this
-        - Same behavior as get_edge_df but filtered to selection
+        - First 4 columns always: id, source, target, rel (in that order)
+        - Missing rel values appear as null
+        - DataFrame sorted by id ascending
+        - Same structure as get_edge_df() but filtered to selection
 
         See Also
         --------
@@ -6247,18 +6293,25 @@ class Graph:
         if not edge_ids:
             return pl.DataFrame()
 
-        data = {"id": edge_ids}
-
-        # Add source and target columns
-        edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
-        data["source"] = [e[0] if e else None for e in edges]
-        data["target"] = [e[1] if e else None for e in edges]
-
-        # Get all unique attribute keys (including weight)
-        attr_keys = set()
+        # Get edge objects (avoid repeated get_edge calls)
         edges_list = [self.get_edge(eid) for eid in edge_ids]
 
-        # Check for weight attribute
+        # Get source and target for each edge
+        endpoints = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
+
+        # Build ordered dictionary for consistent column order
+        data = {}
+        data["id"] = edge_ids
+        data["source"] = [e[0] if e else None for e in endpoints]
+        data["target"] = [e[1] if e else None for e in endpoints]
+
+        # Always include rel column (even if all null)
+        data["rel"] = [e.attributes.get("rel") if e and e.attributes else None for e in edges_list]
+
+        # Collect all attribute keys (excluding rel since it's first-class)
+        attr_keys = set()
+
+        # Check for weight
         if any(e and e.weight is not None for e in edges_list):
             attr_keys.add("weight")
 
@@ -6267,7 +6320,10 @@ class Graph:
             if edge and edge.attributes:
                 attr_keys.update(edge.attributes.keys())
 
-        # Extract attributes
+        # Remove rel from generic attributes (already handled as first-class)
+        attr_keys.discard("rel")
+
+        # Sort remaining attributes alphabetically
         for key in sorted(attr_keys):
             if key == "weight":
                 data[key] = [e.weight if e else None for e in edges_list]
@@ -6276,7 +6332,9 @@ class Graph:
                     e.attributes.get(key) if e and e.attributes else None for e in edges_list
                 ]
 
-        return pl.DataFrame(data)
+        # Create DataFrame and sort by id
+        df = pl.DataFrame(data)
+        return df.sort("id")
 
     def mutate_node_attrs_ws(self, attr: str, func: Callable) -> "Graph":
         """
