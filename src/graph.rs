@@ -2767,19 +2767,15 @@ impl Graph {
     /// g = ec.Graph()
     /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
     /// counts = g.count_triangles()
-    /// # Returns: {"A": 1, "B": 1, "C": 1}
+    /// # Returns: {node_id_a: 1, node_id_b: 1, node_id_c: 1}
     /// ```
     pub fn count_triangles(&self, py: Python) -> PyResult<Py<PyDict>> {
         let triangle_counts = crate::algorithms::structural::count_triangles(self);
 
-        // Convert to Python dict with node labels
+        // Convert to Python dict with node IDs
         let result = PyDict::new(py);
         for (node_id, count) in triangle_counts {
-            let label = match self.label_from_id(node_id)? {
-                Some(l) => l,
-                None => node_id.to_string(),
-            };
-            result.set_item(label, count)?;
+            result.set_item(node_id, count)?;
         }
 
         Ok(result.into())

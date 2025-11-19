@@ -5714,7 +5714,7 @@ class Graph:
 
     # --- Triangle & Transitivity Analysis ---
 
-    def count_triangles(self) -> dict[str, int]:
+    def count_triangles(self) -> dict[int, int]:
         """Count triangles containing each node.
 
         Returns the number of triangles that include each node in the graph.
@@ -5729,8 +5729,8 @@ class Graph:
 
         Returns
         -------
-        dict[str, int]
-            Dictionary mapping node labels (or string IDs) to triangle counts.
+        dict[int, int]
+            Dictionary mapping node IDs to triangle counts.
 
         Examples
         --------
@@ -5748,7 +5748,11 @@ class Graph:
         )
 
         counts = graph.count_triangles()
-        print(counts)  # {"A": 1, "B": 1, "C": 1}
+        # Returns node IDs: {node_id_a: 1, node_id_b: 1, node_id_c: 1}
+
+        # Convert to labels if needed
+        counts_by_label = {graph.get_label_from_id(nid): count for nid, count in counts.items()}
+        print(counts_by_label)  # {"A": 1, "B": 1, "C": 1}
         ```
 
         Count triangles in a more complex graph:
@@ -5769,15 +5773,19 @@ class Graph:
         )
 
         counts = graph.count_triangles()
-        # B and C each participate in 2 triangles
-        print(counts)  # {"A": 1, "B": 2, "C": 2, "D": 1}
+        # Returns node IDs - B and C each participate in 2 triangles
+
+        # Convert to labels for display
+        for node_id, count in counts.items():
+            label = graph.get_label_from_id(node_id)
+            print(f"{label}: {count} triangles")
         ```
 
         See Also
         --------
         list_triangles : Get list of all triangles
         local_clustering_coefficient : Per-node clustering based on triangles
-        transitivity : Global clustering coefficient
+        get_transitivity : Global clustering coefficient
         """
         return self._graph.count_triangles()
 
