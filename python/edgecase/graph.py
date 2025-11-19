@@ -13748,13 +13748,11 @@ class Graph:
 
         return pl.DataFrame(data)
 
-    def neighbors(
-        self, node_id: Union[int, str], mode: str = "out", predicate: Optional[Callable] = None
-    ) -> list[int]:
-        """Get neighbors of a node with optional filtering.
+    def neighbors(self, node_id: Union[int, str], mode: str = "out") -> list[int]:
+        """Get neighbors of a node.
 
         Returns the neighboring nodes of a specified node, with control over
-        directionality (for directed graphs) and optional predicate filtering.
+        directionality (for directed graphs).
 
         For directed graphs, the default mode is "out" (outgoing neighbors only).
         For undirected graphs, mode doesn't affect the result since all edges are bidirectional.
@@ -13768,14 +13766,11 @@ class Graph:
             - `'out'` : Only successors (outgoing edges) - default for directed graphs
             - `'in'` : Only predecessors (incoming edges)
             - `'all'` : Both successors and predecessors
-        predicate : callable, optional
-            Filter function that takes a node ID (int) and returns `True` to include it
-            in the results. If `None`, all neighbors are returned.
 
         Returns
         ---
         list[int]
-            List of neighbor node IDs matching the specified criteria.
+            List of neighbor node IDs.
 
         Raises
         ---
@@ -13816,27 +13811,6 @@ class Graph:
         print(neighbor_labels)  # ['B']
         ```
 
-        Filtered neighbor lookup with predicate:
-
-        ```python
-        graph = (
-            ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="C")
-            .add_edge(source="C", target="D")
-        )
-        a_id = graph.get_id_from_label("A")
-        # Predicate receives node IDs (int), not labels
-        high_degree_neighbors = graph.neighbors(
-            a_id,
-            predicate=lambda node_id: graph.get_degree(node_id) > 2
-        )
-        ```
-
         See Also
         --------
         get_predecessors : Get incoming neighbors (directed only)
@@ -13866,10 +13840,6 @@ class Graph:
         if not self._graph.is_directed and mode != "all":
             # Already got all neighbors via adjacency list
             pass
-
-        # Apply predicate filter if provided
-        if predicate:
-            neighbors = [n for n in neighbors if predicate(n)]
 
         return neighbors
 
