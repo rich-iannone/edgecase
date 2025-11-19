@@ -2795,7 +2795,7 @@ impl Graph {
     /// O(m * d_max) where m is the number of edges and d_max is the maximum degree
     ///
     /// # Returns
-    /// List of tuples (node1, node2, node3) representing triangles
+    /// List of tuples (node_id1, node_id2, node_id3) representing triangles
     ///
     /// # Example
     /// ```python
@@ -2803,28 +2803,15 @@ impl Graph {
     /// g = ec.Graph()
     /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
     /// triangles = g.list_triangles()
-    /// # Returns: [("A", "B", "C")]
+    /// # Returns: [(a_id, b_id, c_id)] where a_id, b_id, c_id are node IDs
     /// ```
     pub fn list_triangles(&self, py: Python) -> PyResult<Py<PyList>> {
         let triangles = crate::algorithms::structural::list_triangles(self);
 
-        // Convert to Python list with node labels
+        // Convert to Python list with node IDs
         let result = PyList::empty(py);
         for (n1, n2, n3) in triangles {
-            let label1 = match self.label_from_id(n1)? {
-                Some(l) => l,
-                None => n1.to_string(),
-            };
-            let label2 = match self.label_from_id(n2)? {
-                Some(l) => l,
-                None => n2.to_string(),
-            };
-            let label3 = match self.label_from_id(n3)? {
-                Some(l) => l,
-                None => n3.to_string(),
-            };
-
-            let tuple = PyTuple::new_bound(py, &[label1, label2, label3]);
+            let tuple = PyTuple::new_bound(py, &[n1, n2, n3]);
             result.append(tuple)?;
         }
 

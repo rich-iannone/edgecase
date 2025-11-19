@@ -5781,19 +5781,19 @@ class Graph:
         """
         return self._graph.count_triangles()
 
-    def list_triangles(self) -> list[tuple[str, str, str]]:
+    def list_triangles(self) -> list[tuple[int, int, int]]:
         """List all triangles in the graph.
 
         Returns a list of all triangles (3-cycles) in the graph. Each triangle is
-        represented as a sorted tuple of three node labels. For undirected graphs,
+        represented as a sorted tuple of three node IDs. For undirected graphs,
         each triangle appears once. For directed graphs, lists directed triangles.
 
         Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
 
         Returns
         -------
-        list[tuple[str, str, str]]
-            List of triangles, where each triangle is a tuple of three node labels.
+        list[tuple[int, int, int]]
+            List of triangles, where each triangle is a tuple of three node IDs.
 
         Examples
         --------
@@ -5814,7 +5814,14 @@ class Graph:
         )
 
         triangles = graph.list_triangles()
-        print(triangles)  # [("A", "B", "C"), ("A", "B", "D")]
+        # Returns node IDs: [(a_id, b_id, c_id), (a_id, b_id, d_id)]
+
+        # Convert to labels if needed
+        triangles_labels = [
+            tuple(graph.get_label_from_id(nid) for nid in tri)
+            for tri in triangles
+        ]
+        print(triangles_labels)  # [("A", "B", "C"), ("A", "B", "D")]
         ```
 
         For larger graphs, this can identify all triadic closures:
@@ -5834,14 +5841,17 @@ class Graph:
             .add_edge(source="David", target="Bob")
         )
 
+        # Returns node IDs
         for tri in graph.list_triangles():
-            print(f"Triangle: {tri}")
+            # Convert to labels for display
+            labels = tuple(graph.get_label_from_id(nid) for nid in tri)
+            print(f"Triangle: {labels}")
         ```
 
         See Also
         --------
         count_triangles : Count triangles per node
-        transitivity : Ratio of triangles to possible triangles
+        get_transitivity : Ratio of triangles to possible triangles
         """
         return self._graph.list_triangles()
 
