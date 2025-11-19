@@ -40,7 +40,6 @@ from edgecase.graph import (
     Edge,
     Graph,
     Node,
-    get_cycles,
 )
 from edgecase.io import (
     from_matrix_market,

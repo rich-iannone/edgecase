@@ -16785,36 +16785,6 @@ class Graph:
         return result.rstrip()  # Remove trailing newline
 
 
-# ==============================================================================
-# Standalone Helper Functions
-# ==============================================================================
-
-
-def get_cycles(graph: Graph, min_length: int = 2) -> list[list[int]]:
-    """Get all elementary cycles in the graph using Johnson's algorithm.
-
-    This is a standalone function that calls the Graph method. For most use cases,
-    prefer using `graph.get_cycles()` instead.
-
-    Parameters
-    ----------
-    graph : Graph
-        The graph to search for cycles. Must be directed.
-    min_length : int, default=2
-        Minimum cycle length to report.
-
-    Returns
-    -------
-    list[list[int]]
-        A list of cycles, where each cycle is a list of node IDs.
-
-    See Also
-    --------
-    Graph.get_cycles : Method version with full documentation
-    """
-    return graph.get_cycles(min_length=min_length)
-
-
 # ============================================================================
 # Pathfinding Classes
 # ============================================================================
