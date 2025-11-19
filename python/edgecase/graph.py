@@ -134,12 +134,14 @@ class Graph:
         considered in algorithms. If `False`, all edges are treated equally.
     nodes_df
         Optional Polars DataFrame to initialize nodes. Should contain at minimum
-        an `id` column with node identifiers. Additional columns are treated as
-        node attributes.
+        an `id` column with node identifiers. The values in the `id` column are
+        used as node **labels** (not internal node IDs, which are auto-managed).
+        Additional columns are treated as node attributes.
     edges_df
         Optional Polars DataFrame to initialize edges. Should contain at minimum
-        `from` and `to` columns with node identifiers. Additional columns are treated
-        as edge attributes (including optional `weight` column).
+        `from` and `to` columns with node identifiers that reference the `id`
+        values from `nodes_df`. Additional columns are treated as edge attributes
+        (including optional `weight` column).
     graph_name
         Optional name for the graph (stored as a graph attribute).
 
@@ -165,6 +167,7 @@ class Graph:
     from edgecase import Graph
 
     # Create node data frame (NDF)
+    # Note: 'id' column values become node labels, not internal node IDs
     nodes_df = pl.DataFrame({
         "id": ["A", "B", "C"],
         "type": ["person", "person", "person"],
@@ -229,11 +232,17 @@ class Graph:
         """
         Initialize nodes from a Polars DataFrame.
 
+        The 'id' column values are used as node labels, not internal node IDs.
+        Internal node IDs are auto-assigned by EdgeCase. If a separate 'label'
+        column exists, it takes precedence as the label, and the 'id' column
+        values are used only for edge resolution.
+
         Parameters
         ----------
         nodes_df
-            DataFrame with at minimum an 'id' column. Other columns become node attributes.
-            If 'label' column exists, maps id -> label for edge resolution.
+            DataFrame with at minimum an 'id' column. Values in 'id' become node
+            labels (unless a separate 'label' column exists). Other columns become
+            node attributes.
 
         Returns
         -------
@@ -987,17 +996,23 @@ class Graph:
         Create a graph from Polars DataFrames following an NDF/EDF pattern.
 
         Constructs a graph from structured tabular data. Node DataFrame (NDF) must
-        have 'id' column; Edge DataFrame (EDF) must have 'from'/'to' columns. Additional
-        columns become node/edge attributes.
+        have 'id' column; Edge DataFrame (EDF) must have 'from'/'to' columns.
+
+        **Important**: The 'id' column in `nodes_df` contains values that become
+        node **labels**, not internal node IDs. Internal node IDs are auto-managed
+        by EdgeCase. The 'from' and 'to' columns in `edges_df` reference these
+        'id' values to specify which nodes to connect.
 
         Parameters
         ----------
         nodes_df
-            Node data with required 'id' column plus optional 'type', 'label', and
-            custom attribute columns.
+            Node data with required 'id' column (values become node labels) plus
+            optional 'type', 'label', and custom attribute columns. If a 'label'
+            column is provided, it takes precedence as the node label.
         edges_df
-            Edge data with required 'from'/'to' columns plus optional 'id', 'rel',
-            and custom attribute columns. If 'id' omitted, auto-assigned.
+            Edge data with required 'from'/'to' columns (reference 'id' values from
+            nodes_df) plus optional 'id', 'rel', and custom attribute columns.
+            The 'id' column in edges_df is ignored (edge IDs are auto-assigned).
         directed
             Whether to create a directed graph.
 
@@ -1008,6 +1023,8 @@ class Graph:
 
         Examples
         --------
+        Create a graph from DataFrames with string identifiers:
+
         ```python
         import edgecase as ec
         import polars as pl
@@ -1018,7 +1035,7 @@ class Graph:
             'label': ['Alice', 'Bob', 'Charlie']
         })
         edges = pl.DataFrame({
-            'id': [1, 2],
+            'id': [1, 2],  # Edge IDs are ignored (auto-assigned)
             'from': ['A', 'B'],
             'to': ['B', 'C'],
             'rel': ['follows', 'follows']
@@ -1027,6 +1044,30 @@ class Graph:
         graph = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
         print(graph.count_nodes())  # 3
         print(graph.count_edges())  # 2
+        ```
+
+        Create a graph with numeric identifiers (converted to labels):
+
+        ```python
+        import edgecase as ec
+        import polars as pl
+
+        # Numeric IDs are converted to string labels
+        nodes = pl.DataFrame({
+            'id': [1, 2, 3],
+            'label': ['Alice', 'Bob', 'Charlie'],
+            'type': ['person', 'person', 'person']
+        })
+
+        edges = pl.DataFrame({
+            'from': [1, 2, 3],
+            'to': [2, 3, 1],
+            'rel': ['friend', 'colleague', 'friend']
+        })
+
+        graph = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
+        # Nodes have labels: 'Alice', 'Bob', 'Charlie' (from 'label' column)
+        # Internal node IDs are auto-assigned: 1, 2, 3
         ```
 
         See Also
