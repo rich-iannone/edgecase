@@ -148,7 +148,9 @@ def demo_social_network():
     print(f"Edge IDs: {g.get_edge_ids()}")
 
     # Find all Alice -> Bob interactions
-    alice_bob = [(eid, s, t) for eid, s, t in g.get_edges_as_tuples() if s == "Alice" and t == "Bob"]
+    alice_bob = [
+        (eid, s, t) for eid, s, t in g.get_edges_as_tuples() if s == "Alice" and t == "Bob"
+    ]
     print(f"\nAlice -> Bob has {len(alice_bob)} different interaction types:")
     for eid, s, t in alice_bob:
         print(f"  Edge {eid}: {s} -> {t}")
