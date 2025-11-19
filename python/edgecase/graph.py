@@ -312,8 +312,8 @@ class Graph:
                 label = str(node_value)
                 self.add_node(label=label)
 
-        # Get attribute columns (everything except 'from' and 'to')
-        attr_cols = [col for col in edges_df.columns if col not in ["from", "to"]]
+        # Get attribute columns (everything except 'from', 'to', and 'id')
+        attr_cols = [col for col in edges_df.columns if col not in ["from", "to", "id"]]
 
         # Add each edge with its attributes
         for row in edges_df.iter_rows(named=True):
@@ -324,16 +324,27 @@ class Graph:
             source = id_to_label_map.get(source_id, source_id)
             target = id_to_label_map.get(target_id, target_id)
 
-            # Extract weight if present and graph is weighted
+            # Extract weight and other attributes
             weight = None
             other_attrs = {}
-            for col in attr_cols:
-                if col == "weight" and self.is_weighted():
-                    weight = row[col]
-                else:
-                    other_attrs[col] = row[col]
 
-            self.add_edge(source, target, weight=weight, **other_attrs)
+            for col in attr_cols:
+                value = row[col]
+                if value is not None:  # Skip None values
+                    if col == "weight":
+                        if self.is_weighted():
+                            weight = value
+                        else:
+                            # If graph not weighted, treat weight as regular attribute
+                            other_attrs[col] = value
+                    else:
+                        other_attrs[col] = value
+
+            # Only pass weight parameter if graph is weighted
+            if self.is_weighted():
+                self.add_edge(source, target, weight=weight, **other_attrs)
+            else:
+                self.add_edge(source, target, **other_attrs)
 
     # ==============================================================================
     # Graph Construction
@@ -980,144 +991,6 @@ class Graph:
         # Edge selection is automatically cleared since edges no longer exist
 
         return self
-
-    # ====================================================================
-    # Graph from DataFrames
-    # ====================================================================
-
-    @classmethod
-    def from_dataframes(
-        cls,
-        nodes_df: Optional[pl.DataFrame] = None,
-        edges_df: Optional[pl.DataFrame] = None,
-        directed: bool = False,
-    ) -> "Graph":
-        """
-        Create a graph from Polars DataFrames following an NDF/EDF pattern.
-
-        Constructs a graph from structured tabular data. Node DataFrame (NDF) must
-        have 'id' column; Edge DataFrame (EDF) must have 'from'/'to' columns.
-
-        **Important**: The 'id' column in `nodes_df` contains values that become
-        node **labels**, not internal node IDs. Internal node IDs are auto-managed
-        by EdgeCase. The 'from' and 'to' columns in `edges_df` reference these
-        'id' values to specify which nodes to connect.
-
-        Parameters
-        ----------
-        nodes_df
-            Node data with required 'id' column (values become node labels) plus
-            optional 'type', 'label', and custom attribute columns. If a 'label'
-            column is provided, it takes precedence as the node label.
-        edges_df
-            Edge data with required 'from'/'to' columns (reference 'id' values from
-            nodes_df) plus optional 'id', 'rel', and custom attribute columns.
-            The 'id' column in edges_df is ignored (edge IDs are auto-assigned).
-        directed
-            Whether to create a directed graph.
-
-        Returns
-        -------
-        Graph
-            A new Graph object with nodes/edges from the DataFrames.
-
-        Examples
-        --------
-        Create a graph from DataFrames with string identifiers:
-
-        ```python
-        import edgecase as ec
-        import polars as pl
-
-        nodes = pl.DataFrame({
-            'id': ['A', 'B', 'C'],
-            'type': ['user', 'user', 'admin'],
-            'label': ['Alice', 'Bob', 'Charlie']
-        })
-        edges = pl.DataFrame({
-            'id': [1, 2],  # Edge IDs are ignored (auto-assigned)
-            'from': ['A', 'B'],
-            'to': ['B', 'C'],
-            'rel': ['follows', 'follows']
-        })
-
-        graph = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
-        print(graph.count_nodes())  # 3
-        print(graph.count_edges())  # 2
-        ```
-
-        Create a graph with numeric identifiers (converted to labels):
-
-        ```python
-        import edgecase as ec
-        import polars as pl
-
-        # Numeric IDs are converted to string labels
-        nodes = pl.DataFrame({
-            'id': [1, 2, 3],
-            'label': ['Alice', 'Bob', 'Charlie'],
-            'type': ['person', 'person', 'person']
-        })
-
-        edges = pl.DataFrame({
-            'from': [1, 2, 3],
-            'to': [2, 3, 1],
-            'rel': ['friend', 'colleague', 'friend']
-        })
-
-        graph = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges)
-        # Nodes have labels: 'Alice', 'Bob', 'Charlie' (from 'label' column)
-        # Internal node IDs are auto-assigned: 1, 2, 3
-        ```
-
-        See Also
-        --------
-        add_node : Add individual nodes
-        add_edge : Add individual edges
-        node_df : Extract node data as DataFrame
-        edge_df : Extract edge data as DataFrame
-        """
-        g = cls(directed=directed)
-
-        # Add nodes if provided
-        if nodes_df is not None:
-            if "id" not in nodes_df.columns:
-                raise ValueError("nodes_df must have an 'id' column")
-
-            for row in nodes_df.iter_rows(named=True):
-                # Use 'label' column if present, otherwise use 'id' as label
-                if "label" in row and row["label"] is not None:
-                    label = str(row["label"])
-                else:
-                    label = str(row["id"])
-
-                # Exclude 'id' and 'label' from attributes (they're used for identification)
-                attrs = {k: v for k, v in row.items() if k not in ["id", "label"] and v is not None}
-                g.add_node(label=label, **attrs)
-
-        # Add edges if provided
-        if edges_df is not None:
-            if "from" not in edges_df.columns or "to" not in edges_df.columns:
-                raise ValueError("edges_df must have 'from' and 'to' columns")
-
-            for row in edges_df.iter_rows(named=True):
-                source = str(row["from"])
-                target = str(row["to"])
-
-                # Separate edge attributes from special columns (id is ignored, auto-assigned)
-                attrs = {
-                    k: v for k, v in row.items() if k not in ["id", "from", "to"] and v is not None
-                }
-
-                # Ensure nodes exist
-                if not g.has_node(source):
-                    g.add_node(label=source)
-                if not g.has_node(target):
-                    g.add_node(label=target)
-
-                g.add_edge(source, target, **attrs)
-
-        return g
 
     # ====================================================================
     # Graph Information
