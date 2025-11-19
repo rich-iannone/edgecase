@@ -239,7 +239,7 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
             if attr_value is not None:
                 node_attributes[attr_name] = attr_value
 
-        graph.add_node(node_id_str, **node_attributes)
+        graph.add_node(label=node_id_str, **node_attributes)
 
     # Get all edge attribute names
     edge_attrs = ig_graph.es.attributes()

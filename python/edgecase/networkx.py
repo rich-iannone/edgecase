@@ -216,7 +216,7 @@ def from_networkx(nx_graph, weighted: Optional[bool] = None):
     for node_id, node_attrs in nx_graph.nodes(data=True):
         # Convert node_id to string (EdgeCase uses string node IDs)
         node_id_str = str(node_id)
-        graph.add_node(node_id_str, **node_attrs)
+        graph.add_node(label=node_id_str, **node_attrs)
 
     # Add edges with attributes
     if nx_graph.is_multigraph():

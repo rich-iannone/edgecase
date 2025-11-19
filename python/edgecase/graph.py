@@ -251,19 +251,19 @@ class Graph:
         for row in nodes_df.iter_rows(named=True):
             node_id_value = row["id"]
 
-            # If there's a 'label' column, use id as node_id and label separately
+            # If there's a 'label' column, use it; otherwise use id as label
             if "label" in attr_cols:
                 label = str(row["label"])
                 # Track id -> label mapping for edge resolution
                 id_to_label[str(node_id_value)] = label
                 # Don't include 'label' in attributes since we're passing it explicitly
                 attributes = {col: row[col] for col in attr_cols if col != "label"}
-                self.add_node(node_id=node_id_value, label=label, **attributes)
+                self.add_node(label=label, **attributes)
             else:
-                # Use id as both node_id and label
+                # Use id as the label
                 label = str(node_id_value)
                 attributes = {col: row[col] for col in attr_cols}
-                self.add_node(node_id=node_id_value, label=label, **attributes)
+                self.add_node(label=label, **attributes)
 
         return id_to_label
 
@@ -332,7 +332,6 @@ class Graph:
 
     def add_node(
         self,
-        node_id: Optional[Union[int, str]] = None,
         label: Optional[str] = None,
         from_node: Optional[Union[int, str]] = None,
         to_node: Optional[Union[int, str]] = None,
@@ -343,16 +342,11 @@ class Graph:
 
         This method provides flexible node creation, allowing you to add isolated nodes,
         nodes with labels, or nodes that are immediately connected to existing nodes.
-        Node IDs are 64-bit unsigned integers managed internally, while labels provide
-        human-readable identifiers.
+        Node IDs are 64-bit unsigned integers managed automatically by EdgeCase, while
+        labels provide human-readable identifiers.
 
         Parameters
         ----------
-        node_id
-            The node identifier, which can be:
-            - `None`: Auto-generate a unique u64 ID (recommended)
-            - `int`: Use this specific integer as the node ID
-            - `str`: Treat as a label and auto-generate an ID
         label
             Optional string label for human-readable node access. Labels should be
             unique if you plan to use them for node lookup in operations like
@@ -420,39 +414,14 @@ class Graph:
         get_id_from_label : Look up node ID by label
         get_label_from_id : Look up node label by ID
         """
-        # Handle different input patterns for node_id
-        if isinstance(node_id, rust.Node):
-            # Direct Rust Node object - already has u64 ID
-            new_id = self._graph.add_node(node_id)
+        # Handle direct Rust Node object (for backward compatibility)
+        if isinstance(label, rust.Node):
+            new_id = self._graph.add_node(label)
         else:
-            # Determine label and ID
-            final_label = None
-            final_id = None
-
-            if isinstance(node_id, str):
-                # String node_id is treated as a label
-                final_label = node_id
-            elif isinstance(node_id, int):
-                # Integer node_id is used as the ID
-                final_id = node_id
-                final_label = label
-            elif node_id is None:
-                # Auto-generate ID
-                final_label = label
-            else:
-                raise TypeError(f"node_id must be int, str, or None, got {type(node_id)}")
-
-            # Create the node with u64 ID and optional label
-            if final_id is not None:
-                node = rust.Node(
-                    id=final_id, label=final_label, attributes=attributes if attributes else None
-                )
-            else:
-                # Let Rust auto-assign the ID (pass 0 to trigger auto-assignment)
-                node = rust.Node(
-                    id=0, label=final_label, attributes=attributes if attributes else None
-                )
-
+            # Convert label to string if it's not None
+            str_label = str(label) if label is not None else None
+            # Let Rust auto-assign the ID (pass 0 to trigger auto-assignment)
+            node = rust.Node(id=0, label=str_label, attributes=attributes if attributes else None)
             new_id = self._graph.add_node(node)
 
         # Add edges if from_node or to_node specified
@@ -1079,9 +1048,15 @@ class Graph:
                 raise ValueError("nodes_df must have an 'id' column")
 
             for row in nodes_df.iter_rows(named=True):
-                node_id = str(row["id"])
-                attrs = {k: v for k, v in row.items() if k != "id" and v is not None}
-                g.add_node(node_id, **attrs)
+                # Use 'label' column if present, otherwise use 'id' as label
+                if "label" in row and row["label"] is not None:
+                    label = str(row["label"])
+                else:
+                    label = str(row["id"])
+
+                # Exclude 'id' and 'label' from attributes (they're used for identification)
+                attrs = {k: v for k, v in row.items() if k not in ["id", "label"] and v is not None}
+                g.add_node(label=label, **attrs)
 
         # Add edges if provided
         if edges_df is not None:
@@ -1102,9 +1077,9 @@ class Graph:
 
                 # Ensure nodes exist
                 if not g.has_node(source):
-                    g.add_node(source)
+                    g.add_node(label=source)
                 if not g.has_node(target):
-                    g.add_node(target)
+                    g.add_node(label=target)
 
                 g.add_edge(source, target, edge_id=edge_id, **attrs)
 
@@ -1533,13 +1508,11 @@ class Graph:
 
         # Add nodes
         for i in range(n):
-            node_id = str(start_id + i)
+            node_label = str(start_id + i) if label else None
             attrs = {}
             if type:
                 attrs["type"] = type
-            if label:
-                attrs["label"] = node_id
-            self.add_node(node_id, **attrs)
+            self.add_node(label=node_label, **attrs)
 
         # Add edges (path has n-1 edges)
         for i in range(n - 1):
@@ -1666,13 +1639,11 @@ class Graph:
 
         # Add all nodes
         for i in range(n):
-            node_id = str(start_id + i)
+            node_label = str(start_id + i) if label else None
             attrs = {}
             if type:
                 attrs["type"] = type
-            if label:
-                attrs["label"] = node_id
-            self.add_node(node_id, **attrs)
+            self.add_node(label=node_label, **attrs)
 
         # Add edges from center to all other nodes
         for i in range(1, n):
@@ -1739,13 +1710,11 @@ class Graph:
 
         # Add nodes
         for i in range(n):
-            node_id = str(start_id + i)
+            node_label = str(start_id + i) if label else None
             attrs = {}
             if type:
                 attrs["type"] = type
-            if label:
-                attrs["label"] = node_id
-            self.add_node(node_id, **attrs)
+            self.add_node(label=node_label, **attrs)
 
         # Add edges between all pairs
         edge_attrs = {}
@@ -1841,13 +1810,16 @@ class Graph:
         queue = deque()
 
         # Add root
-        root_id = str(start_id + node_count)
+        root_label = str(start_id + node_count) if label else None
         attrs = {}
         if type:
             attrs["type"] = type
-        if label:
-            attrs["label"] = root_id
-        self.add_node(root_id, **attrs)
+        self.add_node(label=root_label, **attrs)
+        # Get the ID of the newly added node
+        if root_label:
+            root_id = self.get_id_from_label(root_label)
+        else:
+            root_id = self.count_nodes()  # Last added node ID
         queue.append((root_id, 0))  # (node_id, level)
         node_count += 1
 
@@ -1858,13 +1830,16 @@ class Graph:
             if level < h:
                 # Add k children for this parent
                 for _ in range(k):
-                    child_id = str(start_id + node_count)
+                    child_label = str(start_id + node_count) if label else None
                     attrs = {}
                     if type:
                         attrs["type"] = type
-                    if label:
-                        attrs["label"] = child_id
-                    self.add_node(child_id, **attrs)
+                    self.add_node(label=child_label, **attrs)
+                    # Get the ID of newly added node
+                    if child_label:
+                        child_id = self.get_id_from_label(child_label)
+                    else:
+                        child_id = self.count_nodes()  # Last added node
                     self.add_edge(parent_id, child_id, **edge_attrs)
                     queue.append((child_id, level + 1))
                     node_count += 1
@@ -1926,13 +1901,14 @@ class Graph:
         # Add nodes in grid layout
         for i in range(rows):
             for j in range(cols):
-                node_id = str(start_id + i * cols + j)
+                if label:
+                    node_label = f"({i},{j})"
+                else:
+                    node_label = None
                 attrs = {}
                 if type:
                     attrs["type"] = type
-                if label:
-                    attrs["label"] = f"({i},{j})"
-                self.add_node(node_id, **attrs)
+                self.add_node(label=node_label, **attrs)
 
         # Add edges
         edge_attrs = {}
@@ -1941,16 +1917,29 @@ class Graph:
 
         for i in range(rows):
             for j in range(cols):
-                current = str(start_id + i * cols + j)
+                if label:
+                    current = f"({i},{j})"
+                else:
+                    # Need to use node IDs - get from position in creation order
+                    current_idx = start_id + i * cols + j
+                    # Since we can't reliably get IDs without labels, we need to track them
+                    # For now, use position-based ID lookup
+                    current = start_id + i * cols + j
 
                 # Connect to right neighbor (if exists)
                 if j < cols - 1:
-                    right = str(start_id + i * cols + (j + 1))
+                    if label:
+                        right = f"({i},{j + 1})"
+                    else:
+                        right = start_id + i * cols + (j + 1)
                     self.add_edge(current, right, **edge_attrs)
 
                 # Connect to bottom neighbor (if exists)
                 if i < rows - 1:
-                    bottom = str(start_id + (i + 1) * cols + j)
+                    if label:
+                        bottom = f"({i + 1},{j})"
+                    else:
+                        bottom = start_id + (i + 1) * cols + j
                     self.add_edge(current, bottom, **edge_attrs)
 
         return self
@@ -2007,44 +1996,58 @@ class Graph:
         # Add first cycle
         cycle1_start = start_id
         for i in range(n):
-            node_id = str(cycle1_start + i)
+            if label:
+                node_label = f"{cycle1_start + i}_top"
+            else:
+                node_label = None
             attrs = {}
             if type:
                 attrs["type"] = type
-            if label:
-                attrs["label"] = f"{node_id}_top"
-            self.add_node(node_id, **attrs)
+            self.add_node(label=node_label, **attrs)
 
         # Connect first cycle
         edge_attrs = {}
         if rel:
             edge_attrs["rel"] = rel
         for i in range(n):
-            source = str(cycle1_start + i)
-            target = str(cycle1_start + ((i + 1) % n))
-            self.add_edge(source, target, **edge_attrs)
+            if label:
+                current = f"{cycle1_start + i}_top"
+                next_node = f"{cycle1_start + ((i + 1) % n)}_top"
+            else:
+                current = cycle1_start + i
+                next_node = cycle1_start + ((i + 1) % n)
+            self.add_edge(current, next_node, **edge_attrs)
 
         # Add second cycle
         cycle2_start = cycle1_start + n
         for i in range(n):
-            node_id = str(cycle2_start + i)
+            if label:
+                node_label = f"{cycle2_start + i}_bottom"
+            else:
+                node_label = None
             attrs = {}
             if type:
                 attrs["type"] = type
-            if label:
-                attrs["label"] = f"{node_id}_bottom"
-            self.add_node(node_id, **attrs)
+            self.add_node(label=node_label, **attrs)
 
         # Connect second cycle
         for i in range(n):
-            source = str(cycle2_start + i)
-            target = str(cycle2_start + ((i + 1) % n))
-            self.add_edge(source, target, **edge_attrs)
+            if label:
+                current = f"{cycle2_start + i}_bottom"
+                next_node = f"{cycle2_start + ((i + 1) % n)}_bottom"
+            else:
+                current = cycle2_start + i
+                next_node = cycle2_start + ((i + 1) % n)
+            self.add_edge(current, next_node, **edge_attrs)
 
         # Connect corresponding nodes between cycles
         for i in range(n):
-            top_node = str(cycle1_start + i)
-            bottom_node = str(cycle2_start + i)
+            if label:
+                top_node = f"{cycle1_start + i}_top"
+                bottom_node = f"{cycle2_start + i}_bottom"
+            else:
+                top_node = cycle1_start + i
+                bottom_node = cycle2_start + i
             self.add_edge(top_node, bottom_node, **edge_attrs)
 
         return self
@@ -2103,7 +2106,8 @@ class Graph:
             temp._graph.generate_gnp_graph(n, p, seed)
             # Copy nodes and edges to this graph
             for node_id in temp.get_node_ids(limit=None):
-                self.add_node(node_id)
+                node_label = temp.get_label_from_id(node_id)
+                self.add_node(label=node_label)
             for source, target in temp.edges():
                 self.add_edge(source, target)
         else:
@@ -2167,7 +2171,8 @@ class Graph:
             temp._graph.generate_gnm_graph(n, m, seed)
             # Copy nodes and edges to this graph
             for node_id in temp.get_node_ids(limit=None):
-                self.add_node(node_id)
+                node_label = temp.get_label_from_id(node_id)
+                self.add_node(label=node_label)
             for source, target in temp.edges():
                 self.add_edge(source, target)
         else:
@@ -7158,22 +7163,27 @@ class Graph:
             # Add nodes with their attributes
             for node_id in selected_nodes:
                 node = self.get_node(node_id)
+                node_label = self.get_label_from_id(node_id)
                 if node and node.attributes:
-                    subgraph.add_node(node_id, **node.attributes)
+                    subgraph.add_node(label=node_label, **node.attributes)
                 else:
-                    subgraph.add_node(node_id)
+                    subgraph.add_node(label=node_label)
 
             # Add edges that connect selected nodes
             for edge_id in self.get_edge_ids():
                 edge = self.get_edge(edge_id)
                 if edge and edge.source in node_set and edge.target in node_set:
+                    # Get labels for source and target (use labels, not original IDs)
+                    source_label = self.get_label_from_id(edge.source)
+                    target_label = self.get_label_from_id(edge.target)
+
                     # Prepare edge attributes
                     attrs = {}
                     if edge.weight is not None:
                         attrs["weight"] = edge.weight
                     if edge.attributes:
                         attrs.update(edge.attributes)
-                    subgraph.add_edge(edge.source, edge.target, **attrs)
+                    subgraph.add_edge(source_label, target_label, **attrs)
 
         elif len(selected_edges) > 0:
             # Edge-based subgraph: include selected edges and their endpoints
@@ -7191,19 +7201,24 @@ class Graph:
             # Add nodes
             for node_id in nodes_to_add:
                 node = self.get_node(node_id)
+                node_label = self.get_label_from_id(node_id)
                 if node and node.attributes:
-                    subgraph.add_node(node_id, **node.attributes)
+                    subgraph.add_node(label=node_label, **node.attributes)
                 else:
-                    subgraph.add_node(node_id)
+                    subgraph.add_node(label=node_label)
 
             # Add edges
             for edge in edges_to_add:
+                # Get labels for source and target (use labels, not original IDs)
+                source_label = self.get_label_from_id(edge.source)
+                target_label = self.get_label_from_id(edge.target)
+
                 attrs = {}
                 if edge.weight is not None:
                     attrs["weight"] = edge.weight
                 if edge.attributes:
                     attrs.update(edge.attributes)
-                subgraph.add_edge(edge.source, edge.target, **attrs)
+                subgraph.add_edge(source_label, target_label, **attrs)
 
         return subgraph
 
