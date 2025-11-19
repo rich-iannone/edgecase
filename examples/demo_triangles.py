@@ -59,12 +59,12 @@ def example_2_clustering_coefficients():
     )
 
     # Global transitivity
-    trans = g.get_graph_transitivity()
+    trans = g.get_transitivity()
     print(f"\nGlobal transitivity: {trans:.4f}")
     print("  (Fraction of connected triples that form triangles)")
 
     # Local clustering per node
-    clustering = g.local_clustering_coefficient()
+    clustering = g.local_clustering_coefficient(return_dict=True)
     print("\nLocal clustering coefficients:")
     for node in ["Alice", "Bob", "Charlie", "David", "Eve", "Frank"]:
         coeff = clustering[node]
@@ -118,18 +118,18 @@ def example_3_social_network_analysis():
 
     # Analyze structure
     print("\nNetwork structure analysis:")
-    print(f"  Nodes: {g.num_nodes()}")
-    print(f"  Edges: {g.num_edges()}")
+    print(f"  Nodes: {g.count_nodes()}")
+    print(f"  Edges: {g.count_edges()}")
     print(f"  Density: {g.get_graph_density():.4f}")
 
     # Triangle analysis
     triangle_counts = g.count_triangles()
     total_triangles = sum(triangle_counts.values()) // 3
     print(f"\n  Total triangles: {total_triangles}")
-    print(f"  Global transitivity: {g.get_graph_transitivity():.4f}")
+    print(f"  Global transitivity: {g.get_transitivity():.4f}")
 
     # Identify highly clustered nodes (potential community cores)
-    clustering = g.local_clustering_coefficient()
+    clustering = g.local_clustering_coefficient(return_dict=True)
     highly_clustered = [
         (node, coeff) for node, coeff in clustering.items() if coeff and coeff > 0.5
     ]
@@ -198,11 +198,11 @@ def example_4_compare_network_types():
     for name, g in graphs:
         triangle_counts = g.count_triangles()
         total_tri = sum(triangle_counts.values()) // 3
-        trans = g.get_graph_transitivity()
+        trans = g.get_transitivity()
         trans_str = f"{trans:.4f}" if trans is not None else "None"
 
         print(
-            f"{name:<20s} {g.num_nodes():>6d} {g.num_edges():>6d} {total_tri:>10d} {trans_str:>12s}"
+            f"{name:<20s} {g.count_nodes():>6d} {g.count_edges():>6d} {total_tri:>10d} {trans_str:>12s}"
         )
 
     print("\nObservations:")
@@ -254,8 +254,8 @@ def example_5_fraud_detection_pattern():
     triangle_counts = g.count_triangles()
 
     print("\nTransaction network analysis:")
-    print(f"  Total accounts: {g.num_nodes()}")
-    print(f"  Total transactions: {g.num_edges()}")
+    print(f"  Total accounts: {g.count_nodes()}")
+    print(f"  Total transactions: {g.count_edges()}")
 
     print(f"\n  Detected circular patterns (triangles): {len(triangles)}")
     for i, tri in enumerate(triangles, 1):
@@ -306,8 +306,8 @@ def example_6_recommendation_patterns():
     triangle_counts = g.count_triangles()
 
     print("\nUser-Item network:")
-    print(f"  Nodes (users + items): {g.num_nodes()}")
-    print(f"  Edges (likes): {g.num_edges()}")
+    print(f"  Nodes (users + items): {g.count_nodes()}")
+    print(f"  Edges (likes): {g.count_edges()}")
 
     print(f"\n  Common preference patterns (triangles): {len(triangles)}")
 

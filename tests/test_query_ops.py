@@ -139,8 +139,12 @@ class TestGetEdgeAttrs:
 
         weights = G.get_edge_attrs("weight")
 
-        # Returns dict keyed by edge labels: {'A--B': 1.5, 'B--C': 2.3, 'C--D': 0.8}
-        assert weights == {"A--B": 1.5, "B--C": 2.3, "C--D": 0.8}
+        # Returns dict keyed by edge IDs
+        edge_ids = list(G.get_edge_ids())
+        assert len(weights) == 3
+        assert weights[edge_ids[0]] == 1.5
+        assert weights[edge_ids[1]] == 2.3
+        assert weights[edge_ids[2]] == 0.8
 
     def test_get_edge_attrs_specific_edges(self):
         """Test extracting attrs from specific edges (if supported)."""
@@ -154,10 +158,12 @@ class TestGetEdgeAttrs:
         # get_edge_attrs returns all edges, no filtering by specific edges
         weights = G.get_edge_attrs("weight")
 
-        # Can filter manually after retrieval
-        filtered_weights = {k: v for k, v in weights.items() if k in ["A--B", "C--D"]}
-        assert filtered_weights == {"A--B": 1.5, "C--D": 0.8}
-        assert 2 not in weights
+        # Can filter manually after retrieval using edge IDs
+        edge_ids = list(G.get_edge_ids())
+        filtered_weights = {k: v for k, v in weights.items() if k in [edge_ids[0], edge_ids[2]]}
+        assert len(filtered_weights) == 2
+        assert filtered_weights[edge_ids[0]] == 1.5
+        assert filtered_weights[edge_ids[2]] == 0.8
 
 
 class TestGetNodeDF:
@@ -178,15 +184,15 @@ class TestGetNodeDF:
         assert "degree" in df.columns
         assert len(df) == 2
 
-    def test_get_node_df_without_degree(self):
-        """Test DataFrame without degree column."""
+    def test_get_node_df_always_includes_degree(self):
+        """Test DataFrame always includes degree column."""
         G = ec.Graph()
         G.add_node("A", score=95)
         G.add_node("B", score=88)
 
-        df = G.get_node_df(include_degree=False)
+        df = G.get_node_df()
 
-        assert "degree" not in df.columns
+        assert "degree" in df.columns
         assert "id" in df.columns
 
     def test_get_node_df_empty_graph(self):
@@ -232,17 +238,17 @@ class TestGetEdgeDF:
         assert "type" in df.columns
         assert len(df) == 2
 
-    def test_get_edge_df_without_endpoints(self):
-        """Test DataFrame without source/target columns."""
+    def test_get_edge_df_always_includes_endpoints(self):
+        """Test DataFrame always includes source/target columns."""
         G = ec.Graph()
         for label in ["A", "B"]:
             G.add_node(label)
         G.add_edge("A", "B", weight=1.5)
 
-        df = G.get_edge_df(include_endpoints=False)
+        df = G.get_edge_df()
 
-        assert "source" not in df.columns
-        assert "target" not in df.columns
+        assert "source" in df.columns
+        assert "target" in df.columns
         assert "id" in df.columns
         assert "weight" in df.columns
 
@@ -319,7 +325,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
 
         # Using node ID (int)
-        neighbors = G.get_neighbors(1)  # A's ID is 1
+        neighbors = G.neighbors(1)  # A's ID is 1
 
         # Should return node IDs
         assert set(neighbors) == {2, 3}
@@ -335,14 +341,14 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
 
         # Using node label (str)
-        neighbors = G.get_neighbors("A")
+        neighbors = G.neighbors("A")
 
         # Should return node IDs (not labels)
         assert set(neighbors) == {2, 3}
         assert isinstance(neighbors[0], int)
 
         # Verify we get the same results with ID vs label
-        neighbors_by_id = G.get_neighbors(1)
+        neighbors_by_id = G.neighbors(1)
         assert set(neighbors) == set(neighbors_by_id)
 
     def test_get_neighbors_directed_out(self):
@@ -355,7 +361,7 @@ class TestGetNeighbors:
         G.add_edge("D", "A")
 
         # get_neighbors expects node_id (1 = A)
-        neighbors = G.get_neighbors(1, mode="out")
+        neighbors = G.neighbors(1, mode="out")
 
         # Returns list of node IDs: [2, 3] (B, C)
         assert set(neighbors) == {2, 3}
@@ -370,7 +376,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.get_neighbors(1, mode="in")
+        neighbors = G.neighbors(1, mode="in")
 
         # Returns list of node IDs: [4] (D)
         assert set(neighbors) == {4}
@@ -386,7 +392,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.get_neighbors(1, mode="all")
+        neighbors = G.neighbors(1, mode="all")
 
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(neighbors) == {2, 3, 4}
@@ -400,13 +406,13 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.get_neighbors(1)
+        neighbors = G.neighbors(1)
 
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(neighbors) == {2, 3, 4}
 
-    def test_get_neighbors_with_predicate(self):
-        """Test filtering neighbors with predicate."""
+    def test_get_neighbors_with_filtering(self):
+        """Test filtering neighbors using list comprehension."""
         G = ec.Graph(directed=False)
         G.add_node("A")
         G.add_node("B", type="user")
@@ -416,12 +422,12 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("A", "D")
 
-        # Filter for user type nodes
+        # Filter for user type nodes using list comprehension
         def is_user(node_id):
             node = G.get_node(node_id)
             return node and node.attributes and node.attributes.get("type") == "user"
 
-        neighbors = G.get_neighbors(1, predicate=is_user)
+        neighbors = [n for n in G.neighbors(1) if is_user(n)]
 
         # Returns list of node IDs: [2, 4] (B, D)
         assert set(neighbors) == {2, 4}
@@ -954,7 +960,7 @@ class TestQueryWorkflows:
 
         # Select high-degree nodes and their neighbors
         G.select_nodes_by_degree(min_degree=5)
-        G.select_nodes_in_neighborhood(G.get_selected_nodes(), k=1, mode="out")
+        G.select_nodes_in_neighborhood(G.get_selected_node_ids(), k=1, mode="out")
 
         # Get selected subgraph as DataFrame
         df = G.get_node_df_ws()
@@ -979,7 +985,7 @@ class TestQueryWorkflows:
         # Get only high priority node values
         high_priority_nodes = [
             nid
-            for nid in G.node_ids(limit=None)
+            for nid in G.get_node_ids(limit=None)
             if G.get_node(nid).attributes.get("priority") == "high"
         ]
         high_values = G.get_node_attrs("value", nodes=high_priority_nodes)

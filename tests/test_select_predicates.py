@@ -21,7 +21,7 @@ class TestSelectNodesByPredicate:
         # Select nodes whose label starts with "user_"
         G.select_nodes(lambda n: n.label and n.label.startswith("user_"))
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 3
         # Selected nodes are IDs 1, 2, 4 (user_1, user_2, user_3)
         assert 1 in selected  # user_1
@@ -40,7 +40,7 @@ class TestSelectNodesByPredicate:
         # Select nodes with high importance
         G.select_nodes(lambda n: n.attributes and n.attributes.get("importance", 0) > 0.5)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 3
         assert 1 in selected  # A
         assert 3 in selected  # C
@@ -68,7 +68,7 @@ class TestSelectNodesByPredicate:
 
         G.select_nodes(premium_active_high_score)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 2
         assert 1 in selected  # A
         assert 4 in selected  # D
@@ -84,7 +84,7 @@ class TestSelectNodesByPredicate:
         # Select nodes with no attributes
         G.select_nodes(lambda n: n.attributes is None)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 2
         assert 2 in selected  # B
         assert 4 in selected  # D
@@ -103,7 +103,7 @@ class TestSelectNodesByPredicate:
 
         G.select_nodes_by_id([1])  # Select node ID 1 (A)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 3
         assert 1 in selected  # A
         assert 3 in selected  # C
@@ -126,11 +126,11 @@ class TestSelectEdgesByPredicate:
         # Select edges with weight > 0.5
         G.select_edges(lambda e: e.weight and e.weight > 0.5)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
         # Verify correct edges selected
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edges = [e for e in edges if e[0] in selected]
         weights = [G.get_edge(e[0]).weight for e in selected_edges]
         assert all(w > 0.5 for w in weights)
@@ -148,7 +148,7 @@ class TestSelectEdgesByPredicate:
         # Select friendship edges
         G.select_edges(lambda e: e.attributes and e.attributes.get("rel") == "friend")
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
     def test_select_edges_by_source_target_pattern(self):
@@ -164,7 +164,7 @@ class TestSelectEdgesByPredicate:
         # Pre-compute node mappings to avoid borrowing issues in predicate
         node_labels = {
             node.id: node.label
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
             if (node := G.get_node(node_id))
         }
 
@@ -176,7 +176,7 @@ class TestSelectEdgesByPredicate:
 
         G.select_edges(is_server_to_client)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 3
 
     def test_select_edges_complex_predicate(self):
@@ -202,7 +202,7 @@ class TestSelectEdgesByPredicate:
 
         G.select_edges(high_quality_verified)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
     def test_select_edges_without_weight(self):
@@ -218,7 +218,7 @@ class TestSelectEdgesByPredicate:
         # Select edges without weight
         G.select_edges(lambda e: e.weight is None)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
     def test_select_edges_chaining_with_predicate(self):
@@ -237,7 +237,7 @@ class TestSelectEdgesByPredicate:
         # Then select additional edges by node (use integer ID)
         G.select_edges_by_node_id([2])  # B = node ID 2
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         # Should have high-weight edges plus edges connected to B
         assert len(selected) == 3
 
@@ -273,7 +273,7 @@ class TestGetNodeAndEdge:
             G.add_node(label)
         G.add_edge("A", "B", weight=0.5, rel="friend")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         edge = G.get_edge(edge_ids[0])
 
         assert edge is not None
@@ -314,12 +314,12 @@ class TestCombinedPredicateSelection:
 
         # Select premium nodes
         G.select_nodes(lambda n: n.attributes and n.attributes.get("category") == "premium")
-        premium_nodes = set(G.get_selected_nodes())
+        premium_nodes = set(G.get_selected_node_ids())
 
         # Now select by degree
         G.clear_selection()
         G.select_nodes_by_degree(min_degree=2)
-        high_degree = set(G.get_selected_nodes())
+        high_degree = set(G.get_selected_node_ids())
 
         # The intersection would be premium nodes with high degree
         premium_high_degree = premium_nodes & high_degree
@@ -338,11 +338,11 @@ class TestCombinedPredicateSelection:
         # Select important edges
         G.select_edges(lambda e: e.attributes and e.attributes.get("importance", 0) > 0.5)
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
         # Verify they involve the right nodes (using integer IDs)
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edge_info = [e for e in edges if e[0] in selected]
         involved_nodes = set()
         for e in selected_edge_info:
@@ -372,7 +372,7 @@ class TestCombinedPredicateSelection:
 
         # Step 1: Find high-reputation users
         G.select_nodes(lambda n: n.attributes and n.attributes.get("reputation", 0) >= 80)
-        high_rep_users = G.get_selected_nodes()
+        high_rep_users = G.get_selected_node_ids()
         assert len(high_rep_users) == 2  # User1, User3
 
         # Step 2: Find strong interactions between them
@@ -385,7 +385,7 @@ class TestCombinedPredicateSelection:
             )
         )
 
-        strong_interactions = G.get_selected_edges()
+        strong_interactions = G.get_selected_edge_ids()
         assert len(strong_interactions) == 1  # User1 -> User3
 
 
@@ -413,7 +413,7 @@ class TestPredicateErrorHandling:
 
         # Must use explicit boolean comparison
         G.select_nodes(lambda n: n.attributes.get("score") is not None)
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert 1 in selected  # A = node ID 1
 
     def test_empty_graph_predicate_selection(self):

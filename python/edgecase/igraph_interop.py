@@ -52,10 +52,10 @@ def to_igraph(graph):
         )
 
     # Create igraph graph with appropriate directionality
-    ig_graph = ig.Graph(directed=graph.is_directed)
+    ig_graph = ig.Graph(directed=graph.is_directed())
 
     # Get all node IDs and create a mapping
-    node_ids = list(graph.node_ids(limit=None))
+    node_ids = list(graph.get_node_ids(limit=None))
     n_nodes = len(node_ids)
 
     # Add vertices
@@ -88,7 +88,7 @@ def to_igraph(graph):
     node_to_idx = {node_id: idx for idx, node_id in enumerate(node_ids)}
 
     # Add edges
-    edges = graph.edges_as_tuples()  # Returns list of (id, source, target) tuples
+    edges = graph.get_edges_as_tuples()  # Returns list of (id, source, target) tuples
     edge_list = []
     edge_weights = []
     edge_ids = []
@@ -185,8 +185,8 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     ig_graph.add_edge(0, 1, weight=1.5, label="edge1")
 
     graph = from_igraph(ig_graph)
-    print(graph.num_nodes())  # 2
-    print(graph.num_edges())  # 1
+    print(graph.count_nodes())  # 2
+    print(graph.count_edges())  # 1
     node = graph.get_node(graph.get_id_from_label("A"))
     print(node.attributes["color"])  # 'red'
     ```

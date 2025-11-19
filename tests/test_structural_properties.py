@@ -275,13 +275,13 @@ class TestDegreeDistribution:
     def test_degree_dist_empty_graph(self):
         """Empty graph has empty distribution."""
         G = ec.Graph()
-        assert G.degree_distribution() == {}
+        assert G.get_degree_distribution() == {}
 
     def test_degree_dist_path_graph(self):
         """Path graph has 2 nodes with degree 1, rest with degree 2."""
         G = ec.Graph()
         G.add_path_graph(5)
-        dist = G.degree_distribution()
+        dist = G.get_degree_distribution()
         assert dist[1] == 2  # End nodes
         assert dist[2] == 3  # Middle nodes
 
@@ -289,7 +289,7 @@ class TestDegreeDistribution:
         """Star graph has 1 hub with high degree, rest with degree 1."""
         G = ec.Graph()
         G.add_star_graph(6)  # 1 center + 5 spokes
-        dist = G.degree_distribution()
+        dist = G.get_degree_distribution()
         assert dist[1] == 5  # Spoke nodes
         assert dist[5] == 1  # Hub node
 
@@ -297,7 +297,7 @@ class TestDegreeDistribution:
         """Cycle graph has all nodes with degree 2."""
         G = ec.Graph()
         G.add_cycle_graph(6)
-        dist = G.degree_distribution()
+        dist = G.get_degree_distribution()
         assert dist[2] == 6
         assert len(dist) == 1  # Only one degree value
 
@@ -338,31 +338,31 @@ class TestCountSelfloops:
 
 
 class TestAverageDegree:
-    """Test get_graph_average_degree() method."""
+    """Test get_average_degree() method."""
 
     def test_avg_degree_empty_graph(self):
         """Empty graph has average degree 0."""
         G = ec.Graph()
-        assert G.get_graph_average_degree() == 0.0
+        assert G.get_average_degree() == 0.0
 
     def test_avg_degree_cycle_graph(self):
         """Cycle graph has average degree 2."""
         G = ec.Graph()
         G.add_cycle_graph(5)
-        assert G.get_graph_average_degree() == 2.0
+        assert G.get_average_degree() == 2.0
 
     def test_avg_degree_star_graph(self):
         """Star graph average degree calculation."""
         G = ec.Graph()
         G.add_star_graph(5)  # 1 node with degree 4, 4 nodes with degree 1
         # (4 + 1 + 1 + 1 + 1) / 5 = 8 / 5 = 1.6
-        assert abs(G.get_graph_average_degree() - 1.6) < 1e-10
+        assert abs(G.get_average_degree() - 1.6) < 1e-10
 
     def test_avg_degree_complete_graph(self):
         """Complete graph average degree."""
         G = ec.Graph()
         G.add_full_graph(5)  # Each node has degree 4
-        assert G.get_graph_average_degree() == 4.0
+        assert G.get_average_degree() == 4.0
 
 
 class TestStructuralPropertiesIntegration:
@@ -382,7 +382,7 @@ class TestStructuralPropertiesIntegration:
         assert G2.is_connected()
         assert G2.is_simple()
         assert G2.is_bipartite()  # Even cycle
-        assert G2.get_graph_average_degree() == 2.0
+        assert G2.get_average_degree() == 2.0
 
         # Complete graph
         G3 = ec.Graph().add_full_graph(4)

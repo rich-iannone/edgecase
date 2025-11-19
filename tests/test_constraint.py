@@ -11,8 +11,8 @@ class TestConstraintBasic:
         g = Graph()
         g.add_node(label="A")
 
-        result = g.constraint()
-        assert result["A"] is None
+        result = g.constraint(return_dict=True)
+        assert result[g.get_id_from_label("A")] is None
 
     def test_single_edge(self):
         """Two connected vertices have maximum constraint (1.0)."""
@@ -21,9 +21,9 @@ class TestConstraintBasic:
         g.add_node(label="B")
         g.add_edge("A", "B")
 
-        result = g.constraint()
-        assert result["A"] == pytest.approx(1.0)
-        assert result["B"] == pytest.approx(1.0)
+        result = g.constraint(return_dict=True)
+        assert result[g.get_id_from_label("A")] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("B")] == pytest.approx(1.0)
 
     def test_simple_broker(self):
         """Broker connecting unconnected nodes has lower constraint."""
@@ -35,18 +35,23 @@ class TestConstraintBasic:
         g.add_edge("B", "C")
         # A and C not connected - B spans structural hole
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
+        a_id, b_id, c_id = (
+            g.get_id_from_label("A"),
+            g.get_id_from_label("B"),
+            g.get_id_from_label("C"),
+        )
 
         # Broker has lower constraint than peripheral nodes
-        assert result["B"] < result["A"]
-        assert result["B"] < result["C"]
+        assert result[b_id] < result[a_id]
+        assert result[b_id] < result[c_id]
 
         # Peripheral nodes have maximum constraint
-        assert result["A"] == pytest.approx(1.0)
-        assert result["C"] == pytest.approx(1.0)
+        assert result[a_id] == pytest.approx(1.0)
+        assert result[c_id] == pytest.approx(1.0)
 
         # Broker constraint: (0.5 + 0)^2 + (0.5 + 0)^2 = 0.5
-        assert result["B"] == pytest.approx(0.5)
+        assert result[b_id] == pytest.approx(0.5)
 
     def test_closed_triad(self):
         """Closed triad has high constraint (no structural holes)."""
@@ -58,12 +63,12 @@ class TestConstraintBasic:
         g.add_edge("B", "C")
         g.add_edge("A", "C")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # All nodes have higher constraint due to closure
         # Each node sees others are connected
         for node in ["A", "B", "C"]:
-            assert result[node] > 0.5  # Higher than simple broker
+            assert result[g.get_id_from_label(node)] > 0.5  # Higher than simple broker
 
 
 class TestConstraintStructuralHoles:
@@ -81,14 +86,14 @@ class TestConstraintStructuralHoles:
             g.add_node(label=leaf)
             g.add_edge(center, leaf)
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # Center has many structural holes
-        hub_constraint = result[center]
+        hub_constraint = result[g.get_id_from_label(center)]
 
         # Each leaf has maximum constraint (only one connection)
         for i in range(4):
-            assert result[f"leaf{i}"] == pytest.approx(1.0)
+            assert result[g.get_id_from_label(f"leaf{i}")] == pytest.approx(1.0)
 
         # Hub constraint: each leaf contributes (0.25 + 0)^2 = 0.0625
         # Total: 4 * 0.0625 = 0.25
@@ -103,11 +108,11 @@ class TestConstraintStructuralHoles:
         g.add_edge("hub", "leaf1")
         g.add_edge("hub", "leaf2")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # Leaves have only one connection
-        assert result["leaf1"] == pytest.approx(1.0)
-        assert result["leaf2"] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("leaf1")] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("leaf2")] == pytest.approx(1.0)
 
     def test_bridge_position(self):
         """Node bridging two complete subgraphs has lower constraint than members."""
@@ -132,17 +137,17 @@ class TestConstraintStructuralHoles:
         g.add_edge("B", "X")
         g.add_edge("X", "E")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # Bridge connects two separate groups
         # B and E are embedded in cliques, so have more indirect connections
         # This actually increases their constraint despite being bridge endpoints
         # The pure bridge node X has exactly 2 connections with no indirect paths
-        assert result["X"] == pytest.approx(0.5)  # Two unconnected neighbors
+        assert result[g.get_id_from_label("X")] == pytest.approx(0.5)  # Two unconnected neighbors
 
         # Peripheral nodes in cliques have highest constraint
-        assert result["C"] > result["B"]
-        assert result["F"] > result["E"]
+        assert result[g.get_id_from_label("C")] > result[g.get_id_from_label("B")]
+        assert result[g.get_id_from_label("F")] > result[g.get_id_from_label("E")]
 
 
 class TestConstraintWeighted:
@@ -159,12 +164,12 @@ class TestConstraintWeighted:
         g.add_edge("A", "B", weight=9.0)
         g.add_edge("A", "C", weight=1.0)
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # A's constraint dominated by strong tie to B
         # p_AB = 9/10 = 0.9, p_AC = 1/10 = 0.1
         # C_A = 0.9^2 + 0.1^2 = 0.81 + 0.01 = 0.82
-        assert result["A"] == pytest.approx(0.82)
+        assert result[g.get_id_from_label("A")] == pytest.approx(0.82)
 
     def test_weighted_with_closure(self):
         """Weighted triad with closure."""
@@ -177,7 +182,7 @@ class TestConstraintWeighted:
         g.add_edge("A", "C", weight=2.0)
         g.add_edge("B", "C", weight=1.0)
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # All nodes have positive constraint
         assert all(v > 0 for v in result.values())
@@ -200,11 +205,11 @@ class TestConstraintDirected:
         g.add_edge("B", "A")
         g.add_edge("B", "C")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # B has outgoing structural holes
-        assert result["B"] is not None
-        assert result["B"] < 1.0  # Has multiple connections
+        assert result[g.get_id_from_label("B")] is not None
+        assert result[g.get_id_from_label("B")] < 1.0  # Has multiple connections
 
     def test_directed_in_broker(self):
         """Directed broker with in-edges from unconnected nodes."""
@@ -217,10 +222,10 @@ class TestConstraintDirected:
         g.add_edge("A", "B")
         g.add_edge("C", "B")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # B receives from multiple sources
-        assert result["B"] is not None
+        assert result[g.get_id_from_label("B")] is not None
 
     def test_directed_mutual(self):
         """Directed edges with mutual connections."""
@@ -232,11 +237,11 @@ class TestConstraintDirected:
         g.add_edge("A", "B")
         g.add_edge("B", "A")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # Both should have constraint = 1.0 (only connection to each other)
-        assert result["A"] == pytest.approx(1.0)
-        assert result["B"] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("A")] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("B")] == pytest.approx(1.0)
 
 
 class TestConstraintEdgeCases:
@@ -245,7 +250,7 @@ class TestConstraintEdgeCases:
     def test_empty_graph(self):
         """Empty graph returns empty dict."""
         g = Graph()
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
         assert result == {}
 
     def test_all_isolated(self):
@@ -254,7 +259,7 @@ class TestConstraintEdgeCases:
         for i in range(5):
             g.add_node(label=str(i))
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # All isolated vertices return None
         assert all(v is None for v in result.values())
@@ -271,11 +276,11 @@ class TestConstraintEdgeCases:
         g.add_node(label="C")
         g.add_edge("B", "C")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
-        assert result["A"] is None
-        assert result["B"] == pytest.approx(1.0)
-        assert result["C"] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("A")] is None
+        assert result[g.get_id_from_label("B")] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("C")] == pytest.approx(1.0)
 
     def test_self_loop(self):
         """Self-loops should not affect constraint."""
@@ -285,11 +290,11 @@ class TestConstraintEdgeCases:
         g.add_edge("A", "B")
         g.add_edge("A", "A")  # Self-loop
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # Self-loop shouldn't change constraint significantly
-        assert result["A"] is not None
-        assert result["B"] is not None
+        assert result[g.get_id_from_label("A")] is not None
+        assert result[g.get_id_from_label("B")] is not None
 
 
 class TestConstraintInterpretation:
@@ -316,7 +321,7 @@ class TestConstraintInterpretation:
         for i in range(6, 10):
             g.add_edge("4", str(i))
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # All non-None values should be positive
         for node, value in result.items():
@@ -345,10 +350,10 @@ class TestConstraintInterpretation:
         g.add_edge("closed", "c2")
         g.add_edge("c1", "c2")  # Closure
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # Broker has lower constraint than closed position
-        assert result["broker"] < result["closed"]
+        assert result[g.get_id_from_label("broker")] < result[g.get_id_from_label("closed")]
 
 
 class TestConstraintComplex:
@@ -386,19 +391,19 @@ class TestConstraintComplex:
         g.add_edge("bridge", "f1_0")
         g.add_edge("bridge", "f2_0")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # Bridge has two unconnected neighbors (structural hole)
-        assert result["bridge"] == pytest.approx(0.5)
+        assert result[g.get_id_from_label("bridge")] == pytest.approx(0.5)
 
         # Faction leaders have many connections within their groups
         # giving them lower constraint than pure periphery
-        assert result["f1_0"] < result["f1_4"]
-        assert result["f2_0"] < result["f2_4"]
+        assert result[g.get_id_from_label("f1_0")] < result[g.get_id_from_label("f1_4")]
+        assert result[g.get_id_from_label("f2_0")] < result[g.get_id_from_label("f2_4")]
 
         # Peripheral nodes should have high constraint
-        assert result["f1_4"] > result["f1_0"]
-        assert result["f2_4"] > result["f2_0"]
+        assert result[g.get_id_from_label("f1_4")] > result[g.get_id_from_label("f1_0")]
+        assert result[g.get_id_from_label("f2_4")] > result[g.get_id_from_label("f2_0")]
 
     def test_line_graph(self):
         """Chain/path graph constraint."""
@@ -412,19 +417,19 @@ class TestConstraintComplex:
         for i in range(4):
             g.add_edge(str(i), str(i + 1))
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # End nodes have maximum constraint (one connection)
-        assert result["0"] == pytest.approx(1.0)
-        assert result["4"] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("0")] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("4")] == pytest.approx(1.0)
 
         # Middle nodes have lower constraint (two unconnected neighbors)
-        assert result["2"] < result["0"]
-        assert result["2"] < result["4"]
+        assert result[g.get_id_from_label("2")] < result[g.get_id_from_label("0")]
+        assert result[g.get_id_from_label("2")] < result[g.get_id_from_label("4")]
 
         # Middle nodes have exactly 2 unconnected neighbors
         # Constraint = (0.5 + 0)^2 + (0.5 + 0)^2 = 0.5
-        assert result["2"] == pytest.approx(0.5)
+        assert result[g.get_id_from_label("2")] == pytest.approx(0.5)
 
 
 class TestConstraintValidation:
@@ -440,7 +445,7 @@ class TestConstraintValidation:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # All values should be positive and reasonable
         assert all(v is not None and v > 0 for v in result.values())
@@ -456,17 +461,17 @@ class TestConstraintValidation:
         g.add_edge("A", "B")
         g.add_edge("A", "C")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # For A: two neighbors with equal weights
         # p_AB = 0.5, p_AC = 0.5
         # No indirect connections (B and C not connected)
         # C_A = (0.5 + 0)^2 + (0.5 + 0)^2 = 0.25 + 0.25 = 0.5
-        assert result["A"] == pytest.approx(0.5)
+        assert result[g.get_id_from_label("A")] == pytest.approx(0.5)
 
         # For B and C: one connection each
-        assert result["B"] == pytest.approx(1.0)
-        assert result["C"] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("B")] == pytest.approx(1.0)
+        assert result[g.get_id_from_label("C")] == pytest.approx(1.0)
 
     def test_constraint_with_indirect(self):
         """Verify constraint with indirect connections."""
@@ -480,13 +485,13 @@ class TestConstraintValidation:
         g.add_edge("A", "C")
         g.add_edge("B", "C")
 
-        result = g.constraint()
+        result = g.constraint(return_dict=True)
 
         # For A: two neighbors B and C who are connected
         # This creates indirect connections, increasing constraint
         # Closed triad has higher constraint than open triad
         # Expected value from implementation: 1.25
-        assert result["A"] == pytest.approx(1.25)
+        assert result[g.get_id_from_label("A")] == pytest.approx(1.25)
 
         # Verify all nodes have increased constraint due to closure
         assert all(v > 0.5 for v in result.values())

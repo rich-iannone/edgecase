@@ -209,18 +209,18 @@ class TestFromNetworkX:
         nx_graph = nx.Graph()
         G = from_networkx(nx_graph)
 
-        assert not G.is_directed
-        assert G.num_nodes() == 0
-        assert G.num_edges() == 0
+        assert not G.is_directed()
+        assert G.count_nodes() == 0
+        assert G.count_edges() == 0
 
     def test_empty_graph_directed(self):
         """Convert empty directed NetworkX graph."""
         nx_graph = nx.DiGraph()
         G = from_networkx(nx_graph)
 
-        assert G.is_directed
-        assert G.num_nodes() == 0
-        assert G.num_edges() == 0
+        assert G.is_directed()
+        assert G.count_nodes() == 0
+        assert G.count_edges() == 0
 
     def test_nodes_without_attributes(self):
         """Convert NetworkX graph with nodes but no attributes."""
@@ -229,8 +229,8 @@ class TestFromNetworkX:
 
         G = from_networkx(nx_graph)
 
-        assert G.num_nodes() == 3
-        node_labels = [G.get_label_from_id(nid) for nid in G.node_ids(limit=None)]
+        assert G.count_nodes() == 3
+        node_labels = [G.get_label_from_id(nid) for nid in G.get_node_ids(limit=None)]
         assert set(node_labels) == {"A", "B", "C"}
 
     def test_nodes_with_attributes(self):
@@ -256,8 +256,8 @@ class TestFromNetworkX:
 
         G = from_networkx(nx_graph)
 
-        assert not G.is_directed
-        assert G.num_edges() == 2
+        assert not G.is_directed()
+        assert G.count_edges() == 2
         # Check both directions work (undirected)
         assert len(G.find_edge_ids("A", "B")) > 0 or len(G.find_edge_ids("B", "A")) > 0
         assert len(G.find_edge_ids("B", "C")) > 0 or len(G.find_edge_ids("C", "B")) > 0
@@ -270,8 +270,8 @@ class TestFromNetworkX:
 
         G = from_networkx(nx_graph)
 
-        assert G.is_directed
-        assert G.num_edges() == 2
+        assert G.is_directed()
+        assert G.count_edges() == 2
         assert len(G.find_edge_ids("A", "B")) == 1
         assert len(G.find_edge_ids("B", "C")) == 1
         # Reverse edges should not exist
@@ -286,7 +286,7 @@ class TestFromNetworkX:
 
         G = from_networkx(nx_graph)
 
-        assert G.is_weighted
+        assert G.is_weighted()
         edge_ids_ab = G.find_edge_ids("A", "B")
         assert len(edge_ids_ab) == 1
         assert G.get_edge(edge_ids_ab[0]).weight == 1.5
@@ -320,8 +320,8 @@ class TestFromNetworkX:
 
         G = from_networkx(nx_graph)
 
-        assert G.num_nodes() == 2
-        assert G.num_edges() == 2
+        assert G.count_nodes() == 2
+        assert G.count_edges() == 2
 
         # Check both edges exist
         edge_ids = G.find_edge_ids("A", "B")
@@ -335,13 +335,13 @@ class TestFromNetworkX:
         nx_graph = nx.Graph()
         nx_graph.add_edge("A", "B", weight=1.5)
         G = from_networkx(nx_graph)
-        assert G.is_weighted
+        assert G.is_weighted()
 
         # Graph without weights
         nx_graph = nx.Graph()
         nx_graph.add_edge("A", "B")
         G = from_networkx(nx_graph)
-        assert not G.is_weighted
+        assert not G.is_weighted()
 
     def test_numeric_node_ids(self):
         """Test conversion with numeric node IDs."""
@@ -352,11 +352,11 @@ class TestFromNetworkX:
         G = from_networkx(nx_graph)
 
         # Node IDs should be converted to strings
-        node_labels = [G.get_label_from_id(nid) for nid in G.node_ids(limit=None)]
+        node_labels = [G.get_label_from_id(nid) for nid in G.get_node_ids(limit=None)]
         assert "1" in node_labels
         assert "2" in node_labels
         assert "3" in node_labels
-        assert G.num_edges() == 2
+        assert G.count_edges() == 2
 
 
 class TestRoundTrip:
@@ -372,9 +372,9 @@ class TestRoundTrip:
         nx_graph = to_networkx(G1)
         G2 = from_networkx(nx_graph)
 
-        assert G2.num_nodes() == G1.num_nodes()
-        assert G2.num_edges() == G1.num_edges()
-        assert G2.is_directed == G1.is_directed
+        assert G2.count_nodes() == G1.count_nodes()
+        assert G2.count_edges() == G1.count_edges()
+        assert G2.is_directed() == G1.is_directed()
         a_id = G2.get_id_from_label("A")
         b_id = G2.get_id_from_label("B")
         assert G2.get_node(a_id).attributes["color"] == "red"
@@ -390,9 +390,9 @@ class TestRoundTrip:
         nx_graph = to_networkx(G1)
         G2 = from_networkx(nx_graph)
 
-        assert G2.num_nodes() == G1.num_nodes()
-        assert G2.num_edges() == G1.num_edges()
-        assert G2.is_directed == G1.is_directed
+        assert G2.count_nodes() == G1.count_nodes()
+        assert G2.count_edges() == G1.count_edges()
+        assert G2.is_directed() == G1.is_directed()
         assert len(G2.find_edge_ids("X", "Y")) == 1
         assert len(G2.find_edge_ids("Y", "X")) == 0
 
@@ -432,9 +432,9 @@ class TestRoundTrip:
         nx_graph = to_networkx(G1)
         G2 = from_networkx(nx_graph)
 
-        assert G2.num_nodes() == 5
-        assert G2.num_edges() == 5
-        assert G2.is_directed
+        assert G2.count_nodes() == 5
+        assert G2.count_edges() == 5
+        assert G2.is_directed()
 
         # Check a sample of attributes
         n0_id = G2.get_id_from_label("N0")
@@ -469,4 +469,4 @@ class TestErrorHandling:
 
         # Round trip
         G2 = from_networkx(nx_graph)
-        assert G2.num_edges() == 1
+        assert G2.count_edges() == 1

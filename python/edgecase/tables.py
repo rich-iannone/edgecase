@@ -43,8 +43,8 @@ def tbl_network_summary(
     ```
     """
     stats = {
-        "n_nodes": graph.num_nodes(),
-        "n_edges": graph.num_edges(),
+        "n_nodes": graph.count_nodes(),
+        "n_edges": graph.count_edges(),
         "directed": graph.is_directed,
         "weighted": graph.is_weighted,
     }

@@ -82,9 +82,9 @@ class TestGraphConversion:
 
         # Convert back
         G2 = from_igraph(ig_graph)
-        assert G2.num_nodes() == 3
-        assert G2.num_edges() == 2
-        assert G2.is_directed
+        assert G2.count_nodes() == 3
+        assert G2.count_edges() == 2
+        assert G2.is_directed()
 
     def test_simple_undirected_graph(self):
         """Test conversion of a simple undirected graph."""
@@ -103,9 +103,9 @@ class TestGraphConversion:
 
         # Convert back
         G2 = from_igraph(ig_graph)
-        assert G2.num_nodes() == 2
-        assert G2.num_edges() == 1
-        assert not G2.is_directed
+        assert G2.count_nodes() == 2
+        assert G2.count_edges() == 1
+        assert not G2.is_directed()
 
     def test_node_attributes_preservation(self):
         """Test that node attributes are preserved during conversion."""
@@ -161,7 +161,7 @@ class TestGraphConversion:
 
         # Convert back
         G2 = from_igraph(ig_graph)
-        edges = G2.edges_as_tuples()
+        edges = G2.get_edges_as_tuples()
         edge = G2.get_edge(edges[0][0])
 
         assert edge.weight == 1.5
@@ -180,7 +180,7 @@ class TestGraphConversion:
         # Convert to EdgeCase (should auto-detect weighted=True)
         G = from_igraph(ig_graph)
 
-        assert G.is_weighted
+        assert G.is_weighted()
 
 
 class TestBasicMetrics:
@@ -198,8 +198,8 @@ class TestBasicMetrics:
 
         ig_graph = to_igraph(G)
 
-        assert G.num_nodes() == ig_graph.vcount()
-        assert G.num_edges() == ig_graph.ecount()
+        assert G.count_nodes() == ig_graph.vcount()
+        assert G.count_edges() == ig_graph.ecount()
 
     def test_degree_directed(self):
         """Test degree calculations for directed graphs."""
@@ -216,7 +216,7 @@ class TestBasicMetrics:
         # In-degree - convert node IDs to labels for keys
         ec_in_degrees = {
             G.get_label_from_id(node_id): G.get_in_degree(node_id)
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
         }
         ig_in_degrees = {
             ig_graph.vs[i]["name"]: ig_graph.indegree(i) for i in range(ig_graph.vcount())
@@ -226,7 +226,7 @@ class TestBasicMetrics:
         # Out-degree - convert node IDs to labels for keys
         ec_out_degrees = {
             G.get_label_from_id(node_id): G.get_out_degree(node_id)
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
         }
         ig_out_degrees = {
             ig_graph.vs[i]["name"]: ig_graph.outdegree(i) for i in range(ig_graph.vcount())
@@ -247,7 +247,7 @@ class TestBasicMetrics:
         # Convert node IDs to labels for keys
         ec_degrees = {
             G.get_label_from_id(node_id): G.get_degree(node_id)
-            for node_id in G.node_ids(limit=None)
+            for node_id in G.get_node_ids(limit=None)
         }
         ig_degrees = {ig_graph.vs[i]["name"]: ig_graph.degree(i) for i in range(ig_graph.vcount())}
         assert ec_degrees == ig_degrees
@@ -270,7 +270,7 @@ class TestShortestPaths:
         ig_graph = to_igraph(G)
 
         # EdgeCase shortest path (returns node IDs)
-        ec_path_ids = G.shortest_path("A", "D")
+        ec_path_ids = G.shortest_path("A", "D", return_list=True)
         # Convert EdgeCase path IDs to labels for comparison
         ec_path = [G.get_label_from_id(nid) for nid in ec_path_ids]
 
@@ -298,7 +298,7 @@ class TestShortestPaths:
         ig_graph = to_igraph(G)
 
         # EdgeCase shortest path (returns node IDs, uses Dijkstra with weights)
-        ec_path_ids = G.shortest_path("A", "D")
+        ec_path_ids = G.shortest_path("A", "D", return_list=True)
         # Convert EdgeCase path IDs to labels for comparison
         ec_path = [G.get_label_from_id(nid) for nid in ec_path_ids]
 
@@ -332,7 +332,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+        ec_path = G.bellman_ford_shortest_path("A", "D", return_list=True)
 
         # igraph shortest path with weights (uses Bellman-Ford for negative weights, Dijkstra otherwise)
         node_names = ig_graph.vs["name"]
@@ -348,11 +348,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Both should find path A -> C -> D (total weight 3.0)
+        # Both should find path A -> C -> D
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "C", "D"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 3.0)
 
     def test_bellman_ford_negative_weights(self):
         """Test Bellman-Ford with negative weights matches igraph."""
@@ -369,7 +367,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+        ec_path = G.bellman_ford_shortest_path("A", "D", return_list=True)
 
         # igraph shortest path (Bellman-Ford handles negative weights)
         node_names = ig_graph.vs["name"]
@@ -385,11 +383,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Should take advantage of negative weight: A -> C -> B -> D (2 + -3 + 1 = 0)
+        # Should take advantage of negative weight: A -> C -> B -> D
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "C", "B", "D"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 0.0)
 
     def test_bellman_ford_mixed_weights(self):
         """Test Bellman-Ford with mixed positive and negative weights."""
@@ -408,7 +404,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "D")
+        ec_path = G.bellman_ford_shortest_path("A", "D", return_list=True)
 
         # igraph shortest path
         node_names = ig_graph.vs["name"]
@@ -424,11 +420,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Should be A -> B -> C -> D = 5 + (-2) + 3 = 6
+        # Should be A -> B -> C -> D
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "B", "C", "D"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 6.0)
 
     def test_bellman_ford_no_path(self):
         """Test Bellman-Ford when no path exists."""
@@ -459,7 +453,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "C")
+        ec_path = G.bellman_ford_shortest_path("A", "C", return_list=True)
 
         # igraph shortest path
         node_names = ig_graph.vs["name"]
@@ -477,8 +471,6 @@ class TestBellmanFord:
 
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A", "B", "C"]
-        assert approx_equal(ec_dist, ig_dist)
-        assert approx_equal(ec_dist, 3.0)
 
     def test_bellman_ford_self_loop(self):
         """Test Bellman-Ford with self-loop (zero distance to self)."""
@@ -490,7 +482,7 @@ class TestBellmanFord:
         ig_graph = to_igraph(G)
 
         # EdgeCase Bellman-Ford (A to A)
-        ec_path, ec_dist = G.bellman_ford_shortest_path("A", "A")
+        ec_path = G.bellman_ford_shortest_path("A", "A", return_list=True)
 
         # igraph shortest path (A to A)
         node_names = ig_graph.vs["name"]
@@ -501,10 +493,9 @@ class TestBellmanFord:
         # Convert EdgeCase IDs to labels for comparison
         ec_path_labels = [G.get_label_from_id(nid) for nid in ec_path]
 
-        # Both should return just the source node with distance 0
+        # Both should return just the source node
         assert ec_path_labels == ig_path
         assert ec_path_labels == ["A"]
-        assert approx_equal(ec_dist, 0.0)
 
 
 class TestPageRank:
@@ -523,7 +514,7 @@ class TestPageRank:
         ig_graph = to_igraph(G)
 
         # EdgeCase PageRank (uses damping parameter) - returns dict[int, float]
-        ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6)
+        ec_pr = G.pagerank(damping=0.85, max_iter=100, tol=1e-6, return_dict=True)
 
         # igraph PageRank (uses damping parameter) - returns list indexed by vertex
         ig_pr_values = ig_graph.pagerank(damping=0.85)
@@ -548,7 +539,7 @@ class TestPageRank:
         ig_graph = to_igraph(G)
 
         # EdgeCase PageRank - returns dict[int, float]
-        ec_pr = G.pagerank(damping=0.85)
+        ec_pr = G.pagerank(damping=0.85, return_dict=True)
 
         # igraph PageRank
         ig_pr_values = ig_graph.pagerank(damping=0.85)
@@ -588,7 +579,7 @@ class TestBetweennessCentrality:
         ig_graph = to_igraph(G)
 
         # EdgeCase betweenness - returns dict[int, float]
-        ec_between = G.betweenness_centrality()
+        ec_between = G.betweenness_centrality(return_dict=True)
 
         # igraph betweenness
         ig_between_values = ig_graph.betweenness(directed=False, normalized=True)
@@ -624,7 +615,7 @@ class TestBetweennessCentrality:
         ig_graph = to_igraph(G)
 
         # EdgeCase betweenness - returns dict[int, float]
-        ec_between = G.betweenness_centrality()
+        ec_between = G.betweenness_centrality(return_dict=True)
 
         # igraph betweenness
         ig_between_values = ig_graph.betweenness(directed=False, normalized=True)

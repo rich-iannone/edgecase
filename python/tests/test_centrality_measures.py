@@ -11,7 +11,7 @@ class TestEccentricity:
         """Test eccentricity on a path graph."""
         G = ec.Graph()
         G.add_path_graph(5)
-        ecc = G.get_eccentricity()
+        ecc = G.eccentricity(return_dict=True)
 
         # Path: 1-2-3-4-5
         # Node 3 (middle) has max distance 2 to endpoints
@@ -24,7 +24,7 @@ class TestEccentricity:
         """Test eccentricity on a star graph."""
         G = ec.Graph()
         G.add_star_graph(5)
-        ecc = G.get_eccentricity()
+        ecc = G.eccentricity(return_dict=True)
 
         # Hub (node 1) has distance 1 to all leaves
         assert ecc["1"] == 1
@@ -37,7 +37,7 @@ class TestEccentricity:
         G = ec.Graph()
         G.add_node("A")
         G.add_node("B")
-        ecc = G.get_eccentricity()
+        ecc = G.eccentricity(return_dict=True)
 
         # Disconnected nodes should have None eccentricity
         assert ecc["A"] is None
@@ -47,7 +47,7 @@ class TestEccentricity:
         """Test eccentricity for single node."""
         G = ec.Graph()
         G.add_node("A")
-        ecc = G.get_eccentricity()
+        ecc = G.eccentricity(return_dict=True)
 
         # Single node has eccentricity 0
         assert ecc["A"] == 0
@@ -60,7 +60,7 @@ class TestRadiality:
         """Test radiality on a path graph."""
         G = ec.Graph()
         G.add_path_graph(5)
-        rad = G.get_radiality()
+        rad = G.radiality(return_dict=True)
 
         # Middle node (3) should have higher radiality
         # Formula: (diameter + 1 - eccentricity) / (n - 1)
@@ -75,7 +75,7 @@ class TestRadiality:
         """Test radiality on a star graph."""
         G = ec.Graph()
         G.add_star_graph(5)
-        rad = G.get_radiality()
+        rad = G.radiality(return_dict=True)
 
         # Hub should have maximum radiality
         # diameter = 2, n = 5
@@ -89,7 +89,7 @@ class TestRadiality:
         G = ec.Graph()
         G.add_node("A")
         G.add_node("B")
-        rad = G.get_radiality()
+        rad = G.radiality(return_dict=True)
 
         assert rad["A"] is None
         assert rad["B"] is None
@@ -164,7 +164,7 @@ class TestCoreness:
         """Test coreness on complete graph."""
         G = ec.Graph()
         G.add_full_graph(5)
-        coreness = G.get_coreness()
+        coreness = G.coreness(return_dict=True)
 
         # Complete graph K5: all nodes have degree 4
         # All nodes belong to 4-core
@@ -174,7 +174,7 @@ class TestCoreness:
         """Test coreness on star graph."""
         G = ec.Graph()
         G.add_star_graph(5)
-        coreness = G.get_coreness()
+        coreness = G.coreness(return_dict=True)
 
         # Leaves have degree 1, hub has degree 5
         # Leaves removed first (coreness 1), hub last (coreness 1)
@@ -194,7 +194,7 @@ class TestCoreness:
         G.add_edge("A", "D")
         G.add_edge("D", "B")
 
-        coreness = G.get_coreness()
+        coreness = G.coreness(return_dict=True)
 
         # Triangle nodes should have higher coreness
         assert coreness["A"] >= 2
@@ -368,10 +368,10 @@ class TestCentralityIntegration:
         G.add_star_graph(5)
 
         # Get all centrality measures
-        ecc = G.get_eccentricity()
-        rad = G.get_radiality()
+        ecc = G.eccentricity(return_dict=True)
+        rad = G.radiality(return_dict=True)
         vitality = G.get_closeness_vitality()
-        coreness = G.get_coreness()
+        coreness = G.coreness(return_dict=True)
         alpha = G.get_alpha_centrality()
         leverage = G.get_leverage_centrality()
 
@@ -395,10 +395,10 @@ class TestCentralityIntegration:
         """Test centrality measures on empty graph."""
         G = ec.Graph()
 
-        ecc = G.get_eccentricity()
-        rad = G.get_radiality()
+        ecc = G.eccentricity(return_dict=True)
+        rad = G.radiality(return_dict=True)
         vitality = G.get_closeness_vitality()
-        coreness = G.get_coreness()
+        coreness = G.coreness(return_dict=True)
         alpha = G.get_alpha_centrality()
         leverage = G.get_leverage_centrality()
 
@@ -415,10 +415,10 @@ class TestCentralityIntegration:
         G = ec.Graph()
         G.add_node("A")
 
-        ecc = G.get_eccentricity()
-        rad = G.get_radiality()
+        ecc = G.eccentricity(return_dict=True)
+        rad = G.radiality(return_dict=True)
         vitality = G.get_closeness_vitality()
-        coreness = G.get_coreness()
+        coreness = G.coreness(return_dict=True)
         alpha = G.get_alpha_centrality()
         leverage = G.get_leverage_centrality()
 

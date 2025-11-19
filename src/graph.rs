@@ -396,13 +396,6 @@ impl Graph {
         Ok(dict.into())
     }
 
-    /// Check if the graph is simple (no self-loops or multi-edges)
-    ///
-    /// A simple graph is one that does not contain any loops nor any multiple edges.
-    pub fn is_graph_simple(&self) -> bool {
-        self.is_simple()
-    }
-
     /// Check if the graph contains any cycles
     ///
     /// Uses depth-first search to detect cycles in the graph.
@@ -848,13 +841,13 @@ impl Graph {
 
     /// Get currently selected node IDs
     #[inline]
-    pub fn get_selected_nodes(&self) -> Vec<u64> {
+    pub fn get_selected_node_ids(&self) -> Vec<u64> {
         self.selected_nodes.iter().copied().collect()
     }
 
     /// Get currently selected edge IDs
     #[inline]
-    pub fn get_selected_edges(&self) -> Vec<u64> {
+    pub fn get_selected_edge_ids(&self) -> Vec<u64> {
         self.selected_edges.iter().cloned().collect()
     }
 
@@ -1828,14 +1821,6 @@ impl Graph {
         total_degree as f64 * (1.0 / n as f64)
     }
 
-    /// Get degree histogram (degree -> count mapping)
-    /// Returns a HashMap suitable for plotting degree distribution
-    fn get_degree_histogram(&self) -> FxHashMap<usize, usize> {
-        // This is actually the same as degree_distribution, but with a clearer name
-        // for plotting purposes
-        self.degree_distribution()
-    }
-
     /// Find articulation points (cut vertices) in an undirected graph
     /// Returns list of node IDs whose removal would disconnect the graph
     /// Uses Tarjan's algorithm with DFS
@@ -2782,19 +2767,15 @@ impl Graph {
     /// g = ec.Graph()
     /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
     /// counts = g.count_triangles()
-    /// # Returns: {"A": 1, "B": 1, "C": 1}
+    /// # Returns: {node_id_a: 1, node_id_b: 1, node_id_c: 1}
     /// ```
     pub fn count_triangles(&self, py: Python) -> PyResult<Py<PyDict>> {
         let triangle_counts = crate::algorithms::structural::count_triangles(self);
 
-        // Convert to Python dict with node labels
+        // Convert to Python dict with node IDs
         let result = PyDict::new(py);
         for (node_id, count) in triangle_counts {
-            let label = match self.label_from_id(node_id)? {
-                Some(l) => l,
-                None => node_id.to_string(),
-            };
-            result.set_item(label, count)?;
+            result.set_item(node_id, count)?;
         }
 
         Ok(result.into())
@@ -2810,7 +2791,7 @@ impl Graph {
     /// O(m * d_max) where m is the number of edges and d_max is the maximum degree
     ///
     /// # Returns
-    /// List of tuples (node1, node2, node3) representing triangles
+    /// List of tuples (node_id1, node_id2, node_id3) representing triangles
     ///
     /// # Example
     /// ```python
@@ -2818,28 +2799,15 @@ impl Graph {
     /// g = ec.Graph()
     /// g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
     /// triangles = g.list_triangles()
-    /// # Returns: [("A", "B", "C")]
+    /// # Returns: [(a_id, b_id, c_id)] where a_id, b_id, c_id are node IDs
     /// ```
     pub fn list_triangles(&self, py: Python) -> PyResult<Py<PyList>> {
         let triangles = crate::algorithms::structural::list_triangles(self);
 
-        // Convert to Python list with node labels
+        // Convert to Python list with node IDs
         let result = PyList::empty(py);
         for (n1, n2, n3) in triangles {
-            let label1 = match self.label_from_id(n1)? {
-                Some(l) => l,
-                None => n1.to_string(),
-            };
-            let label2 = match self.label_from_id(n2)? {
-                Some(l) => l,
-                None => n2.to_string(),
-            };
-            let label3 = match self.label_from_id(n3)? {
-                Some(l) => l,
-                None => n3.to_string(),
-            };
-
-            let tuple = PyTuple::new_bound(py, &[label1, label2, label3]);
+            let tuple = PyTuple::new_bound(py, &[n1, n2, n3]);
             result.append(tuple)?;
         }
 
@@ -3192,12 +3160,23 @@ impl Graph {
         mode: &str,
         stuck: &str,
         seed: Option<u64>,
-    ) -> PyResult<Vec<(u64, String, String)>> {
-        let start_id = self.id_from_label(start).map_err(|_| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Start vertex '{}' not found", start)
-            )
-        })?;
+    ) -> PyResult<Vec<(u64, u64, u64)>> {
+        // Try to parse as node ID first, then as label
+        let start_id = if let Ok(id) = start.parse::<u64>() {
+            if self.nodes.contains_key(&id) {
+                id
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    format!("Start node with ID {} not found", id)
+                ));
+            }
+        } else {
+            self.id_from_label(start).map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    format!("Start node '{}' not found", start)
+                )
+            })?
+        };
 
         let mut rng: ChaCha8Rng = if let Some(s) = seed {
             ChaCha8Rng::seed_from_u64(s)
@@ -3270,15 +3249,8 @@ impl Graph {
                 _ => unreachable!(),
             };
 
-            // Get labels
-            let source_label = self.nodes.get(&edge.source)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| edge.source.to_string());
-            let target_label = self.nodes.get(&edge.target)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| edge.target.to_string());
-
-            edges_traversed.push((edge.id, source_label, target_label));
+            // Store edge as (edge_id, source_id, target_id)
+            edges_traversed.push((edge.id, edge.source, edge.target));
             current = next;
         }
 
@@ -3378,16 +3350,12 @@ impl Graph {
     ///
     /// Returns None for isolated vertices (no connections)
     #[inline]
-    pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<String, Option<f64>>> {
+    pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<u64, Option<f64>>> {
         let n = self.num_nodes();
         let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         // Process each node
         for &node_id in self.nodes.keys() {
-            let node_label = self.nodes
-                .get(&node_id)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| node_id.to_string());
 
             // Get all neighbors (for undirected: direct neighbors, for directed: both in and out)
             let mut neighbor_weights = FxHashMap::with_capacity_and_hasher(n, Default::default());
@@ -3428,7 +3396,7 @@ impl Graph {
 
             // If isolated vertex, constraint is undefined
             if neighbor_weights.is_empty() {
-                result.insert(node_label, None);
+                result.insert(node_id, None);
                 continue;
             }
 
@@ -3436,7 +3404,7 @@ impl Graph {
             let total_strength: f64 = neighbor_weights.values().sum();
 
             if total_strength == 0.0 {
-                result.insert(node_label, None);
+                result.insert(node_id, None);
                 continue;
             }
 
@@ -3526,7 +3494,7 @@ impl Graph {
                 constraint_sum += term * term;
             }
 
-            result.insert(node_label, Some(constraint_sum));
+            result.insert(node_id, Some(constraint_sum));
         }
 
         Ok(result)
@@ -3549,7 +3517,7 @@ impl Graph {
     /// O(V³ × log k) using fast matrix exponentiation where V is number of vertices
     /// and k is walk_length
     #[inline]
-    pub fn number_of_walks(&self, walk_length: usize) -> PyResult<FxHashMap<String, FxHashMap<String, u64>>> {
+    pub fn get_number_of_walks(&self, walk_length: usize) -> PyResult<FxHashMap<u64, FxHashMap<u64, u64>>> {
         // Get sorted list of node IDs for consistent matrix indexing
         let n = self.num_nodes();
         let mut node_ids = Vec::with_capacity(n);
@@ -3594,26 +3562,16 @@ impl Graph {
             matrix_power(&adj_matrix, walk_length)
         };
 
-        // Convert result matrix to nested HashMap with node labels
+        // Convert result matrix to nested HashMap with node IDs
         let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (i, &source_id) in node_ids.iter().enumerate() {
-            let source_label = self.nodes
-                .get(&source_id)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| source_id.to_string());
-
             let mut target_map = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             for (j, &target_id) in node_ids.iter().enumerate() {
-                let target_label = self.nodes
-                    .get(&target_id)
-                    .and_then(|n| n.label.clone())
-                    .unwrap_or_else(|| target_id.to_string());
-
-                target_map.insert(target_label, result_matrix[i][j]);
+                target_map.insert(target_id, result_matrix[i][j]);
             }
 
-            result.insert(source_label, target_map);
+            result.insert(source_id, target_map);
         }
 
         Ok(result)
@@ -5502,7 +5460,7 @@ impl Graph {
     ///
     /// # Returns
     ///
-    /// Dictionary mapping (source_label, target_label) tuples to edge counts
+    /// Dictionary mapping (source_id, target_id) tuples to edge counts
     ///
     /// # Examples
     ///
@@ -5514,11 +5472,11 @@ impl Graph {
     /// g.add_edge("B", "C")  # Single edge
     ///
     /// counts = g.count_multiple()
-    /// # Returns: {("A", "B"): 3}
-    /// # Single edges like ("B", "C") are not included
+    /// # Returns node IDs: {(node_id_a, node_id_b): 3}
+    /// # Single edges like (node_id_b, node_id_c) are not included
     /// ```
     #[inline]
-    pub fn count_multiple(&self) -> PyResult<std::collections::HashMap<(String, String), usize>> {
+    pub fn count_multiple(&self) -> PyResult<std::collections::HashMap<(u64, u64), usize>> {
         let m = self.num_edges();
         let mut pair_counts = FxHashMap::with_capacity_and_hasher(m, Default::default());
 
@@ -5541,19 +5499,12 @@ impl Graph {
             *pair_counts.entry(pair).or_insert(0) += 1;
         }
 
-        // Convert to labels and filter for multiples only (count >= 2)
+        // Filter for multiples only (count >= 2) and return node IDs
         let estimated_result_size = pair_counts.len() / 2;
         let mut result = std::collections::HashMap::with_capacity(estimated_result_size);
         for ((source_id, target_id), count) in pair_counts.iter() {
             if *count >= 2 {
-                let source_label = self.nodes.get(source_id)
-                    .and_then(|n| n.label.clone())
-                    .unwrap_or_else(|| source_id.to_string());
-                let target_label = self.nodes.get(target_id)
-                    .and_then(|n| n.label.clone())
-                    .unwrap_or_else(|| target_id.to_string());
-
-                result.insert((source_label, target_label), *count);
+                result.insert((*source_id, *target_id), *count);
             }
         }
 
@@ -5602,7 +5553,7 @@ impl Graph {
     ///
     /// # Returns
     ///
-    /// Dictionary mapping node labels to self-loop counts
+    /// Dictionary mapping node IDs to self-loop counts
     ///
     /// # Examples
     ///
@@ -5614,10 +5565,10 @@ impl Graph {
     /// g.add_edge("B", "B")  # Self-loop
     ///
     /// loops = g.count_loops()
-    /// # Returns: {"A": 2, "B": 1}
+    /// # Returns: {a_id: 2, b_id: 1} where a_id, b_id are node IDs
     /// ```
     #[inline]
-    pub fn count_loops(&self) -> PyResult<std::collections::HashMap<String, usize>> {
+    pub fn count_loops(&self) -> PyResult<std::collections::HashMap<u64, usize>> {
         let n = self.num_nodes();
         let mut loop_counts: std::collections::HashMap<u64, usize> = std::collections::HashMap::with_capacity(n);
 
@@ -5628,16 +5579,7 @@ impl Graph {
             }
         }
 
-        // Convert node IDs to labels
-        let mut result = std::collections::HashMap::with_capacity(loop_counts.len());
-        for (node_id, count) in loop_counts.iter() {
-            let label = self.nodes.get(node_id)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| node_id.to_string());
-            result.insert(label, *count);
-        }
-
-        Ok(result)
+        Ok(loop_counts)
     }
 
     // ========== Assortativity ==========
@@ -5855,14 +5797,14 @@ impl Graph {
     /// g = Graph(directed=False)
     /// g.add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D")])
     ///
-    /// sim = g.pairwise_similarity(["A", "B"], method="jaccard")
+    /// sim = g.get_pairwise_similarity(["A", "B"], method="jaccard")
     /// # A and B have identical neighborhoods → high similarity
     /// ```
     ///
     /// # References
     /// - Liben-Nowell & Kleinberg (2007). "The link-prediction problem for social networks"
     /// - Adamic & Adar (2003). "Friends and neighbors on the Web"
-    pub fn pairwise_similarity(
+    pub fn get_pairwise_similarity(
         &self,
         py: Python,
         nodes: Vec<PyObject>,
@@ -6072,14 +6014,14 @@ impl Graph {
     /// g.add_edge("Alice", "Bob")  # student-student
     /// g.add_edge("Alice", "Prof1")  # student-professor
     ///
-    /// r = g.assortativity_nominal("type")
+    /// r = g.get_assortativity_nominal("type")
     /// # Positive if students mostly connect to students
     /// ```
     ///
     /// # References
     /// Newman, M.E.J. "Mixing patterns in networks" (2003)
     #[inline]
-    pub fn assortativity_nominal(&self, attribute: &str) -> PyResult<f64> {
+    pub fn get_assortativity_nominal(&self, attribute: &str) -> PyResult<f64> {
         let m = self.edges.len();
         if m == 0 {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -6507,7 +6449,7 @@ impl Graph {
     /// - Empty graph
     /// - Failed eigenvalue computation
     #[pyo3(signature = (which="smallest", k=None, normalized=false))]
-    pub fn laplacian_spectrum(
+    pub fn get_laplacian_spectrum(
         &self,
         py: Python,
         which: &str,
@@ -9328,7 +9270,7 @@ mod tests {
         assert_eq!(graph.num_edges(), 1);
 
         // Check edge ID was auto-assigned
-        let edge_ids = graph.edge_ids();
+        let edge_ids = graph.get_edge_ids();
         assert_eq!(edge_ids.len(), 1);
         assert_eq!(edge_ids[0], 1);
     }

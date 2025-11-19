@@ -13,13 +13,13 @@ class TestRandomWalk:
         for i in range(1, 7):
             g.add_edge(str(i), str((i % 6) + 1))
 
-        path = g.random_walk("1", steps=10, seed=42)
+        path = g.random_walk("1", steps=10, seed=42, return_list=True)
         assert len(path) == 11  # steps + 1
-        assert path[0] == "1"  # starts at specified vertex
+        assert path[0] == g.get_id_from_label("1")  # starts at specified vertex
 
         # All vertices in path should exist
         for v in path:
-            assert v in [str(i) for i in range(1, 7)]
+            assert v in list(range(1, 7))
 
     def test_walk_reproducibility(self):
         """Test that seed makes walks reproducible."""
@@ -29,8 +29,8 @@ class TestRandomWalk:
         for i in range(1, 7):
             g.add_edge(str(i), str((i % 6) + 1))
 
-        path1 = g.random_walk("1", steps=100, seed=42)
-        path2 = g.random_walk("1", steps=100, seed=42)
+        path1 = g.random_walk("1", steps=100, seed=42, return_list=True)
+        path2 = g.random_walk("1", steps=100, seed=42, return_list=True)
         assert path1 == path2
 
     def test_walk_randomness(self):
@@ -41,8 +41,8 @@ class TestRandomWalk:
         for i in range(1, 7):
             g.add_edge(str(i), str((i % 6) + 1))
 
-        path1 = g.random_walk("1", steps=100)
-        path2 = g.random_walk("1", steps=100)
+        path1 = g.random_walk("1", steps=100, return_list=True)
+        path2 = g.random_walk("1", steps=100, return_list=True)
         # Very unlikely to be identical for 100 steps
         assert path1 != path2
 
@@ -56,11 +56,11 @@ class TestRandomWalk:
         g.add_edge("C", "D")
 
         # Walking forward from A should only reach B, then get stuck
-        path = g.random_walk("A", steps=10, mode="out", stuck="return", seed=42)
+        path = g.random_walk("A", steps=10, mode="out", stuck="return", seed=42, return_list=True)
         assert len(path) <= 4  # A -> B -> C -> D
-        assert path[0] == "A"
+        assert path[0] == g.get_id_from_label("A")
         if len(path) > 1:
-            assert path[1] == "B"
+            assert path[1] == g.get_id_from_label("B")
 
     def test_mode_in(self):
         """Test mode='in' reverses edge directions."""
@@ -72,12 +72,12 @@ class TestRandomWalk:
         g.add_edge("C", "D")
 
         # Walking backward from C should reach B, then A
-        path = g.random_walk("C", steps=10, mode="in", stuck="return", seed=42)
-        assert path[0] == "C"
+        path = g.random_walk("C", steps=10, mode="in", stuck="return", seed=42, return_list=True)
+        assert path[0] == g.get_id_from_label("C")
         if len(path) > 1:
-            assert path[1] == "B"
+            assert path[1] == g.get_id_from_label("B")
         if len(path) > 2:
-            assert path[2] == "A"
+            assert path[2] == g.get_id_from_label("A")
 
     def test_mode_all(self):
         """Test mode='all' ignores edge direction."""
@@ -88,11 +88,11 @@ class TestRandomWalk:
         g.add_edge("B", "C")
 
         # mode='all' treats as undirected, can go both ways
-        path = g.random_walk("B", steps=20, mode="all", seed=42)
+        path = g.random_walk("B", steps=20, mode="all", seed=42, return_list=True)
         assert len(path) == 21
-        assert path[0] == "B"
+        assert path[0] == g.get_id_from_label("B")
         # Should visit both A and C eventually
-        assert "A" in path or "C" in path
+        assert g.get_id_from_label("A") in path or "C" in path
 
     def test_stuck_return(self):
         """Test stuck='return' returns partial walk."""
@@ -102,9 +102,14 @@ class TestRandomWalk:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        path = g.random_walk("A", steps=10, stuck="return")
+        path = g.random_walk("A", steps=10, stuck="return", return_list=True)
         assert len(path) == 3  # A -> B -> C (stuck)
-        assert path == ["A", "B", "C"]
+        a_id, b_id, c_id = (
+            g.get_id_from_label("A"),
+            g.get_id_from_label("B"),
+            g.get_id_from_label("C"),
+        )
+        assert path == [a_id, b_id, c_id]
 
     def test_stuck_error(self):
         """Test stuck='error' raises exception."""
@@ -115,7 +120,7 @@ class TestRandomWalk:
         g.add_edge("B", "C")
 
         with pytest.raises(RuntimeError, match="stuck"):
-            g.random_walk("A", steps=10, stuck="error")
+            g.random_walk("A", steps=10, stuck="error", return_list=True)
 
     def test_invalid_start(self):
         """Test error on invalid start vertex."""
@@ -123,7 +128,7 @@ class TestRandomWalk:
         g.add_node(label="A")
 
         with pytest.raises(ValueError, match="not found"):
-            g.random_walk("Z", steps=10)
+            g.random_walk("Z", steps=10, return_list=True)
 
     def test_invalid_mode(self):
         """Test error on invalid mode."""
@@ -131,7 +136,7 @@ class TestRandomWalk:
         g.add_node(label="A")
 
         with pytest.raises(ValueError, match="mode"):
-            g.random_walk("A", steps=10, mode="invalid")
+            g.random_walk("A", steps=10, mode="invalid", return_list=True)
 
     def test_invalid_stuck(self):
         """Test error on invalid stuck parameter."""
@@ -139,16 +144,16 @@ class TestRandomWalk:
         g.add_node(label="A")
 
         with pytest.raises(ValueError, match="stuck"):
-            g.random_walk("A", steps=10, stuck="invalid")
+            g.random_walk("A", steps=10, stuck="invalid", return_list=True)
 
     def test_zero_steps(self):
         """Test walk with zero steps."""
         g = Graph()
         g.add_node(label="A")
 
-        path = g.random_walk("A", steps=0)
+        path = g.random_walk("A", steps=0, return_list=True)
         assert len(path) == 1
-        assert path == ["A"]
+        assert path == [g.get_id_from_label("A")]
 
     def test_isolated_vertex(self):
         """Test walk on isolated vertex."""
@@ -156,9 +161,9 @@ class TestRandomWalk:
         g.add_node(label="A")
 
         # Should get stuck immediately
-        path = g.random_walk("A", steps=10, stuck="return")
+        path = g.random_walk("A", steps=10, stuck="return", return_list=True)
         assert len(path) == 1
-        assert path == ["A"]
+        assert path == [g.get_id_from_label("A")]
 
     def test_star_graph(self):
         """Test walk on star graph."""
@@ -169,13 +174,14 @@ class TestRandomWalk:
             g.add_edge("center", f"leaf{i}")
 
         # Walk from center should alternate center/leaf
-        path = g.random_walk("center", steps=10, seed=42)
+        path = g.random_walk("center", steps=10, seed=42, return_list=True)
         assert len(path) == 11
-        assert path[0] == "center"
+        assert path[0] == g.get_id_from_label("center")
         # Every other vertex should be center
+        center_id = g.get_id_from_label("center")
         for i in range(0, len(path), 2):
             if i < len(path):
-                assert path[i] == "center"
+                assert path[i] == center_id
 
 
 class TestRandomEdgeWalk:
@@ -190,17 +196,17 @@ class TestRandomEdgeWalk:
         g.add_edge("2", "3")
         g.add_edge("3", "1")
 
-        edges = g.random_edge_walk("1", steps=10, seed=42)
+        edges = g.random_edge_walk("1", steps=10, seed=42, return_list=True)
         assert len(edges) == 10  # exactly 'steps' edges
 
-        # Each edge should be a tuple of (id, source, target)
+        # Each edge should be a tuple of (edge_id, source_id, target_id)
         for edge in edges:
             assert isinstance(edge, tuple)
             assert len(edge) == 3
-            edge_id, source, target = edge
+            edge_id, source_id, target_id = edge
             assert isinstance(edge_id, int)
-            assert isinstance(source, str)
-            assert isinstance(target, str)
+            assert isinstance(source_id, int)
+            assert isinstance(target_id, int)
 
     def test_edge_walk_validity(self):
         """Test that edge walk returns valid edges."""
@@ -211,18 +217,19 @@ class TestRandomEdgeWalk:
         g.add_edge("2", "3")
         g.add_edge("3", "1")
 
-        edge_path = g.random_edge_walk("1", steps=10, seed=42)
+        edge_path = g.random_edge_walk("1", steps=10, seed=42, return_list=True)
 
         # Should have 10 edges
         assert len(edge_path) == 10
 
         # Each edge should be valid
-        for edge_id, source, target in edge_path:
+        for edge_id, source_id, target_id in edge_path:
             assert isinstance(edge_id, int)
-            assert source in ["1", "2", "3"]
-            assert target in ["1", "2", "3"]
-            # Edge should exist in graph
-            assert {source, target} <= {"1", "2", "3"}
+            assert isinstance(source_id, int)
+            assert isinstance(target_id, int)
+            # Node IDs should be valid (1, 2, or 3)
+            assert source_id in [1, 2, 3]
+            assert target_id in [1, 2, 3]
 
     def test_edge_walk_mode(self):
         """Test edge walk with different modes."""
@@ -233,12 +240,16 @@ class TestRandomEdgeWalk:
         g.add_edge("B", "C")
 
         # Forward
-        forward = g.random_edge_walk("A", steps=5, mode="out", stuck="return", seed=42)
+        forward = g.random_edge_walk(
+            "A", steps=5, mode="out", stuck="return", seed=42, return_list=True
+        )
         assert len(forward) <= 2
         # Edges should connect A->B and B->C
 
         # Backward
-        backward = g.random_edge_walk("C", steps=5, mode="in", stuck="return", seed=42)
+        backward = g.random_edge_walk(
+            "C", steps=5, mode="in", stuck="return", seed=42, return_list=True
+        )
         assert len(backward) <= 2
         # When walking backward from C, we traverse edges in reverse
         # Edge tuples still show original direction (source, target)
@@ -252,19 +263,19 @@ class TestRandomEdgeWalk:
         g.add_edge("A", "B")
 
         # Return partial
-        edges = g.random_edge_walk("A", steps=10, stuck="return")
+        edges = g.random_edge_walk("A", steps=10, stuck="return", return_list=True)
         assert len(edges) == 1  # Only one edge before stuck
 
         # Raise error
         with pytest.raises(RuntimeError, match="stuck"):
-            g.random_edge_walk("A", steps=10, stuck="error")
+            g.random_edge_walk("A", steps=10, stuck="error", return_list=True)
 
     def test_edge_walk_zero_steps(self):
         """Test edge walk with zero steps."""
         g = Graph()
         g.add_node(label="A")
 
-        edges = g.random_edge_walk("A", steps=0)
+        edges = g.random_edge_walk("A", steps=0, return_list=True)
         assert len(edges) == 0
 
     def test_edge_walk_reproducibility(self):
@@ -275,8 +286,8 @@ class TestRandomEdgeWalk:
         for i in range(1, 7):
             g.add_edge(str(i), str((i % 6) + 1))
 
-        edges1 = g.random_edge_walk("1", steps=100, seed=42)
-        edges2 = g.random_edge_walk("1", steps=100, seed=42)
+        edges1 = g.random_edge_walk("1", steps=100, seed=42, return_list=True)
+        edges2 = g.random_edge_walk("1", steps=100, seed=42, return_list=True)
         assert edges1 == edges2
 
 
@@ -297,11 +308,13 @@ class TestRandomWalkIntegration:
         g.add_edge("C", "D")
 
         # Walk from A should only visit A and B
-        path = g.random_walk("A", steps=20, seed=42)
+        path = g.random_walk("A", steps=20, seed=42, return_list=True)
         vertices_visited = set(path)
-        assert vertices_visited.issubset({"A", "B"})
-        assert "C" not in vertices_visited
-        assert "D" not in vertices_visited
+        a_id, b_id = g.get_id_from_label("A"), g.get_id_from_label("B")
+        c_id, d_id = g.get_id_from_label("C"), g.get_id_from_label("D")
+        assert vertices_visited.issubset({a_id, b_id})
+        assert c_id not in vertices_visited
+        assert d_id not in vertices_visited
 
     def test_self_loop(self):
         """Test walk with self-loops."""
@@ -312,9 +325,10 @@ class TestRandomWalkIntegration:
         g.add_edge("A", "B")
 
         # Walk can stay at A or move to B
-        path = g.random_walk("A", steps=20, seed=42)
+        path = g.random_walk("A", steps=20, seed=42, return_list=True)
         assert len(path) == 21
-        assert all(v in ["A", "B"] for v in path)
+        a_id, b_id = g.get_id_from_label("A"), g.get_id_from_label("B")
+        assert all(v in [a_id, b_id] for v in path)
 
     def test_large_walk(self):
         """Test long walk on larger graph."""
@@ -326,9 +340,9 @@ class TestRandomWalkIntegration:
         for i in range(n):
             g.add_edge(str(i), str((i + 1) % n))
 
-        path = g.random_walk("0", steps=1000, seed=42)
+        path = g.random_walk("0", steps=1000, seed=42, return_list=True)
         assert len(path) == 1001
-        assert path[0] == "0"
+        assert path[0] == g.get_id_from_label("0")
 
         # Should visit multiple vertices
         unique_vertices = len(set(path))

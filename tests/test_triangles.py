@@ -17,7 +17,8 @@ class TestTriangleCounting:
         g = ec.Graph()
         g.add_node(label="A")
         counts = g.count_triangles()
-        assert counts["A"] == 0
+        a_id = g.get_id_from_label("A")
+        assert counts[a_id] == 0
 
     def test_count_triangles_single_triangle(self):
         """Single triangle: each node participates in one triangle."""
@@ -30,9 +31,12 @@ class TestTriangleCounting:
         g.add_edge("C", "A")
 
         counts = g.count_triangles()
-        assert counts["A"] == 1
-        assert counts["B"] == 1
-        assert counts["C"] == 1
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        assert counts[a_id] == 1
+        assert counts[b_id] == 1
+        assert counts[c_id] == 1
 
     def test_count_triangles_chain(self):
         """Chain graph has no triangles."""
@@ -63,10 +67,14 @@ class TestTriangleCounting:
         g.add_edge("D", "C")  # Triangle 2
 
         counts = g.count_triangles()
-        assert counts["A"] == 1  # One triangle
-        assert counts["B"] == 2  # Two triangles
-        assert counts["C"] == 2  # Two triangles
-        assert counts["D"] == 1  # One triangle
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        d_id = g.get_id_from_label("D")
+        assert counts[a_id] == 1  # One triangle
+        assert counts[b_id] == 2  # Two triangles
+        assert counts[c_id] == 2  # Two triangles
+        assert counts[d_id] == 1  # One triangle
 
     def test_count_triangles_complete_graph_k4(self):
         """Complete graph K4 has 4 triangles per node."""
@@ -82,7 +90,8 @@ class TestTriangleCounting:
         counts = g.count_triangles()
         # Each node in K4 participates in C(3,2) = 3 triangles
         for node in nodes:
-            assert counts[node] == 3
+            node_id = g.get_id_from_label(node)
+            assert counts[node_id] == 3
 
     def test_count_triangles_directed(self):
         """Test triangle counting in directed graph."""
@@ -121,9 +130,12 @@ class TestListTriangles:
         triangles = g.list_triangles()
         assert len(triangles) == 1
 
-        # Check triangle contains all three nodes
+        # Check triangle contains all three nodes (as IDs)
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
         tri_set = set(triangles[0])
-        assert tri_set == {"A", "B", "C"}
+        assert tri_set == {a_id, b_id, c_id}
 
     def test_list_triangles_multiple(self):
         """List multiple triangles."""
@@ -141,10 +153,16 @@ class TestListTriangles:
         triangles = g.list_triangles()
         assert len(triangles) == 2
 
+        # Get node IDs
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        d_id = g.get_id_from_label("D")
+
         # Convert to sets for easier comparison
         tri_sets = [set(tri) for tri in triangles]
-        assert {"A", "B", "C"} in tri_sets
-        assert {"B", "C", "D"} in tri_sets
+        assert {a_id, b_id, c_id} in tri_sets
+        assert {b_id, c_id, d_id} in tri_sets
 
     def test_list_triangles_no_triangles(self):
         """Chain graph has no triangles to list."""
@@ -174,7 +192,7 @@ class TestTransitivity:
         g.add_edge("B", "C")
         g.add_edge("C", "A")
 
-        trans = g.get_graph_transitivity()
+        trans = g.get_transitivity()
         assert trans is not None
         assert abs(trans - 1.0) < 1e-10
 
@@ -189,7 +207,7 @@ class TestTransitivity:
         g.add_edge("B", "C")
         g.add_edge("C", "D")
 
-        trans = g.get_graph_transitivity()
+        trans = g.get_transitivity()
         assert trans is not None
         assert abs(trans - 0.0) < 1e-10
 
@@ -205,14 +223,14 @@ class TestTransitivity:
         g.add_edge("C", "A")  # Triangle
         g.add_edge("A", "D")  # Extra edge creating open triple
 
-        trans = g.get_graph_transitivity()
+        trans = g.get_transitivity()
         assert trans is not None
         assert 0.0 < trans < 1.0
 
     def test_transitivity_empty(self):
         """Empty graph returns None."""
         g = ec.Graph()
-        trans = g.get_graph_transitivity()
+        trans = g.get_transitivity()
         assert trans is None
 
     def test_transitivity_no_triples(self):
@@ -221,7 +239,7 @@ class TestTransitivity:
         g.add_node(label="A")
         g.add_node(label="B")
 
-        trans = g.get_graph_transitivity()
+        trans = g.get_transitivity()
         assert trans is None
 
 
@@ -238,7 +256,7 @@ class TestLocalClustering:
         g.add_edge("B", "C")
         g.add_edge("C", "A")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_a_id = g.get_id_from_label("A")
         node_b_id = g.get_id_from_label("B")
         node_c_id = g.get_id_from_label("C")
@@ -257,7 +275,7 @@ class TestLocalClustering:
         g.add_edge("B", "C")
         g.add_edge("B", "D")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_b_id = g.get_id_from_label("B")
         assert clustering[node_b_id] is not None
         assert abs(clustering[node_b_id] - 0.0) < 1e-10
@@ -277,7 +295,7 @@ class TestLocalClustering:
         g.add_edge("C", "A")  # Triangle
         g.add_edge("A", "D")  # Extra connection
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         # A has 3 neighbors, 1 triangle out of C(3,2)=3 possible
         # So clustering = 1/3
         node_a_id = g.get_id_from_label("A")
@@ -293,7 +311,7 @@ class TestLocalClustering:
         g.add_node(label="C")
         g.add_edge("B", "C")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_a_id = g.get_id_from_label("A")
         assert clustering[node_a_id] is None
 
@@ -306,7 +324,7 @@ class TestLocalClustering:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         node_a_id = g.get_id_from_label("A")
         node_b_id = g.get_id_from_label("B")
         node_c_id = g.get_id_from_label("C")
@@ -328,7 +346,7 @@ class TestLocalClustering:
         g.add_edge("Hub", "C")
         g.add_edge("Hub", "D")
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         hub_id = g.get_id_from_label("Hub")
         assert clustering[hub_id] is not None
         assert abs(clustering[hub_id] - 0.0) < 1e-10
@@ -349,7 +367,7 @@ class TestLocalClustering:
             for n2 in nodes[i + 1 :]:
                 g.add_edge(n1, n2)
 
-        clustering = g.local_clustering_coefficient()
+        clustering = g.local_clustering_coefficient(return_dict=True)
         for node in nodes:
             node_id = g.get_id_from_label(node)
             assert abs(clustering[node_id] - 1.0) < 1e-10

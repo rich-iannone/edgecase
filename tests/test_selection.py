@@ -21,7 +21,7 @@ class TestNodeSelection:
         # Select specific nodes (use integer IDs)
         G.select_nodes_by_id([1, 3])  # A=1, C=3
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 2
         assert 1 in selected  # A
         assert 3 in selected  # C
@@ -40,7 +40,7 @@ class TestNodeSelection:
         # Chain selections (use integer IDs)
         G.select_nodes_by_id([1, 2]).select_nodes_by_id([3, 4])  # A=1, B=2, C=3, D=4
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 4
         assert set(selected) == {1, 2, 3, 4}
 
@@ -67,7 +67,7 @@ class TestNodeSelection:
         # Select nodes with degree >= 3
         G.select_nodes_by_degree(min_degree=3)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 1
         assert 1 in selected  # A
 
@@ -85,7 +85,7 @@ class TestNodeSelection:
         # Select nodes with degree 2
         G.select_nodes_by_degree(min_degree=2, max_degree=2)
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 2
         assert 1 in selected  # A
         assert 3 in selected  # C
@@ -103,7 +103,7 @@ class TestNodeSelection:
         # Select nodes with out-degree >= 2
         G.select_nodes_by_degree(min_degree=2, degree_type="out")
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 1
         assert 1 in selected  # A
 
@@ -120,7 +120,7 @@ class TestNodeSelection:
         # Select nodes with in-degree >= 2
         G.select_nodes_by_degree(min_degree=2, degree_type="in")
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 1
         assert 4 in selected  # D
 
@@ -147,7 +147,7 @@ class TestNodeSelection:
         G.select_nodes_by_id([1, 2, 3, 4])
         G.deselect_nodes([2, 4])  # B=2, D=4
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 2
         assert 1 in selected  # A
         assert 3 in selected  # C
@@ -165,14 +165,14 @@ class TestNodeSelection:
         G.clear_selection()
         G.select_nodes_by_id([1, 2, 3, 4])
         G.deselect_nodes([2, 4])  # B=2, D=4
-        selected_by_id = set(G.get_selected_nodes())
+        selected_by_id = set(G.get_selected_node_ids())
         assert selected_by_id == {1, 3}  # A and C
 
         # Deselect using node labels
         G.clear_selection()
         G.select_nodes_by_id([1, 2, 3, 4])
         G.deselect_nodes(["B", "D"])
-        selected_by_label = set(G.get_selected_nodes())
+        selected_by_label = set(G.get_selected_node_ids())
         assert selected_by_label == {1, 3}  # A and C
 
         # Should get same results
@@ -182,7 +182,7 @@ class TestNodeSelection:
         G.clear_selection()
         G.select_nodes_by_id([1, 2, 3, 4])
         G.deselect_nodes([1, "D"])  # A (ID) and D (label)
-        selected_mixed = set(G.get_selected_nodes())
+        selected_mixed = set(G.get_selected_node_ids())
         assert selected_mixed == {2, 3}  # B and C
 
     def test_clear_selection_nodes(self):
@@ -198,7 +198,7 @@ class TestNodeSelection:
 
         G.clear_selection()
         assert G.count_selected_nodes() == 0
-        assert len(G.get_selected_nodes()) == 0
+        assert len(G.get_selected_node_ids()) == 0
 
     def test_invert_node_selection(self):
         """Invert node selection."""
@@ -215,7 +215,7 @@ class TestNodeSelection:
         # Invert - should select C and D
         G.invert_node_selection()
 
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert len(selected) == 2
         assert 3 in selected  # C
         assert 4 in selected  # D
@@ -248,12 +248,12 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Select first two edges
         G.select_edges_by_id([edge_ids[0], edge_ids[1]])
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
         assert edge_ids[0] in selected
         assert edge_ids[1] in selected
@@ -268,12 +268,12 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Chain selections
         G.select_edges_by_id([edge_ids[0]]).select_edges_by_id([edge_ids[1]])
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
 
     def test_select_edges_by_id_error(self):
@@ -299,11 +299,11 @@ class TestEdgeSelection:
         # Select edges connected to B (should get A-B and B-C)
         G.select_edges_by_node_id([2])  # B=2
 
-        selected_edges = G.get_selected_edges()
+        selected_edges = G.get_selected_edge_ids()
         assert len(selected_edges) == 2
 
         # Verify the correct edges are selected (edges_as_tuples() returns (id, source_id, target_id))
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edge_info = [e for e in edges if e[0] in selected_edges]
 
         sources_targets = [(e[1], e[2]) for e in selected_edge_info]
@@ -323,10 +323,10 @@ class TestEdgeSelection:
         # Select edges connected to A or D
         G.select_edges_by_node_id([1, 4])  # A=1, D=4
 
-        selected_edges = G.get_selected_edges()
+        selected_edges = G.get_selected_edge_ids()
         assert len(selected_edges) == 3  # A-B, C-D, D-E
 
-        edges = G.edges_as_tuples()
+        edges = G.get_edges_as_tuples()
         selected_edge_info = [e for e in edges if e[0] in selected_edges]
         sources_targets = [(e[1], e[2]) for e in selected_edge_info]
 
@@ -346,12 +346,12 @@ class TestEdgeSelection:
         # Using node IDs
         G.clear_selection()
         G.select_edges_by_node_id([2])  # B=2
-        selected_by_id = set(G.get_selected_edges())
+        selected_by_id = set(G.get_selected_edge_ids())
 
         # Using node labels
         G.clear_selection()
         G.select_edges_by_node_id(["B"])
-        selected_by_label = set(G.get_selected_edges())
+        selected_by_label = set(G.get_selected_edge_ids())
 
         # Should select same edges
         assert selected_by_id == selected_by_label
@@ -360,7 +360,7 @@ class TestEdgeSelection:
         # Mixed usage
         G.clear_selection()
         G.select_edges_by_node_id([1, "D"])  # A (ID) and D (label)
-        selected_mixed = G.get_selected_edges()
+        selected_mixed = G.get_selected_edge_ids()
         assert len(selected_mixed) == 2  # A-B and C-D
 
     def test_deselect_edges(self):
@@ -372,13 +372,13 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Select all, then deselect one
         G.select_edges_by_id(edge_ids)
         G.deselect_edges([edge_ids[1]])
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
         assert edge_ids[0] in selected
         assert edge_ids[2] in selected
@@ -392,13 +392,13 @@ class TestEdgeSelection:
         G.add_edge("A", "B")
         G.add_edge("B", "C")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id(edge_ids)
         assert G.count_selected_edges() == 2
 
         G.clear_selection()
         assert G.count_selected_edges() == 0
-        assert len(G.get_selected_edges()) == 0
+        assert len(G.get_selected_edge_ids()) == 0
 
     def test_invert_edge_selection(self):
         """Invert edge selection."""
@@ -409,7 +409,7 @@ class TestEdgeSelection:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Select first edge
         G.select_edges_by_id([edge_ids[0]])
@@ -417,7 +417,7 @@ class TestEdgeSelection:
         # Invert - should select other two
         G.invert_edge_selection()
 
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert len(selected) == 2
         assert edge_ids[1] in selected
         assert edge_ids[2] in selected
@@ -433,7 +433,7 @@ class TestEdgeSelection:
 
         assert G.count_selected_edges() == 0
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id([edge_ids[0]])
         assert G.count_selected_edges() == 1
 
@@ -455,7 +455,7 @@ class TestCombinedSelection:
         assert G.count_selected_nodes() == 2
 
         # Select some edges
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id([edge_ids[0]])
         assert G.count_selected_edges() == 1
 
@@ -473,7 +473,7 @@ class TestCombinedSelection:
 
         # Select nodes and edges (use integer IDs)
         G.select_nodes_by_id([1, 2])  # A=1, B=2
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
         G.select_edges_by_id([edge_ids[0]])
 
         assert G.count_selected_nodes() == 2
@@ -501,7 +501,7 @@ class TestCombinedSelection:
 
         # Select high out-degree nodes
         G.select_nodes_by_degree(min_degree=2, degree_type="out")
-        selected_nodes = G.get_selected_nodes()
+        selected_nodes = G.get_selected_node_ids()
 
         # Should select A (out-degree 2) and B (out-degree 2) - IDs 1 and 2
         assert len(selected_nodes) == 2
@@ -510,7 +510,7 @@ class TestCombinedSelection:
 
         # Now select edges connected to these nodes
         G.select_edges_by_node_id(selected_nodes)
-        selected_edges = G.get_selected_edges()
+        selected_edges = G.get_selected_edge_ids()
 
         # Should select all edges involving A or B
         assert G.count_selected_edges() == 4  # A-B, A-C, B-C, B-D
@@ -562,7 +562,7 @@ class TestSelectionEdgeCases:
         G.invert_node_selection()
 
         assert G.count_selected_nodes() == 4
-        selected = G.get_selected_nodes()
+        selected = G.get_selected_node_ids()
         assert set(selected) == {1, 2, 3, 4}  # Integer IDs
 
     def test_select_all_edges(self):
@@ -574,13 +574,13 @@ class TestSelectionEdgeCases:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.edge_ids()
+        edge_ids = G.get_edge_ids()
 
         # Invert empty selection = select all
         G.invert_edge_selection()
 
         assert G.count_selected_edges() == 3
-        selected = G.get_selected_edges()
+        selected = G.get_selected_edge_ids()
         assert set(selected) == set(edge_ids)
 
     def test_method_chaining_returns_self(self):

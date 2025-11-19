@@ -5,7 +5,7 @@ from edgecase import Graph
 def networkx_to_edgecase(nx_graph):
     """Convert NetworkX graph to EdgeCase graph."""
     g = Graph()
-    for node in nx_graph.node_ids(limit=None):
+    for node in nx_graph.get_node_ids(limit=None):
         g.add_node(label=str(node))
     for u, v in nx_graph.edges():
         g.add_edge(str(u), str(v))
@@ -15,10 +15,10 @@ def networkx_to_edgecase(nx_graph):
 def check_spanner_properties(original, spanner, stretch):
     """Verify spanner properties."""
     # 1. Same nodes
-    assert spanner.num_nodes() == original.num_nodes(), "Spanner must have same nodes"
+    assert spanner.count_nodes() == original.count_nodes(), "Spanner must have same nodes"
 
     # 2. Subset of edges
-    assert spanner.num_edges() <= original.num_edges(), "Spanner must have ≤ original edges"
+    assert spanner.count_edges() <= original.count_edges(), "Spanner must have ≤ original edges"
 
     # 3. Connected components preserved (if original was connected)
     # This is harder to check without exposing BFS, so we skip for now
@@ -40,7 +40,7 @@ def test_comparison_1():
     ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=42)
 
     print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.num_edges()} edges → {ec_spanner.num_edges()} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
 
     # Verify properties
     check_spanner_properties(ec_g, ec_spanner, 2.0)
@@ -61,7 +61,7 @@ def test_comparison_2():
     ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=42)
 
     print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.num_edges()} edges → {ec_spanner.num_edges()} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
 
     check_spanner_properties(ec_g, ec_spanner, 3.0)
     print("✓ Spanner properties verified")
@@ -81,10 +81,10 @@ def test_comparison_3():
     ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=42)
 
     print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.num_edges()} edges → {ec_spanner.num_edges()} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
 
     # Both should significantly reduce edges
-    assert ec_spanner.num_edges() < ec_g.num_edges() / 2, (
+    assert ec_spanner.count_edges() < ec_g.count_edges() / 2, (
         "Complete graph should reduce significantly"
     )
 
@@ -106,7 +106,7 @@ def test_comparison_4():
     ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=42)
 
     print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.num_edges()} edges → {ec_spanner.num_edges()} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
 
     check_spanner_properties(ec_g, ec_spanner, 3.0)
     print("✓ Spanner properties verified")
@@ -138,7 +138,7 @@ def test_comparison_5():
     ec_spanner = ec_g.transform_with_spanner(stretch=3.0, weight="weight", seed=42)
 
     print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.num_edges()} edges → {ec_spanner.num_edges()} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
 
     check_spanner_properties(ec_g, ec_spanner, 3.0)
     print("✓ Spanner properties verified")

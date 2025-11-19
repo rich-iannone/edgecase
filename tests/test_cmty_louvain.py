@@ -19,14 +19,14 @@ class TestLouvainBasic:
     def test_empty_graph(self):
         """Empty graph should return empty dict."""
         G = ec.Graph(directed=False)
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
         assert communities == {}
 
     def test_single_node(self):
         """Single node should be in its own community."""
         G = ec.Graph(directed=False)
         G.add_node("A")
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
         a_id = G.get_id_from_label("A")
         assert communities == {a_id: 0}
 
@@ -35,14 +35,14 @@ class TestLouvainBasic:
         G = ec.Graph(directed=False)
         G.add_node("A")
         G.add_node("B")
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
         assert len(set(communities.values())) == 2
 
     def test_two_nodes_with_edge(self):
         """Two connected nodes can be in same community."""
         G = ec.Graph(directed=False)
         G.add_edge("A", "B", auto_create_nodes=True)
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
         a_id, b_id = G.get_id_from_label("A"), G.get_id_from_label("B")
         # Should be in same community (modularity optimization)
         assert communities[a_id] == communities[b_id]
@@ -52,7 +52,7 @@ class TestLouvainBasic:
         G = ec.Graph(directed=True)
         G.add_edge("A", "B", auto_create_nodes=True)
         try:
-            G.get_cmty_louvain()
+            G.cmty_louvain()
             assert False, "Should raise error for directed graph"
         except Exception as e:
             assert "undirected" in str(e).lower()
@@ -75,7 +75,7 @@ class TestLouvainKnownStructures:
         G.add_edge("E", "F", auto_create_nodes=True)
         G.add_edge("F", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -112,7 +112,7 @@ class TestLouvainKnownStructures:
                 if i < j:
                     G.add_edge(i, j, auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should find 2 communities
         assert len(set(communities.values())) == 2
@@ -146,7 +146,7 @@ class TestLouvainKnownStructures:
         G.add_edge("F", "G", auto_create_nodes=True)  # 2-3
         G.add_edge("I", "J", auto_create_nodes=True)  # 3-4
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should find 2-4 communities
         num_communities = len(set(communities.values()))
@@ -172,7 +172,7 @@ class TestLouvainKnownStructures:
         G.add_edge("17", "18", auto_create_nodes=True)
         G.add_edge("16", "19", auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should find at least 2 communities
         num_communities = len(set(communities.values()))
@@ -184,13 +184,13 @@ class TestLouvainModularity:
 
     def compute_modularity(self, G, communities):
         """Compute modularity Q for a given community assignment."""
-        m = G.num_edges()
+        m = G.count_edges()
         if m == 0:
             return 0.0
 
         Q = 0.0
-        for u in G.node_ids(limit=None):
-            for v in G.node_ids(limit=None):
+        for u in G.get_node_ids(limit=None):
+            for v in G.get_node_ids(limit=None):
                 if communities[u] == communities[v]:
                     A_ij = 1.0 if G.has_edge(u, v) else 0.0
                     k_u = G.get_degree(u)
@@ -214,7 +214,7 @@ class TestLouvainModularity:
         # Single bridge
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Should have positive modularity
@@ -230,7 +230,7 @@ class TestLouvainModularity:
                 if i < j:
                     G.add_edge(i, j, auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
         Q = self.compute_modularity(G, communities)
 
         # Complete graph has no community structure
@@ -255,7 +255,7 @@ class TestLouvainModularity:
         # Sparse connections between
         G.add_edge("4", "5", auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
         Q_louvain = self.compute_modularity(G, communities)
 
         # Initial assignment (each node in own community)
@@ -279,7 +279,7 @@ class TestLouvainProperties:
                 if abs(i - j) <= 2:
                     G.add_edge(str(i), str(j), auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # All nodes should be present
         expected_ids = {G.get_id_from_label(str(i)) for i in range(10)}
@@ -299,7 +299,7 @@ class TestLouvainProperties:
         G.add_edge("C", "D", auto_create_nodes=True)
         G.add_edge("E", "F", auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         unique_ids = sorted(set(communities.values()))
         # Should be [0, 1, 2] or similar
@@ -315,8 +315,8 @@ class TestLouvainProperties:
                 if i // 4 == j // 4:  # Same group
                     G.add_edge(str(i), str(j), auto_create_nodes=True)
 
-        communities1 = G.get_cmty_louvain()
-        communities2 = G.get_cmty_louvain()
+        communities1 = G.cmty_louvain(return_dict=True)
+        communities2 = G.cmty_louvain(return_dict=True)
 
         # Results should be identical
         assert communities1 == communities2
@@ -343,7 +343,7 @@ class TestLouvainPerformance:
         G.add_edge("59", "60", auto_create_nodes=True)
         G.add_edge("79", "80", auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should find multiple communities
         # The ground truth has 5 groups, but due to the chain-like structure (edges only within distance 4),
@@ -366,7 +366,7 @@ class TestLouvainPerformance:
                     if (i + j) % 10 == 0:  # ~10% edges between
                         G.add_edge(str(i), str(j), auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should find 2 main communities
         num_communities = len(set(communities.values()))
@@ -386,7 +386,7 @@ class TestLouvainEdgeCases:
                 if i < j:
                     G.add_edge(i, j, auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # All nodes in same community
         assert len(set(communities.values())) == 1
@@ -399,7 +399,7 @@ class TestLouvainEdgeCases:
         for i in range(1, 6):
             G.add_edge("center", str(i), auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Likely forms 1 community (hub dominant)
         num_communities = len(set(communities.values()))
@@ -424,7 +424,7 @@ class TestLouvainEdgeCases:
         G.add_edge("H", "I", auto_create_nodes=True)
         G.add_edge("I", "G", auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should find at least 3 communities
         assert len(set(communities.values())) >= 3
@@ -438,7 +438,7 @@ class TestLouvainEdgeCases:
         for i in range(len(nodes)):
             G.add_edge(nodes[i], nodes[(i + 1) % len(nodes)], auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Should assign all nodes (structure is weak)
         assert len(communities) == len(nodes)
@@ -457,7 +457,7 @@ class TestLouvainEdgeCases:
             for b in group_b:
                 G.add_edge(a, b, auto_create_nodes=True)
 
-        communities = G.get_cmty_louvain()
+        communities = G.cmty_louvain(return_dict=True)
 
         # Bipartite graphs are tricky - should find some structure
         num_communities = len(set(communities.values()))

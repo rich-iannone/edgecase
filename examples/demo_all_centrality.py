@@ -7,7 +7,7 @@ print("=" * 70)
 # Create a simple network for demonstrations
 print("\n1. Creating test network (karate club)...")
 graph = ec.karate_club()
-print(f"   Nodes: {graph.num_nodes()}, Edges: {graph.num_edges()}")
+print(f"   Nodes: {graph.count_nodes()}, Edges: {graph.count_edges()}")
 
 # Test all centrality methods with attr_name parameter
 print("\n2. Computing all centrality measures with method chaining...")

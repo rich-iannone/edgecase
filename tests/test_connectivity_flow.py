@@ -91,7 +91,7 @@ class TestReciprocity:
         G = ec.Graph(directed=False)
         G.add_path_graph(3)
 
-        with pytest.raises(ValueError, match="only defined for directed graphs"):
+        with pytest.raises(ValueError, match="requires a directed graph"):
             G.get_reciprocity()
 
     def test_reciprocity_social_network(self):
@@ -259,7 +259,7 @@ class TestConnectivityFlowIntegration:
         G.add_edge("B", "C")
 
         reciprocity = G.get_reciprocity()
-        edge_count = G.num_edges()
+        edge_count = G.count_edges()
 
         # Should have consistent relationship
         assert reciprocity * edge_count == 2.0  # 2 reciprocal edges
@@ -313,8 +313,8 @@ class TestConnectivityFlowEdgeCases:
         G.add_edge("B", "A")
 
         reciprocity = G.get_reciprocity()
-        # 3 total edges, 3 are reciprocal
-        assert reciprocity == 1.0
+        # 3 total edges: 2 A→B and 1 B→A. Only 2 have reciprocal counterparts
+        assert abs(reciprocity - 2 / 3) < 0.001
 
     def test_min_cut_single_node(self):
         """Test min cut error with single node graph."""

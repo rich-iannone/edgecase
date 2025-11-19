@@ -39,7 +39,7 @@ graph = (
 )
 
 print("\nCentrality scores:")
-for node_id in graph.node_ids(limit=None):
+for node_id in graph.get_node_ids(limit=None):
     node = graph.get_node(node_id)
     label = node.attributes.get("label", str(node_id))
     centrality_value = node.attributes["centrality"]
@@ -113,7 +113,7 @@ simple_graph = (
 )
 
 print("\nApplying 'Greens' ColorBrewer palette (sequential):")
-for node_id in simple_graph.node_ids(limit=None):
+for node_id in simple_graph.get_node_ids(limit=None):
     node = simple_graph.get_node(node_id)
     label = node.attributes.get("label", node_id)
     centrality = node.attributes["centrality"]
@@ -155,7 +155,7 @@ print("  - Zero manual normalization required!")
 
 # Show first few nodes
 print("\nSample nodes:")
-for node_id in list(karate.node_ids(limit=None))[:5]:
+for node_id in list(karate.get_node_ids(limit=None))[:5]:
     node = karate.get_node(node_id)
     eigen = node.attributes["eigen_centrality"]
     alpha = node.attributes["alpha_centrality"]

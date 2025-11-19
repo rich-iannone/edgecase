@@ -12,17 +12,17 @@ class TestDeleteNodesWS:
         G = ec.Graph()
         G.add_path_graph(5)  # Creates nodes 1,2,3,4,5
 
-        assert G.num_nodes() == 5
-        assert G.num_edges() == 4
+        assert G.count_nodes() == 5
+        assert G.count_edges() == 4
 
         # Select and delete middle nodes (use integer IDs)
         G.select_nodes_by_id([2, 3])
         G.delete_nodes_ws()
 
-        assert G.num_nodes() == 3
-        assert set(G.node_ids(limit=None)) == {1, 4, 5}  # Returns integer IDs
+        assert G.count_nodes() == 3
+        assert set(G.get_node_ids(limit=None)) == {1, 4, 5}  # Returns integer IDs
         # Edges incident to deleted nodes should also be removed
-        assert G.num_edges() == 1  # Only 4-5 edge remains
+        assert G.count_edges() == 1  # Only 4-5 edge remains
 
     def test_delete_nodes_clears_selection(self):
         """Deleting nodes clears the selection."""
@@ -45,8 +45,8 @@ class TestDeleteNodesWS:
         G.select_nodes_by_id([2])  # B = node ID 2
         G.delete_nodes_ws()
 
-        assert G.num_nodes() == 2
-        assert set(G.node_ids(limit=None)) == {1, 3}  # A=1, C=3
+        assert G.count_nodes() == 2
+        assert set(G.get_node_ids(limit=None)) == {1, 3}  # A=1, C=3
 
     def test_delete_nodes_in_directed_graph(self):
         """Delete nodes in directed graph."""
@@ -60,20 +60,20 @@ class TestDeleteNodesWS:
         G.select_nodes_by_id([2])  # B = node ID 2
         G.delete_nodes_ws()
 
-        assert G.num_nodes() == 2
-        assert G.num_edges() == 1  # Only C->A remains
+        assert G.count_nodes() == 2
+        assert G.count_edges() == 1  # Only C->A remains
 
     def test_delete_all_nodes(self):
         """Delete all nodes in graph."""
         G = ec.Graph()
         G.add_star_graph(5)
 
-        all_nodes = G.node_ids(limit=None)
+        all_nodes = G.get_node_ids(limit=None)
         G.select_nodes_by_id(all_nodes)
         G.delete_nodes_ws()
 
-        assert G.num_nodes() == 0
-        assert G.num_edges() == 0
+        assert G.count_nodes() == 0
+        assert G.count_edges() == 0
 
 
 class TestDeleteEdgesWS:
@@ -84,14 +84,14 @@ class TestDeleteEdgesWS:
         G = ec.Graph()
         G.add_path_graph(4)  # 3 edges
 
-        assert G.num_edges() == 3
+        assert G.count_edges() == 3
 
         # Select and delete first two edges
         G.select_edges_by_id([1, 2])
         G.delete_edges_ws()
 
-        assert G.num_edges() == 1
-        assert G.num_nodes() == 4  # Nodes remain
+        assert G.count_edges() == 1
+        assert G.count_nodes() == 4  # Nodes remain
 
     def test_delete_edges_clears_selection(self):
         """Deleting edges clears edge selection."""
@@ -109,14 +109,14 @@ class TestDeleteEdgesWS:
         G = ec.Graph()
         G.add_full_graph(4)
 
-        initial_edges = G.num_edges()
-        edge_ids = G.edge_ids()
+        initial_edges = G.count_edges()
+        edge_ids = G.get_edge_ids()
 
         G.select_edges_by_id(edge_ids)
         G.delete_edges_ws()
 
-        assert G.num_edges() == 0
-        assert G.num_nodes() == 4  # Nodes still exist
+        assert G.count_edges() == 0
+        assert G.count_nodes() == 4  # Nodes still exist
 
 
 class TestSelectionCleanup:
@@ -136,8 +136,8 @@ class TestSelectionCleanup:
 
         # Edge should be removed from selection
         assert G.count_selected_edges() == 2
-        assert 2 not in G.get_selected_edges()
-        assert set(G.get_selected_edges()) == {1, 3}
+        assert 2 not in G.get_selected_edge_ids()
+        assert set(G.get_selected_edge_ids()) == {1, 3}
 
     def test_delete_single_node_removes_from_selection(self):
         """Deleting a node via Rust method removes it from selection."""
@@ -153,8 +153,8 @@ class TestSelectionCleanup:
 
         # Node should be removed from selection
         assert G.count_selected_nodes() == 2
-        assert 2 not in G.get_selected_nodes()
-        assert set(G.get_selected_nodes()) == {1, 3}
+        assert 2 not in G.get_selected_node_ids()
+        assert set(G.get_selected_node_ids()) == {1, 3}
 
     def test_delete_multiple_nodes_updates_selection(self):
         """Deleting multiple nodes removes them all from selection."""
@@ -171,7 +171,7 @@ class TestSelectionCleanup:
 
         # Only 1, 3, 5 should remain selected
         assert G.count_selected_nodes() == 3
-        assert set(G.get_selected_nodes()) == {1, 3, 5}
+        assert set(G.get_selected_node_ids()) == {1, 3, 5}
 
     def test_delete_multiple_edges_updates_selection(self):
         """Deleting multiple edges removes them all from selection."""
@@ -188,7 +188,7 @@ class TestSelectionCleanup:
 
         # Only 1, 3, 5 should remain selected
         assert G.count_selected_edges() == 3
-        assert set(G.get_selected_edges()) == {1, 3, 5}
+        assert set(G.get_selected_edge_ids()) == {1, 3, 5}
 
 
 class TestSetNodeAttrsWS:
@@ -401,7 +401,7 @@ class TestFullyConnectNodesWS:
         G.fully_connect_nodes_ws()
 
         # Should have 3 edges for 3 nodes: A-B, B-C, A-C
-        assert G.num_edges() == 3
+        assert G.count_edges() == 3
 
     def test_fully_connect_directed(self):
         """Create clique in directed graph."""
@@ -414,7 +414,7 @@ class TestFullyConnectNodesWS:
         G.fully_connect_nodes_ws()
 
         # Should have 6 edges (both directions for each pair)
-        assert G.num_edges() == 6
+        assert G.count_edges() == 6
 
     def test_fully_connect_with_attributes(self):
         """Create clique with edge attributes."""
@@ -436,12 +436,12 @@ class TestFullyConnectNodesWS:
             G.add_node(label)
         G.add_edge("A", "B")
 
-        initial_edges = G.num_edges()
+        initial_edges = G.count_edges()
         G.select_nodes_by_id([1, 2, 3])  # A=1, B=2, C=3
         G.fully_connect_nodes_ws()
 
         # Should add A-C and B-C (A-B already exists)
-        assert G.num_edges() == 3
+        assert G.count_edges() == 3
 
 
 class TestAddReverseEdgesWS:
@@ -459,9 +459,9 @@ class TestAddReverseEdgesWS:
         G.add_reverse_edges_ws()
 
         # Should have original 2 + 1 reverse = 3 edges
-        assert G.num_edges() == 3
+        assert G.count_edges() == 3
         # Check reverse edge exists (edges_as_tuples() returns (id, source, target) as IDs now)
-        edges = [(s, t) for _, s, t in G.edges_as_tuples()]
+        edges = [(s, t) for _, s, t in G.get_edges_as_tuples()]
         assert (2, 1) in edges  # B->A (reverse of A->B)
 
     def test_add_reverse_with_attributes(self):
@@ -476,7 +476,7 @@ class TestAddReverseEdgesWS:
 
         # Find the reverse edge (source/target are now IDs)
         reverse_edge = None
-        for edge_id, s, t in G.edges_as_tuples():
+        for edge_id, s, t in G.get_edges_as_tuples():
             if s == 2 and t == 1:  # B=2, A=1
                 reverse_edge = G.get_edge(edge_id)
                 break
@@ -507,7 +507,7 @@ class TestAddReverseEdgesWS:
         G.select_edges_by_id([1])
         G.add_reverse_edges_ws()
 
-        assert G.num_edges() == 2  # No new edge added
+        assert G.count_edges() == 2  # No new edge added
 
 
 class TestRevEdgeDirWS:
@@ -587,7 +587,7 @@ class TestBulkModificationWorkflows:
         # Check attributes were set
         hubs = [
             n
-            for n in G.node_ids(limit=None)
+            for n in G.get_node_ids(limit=None)
             if G.get_node(n).attributes and G.get_node(n).attributes.get("hub")
         ]
         assert len(hubs) >= 3
@@ -615,7 +615,7 @@ class TestBulkModificationWorkflows:
         # Make first two edges bidirectional
         G.select_edges_by_id([1, 2]).add_reverse_edges_ws(type="bidirectional")
 
-        assert G.num_edges() == 5  # 3 original + 2 reverse
+        assert G.count_edges() == 5  # 3 original + 2 reverse
 
     def test_workflow_delete_and_reconnect(self):
         """Delete nodes and reconnect remaining ones."""
@@ -627,8 +627,8 @@ class TestBulkModificationWorkflows:
         G.delete_nodes_ws()
 
         # Fully connect remaining nodes
-        remaining = G.node_ids(limit=None)
+        remaining = G.get_node_ids(limit=None)
         G.select_nodes_by_id(remaining).fully_connect_nodes_ws(type="rebuilt")
 
-        assert G.num_nodes() == 3
-        assert G.num_edges() == 3  # Complete graph on 3 nodes
+        assert G.count_nodes() == 3
+        assert G.count_edges() == 3  # Complete graph on 3 nodes

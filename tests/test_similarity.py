@@ -46,7 +46,7 @@ class TestDiceSimilarity:
         G.add_star_graph(5)
 
         sim = G.get_dice_similarity()
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
     def test_partial_overlap(self):
@@ -138,7 +138,7 @@ class TestJaccardSimilarity:
         G.add_cycle_graph(5)
 
         sim = G.get_jaccard_similarity()
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
     def test_partial_overlap(self):
@@ -238,7 +238,7 @@ class TestCosineSimilarity:
         G.add_path_graph(5)
 
         sim = G.get_cosine_similarity()
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
     def test_partial_overlap(self):
@@ -342,7 +342,7 @@ class TestOverlapSimilarity:
         G.add_full_graph(4)
 
         sim = G.get_overlap_similarity()
-        for node_id in G.node_ids(limit=None):
+        for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
     def test_subset_relationship(self):
@@ -459,7 +459,7 @@ class TestSimilaritySymmetry:
         G.add_full_graph(5)
 
         sim = G.get_cosine_similarity()
-        nodes = G.node_ids(limit=None)
+        nodes = G.get_node_ids(limit=None)
         for n1_id in nodes:
             for n2_id in nodes:
                 assert sim[n1_id][n2_id] == pytest.approx(sim[n2_id][n1_id])
@@ -588,7 +588,7 @@ class TestSimilarityReturnStructure:
         G = ec.Graph()
         G.add_path_graph(5)
         # Get all node IDs for comparison
-        node_ids = set(G.node_ids(limit=None))
+        node_ids = set(G.get_node_ids(limit=None))
 
         for method in [
             G.get_dice_similarity,

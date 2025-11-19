@@ -5,14 +5,14 @@ import edgecase as ec
 
 
 class TestEigenCentrality:
-    """Test get_eigen_centrality() method."""
+    """Test eigen_centrality() method."""
 
     def test_eigen_centrality_star_graph(self):
         """Test eigenvector centrality on star graph."""
         G = ec.Graph()
         G.add_star_graph(5)  # Hub at node 1, leaves at 2-5
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # For undirected star graph with diagonal shift, hub has slightly higher centrality
         # The diagonal shift (ε=0.01) breaks the eigenvalue degeneracy
@@ -47,7 +47,7 @@ class TestEigenCentrality:
         G = ec.Graph()
         G.add_path_graph(5)  # Creates nodes 1-2-3-4-5
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # Middle nodes should have higher centrality (using node IDs)
         assert eigen[3] >= eigen[1]
@@ -61,7 +61,7 @@ class TestEigenCentrality:
         G = ec.Graph()
         G.add_cycle_graph(6)
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # All nodes should have equal centrality in cycle
         values = list(eigen.values())
@@ -73,7 +73,7 @@ class TestEigenCentrality:
         G = ec.Graph()
         G.add_full_graph(5)
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # All nodes should have equal centrality in complete graph
         values = list(eigen.values())
@@ -90,7 +90,7 @@ class TestEigenCentrality:
         G.add_edge("B", "C")
         G.add_edge("A", "C")
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # For DAGs with diagonal shift, nodes may have varying centrality
         # The implementation uses symmetrized adjacency, so results vary
@@ -115,7 +115,7 @@ class TestEigenCentrality:
         # D points to A (A has higher in-degree)
         G.add_edge("D", "A")
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # With undirected treatment, all nodes in strongly connected component
         # have similar centrality. This is reasonable behavior.
@@ -129,7 +129,7 @@ class TestEigenCentrality:
         """Test eigenvector centrality on empty graph."""
         G = ec.Graph()
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         assert len(eigen) == 0
 
@@ -138,7 +138,7 @@ class TestEigenCentrality:
         G = ec.Graph()
         G.add_node("A")
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         assert len(eigen) == 1
         a_id = G.get_id_from_label("A")
@@ -154,7 +154,7 @@ class TestEigenCentrality:
         G.add_edge("A", "B", auto_create_nodes=True)
         G.add_edge("C", "D", auto_create_nodes=True)
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         a_id, b_id = G.get_id_from_label("A"), G.get_id_from_label("B")
         c_id, d_id = G.get_id_from_label("C"), G.get_id_from_label("D")
@@ -174,8 +174,8 @@ class TestEigenCentrality:
         G.add_star_graph(10)
 
         # Should converge with different tolerances
-        eigen1 = G.get_eigen_centrality(max_iter=100, tol=1e-6)
-        eigen2 = G.get_eigen_centrality(max_iter=200, tol=1e-8)
+        eigen1 = G.eigen_centrality(max_iter=100, tol=1e-6, return_dict=True)
+        eigen2 = G.eigen_centrality(max_iter=200, tol=1e-8, return_dict=True)
 
         # Results should be similar (relaxed tolerance for diagonal shift)
         # Star graphs have sensitivity to iteration count due to diagonal shift
@@ -204,7 +204,7 @@ class TestEigenCentrality:
         G.add_edge("Well1", "Hub")
         G.add_edge("Well2", "Hub")
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # All should have positive centrality
         assert all(v > 0 for v in eigen.values())
@@ -218,8 +218,8 @@ class TestEigenVsAlphaCentrality:
         G = ec.Graph()
         G.add_star_graph(5)
 
-        eigen = G.get_eigen_centrality()
-        alpha = G.get_alpha_centrality(alpha=0.9, max_iter=200)  # High alpha → eigenvector
+        eigen = G.eigen_centrality(return_dict=True)
+        alpha = G.alpha_centrality(return_dict=True, alpha=0.9, max_iter=200)  # High alpha → eigenvector
 
         # With high alpha and no exogenous factor dominance,
         # alpha centrality approaches eigenvector centrality pattern
@@ -237,7 +237,7 @@ class TestEigenVsAlphaCentrality:
         G = ec.Graph()
         G.add_full_graph(4)
 
-        eigen = G.get_eigen_centrality()
+        eigen = G.eigen_centrality(return_dict=True)
 
         # Check L2 normalization
         l2_norm = sum(v**2 for v in eigen.values()) ** 0.5

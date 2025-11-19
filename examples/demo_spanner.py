@@ -36,13 +36,13 @@ def demo_1_network_backbone():
     for u, v in edges:
         g.add_edge(u, v)
 
-    print(f"Original network: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"Original network: {g.count_nodes()} nodes, {g.count_edges()} edges")
 
     # Extract 2-spanner backbone
     backbone = g.transform_with_spanner(stretch=2.0, seed=42)
-    print(f"2-spanner backbone: {backbone.num_nodes()} nodes, {backbone.num_edges()} edges")
-    print(f"Reduction: {g.num_edges() - backbone.num_edges()} edges removed")
-    print(f"({(g.num_edges() - backbone.num_edges()) / g.num_edges() * 100:.1f}% reduction)")
+    print(f"2-spanner backbone: {backbone.count_nodes()} nodes, {backbone.count_edges()} edges")
+    print(f"Reduction: {g.count_edges() - backbone.count_edges()} edges removed")
+    print(f"({(g.count_edges() - backbone.count_edges()) / g.count_edges() * 100:.1f}% reduction)")
 
 
 def demo_2_graph_compression():
@@ -63,13 +63,13 @@ def demo_2_graph_compression():
             if random.random() < p:
                 g.add_edge(str(i), str(j))
 
-    print(f"Original graph: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"Original graph: {g.count_nodes()} nodes, {g.count_edges()} edges")
 
     # Create spanners with different stretch values
     for stretch in [2.0, 3.0, 5.0]:
         spanner = g.transform_with_spanner(stretch=stretch, seed=42)
-        reduction = (g.num_edges() - spanner.num_edges()) / g.num_edges() * 100
-        print(f"{stretch}-spanner: {spanner.num_edges()} edges ({reduction:.1f}% reduction)")
+        reduction = (g.count_edges() - spanner.count_edges()) / g.count_edges() * 100
+        print(f"{stretch}-spanner: {spanner.count_edges()} edges ({reduction:.1f}% reduction)")
 
 
 def demo_3_stretch_comparison():
@@ -85,15 +85,15 @@ def demo_3_stretch_comparison():
         for j in range(i + 1, 8):
             g.add_edge(str(i), str(j))
 
-    print(f"Complete graph K8: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"Complete graph K8: {g.count_nodes()} nodes, {g.count_edges()} edges")
     print("\nSpanner sizes for different stretch values:")
     print(f"{'Stretch':<10} {'Edges':<10} {'Reduction':<15}")
     print("-" * 40)
 
     for stretch in [1.0, 1.5, 2.0, 3.0, 5.0, 10.0]:
         spanner = g.transform_with_spanner(stretch=stretch, seed=42)
-        reduction = (g.num_edges() - spanner.num_edges()) / g.num_edges() * 100
-        print(f"{stretch:<10.1f} {spanner.num_edges():<10} {reduction:<15.1f}%")
+        reduction = (g.count_edges() - spanner.count_edges()) / g.count_edges() * 100
+        print(f"{stretch:<10.1f} {spanner.count_edges():<10} {reduction:<15.1f}%")
 
 
 def demo_4_weighted_graph():
@@ -120,15 +120,15 @@ def demo_4_weighted_graph():
     for u, v, cost in routes:
         g.add_edge(u, v, weight=float(cost))
 
-    print(f"Transportation network: {g.num_nodes()} cities, {g.num_edges()} routes")
+    print(f"Transportation network: {g.count_nodes()} cities, {g.count_edges()} routes")
     print("\nOriginal routes:")
     for u, v, cost in routes:
         print(f"  {u} - {v}: ${cost}")
 
     # Create 1.5-spanner (at most 1.5x original cost)
     spanner = g.transform_with_spanner(stretch=1.5, weight="weight", seed=42)
-    print(f"\n1.5-spanner: {spanner.num_edges()} routes")
-    print(f"Reduction: {g.num_edges() - spanner.num_edges()} routes removed")
+    print(f"\n1.5-spanner: {spanner.count_edges()} routes")
+    print(f"Reduction: {g.count_edges() - spanner.count_edges()} routes removed")
     print("(Guarantees travel cost ≤ 1.5× original)")
 
 
@@ -143,9 +143,9 @@ def demo_5_path_vs_complete():
     for i in range(9):
         path.add_edge(str(i), str(i + 1))
 
-    print(f"Path graph: {path.num_nodes()} nodes, {path.num_edges()} edges")
+    print(f"Path graph: {path.count_nodes()} nodes, {path.count_edges()} edges")
     path_spanner = path.transform_with_spanner(stretch=2.0, seed=42)
-    print(f"2-spanner: {path_spanner.num_edges()} edges")
+    print(f"2-spanner: {path_spanner.count_edges()} edges")
     print("  → Path graphs need most edges preserved")
 
     # Complete graph
@@ -156,10 +156,10 @@ def demo_5_path_vs_complete():
         for j in range(i + 1, 10):
             complete.add_edge(str(i), str(j))
 
-    print(f"\nComplete graph K10: {complete.num_nodes()} nodes, {complete.num_edges()} edges")
+    print(f"\nComplete graph K10: {complete.count_nodes()} nodes, {complete.count_edges()} edges")
     complete_spanner = complete.transform_with_spanner(stretch=2.0, seed=42)
-    print(f"2-spanner: {complete_spanner.num_edges()} edges")
-    reduction = (complete.num_edges() - complete_spanner.num_edges()) / complete.num_edges() * 100
+    print(f"2-spanner: {complete_spanner.count_edges()} edges")
+    reduction = (complete.count_edges() - complete_spanner.count_edges()) / complete.count_edges() * 100
     print(f"  → {reduction:.1f}% reduction for dense graphs")
 
 
@@ -181,12 +181,12 @@ def demo_6_grid_graph():
             if j < 4:  # Horizontal edge
                 g.add_edge(f"({i},{j})", f"({i},{j + 1})")
 
-    print(f"5×5 grid: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"5×5 grid: {g.count_nodes()} nodes, {g.count_edges()} edges")
 
     for stretch in [1.5, 2.0, 3.0]:
         spanner = g.transform_with_spanner(stretch=stretch, seed=42)
-        reduction = (g.num_edges() - spanner.num_edges()) / g.num_edges() * 100
-        print(f"{stretch}-spanner: {spanner.num_edges()} edges ({reduction:.1f}% reduction)")
+        reduction = (g.count_edges() - spanner.count_edges()) / g.count_edges() * 100
+        print(f"{stretch}-spanner: {spanner.count_edges()} edges ({reduction:.1f}% reduction)")
 
 
 def demo_7_connected_components():
@@ -210,10 +210,10 @@ def demo_7_connected_components():
     g.add_edge("B2", "B3")
     g.add_edge("B3", "B0")
 
-    print(f"Graph with 2 components: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"Graph with 2 components: {g.count_nodes()} nodes, {g.count_edges()} edges")
 
     spanner = g.transform_with_spanner(stretch=2.0, seed=42)
-    print(f"2-spanner: {spanner.num_nodes()} nodes, {spanner.num_edges()} edges")
+    print(f"2-spanner: {spanner.count_nodes()} nodes, {spanner.count_edges()} edges")
     print("  → Spanner preserves connectivity within components")
 
 
@@ -227,11 +227,11 @@ def demo_8_star_graph():
         g.add_node(label=str(i))
         g.add_edge("center", str(i))
 
-    print(f"Star graph: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"Star graph: {g.count_nodes()} nodes, {g.count_edges()} edges")
 
     for stretch in [2.0, 3.0, 5.0]:
         spanner = g.transform_with_spanner(stretch=stretch, seed=42)
-        print(f"{stretch}-spanner: {spanner.num_edges()} edges")
+        print(f"{stretch}-spanner: {spanner.count_edges()} edges")
 
     print("  → Star graphs are already optimal - all edges needed")
 
@@ -282,9 +282,9 @@ def demo_9_comparison_table():
     print("-" * 60)
 
     for name, g in graphs:
-        original_edges = g.num_edges()
+        original_edges = g.count_edges()
         spanner = g.transform_with_spanner(stretch=2.0, seed=42)
-        spanner_edges = spanner.num_edges()
+        spanner_edges = spanner.count_edges()
         reduction = (
             (original_edges - spanner_edges) / original_edges * 100 if original_edges > 0 else 0
         )

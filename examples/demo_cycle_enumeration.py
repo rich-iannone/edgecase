@@ -16,8 +16,8 @@ G.add_edge("E", "A")  # Creates larger cycles through the network
 
 print("Graph Analysis: Cycle Enumeration")
 print("=" * 50)
-print(f"Nodes: {G.num_nodes()}")
-print(f"Edges: {G.num_edges()}")
+print(f"Nodes: {G.count_nodes()}")
+print(f"Edges: {G.count_edges()}")
 print()
 
 # Find all cycles (returns node IDs)

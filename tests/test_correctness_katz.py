@@ -100,7 +100,7 @@ def compare_katz_networkx(ec_graph, nx_graph, directed=False):
     alpha = 0.01
     beta = 1.0
 
-    ec_katz = ec_graph.get_katz_centrality(alpha=alpha, beta=beta, max_iter=1000, tol=1e-6)
+    ec_katz = ec_graph.katz_centrality(return_dict=True, alpha=alpha, beta=beta, max_iter=1000, tol=1e-6)
 
     # For NetworkX, need to check if graph is valid for Katz
     try:
@@ -123,7 +123,7 @@ def compare_katz_networkx(ec_graph, nx_graph, directed=False):
 
     # Build label->node_id mapping for EdgeCase
     label_to_id = {}
-    for node_id in ec_graph.node_ids(limit=None):
+    for node_id in ec_graph.get_node_ids(limit=None):
         node = ec_graph.get_node(node_id)
         if node:
             label_to_id[node.label] = node_id
@@ -176,7 +176,7 @@ def compare_katz_igraph(ec_graph, nx_graph, directed=False):
     alpha = 0.01
     beta = 1.0
 
-    ec_katz = ec_graph.get_katz_centrality(alpha=alpha, beta=beta, max_iter=1000, tol=1e-6)
+    ec_katz = ec_graph.katz_centrality(return_dict=True, alpha=alpha, beta=beta, max_iter=1000, tol=1e-6)
 
     # igraph doesn't have Katz centrality directly, but we can skip this comparison
     # or compute it manually if needed. For now, we'll skip igraph comparison.

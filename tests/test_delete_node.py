@@ -12,7 +12,7 @@ class TestDeleteNodeBasics:
         assert graph.has_node("B")
         graph.delete_node("B")
         assert not graph.has_node("B")
-        assert graph.num_nodes() == 2
+        assert graph.count_nodes() == 2
 
     def test_delete_node_by_id(self):
         """Test deleting a node by its ID."""
@@ -22,7 +22,7 @@ class TestDeleteNodeBasics:
         assert graph.has_node(node_id)
         graph.delete_node(node_id)
         assert not graph.has_node(node_id)
-        assert graph.num_nodes() == 0
+        assert graph.count_nodes() == 0
 
     def test_delete_nonexistent_node_raises_error(self):
         """Test that deleting non-existent node raises KeyError."""
@@ -57,12 +57,12 @@ class TestDeleteNodeWithEdges:
             .add_edge("B", "C")
         )
 
-        initial_edges = graph.num_edges()
+        initial_edges = graph.count_edges()
         assert initial_edges == 2
 
         graph.delete_node("B")
 
-        assert graph.num_edges() == 0  # Both edges removed
+        assert graph.count_edges() == 0  # Both edges removed
         # Note: Cannot use has_edge with deleted node label "B"
 
     def test_delete_node_directed_graph(self):
@@ -77,11 +77,11 @@ class TestDeleteNodeWithEdges:
             .add_edge("C", "A")  # C -> A
         )
 
-        assert graph.num_edges() == 3
+        assert graph.count_edges() == 3
 
         graph.delete_node("B")
 
-        assert graph.num_edges() == 1  # Only C -> A remains
+        assert graph.count_edges() == 1  # Only C -> A remains
         # Note: Cannot use has_edge with deleted node label "B"
         assert graph.has_edge("C", "A")
 
@@ -95,12 +95,12 @@ class TestDeleteNodeWithEdges:
             .add_edge("A", "B")
         )
 
-        assert graph.num_edges() == 2
+        assert graph.count_edges() == 2
 
         graph.delete_node("A")
 
-        assert graph.num_edges() == 0
-        assert graph.num_nodes() == 1
+        assert graph.count_edges() == 0
+        assert graph.count_nodes() == 1
         assert graph.has_node("B")
 
     def test_delete_node_with_multiple_edges(self):
@@ -115,12 +115,12 @@ class TestDeleteNodeWithEdges:
             .add_edge("B", "C", edge_id=3)
         )
 
-        assert graph.num_edges() == 3
+        assert graph.count_edges() == 3
 
         graph.delete_node("B")
 
-        assert graph.num_edges() == 0  # All three edges removed
-        assert graph.num_nodes() == 2
+        assert graph.count_edges() == 0  # All three edges removed
+        assert graph.count_nodes() == 2
 
 
 class TestDeleteNodeIsolated:
@@ -132,26 +132,26 @@ class TestDeleteNodeIsolated:
             Graph().add_node(label="A").add_node(label="B").add_node(label="C").add_edge("A", "B")
         )
 
-        assert graph.num_nodes() == 3
-        assert graph.num_edges() == 1
+        assert graph.count_nodes() == 3
+        assert graph.count_edges() == 1
 
         graph.delete_node("C")  # Isolated node
 
-        assert graph.num_nodes() == 2
-        assert graph.num_edges() == 1  # Edge count unchanged
+        assert graph.count_nodes() == 2
+        assert graph.count_edges() == 1  # Edge count unchanged
 
     def test_delete_all_nodes(self):
         """Test deleting all nodes one by one."""
         graph = Graph().add_node(label="A").add_node(label="B").add_node(label="C")
 
         graph.delete_node("A")
-        assert graph.num_nodes() == 2
+        assert graph.count_nodes() == 2
 
         graph.delete_node("B")
-        assert graph.num_nodes() == 1
+        assert graph.count_nodes() == 1
 
         graph.delete_node("C")
-        assert graph.num_nodes() == 0
+        assert graph.count_nodes() == 0
 
 
 class TestDeleteNodeChaining:
@@ -169,7 +169,7 @@ class TestDeleteNodeChaining:
             .delete_node("D")
         )
 
-        assert graph.num_nodes() == 2
+        assert graph.count_nodes() == 2
         assert graph.has_node("A")
         assert not graph.has_node("B")
         assert graph.has_node("C")
@@ -186,7 +186,7 @@ class TestDeleteNodeChaining:
             .add_node(label="D")
         )
 
-        assert graph.num_nodes() == 3
+        assert graph.count_nodes() == 3
         assert not graph.has_node("B")
         assert graph.has_node("D")
 
@@ -201,7 +201,7 @@ class TestDeleteNodeWithAttributes:
         graph.delete_node("A")
 
         assert not graph.has_node("A")
-        assert graph.num_nodes() == 1
+        assert graph.count_nodes() == 1
 
     def test_delete_node_label_removed(self):
         """Test that label mapping is removed after deletion."""
@@ -246,13 +246,13 @@ class TestDeleteNodeEdgeCases:
             .add_edge("A", "C")
         )
 
-        assert graph.num_edges() == 3
+        assert graph.count_edges() == 3
 
         graph.delete_node("B")
 
         # Only A-C edge remains
-        assert graph.num_edges() == 1
-        assert graph.num_nodes() == 2
+        assert graph.count_edges() == 1
+        assert graph.count_nodes() == 2
         assert graph.has_edge("A", "C")
 
 
@@ -270,11 +270,11 @@ class TestDeleteNodeWeightedGraph:
             .add_edge("B", "C", weight=2.5)
         )
 
-        assert graph.num_edges() == 2
+        assert graph.count_edges() == 2
 
         graph.delete_node("B")
 
-        assert graph.num_edges() == 0
+        assert graph.count_edges() == 0
 
     def test_delete_node_preserves_other_weighted_edges(self):
         """Test that other weighted edges are preserved."""
@@ -289,7 +289,7 @@ class TestDeleteNodeWeightedGraph:
 
         graph.delete_node("B")
 
-        assert graph.num_edges() == 1
+        assert graph.count_edges() == 1
         assert graph.has_edge("A", "C")
 
 
@@ -334,12 +334,12 @@ class TestDeleteNodeDegree:
         )
 
         assert graph.get_degree("Hub") == 4
-        assert graph.num_edges() == 4
+        assert graph.count_edges() == 4
 
         graph.delete_node("Hub")
 
-        assert graph.num_edges() == 0
-        assert graph.num_nodes() == 4
+        assert graph.count_edges() == 0
+        assert graph.count_nodes() == 4
         # All other nodes now isolated
         assert all(graph.get_degree(n) == 0 for n in ["A", "B", "C", "D"])
 

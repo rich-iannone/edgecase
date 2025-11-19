@@ -13,11 +13,11 @@ def demo_basic_walk():
     for i in range(1, 7):
         g.add_edge(str(i), str((i % 6) + 1))
 
-    print(f"Graph: cycle with {g.num_nodes()} nodes")
+    print(f"Graph: cycle with {g.count_nodes()} nodes")
 
     # Take a 10-step walk
-    path = g.random_walk("1", steps=10, seed=42)
-    print(f"\nRandom walk (10 steps): {' -> '.join(path)}")
+    path = g.random_walk("1", steps=10, seed=42, return_list=True)
+    print(f"\nRandom walk (10 steps): {' -> '.join(map(str, path))}")
     print(f"Path length: {len(path)} (includes starting vertex)")
 
     # Count vertex visits
@@ -25,8 +25,8 @@ def demo_basic_walk():
 
     visits = Counter(path)
     print("\nVertex visit counts:")
-    for vertex, count in sorted(visits.items()):
-        print(f"  {vertex}: {count} visits")
+    for vertex_id, count in sorted(visits.items()):
+        print(f"  Node {vertex_id}: {count} visits")
 
 
 def demo_edge_walk():
@@ -43,21 +43,21 @@ def demo_edge_walk():
     g.add_edge("3", "4")
     g.add_edge("4", "1")
 
-    print(f"Graph: cycle with {g.num_nodes()} nodes")
+    print(f"Graph: cycle with {g.count_nodes()} nodes")
 
     # Track edges traversed
-    edges = g.random_edge_walk("1", steps=8, seed=42)
+    edges = g.random_edge_walk("1", steps=8, seed=42, return_list=True)
     print("\nEdges traversed (8 steps):")
-    for i, (edge_id, source, target) in enumerate(edges, 1):
-        print(f"  Step {i}: Edge {edge_id} ({source} -> {target})")
+    for i, (edge_id, source_id, target_id) in enumerate(edges, 1):
+        print(f"  Step {i}: Edge {edge_id} ({source_id} -> {target_id})")
 
     # Count edge usage
     from collections import Counter
 
-    edge_counts = Counter((src, tgt) for _, src, tgt in edges)
+    edge_counts = Counter((src_id, tgt_id) for _, src_id, tgt_id in edges)
     print("\nEdge usage frequency:")
-    for (src, tgt), count in sorted(edge_counts.items()):
-        print(f"  {src} -> {tgt}: {count} times")
+    for (src_id, tgt_id), count in sorted(edge_counts.items()):
+        print(f"  {src_id} -> {tgt_id}: {count} times")
 
 
 def demo_directed_modes():
@@ -77,16 +77,16 @@ def demo_directed_modes():
     print("Graph: directed cycle A -> B -> C -> D -> A")
 
     # Forward walk
-    forward = g.random_walk("A", steps=8, mode="out", seed=42)
-    print(f"\nForward walk (mode='out'): {' -> '.join(forward)}")
+    forward = g.random_walk("A", steps=8, mode="out", seed=42, return_list=True)
+    print(f"\nForward walk (mode='out'): {' -> '.join(map(str, forward))}")
 
     # Backward walk
-    backward = g.random_walk("A", steps=8, mode="in", seed=42)
-    print(f"Backward walk (mode='in'): {' -> '.join(backward)}")
+    backward = g.random_walk("A", steps=8, mode="in", seed=42, return_list=True)
+    print(f"Backward walk (mode='in'): {' -> '.join(map(str, backward))}")
 
     # Undirected walk
-    undirected = g.random_walk("A", steps=8, mode="all", seed=42)
-    print(f"Undirected walk (mode='all'): {' -> '.join(undirected)}")
+    undirected = g.random_walk("A", steps=8, mode="all", seed=42, return_list=True)
+    print(f"Undirected walk (mode='all'): {' -> '.join(map(str, undirected))}")
 
 
 def demo_stuck_handling():
@@ -105,9 +105,9 @@ def demo_stuck_handling():
     print("Graph: A -> B -> C (dead end)")
 
     # Return partial walk when stuck
-    path = g.random_walk("A", steps=10, stuck="return")
-    print(f"\nPartial walk (stuck='return'): {' -> '.join(path)}")
-    print(f"Stopped after {len(path) - 1} steps (got stuck at {path[-1]})")
+    path = g.random_walk("A", steps=10, stuck="return", return_list=True)
+    print(f"\nPartial walk (stuck='return'): {' -> '.join(map(str, path))}")
+    print(f"Stopped after {len(path) - 1} steps (got stuck at node {path[-1]})")
 
     # Raise error when stuck
     try:
@@ -132,15 +132,15 @@ def demo_reproducibility():
     print("Graph: cycle with 5 nodes")
 
     # Same seed = same walk
-    walk1 = g.random_walk("1", steps=20, seed=123)
-    walk2 = g.random_walk("1", steps=20, seed=123)
-    print(f"\nWalk 1 (seed=123): {' -> '.join(walk1[:10])}...")
-    print(f"Walk 2 (seed=123): {' -> '.join(walk2[:10])}...")
+    walk1 = g.random_walk("1", steps=20, seed=123, return_list=True)
+    walk2 = g.random_walk("1", steps=20, seed=123, return_list=True)
+    print(f"\nWalk 1 (seed=123): {' -> '.join(map(str, walk1[:10]))}...")
+    print(f"Walk 2 (seed=123): {' -> '.join(map(str, walk2[:10]))}...")
     print(f"Walks identical: {walk1 == walk2} ✓")
 
     # Different seed = different walk
-    walk3 = g.random_walk("1", steps=20, seed=456)
-    print(f"\nWalk 3 (seed=456): {' -> '.join(walk3[:10])}...")
+    walk3 = g.random_walk("1", steps=20, seed=456, return_list=True)
+    print(f"\nWalk 3 (seed=456): {' -> '.join(map(str, walk3[:10]))}...")
     print(f"Walk 3 different: {walk1 != walk3} ✓")
 
 
@@ -159,17 +159,19 @@ def demo_star_graph():
     print("Graph: star with 1 hub and 5 spokes")
 
     # Walk alternates between hub and spokes
-    path = g.random_walk("hub", steps=10, seed=42)
+    path = g.random_walk("hub", steps=10, seed=42, return_list=True)
     print("\nRandom walk from hub:")
     for i in range(0, len(path), 2):
         if i < len(path):
-            print(f"  Step {i}: {path[i]}")
+            print(f"  Step {i}: Node {path[i]}")
 
     from collections import Counter
 
     visits = Counter(path)
-    print(f"\nHub visited {visits['hub']} times")
-    print(f"Spokes visited: {sum(v for k, v in visits.items() if k != 'hub')} times")
+    # Get hub node ID
+    hub_id = g.get_id_from_label("hub")
+    print(f"\nHub (node {hub_id}) visited {visits[hub_id]} times")
+    print(f"Spokes visited: {sum(v for k, v in visits.items() if k != hub_id)} times")
 
 
 if __name__ == "__main__":

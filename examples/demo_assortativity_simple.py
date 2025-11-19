@@ -20,7 +20,7 @@ g.add_node("D", type="Y")
 g.add_edge("A", "B")  # X-X
 g.add_edge("C", "D")  # Y-Y
 
-r = g.assortativity_nominal("type")
+r = g.get_assortativity_nominal("type")
 print(f"   Perfect homophily: r = {r:.3f}")
 print("   Interpretation: Only same-type nodes connect (perfect segregation)")
 
@@ -42,7 +42,7 @@ g.add_edge("A", "D")  # X-Y
 g.add_edge("B", "C")  # X-Y
 g.add_edge("B", "D")  # X-Y
 
-r = g.assortativity_nominal("type")
+r = g.get_assortativity_nominal("type")
 print(f"   Perfect heterophily: r = {r:.3f}")
 print("   Interpretation: Only different-type nodes connect (bipartite)")
 
@@ -67,7 +67,7 @@ g.add_edge("Alice", "Carol")  # 25-26
 g.add_edge("Dave", "Eve")  # 55-53
 g.add_edge("Eve", "Frank")  # 53-54
 
-r = g.assortativity("age")
+r = g.get_assortativity("age")
 print(f"   Age assortativity: r = {r:.3f}")
 print("   Interpretation: Similar ages connect (positive correlation)")
 
@@ -90,7 +90,7 @@ g.add_edge("Hub", "Spoke2")
 g.add_edge("Hub", "Spoke3")
 g.add_edge("Hub", "Spoke4")
 
-r = g.get_graph_assortativity_degree()
+r = g.get_assortativity_degree()
 print(f"   Degree assortativity: r = {r:.3f}")
 print("   Interpretation: High-degree hub connects to low-degree spokes (disassortative)")
 
@@ -110,8 +110,8 @@ g.add_node("P4", weight=51.8, family="receptor")
 g.add_edge("P1", "P2")  # Similar weight & family
 g.add_edge("P3", "P4")  # Similar weight & family
 
-r_weight = g.assortativity("weight")
-r_family = g.assortativity_nominal("family")
+r_weight = g.get_assortativity("weight")
+r_family = g.get_assortativity_nominal("family")
 print(f"   Weight assortativity: r = {r_weight:.3f}")
 print(f"   Family assortativity: r = {r_family:.3f}")
 print("   Interpretation: Similar proteins interact")

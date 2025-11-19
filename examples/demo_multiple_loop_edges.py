@@ -20,7 +20,7 @@ def example_1_data_cleaning():
     g.add_edge("Carol", "Dave")
     g.add_edge("Carol", "Dave")  # Duplicate!
 
-    print(f"\nTotal edges in graph: {g.num_edges()}")
+    print(f"\nTotal edges in graph: {g.count_edges()}")
 
     # Find duplicate edges
     multiples = g.which_multiple()
@@ -54,7 +54,7 @@ def example_2_multigraph_validation():
 
     for name, g in graphs.items():
         print(f"\n{name}:")
-        print(f"  Nodes: {g.num_nodes()}, Edges: {g.num_edges()}")
+        print(f"  Nodes: {g.count_nodes()}, Edges: {g.count_edges()}")
 
         # Check for multiple edges
         multiples = g.which_multiple()
@@ -100,7 +100,7 @@ def example_3_network_simplification():
     g.add_edge("CityA", "CityB")  # Railway
     g.add_edge("CityA", "CityB")  # Airline
     g.add_edge("CityB", "CityC")  # Highway
-    print(f"  Total edges: {g.num_edges()}")
+    print(f"  Total edges: {g.count_edges()}")
 
     # Analyze parallel edges
     multi_counts = g.count_multiple()
@@ -141,7 +141,7 @@ def example_4_self_loop_analysis():
     g.add_edge("Processing", "Error")
     g.add_edge("Error", "Idle")  # Restart
 
-    print(f"\nState machine: {g.num_nodes()} states, {g.num_edges()} transitions")
+    print(f"\nState machine: {g.count_nodes()} states, {g.count_edges()} transitions")
 
     # Find self-loops (states that loop to themselves)
     loops = g.which_loop()
@@ -185,7 +185,7 @@ def example_5_social_network_self_mentions():
     g.add_edge("@dave", "@dave")  # Another self-mention
     g.add_edge("@eve", "@alice")
 
-    print(f"\nMention network: {g.num_nodes()} users, {g.num_edges()} mentions")
+    print(f"\nMention network: {g.count_nodes()} users, {g.count_edges()} mentions")
 
     # Find self-mentions
     self_mentions = g.which_loop()
@@ -196,7 +196,7 @@ def example_5_social_network_self_mentions():
         print(f"  {user}: {count} self-mention(s)")
 
     # Analysis
-    total_users = g.num_nodes()
+    total_users = g.count_nodes()
     self_mention_pct = (len(self_mention_counts) / total_users) * 100
 
     print("\nAnalysis:")

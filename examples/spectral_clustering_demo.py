@@ -30,7 +30,7 @@ def demo_spectral_clustering():
     g.add_edge("v2", "v3", weight=0.5)
 
     # Compute Laplacian spectrum
-    spec = g.laplacian_spectrum(which="smallest", k=3)
+    spec = g.get_laplacian_spectrum(which="smallest", k=3)
 
     print("\nGraph: 6 nodes (2 triangles connected by bridge)")
     print(f"Smallest 3 eigenvalues: {[f'{v:.4f}' for v in spec['values']]}")
@@ -90,7 +90,7 @@ def demo_spectral_radius():
     print("-" * 50)
 
     for name, graph, expected in graphs:
-        spec = graph.spectrum(which="largest", k=1)
+        spec = graph.get_spectrum(which="largest", k=1)
         computed = spec["values"][0]
         match = "✓" if abs(computed - expected) < 1e-4 else "✗"
         print(f"{name:<15} {computed:>10.4f}   {expected:>10.4f}   {match:<8}")
@@ -118,7 +118,7 @@ def demo_bipartite_detection():
         for j in range(3):
             g.add_edge(f"a{i}", f"b{j}")
 
-    spec = g.spectrum(which="all")
+    spec = g.get_spectrum(which="all")
     values = spec["values"]
 
     print("\nComplete bipartite K₃,₃ spectrum:")
@@ -145,7 +145,7 @@ def demo_bipartite_detection():
     g2.add_edge("v1", "v2")
     g2.add_edge("v2", "v0")
 
-    spec2 = g2.spectrum(which="all")
+    spec2 = g2.get_spectrum(which="all")
     values2 = spec2["values"]
     sorted_values2 = sorted(values2)
 
@@ -205,7 +205,7 @@ def demo_connectivity_analysis():
     print("-" * 50)
 
     for name, graph, desc in graphs:
-        spec = graph.laplacian_spectrum(which="smallest", k=2)
+        spec = graph.get_laplacian_spectrum(which="smallest", k=2)
         lambda2 = spec["algebraic_connectivity"]
         print(f"{name:<15} {lambda2:>10.4f}   {desc:<20}")
 
@@ -253,7 +253,7 @@ def demo_spectral_gap():
     print("-" * 60)
 
     for name, graph, structure in graphs:
-        spec = graph.spectrum(which="largest", k=2)
+        spec = graph.get_spectrum(which="largest", k=2)
         lambda1 = spec["values"][0]
         lambda2 = spec["values"][1] if len(spec["values"]) > 1 else 0
         gap = lambda1 - lambda2
@@ -280,10 +280,10 @@ def demo_normalized_laplacian():
     g.add_edge("v3", "v0", weight=5.0)
 
     # Standard Laplacian
-    spec_standard = g.laplacian_spectrum(which="all", normalized=False)
+    spec_standard = g.get_laplacian_spectrum(which="all", normalized=False)
 
     # Normalized Laplacian
-    spec_normalized = g.laplacian_spectrum(which="all", normalized=True)
+    spec_normalized = g.get_laplacian_spectrum(which="all", normalized=True)
 
     print("\nWeighted cycle graph (alternating weights: 1.0, 5.0, 1.0, 5.0)")
     print("\nStandard Laplacian eigenvalues:")

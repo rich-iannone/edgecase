@@ -45,7 +45,7 @@ class TestCycleEnumeration:
         assert len(cycles) == 1
         assert len(cycles[0]) == 3
         # Check all three node IDs are in the cycle
-        node_ids = G.node_ids(limit=None)
+        node_ids = G.get_node_ids(limit=None)
         assert set(cycles[0]) == set(node_ids)
 
     def test_two_node_cycle(self):
@@ -61,7 +61,7 @@ class TestCycleEnumeration:
         assert len(cycles) == 1
         assert len(cycles[0]) == 2
         # Check both node IDs are in the cycle
-        node_ids = G.node_ids(limit=None)
+        node_ids = G.get_node_ids(limit=None)
         assert set(cycles[0]) == set(node_ids)
 
     def test_multiple_separate_cycles(self):
@@ -179,11 +179,11 @@ class TestCycleEnumeration:
         cycles = G.get_cycles()
         assert len(cycles) == 1
         # Check all three node IDs are in the cycle
-        node_ids = G.node_ids(limit=None)
+        node_ids = G.get_node_ids(limit=None)
         assert set(cycles[0]) == set(node_ids)
 
     def test_standalone_function(self):
-        """Standalone find_cycles function works."""
+        """Method returns correct results for simple cycle."""
         G = (
             ec.Graph(directed=True)
             .add_node("A")
@@ -191,12 +191,12 @@ class TestCycleEnumeration:
             .add_edge("A", "B")
             .add_edge("B", "A")
         )
-        cycles = ec.get_cycles(G)
+        cycles = G.get_cycles()
         assert len(cycles) == 1
         assert len(cycles[0]) == 2
 
     def test_standalone_function_min_length(self):
-        """Standalone function accepts min_length parameter."""
+        """Method accepts min_length parameter."""
         G = (
             ec.Graph(directed=True)
             .add_node("A")
@@ -207,7 +207,7 @@ class TestCycleEnumeration:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        cycles = ec.get_cycles(G, min_length=3)
+        cycles = G.get_cycles(min_length=3)
         assert len(cycles) == 1
         assert len(cycles[0]) == 3
 

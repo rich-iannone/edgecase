@@ -2,46 +2,6 @@ import pytest
 import edgecase as ec
 
 
-class TestDegreeHistogram:
-    """Test get_degree_histogram() method."""
-
-    def test_histogram_empty_graph(self):
-        """Empty graph should return empty histogram."""
-        G = ec.Graph()
-        hist = G.get_degree_histogram()
-        assert hist == {}
-
-    def test_histogram_path_graph(self):
-        """Path graph has specific degree distribution."""
-        G = ec.Graph()
-        G.add_path_graph(5)
-        hist = G.get_degree_histogram()
-        assert hist[1] == 2  # Two end nodes with degree 1
-        assert hist[2] == 3  # Three middle nodes with degree 2
-
-    def test_histogram_star_graph(self):
-        """Star graph has hub and leaves."""
-        G = ec.Graph()
-        G.add_star_graph(6)  # 1 hub + 5 leaves
-        hist = G.get_degree_histogram()
-        assert hist[1] == 5  # 5 leaves
-        assert hist[5] == 1  # 1 hub
-
-    def test_histogram_complete_graph(self):
-        """Complete graph has all nodes with same degree."""
-        G = ec.Graph()
-        G.add_full_graph(5)
-        hist = G.get_degree_histogram()
-        assert hist[4] == 5  # All 5 nodes have degree 4
-
-    def test_histogram_cycle_graph(self):
-        """Cycle graph has all nodes with degree 2."""
-        G = ec.Graph()
-        G.add_cycle_graph(6)
-        hist = G.get_degree_histogram()
-        assert hist[2] == 6  # All nodes have degree 2
-
-
 class TestArticulationPoints:
     """Test get_articulation_points() method."""
 
@@ -487,13 +447,3 @@ class TestAdvancedPropertiesIntegration:
         assert ap == []  # Highly connected
         assert G.get_graph_adhesion() == 4
         assert G.get_graph_cohesion() == 4
-
-    def test_histogram_matches_degree_distribution(self):
-        """get_degree_histogram() should match degree_distribution()."""
-        G = ec.Graph()
-        G.add_star_graph(10)
-
-        hist = G.get_degree_histogram()
-        dist = G.degree_distribution()
-
-        assert hist == dist

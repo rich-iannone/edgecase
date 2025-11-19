@@ -18,7 +18,7 @@ class TestEdgesStrRepr:
             .add_edge("B", "C")
         )
 
-        edges = graph.edges_str_repr()
+        edges = graph.get_edges_str_repr()
         assert len(edges) == 2
         assert "1->2" in edges
         assert "2->3" in edges
@@ -34,7 +34,7 @@ class TestEdgesStrRepr:
             .add_edge("Y", "Z")
         )
 
-        edges = graph.edges_str_repr()
+        edges = graph.get_edges_str_repr()
         assert len(edges) == 2
         assert "1--2" in edges
         assert "2--3" in edges
@@ -50,7 +50,7 @@ class TestEdgesStrRepr:
             .add_edge("Bob", "Charlie")
         )
 
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 2
         assert "Alice->Bob" in edges
         assert "Bob->Charlie" in edges
@@ -62,7 +62,7 @@ class TestEdgesStrRepr:
         graph.add_node(label="Cat")
         graph.add_edge("Dog", "Cat")
 
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 1
         assert "Dog--Cat" in edges
 
@@ -74,14 +74,14 @@ class TestEdgesStrRepr:
         graph.add_node(label="Charlie")
 
         # Get the ID of the unlabeled node
-        all_ids = graph.node_ids(limit=None)
+        all_ids = graph.get_node_ids(limit=None)
         unlabeled_id = [nid for nid in all_ids if graph.get_label_from_id(nid) is None][0]
 
         graph.add_edge("Alice", unlabeled_id)
         graph.add_edge(unlabeled_id, "Charlie")
 
         # With use_labels=True, should fall back to IDs for unlabeled nodes
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 2
 
         # Check that labeled nodes show labels, unlabeled shows ID
@@ -96,8 +96,8 @@ class TestEdgesStrRepr:
         graph.add_edge(1, 2)
 
         # Should fall back to IDs
-        edges_with_labels = graph.edges_str_repr(use_labels=True)
-        edges_default = graph.edges_str_repr(use_labels=False)
+        edges_with_labels = graph.get_edges_str_repr(use_labels=True)
+        edges_default = graph.get_edges_str_repr(use_labels=False)
 
         assert edges_with_labels == edges_default
         assert "1--2" in edges_with_labels
@@ -113,11 +113,11 @@ class TestEdgesStrRepr:
             graph.add_edge(f"N{i}", f"N{i + 1}")
 
         # Test with limit
-        edges_limited = graph.edges_str_repr(limit=5)
+        edges_limited = graph.get_edges_str_repr(limit=5)
         assert len(edges_limited) == 5
 
         # Test with no limit
-        edges_all = graph.edges_str_repr(limit=None)
+        edges_all = graph.get_edges_str_repr(limit=None)
         assert len(edges_all) == 9
 
     def test_limit_with_labels(self):
@@ -129,7 +129,7 @@ class TestEdgesStrRepr:
         for i in range(9):
             graph.add_edge(f"Node{i}", f"Node{i + 1}")
 
-        edges = graph.edges_str_repr(limit=3, use_labels=True)
+        edges = graph.get_edges_str_repr(limit=3, use_labels=True)
         assert len(edges) == 3
         # Should be formatted with labels
         assert all("->" in edge for edge in edges)
@@ -138,20 +138,20 @@ class TestEdgesStrRepr:
     def test_empty_graph(self):
         """Test edges_str_repr on empty graph."""
         graph = Graph()
-        edges = graph.edges_str_repr()
+        edges = graph.get_edges_str_repr()
         assert edges == []
 
-        edges_with_labels = graph.edges_str_repr(use_labels=True)
+        edges_with_labels = graph.get_edges_str_repr(use_labels=True)
         assert edges_with_labels == []
 
     def test_graph_with_nodes_no_edges(self):
         """Test graph with nodes but no edges."""
         graph = Graph().add_node(label="A").add_node(label="B")
 
-        edges = graph.edges_str_repr()
+        edges = graph.get_edges_str_repr()
         assert edges == []
 
-        edges_with_labels = graph.edges_str_repr(use_labels=True)
+        edges_with_labels = graph.get_edges_str_repr(use_labels=True)
         assert edges_with_labels == []
 
     def test_self_loop(self):
@@ -160,11 +160,11 @@ class TestEdgesStrRepr:
         graph.add_node(label="SelfNode")
         graph.add_edge("SelfNode", "SelfNode")
 
-        edges_ids = graph.edges_str_repr()
+        edges_ids = graph.get_edges_str_repr()
         assert len(edges_ids) == 1
         assert edges_ids[0] == "1->1"
 
-        edges_labels = graph.edges_str_repr(use_labels=True)
+        edges_labels = graph.get_edges_str_repr(use_labels=True)
         assert len(edges_labels) == 1
         assert edges_labels[0] == "SelfNode->SelfNode"
 
@@ -176,12 +176,12 @@ class TestEdgesStrRepr:
         graph.add_edge("A", "B", edge_id=1)
         graph.add_edge("A", "B", edge_id=2)
 
-        edges_ids = graph.edges_str_repr()
+        edges_ids = graph.get_edges_str_repr()
         assert len(edges_ids) == 2
         # Both should be the same representation
         assert all(edge == "1--2" for edge in edges_ids)
 
-        edges_labels = graph.edges_str_repr(use_labels=True)
+        edges_labels = graph.get_edges_str_repr(use_labels=True)
         assert len(edges_labels) == 2
         assert all(edge == "A--B" for edge in edges_labels)
 
@@ -206,11 +206,11 @@ class TestEdgesStrRepr:
                 break
 
         # Default should return 1000 edges
-        edges_default = graph.edges_str_repr()
+        edges_default = graph.get_edges_str_repr()
         assert len(edges_default) == 1000
 
         # Explicit limit=None should return all
-        edges_all = graph.edges_str_repr(limit=None)
+        edges_all = graph.get_edges_str_repr(limit=None)
         assert len(edges_all) == edge_count
 
     def test_directed_vs_undirected_separators(self):
@@ -220,7 +220,7 @@ class TestEdgesStrRepr:
             Graph(directed=True).add_node(label="A").add_node(label="B").add_edge("A", "B")
         )
 
-        edges = graph_directed.edges_str_repr(use_labels=True)
+        edges = graph_directed.get_edges_str_repr(use_labels=True)
         assert "->" in edges[0]
         assert "--" not in edges[0]
 
@@ -229,7 +229,7 @@ class TestEdgesStrRepr:
             Graph(directed=False).add_node(label="X").add_node(label="Y").add_edge("X", "Y")
         )
 
-        edges = graph_undirected.edges_str_repr(use_labels=True)
+        edges = graph_undirected.get_edges_str_repr(use_labels=True)
         assert "--" in edges[0]
         assert "->" not in edges[0]
 
@@ -242,7 +242,7 @@ class TestEdgesStrRepr:
         graph.add_edge("Node-1", "Node_2")
         graph.add_edge("Node_2", "Node 3")
 
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 2
         assert "Node-1--Node_2" in edges
         assert "Node_2--Node 3" in edges
@@ -254,7 +254,7 @@ class TestEdgesStrRepr:
         graph.add_node(label="200")
         graph.add_edge("100", "200")
 
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 1
         assert "100--200" in edges
 
@@ -269,8 +269,8 @@ class TestEdgesStrRepr:
             .add_edge("B", "C")
         )
 
-        edges1 = graph.edges_str_repr(use_labels=True)
-        edges2 = graph.edges_str_repr(use_labels=True)
+        edges1 = graph.get_edges_str_repr(use_labels=True)
+        edges2 = graph.get_edges_str_repr(use_labels=True)
 
         assert edges1 == edges2
 
@@ -278,7 +278,7 @@ class TestEdgesStrRepr:
         """Test that use_labels=False explicitly uses IDs."""
         graph = Graph().add_node(label="Alice").add_node(label="Bob").add_edge("Alice", "Bob")
 
-        edges = graph.edges_str_repr(use_labels=False)
+        edges = graph.get_edges_str_repr(use_labels=False)
         assert len(edges) == 1
         assert "1--2" in edges
         assert "Alice" not in edges[0]
@@ -293,7 +293,7 @@ class TestEdgesStrRepr:
         for i in range(19):
             graph.add_edge(f"Node{i}", f"Node{i + 1}")
 
-        edges = graph.edges_str_repr(limit=10, use_labels=True)
+        edges = graph.get_edges_str_repr(limit=10, use_labels=True)
         assert len(edges) == 10
         assert all("Node" in edge for edge in edges)
         assert all("->" in edge for edge in edges)
@@ -305,7 +305,7 @@ class TestEdgesStrRepr:
         graph.add_node(label="HasLabel")
         graph.add_edge(1, "HasLabel")
 
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 1
         # Node with None label should show ID
         assert "1--HasLabel" in edges
@@ -324,7 +324,7 @@ class TestEdgesStrRepr:
         # Delete middle node
         graph.delete_node("B")
 
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         # Should have no edges now (B connected both)
         assert len(edges) == 0
 
@@ -341,7 +341,7 @@ class TestEdgesStrRepr:
 
         graph.delete_edge(source="A", target="B")
 
-        edges = graph.edges_str_repr(use_labels=True)
+        edges = graph.get_edges_str_repr(use_labels=True)
         assert len(edges) == 1
         assert "B--C" in edges
         assert "A--B" not in edges

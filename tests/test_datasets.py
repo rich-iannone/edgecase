@@ -69,21 +69,21 @@ class TestDatasetLoading:
     def test_load_karate_club(self):
         """Test loading karate club dataset."""
         g = load_dataset("karate")
-        assert g.num_nodes() == 34
-        assert g.num_edges() == 78
-        assert g.is_directed is False
+        assert g.count_nodes() == 34
+        assert g.count_edges() == 78
+        assert g.is_directed() is False
 
     def test_load_with_extension(self):
         """Test loading with .mtx extension specified."""
         g = load_dataset("karate.mtx")
-        assert g.num_nodes() == 34
-        assert g.num_edges() == 78
+        assert g.count_nodes() == 34
+        assert g.count_edges() == 78
 
     def test_load_without_extension(self):
         """Test loading without .mtx extension."""
         g = load_dataset("karate")
-        assert g.num_nodes() == 34
-        assert g.num_edges() == 78
+        assert g.count_nodes() == 34
+        assert g.count_edges() == 78
 
     def test_load_nonexistent_dataset(self):
         """Test loading nonexistent dataset raises error."""
@@ -94,13 +94,13 @@ class TestDatasetLoading:
         """Test that metadata from registry is applied automatically."""
         g = load_dataset("karate")
         # directed flag from registry should be applied
-        assert g.is_directed is False
+        assert g.is_directed() is False
 
     def test_override_directed_flag(self):
         """Test overriding directed flag from registry."""
         # Karate is undirected in registry, but we can override
         g = load_dataset("karate", directed=True)
-        assert g.is_directed is True
+        assert g.is_directed() is True
 
 
 class TestCompressedDatasetLoading:
@@ -128,8 +128,8 @@ class TestCompressedDatasetLoading:
         try:
             # Should load from .gz file
             g = load_dataset("karate")
-            assert g.num_nodes() == 34
-            assert g.num_edges() == 78
+            assert g.count_nodes() == 34
+            assert g.count_edges() == 78
         finally:
             # Restore original
             if mtx_existed:
@@ -160,9 +160,9 @@ class TestCompressedDatasetLoading:
 
         try:
             g2 = load_dataset("karate")
-            assert g1.num_nodes() == g2.num_nodes()
-            assert g1.num_edges() == g2.num_edges()
-            assert g1.is_directed == g2.is_directed
+            assert g1.count_nodes() == g2.count_nodes()
+            assert g1.count_edges() == g2.count_edges()
+            assert g1.is_directed() == g2.is_directed()
         finally:
             os.rename(backup_path, mtx_path)
 
@@ -186,9 +186,9 @@ class TestCustomMatrixMarketFiles:
 
         try:
             g = load_dataset("test_custom")
-            assert g.num_nodes() == 3
-            assert g.num_edges() == 3
-            assert g.is_directed is False
+            assert g.count_nodes() == 3
+            assert g.count_edges() == 3
+            assert g.is_directed() is False
         finally:
             if test_file.exists():
                 test_file.unlink()
@@ -211,8 +211,8 @@ class TestCustomMatrixMarketFiles:
 
         try:
             g = load_dataset("test_custom_compressed")
-            assert g.num_nodes() == 4
-            assert g.num_edges() == 4
+            assert g.count_nodes() == 4
+            assert g.count_edges() == 4
         finally:
             if test_file_gz.exists():
                 test_file_gz.unlink()
@@ -274,13 +274,13 @@ class TestDatasetLoadingPerformance:
 
         # Should load in under 100ms even from compressed
         assert elapsed < 0.1, f"Loading took {elapsed:.3f}s, too slow"
-        assert g.num_nodes() == 34
+        assert g.count_nodes() == 34
 
     def test_multiple_loads_dont_fail(self):
         """Test that loading the same dataset multiple times works."""
         for _ in range(3):
             g = load_dataset("karate")
-            assert g.num_nodes() == 34
+            assert g.count_nodes() == 34
 
 
 class TestEdgeCases:
@@ -295,7 +295,7 @@ class TestEdgeCases:
         # Test that registry lookup is case-sensitive
         # but file system might not be (macOS is case-insensitive by default)
         # So we just test that lowercase works
-        assert g.num_nodes() == 34
+        assert g.count_nodes() == 34
 
     def test_empty_filename(self):
         """Test that empty filename raises error."""
@@ -315,5 +315,5 @@ class TestEdgeCases:
         g_weighted = load_dataset("karate", weighted=True)
 
         # Both should load successfully
-        assert g_unweighted.num_nodes() == 34
-        assert g_weighted.num_nodes() == 34
+        assert g_unweighted.count_nodes() == 34
+        assert g_weighted.count_nodes() == 34

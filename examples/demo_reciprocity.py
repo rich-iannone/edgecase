@@ -24,7 +24,7 @@ def example_1_basic_reciprocity():
     print("  Alice → Carol (one-way)")
 
     # Calculate reciprocity
-    recip = g.get_graph_reciprocity()
+    recip = g.get_reciprocity()
     print(f"\nReciprocity: {recip:.3f}")
     print(f"Interpretation: {recip * 100:.1f}% of edges are reciprocal")
 
@@ -81,15 +81,15 @@ def example_2_social_networks():
         followers.add_edge(a, b)
 
     print("\nFriendship Network:")
-    print(f"  Nodes: {friendship.num_nodes()}")
-    print(f"  Edges: {friendship.num_edges()}")
-    print(f"  Reciprocity: {friendship.get_graph_reciprocity():.3f}")
+    print(f"  Nodes: {friendship.count_nodes()}")
+    print(f"  Edges: {friendship.count_edges()}")
+    print(f"  Reciprocity: {friendship.get_reciprocity():.3f}")
     print("  Interpretation: Symmetric relationships (friends)")
 
     print("\nFollower Network:")
-    print(f"  Nodes: {followers.num_nodes()}")
-    print(f"  Edges: {followers.num_edges()}")
-    print(f"  Reciprocity: {followers.get_graph_reciprocity():.3f}")
+    print(f"  Nodes: {followers.count_nodes()}")
+    print(f"  Edges: {followers.count_edges()}")
+    print(f"  Reciprocity: {followers.get_reciprocity():.3f}")
     print("  Interpretation: Asymmetric relationships (followers)")
     print()
 
@@ -125,11 +125,11 @@ def example_3_communication_patterns():
             email.add_node(label=receiver)
         email.add_edge(sender, receiver)
 
-    recip = email.get_graph_reciprocity()
+    recip = email.get_reciprocity()
     mutual_pairs = email.which_mutual()
 
     print("\nEmail Network Statistics:")
-    print(f"  Total edges (emails): {email.num_edges()}")
+    print(f"  Total edges (emails): {email.count_edges()}")
     print(f"  Mutual pairs: {len(mutual_pairs)}")
     print(f"  Reciprocity: {recip:.3f}")
 
@@ -187,11 +187,11 @@ def example_4_citation_network():
             citations.add_node(label=cited)
         citations.add_edge(citing, cited)
 
-    recip = citations.get_graph_reciprocity()
+    recip = citations.get_reciprocity()
 
     print("\nCitation Network:")
-    print(f"  Papers (nodes): {citations.num_nodes()}")
-    print(f"  Citations (edges): {citations.num_edges()}")
+    print(f"  Papers (nodes): {citations.count_nodes()}")
+    print(f"  Citations (edges): {citations.count_edges()}")
     print(f"  Reciprocity: {recip:.3f}")
 
     print("\nInterpretation:")
@@ -232,7 +232,7 @@ def example_5_detecting_mutual_edges():
                 g.add_node(label=target)
             g.add_edge(source, target)
 
-    print(f"\nNetwork: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"\nNetwork: {g.count_nodes()} nodes, {g.count_edges()} edges")
 
     # Find all mutual edges
     mutual_pairs = g.which_mutual()
@@ -257,7 +257,7 @@ def example_5_detecting_mutual_edges():
         print(f"  {node1_label} ↔ {node2_label} (edges {edge1_id}, {edge2_id})")
 
     # Calculate overall reciprocity
-    recip = g.get_graph_reciprocity()
+    recip = g.get_reciprocity()
     print(f"\nOverall reciprocity: {recip:.3f}")
     print(f"({recip * 100:.1f}% of edges are part of mutual pairs)")
     print()
@@ -283,17 +283,17 @@ def example_6_comparing_modes():
     g.add_edge("A", "C")  # One-way
     g.add_edge("B", "D")  # One-way
 
-    print(f"\nGraph: {g.num_nodes()} nodes, {g.num_edges()} edges")
+    print(f"\nGraph: {g.count_nodes()} nodes, {g.count_edges()} edges")
     print("  2 mutual pairs (4 edges)")
     print("  2 one-way edges")
 
     # Default mode
-    recip_default = g.get_graph_reciprocity("default")
+    recip_default = g.get_reciprocity("default")
     print(f"\nReciprocity (default): {recip_default:.3f}")
     print(f"  Calculation: {4} mutual / {6} total = {recip_default:.3f}")
 
     # Ratio mode (same as default)
-    recip_ratio = g.get_graph_reciprocity("ratio")
+    recip_ratio = g.get_reciprocity("ratio")
     print(f"\nReciprocity (ratio): {recip_ratio:.3f}")
     print("  Calculation: same as default")
 

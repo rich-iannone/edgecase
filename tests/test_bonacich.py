@@ -34,14 +34,14 @@ class TestBonacichBasic:
     def test_empty_graph(self):
         """Empty graph returns empty dict."""
         g = Graph()
-        result = g.get_bonacich_power_centrality()
+        result = g.bonacich_power_centrality(return_dict=True, )
         assert result == {}
 
     def test_single_node(self):
         """Single node has centrality of 0 (no edges)."""
         g = Graph()
         g.add_node("A")
-        result = g.get_bonacich_power_centrality()
+        result = g.bonacich_power_centrality(return_dict=True, )
         # With no edges, A·1 = 0, so centrality is 0
         node_id = g.get_id_from_label("A")
         assert abs(result[node_id]) < 1e-7
@@ -55,7 +55,7 @@ class TestBonacichBasic:
             for j in range(i + 1, 5):
                 g.add_edge(str(i), str(j))
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # All nodes should have equal centrality
         scores = list(result.values())
@@ -71,7 +71,7 @@ class TestBonacichBasic:
         g.add_edge("0", "1")
         g.add_edge("1", "2")
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # Expected values from NetworkX (converted to use node IDs)
         expected_by_label = {
@@ -95,7 +95,7 @@ class TestBonacichBasic:
         g.add_edge("0", "2")
         g.add_edge("0", "3")
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # Expected values from NetworkX (converted to use node IDs)
         expected_by_label = {
@@ -122,7 +122,7 @@ class TestBonacichDirected:
         g.add_edge("0", "1")
         g.add_edge("1", "2")
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # Expected values from NetworkX (converted to use node IDs)
         expected_by_label = {
@@ -146,7 +146,7 @@ class TestBonacichDirected:
         g.add_edge("0", "2")
         g.add_edge("0", "3")
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # Expected values from NetworkX (converted to use node IDs)
         expected_by_label = {"0": 2.0, "1": 0.0, "2": 0.0, "3": 0.0}
@@ -165,7 +165,7 @@ class TestBonacichDirected:
         g.add_edge("1", "2")
         g.add_edge("2", "0")
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # All nodes should be equal in a symmetric cycle
         scores = list(result.values())
@@ -185,7 +185,7 @@ class TestBonacichNormalization:
         g.add_edge("0", "1")
         g.add_edge("1", "2")
 
-        result = g.get_bonacich_power_centrality(beta=0.1, normalized=False)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1, normalized=False)
 
         # L2 norm: sum of squares should equal n
         sum_squares = sum(v**2 for v in result.values())
@@ -201,7 +201,7 @@ class TestBonacichNormalization:
         g.add_edge("0", "1")
         g.add_edge("1", "2")
 
-        result = g.get_bonacich_power_centrality(beta=0.1, normalized=True)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1, normalized=True)
 
         # Sum should equal 1
         total = sum(result.values())
@@ -217,7 +217,7 @@ class TestBonacichParameters:
         # Star: center connected to 3 leaves
         add_edges(g, [("center", "a"), ("center", "b"), ("center", "c")])
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # Center should have highest power (connected to many)
         center_id = g.get_id_from_label("center")
@@ -234,7 +234,7 @@ class TestBonacichParameters:
         # Path: A-B-C-D
         add_edges(g, [("A", "B"), ("B", "C"), ("C", "D")])
 
-        result = g.get_bonacich_power_centrality(beta=-0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=-0.1)
 
         # With negative beta, middle nodes still have higher power in undirected paths
         # because they connect to more nodes (the math works differently than intuition)
@@ -247,7 +247,7 @@ class TestBonacichParameters:
         g = Graph(directed=False)
         add_edges(g, [("A", "B"), ("B", "C"), ("B", "D")])
 
-        result = g.get_bonacich_power_centrality(beta=0.0)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.0)
 
         # With beta=0, centrality proportional to degree
         # B has degree 3, others have degree 1-2
@@ -319,7 +319,7 @@ class TestBonacichCook1987:
         }
 
         for beta, expected_by_label in test_cases.items():
-            result = g.get_bonacich_power_centrality(beta=beta, normalized=False)
+            result = g.bonacich_power_centrality(return_dict=True, beta=beta, normalized=False)
             expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
             for node, exp_val in expected.items():
                 assert abs(result[node] - exp_val) < 1e-6, f"Beta={beta}, node={node}"
@@ -342,7 +342,7 @@ class TestBonacichCook1987:
 
         # Test multiple beta values
         for beta in [-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3]:
-            result = g.get_bonacich_power_centrality(beta=beta, normalized=False)
+            result = g.bonacich_power_centrality(return_dict=True, beta=beta, normalized=False)
             expected_by_id = {g.get_id_from_label(lbl): val for lbl, val in expected.items()}
             for node, exp_val in expected_by_id.items():
                 assert abs(result[node] - exp_val) < 1e-6, f"Beta={beta}, node={node}"
@@ -433,7 +433,7 @@ class TestBonacichCook1987:
         }
 
         for beta, expected_by_label in test_cases.items():
-            result = g.get_bonacich_power_centrality(beta=beta, normalized=False)
+            result = g.bonacich_power_centrality(return_dict=True, beta=beta, normalized=False)
             expected = {g.get_id_from_label(lbl): val for lbl, val in expected_by_label.items()}
             for node, exp_val in expected.items():
                 assert abs(result[node] - exp_val) < 1e-6, f"Beta={beta}, node={node}"
@@ -450,7 +450,7 @@ class TestBonacichEdgeCases:
         # Should work with various beta values including large ones
         # The LU solver is quite robust
         for beta in [0.1, 0.5, 1.0]:
-            result = g.get_bonacich_power_centrality(beta=beta)
+            result = g.bonacich_power_centrality(return_dict=True, beta=beta)
             assert len(result) == 3
             # All nodes should have scores
             for score in result.values():
@@ -464,7 +464,7 @@ class TestBonacichEdgeCases:
         # Component 2
         add_edges(g, [("C", "D")])
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # Both components should have valid centrality
         assert len(result) == 4
@@ -479,7 +479,7 @@ class TestBonacichEdgeCases:
         g.add_edge("A", "B")
         g.add_edge("A", "A")  # self-loop
 
-        result = g.get_bonacich_power_centrality(beta=0.1)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.1)
 
         # Self-loop increases A's centrality
         a_id = g.get_id_from_label("A")
@@ -491,7 +491,7 @@ class TestBonacichEdgeCases:
         add_edges(g, [("A", "B"), ("B", "C"), ("C", "D")])
 
         # Should not crash with moderately negative beta
-        result = g.get_bonacich_power_centrality(beta=-0.3)
+        result = g.bonacich_power_centrality(return_dict=True, beta=-0.3)
         assert len(result) == 4
 
 
@@ -505,7 +505,7 @@ class TestBonacichComparison:
 
         # For small graphs, lambda_max ≈ max_degree
         # B has degree 3, so try beta ≈ 1/3
-        bonacich = g.get_bonacich_power_centrality(beta=0.3, normalized=True)
+        bonacich = g.bonacich_power_centrality(return_dict=True, beta=0.3, normalized=True)
 
         # Should have similar ordering (B highest due to degree)
         a_id, b_id, c_id, d_id = [g.get_id_from_label(l) for l in ["A", "B", "C", "D"]]
@@ -518,12 +518,12 @@ class TestBonacichComparison:
         g = Graph(directed=False)
         add_edges(g, [("A", "B"), ("B", "C"), ("B", "D"), ("C", "D")])
 
-        bonacich = g.get_bonacich_power_centrality(beta=0.0)
+        bonacich = g.bonacich_power_centrality(return_dict=True, beta=0.0)
 
         # Get degrees manually (bonacich keys are now node IDs)
         degrees = {}
         for node_id in bonacich.keys():
-            degrees[node_id] = len(g.get_neighbors(node_id))
+            degrees[node_id] = len(g.neighbors(node_id))
 
         # Ordering should match degree ordering
         degree_order = sorted(degrees.items(), key=lambda x: x[1], reverse=True)
@@ -544,7 +544,7 @@ class TestBonacichLargeGraph:
         for i in range(19):
             g.add_edge(str(i), str(i + 1))
 
-        result = g.get_bonacich_power_centrality(beta=0.05)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.05)
 
         # Middle nodes should have higher centrality
         id_10 = g.get_id_from_label("10")
@@ -562,7 +562,7 @@ class TestBonacichLargeGraph:
             for j in range(i + 1, 10):
                 g.add_edge(str(i), str(j))
 
-        result = g.get_bonacich_power_centrality(beta=0.05)
+        result = g.bonacich_power_centrality(return_dict=True, beta=0.05)
 
         # All should be equal
         scores = list(result.values())

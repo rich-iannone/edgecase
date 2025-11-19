@@ -12,8 +12,8 @@ def demo_path_graph():
     g = g.add_path(n=5, type="step", label=True, rel="next")
 
     print(f"Created path graph: {g}")
-    print(f"Nodes: {g.node_ids(limit=None)}")
-    print(f"Edges: {g.edges_as_tuples()}")
+    print(f"Nodes: {g.get_node_ids(limit=None)}")
+    print(f"Edges: {g.get_edges_as_tuples()}")
     print(f"Node '1' neighbors: {g.neighbors('1')}")
     print()
 
@@ -29,7 +29,7 @@ def demo_cycle_graph():
 
     print(f"Created cycle graph: {g}")
     print("Each node has exactly 1 neighbor (directed cycle):")
-    for node_id in g.node_ids(limit=None):
+    for node_id in g.get_node_ids(limit=None):
         print(f"  Node '{node_id}': {g.neighbors(node_id)}")
     print()
 
@@ -44,7 +44,7 @@ def demo_star_graph():
     g = g.add_star(n=6, type="network")
 
     print(f"Created star graph: {g}")
-    center = g.node_ids(limit=None)[0]  # First node is center
+    center = g.get_node_ids(limit=None)[0]  # First node is center
     print(f"Center node '{center}' has {len(g.neighbors(center))} neighbors")
     print(f"Center neighbors: {g.neighbors(center)}")
     print()
@@ -61,9 +61,9 @@ def demo_complete_graph():
 
     print(f"Created complete graph: {g}")
     print("Expected edges for K4: 4*(4-1)/2 = 6")
-    print(f"Actual edges: {g.num_edges()}")
+    print(f"Actual edges: {g.count_edges()}")
     print("Each node connects to all others:")
-    for node_id in g.node_ids(limit=None):
+    for node_id in g.get_node_ids(limit=None):
         print(f"  Node '{node_id}': {len(g.neighbors(node_id))} neighbors")
     print()
 
@@ -78,7 +78,7 @@ def demo_balanced_tree():
     g = ec.add_balanced_tree(g, k=2, h=2, type="tree_node", rel="parent_of")
 
     print(f"Created binary tree (k=2, h=2): {g}")
-    print(f"Nodes at each level: 1, 2, 4 (total: {g.num_nodes()})")
+    print(f"Nodes at each level: 1, 2, 4 (total: {g.count_nodes()})")
     print(f"Root '1' children: {g.neighbors('1')}")
     print()
 
@@ -94,12 +94,12 @@ def demo_grid_graph():
 
     print(f"Created 3x3 grid: {g}")
     print("Expected edges: (3-1)*3 + 3*(3-1) = 12")
-    print(f"Actual edges: {g.num_edges()}")
+    print(f"Actual edges: {g.count_edges()}")
 
     # Analyze node degrees
-    corners = sum(1 for nid in g.node_ids(limit=None) if len(g.neighbors(nid)) == 2)
-    edges = sum(1 for nid in g.node_ids(limit=None) if len(g.neighbors(nid)) == 3)
-    interior = sum(1 for nid in g.node_ids(limit=None) if len(g.neighbors(nid)) == 4)
+    corners = sum(1 for nid in g.get_node_ids(limit=None) if len(g.neighbors(nid)) == 2)
+    edges = sum(1 for nid in g.get_node_ids(limit=None) if len(g.neighbors(nid)) == 3)
+    interior = sum(1 for nid in g.get_node_ids(limit=None) if len(g.neighbors(nid)) == 4)
 
     print(f"Corner nodes (degree 2): {corners}")
     print(f"Edge nodes (degree 3): {edges}")
@@ -119,7 +119,7 @@ def demo_prism_graph():
     print(f"Created prism graph (2 cycles of 4): {g}")
     print("Two parallel cycles connected by matching edges")
     print("Expected edges: 4 + 4 + 4 = 12")
-    print(f"Actual edges: {g.num_edges()}")
+    print(f"Actual edges: {g.count_edges()}")
     print()
 
 
