@@ -5460,7 +5460,7 @@ impl Graph {
     ///
     /// # Returns
     ///
-    /// Dictionary mapping (source_label, target_label) tuples to edge counts
+    /// Dictionary mapping (source_id, target_id) tuples to edge counts
     ///
     /// # Examples
     ///
@@ -5472,11 +5472,11 @@ impl Graph {
     /// g.add_edge("B", "C")  # Single edge
     ///
     /// counts = g.count_multiple()
-    /// # Returns: {("A", "B"): 3}
-    /// # Single edges like ("B", "C") are not included
+    /// # Returns node IDs: {(node_id_a, node_id_b): 3}
+    /// # Single edges like (node_id_b, node_id_c) are not included
     /// ```
     #[inline]
-    pub fn count_multiple(&self) -> PyResult<std::collections::HashMap<(String, String), usize>> {
+    pub fn count_multiple(&self) -> PyResult<std::collections::HashMap<(u64, u64), usize>> {
         let m = self.num_edges();
         let mut pair_counts = FxHashMap::with_capacity_and_hasher(m, Default::default());
 
@@ -5499,19 +5499,12 @@ impl Graph {
             *pair_counts.entry(pair).or_insert(0) += 1;
         }
 
-        // Convert to labels and filter for multiples only (count >= 2)
+        // Filter for multiples only (count >= 2) and return node IDs
         let estimated_result_size = pair_counts.len() / 2;
         let mut result = std::collections::HashMap::with_capacity(estimated_result_size);
         for ((source_id, target_id), count) in pair_counts.iter() {
             if *count >= 2 {
-                let source_label = self.nodes.get(source_id)
-                    .and_then(|n| n.label.clone())
-                    .unwrap_or_else(|| source_id.to_string());
-                let target_label = self.nodes.get(target_id)
-                    .and_then(|n| n.label.clone())
-                    .unwrap_or_else(|| target_id.to_string());
-
-                result.insert((source_label, target_label), *count);
+                result.insert((*source_id, *target_id), *count);
             }
         }
 

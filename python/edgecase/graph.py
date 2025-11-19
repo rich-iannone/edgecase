@@ -6245,18 +6245,18 @@ class Graph:
         """
         return self._graph.which_multiple()
 
-    def count_multiple(self) -> dict[tuple[str, str], int]:
+    def count_multiple(self) -> dict[tuple[int, int], int]:
         """Count multiple edges grouped by node pair.
 
         Returns a dictionary showing how many edges exist between each pair of nodes
         that has multiple edges. Only includes pairs with 2 or more edges.
 
-        For undirected graphs, returns unordered pairs (smaller node label first).
+        For undirected graphs, returns unordered pairs (smaller node ID first).
 
         Returns
         -------
-        dict[tuple[str, str], int]
-            Dictionary mapping (source_label, target_label) to edge count.
+        dict[tuple[int, int], int]
+            Dictionary mapping (source_id, target_id) to edge count.
             Only includes pairs with count >= 2.
 
         Examples
@@ -6275,7 +6275,14 @@ class Graph:
         g.add_edge(source="B", target="C")  # Duplicate
 
         counts = g.count_multiple()
-        counts
+        # Returns node IDs: {(node_id_a, node_id_b): 3, (node_id_b, node_id_c): 2}
+
+        # Convert to labels if needed
+        counts_by_label = {
+            (g.get_label_from_id(src), g.get_label_from_id(tgt)): count
+            for (src, tgt), count in counts.items()
+        }
+        counts_by_label
         # {('A', 'B'): 3, ('B', 'C'): 2}
         ```
 
@@ -6294,8 +6301,12 @@ class Graph:
         email.add_edge(source="Bob", target="Carol")    # Email 2
 
         multi_count = email.count_multiple()
-        # Shows intensity of communication
-        for (sender, receiver), count in multi_count.items():
+        # Returns node IDs: {(alice_id, bob_id): 3, (bob_id, carol_id): 2}
+
+        # Convert to labels for display
+        for (sender_id, receiver_id), count in multi_count.items():
+            sender = email.get_label_from_id(sender_id)
+            receiver = email.get_label_from_id(receiver_id)
             print(f"{sender} -> {receiver}: {count} emails")
         # Alice -> Bob: 3 emails
         # Bob -> Carol: 2 emails
@@ -6315,16 +6326,23 @@ class Graph:
         transport.add_edge(source="CityB", target="CityC", route="highway")
 
         multi = transport.count_multiple()
+        # Returns node IDs: {(cityA_id, cityB_id): 3}
+
+        # Convert to labels
+        multi_labels = {
+            (transport.get_label_from_id(id1), transport.get_label_from_id(id2)): count
+            for (id1, id2), count in multi.items()
+        }
         # CityA-CityB has 3 routes to consolidate
-        multi
+        multi_labels
         # {('CityA', 'CityB'): 3}
         ```
 
         Notes
         -----
         - Only returns pairs with 2+ edges (single edges are excluded)
-        - For undirected graphs, pairs are normalized (smaller label first)
-        - Self-loops are not counted as multiples (they're loops)
+        - For undirected graphs, pairs are normalized (smaller node ID first)
+        - Self-loops are counted if there are 2+ self-loop edges for a node
         - Useful for understanding graph complexity before simplification
 
         See Also
