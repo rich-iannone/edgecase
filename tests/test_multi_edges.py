@@ -126,12 +126,12 @@ class TestMultiEdgeGraphs:
         assert len(g.get_edge_ids()) == 3
 
     def test_create_graph_with_edge_ids(self):
-        """Test creating graph from DataFrames with explicit edge IDs."""
+        """Test creating graph from DataFrames - edge IDs are auto-assigned."""
         nodes = pl.DataFrame({"id": ["A", "B", "C"], "type": ["person", "person", "person"]})
 
         edges = pl.DataFrame(
             {
-                "id": [10, 20, 30],
+                "id": [10, 20, 30],  # id column is ignored, edge IDs auto-assigned
                 "from": ["A", "B", "A"],
                 "to": ["B", "C", "B"],
                 "rel": ["follows", "follows", "likes"],
@@ -140,11 +140,9 @@ class TestMultiEdgeGraphs:
 
         g = ec.Graph.from_dataframes(nodes_df=nodes, edges_df=edges, directed=True)
 
-        # Check edge IDs were preserved
+        # Edge IDs are auto-assigned starting from 1
         edge_ids = g.get_edge_ids()
-        assert 10 in edge_ids
-        assert 20 in edge_ids
-        assert 30 in edge_ids
+        assert edge_ids == [1, 2, 3]
 
     def test_create_graph_without_edge_ids(self):
         """Test creating graph from DataFrames without edge IDs (auto-assigned)."""

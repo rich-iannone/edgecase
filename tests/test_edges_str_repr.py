@@ -173,8 +173,8 @@ class TestEdgesStrRepr:
         graph = Graph()
         graph.add_node(label="A")
         graph.add_node(label="B")
-        graph.add_edge("A", "B", edge_id=1)
-        graph.add_edge("A", "B", edge_id=2)
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "B")
 
         edges_ids = graph.get_edges_str_repr()
         assert len(edges_ids) == 2

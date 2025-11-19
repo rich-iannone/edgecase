@@ -110,9 +110,9 @@ class TestDeleteNodeWithEdges:
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .add_edge("A", "B", edge_id=1)
-            .add_edge("A", "B", edge_id=2)
-            .add_edge("B", "C", edge_id=3)
+            .add_edge("A", "B")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
         )
 
         assert graph.count_edges() == 3

@@ -336,17 +336,17 @@ class TestCreationOrderHelpers:
         assert order == [1, 2, 3]
 
     def test_creation_order_with_explicit_edge_ids(self):
-        """Creation order works with user-specified edge IDs."""
+        """Creation order works with auto-assigned edge IDs."""
         G = Graph()
         for label in ["A", "B", "C", "D"]:
             G.add_node(label)
 
-        G.add_edge("A", "B", edge_id=100)
-        G.add_edge("B", "C", edge_id=200)
-        G.add_edge("C", "D")  # Auto-assigned (likely 201)
+        G.add_edge("A", "B")  # Auto-assigned: 1
+        G.add_edge("B", "C")  # Auto-assigned: 2
+        G.add_edge("C", "D")  # Auto-assigned: 3
 
         order = G.get_edge_creation_order()
-        assert order == [100, 200, 201]
+        assert order == [1, 2, 3]
 
 
 class TestCombinedWorkflows:
