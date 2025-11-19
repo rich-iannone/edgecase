@@ -3534,7 +3534,7 @@ impl Graph {
     /// O(V³ × log k) using fast matrix exponentiation where V is number of vertices
     /// and k is walk_length
     #[inline]
-    pub fn number_of_walks(&self, walk_length: usize) -> PyResult<FxHashMap<String, FxHashMap<String, u64>>> {
+    pub fn get_number_of_walks(&self, walk_length: usize) -> PyResult<FxHashMap<u64, FxHashMap<u64, u64>>> {
         // Get sorted list of node IDs for consistent matrix indexing
         let n = self.num_nodes();
         let mut node_ids = Vec::with_capacity(n);
@@ -3579,26 +3579,16 @@ impl Graph {
             matrix_power(&adj_matrix, walk_length)
         };
 
-        // Convert result matrix to nested HashMap with node labels
+        // Convert result matrix to nested HashMap with node IDs
         let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (i, &source_id) in node_ids.iter().enumerate() {
-            let source_label = self.nodes
-                .get(&source_id)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| source_id.to_string());
-
             let mut target_map = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             for (j, &target_id) in node_ids.iter().enumerate() {
-                let target_label = self.nodes
-                    .get(&target_id)
-                    .and_then(|n| n.label.clone())
-                    .unwrap_or_else(|| target_id.to_string());
-
-                target_map.insert(target_label, result_matrix[i][j]);
+                target_map.insert(target_id, result_matrix[i][j]);
             }
 
-            result.insert(source_label, target_map);
+            result.insert(source_id, target_map);
         }
 
         Ok(result)

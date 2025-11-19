@@ -8563,7 +8563,7 @@ class Graph:
 
         return self
 
-    def number_of_walks(self, walk_length: int) -> dict[str, dict[str, int]]:
+    def get_number_of_walks(self, walk_length: int) -> dict[int, dict[int, int]]:
         """Count walks of a specific length between all pairs of nodes.
 
         A walk is a sequence of nodes where each adjacent pair is connected by
@@ -8586,9 +8586,9 @@ class Graph:
 
         Returns
         -------
-        dict[str, dict[str, int]]
-            Nested dictionary where outer keys are source nodes, inner keys are
-            target nodes, and inner values are the number of walks of length
+        dict[int, dict[int, int]]
+            Nested dictionary where outer keys are source node IDs, inner keys are
+            target node IDs, and inner values are the number of walks of length
             `walk_length` from source to target.
 
         Raises
@@ -8609,9 +8609,12 @@ class Graph:
         g.add_edge("1", "2")
 
         # Walks of length 2
-        walks = g.number_of_walks(2)
-        print(walks["0"]["2"])  # 1 (path: 0 → 1 → 2)
-        print(walks["1"]["1"])  # 2 (paths: 1 → 0 → 1 and 1 → 2 → 1)
+        walks = g.get_number_of_walks(2)
+        node_0 = g.get_id_from_label("0")
+        node_1 = g.get_id_from_label("1")
+        node_2 = g.get_id_from_label("2")
+        print(walks[node_0][node_2])  # 1 (path: 0 → 1 → 2)
+        print(walks[node_1][node_1])  # 2 (paths: 1 → 0 → 1 and 1 → 2 → 1)
         ```
 
         Count walks in a triangle:
@@ -8625,8 +8628,9 @@ class Graph:
         g.add_edge("2", "0")
 
         # Walks of length 3 (can return to start)
-        walks = g.number_of_walks(3)
-        print(walks["0"]["0"])  # 2 (two ways to return: 0→1→2→0 and 0→1→0→0)
+        walks = g.get_number_of_walks(3)
+        node_0 = g.get_id_from_label("0")
+        print(walks[node_0][node_0])  # 2 (two ways to return: 0→1→2→0 and 0→1→0→0)
         ```
 
         Total number of walks in the graph:
@@ -8641,7 +8645,7 @@ class Graph:
         g.add_edge(source="1", target="2")
         g.add_edge(source="2", target="0")
 
-        walks = g.number_of_walks(walk_length=2)
+        walks = g.get_number_of_walks(walk_length=2)
         total = sum(
             sum(targets.values()) for targets in walks.values()
         )
@@ -8660,8 +8664,9 @@ class Graph:
         g.add_edge(source="1", target="2")
         g.add_edge(source="2", target="0")
 
-        walks = g.number_of_walks(walk_length=3)
-        source_walks = walks["0"]
+        walks = g.get_number_of_walks(walk_length=3)
+        node_0 = g.get_id_from_label("0")
+        source_walks = walks[node_0]
         print(f"Walks from node 0: {sum(source_walks.values())}")
         ```
 
@@ -8716,7 +8721,7 @@ class Graph:
         if walk_length < 0:
             raise ValueError("walk_length must be non-negative")
 
-        return self._graph.number_of_walks(walk_length)
+        return self._graph.get_number_of_walks(walk_length)
 
     def transform_with_spanner(
         self, stretch: float, weight: str | None = None, seed: int | None = None
