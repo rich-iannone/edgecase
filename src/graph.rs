@@ -3264,7 +3264,7 @@ impl Graph {
     ///
     /// Time complexity: O(V + E)
     /// Space complexity: O(V)
-    pub fn topological_sort(&self) -> PyResult<Vec<u64>> {
+    pub fn get_topological_sort_order(&self) -> PyResult<Vec<u64>> {
         // Check if graph is directed
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(

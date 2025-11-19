@@ -13534,7 +13534,7 @@ class Graph:
 
         return self
 
-    def topological_sort(self) -> list[int]:
+    def get_topological_sort_order(self) -> list[int]:
         """
         Sort nodes in topological order (DAG only).
 
@@ -13579,7 +13579,7 @@ class Graph:
             .add_edge("utils.h", "config.h")     # utils.h depends on config.h
         )
 
-        order_ids = graph.topological_sort()
+        order_ids = graph.get_topological_sort_order()
         # Convert to labels for display
         order_labels = [graph.get_label_from_id(nid) for nid in order_ids]
         print("Build order:", " → ".join(order_labels))
@@ -13601,7 +13601,7 @@ class Graph:
             .add_edge("Algorithms", "Machine Learning")
         )
 
-        curriculum_ids = graph.topological_sort()
+        curriculum_ids = graph.get_topological_sort_order()
         for i, node_id in enumerate(curriculum_ids, 1):
             course = graph.get_label_from_id(node_id)
             print(f"Semester {i}: {course}")
@@ -13622,7 +13622,7 @@ class Graph:
         )
 
         try:
-            order = graph.topological_sort()
+            order = graph.get_topological_sort_order()
         except ValueError as e:
             print(f"Error: {e}")  # "Graph contains a cycle - not a DAG"
         ```
@@ -13641,7 +13641,7 @@ class Graph:
         )
 
         # Both [A, B, C] and [B, A, C] are valid
-        order = graph.topological_sort()
+        order = graph.get_topological_sort_order()
         print(order)
         ```
 
@@ -13670,7 +13670,7 @@ class Graph:
         is_dag : Check if graph is a directed acyclic graph
         has_cycles : Check if graph contains cycles
         """
-        return self._graph.topological_sort()
+        return self._graph.get_topological_sort_order()
 
     def get_number_of_walks(self, walk_length: int) -> dict[int, dict[int, int]]:
         """
