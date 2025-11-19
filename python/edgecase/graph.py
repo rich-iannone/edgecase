@@ -5661,7 +5661,9 @@ class Graph:
 
         return self
 
-    def get_node_attrs(self, attr: str, nodes: list[int | str] | None = None) -> dict[int, any]:
+    def get_node_attrs(
+        self, node_attr: str, nodes: list[int | str] | None = None
+    ) -> dict[int, any]:
         """
         Get attribute values for nodes.
 
@@ -5671,7 +5673,7 @@ class Graph:
 
         Parameters
         ----------
-        attr
+        node_attr
             Attribute name to extract.
         nodes
             Optional list of node IDs (int) or labels (str) to query. If None, queries all nodes.
@@ -5746,8 +5748,8 @@ class Graph:
         for node_id in nodes:
             node = self.get_node(node_id)
             if node and node.attributes:
-                if attr in node.attributes:
-                    result[node_id] = node.attributes[attr]
+                if node_attr in node.attributes:
+                    result[node_id] = node.attributes[node_attr]
 
         return result
 
@@ -5839,7 +5841,9 @@ class Graph:
 
         return result
 
-    def get_edge_attrs_by_id(self, attr: str, edges: list[int] | None = None) -> dict[int, any]:
+    def get_edge_attrs_by_id(
+        self, edge_attr: str, edges: list[int] | None = None
+    ) -> dict[int, any]:
         """
         Get attribute values for edges by edge ID.
 
@@ -5848,7 +5852,7 @@ class Graph:
 
         Parameters
         ----------
-        attr
+        edge_attr
             Attribute name to extract.
         edges
             Optional list of edge IDs to query. If None, queries all edges.
@@ -5895,11 +5899,11 @@ class Graph:
             edge = self.get_edge(edge_id)
             if edge:
                 # Check special weight attribute first
-                if attr == "weight" and edge.weight is not None:
+                if edge_attr == "weight" and edge.weight is not None:
                     result[edge_id] = edge.weight
                 # Then check attributes dict
-                elif edge.attributes and attr in edge.attributes:
-                    result[edge_id] = edge.attributes[attr]
+                elif edge.attributes and edge_attr in edge.attributes:
+                    result[edge_id] = edge.attributes[edge_attr]
 
         return result
 
