@@ -4084,7 +4084,7 @@ class Graph:
         return self
 
     def select_nodes_in_neighborhood(
-        self, node_ids: list[str] | str, k: int = 1, mode: str = "out"
+        self, nodes: list[Union[int, str]] | int | str, k: int = 1, mode: str = "out"
     ) -> "Graph":
         """
         Select all nodes within K hops of specified seed nodes.
@@ -4095,8 +4095,9 @@ class Graph:
 
         Parameters
         ----------
-        node_ids
-            Seed node ID(s) to start from. Can be a single ID string or list.
+        nodes
+            Seed node(s) to start from. Can be a single node ID (int), a single label (str),
+            or a list of node IDs/labels.
         k
             Maximum number of hops/distance to traverse.
         mode
@@ -4110,7 +4111,7 @@ class Graph:
 
         Examples
         --------
-        Select 1-hop neighborhood:
+        Select 1-hop neighborhood using node ID:
 
         ```python
         from edgecase import Graph
@@ -4119,38 +4120,64 @@ class Graph:
         # Get the center node ID (first node created)
         all_node_ids = list(graph.get_node_ids(limit=None))
         center_id = all_node_ids[0]
-        graph.select_nodes_in_neighborhood(node_ids=[center_id], k=1, mode="all")
+        graph.select_nodes_in_neighborhood(nodes=center_id, k=1, mode="all")
 
         # Selects all neighbors of center (not center itself)
         count = graph.count_selected_nodes()
         print(count)  # Expected: neighbors of center
         ```
 
-        Select 2-hop neighborhood in directed graph:
+        Select 2-hop neighborhood using label:
 
         ```python
         graph = (
             Graph(directed=True)
-            .add_path_graph(10)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
         )
 
-        # Get first node ID
-        node_ids_list = list(graph.get_node_ids(limit=None))
-        first_node_id = node_ids_list[0]
-        graph.select_nodes_in_neighborhood(node_ids=[first_node_id], k=2, mode="out")
+        graph.select_nodes_in_neighborhood(nodes="A", k=2, mode="out")
+        # Selects B and C (reachable within 2 hops from A)
+        ```
 
-        # Selects nodes 1 and 2 (reachable within 2 hops)
+        Select neighborhood from multiple seed nodes:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("B", "D")
+            .add_edge("C", "E")
+        )
+
+        # Select using multiple seed nodes
+        graph.select_nodes_in_neighborhood(nodes=["A", "B"], k=1, mode="all")
+        # Selects neighbors of both A and B (not A and B themselves)
         ```
 
         See Also
         --------
         neighbors : Get direct neighbors of a node
         """
-        # Convert single string to list
-        if isinstance(node_ids, str):
-            node_ids = [node_ids]
+        # Convert single value to list
+        if isinstance(nodes, (str, int)):
+            nodes = [nodes]
 
-        self._graph.select_nodes_in_neighborhood(node_ids, k, mode)
+        # Resolve labels to IDs
+        resolved_ids = [self._resolve_node_id(nid) for nid in nodes]
+
+        self._graph.select_nodes_in_neighborhood(resolved_ids, k, mode)
         return self
 
     def select_nodes_by_degree(
