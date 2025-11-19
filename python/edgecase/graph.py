@@ -440,7 +440,6 @@ class Graph:
         source: Union[int, str, rust.Edge],
         target: Optional[Union[int, str]] = None,
         weight: Optional[float] = None,
-        edge_id: Optional[int] = None,
         auto_create_nodes: bool = False,
         **attributes,
     ) -> "Graph":
@@ -454,15 +453,11 @@ class Graph:
         Parameters
         ----------
         source
-            The source node identifier (ID or label), or a pre-constructed Edge object.
-            If providing an Edge object, other parameters are ignored.
+            The source node identifier (ID or label).
         target
-            The target node identifier (ID or label). Required unless `source` is an
-            Edge object.
+            The target node identifier (ID or label).
         weight
             Optional edge weight for weighted graphs. Ignored if the graph is unweighted.
-        edge_id
-            Optional edge ID. If `None`, an ID is auto-assigned.
         auto_create_nodes
             If `True`, automatically create nodes (with labels) if they don't exist.
             If `False`, raises an error if source or target nodes don't exist.
@@ -541,7 +536,7 @@ class Graph:
         add_node : Add nodes to the graph
         get_edge : Retrieve edge information
         """
-        # Handle direct Edge objects
+        # Handle direct Rust Edge objects (internal/advanced use only)
         if isinstance(source, rust.Edge):
             self._graph.add_edge(source)
             return self
@@ -563,9 +558,9 @@ class Graph:
                     f"Add it with add_node() first or use auto_create_nodes=True."
                 )
 
-        # Create edge
+        # Create edge with auto-assigned ID (0 triggers auto-assignment)
         edge = rust.Edge(
-            id=edge_id if edge_id is not None else 0,  # 0 means auto-assign
+            id=0,
             source=source_id,
             target=target_id,
             weight=weight,
@@ -826,12 +821,13 @@ class Graph:
             Graph()
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge(source="A", target="B", edge_id=1, weight=1.0)
-            .add_edge(source="A", target="B", edge_id=2, weight=2.0)
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="B", weight=2.0)
         )
 
-        # Delete only the first edge
-        graph.delete_edge_by_id(edge_id=1)
+        # Get edge IDs and delete the first one
+        edge_ids = graph.get_edge_ids()
+        graph.delete_edge_by_id(edge_id=edge_ids[0])
         print(graph.has_edge(source="A", target="B"))  # True (second edge remains)
         ```
 
@@ -1067,10 +1063,7 @@ class Graph:
                 source = str(row["from"])
                 target = str(row["to"])
 
-                # Extract edge_id if provided
-                edge_id = row.get("id", None)
-
-                # Separate edge attributes from special columns
+                # Separate edge attributes from special columns (id is ignored, auto-assigned)
                 attrs = {
                     k: v for k, v in row.items() if k not in ["id", "from", "to"] and v is not None
                 }
@@ -1081,7 +1074,7 @@ class Graph:
                 if not g.has_node(target):
                     g.add_node(label=target)
 
-                g.add_edge(source, target, edge_id=edge_id, **attrs)
+                g.add_edge(source, target, **attrs)
 
         return g
 
@@ -3556,8 +3549,8 @@ class Graph:
             Graph()
             .add_node(label="A")
             .add_node(label="B")
-            .add_edge("A", "B", edge_id=1)
-            .add_edge("A", "B", edge_id=2)  # Duplicate edge
+            .add_edge("A", "B")
+            .add_edge("A", "B")  # Duplicate edge (auto-assigned different IDs)
         )
 
         print(graph.is_simple())  # False
