@@ -8,7 +8,7 @@ class TestCohesiveBlocksBasic:
     def test_empty_graph(self):
         """Empty graph should return empty results."""
         G = Graph()
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         assert blocks == []
         assert cohesions == []
@@ -19,7 +19,7 @@ class TestCohesiveBlocksBasic:
         G = Graph()
         G.add_node(label="1")
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         assert len(blocks) == 1
         assert len(blocks[0]) == 1
@@ -34,7 +34,7 @@ class TestCohesiveBlocksBasic:
         G.add_node(label="2")
         G.add_edge("1", "2")
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         assert len(blocks) == 1
         assert len(blocks[0]) == 2
@@ -48,7 +48,7 @@ class TestCohesiveBlocksBasic:
         G.add_node(label="1")
         G.add_node(label="2")
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         assert len(blocks) == 2
         assert all(len(block) == 1 for block in blocks)
@@ -68,7 +68,7 @@ class TestCohesiveBlocksStandard:
         for i in range(1, 5):
             G.add_edge(str(i), str(i + 1))
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Path graph should have cohesion 1
         assert len(blocks) >= 1
@@ -83,7 +83,7 @@ class TestCohesiveBlocksStandard:
         for i in range(1, n + 1):
             G.add_edge(str(i), str((i % n) + 1))
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Cycle graph should have cohesion 2
         assert len(blocks) >= 1
@@ -98,7 +98,7 @@ class TestCohesiveBlocksStandard:
             for j in range(i + 1, 6):
                 G.add_edge(str(i), str(j))
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Complete K_5 should have cohesion 4
         assert len(blocks) == 1
@@ -113,7 +113,7 @@ class TestCohesiveBlocksStandard:
             G.add_node(label=str(i))
             G.add_edge("center", str(i))
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Star graph should have cohesion 1
         assert len(blocks) >= 1
@@ -145,7 +145,7 @@ class TestCohesiveBlocksHierarchy:
         G.add_edge("6", "1")
         G.add_edge("6", "2")
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Should find hierarchy: larger block with cohesion 2, smaller K_4 with cohesion 3
         assert len(blocks) >= 2
@@ -167,7 +167,7 @@ class TestCohesiveBlocksHierarchy:
         for i in range(1, n + 1):
             G.add_edge(str(i), str((i % n) + 1))
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Check no duplicate blocks
         block_signatures = set()
@@ -199,7 +199,7 @@ class TestCohesiveBlocksDisconnected:
             for j in range(i + 1, 8):
                 G.add_edge(str(i), str(j))
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Should find both components
         assert len(blocks) >= 2
@@ -220,7 +220,7 @@ class TestCohesiveBlocksDisconnected:
         G.add_node(label="4")
         G.add_node(label="5")
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Should find 3 blocks total
         assert len(blocks) == 3
@@ -254,7 +254,7 @@ class TestCohesiveBlocksComplexStructures:
         G.add_edge("A1", "B1")
         G.add_edge("A2", "B2")
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Should find hierarchical structure
         assert len(blocks) >= 3
@@ -283,7 +283,7 @@ class TestCohesiveBlocksComplexStructures:
         G.add_edge("3", "6")
         G.add_edge("3", "7")
 
-        blocks, cohesions, parents = G.cohesive_blocks()
+        blocks, cohesions, parents = G.find_cohesive_blocks()
 
         # Tree should have cohesion 1, no higher-order sub-blocks
         assert len(blocks) == 1
