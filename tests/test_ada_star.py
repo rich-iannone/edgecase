@@ -217,6 +217,71 @@ class TestAdaStarHeuristics:
         # Still should find optimal path
         assert path == get_path_ids(g, ["A", "B", "C"])
 
+    def test_heuristic_with_node_ids(self):
+        """Test heuristic that accepts node IDs."""
+        g = ec.Graph()
+        # Add nodes with coordinates
+        g.add_node(label="A", x=0.0, y=0.0)
+        g.add_node(label="B", x=1.0, y=0.0)
+        g.add_node(label="C", x=1.0, y=1.0)
+        g.add_node(label="D", x=2.0, y=1.0)
+        add_weighted_edges(
+            g,
+            [
+                ("A", "B", {"weight": 1.0}),
+                ("B", "C", {"weight": 1.0}),
+                ("C", "D", {"weight": 1.0}),
+                ("A", "D", {"weight": 10.0}),
+            ],
+        )
+
+        # Heuristic using node IDs
+        def euclidean_heuristic_ids(node_id, target_id):
+            n1 = g.get_node(node_id)
+            n2 = g.get_node(target_id)
+            x1, y1 = n1.attributes["x"], n1.attributes["y"]
+            x2, y2 = n2.attributes["x"], n2.attributes["y"]
+            return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+
+        # Use IDs for source and target
+        a_id = g.get_id_from_label("A")
+        d_id = g.get_id_from_label("D")
+        path = g.ada_star_search(source=a_id, target=d_id, heuristic=euclidean_heuristic_ids)
+
+        # Should find optimal path A->B->C->D
+        assert path == get_path_ids(g, ["A", "B", "C", "D"])
+
+    def test_heuristic_with_labels(self):
+        """Test heuristic that accepts node labels."""
+        g = ec.Graph()
+        # Add nodes with coordinates
+        g.add_node(label="A", x=0.0, y=0.0)
+        g.add_node(label="B", x=1.0, y=0.0)
+        g.add_node(label="C", x=1.0, y=1.0)
+        g.add_node(label="D", x=2.0, y=1.0)
+        add_weighted_edges(
+            g,
+            [
+                ("A", "B", {"weight": 1.0}),
+                ("B", "C", {"weight": 1.0}),
+                ("C", "D", {"weight": 1.0}),
+                ("A", "D", {"weight": 10.0}),
+            ],
+        )
+
+        # Heuristic using node labels
+        def euclidean_heuristic_labels(node_label, target_label):
+            n1 = g.get_node_from_label(node_label)
+            n2 = g.get_node_from_label(target_label)
+            x1, y1 = n1.attributes["x"], n1.attributes["y"]
+            x2, y2 = n2.attributes["x"], n2.attributes["y"]
+            return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+
+        path = g.ada_star_search(source="A", target="D", heuristic=euclidean_heuristic_labels)
+
+        # Should find optimal path A->B->C->D
+        assert path == get_path_ids(g, ["A", "B", "C", "D"])
+
 
 class TestAdaStarEdgeCases:
     """Test edge cases and error handling."""
