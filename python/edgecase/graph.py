@@ -5234,7 +5234,10 @@ class Graph:
     # ==============================================================================
 
     def set_node_attrs(
-        self, node_attr: str, values, nodes: list[int | str] | None = None
+        self,
+        node_attr: str,
+        values: Any | list[Any] | dict[int, Any],
+        nodes: list[int | str] | None = None,
     ) -> "Graph":
         """
         Set attribute values for one or more nodes.
@@ -5446,7 +5449,7 @@ class Graph:
     def set_edge_attrs(
         self,
         edge_attr: str,
-        values,
+        values: Any | list[Any] | dict[int, Any],
         edge_ids: list[int] | None = None,
         edges: list[tuple[Union[int, str], Union[int, str]]] | None = None,
         sources: list[Union[int, str]] | None = None,
