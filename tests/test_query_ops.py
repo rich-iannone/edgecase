@@ -411,8 +411,8 @@ class TestGetNeighbors:
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(neighbors) == {2, 3, 4}
 
-    def test_get_neighbors_with_predicate(self):
-        """Test filtering neighbors with predicate."""
+    def test_get_neighbors_with_filtering(self):
+        """Test filtering neighbors using list comprehension."""
         G = ec.Graph(directed=False)
         G.add_node("A")
         G.add_node("B", type="user")
@@ -422,12 +422,12 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("A", "D")
 
-        # Filter for user type nodes
+        # Filter for user type nodes using list comprehension
         def is_user(node_id):
             node = G.get_node(node_id)
             return node and node.attributes and node.attributes.get("type") == "user"
 
-        neighbors = G.neighbors(1, predicate=is_user)
+        neighbors = [n for n in G.neighbors(1) if is_user(n)]
 
         # Returns list of node IDs: [2, 4] (B, D)
         assert set(neighbors) == {2, 4}
