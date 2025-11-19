@@ -10278,7 +10278,7 @@ class Graph:
     # Connectivity and Flow Methods
     # ==============================================================================
 
-    def get_all_connected_nodes(self, node_id: Union[int, str]) -> list[int]:
+    def get_all_connected_nodes(self, node: Union[int, str]) -> list[int]:
         """
         Get all nodes reachable from the specified node.
 
@@ -10287,8 +10287,8 @@ class Graph:
 
         Parameters
         ----------
-        node_id
-            Starting node ID or label for the search.
+        node
+            Starting node ID (int) or label (str) for the search.
 
         Returns
         -------
@@ -10299,7 +10299,7 @@ class Graph:
         Raises
         ------
         KeyError
-            If `node_id` does not exist in the graph.
+            If `node` does not exist in the graph.
 
         Examples
         --------
@@ -10334,10 +10334,10 @@ class Graph:
         visited = set()
         components = []
 
-        for node in graph.get_node_ids(limit=None):
-            if node not in visited:
-                component = graph.get_all_connected_nodes(node_id=node)
-                component.append(node)  # Include starting node
+        for node_id in graph.get_node_ids(limit=None):
+            if node_id not in visited:
+                component = graph.get_all_connected_nodes(node=node_id)
+                component.append(node_id)  # Include starting node
                 components.append(component)
                 visited.update(component)
 
@@ -10350,11 +10350,11 @@ class Graph:
         count_weakly_connected_components : Count connected components
         neighbors : Get immediate neighbors only
         """
-        # Resolve node_id to integer ID
-        node_id = self._resolve_node_id(node_id)
+        # Resolve node to integer ID
+        node_id = self._resolve_node_id(node)
 
         if not self.has_node(node_id):
-            raise KeyError(f"Node '{node_id}' does not exist")
+            raise KeyError(f"Node '{node}' does not exist")
 
         visited = set()
         queue = [node_id]
