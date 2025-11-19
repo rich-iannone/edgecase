@@ -13233,13 +13233,14 @@ class Graph:
         self,
         edge_attr: str,
         values,
+        edge_ids: list[int] | None = None,
         edges: list[tuple[Union[int, str], Union[int, str]]] | None = None,
         sources: list[Union[int, str]] | None = None,
         targets: list[Union[int, str]] | None = None,
     ) -> "Graph":
         """Set attribute values for one or more edges.
 
-        Updates a specific attribute on edges. Can target edges by explicit
+        Updates a specific attribute on edges. Can target edges by edge IDs, explicit
         (source, target) pairs, by filtering via source/target node lists, or
         apply to all edges. Supports various value input formats.
 
@@ -13252,6 +13253,8 @@ class Graph:
             - Single value: Applied to all targeted edges
             - List: Must match length of targeted edges (paired by position)
             - Dict: Maps edge IDs to values
+        edge_ids : list[int] | None, default None
+            Optional list of edge IDs specifying edges to update.
         edges : list[tuple[int | str, int | str]] | None, default None
             Optional list of (source, target) tuples specifying edges to update.
         sources : list[int | str] | None, default None
@@ -13271,7 +13274,7 @@ class Graph:
 
         Examples
         --------
-        Set attribute for specific edges:
+        Set attribute for specific edges using edge IDs:
 
         ```python
         graph = (
@@ -13285,36 +13288,54 @@ class Graph:
             .add_edge("C", "D")
         )
 
-        # Set edge attributes for specific edges
-        edge_ids = list(graph.get_edge_ids())[:2]  # First two edges
-        edge_tuples = [(graph.get_node_ids_by_edge_id(eid)[0], graph.get_node_ids_by_edge_id(eid)[1]) for eid in edge_ids]
-        graph.set_edge_attrs("weight", 2.5, edges=edge_tuples)
+        # Set edge attributes using edge IDs (simpler!)
+        edge_ids = list(graph.get_edge_ids())[:2]
+        graph.set_edge_attrs("weight", 2.5, edge_ids=edge_ids)
 
         # Set same value for all edges
         graph.set_edge_attrs("status", "active")
 
         # Set different values using a list
         all_edge_ids = list(graph.get_edge_ids())
-        all_edge_tuples = [(graph.get_node_ids_by_edge_id(eid)[0], graph.get_node_ids_by_edge_id(eid)[1]) for eid in all_edge_ids]
-        graph.set_edge_attrs("priority", [1, 2, 3], edges=all_edge_tuples)
+        graph.set_edge_attrs("priority", [1, 2, 3], edge_ids=all_edge_ids)
+        ```
+
+        Can also use (source, target) tuples:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # Set using (source, target) tuples
+        graph.set_edge_attrs("weight", 2.5, edges=[("A", "B")])
         ```
 
         See Also
         --------
         get_edge_attrs : Get edge attribute values
         add_edge : Add edge with initial attributes
+        get_edge_attrs_by_id : Get attributes using edge IDs
         """
         # Determine which edges to update
         target_edge_ids = []
 
-        if edges is not None:
+        if edge_ids is not None:
+            # Use specific edge IDs directly
+            target_edge_ids = edge_ids
+        elif edges is not None:
             # Use specific (source, target) tuples
             for source, target in edges:
                 try:
                     source_id = self._resolve_node_id(source)
                     target_id = self._resolve_node_id(target)
-                    edge_ids = self._graph.find_edge_ids(source_id, target_id)
-                    target_edge_ids.extend(edge_ids)
+                    found_edge_ids = self._graph.find_edge_ids(source_id, target_id)
+                    target_edge_ids.extend(found_edge_ids)
                 except ValueError:
                     # Node doesn't exist - silently skip
                     pass
