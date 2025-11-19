@@ -46,22 +46,22 @@ g1.add_edge("0", "1")
 g1.add_edge("1", "2")
 
 # Length 0: Identity matrix
-walks0 = g1.get_number_of_walks(0)
+walks0 = g1.count_walks(0)
 print_walk_matrix(walks0, "Walks of length 0 (stay at same node):")
 
 # Length 1: Adjacency matrix
-walks1 = g1.get_number_of_walks(1)
+walks1 = g1.count_walks(1)
 print_walk_matrix(walks1, "Walks of length 1 (direct edges):")
 
 # Length 2: Can reach neighbors of neighbors
-walks2 = g1.get_number_of_walks(2)
+walks2 = g1.count_walks(2)
 print_walk_matrix(walks2, "Walks of length 2:")
 print("  Examples:")
 print("    0 → 2: 1 walk (0 → 1 → 2)")
 print("    1 → 1: 2 walks (1 → 0 → 1 and 1 → 2 → 1)")
 
 # Length 3
-walks3 = g1.get_number_of_walks(3)
+walks3 = g1.count_walks(3)
 print_walk_matrix(walks3, "Walks of length 3:")
 print("  Note: Walk counts grow as paths become more redundant")
 
@@ -81,14 +81,14 @@ g2.add_edge("0", "1")
 g2.add_edge("1", "2")
 g2.add_edge("2", "0")
 
-walks3 = g2.get_number_of_walks(3)
+walks3 = g2.count_walks(3)
 print_walk_matrix(walks3, "Walks of length 3 (one complete lap):")
 print("\nInterpretation:")
 print("  - Diagonal elements = 2: Each node can return to itself in 2 ways")
 print("  - E.g., from 0: (0 → 1 → 2 → 0) or (0 → 2 → 1 → 0)")
 print("  - Closed walks indicate cycle structure")
 
-walks6 = g2.get_number_of_walks(6)
+walks6 = g2.count_walks(6)
 print_walk_matrix(walks6, "Walks of length 6 (two complete laps):")
 print("\nNote: Walk counts grow exponentially in cycles")
 
@@ -109,7 +109,7 @@ for i in range(4):
     g3.add_node(label=leaf)
     g3.add_edge("hub", leaf)
 
-walks2 = g3.get_number_of_walks(2)
+walks2 = g3.count_walks(2)
 node_labels = ["hub", "leaf0", "leaf1", "leaf2", "leaf3"]
 nodes = [g3.get_id_from_label(label) for label in node_labels]
 print_walk_matrix(walks2, "Walks of length 2:", nodes)
@@ -147,10 +147,10 @@ for i in range(4):
     for j in range(i + 1, 4):
         g4.add_edge(str(i), str(j))
 
-walks1 = g4.get_number_of_walks(1)
+walks1 = g4.count_walks(1)
 print_walk_matrix(walks1, "Walks of length 1 (adjacency matrix):")
 
-walks2 = g4.get_number_of_walks(2)
+walks2 = g4.count_walks(2)
 print_walk_matrix(walks2, "Walks of length 2:")
 
 print("\nInterpretation:")
@@ -160,7 +160,7 @@ print("  - Dense graphs have exponentially growing walk counts")
 
 # Total walk count growth
 for k in [1, 2, 3, 4]:
-    walks = g4.get_number_of_walks(k)
+    walks = g4.count_walks(k)
     total = sum(sum(targets.values()) for targets in walks.values())
     print(f"  Total walks of length {k}: {total}")
 
@@ -189,7 +189,7 @@ g5.add_edge("3", "4")
 g5.add_edge("4", "5")
 g5.add_edge("5", "3")
 
-walks2 = g5.get_number_of_walks(2)
+walks2 = g5.count_walks(2)
 print_walk_matrix(walks2, "Walks of length 2:")
 
 print("\nInterpretation:")
@@ -213,10 +213,10 @@ g6.add_edge("0", "1")
 g6.add_edge("1", "2")
 g6.add_edge("2", "0")
 
-walks1 = g6.get_number_of_walks(1)
+walks1 = g6.count_walks(1)
 print_walk_matrix(walks1, "Walks of length 1 (directed adjacency):")
 
-walks3 = g6.get_number_of_walks(3)
+walks3 = g6.count_walks(3)
 print_walk_matrix(walks3, "Walks of length 3 (one complete cycle):")
 
 print("\nInterpretation:")
@@ -257,7 +257,7 @@ eve_id = g7.get_id_from_label("Eve")
 
 # Analyze reachability at different steps
 for k in range(1, 5):
-    walks = g7.get_number_of_walks(k)
+    walks = g7.count_walks(k)
 
     # Count how many people Alice can reach
     reachable = sum(
@@ -292,14 +292,14 @@ g8.add_node(label="B")
 for _ in range(3):
     g8.add_edge("A", "B")
 
-walks1 = g8.get_number_of_walks(1)
+walks1 = g8.count_walks(1)
 print("\nWalks of length 1:")
 print(
     f"  A → B: {walks1[g8.get_id_from_label('A')][g8.get_id_from_label('B')]} (counts all 3 edges)"
 )
 print(f"  B → A: {walks1[g8.get_id_from_label('B')][g8.get_id_from_label('A')]} (undirected)")
 
-walks2 = g8.get_number_of_walks(2)
+walks2 = g8.count_walks(2)
 print("\nWalks of length 2:")
 print(
     f"  A → A: {walks2[g8.get_id_from_label('A')][g8.get_id_from_label('A')]} (3 edges × 3 edges = 9 paths)"
@@ -338,8 +338,8 @@ g_mesh.add_edge("3", "4")
 g_mesh.add_edge("0", "2")  # Shortcut
 g_mesh.add_edge("2", "4")  # Shortcut
 
-walks_chain = g_chain.get_number_of_walks(4)
-walks_mesh = g_mesh.get_number_of_walks(4)
+walks_chain = g_chain.count_walks(4)
+walks_mesh = g_mesh.count_walks(4)
 
 node_0 = g_chain.get_id_from_label("0")
 node_4 = g_chain.get_id_from_label("4")
@@ -364,7 +364,7 @@ print("  - Walk count measures path diversity")
 print_section("Summary: Applications of Walk Counting")
 
 print("""
-Key insights from get_number_of_walks:
+Key insights from count_walks:
 
 1. **Network Reachability**
    - Walk counts measure how many ways information/resources can flow
