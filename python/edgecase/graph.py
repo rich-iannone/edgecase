@@ -14836,7 +14836,7 @@ class Graph:
         --------
         get_clustering_coefficient : Per-node clustering
         get_mean_distance : Average path length
-        density : Overall graph density
+        get_graph_density : Overall graph density
         """
         return self._graph.get_avg_clustering_coefficient()
 
