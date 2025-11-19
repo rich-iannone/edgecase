@@ -10521,7 +10521,9 @@ class Graph:
         """
         return self._graph.node_connectivity()
 
-    def get_node_connectivity_between(self, source: str, target: str) -> int:
+    def get_node_connectivity_between(
+        self, source: Union[int, str], target: Union[int, str]
+    ) -> int:
         """
         Compute node connectivity between two nodes.
 
@@ -10538,9 +10540,9 @@ class Graph:
         Parameters
         ----------
         source
-            Label of source node.
+            Source node ID (int) or label (str).
         target
-            Label of target node.
+            Target node ID (int) or label (str).
 
         Returns
         -------
@@ -10554,7 +10556,7 @@ class Graph:
 
         Examples
         --------
-        Path graph connectivity:
+        Path graph connectivity using labels:
 
         ```python
         graph = Graph()
@@ -10567,6 +10569,23 @@ class Graph:
         print(graph.get_node_connectivity_between("1", "5"))  # 1
         ```
 
+        Using node IDs:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            graph.add_edge(str(i), str(i + 1))
+
+        # Get node IDs
+        node1_id = graph.get_id_from_label("1")
+        node5_id = graph.get_id_from_label("5")
+
+        # Can use node IDs directly
+        print(graph.get_node_connectivity_between(node1_id, node5_id))  # 1
+        ```
+
         Complete graph connectivity:
 
         ```python
@@ -10577,8 +10596,8 @@ class Graph:
             for j in range(i + 1, 6):
                 graph.add_edge(str(i), str(j))
 
-        # Any two nodes in K_5 have connectivity 3
-        print(graph.get_node_connectivity_between("1", "5"))  # 3
+        # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
+        print(graph.get_node_connectivity_between("1", "5"))  # 4
         ```
 
         See Also
