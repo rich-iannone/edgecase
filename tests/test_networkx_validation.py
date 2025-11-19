@@ -1554,7 +1554,7 @@ class TestDirectedGraphSpecifics:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "reciprocity"):
-            ec_reciprocity = G.get_graph_reciprocity()
+            ec_reciprocity = G.get_reciprocity()
             nx_reciprocity = nx.reciprocity(nx_graph)
             assert abs(ec_reciprocity - nx_reciprocity) < 0.01
 

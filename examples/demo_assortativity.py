@@ -18,7 +18,7 @@ for client in ["Client1", "Client2", "Client3", "Client4"]:
     g.add_node(client)
     g.add_edge("Server", client)
 
-r = g.get_graph_assortativity_degree()
+r = g.get_assortativity_degree()
 print(f"     Degree assortativity: {r:.3f}")
 print("     Interpretation: Disassortative (high-degree server connects to low-degree clients)")
 
@@ -38,7 +38,7 @@ g.add_node("D", group="Y")
 g.add_edge("A", "B")
 g.add_edge("C", "D")
 
-r = g.assortativity_nominal("group")
+r = g.get_assortativity_nominal("group")
 print(f"     Nominal assortativity: {r:.3f}")
 print("     Interpretation: Perfect homophily (r = 1.0) - only same-group connections")
 
@@ -54,7 +54,7 @@ g.add_edge("A", "D")
 g.add_edge("B", "C")
 g.add_edge("B", "D")
 
-r = g.assortativity_nominal("type")
+r = g.get_assortativity_nominal("type")
 print(f"     Nominal assortativity: {r:.3f}")
 print(f"     Interpretation: Disassortative (r = {r:.2f}) - different types connect")
 
@@ -79,7 +79,7 @@ g.add_edge("Alice", "Carol")
 g.add_edge("Dave", "Eve")
 g.add_edge("Eve", "Frank")
 
-r = g.assortativity("age")
+r = g.get_assortativity("age")
 print(f"     Numeric assortativity: {r:.3f}")
 print(f"     Interpretation: Positive correlation (r = {r:.2f}) - similar ages connect")
 
@@ -98,8 +98,8 @@ g.add_node("P4", weight=51.8, family="receptor")
 g.add_edge("P1", "P2")
 g.add_edge("P3", "P4")
 
-r_weight = g.assortativity("weight")
-r_family = g.assortativity_nominal("family")
+r_weight = g.get_assortativity("weight")
+r_family = g.get_assortativity_nominal("family")
 print(f"     Weight assortativity: {r_weight:.3f} (similar sizes interact)")
 print(f"     Family assortativity: {r_family:.3f} (same families interact)")
 

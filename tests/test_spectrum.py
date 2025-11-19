@@ -16,7 +16,7 @@ class TestSpectrumBasics:
             for j in range(i + 1, n):
                 g.add_edge(f"v{i}", f"v{j}")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         values = sorted(spec["values"], reverse=True)
 
         # K_n has eigenvalues: n-1, -1, -1, ..., -1
@@ -36,7 +36,7 @@ class TestSpectrumBasics:
         for i in range(n - 1):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         values = spec["values"]
 
         # Path P_n: eigenvalues are 2*cos(π*k/(n+1)) for k=1,...,n
@@ -56,7 +56,7 @@ class TestSpectrumBasics:
         for i in range(n):
             g.add_edge(f"v{i}", f"v{(i + 1) % n}")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         values = spec["values"]
 
         # Cycle C_n: eigenvalues are 2*cos(2π*k/n) for k=0,...,n-1
@@ -76,7 +76,7 @@ class TestSpectrumBasics:
             g.add_node(f"leaf{i}")
             g.add_edge("center", f"leaf{i}")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         values = sorted(spec["values"], reverse=True)
 
         # Star S_n: {√(n-1), 0, ..., 0, -√(n-1)}
@@ -94,7 +94,7 @@ class TestSpectrumBasics:
         g.add_node("B")
         g.add_edge("A", "B")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         values = sorted(spec["values"], reverse=True)
 
         assert values[0] == pytest.approx(1.0)
@@ -115,7 +115,7 @@ class TestSpectrumLaplacian:
             for j in range(i + 1, n):
                 g.add_edge(f"v{i}", f"v{j}")
 
-        spec = g.laplacian_spectrum(which="all")
+        spec = g.get_laplacian_spectrum(which="all")
         values = sorted(spec["values"])
 
         # K_n Laplacian: {0, n, n, ..., n}
@@ -135,7 +135,7 @@ class TestSpectrumLaplacian:
         for i in range(n - 1):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.laplacian_spectrum(which="all")
+        spec = g.get_laplacian_spectrum(which="all")
         values = sorted(spec["values"])
 
         # Path P_n: 2 - 2*cos(π*k/n) for k=0,...,n-1
@@ -166,7 +166,7 @@ class TestSpectrumLaplacian:
         g.add_edge("b1", "b2")
         g.add_edge("b2", "b0")
 
-        spec = g.laplacian_spectrum(which="all")
+        spec = g.get_laplacian_spectrum(which="all")
         values = sorted(spec["values"])
 
         # Two components → at least two zero eigenvalues
@@ -181,7 +181,7 @@ class TestSpectrumLaplacian:
         for i in range(4):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.laplacian_spectrum(which="all", normalized=True)
+        spec = g.get_laplacian_spectrum(which="all", normalized=True)
         values = spec["values"]
 
         # All eigenvalues should be in [0, 2]
@@ -200,7 +200,7 @@ class TestSpectrumEdgeCases:
         g = Graph(directed=False)
         g.add_node("A")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         assert len(spec["values"]) == 1
         assert spec["values"][0] == pytest.approx(0.0)
         assert spec["spectral_gap"] is None  # Only one eigenvalue
@@ -210,14 +210,14 @@ class TestSpectrumEdgeCases:
         g = Graph(directed=False)
 
         with pytest.raises(ValueError, match="empty graph"):
-            g.spectrum(which="all")
+            g.get_spectrum(which="all")
 
     def test_laplacian_empty_graph_error(self):
         """Empty graph should raise error."""
         g = Graph(directed=False)
 
         with pytest.raises(ValueError, match="empty graph"):
-            g.laplacian_spectrum(which="all")
+            g.get_laplacian_spectrum(which="all")
 
     def test_spectrum_isolated_nodes(self):
         """Isolated nodes have eigenvalue 0."""
@@ -226,7 +226,7 @@ class TestSpectrumEdgeCases:
         g.add_node("B")
         g.add_node("C")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         # All isolated nodes → all eigenvalues = 0
         for v in spec["values"]:
             assert v == pytest.approx(0.0)
@@ -243,7 +243,7 @@ class TestSpectrumEdgeCases:
             for j in range(3):
                 g.add_edge(f"left{i}", f"right{j}")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         values = sorted(spec["values"], reverse=True)
 
         # Bipartite: if λ is eigenvalue, so is -λ
@@ -264,7 +264,7 @@ class TestSpectrumPartialComputation:
             g.add_edge(f"v{i}", f"v{i + 1}")
 
         k = 3
-        spec = g.spectrum(which="largest", k=k)
+        spec = g.get_spectrum(which="largest", k=k)
 
         assert len(spec["values"]) == k
         # Largest eigenvalues should be in descending order
@@ -282,7 +282,7 @@ class TestSpectrumPartialComputation:
             g.add_edge(f"v{i}", f"v{i + 1}")
 
         k = 3
-        spec = g.spectrum(which="smallest", k=k)
+        spec = g.get_spectrum(which="smallest", k=k)
 
         assert len(spec["values"]) == k
         # Should still be in descending order
@@ -298,7 +298,7 @@ class TestSpectrumPartialComputation:
         for i in range(9):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.laplacian_spectrum(which="smallest")
+        spec = g.get_laplacian_spectrum(which="smallest")
         # Default k = min(6, n-1) = 6
         assert len(spec["values"]) == 6
 
@@ -316,7 +316,7 @@ class TestSpectrumProperties:
         g.add_edge("v2", "v3")
         g.add_edge("v3", "v4")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
         trace = sum(spec["values"])
 
         # Trace of adjacency matrix = 0 (no self-loops)
@@ -330,7 +330,7 @@ class TestSpectrumProperties:
         for i in range(4):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.laplacian_spectrum(which="all")
+        spec = g.get_laplacian_spectrum(which="all")
         values = sorted(spec["values"])
 
         assert values[0] == pytest.approx(0.0, abs=1e-6)
@@ -343,7 +343,7 @@ class TestSpectrumProperties:
         for i in range(4):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
 
         # Connected graph → spectral gap > 0
         assert spec["spectral_gap"] > 0
@@ -356,7 +356,7 @@ class TestSpectrumProperties:
         for i in range(4):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.laplacian_spectrum(which="smallest", k=2)
+        spec = g.get_laplacian_spectrum(which="smallest", k=2)
 
         # Connected graph → λ₂ > 0
         assert spec["algebraic_connectivity"] > 0
@@ -375,7 +375,7 @@ class TestSpectrumDirectedGraphs:
         g.add_edge("B", "C")
         g.add_edge("C", "A")  # Directed cycle
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
 
         # Directed cycle has eigenvalues at cube roots of unity (complex)
         # nalgebra returns real symmetric eigendecomposition,
@@ -392,7 +392,7 @@ class TestSpectrumDirectedGraphs:
         g.add_edge("B", "C")
 
         # Should complete without error
-        spec = g.laplacian_spectrum(which="all")
+        spec = g.get_laplacian_spectrum(which="all")
         assert len(spec["values"]) == 3
 
 
@@ -415,8 +415,8 @@ class TestSpectrumWeighted:
         g2.add_edge("A", "B", weight=2.0)
         g2.add_edge("B", "C", weight=2.0)
 
-        spec1 = g1.spectrum(which="all")
-        spec2 = g2.spectrum(which="all")
+        spec1 = g1.get_spectrum(which="all")
+        spec2 = g2.get_spectrum(which="all")
 
         # Weighted graph has different eigenvalues
         assert spec1["values"] != spec2["values"]
@@ -430,7 +430,7 @@ class TestSpectrumWeighted:
         g.add_edge("A", "B", weight=1.0)
         g.add_edge("B", "C", weight=3.0)
 
-        spec = g.laplacian_spectrum(which="all", normalized=True)
+        spec = g.get_laplacian_spectrum(which="all", normalized=True)
 
         # Normalized eigenvalues in [0, 2]
         for v in spec["values"]:
@@ -448,7 +448,7 @@ class TestSpectrumEigenvectors:
         g.add_edge("v0", "v1")
         g.add_edge("v1", "v2")
 
-        spec = g.spectrum(which="all")
+        spec = g.get_spectrum(which="all")
 
         assert "vectors" in spec
         assert len(spec["vectors"]) == 3
@@ -464,7 +464,7 @@ class TestSpectrumEigenvectors:
         g.add_edge("v0", "v1")
         g.add_edge("v1", "v2")
 
-        spec = g.laplacian_spectrum(which="all")
+        spec = g.get_laplacian_spectrum(which="all")
 
         assert "vectors" in spec
         assert len(spec["vectors"]) == 3
@@ -479,7 +479,7 @@ class TestSpectrumEigenvectors:
         for i in range(3):
             g.add_edge(f"v{i}", f"v{i + 1}")
 
-        spec = g.laplacian_spectrum(which="all")
+        spec = g.get_laplacian_spectrum(which="all")
 
         # Find eigenvector corresponding to eigenvalue ≈ 0
         values = spec["values"]
@@ -508,7 +508,7 @@ class TestSpectrumInvalidInputs:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="which"):
-            g.spectrum(which="invalid")
+            g.get_spectrum(which="invalid")
 
     def test_laplacian_invalid_which(self):
         """Invalid 'which' parameter should raise error."""
@@ -518,7 +518,7 @@ class TestSpectrumInvalidInputs:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="which"):
-            g.laplacian_spectrum(which="invalid")
+            g.get_laplacian_spectrum(which="invalid")
 
     def test_spectrum_k_larger_than_n(self):
         """k larger than n should return all eigenvalues."""
@@ -529,7 +529,7 @@ class TestSpectrumInvalidInputs:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        spec = g.spectrum(which="largest", k=10)
+        spec = g.get_spectrum(which="largest", k=10)
 
         # Should return all 3 eigenvalues
         assert len(spec["values"]) == 3
