@@ -19,7 +19,9 @@ def demo_basic_dag():
     print("Graph edges:")
     print("  A -> B, A -> C")
     print("  B -> D, C -> D")
-    print("\nTopological order:", " → ".join(g.topological_sort()))
+    order_ids = g.get_topological_sort_order()
+    order_labels = [g.get_label_from_id(nid) for nid in order_ids]
+    print("\nTopological order:", " → ".join(order_labels))
 
 
 def demo_task_scheduling():
@@ -54,9 +56,10 @@ def demo_task_scheduling():
         else:
             print(f"  {task}: no dependencies")
 
-    order = g.topological_sort()
+    order = g.get_topological_sort_order()
     print("\nOptimal task order:")
-    for i, task in enumerate(order, 1):
+    for i, task_id in enumerate(order, 1):
+        task = g.get_label_from_id(task_id)
         print(f"  {i}. {task.replace('_', ' ').title()}")
 
 
@@ -91,9 +94,10 @@ def demo_build_system():
         else:
             print(f"  {file}: no includes")
 
-    build_order = g.topological_sort()
+    build_order = g.get_topological_sort_order()
     print("\nBuild order (compilation sequence):")
-    for i, file in enumerate(build_order, 1):
+    for i, file_id in enumerate(build_order, 1):
+        file = g.get_label_from_id(file_id)
         print(f"  {i}. {file}")
 
 
@@ -130,9 +134,10 @@ def demo_course_prerequisites():
         else:
             print(f"  {course}: no prerequisites")
 
-    curriculum = g.topological_sort()
+    curriculum = g.get_topological_sort_order()
     print("\nSuggested course order:")
-    for i, course in enumerate(curriculum, 1):
+    for i, course_id in enumerate(curriculum, 1):
+        course = g.get_label_from_id(course_id)
         semester = (i + 1) // 2  # 2 courses per semester
         print(f"  Semester {semester}: {course}")
 
@@ -152,7 +157,9 @@ def demo_cycle_detection():
 
     print("Graph 1: A → B → C")
     print(f"  Is DAG: {g1.is_dag()}")
-    print(f"  Topological order: {' → '.join(g1.topological_sort())}")
+    order_ids = g1.get_topological_sort_order()
+    order_labels = [g1.get_label_from_id(nid) for nid in order_ids]
+    print(f"  Topological order: {' → '.join(order_labels)}")
 
     # Cyclic graph
     g2 = Graph(directed=True)
@@ -165,7 +172,7 @@ def demo_cycle_detection():
     print("\nGraph 2: X → Y → Z → X (cycle)")
     print(f"  Is DAG: {g2.is_dag()}")
     try:
-        g2.topological_sort()
+        g2.get_topological_sort_order()
         print("  ERROR: Should have detected cycle!")
     except ValueError as e:
         print("  Topological sort failed: Cycle detected ✓")
@@ -184,7 +191,7 @@ def demo_cycle_detection():
     print("  pkg_B requires pkg_C")
     print("  pkg_C requires pkg_A (circular!)")
     try:
-        g3.topological_sort()
+        g3.get_topological_sort_order()
     except ValueError:
         print("  → Cannot resolve installation order (circular dependency)")
 
@@ -210,8 +217,9 @@ def demo_multiple_valid_orders():
     print("  B → C, B → D")
     print("  (A and B are independent)")
 
-    order = g.topological_sort()
-    print(f"\nOne valid ordering: {' → '.join(order)}")
+    order = g.get_topological_sort_order()
+    order_labels = [g.get_label_from_id(nid) for nid in order]
+    print(f"\nOne valid ordering: {' → '.join(order_labels)}")
     print("\nNote: Other valid orderings exist, such as:")
     print("  - If starting with B instead of A")
     print("  - Different order of C and D at the end")
@@ -237,9 +245,10 @@ def demo_diamond_pattern():
     print("  Database → API → Frontend")
     print("  (Diamond pattern)")
 
-    startup_order = g.topological_sort()
+    startup_order = g.get_topological_sort_order()
     print("\nService startup order:")
-    for i, service in enumerate(startup_order, 1):
+    for i, service_id in enumerate(startup_order, 1):
+        service = g.get_label_from_id(service_id)
         print(f"  {i}. Start {service}")
 
 
