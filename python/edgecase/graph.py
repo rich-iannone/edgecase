@@ -13082,12 +13082,11 @@ class Graph:
         edge_attr: str,
         sources: list[Union[int, str]] | None = None,
         targets: list[Union[int, str]] | None = None,
-    ) -> dict[str, any]:
+    ) -> dict[int, any]:
         """Get edge attribute values.
 
         Extracts a specific attribute from edges. Can optionally filter by source
-        and/or target nodes. Edge keys in the result use the format "A->B" for
-        directed graphs or "A--B" for undirected graphs.
+        and/or target nodes. Returns a dictionary keyed by edge IDs.
 
         Parameters
         ----------
@@ -13100,8 +13099,8 @@ class Graph:
 
         Returns
         -------
-        dict[str, any]
-            Dictionary mapping edge strings (e.g., "A->B") to attribute values.
+        dict[int, any]
+            Dictionary mapping edge IDs (integers) to attribute values.
             Only includes edges that have the attribute set.
 
         Examples
@@ -13121,10 +13120,10 @@ class Graph:
         )
 
         weights = graph.get_edge_attrs("weight")
-        # Returns dict mapping edge representations to weights
+        # Returns dict mapping edge IDs to weights
 
         types = graph.get_edge_attrs("type")
-        # Returns dict mapping edge representations to types
+        # Returns dict mapping edge IDs to types
         ```
 
         See Also
@@ -13133,7 +13132,6 @@ class Graph:
         set_edge_attrs : Set edge attribute values
         """
         result = {}
-        separator = "->" if self.is_directed() else "--"
 
         # Determine which edges to check
         if sources is not None and targets is not None:
@@ -13146,31 +13144,23 @@ class Graph:
                     for edge_id in edge_ids:
                         edge = self.get_edge(edge_id)
                         if edge:
-                            # Convert IDs to labels
-                            source_label = self.get_label_from_id(edge.source)
-                            target_label = self.get_label_from_id(edge.target)
-                            edge_key = f"{source_label}{separator}{target_label}"
                             # Check special weight attribute first
                             if edge_attr == "weight" and edge.weight is not None:
-                                result[edge_key] = edge.weight
+                                result[edge_id] = edge.weight
                             # Then check attributes dict
                             elif edge.attributes and edge_attr in edge.attributes:
-                                result[edge_key] = edge.attributes[edge_attr]
+                                result[edge_id] = edge.attributes[edge_attr]
         else:
             # Get all edges
             for edge_id in self.get_edge_ids():
                 edge = self.get_edge(edge_id)
                 if edge:
-                    # Convert IDs to labels
-                    source_label = self.get_label_from_id(edge.source)
-                    target_label = self.get_label_from_id(edge.target)
-                    edge_key = f"{source_label}{separator}{target_label}"
                     # Check special weight attribute first
                     if edge_attr == "weight" and edge.weight is not None:
-                        result[edge_key] = edge.weight
+                        result[edge_id] = edge.weight
                     # Then check attributes dict
                     elif edge.attributes and edge_attr in edge.attributes:
-                        result[edge_key] = edge.attributes[edge_attr]
+                        result[edge_id] = edge.attributes[edge_attr]
 
         return result
 

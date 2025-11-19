@@ -139,8 +139,12 @@ class TestGetEdgeAttrs:
 
         weights = G.get_edge_attrs("weight")
 
-        # Returns dict keyed by edge labels: {'A--B': 1.5, 'B--C': 2.3, 'C--D': 0.8}
-        assert weights == {"A--B": 1.5, "B--C": 2.3, "C--D": 0.8}
+        # Returns dict keyed by edge IDs
+        edge_ids = list(G.get_edge_ids())
+        assert len(weights) == 3
+        assert weights[edge_ids[0]] == 1.5
+        assert weights[edge_ids[1]] == 2.3
+        assert weights[edge_ids[2]] == 0.8
 
     def test_get_edge_attrs_specific_edges(self):
         """Test extracting attrs from specific edges (if supported)."""
@@ -154,10 +158,12 @@ class TestGetEdgeAttrs:
         # get_edge_attrs returns all edges, no filtering by specific edges
         weights = G.get_edge_attrs("weight")
 
-        # Can filter manually after retrieval
-        filtered_weights = {k: v for k, v in weights.items() if k in ["A--B", "C--D"]}
-        assert filtered_weights == {"A--B": 1.5, "C--D": 0.8}
-        assert 2 not in weights
+        # Can filter manually after retrieval using edge IDs
+        edge_ids = list(G.get_edge_ids())
+        filtered_weights = {k: v for k, v in weights.items() if k in [edge_ids[0], edge_ids[2]]}
+        assert len(filtered_weights) == 2
+        assert filtered_weights[edge_ids[0]] == 1.5
+        assert filtered_weights[edge_ids[2]] == 0.8
 
 
 class TestGetNodeDF:
