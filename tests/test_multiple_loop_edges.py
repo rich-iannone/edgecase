@@ -107,7 +107,7 @@ class TestWhichMultiple:
         g.add_edge("A", "B")
 
         # Self-loops should not be in multiple edges
-        # (they're handled by which_loop)
+        # (they're handled by which_loops)
         multiples = g.which_multiple()
         # The two A->A edges ARE multiple edges of the same pair
         assert len(multiples) == 2
@@ -255,12 +255,12 @@ class TestCountMultiple:
 
 
 class TestWhichLoop:
-    """Tests for which_loop() method."""
+    """Tests for which_loops() method."""
 
     def test_empty_graph(self):
         """Empty graph has no loops."""
         g = Graph(directed=True)
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert loops == []
 
     def test_no_loops(self):
@@ -271,7 +271,7 @@ class TestWhichLoop:
         g.add_edge("B", "C")
         g.add_edge("C", "A")
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert loops == []
 
     def test_single_self_loop(self):
@@ -282,7 +282,7 @@ class TestWhichLoop:
         e_loop = g.add_edge("A", "A")
         g.add_edge("B", "C")
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert len(loops) == 1
 
     def test_multiple_self_loops_same_node(self):
@@ -293,7 +293,7 @@ class TestWhichLoop:
         g.add_edge("A", "A")
         g.add_edge("A", "A")
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert len(loops) == 3
         assert len(loops) == 3
 
@@ -307,7 +307,7 @@ class TestWhichLoop:
         g.add_edge("B", "B")
         g.add_edge("C", "C")
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert len(loops) == 3
         assert len(loops) == 3
 
@@ -318,7 +318,7 @@ class TestWhichLoop:
         g.add_edge("A", "B")
         e_loop = g.add_edge("A", "A")
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert len(loops) == 1
 
     def test_all_edges_are_loops(self):
@@ -329,7 +329,7 @@ class TestWhichLoop:
         g.add_edge("B", "B")
         g.add_edge("C", "C")
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert len(loops) == 3
         assert len(loops) == 3
 
@@ -344,7 +344,7 @@ class TestWhichLoop:
         g.add_edge("C", "D")
         g.add_edge("D", "D")
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert len(loops) == 3
         assert len(loops) == 3
 
@@ -479,7 +479,7 @@ class TestEdgeCases:
         g.add_edge("B", "C")
 
         multiples = g.which_multiple()
-        loops = g.which_loop()
+        loops = g.which_loops()
 
         # Multiple edges: A->B appears twice
         assert len(multiples) == 2
@@ -526,7 +526,7 @@ class TestEdgeCases:
 
         assert g.which_multiple() == []
         assert g.count_multiple() == {}
-        assert g.which_loop() == []
+        assert g.which_loops() == []
         assert g.count_loops() == {}
 
     def test_disconnected_components(self):
@@ -543,7 +543,7 @@ class TestEdgeCases:
         g.add_edge("Y", "Y")
 
         multiples = g.which_multiple()
-        loops = g.which_loop()
+        loops = g.which_loops()
 
         assert len(multiples) == 4  # 2 from A->B, 2 from X->Y
         assert len(loops) == 2  # A->A and Y->Y
@@ -562,7 +562,7 @@ class TestEdgeCases:
             for tgt in nodes:
                 g.add_edge(src, tgt)
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         assert len(loops) == 3  # One loop per node
 
         loop_counts = g.count_loops()
@@ -579,7 +579,7 @@ class TestEdgeCases:
 
         # Check if simple graph (no multiple edges, no self-loops)
         has_multiple = len(g.which_multiple()) > 0
-        has_loops = len(g.which_loop()) > 0
+        has_loops = len(g.which_loops()) > 0
         is_simple = not (has_multiple or has_loops)
 
         assert is_simple is True
@@ -595,7 +595,7 @@ class TestEdgeCases:
 
         # Identify problematic edges
         edges_to_review = g.which_multiple()
-        loops_to_review = g.which_loop()
+        loops_to_review = g.which_loops()
 
         total_issues = len(edges_to_review) + len(loops_to_review)
         assert total_issues == 3  # 2 multiples + 1 loop
