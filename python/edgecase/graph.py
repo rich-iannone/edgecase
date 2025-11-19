@@ -6420,16 +6420,16 @@ class Graph:
         """
         return self._graph.which_loop()
 
-    def count_loops(self) -> dict[str, int]:
+    def count_loops(self) -> dict[int, int]:
         """Count self-loops grouped by node.
 
-        Returns a dictionary mapping node labels to the count of self-loops for each node.
+        Returns a dictionary mapping node IDs to the count of self-loops for each node.
         Only includes nodes that have at least one self-loop.
 
         Returns
         -------
-        dict[str, int]
-            Dictionary mapping node labels to self-loop counts.
+        dict[int, int]
+            Dictionary mapping node IDs to self-loop counts.
             Only includes nodes with count >= 1.
 
         Examples
@@ -6451,7 +6451,11 @@ class Graph:
         g.add_edge(source="C", target="D")  # No self-loop
 
         loop_counts = g.count_loops()
-        loop_counts
+        # Returns node IDs: {a_id: 2, b_id: 1}
+
+        # Convert to labels if needed
+        loop_counts_labels = {g.get_label_from_id(nid): count for nid, count in loop_counts.items()}
+        loop_counts_labels
         # {'A': 2, 'B': 1}
         ```
 
@@ -6473,8 +6477,11 @@ class Graph:
         fsm.add_edge(source="Processing", target="Complete")
 
         wait_states = fsm.count_loops()
-        # Shows which states have self-transitions
-        wait_states
+        # Returns node IDs with self-transitions: {loading_id: 2, processing_id: 1}
+
+        # Convert to labels
+        wait_states_labels = {fsm.get_label_from_id(nid): count for nid, count in wait_states.items()}
+        wait_states_labels
         # {'Loading': 2, 'Processing': 1}
         ```
 
@@ -6492,7 +6499,11 @@ class Graph:
         rxn.add_edge(source="C", target="C")  # C is autocatalytic
 
         autocatalytic = rxn.count_loops()
-        autocatalytic
+        # Returns node IDs: {b_id: 2, c_id: 1}
+
+        # Convert to labels
+        autocatalytic_labels = {rxn.get_label_from_id(nid): count for nid, count in autocatalytic.items()}
+        autocatalytic_labels
         # {'B': 2, 'C': 1}
         ```
 
@@ -6508,7 +6519,11 @@ class Graph:
         social.add_edge(source="User2", target="User2", action="self-comment")
 
         self_interactions = social.count_loops()
-        self_interactions
+        # Returns node IDs: {user1_id: 1, user2_id: 2}
+
+        # Convert to labels
+        self_interactions_labels = {social.get_label_from_id(nid): count for nid, count in self_interactions.items()}
+        self_interactions_labels
         # {'User1': 1, 'User2': 2}
         ```
 

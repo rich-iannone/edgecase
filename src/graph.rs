@@ -5577,7 +5577,7 @@ impl Graph {
     ///
     /// # Returns
     ///
-    /// Dictionary mapping node labels to self-loop counts
+    /// Dictionary mapping node IDs to self-loop counts
     ///
     /// # Examples
     ///
@@ -5589,10 +5589,10 @@ impl Graph {
     /// g.add_edge("B", "B")  # Self-loop
     ///
     /// loops = g.count_loops()
-    /// # Returns: {"A": 2, "B": 1}
+    /// # Returns: {a_id: 2, b_id: 1} where a_id, b_id are node IDs
     /// ```
     #[inline]
-    pub fn count_loops(&self) -> PyResult<std::collections::HashMap<String, usize>> {
+    pub fn count_loops(&self) -> PyResult<std::collections::HashMap<u64, usize>> {
         let n = self.num_nodes();
         let mut loop_counts: std::collections::HashMap<u64, usize> = std::collections::HashMap::with_capacity(n);
 
@@ -5603,16 +5603,7 @@ impl Graph {
             }
         }
 
-        // Convert node IDs to labels
-        let mut result = std::collections::HashMap::with_capacity(loop_counts.len());
-        for (node_id, count) in loop_counts.iter() {
-            let label = self.nodes.get(node_id)
-                .and_then(|n| n.label.clone())
-                .unwrap_or_else(|| node_id.to_string());
-            result.insert(label, *count);
-        }
-
-        Ok(result)
+        Ok(loop_counts)
     }
 
     // ========== Assortativity ==========
