@@ -12516,7 +12516,7 @@ class Graph:
         self._graph.select_edges(predicate)
         return self
 
-    def get_node(self, node: Union[int, str]):
+    def get_node(self, node: Union[int, str]) -> Optional[rust.Node]:
         """Get a node object by ID or label.
 
         Retrieves the Node object for the specified node. The Node object contains
@@ -12552,7 +12552,7 @@ class Graph:
         node_id = self._resolve_node_id(node, auto_create=False)
         return self._graph.get_node(node_id)
 
-    def get_edge(self, edge_id: int):
+    def get_edge(self, edge_id: int) -> Optional[rust.Edge]:
         """Get an edge object by ID.
 
         Retrieves the Edge object for the specified edge ID. The Edge object
