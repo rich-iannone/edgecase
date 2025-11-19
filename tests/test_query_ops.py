@@ -184,15 +184,15 @@ class TestGetNodeDF:
         assert "degree" in df.columns
         assert len(df) == 2
 
-    def test_get_node_df_without_degree(self):
-        """Test DataFrame without degree column."""
+    def test_get_node_df_always_includes_degree(self):
+        """Test DataFrame always includes degree column."""
         G = ec.Graph()
         G.add_node("A", score=95)
         G.add_node("B", score=88)
 
-        df = G.get_node_df(include_degree=False)
+        df = G.get_node_df()
 
-        assert "degree" not in df.columns
+        assert "degree" in df.columns
         assert "id" in df.columns
 
     def test_get_node_df_empty_graph(self):
@@ -238,17 +238,17 @@ class TestGetEdgeDF:
         assert "type" in df.columns
         assert len(df) == 2
 
-    def test_get_edge_df_without_endpoints(self):
-        """Test DataFrame without source/target columns."""
+    def test_get_edge_df_always_includes_endpoints(self):
+        """Test DataFrame always includes source/target columns."""
         G = ec.Graph()
         for label in ["A", "B"]:
             G.add_node(label)
         G.add_edge("A", "B", weight=1.5)
 
-        df = G.get_edge_df(include_endpoints=False)
+        df = G.get_edge_df()
 
-        assert "source" not in df.columns
-        assert "target" not in df.columns
+        assert "source" in df.columns
+        assert "target" in df.columns
         assert "id" in df.columns
         assert "weight" in df.columns
 

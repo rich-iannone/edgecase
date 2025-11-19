@@ -13167,9 +13167,8 @@ class Graph:
     def get_edge_attrs_by_id(self, attr: str, edges: list[int] | None = None) -> dict[int, any]:
         """Get attribute values for edges by edge ID.
 
-        Similar to get_edge_attrs but uses internal edge IDs instead of node
-        pairs. Returns a dictionary keyed by integer edge IDs. Useful when
-        working directly with edge ID references.
+        Similar to get_edge_attrs but uses internal edge IDs instead of node pairs. Returns a
+        dictionary keyed by integer edge IDs. Useful when working directly with edge ID references.
 
         Parameters
         ----------
@@ -13357,27 +13356,16 @@ class Graph:
 
         return self
 
-    def get_node_df(self, include_degree: bool = True) -> "pl.DataFrame":
+    def get_node_df(self) -> "pl.DataFrame":
         """Get nodes as a Polars DataFrame.
 
-        Exports all nodes and their attributes to a Polars DataFrame for tabular
-        analysis. Each row represents a node, with columns for the node ID and
-        any attributes set on nodes. Requires the `polars` package.
-
-        Parameters
-        ----------
-        include_degree : bool, default True
-            If True, adds a 'degree' column with the degree of each node.
+        Exports all nodes and their attributes to a Polars DataFrame for tabular analysis. Each
+        row represents a node, with columns for the node ID and any attributes set on nodes.
 
         Returns
         -------
         pl.DataFrame
-            DataFrame with columns:
-            - 'id': Node ID (str)
-            - Attribute columns: One per unique attribute across all nodes
-            - 'degree': Node degree (int, if include_degree=True)
-
-            Empty DataFrame if graph has no nodes.
+            A Polars DataFrame, empty if graph has no nodes.
 
         Examples
         --------
@@ -13402,9 +13390,6 @@ class Graph:
 
         # Find high-degree nodes
         hubs = df.filter(pl.col("degree") > 5)
-
-        # Exclude degree column
-        df_no_degree = graph.get_node_df(include_degree=False)
         ```
 
         Notes
@@ -13444,35 +13429,21 @@ class Graph:
                 for nid in node_ids
             ]
 
-        # Add degree if requested
-        if include_degree:
-            data["degree"] = [self.get_degree(nid) for nid in node_ids]
+        # Add degree column
+        data["degree"] = [self.get_degree(nid) for nid in node_ids]
 
         return pl.DataFrame(data)
 
-    def get_edge_df(self, include_endpoints: bool = True) -> "pl.DataFrame":
+    def get_edge_df(self) -> "pl.DataFrame":
         """Get edges as a Polars DataFrame.
 
-        Exports all edges and their attributes to a Polars DataFrame for tabular
-        analysis. Each row represents an edge, with columns for the edge ID,
-        endpoints, and any attributes. Requires the `polars` package.
-
-        Parameters
-        ----------
-        include_endpoints : bool, default True
-            If True, includes 'source' and 'target' columns with node IDs.
+        Exports all edges and their attributes to a Polars DataFrame for tabular analysis. Each
+        row represents an edge, with columns for the edge ID, endpoints, and any attributes.
 
         Returns
         -------
         pl.DataFrame
-            DataFrame with columns:
-            - 'id': Edge ID (int)
-            - 'source': Source node ID (str, if include_endpoints=True)
-            - 'target': Target node ID (str, if include_endpoints=True)
-            - Attribute columns: One per unique attribute across all edges
-            - 'weight': Edge weight (float, if any edge has weight set)
-
-            Empty DataFrame if graph has no edges.
+            A Polars DataFrame, empty if graph has no nodes.
 
         Examples
         --------
@@ -13503,9 +13474,6 @@ class Graph:
 
         # Average weight per source node
         avg_by_source = df.group_by("source").agg(pl.col("weight").mean())
-
-        # Exclude endpoint columns
-        df_no_endpoints = graph.get_edge_df(include_endpoints=False)
         ```
 
         Notes
@@ -13530,10 +13498,10 @@ class Graph:
         # Collect basic edge info
         data = {"id": edge_ids}
 
-        if include_endpoints:
-            edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
-            data["source"] = [e[0] if e else None for e in edges]
-            data["target"] = [e[1] if e else None for e in edges]
+        # Add source and target columns
+        edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
+        data["source"] = [e[0] if e else None for e in edges]
+        data["target"] = [e[1] if e else None for e in edges]
 
         # Get all unique attribute keys (including weight)
         attr_keys = set()
@@ -13559,17 +13527,12 @@ class Graph:
 
         return pl.DataFrame(data)
 
-    def get_node_df_ws(self, include_degree: bool = True) -> "pl.DataFrame":
+    def get_node_df_ws(self) -> "pl.DataFrame":
         """Get selected nodes as a Polars DataFrame.
 
         Similar to get_node_df but only exports currently selected nodes. Useful
         for analyzing subsets of nodes after filtering with selection methods.
         Requires the `polars` package.
-
-        Parameters
-        ----------
-        include_degree : bool, default True
-            If True, adds a 'degree' column with the degree of each node.
 
         Returns
         -------
@@ -13577,7 +13540,7 @@ class Graph:
             DataFrame with columns:
             - 'id': Node ID (str)
             - Attribute columns: One per unique attribute across selected nodes
-            - 'degree': Node degree (int, if include_degree=True)
+            - 'degree': Node degree (int)
 
             Empty DataFrame if no nodes are selected.
 
@@ -13655,30 +13618,25 @@ class Graph:
                 for nid in node_ids
             ]
 
-        if include_degree:
-            data["degree"] = [self.get_degree(nid) for nid in node_ids]
+        # Add degree column
+        data["degree"] = [self.get_degree(nid) for nid in node_ids]
 
         return pl.DataFrame(data)
 
-    def get_edge_df_ws(self, include_endpoints: bool = True) -> "pl.DataFrame":
+    def get_edge_df_ws(self) -> "pl.DataFrame":
         """Get selected edges as a Polars DataFrame.
 
         Similar to get_edge_df but only exports currently selected edges. Useful
         for analyzing subsets of edges after filtering with selection methods.
         Requires the `polars` package.
 
-        Parameters
-        ----------
-        include_endpoints : bool, default True
-            If True, includes 'source' and 'target' columns with node IDs.
-
         Returns
         -------
         pl.DataFrame
             DataFrame with columns:
             - 'id': Edge ID (int)
-            - 'source': Source node ID (str, if include_endpoints=True)
-            - 'target': Target node ID (str, if include_endpoints=True)
+            - 'source': Source node ID (str)
+            - 'target': Target node ID (str)
             - Attribute columns: One per unique attribute across selected edges
             - 'weight': Edge weight (float, if any selected edge has weight)
 
@@ -13738,10 +13696,10 @@ class Graph:
 
         data = {"id": edge_ids}
 
-        if include_endpoints:
-            edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
-            data["source"] = [e[0] if e else None for e in edges]
-            data["target"] = [e[1] if e else None for e in edges]
+        # Add source and target columns
+        edges = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
+        data["source"] = [e[0] if e else None for e in edges]
+        data["target"] = [e[1] if e else None for e in edges]
 
         # Get all unique attribute keys (including weight)
         attr_keys = set()
