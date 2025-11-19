@@ -5528,11 +5528,11 @@ impl Graph {
     /// g.add_edge("B", "C")
     /// g.add_edge("C", "C")  # Self-loop
     ///
-    /// loops = g.which_loop()
+    /// loops = g.which_loops()
     /// # Returns edge IDs of self-loops (e.g., [2, 4])
     /// ```
     #[inline]
-    pub fn which_loop(&self) -> PyResult<Vec<u64>> {
+    pub fn which_loops(&self) -> PyResult<Vec<u64>> {
         let m = self.num_edges();
         let estimated_loops = m / 20; // Estimate 5% are loops
         let mut loop_edges = Vec::with_capacity(estimated_loops);

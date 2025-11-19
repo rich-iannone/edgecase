@@ -11435,7 +11435,7 @@ class Graph:
 
         Notes
         -----
-        - Self-loops are not considered multiple edges (use `which_loop()` instead)
+        - Self-loops are not considered multiple edges (use `which_loops()` instead)
         - In undirected graphs, (u,v) and (v,u) are treated as the same pair
         - Returns all edges involved in duplication, including the first occurrence
         - Useful for data quality checks before analysis
@@ -11443,7 +11443,7 @@ class Graph:
         See Also
         --------
         count_multiple : Count multiple edges grouped by node pair
-        which_loop : Find self-loop edges
+        which_loops : Find self-loop edges
         """
         return self._graph.which_multiple()
 
@@ -11555,7 +11555,7 @@ class Graph:
         """
         return self._graph.count_multiple()
 
-    def which_loop(self) -> list[int]:
+    def which_loops(self) -> list[int]:
         """
         Find edge IDs of self-loops (edges from a node to itself).
 
@@ -11584,7 +11584,7 @@ class Graph:
         g.add_edge(source="Bob", target="Carol")
         g.add_edge(source="Carol", target="Carol")  # Self-loop
 
-        loops = g.which_loop()
+        loops = g.which_loops()
         print(len(loops))  # 2
         ```
 
@@ -11603,7 +11603,7 @@ class Graph:
         fsm.add_edge(source="Processing", target="Complete")
         fsm.add_edge(source="Complete", target="Idle")
 
-        self_transitions = fsm.which_loop()
+        self_transitions = fsm.which_loops()
         print(len(self_transitions))  # 1
         ```
 
@@ -11621,7 +11621,7 @@ class Graph:
         social.add_edge(source="@alice", target="@alice")  # Self-mention
         social.add_edge(source="@bob", target="@carol")
 
-        self_mentions = social.which_loop()
+        self_mentions = social.which_loops()
         # These might be removed for certain analyses
         len(self_mentions)
         # 1
@@ -11641,7 +11641,7 @@ class Graph:
         g.add_edge(source="C", target="C")  # Self-loop
 
         # Identify edges to remove for simple graph
-        loops_to_remove = g.which_loop()
+        loops_to_remove = g.which_loops()
         len(loops_to_remove)
         # 2
         ```
@@ -11658,7 +11658,7 @@ class Graph:
         count_loops : Count self-loops per node
         which_multiple : Find multiple edges between node pairs
         """
-        return self._graph.which_loop()
+        return self._graph.which_loops()
 
     def count_loops(self) -> dict[int, int]:
         """
@@ -11777,7 +11777,7 @@ class Graph:
 
         See Also
         --------
-        which_loop : Get edge IDs of self-loops
+        which_loops : Get edge IDs of self-loops
         which_multiple : Find multiple edges between node pairs
         """
         return self._graph.count_loops()
