@@ -1,5 +1,3 @@
-"""Tests for edge analysis functions."""
-
 import pytest
 import edgecase as ec
 

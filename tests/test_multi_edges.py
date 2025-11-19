@@ -1,5 +1,3 @@
-"""Tests for multi-edge graph functionality (edge IDs)."""
-
 import pytest
 import polars as pl
 import edgecase as ec

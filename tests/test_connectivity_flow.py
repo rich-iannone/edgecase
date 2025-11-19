@@ -1,5 +1,3 @@
-"""Tests for connectivity and flow metrics."""
-
 import pytest
 import edgecase as ec
 

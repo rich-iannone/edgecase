@@ -1,5 +1,3 @@
-"""Tests for degree aggregation methods."""
-
 import pytest
 import edgecase as ec
 

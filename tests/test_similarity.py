@@ -1,5 +1,3 @@
-"""Tests for similarity metric methods."""
-
 import pytest
 import edgecase as ec
 

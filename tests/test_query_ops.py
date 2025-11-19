@@ -1,5 +1,3 @@
-"""Tests for query operations."""
-
 import pytest
 import polars as pl
 import edgecase as ec

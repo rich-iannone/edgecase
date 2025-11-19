@@ -1,7 +1,3 @@
-"""
-Tests for select_last_nodes_created() and select_last_edges_created().
-"""
-
 import pytest
 from edgecase import Graph
 

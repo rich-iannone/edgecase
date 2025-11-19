@@ -1,8 +1,3 @@
-# tests/unit/test_graph_basics.py
-"""
-Unit tests for basic graph operations
-"""
-
 import pytest
 from edgecase import Graph
 

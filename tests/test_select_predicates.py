@@ -1,7 +1,3 @@
-"""
-Tests for attribute-based selection methods.
-"""
-
 import pytest
 from edgecase import Graph
 from edgecase.graph import Node, Edge

@@ -1,11 +1,3 @@
-"""
-Tests for Leading Eigenvector (Newman) community detection.
-
-This module tests the get_cmty_l_eigenvec() method which implements
-Newman's spectral optimization algorithm using the leading eigenvector
-of the modularity matrix for recursive bisection.
-"""
-
 import pytest
 import edgecase as ec
 

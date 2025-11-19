@@ -1,7 +1,3 @@
-"""
-Tests for set_edge_attrs() method.
-"""
-
 import pytest
 import edgecase as ec
 

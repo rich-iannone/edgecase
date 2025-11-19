@@ -1,5 +1,3 @@
-"""Tests for distance and eccentricity metrics."""
-
 import pytest
 import edgecase as ec
 

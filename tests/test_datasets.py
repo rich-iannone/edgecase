@@ -1,5 +1,3 @@
-"""Tests for dataset loading functionality."""
-
 import gzip
 import tempfile
 from pathlib import Path

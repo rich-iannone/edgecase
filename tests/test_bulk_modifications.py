@@ -1,5 +1,3 @@
-"""Tests for bulk modification operations (_ws methods)."""
-
 import pytest
 import edgecase as ec
 

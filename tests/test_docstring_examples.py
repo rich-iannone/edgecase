@@ -1,10 +1,3 @@
-"""
-Test that all code examples in docstrings execute without errors.
-
-This script extracts Python code blocks from docstrings across the codebase
-and executes them to ensure documentation examples remain valid.
-"""
-
 import ast
 import importlib.util
 import re

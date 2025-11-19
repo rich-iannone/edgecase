@@ -1,13 +1,3 @@
-"""
-Tests for Fast Greedy community detection algorithm.
-
-Tests cover:
-- Known community structures (Karate club, disconnected components)
-- Edge cases (empty, single node, complete graphs)
-- Modularity validation
-- Algorithm correctness
-"""
-
 import pytest
 import edgecase as ec
 

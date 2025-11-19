@@ -1,5 +1,3 @@
-"""Tests for eigenvector centrality."""
-
 import pytest
 import edgecase as ec
 
@@ -219,7 +217,9 @@ class TestEigenVsAlphaCentrality:
         G.add_star_graph(5)
 
         eigen = G.eigen_centrality(return_dict=True)
-        alpha = G.alpha_centrality(return_dict=True, alpha=0.9, max_iter=200)  # High alpha → eigenvector
+        alpha = G.alpha_centrality(
+            return_dict=True, alpha=0.9, max_iter=200
+        )  # High alpha → eigenvector
 
         # With high alpha and no exogenous factor dominance,
         # alpha centrality approaches eigenvector centrality pattern

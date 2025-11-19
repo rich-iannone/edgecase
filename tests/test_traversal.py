@@ -1,10 +1,3 @@
-"""
-Test suite for graph traversal operations.
-
-Tests the 7 core traversal methods (trav_out, trav_in, trav_both,
-trav_out_edge, trav_in_edge, trav_reverse_edge).
-"""
-
 import pytest
 import edgecase as ec
 

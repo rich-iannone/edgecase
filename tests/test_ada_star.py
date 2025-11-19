@@ -1,14 +1,3 @@
-"""
-Tests for Anytime Dynamic A* (ADA*) algorithm.
-
-Tests cover:
-- Basic pathfinding
-- Anytime behavior (epsilon refinement)
-- Dynamic graph updates
-- Custom heuristics
-- Edge cases
-"""
-
 import pytest
 import edgecase as ec
 

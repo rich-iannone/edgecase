@@ -1,22 +1,3 @@
-"""
-Integration tests for igraph validation and comparison.
-
-This test module validates EdgeCase graph algorithms against igraph's implementations
-to ensure correctness and compatibility. Tests cover:
-
-1. Graph conversion (EdgeCase <-> igraph)
-2. Basic graph metrics (degree, density, etc.)
-3. Shortest path algorithms
-4. Centrality measures (betweenness, closeness, eigenvector, PageRank)
-5. Community detection
-6. Graph properties (connected components, clustering coefficients)
-7. Traversal algorithms (BFS, DFS)
-8. Numerical stability with extreme weights
-
-These tests help identify bugs, API inconsistencies, and ensure that EdgeCase
-produces results that match igraph's well-tested implementations.
-"""
-
 import pytest
 import math
 

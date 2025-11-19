@@ -1,11 +1,3 @@
-"""
-Tests for Edge Betweenness (Girvan-Newman) community detection.
-
-This module tests the get_cmty_edge_btwns() method which implements
-the Girvan-Newman algorithm for community detection by iteratively
-removing high betweenness edges.
-"""
-
 import pytest
 import edgecase as ec
 

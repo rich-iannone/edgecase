@@ -1,11 +1,3 @@
-"""
-Tests for Walktrap community detection algorithm.
-
-The Walktrap algorithm uses random walks to detect communities.
-Nodes in the same community are expected to be visited more
-frequently by short random walks.
-"""
-
 import pytest
 import edgecase as ec
 

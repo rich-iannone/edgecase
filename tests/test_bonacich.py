@@ -1,9 +1,3 @@
-"""Test suite for Bonacich power centrality.
-
-Tests replicate the NetworkX test suite and validate against the original
-Bonacich (1987) paper results in Tables 3 and 4.
-"""
-
 import pytest
 from edgecase import Graph
 
@@ -34,14 +28,18 @@ class TestBonacichBasic:
     def test_empty_graph(self):
         """Empty graph returns empty dict."""
         g = Graph()
-        result = g.bonacich_power_centrality(return_dict=True, )
+        result = g.bonacich_power_centrality(
+            return_dict=True,
+        )
         assert result == {}
 
     def test_single_node(self):
         """Single node has centrality of 0 (no edges)."""
         g = Graph()
         g.add_node("A")
-        result = g.bonacich_power_centrality(return_dict=True, )
+        result = g.bonacich_power_centrality(
+            return_dict=True,
+        )
         # With no edges, A·1 = 0, so centrality is 0
         node_id = g.get_id_from_label("A")
         assert abs(result[node_id]) < 1e-7

@@ -1,7 +1,3 @@
-"""
-Tests for graph building functions.
-"""
-
 import pytest
 import edgecase as ec
 

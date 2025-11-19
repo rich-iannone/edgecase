@@ -1,8 +1,3 @@
-# tests/property/test_graph_properties.py
-"""
-Property-based tests using Hypothesis
-"""
-
 import pytest
 from hypothesis import given, strategies as st, settings
 from edgecase import Graph

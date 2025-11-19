@@ -1,5 +1,3 @@
-"""Shared configuration for community detection tests."""
-
 import edgecase as ec
 
 

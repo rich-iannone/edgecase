@@ -1,7 +1,3 @@
-"""
-Tests for node and edge selection methods.
-"""
-
 import pytest
 from edgecase import Graph
 

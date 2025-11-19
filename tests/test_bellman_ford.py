@@ -1,5 +1,3 @@
-"""Tests for Bellman-Ford shortest path algorithm."""
-
 import pytest
 from edgecase import Graph
 

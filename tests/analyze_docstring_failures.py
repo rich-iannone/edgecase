@@ -1,14 +1,12 @@
-"""Analyze docstring failures and categorize them."""
-
 import re
 from collections import defaultdict
 
 # Read the failures file
-with open('/tmp/docstring_failures.txt', 'r') as f:
+with open("/tmp/docstring_failures.txt", "r") as f:
     content = f.read()
 
 # Extract failures
-failure_pattern = r'--- Failure \d+: (.*?) ---\nCode:\n(.*?)\n\nError:\n(.*?)\n-{70}'
+failure_pattern = r"--- Failure \d+: (.*?) ---\nCode:\n(.*?)\n\nError:\n(.*?)\n-{70}"
 failures = re.findall(failure_pattern, content, re.DOTALL)
 
 print(f"Total failures: {len(failures)}\n")
@@ -17,7 +15,7 @@ print(f"Total failures: {len(failures)}\n")
 error_types = defaultdict(list)
 for location, code, error in failures:
     # Get the main error message
-    error_lines = error.strip().split('\n')
+    error_lines = error.strip().split("\n")
     if error_lines:
         main_error = error_lines[0]
         error_types[main_error].append((location, code[:100]))

@@ -1,13 +1,3 @@
-"""Tests for node DataFrame structure requirements.
-
-This module tests the mandatory requirements for node DataFrames:
-- id, label, and type are always the first 3 columns
-- Rows are sorted by id in ascending order
-- Missing labels/types show as null (not omitted)
-- DataFrame initialization properly recognizes type as first-class
-- get_node_df() and get_node_df_ws() maintain consistent structure
-"""
-
 import pytest
 import polars as pl
 import edgecase as ec

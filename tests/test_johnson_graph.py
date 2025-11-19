@@ -1,5 +1,3 @@
-"""Tests for Johnson graph generator."""
-
 import pytest
 from edgecase import Graph
 

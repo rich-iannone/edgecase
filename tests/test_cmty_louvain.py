@@ -1,15 +1,3 @@
-"""
-Tests for Louvain community detection algorithm.
-
-The Louvain method is a multi-level optimization algorithm that:
-1. Phase 1: Each node tries to join neighboring communities to maximize modularity
-2. Phase 2: Aggregate communities into super-nodes
-3. Repeat until no improvement
-
-References:
-- Blondel et al. (2008) "Fast unfolding of communities in large networks"
-"""
-
 import edgecase as ec
 
 

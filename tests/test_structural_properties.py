@@ -1,5 +1,3 @@
-"""Tests for structural property methods."""
-
 import pytest
 import edgecase as ec
 

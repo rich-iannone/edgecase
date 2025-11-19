@@ -1,10 +1,3 @@
-"""
-Shared utilities for correctness validation tests.
-
-Provides common functions for graph conversion, comparison, and validation
-across EdgeCase, NetworkX, and igraph implementations.
-"""
-
 import networkx as nx
 import numpy as np
 

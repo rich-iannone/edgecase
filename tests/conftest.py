@@ -1,8 +1,3 @@
-# tests/conftest.py
-"""
-Shared pytest fixtures for EdgeCase tests
-"""
-
 import sys
 from pathlib import Path
 

@@ -1,10 +1,3 @@
-"""
-Tests for NetworkX interoperability.
-
-Tests bidirectional conversion between EdgeCase and NetworkX graphs,
-ensuring nodes, edges, and attributes are preserved correctly.
-"""
-
 import pytest
 import sys
 

@@ -1,5 +1,3 @@
-"""Tests for neighborhood-based and centrality-based selection methods."""
-
 import pytest
 import edgecase as ec
 

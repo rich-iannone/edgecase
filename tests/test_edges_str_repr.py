@@ -1,5 +1,3 @@
-"""Tests for edges_str_repr() method."""
-
 import pytest
 from edgecase import Graph
 

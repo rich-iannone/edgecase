@@ -1,5 +1,3 @@
-"""Tests for graph algorithms."""
-
 import pytest
 from edgecase import Graph, Node, Edge
 
