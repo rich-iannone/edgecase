@@ -601,7 +601,7 @@ class Graph:
         to the underlying u64 node ID used by the Rust core.
 
         Parameters
-        ---
+        ----------
         node : int | str
             Either an integer ID or a string label to resolve.
         auto_create : bool, default False
@@ -609,12 +609,12 @@ class Graph:
             with that label. If `False`, raise an error for unknown labels.
 
         Returns
-        ---
+        -------
         int
             The u64 node ID corresponding to the provided identifier.
 
         Raises
-        ---
+        ------
         ValueError
             If `node` is a label not found in the graph and `auto_create` is `False`.
         TypeError
@@ -2933,7 +2933,7 @@ class Graph:
         indegree distribution or analyzing filtered node subsets.
 
         Parameters
-        ---
+        ----------
         agg : str
             Aggregation function to apply. Must be one of:
             - `'sum'` : Sum of all indegrees
@@ -2946,13 +2946,13 @@ class Graph:
             the node in the aggregation. If `None`, all nodes are included.
 
         Returns
-        ---
+        -------
         float
             The computed aggregate indegree value. Returns `0.0` if no nodes match
             the conditions.
 
         Raises
-        ---
+        ------
         ValueError
             If the graph is undirected or if `agg` is not a valid aggregation function.
 
@@ -3028,7 +3028,7 @@ class Graph:
         outdegree distribution or analyzing filtered node subsets.
 
         Parameters
-        ---
+        ----------
         agg : str
             Aggregation function to apply. Must be one of:
             - `'sum'` : Sum of all outdegrees
@@ -3041,13 +3041,13 @@ class Graph:
             the node in the aggregation. If `None`, all nodes are included.
 
         Returns
-        ---
+        -------
         float
             The computed aggregate outdegree value. Returns `0.0` if no nodes match
             the conditions.
 
         Raises
-        ---
+        ------
         ValueError
             If the graph is undirected or if `agg` is not a valid aggregation function.
 
@@ -3126,7 +3126,7 @@ class Graph:
         directed graphs, total degree = indegree + outdegree.
 
         Parameters
-        ---
+        ----------
         agg : str
             Aggregation function to apply. Must be one of:
             - `'sum'` : Sum of all total degrees
@@ -3139,13 +3139,13 @@ class Graph:
             the node in the aggregation. If `None`, all nodes are included.
 
         Returns
-        ---
+        -------
         float
             The computed aggregate total degree value. Returns `0.0` if no nodes
             match the conditions.
 
         Raises
-        ---
+        ------
         ValueError
             If `agg` is not a valid aggregation function.
 
@@ -4694,14 +4694,14 @@ class Graph:
         shared connections or potential triangles in the graph.
 
         Parameters
-        ---
+        ----------
         node_id1 : int | str
             First node ID or label.
         node_id2 : int | str
             Second node ID or label.
 
         Returns
-        ---
+        -------
         list[int]
             List of node IDs that are neighbors to both `node_id1` and `node_id2`.
 
@@ -4771,17 +4771,17 @@ class Graph:
         for directed graphs.
 
         Parameters
-        ---
+        ----------
         node_id : int | str
             Node ID or label to find predecessors for.
 
         Returns
-        ---
+        -------
         list[int]
             List of predecessor node IDs (nodes with edges pointing to `node_id`).
 
         Raises
-        ---
+        ------
         ValueError
             If the graph is undirected.
 
@@ -4823,17 +4823,17 @@ class Graph:
         Only available for directed graphs.
 
         Parameters
-        ---
+        ----------
         node_id : int | str
             Node ID or label to find successors for.
 
         Returns
-        ---
+        -------
         list[int]
             List of successor node IDs (nodes that `node_id` points to).
 
         Raises
-        ---
+        ------
         ValueError
             If the graph is undirected.
 
@@ -4875,12 +4875,12 @@ class Graph:
         neighbors. Useful for finding potential new connections or disconnected nodes.
 
         Parameters
-        ---
+        ----------
         node_id : int | str
             Node ID or label to find non-neighbors for.
 
         Returns
-        ---
+        -------
         list[int]
             Sorted list of node IDs that are not neighbors of `node_id` and are not
             `node_id` itself.
@@ -4952,7 +4952,7 @@ class Graph:
         nodes with comparable properties.
 
         Parameters
-        ---
+        ----------
         node_id : int | str
             Starting node ID or label to compare against.
         node_attr : str
@@ -4967,13 +4967,13 @@ class Graph:
             `start_value × 1.2` are considered similar.
 
         Returns
-        ---
+        -------
         list[int]
             List of neighbor node IDs with similar attribute values. Empty list if
             the starting node lacks the attribute or has no neighbors in range.
 
         Raises
-        ---
+        ------
         ValueError
             If the attribute exists but is not numeric (int or float).
 
@@ -5071,18 +5071,18 @@ class Graph:
         component. For directed graphs, treats edges as undirected during traversal.
 
         Parameters
-        ---
+        ----------
         node_id : int | str
             Starting node ID or label for the search.
 
         Returns
-        ---
+        -------
         list[int]
             List of all reachable node IDs, excluding the starting node itself.
             Empty list if the node is isolated.
 
         Raises
-        ---
+        ------
         KeyError
             If `node_id` does not exist in the graph.
 
@@ -13758,7 +13758,7 @@ class Graph:
         For undirected graphs, mode doesn't affect the result since all edges are bidirectional.
 
         Parameters
-        ---
+        ----------
         node_id : int | str
             The node ID or label to find neighbors for.
         mode : str, default 'out'
@@ -13768,12 +13768,12 @@ class Graph:
             - `'all'` : Both successors and predecessors
 
         Returns
-        ---
+        -------
         list[int]
             List of neighbor node IDs.
 
         Raises
-        ---
+        ------
         ValueError
             If `mode` is not one of `'out'`, `'in'`, or `'all'`.
 
@@ -14162,13 +14162,13 @@ class Graph:
         Requires an active edge selection.
 
         Parameters
-        ---
+        ----------
         **attributes : keyword arguments
             Attribute name-value pairs to set on selected edges. Use `weight` to
             update edge weights directly.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -14226,7 +14226,7 @@ class Graph:
         the new value. Requires an active node selection.
 
         Parameters
-        ---
+        ----------
         attr : str
             Name of the attribute to transform.
         func : callable
@@ -14234,7 +14234,7 @@ class Graph:
             returns the new value. Called once per selected node.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -14306,7 +14306,7 @@ class Graph:
         edge selection.
 
         Parameters
-        ---
+        ----------
         attr : str
             Name of the attribute to transform. Can be `'weight'` to transform
             edge weights directly.
@@ -14315,7 +14315,7 @@ class Graph:
             returns the new value. Called once per selected edge.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -14396,12 +14396,12 @@ class Graph:
         already exist.
 
         Parameters
-        ---
+        ----------
         **edge_attributes : keyword arguments
             Optional attributes to set on newly created edges.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -14488,17 +14488,17 @@ class Graph:
         or adding reciprocal relationships.
 
         Parameters
-        ---
+        ----------
         **edge_attributes : keyword arguments
             Optional attributes to set on the newly created reverse edges.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
         Raises
-        ---
+        ------
         ValueError
             If the graph is undirected.
 
@@ -15054,7 +15054,7 @@ class Graph:
         four neighbors (up, down, left, right). Edge nodes have fewer connections.
 
         Parameters
-        ---
+        ----------
         rows : int
             Number of rows in the grid.
         cols : int
@@ -15067,7 +15067,7 @@ class Graph:
             Optional relationship label for all edges.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -15136,7 +15136,7 @@ class Graph:
         a 3D prism structure when visualized.
 
         Parameters
-        ---
+        ----------
         n : int
             Number of nodes in each cycle (minimum 3).
         type : str, optional
@@ -15147,7 +15147,7 @@ class Graph:
             Optional relationship label for all edges.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -15230,7 +15230,7 @@ class Graph:
         generating random graphs with a specific edge density.
 
         Parameters
-        ---
+        ----------
         n : int
             Number of nodes to add.
         p : float
@@ -15242,7 +15242,7 @@ class Graph:
             Random seed for reproducibility.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -15729,13 +15729,13 @@ class Graph:
         with directed graphs.
 
         Parameters
-        ---
+        ----------
         add_to_selection : bool, default False
             If `True`, adds reverse edges to the current selection. If `False`,
             replaces the selection with reverse edges only.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -15804,7 +15804,7 @@ class Graph:
         `max_steps` is reached. The traversal proceeds in a breadth-first manner.
 
         Parameters
-        ---
+        ----------
         conditions : callable
             A function that takes a node ID (str) and returns `True` if the stopping
             condition is met for that node. The callable can access node attributes
@@ -15819,7 +15819,7 @@ class Graph:
             If `False`, only the final nodes are selected.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -15963,7 +15963,7 @@ class Graph:
         `max_steps` is reached. The traversal proceeds in a breadth-first manner.
 
         Parameters
-        ---
+        ----------
         conditions : callable
             A function that takes a node ID (str) and returns `True` if the stopping
             condition is met for that node. The callable can access node attributes
@@ -15978,7 +15978,7 @@ class Graph:
             If `False`, only the final nodes are selected.
 
         Returns
-        ---
+        -------
         Graph
             Self for method chaining.
 
@@ -16121,7 +16121,7 @@ class Graph:
         columns become node/edge attributes.
 
         Parameters
-        ---
+        ----------
         nodes_df : polars.DataFrame, optional
             Node data with required 'id' column plus optional 'type', 'label', and
             custom attribute columns.
@@ -16132,7 +16132,7 @@ class Graph:
             Whether to create a directed graph.
 
         Returns
-        ---
+        -------
         Graph
             A new Graph object with nodes/edges from the DataFrames.
 
