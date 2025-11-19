@@ -32,7 +32,7 @@ def demo_basic_selection():
     # Select edges connected to selected nodes
     G.clear_selection()
     G.select_nodes_by_id(["David"])
-    G.select_edges_by_node_id(["David"])
+    G.select_edges_by_node(["David"])
 
     print(f"\nEdges connected to David: {G.count_selected_edges()} edges")
     selected_edge_ids = G.get_selected_edge_ids()
@@ -214,11 +214,13 @@ def demo_complex_workflow():
     print(f"Accounts with many incoming transactions: {sinks}")
 
     # Step 3: Select all transactions involving these key accounts
-    G.select_edges_by_node_id(sources + sinks)
+    G.select_edges_by_node(sources + sinks)
     key_transactions = G.get_selected_edge_ids()
 
     print(f"\nKey transactions involving sources/sinks: {len(key_transactions)} transactions")
-    print(f"This represents {len(key_transactions) / G.count_edges() * 100:.1f}% of all transactions")
+    print(
+        f"This represents {len(key_transactions) / G.count_edges() * 100:.1f}% of all transactions"
+    )
 
 
 def demo_subgraph_extraction():
@@ -255,7 +257,7 @@ def demo_subgraph_extraction():
     component1_nodes = G.get_selected_node_ids()
 
     # Select edges within this component
-    G.select_edges_by_node_id(component1_nodes)
+    G.select_edges_by_node(component1_nodes)
     component1_edges = G.get_selected_edge_ids()
 
     print("\nComponent 1 (triangle):")
@@ -265,7 +267,7 @@ def demo_subgraph_extraction():
     # Now select component 2 (square)
     G.clear_selection()
     G.select_nodes_by_id(["D", "E", "F", "G"])
-    G.select_edges_by_node_id(G.get_selected_node_ids())
+    G.select_edges_by_node(G.get_selected_node_ids())
 
     print("\nComponent 2 (square):")
     print(f"  Nodes: {G.get_selected_node_ids()}")
