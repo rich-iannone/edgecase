@@ -360,7 +360,8 @@ class TestCountLoops:
         g.add_edge("A", "A")
 
         counts = g.count_loops()
-        assert counts == {"A": 1}
+        a_id = g.get_id_from_label("A")
+        assert counts == {a_id: 1}
 
     def test_single_node_multiple_loops(self):
         """Single node with multiple self-loops."""
@@ -371,7 +372,8 @@ class TestCountLoops:
         g.add_edge("A", "A")
 
         counts = g.count_loops()
-        assert counts == {"A": 3}
+        a_id = g.get_id_from_label("A")
+        assert counts == {a_id: 3}
 
     def test_multiple_nodes_one_loop_each(self):
         """Multiple nodes each with one self-loop."""
@@ -382,10 +384,13 @@ class TestCountLoops:
         g.add_edge("C", "C")
 
         counts = g.count_loops()
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
         assert len(counts) == 3
-        assert counts["A"] == 1
-        assert counts["B"] == 1
-        assert counts["C"] == 1
+        assert counts[a_id] == 1
+        assert counts[b_id] == 1
+        assert counts[c_id] == 1
 
     def test_multiple_nodes_different_loop_counts(self):
         """Nodes with different numbers of self-loops."""
@@ -399,9 +404,12 @@ class TestCountLoops:
         g.add_edge("C", "C")
 
         counts = g.count_loops()
-        assert counts["A"] == 2
-        assert counts["B"] == 1
-        assert counts["C"] == 3
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        assert counts[a_id] == 2
+        assert counts[b_id] == 1
+        assert counts[c_id] == 3
 
     def test_mixed_loops_and_regular_edges(self):
         """Mix of nodes with and without loops."""
@@ -416,11 +424,15 @@ class TestCountLoops:
         # D has no self-loop
 
         counts = g.count_loops()
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        d_id = g.get_id_from_label("D")
         assert len(counts) == 2
-        assert counts["A"] == 1
-        assert counts["B"] == 2
-        assert "C" not in counts
-        assert "D" not in counts
+        assert counts[a_id] == 1
+        assert counts[b_id] == 2
+        assert c_id not in counts
+        assert d_id not in counts
 
     def test_undirected_graph_loops(self):
         """Undirected graph with self-loops."""
@@ -431,7 +443,8 @@ class TestCountLoops:
         g.add_edge("B", "C")
 
         counts = g.count_loops()
-        assert counts == {"A": 2}
+        a_id = g.get_id_from_label("A")
+        assert counts == {a_id: 2}
 
 
 class TestEdgeCases:
@@ -483,9 +496,12 @@ class TestEdgeCases:
         assert ("B", "C") not in multi_counts
 
         # A has 2 loops, B has 1 loop
-        assert loop_counts["A"] == 2
-        assert loop_counts["B"] == 1
-        assert "C" not in loop_counts
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        c_id = g.get_id_from_label("C")
+        assert loop_counts[a_id] == 2
+        assert loop_counts[b_id] == 1
+        assert c_id not in loop_counts
 
     def test_single_node_graph(self):
         """Single node with no edges."""
@@ -534,7 +550,8 @@ class TestEdgeCases:
         assert len(loops) == 3  # One loop per node
 
         loop_counts = g.count_loops()
-        assert all(loop_counts[n] == 1 for n in nodes)
+        node_ids = [g.get_id_from_label(n) for n in nodes]
+        assert all(loop_counts[nid] == 1 for nid in node_ids)
 
     def test_multigraph_validation_workflow(self):
         """Test workflow for validating if graph is simple."""
