@@ -10856,7 +10856,7 @@ class Graph:
         """
         return self._graph.density()
 
-    def cohesive_blocks(self) -> tuple[list[list[int]], list[int], list[int | None]]:
+    def find_cohesive_blocks(self) -> tuple[list[list[int]], list[int], list[int | None]]:
         """
         Find hierarchical cohesive block structure.
 
@@ -10890,7 +10890,7 @@ class Graph:
             for j in range(i + 1, 6):
                 graph.add_edge(str(i), str(j))
 
-        blocks, cohesions, parents = graph.cohesive_blocks()
+        blocks, cohesions, parents = graph.find_cohesive_blocks()
         # Returns: ([[1,2,3,4,5]], [4], [None]) - node IDs
 
         # Convert to labels if needed
@@ -10918,7 +10918,7 @@ class Graph:
         graph.add_edge("6", "1")
         graph.add_edge("6", "2")
 
-        blocks, cohesions, parents = graph.cohesive_blocks()
+        blocks, cohesions, parents = graph.find_cohesive_blocks()
         # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
         ```
 
