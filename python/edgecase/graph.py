@@ -1189,7 +1189,7 @@ class Graph:
         density = self.get_graph_density()
         info["Density"] = f"{density:.2f}"
 
-        # Degree statistics - compute for all nodes
+        # Degree statistics: compute for all nodes
         node_ids = self.get_node_ids(limit=None)
         degrees = [self.get_degree(self.get_label_from_id(nid) or str(nid)) for nid in node_ids]
 
@@ -1621,8 +1621,8 @@ class Graph:
         """
         Add a balanced k-ary tree to the current graph.
 
-        Creates a tree where each internal node has exactly k children, with height h.
-        Total nodes = (k^(h+1) - 1) / (k - 1).
+        Creates a tree where each internal node has exactly `k` children, with height `h`. The total
+        number of nodes will be equal to `(k^(h+1) - 1) / (k - 1)`.
 
         Parameters
         ----------
@@ -1633,9 +1633,9 @@ class Graph:
         type
             Optional node type/category for all nodes.
         label
-            If True, label nodes with their IDs.
+            If `True`, label nodes with their IDs.
         rel
-            Optional relationship label for all edges.
+            Optional relationship (`rel`) label for all edges.
 
         Returns
         -------
@@ -1725,8 +1725,8 @@ class Graph:
         """
         Add a 2D grid/lattice graph to the current graph.
 
-        Creates a rectangular grid where each interior node is connected to its
-        four neighbors (up, down, left, right). Edge nodes have fewer connections.
+        Creates a rectangular grid where each interior node is connected to its four neighbors
+        (up, down, left, right). Edge nodes have fewer connections.
 
         Parameters
         ----------
@@ -1739,7 +1739,7 @@ class Graph:
         label
             If `True`, label nodes with their IDs.
         rel
-            Optional relationship label for all edges.
+            Optional relationship (`rel`) label for all edges.
 
         Returns
         -------
@@ -1783,8 +1783,9 @@ class Graph:
                 if label:
                     current = f"({i},{j})"
                 else:
-                    # Need to use node IDs - get from position in creation order
+                    # Need to use node IDs so get from position in creation order
                     current_idx = start_id + i * cols + j
+
                     # Since we can't reliably get IDs without labels, we need to track them
                     # For now, use position-based ID lookup
                     current = start_id + i * cols + j
@@ -1920,8 +1921,7 @@ class Graph:
         """
         Add an Erdős-Rényi G(n,p) random graph to the current graph.
 
-        Each possible edge is included independently with probability p. Uses fast
-        Rust implementation for optimal performance. This model is useful for
+        Each possible edge is included independently with probability `p`. This model is useful for
         generating random graphs with a specific edge density.
 
         Parameters
@@ -1929,10 +1929,10 @@ class Graph:
         n
             Number of nodes to add.
         p
-            Probability of edge creation, in range [0.0, 1.0].
+            Probability of edge creation, in range of `[0.0, 1.0]`.
         directed
-            If provided and differs from graph's directed setting, creates a
-            temporary graph with the specified directedness.
+            If provided and differs from graph's directed setting, creates a temporary graph with
+            the specified directedness.
         seed
             Random seed for reproducibility.
 
@@ -1978,9 +1978,8 @@ class Graph:
         """
         Add an Erdős-Rényi G(n,m) random graph to the current graph.
 
-        Creates a graph with n nodes and exactly m randomly placed edges.
-        Uses fast Rust implementation for optimal performance. This model
-        is useful for generating random graphs with a fixed number of edges.
+        Creates a graph with `n` nodes and exactly m randomly placed edges. This model is useful for
+        generating random graphs with a fixed number of edges.
 
         Parameters
         ----------
@@ -1989,8 +1988,8 @@ class Graph:
         m
             Number of edges to create.
         directed
-            If provided and differs from graph's directed setting, creates
-            temporary graph with specified directedness.
+            If provided and differs from graph's directed setting, creates temporary graph with
+            specified directedness.
         seed
             Random seed for reproducibility.
 
@@ -2037,10 +2036,9 @@ class Graph:
         """
         Add a Barabási-Albert preferential attachment graph.
 
-        Grows a graph by adding nodes one at a time, with each new node connecting
-        to m existing nodes with probability proportional to degree. This creates
-        scale-free networks with power-law degree distributions. Uses fast Rust
-        implementation for optimal performance.
+        Grows a graph by adding nodes one at a time, with each new node connecting to `m` existing
+        nodes with probability proportional to degree. This creates scale-free networks with
+        power-law degree distributions.
 
         Parameters
         ----------
@@ -2083,10 +2081,8 @@ class Graph:
         """
         Add a Watts-Strogatz small-world graph.
 
-        Creates a ring lattice with rewiring probability p, producing graphs
-        with high clustering and short path lengths. Small-world networks model
-        many real-world phenomena. Uses fast Rust implementation for optimal
-        performance.
+        Creates a ring lattice with rewiring probability `p`, producing graphs with high clustering
+        and short path lengths. Small-world networks model many real-world phenomena.
 
         Parameters
         ----------
@@ -2095,7 +2091,7 @@ class Graph:
         k
             Each node connected to k nearest neighbors (must be even).
         p
-            Probability of rewiring each edge (0.0 to 1.0).
+            Probability of rewiring each edge (`0.0` to `1.0`).
         seed
             Random seed for reproducibility.
 
@@ -2124,14 +2120,13 @@ class Graph:
         """
         Add a Johnson graph J(n, k) to this graph.
 
-        Creates a graph where nodes represent k-subsets of {0, 1, ..., n-1},
-        and two nodes are adjacent if their subsets intersect in exactly k-1 elements
-        (i.e., they differ by exactly one element).
+        Creates a graph where nodes represent `k`-subsets of {0, 1, ..., n-1}, and two nodes are
+        adjacent if their subsets intersect in exactly `k-1` elements (i.e., they differ by exactly
+        one element).
 
-        Johnson graphs are distance-regular and k(n-k)-regular. They generalize to
-        the family J(n,k,s) where s is the intersection size; this method implements
-        the standard case where s = k-1. When k=0 or k=n, the graph is trivial
-        (single node, no edges).
+        Johnson graphs are distance-regular and `k(n-k)`-regular. They generalize to the family
+        `J(n,k,s)` where `s` is the intersection size; this method implements the standard case
+        where `s = k - 1`. When `k = 0` or `k = n`, the graph is trivial (single node, no edges).
 
         Parameters
         ----------
@@ -2222,8 +2217,8 @@ class Graph:
         """
         Get a node object by ID or label.
 
-        Retrieves the Node object for the specified node. The Node object contains id, label, and
-        attributes properties. Returns None if node doesn't exist.
+        Retrieves the `Node` object for the specified node. The `Node` object contains `id`,
+        `label`, and attributes properties. Returns `None` if node doesn't exist.
 
         Parameters
         ----------
@@ -2233,7 +2228,7 @@ class Graph:
         Returns
         -------
         Node | None
-            Node object or None if not found.
+            `Node` object or `None` if not found.
 
         Examples
         --------
@@ -2252,10 +2247,10 @@ class Graph:
 
     def get_edge(self, edge_id: int) -> Optional[rust.Edge]:
         """
-        Get an edge object by ID.
+        Get an edge object by an edge ID.
 
-        Retrieves the Edge object for the specified edge ID. The Edge object contains id, source,
-        target, weight, and attributes properties. Returns None if edge doesn't exist.
+        Retrieves the `Edge` object for the specified edge ID. The `Edge` object contains id, source,
+        target, weight, and attributes properties. Returns `None` if edge doesn't exist.
 
         Parameters
         ----------
@@ -2265,7 +2260,7 @@ class Graph:
         Returns
         -------
         Edge | None
-            Edge object or None if not found.
+            `Edge` object or `None` if not found.
 
         Examples
         --------
@@ -2293,16 +2288,16 @@ class Graph:
         """
         Return list of node IDs.
 
-        Returns node IDs in the graph up to the specified limit. Node IDs are
-        unique integers (u64) assigned to each node, useful for iterating over
-        nodes or performing operations on specific nodes.
+        Returns node IDs in the graph up to the specified limit. Node IDs are unique integers
+        (`u64`) assigned to each node, useful for iterating over nodes or performing operations on
+        specific nodes.
 
         Parameters
         ----------
         limit
-            Maximum number of node IDs to return. Pass `None` to return all node IDs
-            (warning: may be slow for large graphs). Default limit of 1000 prevents
-            performance issues when working with large graphs.
+            Maximum number of node IDs to return. Pass `None` to return all node IDs (warning: may
+            be slow for large graphs). Default limit of `1000` prevents performance issues when
+            working with large graphs.
 
         Returns
         -------
@@ -2356,16 +2351,15 @@ class Graph:
         """
         Return list of edge IDs.
 
-        Returns edge IDs in the graph up to the specified limit. Edge IDs are
-        unique integers assigned to each edge, useful for direct edge access
-        and manipulation.
+        Returns edge IDs in the graph up to the specified limit. Edge IDs are unique integers
+        assigned to each edge, useful for direct edge access and manipulation.
 
         Parameters
         ----------
         limit
-            Maximum number of edge IDs to return. Pass `None` to return all edge IDs
-            (warning: may be slow for large graphs). Default limit of 1000 prevents
-            performance issues when working with large graphs.
+            Maximum number of edge IDs to return. Pass `None` to return all edge IDs (warning: may
+            be slow for large graphs). Default limit of `1000` prevents performance issues when
+            working with large graphs.
 
         Returns
         -------
@@ -2431,8 +2425,8 @@ class Graph:
         """
         Get edge (source, target) node IDs by edge ID.
 
-        Retrieves the source and target node IDs for a specific edge using its
-        edge ID. Returns None if the edge ID doesn't exist.
+        Retrieves the source and target node IDs for a specific edge using its edge ID. Returns
+        `None` if the edge ID doesn't exist.
 
         Parameters
         ----------
@@ -2442,7 +2436,7 @@ class Graph:
         Returns
         -------
         tuple[int, int] | None
-            A tuple of (source_node_id, target_node_id) if the edge exists, None otherwise.
+            A tuple of (`source_node_id`, `target_node_id`) if the edge exists, `None` otherwise.
 
         Examples
         --------
@@ -2476,8 +2470,8 @@ class Graph:
         """
         Get the integer ID for a node by its label.
 
-        Translates a human-readable string label to the internal u64 node ID.
-        Useful when you need the ID for operations that require integer identifiers.
+        Translates a human-readable string label to the internal `u64` node ID. Useful when you need
+        the ID for operations that require integer identifiers.
 
         Parameters
         ----------
@@ -2516,19 +2510,19 @@ class Graph:
         """
         Get the label for a node by its ID.
 
-        Translates an internal u64 node ID to its human-readable string label.
-        Returns `None` if the node doesn't exist or has no label assigned.
+        Translates an internal `u64` node ID to its human-readable string label. Returns `None` if
+        the node doesn't exist or has no label assigned.
 
         Parameters
         ----------
         node_id
-            The u64 node ID to look up.
+            The `u64` node ID to look up.
 
         Returns
         -------
         str | None
-            The string label if it exists, or `None` if the node has no label
-            or doesn't exist in the graph.
+            The string label if it exists, or `None` if the node has no label or doesn't exist in
+            the graph.
 
         Examples
         --------
@@ -2601,9 +2595,9 @@ class Graph:
         """
         Get edges in their creation order.
 
-        Returns edge IDs ordered by when they were added to the graph. The first
-        edge created appears first, the most recently created edge appears last.
-        Useful for temporal analysis or understanding edge addition patterns.
+        Returns edge IDs ordered by when they were added to the graph. The first edge created
+        appears first, the most recently created edge appears last. Useful for temporal analysis or
+        understanding edge addition patterns.
 
         Returns
         -------
@@ -2655,9 +2649,8 @@ class Graph:
         """
         Return list of edges as (id, source, target) tuples.
 
-        Returns all edges in the graph as tuples containing the edge ID and the
-        source and target node IDs. Useful for iterating over all edges or
-        analyzing edge structure.
+        Returns all edges in the graph as tuples containing the edge ID and the source and target
+        node IDs. Useful for iterating over all edges or analyzing edge structure.
 
         Returns
         -------
@@ -2692,11 +2685,11 @@ class Graph:
         """
         Get edges as formatted string representations.
 
-        Returns edge representations as strings showing node identifiers with arrow notation.
-        The format depends on whether the graph is directed or undirected:
+        Returns edge representations as strings showing node identifiers with arrow notation. The
+        format depends on whether the graph is directed or undirected:
 
-        - Directed graphs: "source->target"
-        - Undirected graphs: "source--target"
+        - directed graphs: "source->target"
+        - undirected graphs: "source--target"
 
         Parameters
         ----------
@@ -2957,9 +2950,9 @@ class Graph:
         """
         Find edge IDs between two nodes.
 
-        Returns a list of all edge IDs connecting the source and target nodes.
-        For undirected graphs, edges are found regardless of direction.
-        Supports multi-edges (multiple edges between the same pair of nodes).
+        Returns a list of all edge IDs connecting the source and target nodes. For undirected
+        graphs, edges are found regardless of direction. Supports multi-edges (multiple edges
+        between the same pair of nodes).
 
         Parameters
         ----------
@@ -2996,8 +2989,8 @@ class Graph:
         """
         Count the total number of nodes in the graph.
 
-        Returns the current number of nodes (vertices) in the graph. This count
-        includes all nodes that have been added and not deleted.
+        Returns the current number of nodes (vertices) in the graph. This count includes all nodes
+        that have been added and not deleted.
 
         Returns
         -------
@@ -3037,9 +3030,9 @@ class Graph:
         """
         Count the total number of edges in the graph.
 
-        Returns the current number of edges (links/connections) in the graph.
-        For undirected graphs, each edge is counted once. For directed graphs,
-        each directed edge is counted separately (A→B is different from B→A).
+        Returns the current number of edges (links/connections) in the graph. For undirected graphs,
+        each edge is counted once. For directed graphs, each directed edge is counted separately
+        (A->B is different from B->A).
 
         Returns
         -------
@@ -3106,10 +3099,9 @@ class Graph:
         """
         Get the name of the graph.
 
-        Returns the human-readable name assigned to this graph, if any. The name
-        is an optional identifier that can be set when creating the graph or
-        updated later. It's useful for distinguishing between multiple graphs
-        in analysis or visualization contexts.
+        Returns the human-readable name assigned to this graph, if any. The name is an optional
+        identifier that can be set when creating the graph or updated later. It's useful for
+        distinguishing between multiple graphs in analysis or visualization contexts.
 
         Returns
         -------
@@ -3144,21 +3136,21 @@ class Graph:
         """
         Check if the graph is directed.
 
-        Returns whether this graph treats edges as directed (with distinct source
-        and target) or undirected (bidirectional connections). This property is
-        set when the graph is created and cannot be changed afterward.
+        Returns whether this graph treats edges as directed (with distinct source and target) or
+        undirected (bidirectional connections). This property is set when the graph is created and
+        cannot be changed afterward.
 
         In directed graphs:
 
-        - Edge A→B is different from B→A
-        - Each direction must be explicitly added
-        - Useful for modeling asymmetric relationships (follows, citations, etc.)
+        - edge A->B is different from B->A
+        - each direction must be explicitly added
+        - useful for modeling asymmetric relationships (follows, citations, etc.)
 
         In undirected graphs:
 
-        - Edge A--B is the same as B--A
-        - Adding A--B automatically adds B--A
-        - Useful for modeling symmetric relationships (friendship, proximity, etc.)
+        - edge A--B is the same as B--A
+        - adding A--B automatically adds B--A
+        - useful for modeling symmetric relationships (friendship, proximity, etc.)
 
         Returns
         -------
@@ -3197,22 +3189,21 @@ class Graph:
         """
         Check if the graph is weighted.
 
-        Returns whether this graph supports edge weights. This property is set
-        when the graph is created and cannot be changed afterward. Weighted graphs
-        can store numeric weights on edges, which are used in algorithms like
-        shortest path, minimum spanning tree, etc.
+        Returns whether this graph supports edge weights. This property is set when the graph is
+        created and cannot be changed afterward. Weighted graphs can store numeric weights on edges,
+        which are used in algorithms like shortest path, minimum spanning tree, etc.
 
         In weighted graphs:
 
-        - Each edge can have an associated numeric weight
-        - Weights represent costs, distances, capacities, etc.
-        - Algorithms consider weights when computing paths and metrics
+        - each edge can have an associated numeric weight
+        - weights represent costs, distances, capacities, etc.
+        - algorithms consider weights when computing paths and metrics
 
         In unweighted graphs:
 
-        - All edges are treated equally (implicit weight of 1)
-        - Weights are ignored or unavailable
-        - Algorithms use hop count instead of weight sum
+        - all edges are treated equally (implicit weight of 1)
+        - weights are ignored or unavailable
+        - algorithms use hop count instead of weight sum
 
         Returns
         -------
@@ -3248,9 +3239,9 @@ class Graph:
         """
         Check if the graph is simple (no self-loops or multi-edges).
 
-        A simple graph contains no self-loops (edges from a node to itself) and
-        no multi-edges (multiple edges between the same pair of nodes). This is
-        a fundamental graph property used in many theoretical results.
+        A simple graph contains no self-loops (edges from a node to itself) and no multi-edges
+        (multiple edges between the same pair of nodes). This is a fundamental graph property used
+        in many theoretical results.
 
         Returns
         -------
@@ -3296,9 +3287,9 @@ class Graph:
         """
         Check if directed graph is a DAG (Directed Acyclic Graph).
 
-        A DAG is a directed graph with no cycles - you cannot follow directed edges
-        and return to a starting node. DAGs are fundamental for dependency resolution,
-        scheduling, and topological sorting.
+        A DAG is a directed graph with no cycles. You cannot follow directed edges and return to a
+        starting node. DAGs are fundamental for dependency resolution, scheduling, and topological
+        sorting.
 
         Returns
         -------
@@ -3337,14 +3328,14 @@ class Graph:
         """
         Check if graph is connected.
 
-        A graph is connected if there is a path between every pair of nodes.
-        For directed graphs, checks weak connectivity (treating edges as undirected).
+        A graph is connected if there is a path between every pair of nodes. For directed graphs,
+        checks weak connectivity (treating edges as undirected).
 
         Returns
         -------
         bool
-            `True` if all nodes are reachable from any node, `False` if the graph
-            has disconnected components.
+            `True` if all nodes are reachable from any node, `False` if the graph has disconnected
+            components.
 
         Examples
         --------
@@ -3373,9 +3364,9 @@ class Graph:
         """
         Check if graph is bipartite (2-colorable).
 
-        A graph is bipartite if its nodes can be divided into two independent sets
-        such that every edge connects nodes from different sets. Equivalently, the
-        graph can be colored with 2 colors such that no adjacent nodes share a color.
+        A graph is bipartite if its nodes can be divided into two independent sets such that every
+        edge connects nodes from different sets. Equivalently, the graph can be colored with two
+        colors such that no adjacent nodes share a color.
 
         All trees and forests are bipartite. Graphs with odd-length cycles are not.
 
@@ -3427,9 +3418,9 @@ class Graph:
         """
         Select nodes using a predicate function.
 
-        Applies a custom filter function to all nodes, selecting those for which
-        the predicate returns True. The predicate receives a Node object with
-        properties: id, label, and attributes.
+        Applies a custom filter function to all nodes, selecting those for which the predicate
+        returns `True`. The predicate receives a `Node` object with properties: `id`, `label`, and
+        attributes.
 
         Parameters
         ----------
@@ -3475,8 +3466,8 @@ class Graph:
         Parameters
         ----------
         predicate
-            Function that takes an Edge object and returns bool. Return True to
-            select the edge.
+            Function that takes an `Edge` object and returns `bool`. Should return `True` to select
+            the edge.
 
         Returns
         -------
@@ -3516,8 +3507,8 @@ class Graph:
         """
         Select nodes by their IDs.
 
-        Marks specified nodes as selected for subsequent operations like building
-        subgraphs or filtering. Selection is cumulative unless cleared first.
+        Marks specified nodes as selected for subsequent operations like building subgraphs or
+        filtering. Selection is cumulative unless cleared first.
 
         Parameters
         ----------
@@ -3564,9 +3555,8 @@ class Graph:
         """
         Select edges by their IDs.
 
-        Marks specified edges as selected for subsequent operations. Edge IDs are
-        internal integer identifiers assigned when edges are created. Selection is
-        cumulative unless cleared first.
+        Marks specified edges as selected for subsequent operations. Edge IDs are internal integer
+        identifiers assigned when edges are created. Selection is cumulative unless cleared first.
 
         Parameters
         ----------
@@ -3614,9 +3604,9 @@ class Graph:
         """
         Select all edges connected to specified nodes.
 
-        Selects all edges where at least one endpoint is in the provided node list.
-        For directed graphs, includes both incoming and outgoing edges. Useful for
-        selecting the local connectivity around specific nodes.
+        Selects all edges where at least one endpoint is in the provided node list. For directed
+        graphs, includes both incoming and outgoing edges. Useful for selecting the local
+        connectivity around specific nodes.
 
         Parameters
         ----------
@@ -3717,9 +3707,8 @@ class Graph:
         """
         Select the last N edges that were created.
 
-        Selects edges in reverse chronological order based on creation time.
-        Useful for incremental graph building workflows where you want to work
-        with recently added edges.
+        Selects edges in reverse chronological order based on creation time. Useful for incremental
+        graph building workflows where you want to work with recently added edges.
 
         Parameters
         ----------
@@ -3778,8 +3767,8 @@ class Graph:
         k
             Maximum number of hops/distance to traverse.
         mode
-            Direction to traverse: "out", "in", or "all".
-            For undirected graphs, always uses "all" mode.
+            Direction to traverse: `"out"`, `"in"`, or `"all"`. For undirected graphs, always uses
+            the `"all"` mode.
 
         Returns
         -------
@@ -3862,19 +3851,19 @@ class Graph:
         """
         Select nodes by degree criteria.
 
-        Filters nodes based on their degree (number of connections). Useful for
-        finding hubs (high degree) or peripheral nodes (low degree). Can filter
-        by in-degree, out-degree, or total degree.
+        Filters nodes based on their degree (number of connections). Useful for finding hubs (high
+        degree) or peripheral nodes (low degree). Can filter by in-degree, out-degree, or total
+        degree.
 
         Parameters
         ----------
         min_degree
-            Minimum degree threshold (inclusive). None means no lower bound.
+            Minimum degree threshold (inclusive). `None` means no lower bound.
         max_degree
-            Maximum degree threshold (inclusive). None means no upper bound.
+            Maximum degree threshold (inclusive). `None` means no upper bound.
         degree_type
-            Type of degree to use: "in", "out", or "total".
-            For undirected graphs, only "total" is valid.
+            Type of degree to use: `"in"`, `"out"`, or `"total"`. For undirected graphs, only
+            `"total"` is valid.
 
         Returns
         -------
@@ -3920,21 +3909,20 @@ class Graph:
         """
         Select top-K nodes by centrality measure.
 
-        Computes centrality scores for all nodes and selects the k highest-scoring
-        nodes. Useful for identifying the most important or influential nodes by
-        various centrality metrics.
+        Computes centrality scores for all nodes and selects the k highest-scoring nodes. Useful for
+        identifying the most important or influential nodes by various centrality metrics.
 
         Parameters
         ----------
         measure
-            Centrality measure to use: "degree", "in_degree", "out_degree",
-            "pagerank", or "betweenness".
+            Centrality measure to use: `"degree"`, `"in_degree"`, `"out_degree"`, `"pagerank"`, or
+            "`betweenness"`.
         k
             Number of top nodes to select.
         include_ties
-            If True, include all nodes tied with the k-th highest score.
+            If `True`, include all nodes tied with the k-th highest score.
         **kwargs
-            Additional arguments for centrality algorithms (e.g., damping for pagerank).
+            Additional arguments for centrality algorithms (e.g., damping for Pagerank).
 
         Returns
         -------
@@ -4003,8 +3991,8 @@ class Graph:
         """
         Remove nodes from selection.
 
-        Unmarks specified nodes, removing them from the current selection set.
-        Has no effect on nodes that aren't currently selected.
+        Unmarks specified nodes, removing them from the current selection set. Has no effect on
+        nodes that aren't currently selected.
 
         Parameters
         ----------
@@ -4074,8 +4062,8 @@ class Graph:
         """
         Remove edges from selection.
 
-        Unmarks specified edges, removing them from the current selection set.
-        Has no effect on edges that aren't currently selected.
+        Unmarks specified edges, removing them from the current selection set. Has no effect on
+        edges that aren't currently selected.
 
         Parameters
         ----------
@@ -4111,8 +4099,8 @@ class Graph:
         """
         Clear all node and edge selections.
 
-        Resets the selection state, unmarking all previously selected nodes and
-        edges. Useful for starting fresh with a new selection workflow.
+        Resets the selection state, unmarking all previously selected nodes and edges. Useful for
+        starting fresh with a new selection workflow.
 
         Returns
         -------
@@ -4143,9 +4131,8 @@ class Graph:
         """
         Invert node selection (select unselected, unselect selected).
 
-        Toggles the selection state of all nodes: currently selected nodes become
-        unselected, and unselected nodes become selected. Useful for getting the
-        complement of a selection.
+        Toggles the selection state of all nodes: currently selected nodes become unselected, and
+        unselected nodes become selected. Useful for getting the complement of a selection.
 
         Returns
         -------
@@ -4176,9 +4163,8 @@ class Graph:
         """
         Invert edge selection (select unselected, unselect selected).
 
-        Toggles the selection state of all edges: currently selected edges become
-        unselected, and unselected edges become selected. Useful for getting the
-        complement of an edge selection.
+        Toggles the selection state of all edges: currently selected edges become unselected, and
+        unselected edges become selected. Useful for getting the complement of an edge selection.
 
         Returns
         -------
@@ -4207,8 +4193,7 @@ class Graph:
         """
         Get currently selected node IDs.
 
-        Returns the list of node IDs that are currently marked as selected.
-        Order is not guaranteed.
+        Returns the list of node IDs that are currently marked as selected. Order is not guaranteed.
 
         Returns
         -------
@@ -4236,8 +4221,7 @@ class Graph:
         """
         Get currently selected edge IDs.
 
-        Returns the list of edge IDs that are currently marked as selected.
-        Order is not guaranteed.
+        Returns the list of edge IDs that are currently marked as selected. Order is not guaranteed.
 
         Returns
         -------
@@ -4265,8 +4249,8 @@ class Graph:
         """
         Get count of currently selected nodes.
 
-        Returns the number of nodes currently marked as selected. More efficient
-        than len(get_selected_nodes()) when you only need the count.
+        Returns the number of nodes currently marked as selected. More efficient than
+        `len(get_selected_nodes())` when you only need the count.
 
         Returns
         -------
@@ -4294,8 +4278,8 @@ class Graph:
         """
         Get count of currently selected edges.
 
-        Returns the number of edges currently marked as selected. More efficient
-        than len(get_selected_edges()) when you only need the count.
+        Returns the number of edges currently marked as selected. More efficient than
+        `len(get_selected_edges())` when you only need the count.
 
         Returns
         -------
@@ -4329,12 +4313,12 @@ class Graph:
         """
         Traverse from selected nodes to outward neighbors.
 
-        From the currently selected nodes, moves to all nodes that can be
-        reached by following outward edges (where selected nodes are sources).
-        The current node selection is replaced with the traversed nodes.
+        From the currently selected nodes, moves to all nodes that can be reached by following
+        outward edges (where selected nodes are sources). The current node selection is replaced
+        with the traversed nodes.
 
-        For directed graphs, follows edges in the forward direction.
-        For undirected graphs, follows edges in all directions (equivalent to trav_both).
+        For directed graphs, follows edges in the forward direction. For undirected graphs, follows
+        edges in all directions (equivalent to trav_both).
 
         Returns
         -------
@@ -4364,12 +4348,12 @@ class Graph:
         """
         Traverse from selected nodes to inward neighbors.
 
-        From the currently selected nodes, moves to all nodes that have
-        outward edges leading to the selected nodes (where selected nodes are targets).
-        The current node selection is replaced with the traversed nodes.
+        From the currently selected nodes, moves to all nodes that have outward edges leading to the
+        selected nodes (where selected nodes are targets). The current node selection is replaced
+        with the traversed nodes.
 
-        For directed graphs, follows edges in the reverse direction.
-        For undirected graphs, follows edges in all directions (equivalent to trav_both).
+        For directed graphs, follows edges in the reverse direction. For undirected graphs, follows
+        edges in all directions (equivalent to `trav_both()`).
 
         Returns
         -------
@@ -4399,9 +4383,8 @@ class Graph:
         """
         Traverse from selected nodes to all neighbors.
 
-        From the currently selected nodes, moves to all connected neighbors
-        in both directions (both outward and inward edges).
-        The current node selection is replaced with the traversed nodes.
+        From the currently selected nodes, moves to all connected neighbors in both directions (both
+        outward and inward edges). The current node selection is replaced with the traversed nodes.
 
         Works the same for directed and undirected graphs.
 
@@ -4427,7 +4410,7 @@ class Graph:
 
         # Get labels of selected nodes
         labels = [graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids()]
-        # Returns ['A', 'C'] (or ['C', 'A'] - order may vary)
+        # Returns ['A', 'C'] (or ['C', 'A'] where the order may vary)
         ```
         """
         self._graph.trav_both()
@@ -4437,12 +4420,11 @@ class Graph:
         """
         Traverse from selected nodes to outbound edges.
 
-        From the currently selected nodes, moves to all edges where the
-        selected nodes are sources (outbound edges). The current node
-        selection is cleared and replaced with an edge selection.
+        From the currently selected nodes, moves to all edges where the selected nodes are sources
+        (outbound edges). The current node selection is cleared and replaced with an edge selection.
 
-        For directed graphs, selects edges where from=selected_node.
-        For undirected graphs, selects all edges incident to selected nodes.
+        For directed graphs, selects edges where from=selected_node. For undirected graphs, selects
+        all edges incident to selected nodes.
 
         Returns
         -------
@@ -4474,12 +4456,11 @@ class Graph:
         """
         Traverse from selected nodes to inbound edges.
 
-        From the currently selected nodes, moves to all edges where the
-        selected nodes are targets (inbound edges). The current node
-        selection is cleared and replaced with an edge selection.
+        From the currently selected nodes, moves to all edges where the selected nodes are targets
+        (inbound edges). The current node selection is cleared and replaced with an edge selection.
 
-        For directed graphs, selects edges where to=selected_node.
-        For undirected graphs, selects all edges incident to selected nodes.
+        For directed graphs, selects edges where to=selected_node. For undirected graphs, selects
+        all edges incident to selected nodes.
 
         Returns
         -------
@@ -4511,15 +4492,14 @@ class Graph:
         """
         Traverse to reverse edges.
 
-        From the currently selected edges, finds the reverse edges. For each
-        selected edge A→B, looks for the corresponding edge B→A. Only works
-        with directed graphs.
+        From the currently selected edges, finds the reverse edges. For each selected edge A->B,
+        looks for the corresponding edge B→A. Only works with directed graphs.
 
         Parameters
         ----------
         add_to_selection
-            If `True`, adds reverse edges to the current selection. If `False`,
-            replaces the selection with reverse edges only.
+            If `True`, adds reverse edges to the current selection. If `False`, replaces the
+            selection with reverse edges only.
 
         Returns
         -------
@@ -4582,24 +4562,24 @@ class Graph:
         """
         Traverse outward node-by-node until stopping conditions are met.
 
-        From the currently selected nodes, moves along outward edges to connected
-        nodes, continuing until reaching nodes that satisfy the condition or until
-        `max_steps` is reached. The traversal proceeds in a breadth-first manner.
+        From the currently selected nodes, moves along outward edges to connected nodes, continuing
+        until reaching nodes that satisfy the condition or until `max_steps` is reached. The
+        traversal proceeds in a breadth-first manner.
 
         Parameters
         ----------
         conditions
-            A function that takes a node ID (str) and returns `True` if the stopping
-            condition is met for that node. The callable can access node attributes
-            via `graph.get_node(node_id).attributes`.
+            A function that takes a node ID (str) and returns `True` if the stopping condition is
+            met for that node. The callable can access node attributes via
+            `graph.get_node(node_id).attributes`.
         max_steps
             Maximum number of traversal steps (node-to-node hops) before stopping.
         exclude_unmatched
-            If `True`, only nodes satisfying the conditions are kept in the final
-            selection. If `False`, all reached nodes are kept.
+            If `True`, only nodes satisfying the conditions are kept in the final selection. If
+            `False`, all reached nodes are kept.
         add_to_selection
-            If `True`, all traversed nodes are included in the final selection.
-            If `False`, only the final nodes are selected.
+            If `True`, all traversed nodes are included in the final selection. If `False`, only the
+            final nodes are selected.
 
         Returns
         -------
@@ -4736,24 +4716,24 @@ class Graph:
         """
         Traverse inward node-by-node until stopping conditions are met.
 
-        From the currently selected nodes, moves along inward edges to connected
-        nodes, continuing until reaching nodes that satisfy the condition or until
-        `max_steps` is reached. The traversal proceeds in a breadth-first manner.
+        From the currently selected nodes, moves along inward edges to connected nodes, continuing
+        until reaching nodes that satisfy the condition or until `max_steps` is reached. The
+        traversal proceeds in a breadth-first manner.
 
         Parameters
         ----------
         conditions
-            A function that takes a node ID (str) and returns `True` if the stopping
-            condition is met for that node. The callable can access node attributes
-            via `graph.get_node(node_id).attributes`.
+            A function that takes a node ID (str) and returns `True` if the stopping condition is
+            met for that node. The callable can access node attributes via
+            `graph.get_node(node_id).attributes`.
         max_steps
             Maximum number of traversal steps (node-to-node hops) before stopping.
         exclude_unmatched
-            If `True`, only nodes satisfying the conditions are kept in the final
-            selection. If `False`, all reached nodes are kept.
+            If `True`, only nodes satisfying the conditions are kept in the final selection. If
+            `False`, all reached nodes are kept.
         add_to_selection
-            If `True`, all traversed nodes are included in the final selection.
-            If `False`, only the final nodes are selected.
+            If `True`, all traversed nodes are included in the final selection. If `False`, only the
+            final nodes are selected.
 
         Returns
         -------
@@ -4892,9 +4872,9 @@ class Graph:
         """
         Set attribute values for one or more nodes.
 
-        Updates a specific attribute on nodes. Can set the same value for all nodes,
-        or provide different values via a list or dictionary. Creates the attribute
-        if it doesn't exist, overwrites if it does.
+        Updates a specific attribute on nodes. Can set the same value for all nodes, or provide
+        different values via a list or dictionary. Creates the attribute if it doesn't exist,
+        overwrites if it does.
 
         Parameters
         ----------
@@ -4902,9 +4882,10 @@ class Graph:
             The name of the attribute to set.
         values
             The value(s) to set. Can be:
-            - Single value: Applied to all specified nodes
-            - List: Must match length of nodes (paired by position)
-            - Dict: Maps node IDs to values (only sets specified nodes)
+
+            - single value: Applied to all specified nodes
+            - list: Must match length of nodes (paired by position)
+            - dict: Maps node IDs to values (only sets specified nodes)
         nodes
             Optional list of node IDs (int) or labels (str) to update. If None, updates all nodes.
 
@@ -4998,7 +4979,7 @@ class Graph:
 
         # Handle different value types
         if isinstance(values, dict):
-            # Dict mapping node IDs to values - resolve keys if they're labels
+            # Dict mapping node IDs to values: resolve keys if they're labels
             resolved_values = {}
             for key, value in values.items():
                 resolved_key = self._resolve_node_id(key) if isinstance(key, (int, str)) else key
@@ -5032,8 +5013,8 @@ class Graph:
         Parameters
         ----------
         **attributes
-            Attribute name-value pairs to set on selected nodes. Each keyword
-            becomes an attribute name, and its value becomes the attribute value.
+            Attribute name-value pairs to set on selected nodes. Each keyword becomes an attribute
+            name, and its value becomes the attribute value.
 
         Returns
         -------
@@ -5096,9 +5077,9 @@ class Graph:
         """
         Set attribute values for one or more edges.
 
-        Updates a specific attribute on edges. Can target edges by edge IDs, explicit
-        (source, target) pairs, by filtering via source/target node lists, or
-        apply to all edges. Supports various value input formats.
+        Updates a specific attribute on edges. Can target edges by edge IDs, explicit (source,
+        target) pairs, by filtering via source/target node lists, or apply to all edges. Supports
+        various value input formats.
 
         Parameters
         ----------
@@ -5106,9 +5087,10 @@ class Graph:
             The name of the attribute to set.
         values
             The value(s) to set. Can be:
-            - Single value: Applied to all targeted edges
-            - List: Must match length of targeted edges (paired by position)
-            - Dict: Maps edge IDs to values
+
+            - single value: Applied to all targeted edges
+            - list: Must match length of targeted edges (paired by position)
+            - dict: Maps edge IDs to values
         edge_ids
             Optional list of edge IDs specifying edges to update.
         edges
@@ -5187,7 +5169,7 @@ class Graph:
                     found_edge_ids = self._graph.find_edge_ids(source_id, target_id)
                     target_edge_ids.extend(found_edge_ids)
                 except ValueError:
-                    # Node doesn't exist - silently skip
+                    # Node doesn't exist so silently skip
                     pass
         elif sources is not None and targets is not None:
             # Filter by source/target node lists
@@ -5202,7 +5184,7 @@ class Graph:
                         edge_ids = self._graph.find_edge_ids(source_id, target_id)
                         target_edge_ids.extend(edge_ids)
                     except ValueError:
-                        # Node doesn't exist - silently skip
+                        # Node doesn't exist so silently skip
                         pass
         else:
             # All edges
@@ -5239,8 +5221,8 @@ class Graph:
         Parameters
         ----------
         **attributes
-            Attribute name-value pairs to set on selected edges. Use `weight` to
-            update edge weights directly.
+            Attribute name-value pairs to set on selected edges. Use `weight` to update edge weights
+            directly.
 
         Returns
         -------
@@ -5292,9 +5274,8 @@ class Graph:
         """
         Get attribute values for nodes.
 
-        Extracts a specific attribute from one or more nodes. Only returns entries
-        for nodes that have the specified attribute set. Useful for collecting
-        properties across the graph.
+        Extracts a specific attribute from one or more nodes. Only returns entries for nodes that
+        have the specified attribute set. Useful for collecting properties across the graph.
 
         Parameters
         ----------
@@ -5306,8 +5287,8 @@ class Graph:
         Returns
         -------
         dict[int, any]
-            Dictionary mapping node IDs to attribute values. Only includes nodes
-            that have the attribute set.
+            Dictionary mapping node IDs to attribute values. Only includes nodes that have the
+            attribute set.
 
         Examples
         --------
@@ -5382,8 +5363,8 @@ class Graph:
         """
         Get edge attribute values.
 
-        Extracts a specific attribute from edges. Can optionally filter by source
-        and/or target nodes. Returns a dictionary keyed by edge IDs.
+        Extracts a specific attribute from edges. Can optionally filter by source and/or target
+        nodes. Returns a dictionary keyed by edge IDs.
 
         Parameters
         ----------
@@ -5397,8 +5378,8 @@ class Graph:
         Returns
         -------
         dict[int, any]
-            Dictionary mapping edge IDs (integers) to attribute values.
-            Only includes edges that have the attribute set.
+            Dictionary mapping edge IDs (integers) to attribute values. Only includes edges that
+            have the attribute set.
 
         Examples
         --------
@@ -5475,8 +5456,8 @@ class Graph:
         Returns
         -------
         dict[int, any]
-            Dictionary mapping edge IDs to attribute values. Only includes edges
-            that have the attribute set.
+            Dictionary mapping edge IDs to attribute values. Only includes edges that have the
+            attribute set.
 
         Examples
         --------
@@ -5521,16 +5502,16 @@ class Graph:
         """
         Get nodes as a Polars DataFrame.
 
-        Exports all nodes and their attributes to a Polars DataFrame for tabular analysis. Each
-        row represents a node, with columns for the node ID and any attributes set on nodes.
-        The DataFrame always includes 'id', 'label', and 'type' as the first three columns,
-        sorted by id in ascending order.
+        Exports all nodes and their attributes to a Polars DataFrame for tabular analysis. Each row
+        represents a node, with columns for the node ID and any attributes set on nodes. The
+        DataFrame always includes 'id', 'label', and 'type' as the first three columns, sorted by
+        `id` in ascending order.
 
         Returns
         -------
         pl.DataFrame
-            A Polars DataFrame with mandatory columns 'id', 'label', 'type' (first three),
-            followed by other attributes and 'degree'. Empty DataFrame if graph has no nodes.
+            A Polars DataFrame with mandatory columns 'id', 'label', 'type' (first three), followed
+            by other attributes and 'degree'. Empty DataFrame if graph has no nodes.
 
         Examples
         --------
@@ -5559,13 +5540,12 @@ class Graph:
 
         Notes
         -----
-
-        - The 'id', 'label', and 'type' columns are always present (first three columns)
-        - If a node has no label, the label column will contain None
-        - If a node has no type attribute, the type column will contain None
-        - Rows are sorted by id in ascending order
-        - Other attributes not present on a node will have None values
-        - The 'degree' column is always last
+        - the 'id', 'label', and 'type' columns are always present (first three columns)
+        - if a node has no label, the label column will contain None
+        - if a node has no type attribute, the type column will contain None
+        - rows are sorted by id in ascending order
+        - other attributes not present on a node will have None values
+        - the 'degree' column is always last
         """
         import polars as pl
 
@@ -5610,17 +5590,15 @@ class Graph:
         """
         Get selected nodes as a Polars DataFrame.
 
-        Similar to get_node_df but only exports currently selected nodes. Useful
-        for analyzing subsets of nodes after filtering with selection methods.
-        The DataFrame always includes 'id', 'label', and 'type' as the first three
-        columns, sorted by id in ascending order.
+        Similar to get_node_df but only exports currently selected nodes. Useful for analyzing
+        subsets of nodes after filtering with selection methods. The DataFrame always includes
+        'id', 'label', and 'type' as the first three columns, sorted by id in ascending order.
 
         Returns
         -------
         pl.DataFrame
-            DataFrame with mandatory columns 'id', 'label', 'type' (first three),
-            followed by other attributes and 'degree'. Empty DataFrame if no nodes
-            are selected.
+            DataFrame with mandatory columns 'id', 'label', 'type' (first three), followed by other
+            attributes and 'degree'. Empty DataFrame if no nodes are selected.
 
         Examples
         --------
@@ -5662,13 +5640,13 @@ class Graph:
 
         Notes
         -----
-        - Returns empty DataFrame if no nodes are selected
-        - The 'id', 'label', and 'type' columns are always present (first three)
-        - If a node has no label, the label column will contain None
-        - If a node has no type attribute, the type column will contain None
-        - Rows are sorted by id in ascending order
-        - Use selection methods before calling this
-        - Same structure as get_node_df but filtered to selection
+        - returns empty DataFrame if no nodes are selected
+        - the 'id', 'label', and 'type' columns are always present (first three)
+        - if a node has no label, the label column will contain None
+        - if a node has no type attribute, the type column will contain None
+        - rows are sorted by id in ascending order
+        - use selection methods before calling this
+        - same structure as get_node_df but filtered to selection
         """
         import polars as pl
 
@@ -5717,20 +5695,21 @@ class Graph:
         Get edges as a Polars DataFrame with standardized structure.
 
         Returns all edges with a consistent column structure:
-        - Column 1: `id` (i64, mandatory, sorted ascending)
-        - Column 2: `source` (i64, mandatory)
-        - Column 3: `target` (i64, mandatory)
-        - Column 4: `rel` (str, mandatory, null if not set)
-        - Columns 5-N: Other attributes (alphabetically sorted)
-        - Weight is included as a special attribute if present
+
+        - column 1: `id` (i64, mandatory, sorted ascending)
+        - column 2: `source` (i64, mandatory)
+        - column 3: `target` (i64, mandatory)
+        - column 4: `rel` (str, mandatory, null if not set)
+        - columns 5-N: Other attributes (alphabetically sorted)
+        - weight is included as a special attribute if present
 
         The DataFrame is always sorted by edge ID in ascending order.
 
         Returns
         -------
         pl.DataFrame
-            A Polars DataFrame with edges sorted by id.
-            Returns empty DataFrame if graph has no edges.
+            A Polars DataFrame with edges sorted by `id`. Returns an empty DataFrame if the graph
+            has no edges.
 
         Examples
         --------
@@ -5765,11 +5744,11 @@ class Graph:
 
         Notes
         -----
-        - First 4 columns always: id, source, target, rel (in that order)
-        - Missing rel values appear as null (not omitted)
-        - Other attributes sorted alphabetically
-        - DataFrame sorted by id ascending
-        - Weight treated as a special attribute column
+        - first 4 columns always: `id`, `source`, `target`, `rel` (in that order)
+        - missing `rel` values appear as `None`
+        - other attributes are sorted alphabetically
+        - DataFrame sorted by `id` ascending
+        - `weight` treated as a special attribute column
         """
         import polars as pl
 
@@ -5831,11 +5810,12 @@ class Graph:
         -------
         pl.DataFrame
             DataFrame with edges sorted by id, containing:
-            - Column 1: `id` (i64, mandatory)
-            - Column 2: `source` (i64, mandatory)
-            - Column 3: `target` (i64, mandatory)
-            - Column 4: `rel` (str, mandatory, null if not set)
-            - Columns 5-N: Other attributes (alphabetically sorted)
+
+            - column 1: `id` (i64, mandatory)
+            - column 2: `source` (i64, mandatory)
+            - column 3: `target` (i64, mandatory)
+            - column 4: `rel` (str, mandatory, `None` if not set)
+            - columns 5-N: Other attributes (alphabetically sorted)
 
             Returns empty DataFrame if no edges are selected.
 
@@ -5874,10 +5854,10 @@ class Graph:
 
         Notes
         -----
-        - First 4 columns always: id, source, target, rel (in that order)
-        - Missing rel values appear as null
-        - DataFrame sorted by id ascending
-        - Same structure as get_edge_df() but filtered to selection
+        - first 4 columns always: `id`, `source`, `target`, `rel` (in that order)
+        - missing rel values appear as `None`
+        - DataFrame sorted by `id` ascending
+        - same structure as `get_edge_df()` but filtered to selection
         """
         import polars as pl
 
@@ -5932,17 +5912,17 @@ class Graph:
         """
         Transform a node attribute using a function on selected nodes.
 
-        Applies a transformation function to the specified attribute for all selected
-        nodes. The function receives each node's current attribute value and returns
-        the new value. Requires an active node selection.
+        Applies a transformation function to the specified attribute for all selected nodes. The
+        function receives each node's current attribute value and returns the new value. Requires an
+        active node selection.
 
         Parameters
         ----------
         node_attr
             Name of the attribute to transform.
         func
-            Transformation function that takes the current attribute value and
-            returns the new value. Called once per selected node.
+            Transformation function that takes the current attribute value and returns the new
+            value. Called once per selected node.
 
         Returns
         -------
@@ -6100,9 +6080,9 @@ class Graph:
         """
         Map node attribute values to colors.
 
-        Sets a color attribute on nodes based on categorical or continuous values.
-        For categorical data, assigns distinct colors from a palette.
-        For continuous data, interpolates between colors.
+        Sets a color attribute on nodes based on categorical or continuous values. For categorical
+        data, assigns distinct colors from a palette. For continuous data, interpolates between
+        colors.
 
         Parameters
         ----------
@@ -6239,19 +6219,19 @@ class Graph:
         """
         Rescale node attribute values to a range.
 
-        Normalizes numeric values to a specified range, useful for sizing nodes
-        by centrality, degree, or other continuous metrics.
+        Normalizes numeric values to a specified range, useful for sizing nodes by centrality,
+        degree, or other continuous metrics.
 
         Parameters
         ----------
         node_attr_from
-            Attribute name to read values from (e.g., 'betweenness', 'degree')
-            If None, must provide values dict
+            Attribute name to read values from (e.g., 'betweenness', 'degree') If None, must
+            provide values dict.
         values
-            Dictionary mapping node IDs to numeric values
-            If None, reads from node_attr_from attribute
+            Dictionary mapping node IDs to numeric values. If None, reads from `node_attr_from`
+            attribute.
         node_attr_to
-            Attribute name to write rescaled values to
+            Attribute name to write rescaled values to.
         range
             Output range as [min, max]. Values will be rescaled to this range.
         nodes
@@ -6393,9 +6373,8 @@ class Graph:
         """
         Check if the graph contains any cycles.
 
-        Uses depth-first search to detect cycles. For directed graphs, looks for
-        back edges. For undirected graphs, checks for cycles excluding trivial
-        two-node back-and-forth paths.
+        Uses depth-first search to detect cycles. For directed graphs, looks for back edges. For
+        undirected graphs, checks for cycles excluding trivial two-node back-and-forth paths.
 
         Returns
         -------
@@ -6429,12 +6408,12 @@ class Graph:
         """
         Get all elementary cycles in the graph using Johnson's algorithm.
 
-        Implements Donald B. Johnson's 1975 algorithm for finding all elementary
-        (simple) cycles in a directed graph. Each cycle is found exactly once and
-        contains no repeated nodes except the first/last.
+        Implements Donald B. Johnson's 1975 algorithm for finding all elementary (simple) cycles in
+        a directed graph. Each cycle is found exactly once and contains no repeated nodes except the
+        first/last.
 
-        This method only works on directed graphs. For undirected graphs, convert
-        to directed first or consider that every edge forms a 2-cycle.
+        This method only works on directed graphs. For undirected graphs, convert to directed first
+        or consider that every edge forms a 2-cycle.
 
         Parameters
         ----------
@@ -6492,11 +6471,11 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(V + E)(C + 1) where C is the number of cycles
-        - Space complexity: O(V + E)
-        - The algorithm uses backtracking with a blocking mechanism to avoid
+        - time complexity: O(V + E)(C + 1) where C is the number of cycles
+        - space complexity: O(V + E)
+        - the algorithm uses backtracking with a blocking mechanism to avoid
           redundant search
-        - For large dense graphs, the number of cycles can be exponential
+        - for large dense graphs, the number of cycles can be exponential
 
         References
         ----------
@@ -6519,15 +6498,14 @@ class Graph:
         """
         Transform graph to a spanner with given stretch.
 
-        A spanner is a sparse subgraph that approximates distances in the original
-        graph. For any pair of nodes u and v, the distance in the spanner is at most
-        `stretch` times the distance in the original graph:
+        A spanner is a sparse subgraph that approximates distances in the original graph. For any
+        pair of nodes u and v, the distance in the spanner is at most `stretch` times the distance
+        in the original graph:
 
             distance_spanner(u, v) ≤ stretch × distance_original(u, v)
 
-        The resulting spanner preserves approximate distances while using fewer edges,
-        making it useful for graph compression, network backbone extraction, and
-        approximate distance queries.
+        The resulting spanner preserves approximate distances while using fewer edges, making it
+        useful for graph compression, network backbone extraction, and approximate distance queries.
 
         Parameters
         ----------
@@ -6564,23 +6542,25 @@ class Graph:
         For sparse graphs this is O(n²), for dense graphs O(n³).
 
         **Sparsity**: The number of edges in the spanner depends on the stretch:
-        - Unweighted graphs: O(n^(1+1/k)) edges where k = ⌊(stretch+1)/2⌋
-        - Weighted graphs: May have more edges but still significantly fewer than
-          the original graph
+
+        - unweighted graphs: O(n^(1+1/k)) edges where k = ⌊(stretch+1)/2⌋
+        - weighted graphs: May have more edges but still significantly fewer than the original graph
 
         **Properties**:
-        - Preserves graph connectivity
-        - Guarantees stretch bound for all node pairs
-        - Returns undirected graph (same as input)
-        - Preserves node attributes
-        - Preserves edge weights (when weight parameter is provided)
+
+        - preserves graph connectivity
+        - guarantees stretch bound for all node pairs
+        - returns undirected graph (same as input)
+        - preserves node attributes
+        - preserves edge weights (when `weight` parameter is provided)
 
         **Use Cases**:
-        - **Network backbones**: Extract core network structure
-        - **Graph compression**: Reduce storage while preserving distances
-        - **Approximate queries**: Fast distance estimation
-        - **Visualization**: Simplify dense networks for clearer plots
-        - **Preprocessing**: Reduce graph size before expensive algorithms
+
+        - **Network backbones**: extract core network structure
+        - **Graph compression**: reduce storage while preserving distances
+        - **Approximate queries**: fast distance estimation
+        - **Visualization**: simplify dense networks for clearer plots
+        - **Preprocessing**: reduce graph size before expensive algorithms
 
         Examples
         --------
@@ -6598,7 +6578,7 @@ class Graph:
             g.add_edge(source=str(i), target=str((i+1) % 5))
 
         spanner = g.transform_with_spanner(stretch=2.0)
-        print(spanner.count_edges() < g.count_edges())  # True - Fewer edges
+        print(spanner.count_edges() < g.count_edges())  # True: Fewer edges
         ```
 
         Create a 3-spanner of a weighted graph:
@@ -6674,12 +6654,12 @@ class Graph:
         """
         Create a subgraph from current selection.
 
-        Extracts the currently selected nodes and/or edges into a new Graph object.
-        The behavior depends on what's selected:
+        Extracts the currently selected nodes and/or edges into a new Graph object. The behavior
+        depends on what's selected:
 
-        - Nodes selected: Include those nodes plus all edges between them
-        - Edges selected: Include those edges plus their endpoint nodes
-        - Both selected: Uses node selection (ignores edge selection)
+        - nodes selected: include those nodes plus all edges between them
+        - edges selected: include those edges plus their endpoint nodes
+        - both selected: uses node selection (ignores edge selection)
 
         All node and edge attributes are preserved in the subgraph.
 
@@ -6795,9 +6775,8 @@ class Graph:
         """
         Create edges between all pairs of selected nodes (clique).
 
-        Adds edges to form a complete graph (clique) among all selected nodes.
-        For directed graphs, creates edges in both directions. Skips edges that
-        already exist.
+        Adds edges to form a complete graph (clique) among all selected nodes. For directed graphs,
+        creates edges in both directions. Skips edges that already exist.
 
         Parameters
         ----------
@@ -6850,9 +6829,9 @@ class Graph:
 
         Notes
         -----
-        - For `n` selected nodes in an undirected graph, creates up to `n(n-1)/2` edges.
-        - For `n` selected nodes in a directed graph, creates up to `n(n-1)` edges.
-        - Existing edges are not modified or duplicated.
+        - for `n` selected nodes in an undirected graph, creates up to `n(n-1)/2` edges.
+        - for `n` selected nodes in a directed graph, creates up to `n(n-1)` edges.
+        - existing edges are not modified or duplicated.
         """
         selected = list(self.get_selected_node_ids())
 
@@ -6883,9 +6862,8 @@ class Graph:
         """
         Add reverse edges for all selected edges (directed graphs only).
 
-        For each selected edge (A → B), adds the reverse edge (B → A) if it
-        doesn't already exist. Useful for making directed graphs bidirectional
-        or adding reciprocal relationships.
+        For each selected edge (A->B), adds the reverse edge (B->A) if it doesn't already exist.
+        Useful for making directed graphs bidirectional or adding reciprocal relationships.
 
         Parameters
         ----------
@@ -6970,8 +6948,8 @@ class Graph:
         """
         Reverse the direction of all selected edges (directed graphs only).
 
-        For each selected edge (A → B), changes it to (B → A). Edge IDs and all attributes
-        (including weights) are preserved during reversal. Only the direction is changed.
+        For each selected edge (A->B), changes it to (B->A). Edge IDs and all attributes (including
+        weights) are preserved during reversal. Only the direction is changed.
 
         Returns
         -------
@@ -7025,9 +7003,9 @@ class Graph:
 
         Notes
         -----
-        - Only works on directed graphs
-        - Edge attributes and IDs remain unchanged
-        - Selection state is preserved after reversal
+        - only works on directed graphs
+        - edge attributes and IDs remain unchanged
+        - selection state is preserved after reversal
         """
         if not self.is_directed():
             raise ValueError("rev_edge_dir_ws() only works on directed graphs")
@@ -7131,8 +7109,8 @@ class Graph:
         """
         Get the degree of a node.
 
-        For directed graphs, returns total degree (in-degree + out-degree).
-        For undirected graphs, returns the number of neighbors.
+        For directed graphs, returns total degree (in-degree + out-degree). For undirected graphs,
+        returns the number of neighbors.
 
         Parameters
         ----------
@@ -7192,8 +7170,8 @@ class Graph:
         """
         Get the in-degree of a node (directed graphs only).
 
-        In-degree is the number of edges pointing into the node. Only meaningful
-        for directed graphs.
+        In-degree is the number of edges pointing into the node. Only meaningful for directed
+        graphs.
 
         Parameters
         ----------
@@ -7238,8 +7216,8 @@ class Graph:
         """
         Get the out-degree of a node (directed graphs only).
 
-        Out-degree is the number of edges pointing out from the node. Only meaningful
-        for directed graphs.
+        Out-degree is the number of edges pointing out from the node. Only meaningful for directed
+        graphs.
 
         Parameters
         ----------
@@ -7311,7 +7289,7 @@ class Graph:
         )
 
         dist = graph.get_degree_distribution()
-        print(dist)  # {1: 4, 4: 1} - 4 nodes with degree 1, 1 node with degree 4
+        print(dist)  # {1: 4, 4: 1}; 4 nodes with degree 1, 1 node with degree 4
         ```
         """
         return self._graph.degree_distribution()
@@ -7361,20 +7339,19 @@ class Graph:
         ----------
         agg
             Aggregation function to apply. Must be one of:
-            - `'sum'` : Sum of all indegrees
-            - `'min'` : Minimum indegree
-            - `'max'` : Maximum indegree
-            - `'mean'` : Mean indegree
-            - `'median'` : Median indegree
+            - `"sum"`: sum of all indegrees
+            - `"min"`: minimum indegree
+            - `"max"`: maximum indegree
+            - `"mean"`: mean indegree
+            - `"median"`: median indegree
         conditions
-            Filter function that takes a node object and returns `True` to include
-            the node in the aggregation. If `None`, all nodes are included.
+            Filter function that takes a node object and returns `True` to include the node in the
+            aggregation. If `None`, all nodes are included.
 
         Returns
         -------
         float
-            The computed aggregate indegree value. Returns `0.0` if no nodes match
-            the conditions.
+            The computed aggregate indegree value. Returns `0.0` if no nodes match the conditions.
 
         Raises
         ------
@@ -7449,20 +7426,19 @@ class Graph:
         ----------
         agg
             Aggregation function to apply. Must be one of:
-            - `'sum'` : Sum of all outdegrees
-            - `'min'` : Minimum outdegree
-            - `'max'` : Maximum outdegree
-            - `'mean'` : Mean outdegree
-            - `'median'` : Median outdegree
+            - `"sum"`: sum of all outdegrees
+            - `"min"`: minimum outdegree
+            - `"max"`: maximum outdegree
+            - `"mean"`: mean outdegree
+            - `"median"`: median outdegree
         conditions
-            Filter function that takes a node object and returns `True` to include
-            the node in the aggregation. If `None`, all nodes are included.
+            Filter function that takes a node object and returns `True` to include the node in the
+            aggregation. If `None`, all nodes are included.
 
         Returns
         -------
         float
-            The computed aggregate outdegree value. Returns `0.0` if no nodes match
-            the conditions.
+            The computed aggregate outdegree value. Returns `0.0` if no nodes match the conditions.
 
         Raises
         ------
@@ -7541,20 +7517,20 @@ class Graph:
         ----------
         agg
             Aggregation function to apply. Must be one of:
-            - `'sum'` : Sum of all total degrees
-            - `'min'` : Minimum total degree
-            - `'max'` : Maximum total degree
-            - `'mean'` : Mean total degree
-            - `'median'` : Median total degree
+            - `"sum"`: Sum of all total degrees
+            - `"min"`: Minimum total degree
+            - `"max"`: Maximum total degree
+            - `"mean"`: Mean total degree
+            - `"median"`: Median total degree
         conditions
-            Filter function that takes a node object and returns `True` to include
-            the node in the aggregation. If `None`, all nodes are included.
+            Filter function that takes a node object and returns `True` to include the node in the
+            aggregation. If `None`, all nodes are included.
 
         Returns
         -------
         float
-            The computed aggregate total degree value. Returns `0.0` if no nodes
-            match the conditions.
+            The computed aggregate total degree value. Returns `0.0` if no nodes match the
+            conditions.
 
         Raises
         ------
@@ -7662,9 +7638,10 @@ class Graph:
         Notes
         -----
         Important network metric:
-        - Small-world networks: Low mean distance despite high clustering
-        - Scale-free networks: Mean distance grows logarithmically with size
-        - Used in epidemiology: Average infection spread time
+
+        - small-world networks: low mean distance despite high clustering
+        - scale-free networks: mean distance grows logarithmically with size
+        - used in epidemiology: average infection spread time
         """
         return self._graph.get_mean_distance_with_unconnected(unconnected)
 
@@ -7817,14 +7794,15 @@ class Graph:
 
         The implementation includes fast-path checks:
 
-        - Returns 1 for graphs with self-loops
-        - Returns 2 for undirected graphs with multi-edges
-        - Returns 3+ for cycles found via BFS
+        - returns 1 for graphs with self-loops
+        - returns 2 for undirected graphs with multi-edges
+        - returns 3+ for cycles found via BFS
 
         Returns
         -------
         int | None
             Length of shortest cycle, or None if acyclic.
+
             - 1: Graph contains a self-loop (edge from node to itself)
             - 2: Undirected graph contains multi-edges (duplicate edges)
             - 3+: Shortest cycle length found via BFS
@@ -7833,8 +7811,9 @@ class Graph:
         Notes
         -----
         For comparison with other libraries:
-        - igraph returns infinity for acyclic graphs (EdgeCase returns None)
-        - igraph removes self-loops during preprocessing (EdgeCase detects them as girth=1)
+
+        - igraph returns infinity for acyclic graphs (EdgeCase returns `None`)
+        - igraph removes self-loops during preprocessing (EdgeCase detects them as `girth=1`)
         - NetworkX does not have a built-in girth function
 
         Examples
@@ -8037,12 +8016,12 @@ class Graph:
         Can return the path as a list, or store the position of each node along the path as a node
         attribute for visualization.
 
-        The Bellman-Ford algorithm is slower than Dijkstra (O(VE) vs O(E log V)) but more
-        versatile. Use it when:
+        The Bellman-Ford algorithm is slower than Dijkstra (O(VE) vs O(E log V)) but more versatile.
+        Use it when:
 
-        - Graph has negative edge weights
-        - Need to detect negative cycles
-        - Graph is sparse with few edges
+        - the graph has negative edge weights
+        - the graph is sparse, with few edges
+        - you need to detect negative cycles
 
         Parameters
         ----------
@@ -8148,22 +8127,22 @@ class Graph:
         -----
         **Algorithm complexity:**
 
-        - Time: O(V × E) where V is vertices, E is edges
-        - Space: O(V) for distance and predecessor arrays
-        - Slower than Dijkstra but handles negative weights
+        - time: O(V × E) where V is vertices, E is edges
+        - space: O(V) for distance and predecessor arrays
+        - slower than Dijkstra but handles negative weights
 
         **When to use:**
 
-        - Graph has negative edge weights (debt, cost reductions)
-        - Need to detect negative cycles (arbitrage opportunities)
-        - Graph is sparse (few edges relative to nodes)
+        - graph has negative edge weights (debt, cost reductions)
+        - graph is sparse (few edges relative to nodes)
+        - you need to detect negative cycles (arbitrage opportunities)
 
         **Applications:**
 
-        - Financial modeling (debt, arbitrage detection)
-        - Network routing with cost penalties
-        - Game theory (negative payoffs)
-        - Resource allocation with penalties
+        - financial modeling (debt, arbitrage detection)
+        - network routing with cost penalties
+        - game theory (negative payoffs)
+        - resource allocation with penalties
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
@@ -8243,7 +8222,7 @@ class Graph:
         path = graph.shortest_path(1, 5, return_list=True)
         print(path)  # [1, 2, 3, 4, 5]
 
-        # Works with labels too - returns node IDs
+        # Works with labels too; it returns node IDs
         graph.add_node(label="A")
         graph.add_node(label="B")
         graph.add_edge(5, 6)
@@ -8333,9 +8312,9 @@ class Graph:
         """
         Find path using ADA* (Anytime Dynamic A*) search algorithm.
 
-        ADA* is an anytime optimal pathfinding algorithm that can return
-        suboptimal paths quickly and iteratively improve them. The epsilon
-        parameter controls the trade-off between solution quality and speed.
+        ADA* is an anytime optimal pathfinding algorithm that can return suboptimal paths quickly
+        and iteratively improve them. The epsilon parameter controls the trade-off between solution
+        quality and speed.
 
         Parameters
         ----------
@@ -8344,21 +8323,18 @@ class Graph:
         target
             Target node ID or label.
         epsilon
-            Suboptimality bound. epsilon=1.0 finds optimal paths, epsilon>1.0
-            trades optimality for speed. Higher values explore less but may
-            return longer paths.
+            Suboptimality bound. epsilon=1.0 finds optimal paths, epsilon>1.0 trades optimality for
+            speed. Higher values explore less but may return longer paths.
         weight_attr
-            Edge attribute to use as weight. Falls back to `edge.weight` if
-            attribute not found.
+            Edge attribute to use as weight. Falls back to `edge.weight` if attribute not found.
         heuristic
-            Custom heuristic function h(node, target) -> float that estimates
-            cost from any node to target. Parameters can be node IDs (int) or
-            labels (str). Must be admissible (never overestimate). If None, uses
-            zero heuristic (equivalent to Dijkstra's algorithm).
+            Custom heuristic function h(node, target) -> float that estimates cost from any node to
+            target. Parameters can be node IDs (int) or labels (str). Must be admissible (never
+            overestimate). If None, uses zero heuristic (equivalent to Dijkstra's algorithm).
         reuse_planner
-            If True, reuses planner state from previous call with same source/target.
-            Enables iterative refinement by calling with decreasing epsilon values.
-            If False, creates fresh planner for each call.
+            If `True`, reuses planner state from previous call with same source/target. Enables
+            iterative refinement by calling with decreasing epsilon values. If `False`, creates
+            fresh planner for each call.
 
         Returns
         -------
@@ -8486,14 +8462,14 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(b^d) where b is branching factor, d is depth
-        - Space complexity: O(b^d) for storing search states
-        - epsilon=1.0 guarantees optimal paths (A* behavior)
-        - epsilon>1.0 provides bounded suboptimality with faster search
-        - The algorithm performs backward search from target to source
-        - Set reuse_planner=True for iterative refinement with decreasing epsilon
-        - Planner state is stored in graph._ada_star_planner attribute
-        - Different source/target pairs automatically create separate planners
+        - time complexity: `O(b^d)` where `b` is the branching factor, `d` is depth
+        - space complexity: `O(b^d)` for storing search states
+        - `epsilon=1.0` guarantees optimal paths (A* behavior)
+        - `epsilon>1.0` provides bounded suboptimality with faster search
+        - the algorithm performs backward search from target to source
+        - set `reuse_planner=True` for iterative refinement with decreasing epsilon
+        - planner state is stored in `graph._ada_star_planner` attribute
+        - different source/target pairs automatically create separate planners
 
         References
         ----------
@@ -8870,10 +8846,11 @@ class Graph:
             If None or empty, computes for all nodes in the graph.
         method
             Similarity metric to use. Options:
-            - "jaccard": Jaccard coefficient (intersection over union)
-            - "dice": Dice coefficient (2× intersection over sum of sizes)
-            - "invlogweighted": Inverse log-weighted (Adamic-Adar index)
-            - "cosine": Cosine similarity
+
+            - `"jaccard"`: Jaccard coefficient (intersection over union)
+            - `"dice"`: Dice coefficient (2× intersection over sum of sizes)
+            - `"invlogweighted"`: Inverse log-weighted (Adamic-Adar index)
+            - `"cosine"`: Cosine similarity
 
         Returns
         -------
@@ -8973,35 +8950,35 @@ class Graph:
         -----
         **Jaccard Similarity**:
 
-        - Most common metric
-        - Range: [0, 1]
+        - the most common metric
+        - range: [0, 1]
         - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
 
         **Dice Similarity**:
 
-        - Gives more weight to common neighbors than Jaccard
-        - Range: [0, 1]
+        - gives more weight to common neighbors than Jaccard
+        - range: [0, 1]
         - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
 
         **Inverse Log-Weighted (Adamic-Adar)**:
 
-        - Weights common neighbors by inverse log of their degree
-        - Rare neighbors contribute more
+        - weights common neighbors by inverse log of their degree
+        - rare neighbors contribute more
         - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
-        - Popular for link prediction
+        - popular for link prediction
 
         **Cosine Similarity**:
 
-        - Normalized dot product
-        - Range: [0, 1]
+        - normalized dot product
+        - range: [0, 1]
         - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
 
         **Use Cases**:
 
-        - Link prediction: Which edges are likely to form?
-        - Recommendation: Find similar users/items
-        - Community detection: Group similar nodes
-        - Network embedding: Similarity-based features
+        - link prediction: which edges are likely to form?
+        - recommendations: find similar users/items
+        - community detection: group similar nodes
+        - network embedding: similarity-based features
 
         References
         ----------
@@ -9062,9 +9039,9 @@ class Graph:
         -----
         Useful for:
 
-        - Link prediction (similar nodes likely to connect)
-        - Community detection (nodes with similar neighborhoods)
-        - Recommendation systems (find similar users/items)
+        - link prediction (similar nodes likely to connect)
+        - community detection (nodes with similar neighborhoods)
+        - recommendation systems (find similar users/items)
         """
         return self._graph.get_dice_similarity()
 
@@ -9103,9 +9080,11 @@ class Graph:
         )
 
         sim = graph.get_jaccard_similarity()
-        # Leaves have no common neighbors - returns dict with node IDs
+
+        # Leaves have no common neighbors and returns dict with node IDs
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
+
         print(sim[a_id][b_id])  # 0.0
         ```
 
@@ -9113,9 +9092,9 @@ class Graph:
         -----
         Widely used in:
 
-        - Document similarity (bag-of-words)
-        - User similarity (common items/friends)
-        - Biological networks (protein interactions)
+        - document similarity (bag-of-words)
+        - user similarity (common items/friends)
+        - biological networks (protein interactions)
         """
         return self._graph.get_jaccard_similarity()
 
@@ -9153,9 +9132,11 @@ class Graph:
         )
 
         sim = graph.get_cosine_similarity()
-        # Each node shares 1 neighbor with the others - returns dict with node IDs
+
+        # Each node shares 1 neighbor with the others and returns dict with node IDs
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
+
         print(sim[a_id][b_id])  # 0.5 (1 common / sqrt(2 * 2))
         ```
 
@@ -9163,9 +9144,9 @@ class Graph:
         -----
         Advantages:
 
-        - Scales well with high-degree nodes
-        - Balances degree differences
-        - Standard in text mining and recommendation systems
+        - scales well with high-degree nodes
+        - balances degree differences
+        - standard in text mining and recommendation systems
         """
         return self._graph.get_cosine_similarity()
 
@@ -9204,9 +9185,11 @@ class Graph:
         )
 
         sim = graph.get_overlap_similarity()
-        # Hub's neighborhood is subset of spoke's - returns dict with node IDs
+
+        # Hub's neighborhood is subset of spoke's and returns dict with node IDs
         hub_id = graph.get_id_from_label(label="hub")
         spoke_id = graph.get_id_from_label(label="spoke")
+
         print(sim[hub_id][spoke_id])  # 1.0
         ```
 
@@ -9214,9 +9197,9 @@ class Graph:
         -----
         Use cases:
 
-        - Detecting specialization/generalization
-        - Finding hubs whose neighbors are subsets of others
-        - Hierarchical community structure
+        - detecting specialization/generalization
+        - finding hubs whose neighbors are subsets of others
+        - hierarchical community structure
         """
         return self._graph.get_overlap_similarity()
 
@@ -9228,11 +9211,11 @@ class Graph:
         """
         Get neighbors of a node.
 
-        Returns the neighboring nodes of a specified node, with control over
-        directionality (for directed graphs).
+        Returns the neighboring nodes of a specified node, with control over directionality (for
+        directed graphs).
 
-        For directed graphs, the default mode is "out" (outgoing neighbors only).
-        For undirected graphs, mode doesn't affect the result since all edges are bidirectional.
+        For directed graphs, the default mode is `"out"` (outgoing neighbors only). For undirected
+        graphs, mode doesn't affect the result since all edges are bidirectional.
 
         Parameters
         ----------
@@ -9240,9 +9223,10 @@ class Graph:
             The node ID or label to find neighbors for.
         mode
             Direction mode for neighbor lookup:
-            - `'out'` : Only successors (outgoing edges) - default for directed graphs
-            - `'in'` : Only predecessors (incoming edges)
-            - `'all'` : Both successors and predecessors
+
+            - `"out"`: Only successors (outgoing edges), the default for directed graphs
+            - `"in"`: Only predecessors (incoming edges)
+            - `"all"`: Both successors and predecessors
 
         Returns
         -------
@@ -9252,7 +9236,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `mode` is not one of `'out'`, `'in'`, or `'all'`.
+            If `mode` is not one of `"out"`, `"in"`, or `"all"`.
 
         Examples
         --------
@@ -9271,9 +9255,9 @@ class Graph:
         b_id = graph.get_id_from_label("B")
         c_id = graph.get_id_from_label("C")
 
-        # Get successors (outgoing neighbors) - returns node IDs
+        # Get successors (outgoing neighbors); returns node IDs
         out_neighbors = graph.neighbors(a_id, mode="out")
-        print(out_neighbors)  # [<b_id>] - node IDs, not labels
+        print(out_neighbors)  # [<b_id>]: node IDs, not labels
 
         # Get predecessors (incoming neighbors)
         in_neighbors = graph.neighbors(a_id, mode="in")
@@ -9301,7 +9285,7 @@ class Graph:
             neighbors.extend(self._graph.neighbors(node_id))
 
         if mode in ["in", "all"]:
-            # Incoming neighbors - find edges where this node is target
+            # Incoming neighbors; find edges where this node is target
             for edge_tuple in self._graph.edges():
                 # edge_tuple is (edge_id, source, target)
                 if edge_tuple[2] == node_id and edge_tuple[1] not in neighbors:
@@ -9350,7 +9334,7 @@ class Graph:
 
         c_id = graph.get_id_from_label("C")
 
-        # Find nodes with edges pointing to C - returns node IDs
+        # Find nodes with edges pointing to C; returns node IDs
         predecessors = graph.get_predecessors(c_id)
         # Convert to labels: ['A', 'B']
         labels = [graph.get_label_from_id(nid) for nid in predecessors]
@@ -9397,10 +9381,12 @@ class Graph:
 
         a_id = graph.get_id_from_label("A")
 
-        # Find nodes that A points to - returns node IDs
+        # Find nodes that A points to; returns node IDs
         successors = graph.get_successors(a_id)
+
         # Convert to labels: ['B', 'C']
         labels = [graph.get_label_from_id(nid) for nid in successors]
+
         print(labels)  # ['B', 'C']
         ```
         """
@@ -9511,10 +9497,12 @@ class Graph:
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
 
-        # Find nodes connected to both A and B - returns node IDs
+        # Find nodes connected to both A and B; returns node IDs
         common = graph.get_common_neighbors(a_id, b_id)
+
         # Convert to labels: ['C', 'D']
         common_labels = [graph.get_label_from_id(nid) for nid in common]
+
         print(common_labels)  # ['C', 'D']
         ```
 
@@ -9557,9 +9545,8 @@ class Graph:
         """
         Get neighbors with similar attribute values.
 
-        Returns neighbors whose numeric attribute values fall within a specified
-        tolerance range of the starting node's value. Useful for finding connected
-        nodes with comparable properties.
+        Returns neighbors whose numeric attribute values fall within a specified tolerance range of
+        the starting node's value. Useful for finding connected nodes with comparable properties.
 
         Parameters
         ----------
@@ -9568,19 +9555,19 @@ class Graph:
         node_attr
             Name of the numeric attribute to compare.
         tol_abs
-            Absolute tolerance as `(lower_bound, upper_bound)` from the starting
-            value. For example, `(1.0, 2.0)` means values from `start_value - 1.0`
-            to `start_value + 2.0` are considered similar.
+            Absolute tolerance as `(lower_bound, upper_bound)` from the starting value. For example,
+            `(1.0, 2.0)` means values from `start_value - 1.0` to `start_value + 2.0` are considered
+            similar.
         tol_pct
-            Percentage tolerance as `(lower_pct, upper_pct)` from the starting value.
-            For example, `(10, 20)` means values from `start_value × 0.9` to
-            `start_value × 1.2` are considered similar.
+            Percentage tolerance as `(lower_pct, upper_pct)` from the starting value. For example,
+            `(10, 20)` means values from `start_value × 0.9` to `start_value × 1.2` are considered
+            similar.
 
         Returns
         -------
         list[int]
-            List of neighbor node IDs with similar attribute values. Empty list if
-            the starting node lacks the attribute or has no neighbors in range.
+            List of neighbor node IDs with similar attribute values. Empty list if the starting node
+            lacks the attribute or has no neighbors in range.
 
         Raises
         ------
@@ -9624,9 +9611,9 @@ class Graph:
 
         Notes
         -----
-        - If neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
-        - Neighbors without the specified attribute are excluded from results.
-        - Non-numeric attribute values raise a `ValueError`.
+        - if neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
+        - neighbors without the specified attribute are excluded from results.
+        - non-numeric attribute values raise a `ValueError`.
         """
         # Get starting node's attribute value
         start_node = self.get_node(node_id)
@@ -9803,9 +9790,9 @@ class Graph:
         -----
         Applications:
 
-        - Network vulnerability analysis: Critical infrastructure nodes
-        - Social networks: Key influencers whose removal fragments communities
-        - Communication networks: Single points of failure
+        - network vulnerability analysis: Critical infrastructure nodes
+        - social networks: Key influencers whose removal fragments communities
+        - communication networks: Single points of failure
         """
         return self._graph.get_articulation_points()
 
@@ -9841,9 +9828,9 @@ class Graph:
         -----
         Characteristics:
 
-        - Opposite of center: Peripheral vs central nodes
-        - In trees: Always leaf nodes
-        - Multiple nodes can have maximum eccentricity
+        - opposite of center: peripheral vs central nodes
+        - in trees: always leaf nodes
+        - multiple nodes can have maximum eccentricity
         """
         return self._graph.get_periphery()
 
@@ -10182,9 +10169,10 @@ class Graph:
         -------
         tuple[list[list[int]], list[int], list[int | None]]
             A tuple containing:
-            - blocks: List of node sets (each as list of node IDs)
-            - cohesion: List of k-values (cohesion of each block)
-            - parent: List of parent block indices (None for root blocks)
+
+            - blocks: list of node sets (each as list of node IDs)
+            - cohesion: list of k-values (cohesion of each block)
+            - parent: list of parent block indices (None for root blocks)
 
         Examples
         --------
@@ -10200,7 +10188,7 @@ class Graph:
                 graph.add_edge(str(i), str(j))
 
         blocks, cohesions, parents = graph.find_cohesive_blocks()
-        # Returns: ([[1,2,3,4,5]], [4], [None]) - node IDs
+        # Returns: ([[1,2,3,4,5]], [4], [None])
 
         # Convert to labels if needed
         blocks_labels = [[graph.get_label_from_id(nid) for nid in block] for block in blocks]
@@ -10349,7 +10337,7 @@ class Graph:
         )
 
         counts = graph.count_triangles()
-        # Returns node IDs - B and C each participate in 2 triangles
+        # Returns node IDs: B and C each participate in 2 triangles
 
         # Convert to labels for display
         for node_id, count in counts.items():
@@ -10550,8 +10538,8 @@ class Graph:
             .add_node(label="Bob")
             .add_node(label="Carol")
             .add_edge("Alice", "Bob")   # Edge 1
-            .add_edge("Bob", "Alice")   # Edge 2 - mutual with 1
-            .add_edge("Alice", "Carol") # Edge 3 - no reciprocal
+            .add_edge("Bob", "Alice")   # Edge 2: mutual with 1
+            .add_edge("Alice", "Carol") # Edge 3: no reciprocal
         )
 
         mutual = graph.which_mutual()
@@ -10569,10 +10557,10 @@ class Graph:
             .add_node(label="Bob")
             .add_node(label="Carol")
             .add_edge(source="Alice", target="Bob")   # Edge 1
-            .add_edge(source="Bob", target="Alice")   # Edge 2 - mutual with 1
-            .add_edge(source="Alice", target="Carol") # Edge 3 - no reciprocal
+            .add_edge(source="Bob", target="Alice")   # Edge 2: mutual with 1
+            .add_edge(source="Alice", target="Carol") # Edge 3: no reciprocal
             .add_edge(source="Bob", target="Carol")   # Edge 4
-            .add_edge(source="Carol", target="Bob")   # Edge 5 - mutual with 4
+            .add_edge(source="Carol", target="Bob")   # Edge 5: mutual with 4
         )
 
         # Find bidirectional communication
@@ -10593,24 +10581,25 @@ class Graph:
         """
         Calculate reciprocity (fraction of edges with reciprocal counterpart).
 
-        Reciprocity measures the proportion of edges in a directed graph that are
-        bidirectional (mutual). Returns a value between 0.0 (no reciprocal edges)
-        and 1.0 (all edges are reciprocal).
+        Reciprocity measures the proportion of edges in a directed graph that are bidirectional
+        (mutual). Returns a value between `0.0` (no reciprocal edges) and `1.0` (all edges are
+        reciprocal).
 
-        This metric is fundamental for understanding relationship symmetry in social
-        networks, mutual influence in citation networks, and bidirectional flows in
-        transportation or communication networks.
+        This metric is fundamental for understanding relationship symmetry in social networks,
+        mutual influence in citation networks, and bidirectional flows in transportation or
+        communication networks.
 
         Parameters
         ----------
         mode
             Calculation mode for reciprocity:
-            - "default" or "ratio": (# mutual edges) / (total # edges)
+
+            - `"default"` or `"ratio"`: (# mutual edges) / (total # edges)
 
         Returns
         -------
         float
-            Reciprocity value between 0.0 and 1.0, or 0.0 for empty graphs.
+            Reciprocity value between `0.0` and `1.0`, or `0.0` for empty graphs.
 
         Raises
         ------
@@ -10697,13 +10686,12 @@ class Graph:
         """
         Find edge IDs of multiple edges (duplicate edges between same node pairs).
 
-        Returns a list of edge IDs that represent multiple/duplicate edges - edges that
-        share the same source and target nodes as another edge in the graph. This is
-        useful for detecting and cleaning multigraphs.
+        Returns a list of edge IDs that represent multiple/duplicate edges. These edges share the
+        same source and target nodes as another edge in the graph. This is useful for detecting and
+        cleaning multigraphs.
 
-        For undirected graphs, edges (u,v) and (v,u) are considered the same pair.
-        When multiple edges exist between a pair, all edge IDs (including the first)
-        are returned.
+        For undirected graphs, edges (u,v) and (v,u) are considered the same pair. When multiple
+        edges exist between a pair, all edge IDs (including the first) are returned.
 
         Returns
         -------
@@ -10792,10 +10780,10 @@ class Graph:
 
         Notes
         -----
-        - Self-loops are not considered multiple edges (use `which_loops()` instead)
-        - In undirected graphs, (u,v) and (v,u) are treated as the same pair
-        - Returns all edges involved in duplication, including the first occurrence
-        - Useful for data quality checks before analysis
+        - self-loops are not considered multiple edges (use `which_loops()` instead)
+        - in undirected graphs, (u,v) and (v,u) are treated as the same pair
+        - returns all edges involved in duplication, including the first occurrence
+        - useful for data quality checks before analysis
         """
         return self._graph.which_multiple()
 
@@ -10895,10 +10883,10 @@ class Graph:
 
         Notes
         -----
-        - Only returns pairs with 2+ edges (single edges are excluded)
-        - For undirected graphs, pairs are normalized (smaller node ID first)
-        - Self-loops are counted if there are 2+ self-loop edges for a node
-        - Useful for understanding graph complexity before simplification
+        - only returns pairs with 2+ edges (single edges are excluded)
+        - for undirected graphs, pairs are normalized (smaller node ID first)
+        - self-loops are counted if there are 2+ self-loop edges for a node
+        - useful for understanding graph complexity before simplification
         """
         return self._graph.count_multiple()
 
@@ -10906,9 +10894,9 @@ class Graph:
         """
         Find edge IDs of self-loops (edges from a node to itself).
 
-        Returns a list of edge IDs for all edges where the source node equals
-        the target node. Self-loops are common in certain network types like
-        state machines, chemical reactions, or social networks (self-mentions).
+        Returns a list of edge IDs for all edges where the source node equals the target node.
+        Self-loops are common in certain network types like state machines, chemical reactions, or
+        social networks (self-mentions).
 
         Returns
         -------
@@ -10917,7 +10905,7 @@ class Graph:
 
         Examples
         --------
-        Data Cleaning - Finding Self-References:
+        Data cleaning and finding self-references:
 
         ```python
         from edgecase import Graph
@@ -10995,10 +10983,10 @@ class Graph:
 
         Notes
         -----
-        - Works for both directed and undirected graphs
-        - A node can have multiple self-loops (use `count_loops()` to count per node)
-        - Self-loops affect certain graph metrics (degree, centrality, etc.)
-        - Common preprocessing step is to remove self-loops for cleaner analysis
+        - works for both directed and undirected graphs
+        - a node can have multiple self-loops (use `count_loops()` to count per node)
+        - self-loops affect certain graph metrics (degree, centrality, etc.)
+        - common preprocessing step is to remove self-loops for cleaner analysis
         """
         return self._graph.which_loops()
 
@@ -11090,7 +11078,7 @@ class Graph:
         # {'B': 2, 'C': 1}
         ```
 
-        **Social Network - Self-Interactions**
+        **social network: self-interactions**
 
         ```python
         social = Graph(directed=True)
@@ -11112,11 +11100,10 @@ class Graph:
 
         Notes
         -----
-        - Only returns nodes with at least one self-loop
-        - A node can have multiple self-loops (all counted)
-        - Useful for identifying unusual patterns in network data
-        - Common in multigraphs where multiple self-edges may exist
-
+        - only returns nodes with at least one self-loop
+        - a node can have multiple self-loops (all counted)
+        - useful for identifying unusual patterns in network data
+        - common in multigraphs where multiple self-edges may exist
         """
         return self._graph.count_loops()
 
@@ -11128,18 +11115,19 @@ class Graph:
         """
         Calculate degree assortativity coefficient.
 
-        Measures the tendency of nodes to connect to other nodes with similar degrees.
-        Returns the Pearson correlation coefficient of node degrees across edges,
-        quantifying whether high-degree nodes preferentially connect to other
-        high-degree nodes (assortative) or to low-degree nodes (disassortative).
+        Measures the tendency of nodes to connect to other nodes with similar degrees. Returns the
+        Pearson correlation coefficient of node degrees across edges, quantifying whether
+        high-degree nodes preferentially connect to other high-degree nodes (assortative) or to
+        low-degree nodes (disassortative).
 
-        For directed graphs, uses out-degree for source nodes and in-degree for
-        target nodes. For undirected graphs, uses total degree.
+        For directed graphs, uses out-degree for source nodes and in-degree for target nodes. For
+        undirected graphs, uses total degree.
 
         Returns
         -------
         float
             Assortativity coefficient in range [-1, 1]:
+
             - r > 0: assortative mixing (similar degrees connect)
             - r < 0: disassortative mixing (different degrees connect)
             - r ≈ 0: no degree correlation
@@ -11208,11 +11196,11 @@ class Graph:
 
         Notes
         -----
-        - Uses Newman's formula for assortativity coefficient
-        - Most real-world social networks are assortative (r > 0)
-        - Many technological/biological networks are disassortative (r < 0)
-        - Perfect assortativity (r = 1) means only equal-degree nodes connect
-        - Requires at least one edge and variance in node degrees
+        - uses Newman's formula for assortativity coefficient
+        - most real-world social networks are assortative (r > 0)
+        - many technological/biological networks are disassortative (r < 0)
+        - perfect assortativity (r = 1) means only equal-degree nodes connect
+        - requires at least one edge and variance in node degrees
 
         References
         ----------
@@ -11225,8 +11213,8 @@ class Graph:
         """
         Calculate assortativity for categorical (nominal) node attributes.
 
-        Measures the tendency of nodes with the same attribute value to connect,
-        also known as homophily. Uses Newman's formula for categorical mixing patterns.
+        Measures the tendency of nodes with the same attribute value to connect, also known as
+        homophily. Uses Newman's formula for categorical mixing patterns.
 
         Parameters
         ----------
@@ -11238,6 +11226,7 @@ class Graph:
         -------
         float
             Assortativity coefficient in range [-1, 1]:
+
             - r = 1: perfect assortativity (only same-type connections)
             - r > 0: assortative (same types prefer to connect)
             - r = 0: random mixing
@@ -11246,8 +11235,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If attribute doesn't exist on all nodes, graph has no edges,
-            or there are fewer than 2 different attribute values.
+            If attribute doesn't exist on all nodes, graph has no edges, or there are fewer than two
+            different attribute values.
 
         Examples
         --------
@@ -11329,11 +11318,11 @@ class Graph:
 
         Notes
         -----
-        - Also called "modularity by attribute" or "homophily coefficient"
-        - r = 1 means complete segregation (no cross-type edges)
-        - Common in social networks where "birds of a feather flock together"
-        - Can be used to detect and measure community structure by attribute
-        - For undirected graphs, the mixing matrix is symmetric
+        - also called "modularity by attribute" or "homophily coefficient"
+        - `r = 1` means complete segregation (no cross-type edges)
+        - common in social networks where "birds of a feather flock together"
+        - can be used to detect and measure community structure by attribute
+        - for undirected graphs, the mixing matrix is symmetric
 
         References
         ----------
@@ -11360,6 +11349,7 @@ class Graph:
         -------
         float
             Assortativity coefficient in range [-1, 1]:
+
             - r = 1: perfect positive correlation (identical values connect)
             - r > 0: assortative (similar values prefer to connect)
             - r = 0: no correlation
@@ -11451,11 +11441,11 @@ class Graph:
 
         Notes
         -----
-        - Uses Pearson correlation coefficient formula
-        - Common in social networks (homophily by age, income, education)
-        - Can reveal hierarchical structures when negative
-        - Sensitive to outliers: considers data normalization
-        - Requires variance in attribute values (all same value will error)
+        - uses Pearson correlation coefficient formula
+        - common in social networks (homophily by age, income, education)
+        - can reveal hierarchical structures when negative
+        - sensitive to outliers: considers data normalization
+        - requires variance in attribute values (all same value will error)
 
         References
         ----------
@@ -11472,17 +11462,18 @@ class Graph:
         """
         Compute eigenvalues and eigenvectors of the adjacency matrix.
 
-        Returns the spectrum (eigenvalues and eigenvectors) of the graph's
-        adjacency matrix. The spectrum reveals important structural properties
-        including connectivity, bipartiteness, and graph regularity.
+        Returns the spectrum (eigenvalues and eigenvectors) of the graph's adjacency matrix. The
+        spectrum reveals important structural properties including connectivity, bipartiteness, and
+        graph regularity.
 
         Parameters
         ----------
         which
             Which eigenvalues to compute:
-            - "all": All n eigenvalues (O(n³), recommended for n < 100)
-            - "largest": Largest k eigenvalues (default k=6)
-            - "smallest": Smallest k eigenvalues
+
+            - `"all"`: All n eigenvalues (O(n³), recommended for n < 100)
+            - `"largest"`: Largest k eigenvalues (default k=6)
+            - `"smallest"`: Smallest k eigenvalues
         k
             Number of eigenvalues to compute for "largest"/"smallest".
             Default is min(6, n-1) where n is the number of nodes.
@@ -11491,9 +11482,9 @@ class Graph:
         -------
         dict
             Dictionary with keys:
-            - "values": List of eigenvalues (sorted descending)
-            - "vectors": List of eigenvectors (each as list of floats)
-            - "spectral_gap": λ₁ - λ₂ (difference between two largest eigenvalues)
+            - `"values"`: List of eigenvalues (sorted descending)
+            - `"vectors"`: List of eigenvectors (each as list of floats)
+            - `"spectral_gap"`: λ₁ - λ₂ (difference between two largest eigenvalues)
 
         Raises
         ------
@@ -11602,15 +11593,15 @@ class Graph:
         **Spectral Properties**:
 
         - **Spectral radius**: ρ(A) = max|λᵢ|
-          - Always equals largest eigenvalue for undirected graphs
-          - Bounded by max degree: ρ(A) ≤ Δ(G)
-          - For regular graphs: ρ(A) = degree
+          - always equals largest eigenvalue for undirected graphs
+          - bounded by max degree: ρ(A) ≤ Δ(G)
+          - for regular graphs: ρ(A) = degree
 
         - **Spectral gap**: λ₁ - λ₂
-          - Measures connectivity and expansion
-          - Large gap → well-connected graph
-          - Small gap → bottlenecks or clusters
-          - Zero gap → disconnected graph
+          - measures connectivity and expansion
+          - large gap → well-connected graph
+          - small gap → bottlenecks or clusters
+          - zero gap → disconnected graph
 
         - **Trace**: Σλᵢ = 0 (sum of eigenvalues equals zero for undirected)
 
@@ -11618,10 +11609,10 @@ class Graph:
 
         **Special Graph Spectra**:
 
-        - Complete graph K_n: {n-1, -1, -1, ..., -1}
-        - Cycle C_n: {2cos(2πk/n) | k=0,...,n-1}
-        - Path P_n: {2cos(πk/(n+1)) | k=1,...,n}
-        - Star S_n: {√(n-1), 0, ..., 0, -√(n-1)}
+        - complete graph K_n: {n-1, -1, -1, ..., -1}
+        - cycle C_n: {2cos(2πk/n) | k=0,...,n-1}
+        - path P_n: {2cos(πk/(n+1)) | k=1,...,n}
+        - star S_n: {√(n-1), 0, ..., 0, -√(n-1)}
 
         **Computational Complexity**:
 
@@ -11631,11 +11622,11 @@ class Graph:
 
         **Use Cases**:
 
-        - Spectral clustering: Community detection via eigenvectors
-        - Graph embedding: Represent nodes using eigenvector coordinates
-        - Bipartite detection: Check if spectrum is symmetric about 0
-        - Random walk analysis: Eigenvalues determine mixing time
-        - Graph comparison: Compare spectral distributions
+        - spectral clustering: community detection via eigenvectors
+        - graph embedding: represent nodes using eigenvector coordinates
+        - bipartite detection: check if spectrum is symmetric about 0
+        - random walk analysis: eigenvalues determine mixing time
+        - graph comparison: compare spectral distributions
 
         References
         ----------
@@ -11656,14 +11647,14 @@ class Graph:
         """
         Compute eigenvalues and eigenvectors of the graph Laplacian.
 
-        Returns the spectrum of the Laplacian matrix L = D - A (or normalized
-        variant). The Laplacian spectrum provides insights into graph connectivity,
-        cuts, and diffusion processes.
+        Returns the spectrum of the Laplacian matrix L = D - A (or normalized variant). The
+        Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
 
         Parameters
         ----------
         which
             Which eigenvalues to compute:
+
             - "all": All n eigenvalues (O(n³), recommended for n < 100)
             - "smallest": Smallest k eigenvalues (default k=6)
             - "largest": Largest k eigenvalues
@@ -11678,6 +11669,7 @@ class Graph:
         -------
         dict
             Dictionary with keys:
+
             - "values": List of eigenvalues (sorted ascending)
             - "vectors": List of eigenvectors (each as list of floats)
             - "algebraic_connectivity": λ₂ (second-smallest eigenvalue,
@@ -11816,13 +11808,13 @@ class Graph:
         - **Algebraic connectivity** (λ₂, Fiedler value):
           - λ₂ > 0 ⟺ graph is connected
           - λ₂ = 0 ⟺ disconnected
-          - Measures robustness to edge removal
-          - Lower bound on edge/node connectivity
+          - measures robustness to edge removal
+          - lower bound on edge/node connectivity
 
         - **Fiedler vector**: Eigenvector for λ₂
-          - Sign pattern reveals natural graph partition
-          - Used in spectral bisection algorithms
-          - Minimizes cut weight among all bisections
+          - sign pattern reveals natural graph partition
+          - used in spectral bisection algorithms
+          - minimizes cut weight among all bisections
 
         **Normalized vs Unnormalized**:
 
@@ -11851,12 +11843,12 @@ class Graph:
 
         **Use Cases**:
 
-        - Spectral clustering: Use Fiedler vector for graph partitioning
-        - Community detection: k-way clustering using k eigenvectors
-        - Graph cuts: Min-cut via spectral relaxation
-        - Synchronization: Analyze coupled oscillators on networks
-        - Diffusion processes: Heat kernel and random walks
-        - Network robustness: Algebraic connectivity as connectivity measure
+        - spectral clustering: use Fiedler vector for graph partitioning
+        - community detection: k-way clustering using k eigenvectors
+        - graph cuts: min-cut via spectral relaxation
+        - synchronization: analyze coupled oscillators on networks
+        - diffusion processes: heat kernel and random walks
+        - network robustness: algebraic connectivity as connectivity measure
 
         References
         ----------
@@ -12145,10 +12137,10 @@ class Graph:
 
         Algorithm
         ---------
-        - Uses DFS with backtracking
-        - Time complexity: O(n!) worst case (exponential in path length)
-        - Space complexity: O(n) for recursion stack
-        - Best for: Finding alternative routes, analyzing network redundancy, path enumeration
+        - uses DFS with backtracking
+        - time complexity: O(n!) worst case (exponential in path length)
+        - space complexity: O(n) for recursion stack
+        - best for: Finding alternative routes, analyzing network redundancy, path enumeration
 
         Examples
         --------
@@ -12235,10 +12227,10 @@ class Graph:
 
         Notes
         -----
-        - For large graphs or long paths, the number of simple paths can be exponential
-        - Use the `cutoff` parameter to limit search depth and prevent excessive computation
-        - For weighted graphs needing k-shortest paths, consider implementing Yen's algorithm
-        - This method returns ALL paths, which can be memory-intensive for dense graphs
+        - for large graphs or long paths, the number of simple paths can be exponential
+        - use the `cutoff` parameter to limit search depth and prevent excessive computation
+        - for weighted graphs needing k-shortest paths, consider implementing Yen's algorithm
+        - this method returns ALL paths, which can be memory-intensive for dense graphs
         """
         # Resolve node labels to internal IDs
         source_label = self.get_label_from_id(self._resolve_node_id(source, auto_create=False))
@@ -12274,9 +12266,9 @@ class Graph:
 
         Algorithm
         ---------
-        - Time complexity: O(n) where n is the length of the node sequence
-        - Space complexity: O(n) for tracking visited nodes
-        - Checks performed: node existence, edge connectivity, no repetitions
+        - time complexity: O(n) where n is the length of the node sequence
+        - space complexity: O(n) for tracking visited nodes
+        - checks performed: node existence, edge connectivity, no repetitions
 
         Examples
         --------
@@ -12376,10 +12368,10 @@ class Graph:
 
         Notes
         -----
-        - This method is much faster than calling `get_all_simple_paths()` and checking membership
-        - For directed graphs, edges must exist in the specified direction
-        - Empty path and single-node paths are considered valid simple paths
-        - Compatible with both integer node IDs and string labels
+        - this method is much faster than calling `get_all_simple_paths()` and checking membership
+        - for directed graphs, edges must exist in the specified direction
+        - empty path and single-node paths are considered valid simple paths
+        - compatible with both integer node IDs and string labels
         """
         # Convert node IDs to labels for Rust
         node_labels = []
@@ -12411,15 +12403,15 @@ class Graph:
         """
         Perform a random walk on the graph.
 
-        Takes a random walk starting from a given node, choosing neighbors
-        uniformly at random at each step. Can return the visit order as a list
-        of node IDs, or store the position of each node in the walk as a node
-        attribute for visualization.
+        Takes a random walk starting from a given node, choosing neighbors uniformly at random at
+        each step. Can return the visit order as a list of node IDs, or store the position of each
+        node in the walk as a node attribute for visualization.
 
         The walk follows edges according to the `mode` parameter:
-        - "out": Follow outgoing edges (default for directed graphs)
-        - "in": Follow incoming edges (reverse direction)
-        - "all": Ignore edge directions (treat as undirected)
+
+        - `"out"`: follow outgoing edges (default for directed graphs)
+        - `"in"`: follow incoming edges (reverse direction)
+        - `"all"`: ignore edge directions (treat as undirected)
 
         If the walk reaches a node with no valid neighbors (gets "stuck"),
         behavior is controlled by the `stuck` parameter.
@@ -12434,13 +12426,15 @@ class Graph:
             Number of steps to take in the walk.
         mode
             Direction to follow edges:
-            - "out": Follow outgoing edges
-            - "in": Follow incoming edges
-            - "all": Ignore edge direction
+
+            - `"out"`: Follow outgoing edges
+            - `"in"`: Follow incoming edges
+            - `"all"`: Ignore edge direction
         stuck
             What to do if the walk gets stuck:
-            - "return": Return the partial walk
-            - "error": Raise an error
+
+            - `"return"`: Return the partial walk
+            - `"error"`: Raise an error
         seed
             Random seed for reproducibility. If None, uses system entropy.
         attr_name
@@ -12551,6 +12545,7 @@ class Graph:
         Notes
         -----
         Random walks are fundamental to many graph algorithms:
+
         - PageRank and personalized PageRank
         - Node2Vec and DeepWalk embeddings
         - Community detection (Walktrap)
@@ -12612,11 +12607,13 @@ class Graph:
             Number of steps to take in the walk.
         mode
             Direction to follow edges:
+
             - "out": Follow outgoing edges
             - "in": Follow incoming edges
             - "all": Ignore edge direction
         stuck
             What to do if the walk gets stuck:
+
             - "return": Return the partial walk
             - "error": Raise an error
         seed
@@ -12734,11 +12731,11 @@ class Graph:
         -----
         This is useful for:
 
-        - Analyzing edge importance via usage frequency
-        - Edge-centric graph algorithms
-        - Transition probability estimation
-        - Graph sketching and sampling
-        - Visualizing edge usage patterns
+        - analyzing edge importance via usage frequency
+        - edge-centric graph algorithms
+        - transition probability estimation
+        - graph sketching and sampling
+        - visualizing edge usage patterns
 
         The dual-behavior pattern enables:
 
@@ -12865,7 +12862,7 @@ class Graph:
         try:
             order = graph.get_topological_sort_order()
         except ValueError as e:
-            print(f"Error: {e}")  # "Graph contains a cycle - not a DAG"
+            print(f"Error: {e}")  # "Graph contains a cycle and not a DAG"
         ```
 
         Multiple valid orderings:
@@ -12890,24 +12887,24 @@ class Graph:
         -----
         Common use cases:
 
-        - Build systems and dependency resolution
-        - Task scheduling with prerequisites
-        - Package installation order
+        - build systems and dependency resolution
+        - task scheduling with prerequisites
+        - package installation order
         - Makefile execution order
-        - Database migration ordering
-        - Course curriculum planning
+        - database migration ordering
+        - course curriculum planning
 
         Implementation details:
 
-        - Uses Kahn's algorithm (BFS-based approach)
-        - Maintains in-degree count for each node
-        - Processes nodes with in-degree 0 first
-        - Detects cycles by checking if all nodes are processed
+        - uses Kahn's algorithm (BFS-based approach)
+        - maintains in-degree count for each node
+        - processes nodes with in-degree 0 first
+        - detects cycles by checking if all nodes are processed
 
         Alternative algorithms:
 
         - DFS-based topological sort (reverse post-order)
-        - Both have O(V + E) complexity
+        - both have O(V + E) complexity
         """
         return self._graph.get_topological_sort_order()
 
@@ -13022,16 +13019,17 @@ class Graph:
         Notes
         -----
         **Walk vs. Path**:
-        - A **walk** can repeat nodes and edges (counted by this method)
-        - A **path** cannot repeat nodes (use shortest path algorithms)
-        - A **trail** cannot repeat edges but can repeat nodes
+
+        - a *walk* can repeat nodes and edges (counted by this method)
+        - a *path* cannot repeat nodes (use shortest path algorithms)
+        - a *trail* cannot repeat edges but can repeat nodes
 
         **Walk length 0**:
-        Returns the identity matrix - each node has exactly 1 "walk" to itself
+        Returns the identity matrix where each node has exactly 1 "walk" to itself
         (staying in place) and 0 walks to other nodes.
 
         **Walk length 1**:
-        Returns the adjacency matrix - counts direct edges. For multigraphs,
+        Returns the adjacency matrix where counts direct edges. For multigraphs,
         this counts multiple edges between the same node pair.
 
         **Growth of walk counts**:
@@ -13040,6 +13038,7 @@ class Graph:
         the number of walks grows exponentially with walk_length.
 
         **Applications**:
+
         - **Network reachability**: Measure connectivity strength beyond
           shortest paths
         - **Information diffusion**: Model how information can spread through
@@ -13075,15 +13074,15 @@ class Graph:
         """
         Count all trails (walks with distinct edges) from source to target.
 
-        A **trail** is a walk where all edges are distinct, but nodes may repeat.
-        This is different from:
+        A *trail* is a walk where all edges are distinct, but nodes may repeat. This is different
+        from:
 
-        - **Path**: no repeated nodes or edges (most restrictive)
-        - **Trail**: no repeated edges, but nodes may repeat
-        - **Walk**: nodes and edges may repeat freely (least restrictive)
+        - *path*: no repeated nodes or edges (most restrictive)
+        - *trail*: no repeated edges, but nodes may repeat
+        - *walk*: nodes and edges may repeat freely (least restrictive)
 
-        Uses iterative depth-first search with edge tracking. Can grow exponentially
-        for dense graphs, so use `max_trails` parameter to limit computation.
+        Uses iterative depth-first search with edge tracking. Can grow exponentially for dense
+        graphs, so use `max_trails` parameter to limit computation.
 
         Parameters
         ----------
@@ -13817,6 +13816,7 @@ class Graph:
         -------
         dict[int, float]
             Mapping from edge ID (integer) to clustering coefficient.
+
             - With normalize=True: range [0, 1+] (can exceed 1 with offset)
             - With normalize=False: raw cycle count
 
@@ -13890,6 +13890,7 @@ class Graph:
         Notes
         -----
         Complexity:
+
         - k=3: O(|V| d log d + |E| d) where d is max degree
         - k=4: O(|V| d log d + |E| d²)
 
@@ -13930,7 +13931,7 @@ class Graph:
         Compare clustering in different graph types:
 
         ```python
-        # Triangle graph - highly clustered
+        # Triangle graph: highly clustered
         triangle = (
             Graph()
             .add_node(label="A")
@@ -13943,7 +13944,7 @@ class Graph:
         print(f"Triangle: {triangle.get_avg_clustering_coefficient():.2f}")
         # Triangle: 1.00
 
-        # Star graph - not clustered
+        # Star graph: not clustered
         star = (
             Graph()
             .add_node(label="center")
@@ -14303,6 +14304,7 @@ class Graph:
         Notes
         -----
         Algorithm steps:
+
         1. Start with all nodes in one community
         2. Compute modularity matrix: B_ij = A_ij - (k_i × k_j) / 2m
         3. Find leading eigenvector using power iteration
@@ -14446,6 +14448,7 @@ class Graph:
         Notes
         -----
         Algorithm steps:
+
         1. Phase 1 (Local optimization): Each node tries joining neighboring
            communities to maximize modularity gain ΔQ
         2. Phase 2 (Aggregation): Communities are coarsened into super-nodes,
@@ -14453,6 +14456,7 @@ class Graph:
         3. Repeat until modularity converges (no further improvement)
 
         The resolution parameter tunes community size:
+
         - resolution < 1.0: Larger communities
         - resolution = 1.0: Standard modularity optimization
         - resolution > 1.0: Smaller communities
@@ -14496,10 +14500,9 @@ class Graph:
         """
         Detect communities using Walktrap random walk algorithm.
 
-        The Walktrap algorithm exploits the property that random walks tend to stay
-        trapped within densely connected communities. It computes distances between
-        nodes based on random walk probabilities, then uses hierarchical clustering
-        to identify community structure.
+        The Walktrap algorithm exploits the property that random walks tend to stay trapped within
+        densely connected communities. It computes distances between nodes based on random walk
+        probabilities, then uses hierarchical clustering to identify community structure.
 
         Works only with undirected graphs. Time complexity is O(n²log n) for typical
         networks with small step parameter.
@@ -14509,6 +14512,7 @@ class Graph:
         steps
             Number of random walk steps. Higher values capture longer-range
             structural patterns. Typical values: 2-8.
+
             - steps=2: Local structure only
             - steps=4: Good balance (default, recommended)
             - steps=6+: Longer-range patterns, more computation
@@ -14597,6 +14601,7 @@ class Graph:
         Notes
         -----
         Algorithm steps:
+
         1. Compute transition probability matrix P (P[i][j] = 1/deg(i) if edge exists)
         2. Compute t-step transition probabilities P^t by matrix exponentiation
         3. Calculate random walk distance between each pair of nodes:
@@ -14605,6 +14610,7 @@ class Graph:
         5. Cut the dendrogram at the level that maximizes modularity
 
         The step parameter controls the scale of community detection:
+
         - Lower steps (2-3): Detect finer, more local communities
         - Higher steps (5-8): Detect coarser, more global communities
 
@@ -14615,6 +14621,7 @@ class Graph:
         currently not supported.
 
         Performance:
+
         - Small graphs (<1000 nodes): <1 second
         - Medium graphs (1000-5000 nodes): 1-30 seconds
         - Large graphs (>5000 nodes): May be slow, consider Louvain instead
@@ -14716,12 +14723,6 @@ class Graph:
         Computationally expensive for large graphs (O(V²E / num_cores) complexity).
         Consider alternative centrality measures (degree, PageRank) for graphs
         with >1000 nodes unless high accuracy is required.
-
-        Performance benchmarks (Apple M1, 8 cores):
-
-        - 50 nodes: ~2ms (23K nodes/sec)
-        - 200 nodes: ~120ms (1.6K nodes/sec)
-        - 500 nodes: ~1.8s (273 nodes/sec)
         """
         vitality = self._graph.get_closeness_vitality()
 
@@ -14813,18 +14814,18 @@ class Graph:
         """
         Calculate betweenness centrality scores for all nodes.
 
-        Betweenness centrality measures how often a node appears on the shortest paths
-        between other nodes in the graph. Nodes with high betweenness act as bridges or
-        bottlenecks, controlling the flow of information or resources through the network.
+        Betweenness centrality measures how often a node appears on the shortest paths between other
+        nodes in the graph. Nodes with high betweenness act as bridges or bottlenecks, controlling
+        the flow of information or resources through the network.
 
         This metric is particularly useful for:
 
-        - Identifying key connectors in social networks
-        - Finding critical infrastructure nodes in transportation/communication networks
-        - Detecting potential bottlenecks or points of failure
+        - identifying key connectors in social networks
+        - finding critical infrastructure nodes in transportation/communication networks
+        - detecting potential bottlenecks or points of failure
 
-        The algorithm computes shortest paths between all pairs of nodes and counts how
-        many times each node appears on these paths.
+        The algorithm computes shortest paths between all pairs of nodes and counts how many times
+        each node appears on these paths.
 
         Parameters
         ----------
@@ -14863,7 +14864,7 @@ class Graph:
 
         scores = graph.betweenness_centrality(return_dict=True)
         bridge_id = graph.get_id_from_label("Bridge")
-        print(scores[bridge_id])  # High score - bridges two clusters
+        print(scores[bridge_id])  # High score: bridges two clusters
 
         # Convert to labels if needed
         label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
@@ -15352,10 +15353,10 @@ class Graph:
         where A is the adjacency matrix, α is a scaling parameter (set automatically),
         β controls the nature of relations, and 1 is a vector of ones.
 
-        β > 0: Cooperative relations - being connected to powerful nodes makes you powerful
+        β > 0: Cooperative relations: being connected to powerful nodes makes you powerful
                (e.g., collaboration networks, social influence, information diffusion)
 
-        β < 0: Competitive relations - being connected to weak nodes makes you powerful
+        β < 0: Competitive relations: being connected to weak nodes makes you powerful
                (e.g., exchange networks, competitive markets, bargaining power)
 
         β = 1/λ_max: Equivalent to eigenvector centrality
@@ -15367,6 +15368,7 @@ class Graph:
         ----------
         beta
             The decay/attenuation parameter. Controls the nature and reach of influence:
+
             - β > 0: Cooperative (powerful neighbors → more power)
             - β < 0: Competitive (weak neighbors → more power)
             - Must satisfy |β| < 1/λ_max to avoid singularity
@@ -15374,6 +15376,7 @@ class Graph:
             - β = 0: Reduces to simple degree centrality
         normalized
             Normalization method:
+
             - False: L2 normalization where sum(c^2) = n, making c=1 the "middle" value
                      (Bonacich 1987 original formulation)
             - True: Sum normalization where sum(c) = 1 (probability distribution)
@@ -15390,6 +15393,7 @@ class Graph:
             If return_dict is True: dictionary mapping node IDs to centrality scores.
             If return_dict is False: returns self for method chaining.
             Interpretation depends on β:
+
             - β > 0: Higher scores = more powerful due to powerful neighbors
             - β < 0: Higher scores = more powerful due to weak neighbors
 
@@ -15401,7 +15405,7 @@ class Graph:
 
         Examples
         --------
-        Cooperative network (β > 0) - star graph:
+        Cooperative network (β > 0) star graph:
 
         ```python
         import edgecase as ec
@@ -15423,7 +15427,7 @@ class Graph:
         # center will have highest centrality (connected to many)
         ```
 
-        Competitive network (β < 0) - exchange network:
+        Competitive network (β < 0) exchange network:
 
         ```python
         import edgecase as ec
@@ -15441,7 +15445,7 @@ class Graph:
 
         # Negative beta: weak neighbors increase your power
         power = g.bonacich_power_centrality(return_dict=True, beta=-0.2)
-        # End nodes (A, D) have higher power - fewer alternatives
+        # End nodes (A, D) have higher power, so, fewer alternatives
         ```
 
         Compare with eigenvector centrality:
@@ -15529,15 +15533,14 @@ class Graph:
         """
         Get Katz centrality for each node.
 
-        Katz centrality measures node influence based on the number of walks of
-        all lengths reaching the node, with walks weighted by α^length:
+        Katz centrality measures node influence based on the number of walks of all lengths reaching
+        the node, with walks weighted by α^length:
 
         x = α · Aᵀ · x + β
 
-        where α is the attenuation factor, Aᵀ is the transpose of the adjacency
-        matrix, and β is a bias vector (constant for all nodes). For directed
-        graphs, this counts incoming paths, making it suitable for measuring
-        "prestige" or "influence received".
+        where α is the attenuation factor, Aᵀ is the transpose of the adjacency matrix, and β is a
+        bias vector (constant for all nodes). For directed graphs, this counts incoming paths,
+        making it suitable for measuring "prestige" or "influence received".
 
         Key differences from other centralities:
 
@@ -15618,11 +15621,11 @@ class Graph:
 
         Notes
         -----
-        - For undirected graphs, Aᵀ = A, so behavior is similar to alpha centrality
-        - For directed graphs, high Katz = many incoming paths (prestige/authority)
-        - Alpha should be < 1/λ_max to ensure convergence (typically α < 0.2)
-        - Beta = 1.0 treats all nodes equally; adjust to bias certain nodes
-        - Normalizes final scores to sum to 1.0 for interpretability
+        - for undirected graphs, Aᵀ = A, so behavior is similar to alpha centrality
+        - for directed graphs, high Katz = many incoming paths (prestige/authority)
+        - alpha should be < 1/λ_max to ensure convergence (typically α < 0.2)
+        - beta = 1.0 treats all nodes equally; adjust to bias certain nodes
+        - normalizes final scores to sum to 1.0 for interpretability
 
         References
         ----------
@@ -15668,6 +15671,7 @@ class Graph:
         where k_v is the degree of node v, and k_n is the degree of each neighbor n.
 
         Interpretation:
+
         - Positive values: Node has more connections than its neighbors (influential)
         - Negative values: Node has fewer connections than its neighbors (peripheral)
         - Zero: Node has similar connectivity to its neighbors
@@ -15762,22 +15766,22 @@ class Graph:
         """
         Get DomiRank centrality for each node.
 
-        DomiRank centrality quantifies node dominance in their neighborhoods.
-        The competition parameter sigma (or alpha) provides a tunable trade-off
-        between local and global topological information:
+        DomiRank centrality quantifies node dominance in their neighborhoods. The competition
+        parameter sigma (or alpha) provides a tunable trade-off between local and global topological
+        information:
 
         d𝚪ᵢ(t)/dt = σ(dᵢ - Σⱼ Aᵢⱼ 𝚪ⱼ(t)) - 𝚪ᵢ(t)
 
         Where:
+
         - 𝚪ᵢ is the dominance score for node i
         - σ is the competition parameter
         - dᵢ is the degree of node i
         - A is the adjacency matrix
 
-        Unlike eigenvector-type centralities (where being connected to important
-        nodes makes you important), DomiRank identifies nodes that dominate their
-        local structure. Being close to a dominant node can suppress your own
-        dominance in high-competition contexts.
+        Unlike eigenvector-type centralities (where being connected to important nodes makes you
+        important), DomiRank identifies nodes that dominate their local structure. Being close to a
+        dominant node can suppress your own dominance in high-competition contexts.
 
         For σ → 0: Converges to degree centrality (only local information)
         For large σ: Identifies globally dominant nodes
@@ -15876,16 +15880,17 @@ class Graph:
 
         Notes
         -----
-        - Computational complexity: O(E × iterations) where E is edges
-        - Suitable for large graphs (tested on millions of nodes)
-        - Works for directed, undirected, weighted, and unweighted graphs
-        - Negative values indicate submissive nodes that yield to neighbors
-        - Joint dominance: Multiple nodes can co-dominate a neighborhood
+        - computational complexity: O(E × iterations) where E is edges
+        - suitable for large graphs (tested on millions of nodes)
+        - works for directed, undirected, weighted, and unweighted graphs
+        - negative values indicate submissive nodes that yield to neighbors
+        - joint dominance: Multiple nodes can co-dominate a neighborhood
 
         Algorithm notes:
-        - Uses Newton iteration with adaptive convergence detection
-        - Automatically finds optimal sigma via smallest eigenvalue
-        - Detects divergence via monotonic increase in updates
+
+        - uses Newton iteration with adaptive convergence detection
+        - automatically finds optimal sigma via smallest eigenvalue
+        - detects divergence via monotonic increase in updates
 
         References
         ----------
@@ -16010,10 +16015,10 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(E log E) for sorting edges
-        - Space complexity: O(V) for union-find structure
-        - For disconnected graphs, finds a minimum spanning forest
-        - If graph has < 2 nodes, returns empty graph or list
+        - time complexity: O(E log E) for sorting edges
+        - space complexity: O(V) for union-find structure
+        - for disconnected graphs, finds a minimum spanning forest
+        - if graph has < 2 nodes, returns empty graph or list
 
         References
         ----------
@@ -16106,9 +16111,9 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(E log E) for sorting edges
-        - Space complexity: O(V) for union-find structure
-        - Useful for finding most important connections in a network
+        - time complexity: O(E log E) for sorting edges
+        - space complexity: O(V) for union-find structure
+        - useful for finding most important connections in a network
         """
         edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
 
@@ -16177,22 +16182,23 @@ class AdaStar:
     Anytime Dynamic A* (ADA*) path planner.
 
     An advanced pathfinding algorithm that combines:
-    - **Anytime property**: Returns suboptimal paths quickly, iteratively improves
-    - **Dynamic property**: Efficiently handles graph changes, reuses computation
 
-    This is a stateful search algorithm that maintains its state between calls,
-    allowing it to:
-    1. Find an initial path quickly with high epsilon (suboptimal but fast)
-    2. Iteratively improve the path by lowering epsilon
-    3. Handle dynamic edge weight changes efficiently
+    - **Anytime property**: returns suboptimal paths quickly, iteratively improves
+    - **Dynamic property**: efficiently handles graph changes, reuses computation
+
+    This is a stateful search algorithm that maintains its state between calls, allowing it to:
+
+    1. find an initial path quickly with high epsilon (suboptimal but fast)
+    2. iteratively improve the path by lowering epsilon
+    3. handle dynamic edge weight changes efficiently
 
     The algorithm is based on the ARA* (Anytime Repairing A*) and D* Lite algorithms.
 
     Parameters
     ----------
     graph
-        The graph to search. Must remain unchanged between calls unless
-        explicitly updated via `update_graph()`.
+        The graph to search. Must remain unchanged between calls unless explicitly updated via
+        `update_graph()`.
     source
         Label of the source node.
     target
@@ -16200,13 +16206,12 @@ class AdaStar:
     weight
         Name of the edge attribute to use as weight (default: "weight").
     initial_epsilon
-        Initial epsilon value for suboptimality bound (default: 1000.0).
-        Lower values give better paths but take longer.
-        epsilon = 1.0 is optimal (equivalent to A*).
+        Initial epsilon value for suboptimality bound (default: 1000.0). Lower values give better
+        paths but take longer. Using `epsilon = 1.0` is optimal (equivalent to A*).
     heuristic
-        Heuristic function h(u, v) that estimates distance from u to v.
-        Should be admissible (never overestimate). If None, uses h=0 (Dijkstra).
-        Function should accept two node IDs (integers) and return float.
+        Heuristic function h(u, v) that estimates distance from u to v. Should be admissible (never
+        overestimate). If None, uses h=0 (Dijkstra). Function should accept two node IDs (integers)
+        and return float.
 
     Attributes
     ----------
@@ -16326,11 +16331,11 @@ class AdaStar:
 
     Notes
     -----
-    - The heuristic function receives internal node IDs (integers), not labels
-    - For epsilon > 1.0, the path cost is guaranteed to be at most epsilon times optimal
-    - Lower epsilon values require more computation but give better paths
-    - The `update_graph()` method efficiently reuses previous computation
-    - Graph must not be modified between calls except via `update_graph()`
+    - the heuristic function receives internal node IDs (integers), not labels
+    - for epsilon > 1.0, the path cost is guaranteed to be at most epsilon times optimal
+    - lower epsilon values require more computation but give better paths
+    - the `update_graph()` method efficiently reuses previous computation
+    - graph must not be modified between calls except via `update_graph()`
 
     References
     ----------
@@ -16382,7 +16387,7 @@ class AdaStar:
         self.source = source
         self.target = target
 
-        # Get internal node IDs - handle both IDs and labels
+        # Get internal node IDs and handle both ID and label inputs
         self.source_id = graph._resolve_node_id(source)
         self.target_id = graph._resolve_node_id(target)
 
@@ -16410,7 +16415,8 @@ class AdaStar:
         Parameters
         ----------
         epsilon
-            Suboptimality bound (default: 1.0).
+            Suboptimality bound (default: `1.0`).
+
             - epsilon = 1.0: optimal path (A*)
             - epsilon > 1.0: path cost ≤ epsilon × optimal cost
             Higher epsilon = faster but less optimal
