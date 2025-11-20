@@ -1,6 +1,6 @@
 # EdgeCase
 
-EdgeCase is a Python library for working with graphs and networks. It provides a comprehensive set of tools for graph creation, analysis, and visualization, with a focus on performance and ease of use.
+EdgeCase is a Python library for working with graphs and networks. It provides a comprehensive set of tools for graph creation, analysis, and visualization, with a strong emphasis on delivering an exceptional visualization experience. Built for performance and ease of use, EdgeCase makes complex network analysis accessible through intuitive, interactive visualizations.
 
 ## Features
 
@@ -46,11 +46,15 @@ EdgeCase offers a wide range of graph operations and algorithms:
 - Degree distributions
 - Transitivity and density
 
-**Visualization**
+**Visualization & Presentation**
 
-- Interactive graph widgets for Jupyter notebooks
-- Customizable node and edge styling
-- Support for large graphs
+- **Interactive graph widgets** for Jupyter notebooks with rich interactivity
+- **Customizable node and edge styling** with intuitive attribute mapping
+- **Seamless integration** with analysis workflows through method chaining
+- **Automatic color mapping** from graph attributes (categorical and continuous scales)
+- **Dynamic sizing** based on centrality measures or custom attributes
+- **Efficient rendering** for large graphs with thousands of nodes
+- **Export-ready visualizations** for reports and presentations
 
 ## Quick Start
 
@@ -75,24 +79,96 @@ edges_df = pl.DataFrame({
 # Create graph from DataFrames
 graph = Graph(nodes_df=nodes_df, edges_df=edges_df, directed=False, weighted=True)
 
-# Analyze the graph
-paths = graph.get_all_simple_paths("Alice", "Charlie")
-centrality = graph.get_betweenness_centrality()
-communities = graph.detect_communities(method="louvain")
+# Calculate centrality and automatically store as node attributes (returns self for chaining)
+graph.get_eigen_centrality(attr_name="centrality").show()
 
-# Visualize (in Jupyter)
-graph.show()
+# Or capture values while storing
+centrality = graph.get_eigen_centrality()  # Returns dict
+graph.set_node_attrs("centrality", centrality)
+
+# Find paths
+paths = graph.get_all_simple_paths("Alice", "Charlie")
 ```
+
+### Streamlined Community Detection Visualization
+
+EdgeCase is great at combining powerful analysis with beautiful, intuitive visualizations. Here's how simple it is to go from raw data to publication-ready network visualization:
+
+```python
+import edgecase as ec
+
+# Streamlined community detection visualization workflow:
+# 1. Load Zachary's Karate Club, a classic social network dataset
+# 2. Detect communities using Louvain algorithm -> store as attribute
+# 3. Calculate eigenvector centrality -> store as attribute
+# 4. Scale nodes by the eigenvector centrality values
+# 5. Color nodes by community (categorical palette)
+karate_graph = (
+    ec.karate_club()
+    .cmty_louvain()
+    .eigen_centrality()
+    .rescale_node_attrs(
+        node_attr_from="eigen_centrality",
+        node_attr_to="size",
+        range=[0.6, 1.4],
+    )
+    .colorize_node_attrs(
+        node_attr_from="cmty_louvain",
+        node_attr_to="fillcolor",
+        palette="Set3",  # ColorBrewer qualitative palette for categories
+    )
+)
+```
+
+With `.show()` you get an interactive visualization where:
+
+- **node colors** show community membership (categorical - each community gets a distinct color)
+- **node sizes** reflect eigenvector centrality (influence within the network)
+- **all metrics** are automatically stored as node attributes for inspection
+
+```python
+karate_graph.show()
+```
+
+And if you print the object itself, you get useful information on the graph and its attributes:
+
+```python
+karate_graph
+```
+
+```
+Name of Graph                  : Zachary's Karate Club
+Number of nodes                : 34
+Number of edges                : 78
+Directed                       : False
+Density                        : 0.14
+Average degree (min, max)      : 4.59 (1, 17)
+Connected                      : True
+Number of connected components : 1
+Tree                           : False
+Bipartite                      : False
+
+Computations on nodes:
+  - cmty_louvain() -> attr: 'cmty_louvain' (34 of 34 nodes)
+  - eigen_centrality() -> attr: 'eigen_centrality' (34 of 34 nodes)
+
+Node aesthetics:
+  - size <- eigen_centrality via rescale (range: [0.6, 1.4]) (27 unique values, 34 of 34 nodes)
+  - fillcolor <- cmty_louvain via colorize (palette: "Set3") (7 unique values, 34 of 34 nodes)
+
+```
+
+The fluent API design means you can build complex visual analytics pipelines with minimal code, making it easy to explore your data and communicate insights effectively.
 
 ## Integration with Polars
 
-EdgeCase is designed to work seamlessly with Polars DataFrames:
+EdgeCase is designed to work seamlessly with Polars DataFrames. Use a pair of them to define the nodes (NDF) and the edges (EDF) of a graph:
 
 ```python
 import polars as pl
 from edgecase import Graph
 
-# Node DataFrame with attributes
+# Node DataFrame (NDF) with attributes
 nodes_df = pl.DataFrame({
     "id": [1, 2, 3],
     "label": ["Alice", "Bob", "Charlie"],
@@ -100,7 +176,7 @@ nodes_df = pl.DataFrame({
     "active": [True, True, False]
 })
 
-# Edge DataFrame with relationships
+# Edge DataFrame (EDF) with relationships
 edges_df = pl.DataFrame({
     "from": [1, 2],
     "to": [2, 3],
@@ -110,9 +186,16 @@ edges_df = pl.DataFrame({
 
 # Create graph directly from DataFrames
 graph = Graph(nodes_df=nodes_df, edges_df=edges_df, directed=True, weighted=True)
+```
 
+```python
+# Visualize your network with a single method call
 graph.show()
 ```
+
+![EdgeCase Visualization](edgecase-show.png)
+
+The visualization system automatically handles layout, rendering, and interactivity, allowing you to focus on understanding your network structure and relationships.
 
 ## Documentation
 
