@@ -6343,7 +6343,7 @@ class Graph:
         df = pl.DataFrame(data)
         return df.sort("id")
 
-    def mutate_node_attrs_ws(self, attr: str, func: Callable) -> "Graph":
+    def mutate_node_attrs_ws(self, node_attr: str, func: Callable) -> "Graph":
         """
         Transform a node attribute using a function on selected nodes.
 
@@ -6353,7 +6353,7 @@ class Graph:
 
         Parameters
         ----------
-        attr
+        node_attr
             Name of the attribute to transform.
         func
             Transformation function that takes the current attribute value and
@@ -6416,15 +6416,15 @@ class Graph:
 
         for node_id in selected:
             node = self.get_node(node_id)
-            if node and node.attributes and attr in node.attributes:
-                old_value = node.attributes[attr]
+            if node and node.attributes and node_attr in node.attributes:
+                old_value = node.attributes[node_attr]
                 new_value = func(old_value)
                 # Use Rust method to persist the change
-                self._graph.set_node_attr(node_id, attr, new_value)
+                self._graph.set_node_attr(node_id, node_attr, new_value)
 
         return self
 
-    def mutate_edge_attrs_ws(self, attr: str, func: Callable) -> "Graph":
+    def mutate_edge_attrs_ws(self, edge_attr: str, func: Callable) -> "Graph":
         """
         Transform an edge attribute using a function on selected edges.
 
@@ -6434,7 +6434,7 @@ class Graph:
 
         Parameters
         ----------
-        attr
+        edge_attr
             Name of the attribute to transform. Can be `'weight'` to transform
             edge weights directly.
         func
@@ -6505,13 +6505,13 @@ class Graph:
         for edge_id in selected:
             edge = self.get_edge(edge_id)
             if edge:
-                if attr == "weight" and edge.weight is not None:
+                if edge_attr == "weight" and edge.weight is not None:
                     new_value = func(edge.weight)
                     self._graph.set_edge_attr(edge_id, "weight", new_value)
-                elif edge.attributes and attr in edge.attributes:
-                    old_value = edge.attributes[attr]
+                elif edge.attributes and edge_attr in edge.attributes:
+                    old_value = edge.attributes[edge_attr]
                     new_value = func(old_value)
-                    self._graph.set_edge_attr(edge_id, attr, new_value)
+                    self._graph.set_edge_attr(edge_id, edge_attr, new_value)
 
         return self
 
