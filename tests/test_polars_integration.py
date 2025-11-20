@@ -69,38 +69,5 @@ def test_self_loops():
     assert G.count_nodes() == 2
 
 
-# to_polars tests
-
-
-@pytest.mark.skip(reason="to_polars not yet implemented")
-def test_to_polars_basic_conversion(simple_graph):
-    """Test basic graph to DataFrame conversion"""
-    from edgecase import to_polars
-
-    df = to_polars(simple_graph)
-
-    assert isinstance(df, pl.DataFrame)
-    assert len(df) == simple_graph.count_edges()
-    assert "source" in df.columns
-    assert "target" in df.columns
-
-
-@pytest.mark.skip(reason="to_polars not yet implemented")
-def test_to_polars_roundtrip(sample_dataframe):
-    """Test DataFrame → Graph → DataFrame preserves data"""
-    from edgecase import to_polars
-
-    df = sample_dataframe.rename({"source": "from", "target": "to"})
-    G = Graph(edges_df=df, weighted=True)
-
-    df_out = to_polars(G)
-
-    # Sort both for comparison
-    df_in = sample_dataframe.sort("source", "target")
-    df_out = df_out.sort("source", "target")
-
-    assert df_in.equals(df_out)
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
