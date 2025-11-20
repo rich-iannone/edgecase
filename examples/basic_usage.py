@@ -10,18 +10,16 @@ def main() -> None:
 
     edges = pl.DataFrame(
         {
-            "person_a": ["Alice", "Bob", "Carol", "Dave"],
-            "person_b": ["Bob", "Carol", "Dave", "Alice"],
-            "interactions": [10, 5, 8, 3],
+            "from": ["Alice", "Bob", "Carol", "Dave"],
+            "to": ["Bob", "Carol", "Dave", "Alice"],
+            "weight": [10, 5, 8, 3],
         }
     )
 
-    G = ec.from_polars(
-        edges,
-        source_col="person_a",
-        target_col="person_b",
-        weight_col="interactions",
+    G = ec.Graph(
+        edges_df=edges,
         directed=False,
+        weighted=True,
     )
 
     print(f"Network: {G.count_nodes()} people, {G.count_edges()} connections")
@@ -32,14 +30,17 @@ def main() -> None:
 
     # Example 3: Calculate PageRank
     print("\nPageRank scores:")
-    pagerank_scores = G.pagerank()
+    pagerank_scores = G.pagerank(return_dict=True)
     for person, score in sorted(pagerank_scores.items(), key=lambda x: x[1], reverse=True):
         print(f"  {person}: {score:.4f}")
 
     # Example 4: Find shortest path
     print("\nFinding shortest path from Alice to Carol...")
-    path = G.shortest_path("Alice", "Carol")
-    print(f"Path: {' -> '.join(path)}")
+    path = G.shortest_path("Alice", "Carol", return_list=True)
+    if path:
+        # Convert node IDs to labels for display
+        path_labels = [G.get_label_from_id(nid) or str(nid) for nid in path]
+        print(f"Path: {' -> '.join(path_labels)}")
 
 
 if __name__ == "__main__":
