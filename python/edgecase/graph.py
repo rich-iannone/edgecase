@@ -201,7 +201,6 @@ class Graph:
     --------
     add_node : Add nodes to the graph
     add_edge : Add edges between nodes
-    from_polars : Create graph from edge DataFrame
     """
 
     def __init__(
@@ -6428,18 +6427,17 @@ class Graph:
         """
         Transform an edge attribute using a function on selected edges.
 
-        Applies a transformation function to the specified attribute for all selected
-        edges. Supports transforming the `weight` field directly. Requires an active
-        edge selection.
+        Applies a transformation function to the specified attribute for all selected edges.
+        Supports transforming the `weight` field directly. Requires an active edge selection.
 
         Parameters
         ----------
         edge_attr
-            Name of the attribute to transform. Can be `'weight'` to transform
-            edge weights directly.
+            Name of the attribute to transform. Can be `"weight"` to transform edge weights
+            directly.
         func
-            Transformation function that takes the current attribute value and
-            returns the new value. Called once per selected edge.
+            Transformation function that takes the current attribute value and returns the new
+            value. Called once per selected edge.
 
         Returns
         -------
@@ -6484,7 +6482,8 @@ class Graph:
         max_weight = max(e.weight for e in [graph.get_edge(eid) for eid in graph.get_edge_ids()] if e.weight)
 
         # Normalize all weights to [0, 1]
-        (graph
+        (
+            graph
             .select_edges(lambda e: e.weight is not None)
             .mutate_edge_attrs_ws('weight', lambda w: w / max_weight)
         )

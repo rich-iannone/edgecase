@@ -46,7 +46,7 @@ from edgecase.io import (
 )
 
 # Python-layer functionality
-from edgecase.polars_integration import from_polars, to_polars
+from edgecase.polars_integration import to_polars
 from edgecase.tables import tbl_centrality, tbl_network_summary
 from edgecase.viz import plot_graph
 from edgecase.widget import GraphWidget, graph_widget
@@ -81,7 +81,6 @@ __all__ = [
     # Core algorithms
     "get_cycles",
     # I/O
-    "from_polars",
     "to_polars",
     "to_networkx",
     "from_networkx",
