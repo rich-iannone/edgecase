@@ -8002,12 +8002,6 @@ class Graph:
         # Hub has highest radiality (most central)
         # Leaves have lower radiality (peripheral)
         ```
-
-        See Also
-        --------
-        eccentricity : Get eccentricity values
-        get_graph_diameter : Get graph diameter
-        closeness_centrality : Alternative centrality measure
         """
         if attr_name is None:
             attr_name = "radiality"
@@ -8170,13 +8164,6 @@ class Graph:
         - Network routing with cost penalties
         - Game theory (negative payoffs)
         - Resource allocation with penalties
-
-        See Also
-        --------
-        shortest_path : Unweighted shortest path (BFS)
-        get_mean_distance : Average shortest path length
-        get_graph_diameter : Maximum shortest path length
-        ada_star_search : A* pathfinding with heuristics
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
@@ -8308,15 +8295,6 @@ class Graph:
         )
         # Store multiple paths as different attributes
         ```
-
-        See Also
-        --------
-        bfs : Breadth-first search traversal
-        dfs : Depth-first search traversal
-        bellman_ford_shortest_path : Shortest paths with negative weights
-        get_graph_diameter : Get longest shortest path in the graph
-        get_mean_distance : Get average shortest path length
-        get_all_simple_paths : Enumerate all simple paths between nodes
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
@@ -8622,11 +8600,6 @@ class Graph:
         visited = graph.bfs(start=1)
         # Visits neighbors layer by layer from start
         ```
-
-        See Also
-        --------
-        dfs : Depth-first search traversal
-        shortest_path : Find shortest path between two nodes
         """
         start_id = self._resolve_node_id(start, auto_create=False)
         visited_order = self._graph.bfs(start_id)
@@ -8716,11 +8689,6 @@ class Graph:
         visited = graph.dfs(start=1)
         print(visited)  # [1, 2, 3, 4, 5]
         ```
-
-        See Also
-        --------
-        bfs : Breadth-first search traversal
-        has_cycles : Check for cycles using DFS
         """
         start_id = self._resolve_node_id(start, auto_create=False)
         visited_order = self._graph.dfs(start_id)
@@ -8854,11 +8822,6 @@ class Graph:
             label = graph.get_label_from_id(node_id=node_id)
             print(f"{label} (ID {node_id}): {score:.4f}")
         ```
-
-        See Also
-        --------
-        betweenness_centrality : Measure nodes that bridge communities
-        get_eigenvector_centrality : Alternative centrality measure
         """
         result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
 
@@ -9009,36 +8972,36 @@ class Graph:
         Notes
         -----
         **Jaccard Similarity**:
+
         - Most common metric
         - Range: [0, 1]
         - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
 
         **Dice Similarity**:
+
         - Gives more weight to common neighbors than Jaccard
         - Range: [0, 1]
         - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
 
         **Inverse Log-Weighted (Adamic-Adar)**:
+
         - Weights common neighbors by inverse log of their degree
         - Rare neighbors contribute more
         - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
         - Popular for link prediction
 
         **Cosine Similarity**:
+
         - Normalized dot product
         - Range: [0, 1]
         - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
 
         **Use Cases**:
+
         - Link prediction: Which edges are likely to form?
         - Recommendation: Find similar users/items
         - Community detection: Group similar nodes
         - Network embedding: Similarity-based features
-
-        See Also
-        --------
-        assortativity : Attribute-based mixing patterns
-        pagerank : Node importance ranking
 
         References
         ----------
@@ -9102,12 +9065,6 @@ class Graph:
         - Link prediction (similar nodes likely to connect)
         - Community detection (nodes with similar neighborhoods)
         - Recommendation systems (find similar users/items)
-
-        See Also
-        --------
-        get_jaccard_similarity : More conservative similarity measure
-        get_cosine_similarity : Geometric similarity measure
-        get_overlap_similarity : Emphasizes subset relationships
         """
         return self._graph.get_dice_similarity()
 
@@ -9159,12 +9116,6 @@ class Graph:
         - Document similarity (bag-of-words)
         - User similarity (common items/friends)
         - Biological networks (protein interactions)
-
-        See Also
-        --------
-        get_dice_similarity : Less conservative alternative
-        get_cosine_similarity : Geometric similarity measure
-        get_overlap_similarity : Emphasizes subset relationships
         """
         return self._graph.get_jaccard_similarity()
 
@@ -9215,12 +9166,6 @@ class Graph:
         - Scales well with high-degree nodes
         - Balances degree differences
         - Standard in text mining and recommendation systems
-
-        See Also
-        --------
-        get_dice_similarity : Harmonic mean of degrees
-        get_jaccard_similarity : Set-theoretic similarity
-        get_overlap_similarity : Min-based similarity
         """
         return self._graph.get_cosine_similarity()
 
@@ -9272,12 +9217,6 @@ class Graph:
         - Detecting specialization/generalization
         - Finding hubs whose neighbors are subsets of others
         - Hierarchical community structure
-
-        See Also
-        --------
-        get_jaccard_similarity : Symmetric set similarity
-        get_dice_similarity : Harmonic mean alternative
-        get_cosine_similarity : Geometric interpretation
         """
         return self._graph.get_overlap_similarity()
 
@@ -9348,12 +9287,6 @@ class Graph:
         neighbor_labels = [graph.get_label_from_id(nid) for nid in out_neighbors]
         print(neighbor_labels)  # ['B']
         ```
-
-        See Also
-        --------
-        get_predecessors : Get incoming neighbors (directed only)
-        get_successors : Get outgoing neighbors (directed only)
-        get_common_neighbors : Get shared neighbors between two nodes
         """
         # Resolve node_id to integer ID
         node_id = self._resolve_node_id(node_id)
@@ -9423,12 +9356,6 @@ class Graph:
         labels = [graph.get_label_from_id(nid) for nid in predecessors]
         print(labels)  # ['A', 'B']
         ```
-
-        See Also
-        --------
-        get_successors : Get outgoing neighbors
-        neighbors : Get neighbors with direction control
-        in_degree : Get count of incoming edges
         """
         if not self._graph.is_directed:
             raise ValueError("get_predecessors only available for directed graphs")
@@ -9476,12 +9403,6 @@ class Graph:
         labels = [graph.get_label_from_id(nid) for nid in successors]
         print(labels)  # ['B', 'C']
         ```
-
-        See Also
-        --------
-        get_predecessors : Get incoming neighbors
-        neighbors : Get neighbors with direction control
-        out_degree : Get count of outgoing edges
         """
         if not self._graph.is_directed:
             raise ValueError("get_successors only available for directed graphs")
@@ -9541,11 +9462,6 @@ class Graph:
             for candidate in candidates
         ]
         ```
-
-        See Also
-        --------
-        neighbors : Get neighbors of a node
-        neighbors : Get neighbor list
         """
         # Resolve node_id to integer ID
         node_id = self._resolve_node_id(node_id)
@@ -9626,11 +9542,6 @@ class Graph:
                 third_label = graph.get_label_from_id(node_id=third_id)
                 print(f"Triangle: A - {neighbor_label} - {third_label}")
         ```
-
-        See Also
-        --------
-        neighbors : Get neighbors of a single node
-        get_similarity : Measure neighbor overlap between nodes
         """
         neighbors1 = set(self.neighbors(node_1, mode="all"))
         neighbors2 = set(self.neighbors(node_2, mode="all"))
@@ -9716,11 +9627,6 @@ class Graph:
         - If neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
         - Neighbors without the specified attribute are excluded from results.
         - Non-numeric attribute values raise a `ValueError`.
-
-        See Also
-        --------
-        neighbors : Get all neighbors without filtering
-        get_node_attrs : Get attributes for multiple nodes
         """
         # Get starting node's attribute value
         start_node = self.get_node(node_id)
@@ -9832,12 +9738,6 @@ class Graph:
 
         print(f"Found {len(components)} components")
         ```
-
-        See Also
-        --------
-        is_connected : Check if graph is fully connected
-        count_weakly_connected_components : Count connected components
-        neighbors : Get immediate neighbors only
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
@@ -9902,14 +9802,10 @@ class Graph:
         Notes
         -----
         Applications:
+
         - Network vulnerability analysis: Critical infrastructure nodes
         - Social networks: Key influencers whose removal fragments communities
         - Communication networks: Single points of failure
-
-        See Also
-        --------
-        get_min_cut_between : Edge-based connectivity measure
-        is_connected : Check if graph is connected
         """
         return self._graph.get_articulation_points()
 
@@ -9944,14 +9840,10 @@ class Graph:
         Notes
         -----
         Characteristics:
+
         - Opposite of center: Peripheral vs central nodes
         - In trees: Always leaf nodes
         - Multiple nodes can have maximum eccentricity
-
-        See Also
-        --------
-        get_max_eccentricity : Maximum eccentricity value (diameter)
-        get_eccentricity : Eccentricity of all nodes
         """
         return self._graph.get_periphery()
 
@@ -10001,12 +9893,6 @@ class Graph:
 
         print(graph.get_node_connectivity())  # 4
         ```
-
-        See Also
-        --------
-        get_node_connectivity_between : Node connectivity between specific nodes
-        get_edge_connectivity : Minimum edge cut
-        get_cohesive_blocks : Find hierarchical cohesive structure
         """
         return self._graph.node_connectivity()
 
@@ -10088,12 +9974,6 @@ class Graph:
         # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
         print(graph.get_node_connectivity_between("1", "5"))  # 4
         ```
-
-        See Also
-        --------
-        get_node_connectivity : Global node connectivity
-        get_edge_connectivity : Minimum edge cut
-        get_cohesive_blocks : Find hierarchical cohesive structure
         """
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
@@ -10144,12 +10024,6 @@ class Graph:
 
         print(graph.get_edge_connectivity())  # 1
         ```
-
-        See Also
-        --------
-        get_node_connectivity : Minimum node cut
-        get_graph_adhesion : Another name for edge connectivity
-        get_cohesive_blocks : Find hierarchical cohesive structure
         """
         return self._graph.edge_connectivity()
 
@@ -10193,11 +10067,6 @@ class Graph:
 
         print(graph.get_graph_adhesion())  # 2
         ```
-
-        See Also
-        --------
-        get_graph_cohesion : Get node connectivity
-        is_connected : Check if graph is connected
         """
         return self._graph.get_adhesion()
 
@@ -10241,11 +10110,6 @@ class Graph:
 
         print(graph.get_graph_cohesion())  # 2
         ```
-
-        See Also
-        --------
-        get_graph_adhesion : Get edge connectivity
-        is_connected : Check if graph is connected
         """
         return self._graph.get_cohesion()
 
@@ -10298,11 +10162,6 @@ class Graph:
 
         print(f"{complete.get_graph_density():.3f}")  # 1.000
         ```
-
-        See Also
-        --------
-        num_nodes : Get number of nodes
-        num_edges : Get number of edges
         """
         return self._graph.density()
 
@@ -10371,12 +10230,6 @@ class Graph:
         blocks, cohesions, parents = graph.find_cohesive_blocks()
         # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
         ```
-
-        See Also
-        --------
-        node_connectivity : Compute global node connectivity
-        node_connectivity_between : Node connectivity between two nodes
-        get_cohesion : Get minimum node cut size (upper bound)
         """
         return self._graph.cohesive_blocks()
 
@@ -10427,11 +10280,6 @@ class Graph:
         a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
         print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
         ```
-
-        See Also
-        --------
-        get_adhesion : Get minimum edge cut for entire graph
-        is_connected : Check if graph is connected
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(sink, auto_create=False)
@@ -10508,12 +10356,6 @@ class Graph:
             label = graph.get_label_from_id(node_id)
             print(f"{label}: {count} triangles")
         ```
-
-        See Also
-        --------
-        list_triangles : Get list of all triangles
-        local_clustering_coefficient : Per-node clustering based on triangles
-        get_transitivity : Global clustering coefficient
         """
         return self._graph.count_triangles()
 
@@ -10584,11 +10426,6 @@ class Graph:
             labels = tuple(graph.get_label_from_id(nid) for nid in tri)
             print(f"Triangle: {labels}")
         ```
-
-        See Also
-        --------
-        count_triangles : Count triangles per node
-        get_transitivity : Ratio of triangles to possible triangles
         """
         return self._graph.list_triangles()
 
@@ -10673,11 +10510,6 @@ class Graph:
         trans = social_network.get_transitivity()
         print(f"Clustering: {trans:.3f}")
         ```
-
-        See Also
-        --------
-        local_clustering_coefficient : Per-node clustering
-        count_triangles : Number of triangles per node
         """
         return self._graph.transitivity()
 
@@ -10754,11 +10586,6 @@ class Graph:
             if e1:
                 print(f"Mutual: {e1[0]} ↔ {e1[1]}")
         ```
-
-        See Also
-        --------
-        reciprocity : Calculate overall reciprocity ratio
-        has_edge : Check if specific edge exists
         """
         return self._graph.which_mutual()
 
@@ -10859,11 +10686,6 @@ class Graph:
         else:
             print("Mostly one-way communication")
         ```
-
-        See Also
-        --------
-        which_mutual : Get pairs of mutual edges
-        is_directed : Check if graph is directed
         """
         return self._graph.reciprocity(mode)
 
@@ -10974,11 +10796,6 @@ class Graph:
         - In undirected graphs, (u,v) and (v,u) are treated as the same pair
         - Returns all edges involved in duplication, including the first occurrence
         - Useful for data quality checks before analysis
-
-        See Also
-        --------
-        count_multiple : Count multiple edges grouped by node pair
-        which_loops : Find self-loop edges
         """
         return self._graph.which_multiple()
 
@@ -11082,11 +10899,6 @@ class Graph:
         - For undirected graphs, pairs are normalized (smaller node ID first)
         - Self-loops are counted if there are 2+ self-loop edges for a node
         - Useful for understanding graph complexity before simplification
-
-        See Also
-        --------
-        which_multiple : Get edge IDs of multiple edges
-        count_loops : Count self-loops per node
         """
         return self._graph.count_multiple()
 
@@ -11187,11 +10999,6 @@ class Graph:
         - A node can have multiple self-loops (use `count_loops()` to count per node)
         - Self-loops affect certain graph metrics (degree, centrality, etc.)
         - Common preprocessing step is to remove self-loops for cleaner analysis
-
-        See Also
-        --------
-        count_loops : Count self-loops per node
-        which_multiple : Find multiple edges between node pairs
         """
         return self._graph.which_loops()
 
@@ -11310,10 +11117,6 @@ class Graph:
         - Useful for identifying unusual patterns in network data
         - Common in multigraphs where multiple self-edges may exist
 
-        See Also
-        --------
-        which_loops : Get edge IDs of self-loops
-        which_multiple : Find multiple edges between node pairs
         """
         return self._graph.count_loops()
 
@@ -11410,11 +11213,6 @@ class Graph:
         - Many technological/biological networks are disassortative (r < 0)
         - Perfect assortativity (r = 1) means only equal-degree nodes connect
         - Requires at least one edge and variance in node degrees
-
-        See Also
-        --------
-        assortativity : Numeric attribute assortativity
-        get_assortativity_nominal : Categorical attribute assortativity
 
         References
         ----------
@@ -11537,11 +11335,6 @@ class Graph:
         - Can be used to detect and measure community structure by attribute
         - For undirected graphs, the mixing matrix is symmetric
 
-        See Also
-        --------
-        assortativity : Numeric attribute assortativity
-        assortativity_degree : Degree assortativity
-
         References
         ----------
         Newman, M.E.J. (2003). "Mixing patterns in networks."
@@ -11663,11 +11456,6 @@ class Graph:
         - Can reveal hierarchical structures when negative
         - Sensitive to outliers: considers data normalization
         - Requires variance in attribute values (all same value will error)
-
-        See Also
-        --------
-        assortativity_degree : Degree assortativity
-        get_assortativity_nominal : Categorical attribute assortativity
 
         References
         ----------
@@ -11848,11 +11636,6 @@ class Graph:
         - Bipartite detection: Check if spectrum is symmetric about 0
         - Random walk analysis: Eigenvalues determine mixing time
         - Graph comparison: Compare spectral distributions
-
-        See Also
-        --------
-        get_laplacian_spectrum : Laplacian matrix spectrum
-        pagerank : Dominant eigenvector of modified adjacency matrix
 
         References
         ----------
@@ -12075,11 +11858,6 @@ class Graph:
         - Diffusion processes: Heat kernel and random walks
         - Network robustness: Algebraic connectivity as connectivity measure
 
-        See Also
-        --------
-        spectrum : Adjacency matrix spectrum
-        count_weakly_connected_components : Count connected components
-
         References
         ----------
         Fiedler, M. (1973). "Algebraic connectivity of graphs."
@@ -12129,11 +11907,6 @@ class Graph:
 
         print(graph.count_weakly_connected_components())  # 2
         ```
-
-        See Also
-        --------
-        is_connected : Check if graph is connected
-        count_strongly_connected_components : For directed graphs
         """
         return self._graph.count_weakly_connected_components()
 
@@ -12175,11 +11948,6 @@ class Graph:
 
         print(graph.count_strongly_connected_components())  # 2
         ```
-
-        See Also
-        --------
-        count_weakly_connected_components : For weak connectivity
-        is_connected : Check overall connectivity
         """
         return self._graph.count_strongly_connected_components()
 
@@ -12230,12 +11998,6 @@ class Graph:
 
         print(graph.count_all_loops())  # 2
         ```
-
-        See Also
-        --------
-        count_loops : Count self-loops grouped by node
-        which_loops : Get edge IDs of self-loops
-        is_simple : Check if graph has no self-loops or multi-edges
         """
         return self._graph.count_all_loops()
 
@@ -12270,11 +12032,6 @@ class Graph:
 
         print(graph.count_multi_edges())  # 2
         ```
-
-        See Also
-        --------
-        is_simple : Check if graph has no self-loops or multi-edges
-        count_all_loops : Count total self-loop edges
         """
         return self._graph.count_multi_edges()
 
@@ -12313,11 +12070,6 @@ class Graph:
 
         print(graph.count_mutual_node_pairs())  # 1
         ```
-
-        See Also
-        --------
-        count_asymmetric_node_pairs : Count one-way relationships
-        reciprocity : Calculate reciprocity ratio
         """
         return self._graph.count_mutual_node_pairs()
 
@@ -12356,11 +12108,6 @@ class Graph:
 
         print(graph.count_asymmetric_node_pairs())  # 1
         ```
-
-        See Also
-        --------
-        count_mutual_node_pairs : Count bidirectional relationships
-        reciprocity : Calculate reciprocity ratio
         """
         return self._graph.count_asymmetric_node_pairs()
 
@@ -12485,12 +12232,6 @@ class Graph:
         - **Logistics**: Identify alternative delivery routes
         - **Knowledge Graphs**: Trace reasoning paths between concepts
         - **Biology**: Analyze metabolic pathways with multiple routes
-
-        See Also
-        --------
-        shortest_path : Find single shortest path (standalone function)
-        get_graph_diameter : Get longest shortest path in graph
-        enumerate_trails : Enumerate trails (paths without repeated edges)
 
         Notes
         -----
@@ -12632,12 +12373,6 @@ class Graph:
         - **Route Checking**: Verify delivery or travel routes
         - **Graph Algorithms**: Test path properties in custom algorithms
         - **Debugging**: Verify intermediate results in path computations
-
-        See Also
-        --------
-        get_all_simple_paths : Find all simple paths between two nodes
-        has_path : Check if any path exists between nodes
-        shortest_path : Find shortest path between nodes
 
         Notes
         -----
@@ -12823,13 +12558,6 @@ class Graph:
 
         For weighted random walks where edge weights affect transition
         probabilities, this basic implementation should be extended.
-
-        See Also
-        --------
-        bfs : Breadth-first search traversal
-        dfs : Depth-first search traversal
-        random_edge_walk : Return edges instead of nodes
-        get_cmty_walktrap : Community detection via random walks
         """
         start_id = self._resolve_node_id(start, auto_create=False)
 
@@ -13005,6 +12733,7 @@ class Graph:
         Notes
         -----
         This is useful for:
+
         - Analyzing edge importance via usage frequency
         - Edge-centric graph algorithms
         - Transition probability estimation
@@ -13012,15 +12741,10 @@ class Graph:
         - Visualizing edge usage patterns
 
         The dual-behavior pattern enables:
+
         - **Attribute storage** (default): Store traversal order on edges for
           visualization and analysis
         - **List return** (explicit): Get edge sequence for algorithmic operations
-
-        See Also
-        --------
-        random_walk : Traverse nodes instead of edges
-        bfs : Breadth-first traversal
-        dfs : Depth-first traversal
         """
         # Convert start to string for Rust (handles both int and str)
         start_str = str(start)
@@ -13184,11 +12908,6 @@ class Graph:
 
         - DFS-based topological sort (reverse post-order)
         - Both have O(V + E) complexity
-
-        See Also
-        --------
-        is_dag : Check if graph is a directed acyclic graph
-        has_cycles : Check if graph contains cycles
         """
         return self._graph.get_topological_sort_order()
 
@@ -13341,12 +13060,6 @@ class Graph:
 
         Lovász, L. (1993). Random walks on graphs: A survey. Combinatorics,
         Paul Erdős is Eighty, 2, 1-46.
-
-        See Also
-        --------
-        random_walk : Generate a single random walk
-        all_simple_paths : Enumerate paths without repetition
-        shortest_path : Find shortest path between nodes
         """
         if walk_length < 0:
             raise ValueError("walk_length must be non-negative")
@@ -13477,24 +13190,22 @@ class Graph:
         Notes
         -----
         **Complexity**:
+
         - Time: O(trails × avg_trail_length) - exponential in worst case
         - Space: O(edges) per trail in exploration stack
 
         **Growth Rate**:
+
         - Triangle (3 nodes): ~2 trails
         - Complete K4 (4 nodes): ~12 trails
         - Complete K5 (5 nodes): ~100+ trails
         - Can easily exceed millions for dense graphs
 
         **Implementation**:
+
         - Uses iterative DFS with explicit stack (avoids recursion limits)
         - Tracks visited edges (not nodes) to allow node revisiting
         - For undirected graphs, edges are bidirectional
-
-        See Also
-        --------
-        enumerate_trails : Get the actual trail sequences
-        shortest_path : Find single shortest path
 
         References
         ----------
@@ -13644,11 +13355,6 @@ class Graph:
         - Finding redundant paths for reliability
         - Network vulnerability analysis
         - Understanding connectivity patterns
-
-        See Also
-        --------
-        count_trails : Count trails without storing sequences (more efficient)
-        shortest_path : Find single shortest path
         """
         # Convert string node IDs to internal IDs
         source_id = self._resolve_node_id(source)
@@ -13814,11 +13520,6 @@ class Graph:
 
         Burt, R. S. (1992). Structural Holes: The Social Structure of Competition.
         Harvard University Press.
-
-        See Also
-        --------
-        clustering_coefficient : Alternative measure of ego network density
-        get_transitivity : Global clustering coefficient
         """
         if attr_name is None:
             attr_name = "constraint"
@@ -13961,12 +13662,6 @@ class Graph:
         }
         print(f"Highly clustered node IDs: {hubs}")
         ```
-
-        See Also
-        --------
-        clustering_coefficient : Alternative method that converts None to 0.0
-        get_transitivity : Global clustering coefficient
-        count_triangles : Triangle counts used in calculation
         """
         if attr_name is None:
             attr_name = "local_clustering_coefficient"
@@ -14061,12 +13756,6 @@ class Graph:
         High clustering coefficients indicate nodes in tightly-knit groups.
         The clustering coefficient is a key measure of network transitivity
         and is used to identify small-world networks.
-
-        See Also
-        --------
-        get_avg_clustering_coefficient : Get graph-level average
-        get_transitivity : Global clustering coefficient
-        coreness : K-core decomposition
         """
         if attr_name is None:
             attr_name = "clustering_coefficient"
@@ -14208,11 +13897,6 @@ class Graph:
         Setting offset=False allows the normalized metric to reach exactly 1.0 for
         edges in complete subgraphs.
 
-        See Also
-        --------
-        get_clustering_coefficient : Node clustering coefficient
-        get_avg_clustering_coefficient : Average node clustering
-
         References
         ----------
         Radicchi, F., Castellano, C., Cecconi, F., Loreto, V., & Parisi, D. (2004).
@@ -14281,12 +13965,6 @@ class Graph:
 
         Small-world networks typically have high clustering coefficients combined
         with low average path lengths.
-
-        See Also
-        --------
-        get_clustering_coefficient : Per-node clustering
-        get_mean_distance : Average path length
-        get_graph_density : Overall graph density
         """
         return self._graph.get_avg_clustering_coefficient()
 
@@ -14387,11 +14065,6 @@ class Graph:
         Clauset, A., Newman, M. E., & Moore, C. (2004).
         "Finding community structure in very large networks."
         Physical review E, 70(6), 066111.
-
-        See Also
-        --------
-        cmty_louvain : Faster for very large graphs
-        cmty_edge_btwns : More accurate but slower
         """
         communities = self._graph.get_cmty_fast_greedy()
 
@@ -14521,12 +14194,6 @@ class Graph:
 
         Brandes, U. (2001). "A faster algorithm for betweenness centrality."
         Journal of Mathematical Sociology, 25(2), 163-177.
-
-        See Also
-        --------
-        cmty_fast_greedy : Faster greedy modularity optimization
-        cmty_louvain : Best for very large graphs
-        cmty_walktrap : Alternative hierarchical method
         """
         communities = self._graph.get_cmty_edge_btwns()
 
@@ -14656,12 +14323,6 @@ class Graph:
 
         Newman, M. E. J. (2006). "Modularity and community structure in networks."
         PNAS, 103(23), 8577-8582.
-
-        See Also
-        --------
-        cmty_fast_greedy : Faster but less principled
-        cmty_edge_btwns : More accurate but slower
-        cmty_louvain : Best for very large graphs
         """
         communities = self._graph.get_cmty_l_eigenvec()
 
@@ -14809,12 +14470,6 @@ class Graph:
         Lambiotte, R., Delvenne, J. C., & Barahona, M. (2014). "Random walks,
         Markov processes and the multiscale modular organization of complex
         networks." IEEE Transactions on Network Science and Engineering, 1(2), 76-90.
-
-        See Also
-        --------
-        get_cmty_fast_greedy : Simpler greedy optimization
-        get_cmty_edge_btwns : Divisive hierarchical method
-        get_cmty_l_eigenvec : Spectral bisection method
         """
         communities = self._graph.get_cmty_louvain(resolution)
 
@@ -14972,13 +14627,6 @@ class Graph:
 
         Pons, P., & Latapy, M. (2006). "Computing communities in large networks
         using random walks (long version)." arXiv preprint physics/0512106.
-
-        See Also
-        --------
-        cmty_louvain : Faster for large graphs
-        cmty_fast_greedy : Alternative greedy approach
-        cmty_edge_btwns : Divisive hierarchical method
-        cmty_l_eigenvec : Spectral method
         """
         communities = self._graph.get_cmty_walktrap(steps)
 
@@ -15070,15 +14718,10 @@ class Graph:
         with >1000 nodes unless high accuracy is required.
 
         Performance benchmarks (Apple M1, 8 cores):
+
         - 50 nodes: ~2ms (23K nodes/sec)
         - 200 nodes: ~120ms (1.6K nodes/sec)
         - 500 nodes: ~1.8s (273 nodes/sec)
-
-        See Also
-        --------
-        pagerank : Faster alternative for large graphs
-        betweenness_centrality : Measures flow control
-        get_radiality : Eccentricity-based centrality
         """
         vitality = self._graph.get_closeness_vitality()
 
@@ -15146,12 +14789,6 @@ class Graph:
         )
         # All nodes in K4 have coreness 3
         ```
-
-        See Also
-        --------
-        degree : Get node degree
-        density : Get overall graph density
-        clustering_coefficient : Local clustering measure
         """
         if attr_name is None:
             attr_name = "coreness"
@@ -15256,11 +14893,6 @@ class Graph:
             label = graph.get_label_from_id(node_id)
             print(f"{label} (ID {node_id}): {score:.4f}")
         ```
-
-        See Also
-        --------
-        pagerank : Measure node importance by incoming connections
-        get_closeness_centrality : Measure based on distance to all nodes
         """
         result_ids = rust.betweenness_centrality(self._graph)
 
@@ -15361,11 +14993,6 @@ class Graph:
         #     .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
         #     .show())
         ```
-
-        See Also
-        --------
-        hub_centrality : Get hub scores
-        pagerank : Alternative prestige measure
         """
         centrality = self._graph.get_authority_centrality(max_iter, tol)
 
@@ -15469,11 +15096,6 @@ class Graph:
         #     .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
         #     .show())
         ```
-
-        See Also
-        --------
-        authority_centrality : Get authority scores
-        pagerank : Alternative prestige measure
         """
         centrality = self._graph.get_hub_centrality(max_iter, tol)
 
@@ -15578,12 +15200,6 @@ class Graph:
         #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", range=[0.5, 2.0])
         #     .show())
         ```
-
-        See Also
-        --------
-        pagerank : Alternative prestige measure
-        get_alpha_centrality : Generalization of eigenvector centrality
-        degree : Simple connectivity measure
         """
         centrality = self._graph.get_eigen_centrality(max_iter, tol)
 
@@ -15691,11 +15307,6 @@ class Graph:
         #     .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
         #     .show())
         ```
-
-        See Also
-        --------
-        eigen_centrality : Special case with α → 1
-        pagerank : Alternative prestige measure
         """
         centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
 
@@ -15878,13 +15489,6 @@ class Graph:
         .. [2] Rodan, S. (2011). "Choosing the 'β' parameter when using the Bonacich
                power measure." Journal of Social Structure, 12(1), 1-23.
                https://www.exeley.com/journal_of_social_structure/doi/10.21307/joss-2019-032
-
-        See Also
-        --------
-        eigen_centrality : Special case when β = 1/λ_max
-        katz_centrality : Similar walk-based centrality with different formulation
-        alpha_centrality : Attenuation-based centrality measure
-        pagerank : PageRank algorithm with teleportation
         """
         result = self._graph.get_bonacich_power_centrality(beta, normalized)
         # Empty result indicates singular matrix error
@@ -16024,12 +15628,6 @@ class Graph:
         ----------
         .. [1] Katz, L. (1953). "A new status index derived from sociometric analysis."
                Psychometrika, 18(1), 39-43.
-
-        See Also
-        --------
-        eigen_centrality : Eigenvector centrality (infinite walks)
-        alpha_centrality : Uses outgoing edges instead of incoming
-        pagerank : Alternative prestige measure with damping
         """
         scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
 
@@ -16131,11 +15729,6 @@ class Graph:
         #     .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
         #     .show())
         ```
-
-        See Also
-        --------
-        degrees : Get node degree
-        eigen_centrality : Alternative importance measure
         """
         centrality = self._graph.get_leverage_centrality()
 
@@ -16299,13 +15892,6 @@ class Graph:
         .. [1] Engsig, M., Tejedor, A., Moreno, Y. et al. "DomiRank Centrality
                reveals structural fragility of complex networks via node dominance."
                Nat Commun 15, 56 (2024). https://doi.org/10.1038/s41467-023-44257-0
-
-        See Also
-        --------
-        eigen_centrality : Traditional eigenvector centrality
-        pagerank : Google's PageRank algorithm
-        alpha_centrality : Generalized eigenvector centrality
-        degrees : Simple degree-based importance
         """
         if method != "iterative":
             raise ValueError("Only method='iterative' is currently supported")
@@ -16523,10 +16109,6 @@ class Graph:
         - Time complexity: O(E log E) for sorting edges
         - Space complexity: O(V) for union-find structure
         - Useful for finding most important connections in a network
-
-        See Also
-        --------
-        minimum_spanning_tree : Find minimum spanning tree
         """
         edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
 
@@ -16764,10 +16346,6 @@ class AdaStar:
     Koenig, S., & Likhachev, M. (2002).
     "D* lite."
     AAAI/IAAI, 476-483.
-
-    See Also
-    --------
-    Graph.shortest_path : Simple shortest path function (Dijkstra/BFS)
     """
 
     def __init__(
