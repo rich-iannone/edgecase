@@ -114,3 +114,6 @@ __all__ = [
     "power_grid",
     "wiki_vote",
 ]
+
+# Exclude Rust types from documentation generation (they can't be introspected by quartodoc)
+__gt_exclude__ = ["Node", "Edge"]
