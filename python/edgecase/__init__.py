@@ -46,7 +46,8 @@ from edgecase.io import (
 )
 
 # Python-layer functionality
-from edgecase.polars_integration import to_polars
+# Polars integration: Use Graph(nodes_df=..., edges_df=...) to create from DataFrames
+# Use graph.get_node_df() and graph.get_edge_df() to export to DataFrames
 from edgecase.tables import tbl_centrality, tbl_network_summary
 from edgecase.viz import plot_graph
 from edgecase.widget import GraphWidget, graph_widget

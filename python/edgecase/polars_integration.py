@@ -1,36 +1,4 @@
-import polars as pl
-
-from edgecase.graph import Graph
-
-
-def to_polars(graph: Graph) -> pl.DataFrame:
-    """
-    Convert a graph to a Polars DataFrame.
-
-    Parameters
-    ----------
-    graph : Graph
-        The input graph
-
-    Returns
-    -------
-    pl.DataFrame
-        DataFrame with edge list representation
-
-    Examples
-    --------
-    ```python
-    import edgecase as ec
-    G = ec.Graph(directed=False)
-    # ... build graph ...
-    df = ec.to_polars(G)
-    ```
-    """
-    # Placeholder implementation
-    return pl.DataFrame(
-        {
-            "source": [],
-            "target": [],
-            "weight": [],
-        }
-    )
+# This module previously contained from_polars and to_polars functions.
+# Both have been removed as they are redundant:
+# - from_polars: Use Graph(edges_df=..., nodes_df=...) constructor instead
+# - to_polars: Use graph.get_node_df() and graph.get_edge_df() instead
