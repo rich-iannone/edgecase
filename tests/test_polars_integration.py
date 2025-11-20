@@ -1,14 +1,15 @@
 import pytest
 import polars as pl
-from edgecase import from_polars, Graph
+from edgecase import Graph
 
 
-# from_polars tests
+# Graph constructor with edges_df tests
 
 
 def test_basic_conversion(sample_dataframe):
     """Test basic DataFrame to graph conversion"""
-    G = from_polars(sample_dataframe, source_col="source", target_col="target")
+    df = sample_dataframe.rename({"source": "from", "target": "to"})
+    G = Graph(edges_df=df)
 
     assert G.count_nodes() == 4  # A, B, C, D
     assert G.count_edges() == 4
@@ -16,7 +17,8 @@ def test_basic_conversion(sample_dataframe):
 
 def test_with_weights(sample_dataframe):
     """Test conversion with weight column"""
-    G = from_polars(sample_dataframe, source_col="source", target_col="target", weight_col="weight")
+    df = sample_dataframe.rename({"source": "from", "target": "to"})
+    G = Graph(edges_df=df, weighted=True)
 
     assert G.is_weighted()
     assert G.count_edges() == 4
@@ -31,7 +33,7 @@ def test_custom_column_names():
         }
     )
 
-    G = from_polars(df, source_col="from", target_col="to")
+    G = Graph(edges_df=df)
 
     assert G.count_nodes() == 3
     assert G.count_edges() == 2
@@ -41,12 +43,12 @@ def test_empty_dataframe():
     """Test with empty DataFrame"""
     df = pl.DataFrame(
         {
-            "source": [],
-            "target": [],
+            "from": [],
+            "to": [],
         }
     )
 
-    G = from_polars(df, source_col="source", target_col="target")
+    G = Graph(edges_df=df)
 
     assert G.count_nodes() == 0
     assert G.count_edges() == 0
@@ -56,12 +58,12 @@ def test_self_loops():
     """Test handling self-loops"""
     df = pl.DataFrame(
         {
-            "source": ["A", "A", "B"],
-            "target": ["A", "B", "B"],
+            "from": ["A", "A", "B"],
+            "to": ["A", "B", "B"],
         }
     )
 
-    G = from_polars(df, source_col="source", target_col="target")
+    G = Graph(edges_df=df)
 
     # Should handle self-loops
     assert G.count_nodes() == 2
@@ -88,7 +90,8 @@ def test_to_polars_roundtrip(sample_dataframe):
     """Test DataFrame → Graph → DataFrame preserves data"""
     from edgecase import to_polars
 
-    G = from_polars(sample_dataframe, source_col="source", target_col="target", weight_col="weight")
+    df = sample_dataframe.rename({"source": "from", "target": "to"})
+    G = Graph(edges_df=df, weighted=True)
 
     df_out = to_polars(G)
 

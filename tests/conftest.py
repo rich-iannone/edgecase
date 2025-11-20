@@ -78,7 +78,7 @@ def weighted_empty_graph(request):
 
 @pytest.fixture
 def sample_dataframe():
-    """Sample Polars DataFrame for testing from_polars"""
+    """Sample Polars DataFrame for testing Graph constructor with edges_df"""
     return pl.DataFrame(
         {
             "source": ["A", "B", "C", "D"],

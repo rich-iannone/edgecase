@@ -4,7 +4,7 @@ Benchmark tests using pytest-benchmark
 """
 
 import pytest
-from edgecase import Graph, from_polars
+from edgecase import Graph
 import polars as pl
 import random
 
@@ -91,33 +91,33 @@ def test_shortest_path_1k_nodes(benchmark, benchmark_graph_small):
 # Polars integration performance tests
 
 
-def test_from_polars_1k_edges(benchmark):
-    """Benchmark from_polars with 1K edges"""
+def test_graph_from_df_1k_edges(benchmark):
+    """Benchmark Graph constructor with DataFrame containing 1K edges"""
     df = pl.DataFrame(
         {
-            "source": [f"n{i}" for i in range(1000)],
-            "target": [f"n{(i + 1) % 1000}" for i in range(1000)],
+            "from": [f"n{i}" for i in range(1000)],
+            "to": [f"n{(i + 1) % 1000}" for i in range(1000)],
             "weight": [1.0] * 1000,
         }
     )
 
-    G = benchmark(from_polars, df, "source", "target", "weight")
+    G = benchmark(lambda: Graph(edges_df=df, weighted=True))
     assert G.count_edges() == 1000
 
 
-def test_from_polars_10k_edges(benchmark):
-    """Benchmark from_polars with 10K edges"""
+def test_graph_from_df_10k_edges(benchmark):
+    """Benchmark Graph constructor with DataFrame containing 10K edges"""
     random.seed(42)
 
     df = pl.DataFrame(
         {
-            "source": [f"n{random.randint(0, 1000)}" for _ in range(10000)],
-            "target": [f"n{random.randint(0, 1000)}" for _ in range(10000)],
+            "from": [f"n{random.randint(0, 1000)}" for _ in range(10000)],
+            "to": [f"n{random.randint(0, 1000)}" for _ in range(10000)],
             "weight": [random.random() for _ in range(10000)],
         }
     )
 
-    G = benchmark(from_polars, df, "source", "target", "weight")
+    G = benchmark(lambda: Graph(edges_df=df, weighted=True))
     assert G.count_edges() > 0
 
 
