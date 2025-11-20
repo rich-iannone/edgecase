@@ -230,3 +230,7 @@ benchmarks_qmd/
 
 # Distribution datasets
 dist_datasets/
+
+# Generated documentation reference files
+docs/reference/
+docs/_site/
