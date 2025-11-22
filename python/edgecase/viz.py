@@ -1973,12 +1973,6 @@ def _generate_webgl_html(
             max-width: fit-content;
             margin: 0 auto;
         }
-        #info {
-            margin-bottom: 15px;
-            font-size: 14px;
-            color: #333;
-            font-weight: 500;
-        }
         #mynetwork {
             width: """
         + str(width)
@@ -2019,15 +2013,6 @@ def _generate_webgl_html(
 </head>
 <body>
     <div id="viz-container">
-        <div id="info">
-            EdgeCase Graph | """
-        + graph_type
-        + """ | """
-        + str(len(nodes))
-        + """ nodes, """
-        + str(len(edges))
-        + """ edges
-        </div>
         <div id="mynetwork"></div>
         <div id="controls">
             <button class="zoom-btn" onclick="zoomOut()">Zoom Out</button>
