@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 
 pub mod algorithms;
 pub mod graph;
+pub mod layout;
 pub mod temporal;
 pub mod utils;
 
@@ -26,6 +27,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::domirank::domirank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::shortest_path, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::bellman_ford_shortest_path, m)?)?;
+
+    // Layout functions
+    m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
 
     Ok(())
 }
