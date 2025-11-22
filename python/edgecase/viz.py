@@ -1948,10 +1948,30 @@ def _generate_webgl_html(
             border-radius: 4px;
             background: #fafafa;
         }
-        #stats {
+        #controls {
             margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .zoom-btn {
+            padding: 8px 16px;
             font-size: 12px;
-            color: #666;
+            font-weight: 500;
+            color: #fff;
+            background: #667eea;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .zoom-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        .zoom-btn:active {
+            transform: translateY(0);
         }
     </style>
 </head>
@@ -1967,7 +1987,11 @@ def _generate_webgl_html(
         + """ edges
         </div>
         <div id="mynetwork"></div>
-        <div id="stats">Drag nodes to move • Scroll to zoom • Click and drag background to pan</div>
+        <div id="controls">
+            <button class="zoom-btn" onclick="zoomOut()">Zoom Out</button>
+            <button class="zoom-btn" onclick="resetZoom()">Reset View</button>
+            <button class="zoom-btn" onclick="zoomIn()">Zoom In</button>
+        </div>
     </div>
 
     <script type="text/javascript">
@@ -2131,6 +2155,38 @@ def _generate_webgl_html(
             network.on("afterDrawing", function() {
                 console.log("Network drawn");
             });
+
+            // Zoom control functions
+            window.zoomIn = function() {
+                var scale = network.getScale();
+                network.moveTo({
+                    scale: scale * 1.2,
+                    animation: {
+                        duration: 300,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            };
+
+            window.zoomOut = function() {
+                var scale = network.getScale();
+                network.moveTo({
+                    scale: scale / 1.2,
+                    animation: {
+                        duration: 300,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            };
+
+            window.resetZoom = function() {
+                network.fit({
+                    animation: {
+                        duration: 500,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            };
         }); // End DOMContentLoaded
     </script>
 </body>
