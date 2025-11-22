@@ -2046,11 +2046,13 @@ def _generate_webgl_html(
 
             var options = {
                 nodes: {
-                    shape: 'dot',
-                    size: 16,
+                    shape: 'circle',
+                    size: 25,
                     font: {
-                        size: 14,
-                        color: '#333'
+                        size: 12,
+                        color: '#fff',
+                        face: 'arial',
+                        bold: '600'
                     },
                     borderWidth: 2,
                     color: {
@@ -2111,7 +2113,8 @@ def _generate_webgl_html(
                     dragView: true,
                     zoomView: true,
                     hover: true,
-                    tooltipDelay: 100
+                    tooltipDelay: 100,
+                    zoomSpeed: 0.5
                 }
             };
 
