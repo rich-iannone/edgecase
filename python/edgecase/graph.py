@@ -1284,38 +1284,17 @@ class Graph:
             target = self._infer_render_target()
 
         if target == "notebook":
-            # Display inline in notebook
-            try:
-                from IPython.core.display import display_html
-
-                html = plot_graph(
-                    self,
-                    output_path=None,
-                    open_browser=False,
-                    width=width,
-                    height=height,
-                    node_size=node_size,
-                    edge_width=edge_width,
-                    layout=layout,
-                )
-
-                # Read the generated HTML file
-                with open(html, "r") as f:
-                    html_content = f.read()
-
-                display_html(html_content, raw=True, metadata={"text/html": {"isolated": True}})
-            except ImportError:
-                # Fallback to browser if IPython not available
-                plot_graph(
-                    self,
-                    output_path=None,
-                    open_browser=True,
-                    width=width,
-                    height=height,
-                    node_size=node_size,
-                    edge_width=edge_width,
-                    layout=layout,
-                )
+            # Display inline in notebook - plot_graph handles this now
+            plot_graph(
+                self,
+                output_path=None,
+                open_browser=False,
+                width=width,
+                height=height,
+                node_size=node_size,
+                edge_width=edge_width,
+                layout=layout,
+            )
         elif target == "browser":
             # Open in browser
             plot_graph(

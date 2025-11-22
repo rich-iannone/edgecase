@@ -30,6 +30,31 @@ def _load_viz_js() -> str:
     return viz_path.read_text()
 
 
+def _load_vis_network_js() -> str:
+    """
+    Load vis-network.js content from static directory.
+
+    Returns the complete vis-network JavaScript code for embedding in HTML.
+    vis-network is a 672KB library for interactive network visualization
+    with physics-based layouts.
+
+    Returns
+    -------
+    str
+        Complete vis-network JavaScript code
+    """
+    static_dir = Path(__file__).parent / "static"
+    vis_network_path = static_dir / "vis-network.min.js"
+
+    if not vis_network_path.exists():
+        raise FileNotFoundError(
+            f"vis-network.min.js not found at {vis_network_path}. "
+            "This file is required for WebGL visualization."
+        )
+
+    return vis_network_path.read_text()
+
+
 def plot_graph(
     graph,
     output_path: Optional[str] = None,
@@ -167,6 +192,31 @@ def plot_graph(
         with open(output_path, "w") as f:
             f.write(html)
 
+    # Check if we're in a notebook environment
+    try:
+        from IPython import get_ipython
+        from IPython.display import HTML, display
+
+        if get_ipython() is not None:
+            # We're in a notebook - display the HTML directly
+            # Wrap in an iframe srcdoc to avoid any notebook sanitization issues
+            # Add extra space for body padding (20px) + container padding (20px) + borders on both sides
+            iframe_html = f"""
+            <iframe
+                srcdoc="{html.replace('"', "&quot;")}"
+                width="{width + 100}"
+                height="{height + 120}"
+                frameborder="0"
+                style="border: none; overflow: hidden;">
+            </iframe>
+            """
+            display(HTML(iframe_html))
+            # In notebooks, we display inline, so don't open browser or return
+            return output_path
+    except (ImportError, NameError):
+        pass
+
+    # Not in a notebook - use browser if requested
     if open_browser:
         webbrowser.open(f"file://{Path(output_path).absolute()}")
 
@@ -1034,6 +1084,7 @@ def _generate_graphviz_html(
 
         canvas.addEventListener('mouseup', () => {{
             isDragging = false;
+            // Don't resume simulation if it was stabilized
         }});
 
         canvas.addEventListener('mouseleave', () => {{
@@ -1809,859 +1860,282 @@ def _generate_webgl_html(
         "initial_zoom": initial_zoom,
     }
 
-    # Convert to JSON-serializable format
-    # Note: In EdgeCase, node strings are typically labels
-    node_data = []
+    # Convert to vis-network format
+    vis_nodes = []
     for node in nodes:
         if node not in positions:
             print(f"WARNING: Node {node} not in positions dict!")
             continue
         node_obj = graph.get_node(node)
         node_dict = {
-            "id": str(node),  # Convert to string for consistent JSON handling
+            "id": str(node),
             "label": str(node),
-            "x": positions[node][0],
-            "y": positions[node][1],
-            "attributes": node_obj.attributes if node_obj else {},
         }
-        node_data.append(node_dict)
+        # Add custom attributes if present
+        if node_obj and node_obj.attributes:
+            if "color" in node_obj.attributes:
+                node_dict["color"] = node_obj.attributes["color"]
+            if "size" in node_obj.attributes:
+                node_dict["value"] = node_obj.attributes["size"]
+        vis_nodes.append(node_dict)
 
-    print(f"Generated {len(node_data)} nodes for visualization (from {len(nodes)} total)")
+    print(f"Generated {len(vis_nodes)} nodes for visualization (from {len(nodes)} total)")
 
-    edge_data = []
+    vis_edges = []
     for src, tgt in edges:
-        # Find edge ID(s) for this source-target pair
         edge_ids = graph.find_edge_ids(src, tgt)
-        # Get the first edge (handles multi-edges by just taking the first)
         edge_obj = graph.get_edge(edge_ids[0]) if edge_ids else None
         edge_dict = {
-            "source": str(src),  # Convert to string for consistency
-            "target": str(tgt),
-            "sourceX": positions[src][0],
-            "sourceY": positions[src][1],
-            "targetX": positions[tgt][0],
-            "targetY": positions[tgt][1],
-            "attributes": edge_obj.attributes if edge_obj else {},
+            "from": str(src),
+            "to": str(tgt),
         }
-        edge_data.append(edge_dict)
+        # Add custom attributes if present
+        if edge_obj and edge_obj.attributes:
+            if "color" in edge_obj.attributes:
+                edge_dict["color"] = edge_obj.attributes["color"]
+            if "weight" in edge_obj.attributes:
+                edge_dict["value"] = edge_obj.attributes["weight"]
+        vis_edges.append(edge_dict)
 
-    html = f"""<!DOCTYPE html>
+    # Load vis-network library inline
+    vis_network_js = _load_vis_network_js()
+
+    # Build HTML in parts to avoid f-string escaping issues with the large JS library
+    html_start = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <title>EdgeCase Graph Visualization</title>
+    <script type="text/javascript">
+"""
+
+    html_after_vis = (
+        """
+    </script>
     <style>
-        body {{
+        body {
             margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }}
-        #viz-container {{
             padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: inline-block;
+            min-height: 100vh;
+        }
+        #viz-container {
+            background: white;
             border-radius: 8px;
-        }}
-        #container {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }}
-        #info {{
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: #fff;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }}
-        #canvas-wrapper {{
-            position: relative;
-            display: inline-block;
-        }}
-        #canvas-wrapper::before {{
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background:
-                radial-gradient(ellipse at 20% 30%, rgba(200, 220, 240, 0.6) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 70%, rgba(240, 210, 230, 0.5) 0%, transparent 50%),
-                radial-gradient(ellipse at 40% 80%, rgba(220, 240, 210, 0.5) 0%, transparent 50%),
-                radial-gradient(ellipse at 70% 20%, rgba(210, 230, 245, 0.6) 0%, transparent 50%),
-                white;
-            pointer-events: none;
-            z-index: 0;
-            animation: smokeMoveCanvas 60s ease-in-out infinite;
-        }}
-        @keyframes smokeMoveCanvas {{
-            0%, 100% {{
-                background-position: 0% 0%, 100% 100%, 50% 100%, 100% 0%;
-                background-size: 150% 150%, 140% 140%, 160% 160%, 130% 130%;
-            }}
-            25% {{
-                background-position: 30% 20%, 80% 70%, 40% 90%, 90% 10%;
-                background-size: 140% 140%, 160% 160%, 150% 150%, 145% 145%;
-            }}
-            50% {{
-                background-position: 50% 40%, 60% 50%, 30% 70%, 80% 30%;
-                background-size: 160% 160%, 150% 150%, 140% 140%, 155% 155%;
-            }}
-            75% {{
-                background-position: 20% 60%, 90% 30%, 60% 80%, 70% 50%;
-                background-size: 150% 150%, 145% 145%, 155% 155%, 140% 140%;
-            }}
-        }}
-        #canvas {{
-            position: relative;
-            z-index: 1;
-            border: 1px solid #ddd;
-            background: transparent;
-            cursor: grab;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }}
-        #canvas:active {{
-            cursor: grabbing;
-        }}
-        #reset-btn {{
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 8px 12px;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            cursor: pointer;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: fit-content;
+            margin: 0 auto;
+        }
+        #info {
+            margin-bottom: 15px;
             font-size: 14px;
             color: #333;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }}
-        #reset-btn .icon {{
-            font-size: 18px;
-            line-height: 1;
-        }}
-        #reset-btn:hover {{
-            background: #fff;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-        }}
-        #tooltip {{
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 1000;
-        }}
-        #stats {{
-            margin-top: 10px;
-            font-size: 12px;
-            color: #fff;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }}
-        #zoom-mode-control {{
-            margin-top: 15px;
-            padding: 10px 15px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 12px;
-            color: #fff;
-        }}
-        #zoom-mode-label {{
             font-weight: 500;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }}
-        .toggle-switch {{
-            position: relative;
-            width: 50px;
-            height: 24px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 12px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }}
-        .toggle-switch.active {{
-            background: rgba(59, 130, 246, 0.6);
-        }}
-        .toggle-slider {{
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 20px;
-            height: 20px;
-            background: #fff;
-            border-radius: 50%;
-            transition: transform 0.3s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }}
-        .toggle-switch.active .toggle-slider {{
-            transform: translateX(26px);
-        }}
-        #zoom-mode-text {{
-            min-width: 100px;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }}
-        #diagnostic-controls {{
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(255, 255, 255, 0.95);
+        }
+        #mynetwork {
+            width: """
+        + str(width)
+        + """px;
+            height: """
+        + str(height)
+        + """px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            padding: 10px;
+            background: #fafafa;
+        }
+        #stats {
+            margin-top: 10px;
             font-size: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }}
-        #diagnostic-controls button {{
-            display: block;
-            width: 100%;
-            padding: 6px 10px;
-            margin-top: 5px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 12px;
-        }}
-        #diagnostic-controls button:hover {{
-            background: #45a049;
-        }}
-        #zoom-display {{
-            font-family: monospace;
             color: #666;
-            margin-top: 5px;
-        }}
+        }
     </style>
 </head>
 <body>
     <div id="viz-container">
-        <div id="container">
-            <div id="info">
-                EdgeCase Graph | {graph_type} | {len(nodes)} nodes, {len(edges)} edges
-            </div>
-            <div id="canvas-wrapper">
-                <canvas id="canvas" width="{width}" height="{height}"></canvas>
-                <button id="reset-btn" title="Reset view">
-                    <span class="icon">⟲</span>
-                    <span>Reset</span>
-                </button>
-                <div id="tooltip"></div>
-            </div>
-            <div id="stats">Drag to pan • Scroll to zoom • Hover for node info</div>
+        <div id="info">
+            EdgeCase Graph | """
+        + graph_type
+        + """ | """
+        + str(len(nodes))
+        + """ nodes, """
+        + str(len(edges))
+        + """ edges
         </div>
+        <div id="mynetwork"></div>
+        <div id="stats">Drag nodes to move • Scroll to zoom • Click and drag background to pan</div>
     </div>
 
-    <script>
-        const nodes = {json.dumps(node_data)};
-        const edges = {json.dumps(edge_data)};
-        const isDirected = {str(is_directed).lower()};
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const tooltip = document.getElementById('tooltip');
-        const resetBtn = document.getElementById('reset-btn');
-
-        // Debug: Log node positions and edge lengths
-        console.log('=== Graph Layout Debug Info ===');
-        console.log('Number of nodes:', nodes.length);
-        console.log('Number of edges:', edges.length);
-        if (nodes.length <= 10) {{
-            console.log('\\nNode positions:');
-            nodes.forEach(node => {{
-                console.log(`  Node ${{node.id}}: x=${{node.x.toFixed(4)}}, y=${{node.y.toFixed(4)}}`);
-            }});
-        }} else {{
-            console.log('\\nFirst 5 nodes:');
-            nodes.slice(0, 5).forEach(node => {{
-                console.log(`  Node ${{node.id}}: x=${{node.x.toFixed(4)}}, y=${{node.y.toFixed(4)}}`);
-            }});
-        }}
-
-        // Calculate edge lengths
-        if (edges.length <= 20) {{
-            console.log('\\nEdge lengths:');
-            edges.forEach(edge => {{
-                const dx = edge.targetX - edge.sourceX;
-                const dy = edge.targetY - edge.sourceY;
-                const length = Math.sqrt(dx * dx + dy * dy);
-                console.log(`  ${{edge.source}} → ${{edge.target}}: ${{length.toFixed(4)}}`);
-            }});
-        }}
-
-        // Calculate bounding box
-        const allX = nodes.map(n => n.x);
-        const allY = nodes.map(n => n.y);
-        const minX = Math.min(...allX);
-        const maxX = Math.max(...allX);
-        const minY = Math.min(...allY);
-        const maxY = Math.max(...allY);
-        const rangeX = maxX - minX;
-        const rangeY = maxY - minY;
-        console.log('\\nBounding box:');
-        console.log(`  X range: [${{minX.toFixed(4)}}, ${{maxX.toFixed(4)}}] = ${{rangeX.toFixed(4)}}`);
-        console.log(`  Y range: [${{minY.toFixed(4)}}, ${{maxY.toFixed(4)}}] = ${{rangeY.toFixed(4)}}`);
-        console.log('================================\\n');
-
-        // Viewport state - calculate initial zoom to fit large graphs
-        const initialZoom = {initial_zoom:.4f};
-        console.log(`Initial zoom: ${{initialZoom}}`);
-        const initialPanX = 0;
-        const initialPanY = 0;
-        let zoom = initialZoom;
-        let minZoom = 0.001;  // Will be updated after zoom-to-fit
-        let panX = 0, panY = 0;
-        let isDragging = false;
-        let lastMouseX = 0, lastMouseY = 0;
-        let hoveredNode = null;
-        let hoveredEdge = null;
-
-        // Physics simulation state
-        // For graphs with self-loops, we already filtered them from the layout computation
-        // Enable simulation for visual refinement
-        let isSimulating = true;
-        let velocities = nodes.map(() => ({{ x: 0, y: 0 }}));
-        const damping = 0.90;  // Higher damping to slow movement
-        const repulsion = 0.005;  // Reduced repulsion to prevent excessive spreading
-        const attraction = 0.002;
-        const minVelocity = 0.0001;
-        const maxSimulationTime = 5000;  // Stop after 5 seconds max
-        const simulationStartTime = Date.now();
-
-        // Physics simulation step
-        function simulateStep() {{
-            if (!isSimulating) return;
-
-            let maxVelocity = 0;
-
-            // Calculate forces
-            const forces = nodes.map(() => ({{ x: 0, y: 0 }}));
-
-            // Repulsion between all nodes
-            for (let i = 0; i < nodes.length; i++) {{
-                for (let j = i + 1; j < nodes.length; j++) {{
-                    const dx = nodes[j].x - nodes[i].x;
-                    const dy = nodes[j].y - nodes[i].y;
-                    const distSq = dx * dx + dy * dy + 0.01; // Avoid division by zero
-                    const force = repulsion / distSq;
-                    const fx = (dx / Math.sqrt(distSq)) * force;
-                    const fy = (dy / Math.sqrt(distSq)) * force;
-
-                    forces[i].x -= fx;
-                    forces[i].y -= fy;
-                    forces[j].x += fx;
-                    forces[j].y += fy;
-                }}
-            }}
-
-            // Attraction along edges
-            edges.forEach(edge => {{
-                const sourceIdx = nodes.findIndex(n => n.id === edge.source);
-                const targetIdx = nodes.findIndex(n => n.id === edge.target);
-                if (sourceIdx === -1 || targetIdx === -1) return;
-
-                const dx = nodes[targetIdx].x - nodes[sourceIdx].x;
-                const dy = nodes[targetIdx].y - nodes[sourceIdx].y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                const force = dist * attraction;
-                const fx = (dx / dist) * force;
-                const fy = (dy / dist) * force;
-
-                forces[sourceIdx].x += fx;
-                forces[sourceIdx].y += fy;
-                forces[targetIdx].x -= fx;
-                forces[targetIdx].y -= fy;
-            }});
-
-            // Update velocities and positions
-            nodes.forEach((node, i) => {{
-                velocities[i].x = (velocities[i].x + forces[i].x) * damping;
-                velocities[i].y = (velocities[i].y + forces[i].y) * damping;
-
-                node.x += velocities[i].x;
-                node.y += velocities[i].y;
-
-                const vel = Math.abs(velocities[i].x) + Math.abs(velocities[i].y);
-                if (vel > maxVelocity) maxVelocity = vel;
-            }});
-
-            // Update edge positions
-            edges.forEach(edge => {{
-                const sourceNode = nodes.find(n => n.id === edge.source);
-                const targetNode = nodes.find(n => n.id === edge.target);
-                if (sourceNode && targetNode) {{
-                    edge.sourceX = sourceNode.x;
-                    edge.sourceY = sourceNode.y;
-                    edge.targetX = targetNode.x;
-                    edge.targetY = targetNode.y;
-                }}
-            }});
-
-            // Stop simulation when movement is minimal or time limit reached
-            if (maxVelocity < minVelocity || (Date.now() - simulationStartTime) > maxSimulationTime) {{
-                isSimulating = false;
-                // Trigger smooth zoom-to-fit after stabilization
-                setTimeout(() => zoomToFit(), 100);
-            }}
-        }}
-
-        // Smooth zoom-to-fit animation
-        function zoomToFit() {{
-            // Calculate bounding box of all nodes
-            const xs = nodes.map(n => n.x);
-            const ys = nodes.map(n => n.y);
-            const minX = Math.min(...xs);
-            const maxX = Math.max(...xs);
-            const minY = Math.min(...ys);
-            const maxY = Math.max(...ys);
-
-            const graphWidth = maxX - minX;
-            const graphHeight = maxY - minY;
-            const centerX = (minX + maxX) / 2;
-            const centerY = (minY + maxY) / 2;
-
-            // Calculate zoom to fit with padding (85% of viewport)
-            const padding = 0.85;
-            const zoomX = padding / graphWidth;
-            const zoomY = padding / graphHeight;
-            const targetZoom = Math.min(zoomX, zoomY, 0.5); // Cap at 0.5
-
-            // Set this as the new minimum zoom level
-            minZoom = targetZoom;
-
-            // Set this as the new minimum zoom level
-            minZoom = targetZoom;
-
-            // Target pan to center the graph
-            const targetPanX = -centerX * targetZoom;
-            const targetPanY = -centerY * targetZoom;
-
-            // Animate zoom and pan over 1 second
-            const startZoom = zoom;
-            const startPanX = panX;
-            const startPanY = panY;
-            const duration = 1000; // ms
-            const startTime = Date.now();
-
-            function animateZoom() {{
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-
-                // Ease-out cubic for smooth deceleration
-                const eased = 1 - Math.pow(1 - progress, 3);
-
-                zoom = startZoom + (targetZoom - startZoom) * eased;
-                panX = startPanX + (targetPanX - startPanX) * eased;
-                panY = startPanY + (targetPanY - startPanY) * eased;
-
-                render();
-
-                if (progress < 1) {{
-                    requestAnimationFrame(animateZoom);
-                }}
-            }}
-
-            animateZoom();
-        }}
-
-        // Transform world coords to screen coords
-        function toScreen(x, y) {{
-            return [
-                (x * zoom + panX) * canvas.width / 2 + canvas.width / 2,
-                (-y * zoom + panY) * canvas.height / 2 + canvas.height / 2
-            ];
-        }}
-
-        // Transform screen coords to world coords
-        function toWorld(screenX, screenY) {{
-            const worldX = ((screenX - canvas.width / 2) / (canvas.width / 2) - panX) / zoom;
-            const worldY = -((screenY - canvas.height / 2) / (canvas.height / 2) - panY) / zoom;
-            return [worldX, worldY];
-        }}
-
-        // Find edge at screen position
-        function findEdgeAt(screenX, screenY) {{
-            const threshold = 5; // pixels
-            for (const edge of edges) {{
-                const [x1, y1] = toScreen(edge.sourceX, edge.sourceY);
-                const [x2, y2] = toScreen(edge.targetX, edge.targetY);
-
-                // Calculate distance from point to line segment
-                const A = screenX - x1;
-                const B = screenY - y1;
-                const C = x2 - x1;
-                const D = y2 - y1;
-
-                const dot = A * C + B * D;
-                const lenSq = C * C + D * D;
-                let param = -1;
-                if (lenSq !== 0) param = dot / lenSq;
-
-                let xx, yy;
-                if (param < 0) {{
-                    xx = x1;
-                    yy = y1;
-                }} else if (param > 1) {{
-                    xx = x2;
-                    yy = y2;
-                }} else {{
-                    xx = x1 + param * C;
-                    yy = y1 + param * D;
-                }}
-
-                const dx = screenX - xx;
-                const dy = screenY - yy;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist <= threshold) {{
-                    return edge;
-                }}
-            }}
-            return null;
-        }}
-
-        // Find node at screen position
-        function findNodeAt(screenX, screenY) {{
-            // Calculate effective node size with geometric zoom (2x default size)
-            const effectiveNodeSize = {node_size} * 2 * zoom;
-
-            for (const node of nodes) {{
-                const [nodeScreenX, nodeScreenY] = toScreen(node.x, node.y);
-
-                // Calculate actual node size including custom size multiplier
-                const nodeSizeMultiplier = node.attributes && node.attributes.size ? node.attributes.size : 1.0;
-                const actualNodeSize = effectiveNodeSize * nodeSizeMultiplier;
-
-                // Check distance in screen space
-                const dx = nodeScreenX - screenX;
-                const dy = nodeScreenY - screenY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist <= actualNodeSize) {{
-                    return node;
-                }}
-            }}
-            return null;
-        }}
-
-        // Draw arrow for directed edges
-        function drawArrow(fromX, fromY, toX, toY, nodeRadius, arrowSize) {{
-            const angle = Math.atan2(toY - fromY, toX - fromX);
-
-            // Calculate arrowhead back distance (how far back from tip the base is)
-            const arrowBackDist = arrowSize * 0.866;  // cos(30°) ≈ 0.866 for proper arrow shape
-
-            // Shorten line to account for both node radius AND arrowhead base
-            const lineEndX = toX - Math.cos(angle) * (nodeRadius + arrowBackDist);
-            const lineEndY = toY - Math.sin(angle) * (nodeRadius + arrowBackDist);
-
-            // Arrow tip position (at edge of node)
-            const arrowTipX = toX - Math.cos(angle) * nodeRadius;
-            const arrowTipY = toY - Math.sin(angle) * nodeRadius;
-
-            // Draw line (shortened to meet arrowhead base)
-            ctx.beginPath();
-            ctx.moveTo(fromX, fromY);
-            ctx.lineTo(lineEndX, lineEndY);
-            ctx.stroke();
-
-            // Draw arrowhead with proper shape
-            ctx.beginPath();
-            ctx.moveTo(arrowTipX, arrowTipY);  // Arrow tip
-            ctx.lineTo(
-                arrowTipX - arrowSize * Math.cos(angle - Math.PI / 6),
-                arrowTipY - arrowSize * Math.sin(angle - Math.PI / 6)
-            );
-            ctx.lineTo(
-                arrowTipX - arrowSize * Math.cos(angle + Math.PI / 6),
-                arrowTipY - arrowSize * Math.sin(angle + Math.PI / 6)
-            );
-            ctx.closePath();
-
-            // Use fully opaque fill to match edge color cleanly
-            ctx.fillStyle = 'rgba(96, 165, 250, 1.0)';
-            ctx.fill();
-        }}
-
-        // Render function with optimizations for smooth performance
-        let renderScheduled = false;
-        let renderCount = 0;
-        function render() {{
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Calculate effective sizes with geometric zoom (always scale with zoom)
-            const effectiveNodeSize = Math.max(1.5, {node_size} * 2 * zoom);  // Minimum 1.5px, 2x larger default
-            const effectiveEdgeWidth = Math.max(1.0, {edge_width} * 3 * zoom);  // 3x thicker edges, minimum 1.0px
-            const effectiveArrowSize = 50 * zoom;  // 5x larger arrows for better visibility
-
-            renderCount++;
-
-            // Draw edges
-            ctx.strokeStyle = 'rgba(96, 165, 250, 0.6)';  // Match node border color harmoniously
-            ctx.lineWidth = effectiveEdgeWidth;
-
-            let edgesDrawn = 0;
-            let selfLoopsSkipped = 0;
-            try {{
-                for (const edge of edges) {{
-                    // Skip self-loops (source == target)
-                    if (edge.source === edge.target) {{
-                        selfLoopsSkipped++;
-                        continue;
-                    }}
-
-                    const [x1, y1] = toScreen(edge.sourceX, edge.sourceY);
-                    const [x2, y2] = toScreen(edge.targetX, edge.targetY);
-
-                    if (renderCount === 1 && edgesDrawn < 2) {{
-                        console.log(`  Edge ${{edge.source}}->${{edge.target}}: (${{x1.toFixed(1)}}, ${{y1.toFixed(1)}}) to (${{x2.toFixed(1)}}, ${{y2.toFixed(1)}})`);
-                    }}
-
-                    if (isDirected) {{
-                        drawArrow(x1, y1, x2, y2, effectiveNodeSize, effectiveArrowSize);
-                    }} else {{
-                        ctx.beginPath();
-                        ctx.moveTo(x1, y1);
-                        ctx.lineTo(x2, y2);
-                        ctx.stroke();
-                    }}
-                    edgesDrawn++;
-                }}
-            }} catch (err) {{
-                console.error('Error drawing edges:', err);
-            }}
-
-            if (renderCount === 0 && selfLoopsSkipped > 0) {{
-                console.log(`Skipped ${{selfLoopsSkipped}} self-loop edges`);
-            }}
-            if (renderCount === 0) {{
-                console.log(`Drew ${{edgesDrawn}} edges`);
-            }}
-
-            // Draw nodes
-            let nodesDrawn = 0;
-            if (renderCount === 0) {{
-                console.log(`Starting node drawing loop, ${{nodes.length}} nodes to draw`);
-            }}
-            for (const node of nodes) {{
-                const [x, y] = toScreen(node.x, node.y);
-                const isHovered = hoveredNode && hoveredNode.id === node.id;
-
-                // Use custom size if provided, otherwise use default
-                const nodeSizeMultiplier = node.attributes && node.attributes.size ? node.attributes.size : 1.0;
-                const actualNodeSize = effectiveNodeSize * nodeSizeMultiplier;
-
-                // Debug first render: check if nodes are on screen
-                if (renderCount === 0 && nodesDrawn < 5) {{
-                    console.log(`  Node ${{node.id}}: world=(${{node.x.toFixed(4)}}, ${{node.y.toFixed(4)}}), screen=(${{x.toFixed(1)}}, ${{y.toFixed(1)}}), size=${{actualNodeSize.toFixed(1)}}`);
-                }}
-                nodesDrawn++;
-
-                // Use custom color if provided, otherwise use light blue default
-                const baseColor = node.attributes && node.attributes.fillcolor ? node.attributes.fillcolor : '#93c5fd';
-                const hoverColor = isHovered ? '#bfdbfe' : baseColor;
-
-                // Node circle with custom or default fill
-                ctx.fillStyle = hoverColor;
-                ctx.beginPath();
-                ctx.arc(x, y, actualNodeSize, 0, 2 * Math.PI);
-                ctx.fill();
-
-                // Draw node ID text in center (hide when zoomed far out)
-                const showLabels = zoom > 0.3; // Show labels at lower zoom levels for better readability
-                if (showLabels) {{
-                    const nodeId = node.id;
-                    const idLength = nodeId.length;
-
-                    // Scale font size based on ID length and actual node size (larger sizes for readability)
-                    let fontSize;
-                    if (idLength === 1) {{
-                        fontSize = actualNodeSize * 1.3;
-                    }} else if (idLength === 2) {{
-                        fontSize = actualNodeSize * 1.0;
-                    }} else if (idLength === 3) {{
-                        fontSize = actualNodeSize * 0.8;
-                    }} else {{
-                        fontSize = actualNodeSize * 0.65;
-                    }}
-
-                    ctx.font = `600 ${{fontSize}}px -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif`;
-                    ctx.fontVariantNumeric = 'tabular-nums';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = isHovered ? '#1e40af' : '#3b82f6';
-                    ctx.fillText(nodeId, x, y);
-                }}
-            }}
-
-            if (renderCount === 0) {{
-                console.log(`Rendered ${{nodesDrawn}} nodes`);
-            }}
-        }}
-
-        // Reset view to initial state
-        function resetView() {{
-            zoom = initialZoom;
-            panX = initialPanX;
-            panY = initialPanY;
-            render();
-        }}
-
-        // Mouse interaction
-        canvas.addEventListener('mousedown', (e) => {{
-            isDragging = true;
-            isSimulating = false; // Pause simulation during drag
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
-        }});
-
-        canvas.addEventListener('mousemove', (e) => {{
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            if (isDragging) {{
-                const dx = (e.clientX - lastMouseX) / canvas.width * 2;
-                const dy = (e.clientY - lastMouseY) / canvas.height * 2;
-                panX += dx;
-                panY += dy;
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
-                if (!renderScheduled) {{
-                    renderScheduled = true;
-                    requestAnimationFrame(() => {{
-                        render();
-                        renderScheduled = false;
-                    }});
-                }}
-            }} else {{
-                // Check for hover (nodes first, then edges)
-                const node = findNodeAt(mouseX, mouseY);
-                const edge = node ? null : findEdgeAt(mouseX, mouseY);
-
-                if (node !== hoveredNode || edge !== hoveredEdge) {{
-                    hoveredNode = node;
-                    hoveredEdge = edge;
-
-                    if (node) {{
-                        // Show ID and label in tooltip (if they differ)
-                        let tooltipText = node.id === node.label
-                            ? `Node: ${{node.id}}`
-                            : `Node: ${{node.id}}\\nLabel: ${{node.label}}`;
-
-                        // Add attributes to tooltip
-                        if (node.attributes && Object.keys(node.attributes).length > 0) {{
-                            tooltipText += '\\n';
-                            for (const [key, value] of Object.entries(node.attributes)) {{
-                                tooltipText += `\\n${{key}}: ${{value}}`;
-                            }}
-                        }}
-
-                        tooltip.textContent = tooltipText;
-                        tooltip.style.whiteSpace = 'pre-line';
-                        // Position tooltip relative to canvas
-                        tooltip.style.left = `${{mouseX + 10}}px`;
-                        tooltip.style.top = `${{mouseY + 10}}px`;
-                        tooltip.style.opacity = '1';
-                    }} else if (edge) {{
-                        // Show edge info in tooltip
-                        let tooltipText = `Edge: ${{edge.source}} \u2192 ${{edge.target}}`;
-
-                        // Add edge attributes to tooltip
-                        if (edge.attributes && Object.keys(edge.attributes).length > 0) {{
-                            tooltipText += '\\n';
-                            for (const [key, value] of Object.entries(edge.attributes)) {{
-                                tooltipText += `\\n${{key}}: ${{value}}`;
-                            }}
-                        }}
-
-                        tooltip.textContent = tooltipText;
-                        tooltip.style.whiteSpace = 'pre-line';
-                        tooltip.style.left = `${{mouseX + 10}}px`;
-                        tooltip.style.top = `${{mouseY + 10}}px`;
-                        tooltip.style.opacity = '1';
-                    }} else {{
-                        tooltip.style.opacity = '0';
-                    }}
-                    if (!renderScheduled) {{
-                        renderScheduled = true;
-                        requestAnimationFrame(() => {{
-                            render();
-                            renderScheduled = false;
-                        }});
-                    }}
-                }}
-            }}
-        }});
-
-        canvas.addEventListener('mouseup', () => {{
-            if (isDragging) {{
-                isDragging = false;
-                // Don't resume simulation - let it stay paused
-            }}
-        }});
-
-        canvas.addEventListener('mouseleave', () => {{
-            hoveredNode = null;
-            tooltip.style.opacity = '0';
-            isDragging = false;
-            render();
-        }});
-
-        canvas.addEventListener('wheel', (e) => {{
-            e.preventDefault();
-
-            // Get center of viewport in world coordinates before zoom
-            const centerScreenX = canvas.width / 2;
-            const centerScreenY = canvas.height / 2;
-            const [centerWorldX, centerWorldY] = toWorld(centerScreenX, centerScreenY);
-
-            // Apply zoom
-            const zoomFactor = e.deltaY > 0 ? 0.95 : 1.05;
-            const oldZoom = zoom;
-            zoom *= zoomFactor;
-            zoom = Math.max(minZoom, Math.min(10, zoom));
-
-            // Adjust pan to keep the center point fixed in world space
-            // After zoom, we want toWorld(centerScreen) to still return (centerWorldX, centerWorldY)
-            const zoomRatio = zoom / oldZoom;
-            panX *= zoomRatio;
-            panY *= zoomRatio;
-
-            if (!renderScheduled) {{
-                renderScheduled = true;
-                requestAnimationFrame(() => {{
-                    render();
-                    renderScheduled = false;
-                }});
-            }}
-        }});
-
-        resetBtn.addEventListener('click', resetView);
-
-        // Animation loop for physics simulation
-        function animate() {{
-            if (isSimulating) {{
-                simulateStep();
-                render();
-            }}
-            requestAnimationFrame(animate);
-        }}
-
-        // Start animation loop and initial render
-        render();  // Initial render
-        animate();
+    <script type="text/javascript">
+        // Wait for DOM to be fully loaded before initializing
+        window.addEventListener('DOMContentLoaded', function() {
+            // Check if vis is loaded
+            if (typeof vis === 'undefined') {
+                console.error('vis-network library not loaded!');
+                document.getElementById('mynetwork').innerHTML = '<div style="padding: 20px; color: red;">Error: vis-network library failed to load. Check your internet connection.</div>';
+                return;
+            } else {
+                console.log('vis-network library loaded successfully');
+                console.log('vis version:', vis.Network ? 'Network class available' : 'Network class missing');
+            }
+
+            // Debug: Log what we're working with
+            console.log('Initializing vis-network...');
+
+            // Create nodes and edges datasets
+            var nodesData = """
+        + json.dumps(vis_nodes)
+        + """;
+            var edgesData = """
+        + json.dumps(vis_edges)
+        + """;
+
+            console.log('Nodes:', nodesData.length);
+            console.log('Edges:', edgesData.length);
+            if (nodesData.length > 0) {
+                console.log('Sample node:', nodesData[0]);
+            }
+            if (edgesData.length > 0) {
+                console.log('Sample edge:', edgesData[0]);
+            }
+
+            var nodes = new vis.DataSet(nodesData);
+            var edges = new vis.DataSet(edgesData);
+
+            // Create network
+            var container = document.getElementById('mynetwork');
+            console.log('Container:', container);
+            console.log('Container dimensions:', container.offsetWidth, 'x', container.offsetHeight);
+
+            if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+                console.error('Container has zero dimensions!');
+            }
+
+            var data = {
+                nodes: nodes,
+                edges: edges
+            };
+
+            var options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 16,
+                    font: {
+                        size: 14,
+                        color: '#333'
+                    },
+                    borderWidth: 2,
+                    color: {
+                        border: '#2B7CE9',
+                        background: '#97C2FC',
+                        highlight: {
+                            border: '#2B7CE9',
+                            background: '#D2E5FF'
+                        },
+                        hover: {
+                            border: '#2B7CE9',
+                            background: '#D2E5FF'
+                        }
+                    }
+                },
+                edges: {
+                    width: 2,
+                    color: {
+                        color: '#848484',
+                        highlight: '#2B7CE9'
+                    },
+                    smooth: {
+                        type: 'continuous',
+                        roundness: 0.5
+                    },
+                    arrows: {
+                        to: {
+                            enabled: """
+        + ("true" if is_directed else "false")
+        + """,
+                            scaleFactor: 0.5
+                        }
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    barnesHut: {
+                        theta: 0.5,
+                        gravitationalConstant: -2000,
+                        centralGravity: 0.3,
+                        springLength: 95,
+                        springConstant: 0.04,
+                        damping: 0.09,
+                        avoidOverlap: 0
+                    },
+                    maxVelocity: 50,
+                    minVelocity: 0.1,
+                    solver: 'barnesHut',
+                    stabilization: {
+                        enabled: true,
+                        iterations: 200,
+                        updateInterval: 100,
+                        fit: true
+                    }
+                },
+                interaction: {
+                    dragNodes: true,
+                    dragView: true,
+                    zoomView: true,
+                    hover: true,
+                    tooltipDelay: 100
+                }
+            };
+
+            console.log('Creating network with options:', options);
+
+            try {
+                var network = new vis.Network(container, data, options);
+                console.log('Network created successfully');
+            } catch (error) {
+                console.error('Error creating network:', error);
+                document.getElementById('mynetwork').innerHTML = '<div style="padding: 20px; color: red;">Error creating visualization: ' + error.message + '</div>';
+                return;
+            }
+
+            console.log('Network created, starting stabilization...');
+
+            // Add click handler for node info
+            network.on("click", function(params) {
+                if (params.nodes.length > 0) {
+                    var nodeId = params.nodes[0];
+                    var node = nodes.get(nodeId);
+                    console.log('Node clicked:', node);
+                }
+            });
+
+            // Log stabilization progress
+            network.on("stabilizationProgress", function(params) {
+                var progress = Math.round((params.iterations / params.total) * 100);
+                if (progress % 10 === 0) {
+                    console.log('Stabilization progress:', progress + '%');
+                }
+            });
+
+            // Log when stabilization is done
+            network.on("stabilizationIterationsDone", function() {
+                console.log("Network stabilized!");
+                network.setOptions({ physics: false });
+                network.fit();
+            });
+
+            network.on("afterDrawing", function() {
+                console.log("Network drawn");
+            });
+        }); // End DOMContentLoaded
     </script>
 </body>
 </html>"""
+    )
+
+    # Concatenate the parts (vis_network_js is not in an f-string, so it won't have escaping issues)
+    html = html_start + vis_network_js + html_after_vis
 
     return html
 
