@@ -1860,6 +1860,34 @@ def _generate_webgl_html(
         "initial_zoom": initial_zoom,
     }
 
+    # Helper function to calculate luminance and choose contrasting text color
+    def get_contrast_color(hex_color: str) -> str:
+        """Calculate luminance and return white or dark gray for best contrast."""
+        # Remove # if present
+        hex_color = hex_color.lstrip("#")
+
+        # Handle short hex format (#RGB -> #RRGGBB)
+        if len(hex_color) == 3:
+            hex_color = "".join([c * 2 for c in hex_color])
+
+        # Parse RGB values
+        try:
+            r = int(hex_color[0:2], 16) / 255.0
+            g = int(hex_color[2:4], 16) / 255.0
+            b = int(hex_color[4:6], 16) / 255.0
+        except (ValueError, IndexError):
+            return "#fff"  # Default to white if parsing fails
+
+        # Calculate relative luminance (WCAG formula)
+        def adjust(c):
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+        r, g, b = adjust(r), adjust(g), adjust(b)
+        luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+        # Return white for dark colors, dark gray for light colors
+        return "#fff" if luminance < 0.5 else "#333"
+
     # Convert to vis-network format
     vis_nodes = []
     for node in nodes:
@@ -1874,10 +1902,18 @@ def _generate_webgl_html(
         # Add custom attributes if present
         if node_obj and node_obj.attributes:
             # Support both 'color' and 'fillcolor' (for compatibility with Graphviz)
+            node_color = None
             if "color" in node_obj.attributes:
-                node_dict["color"] = node_obj.attributes["color"]
+                node_color = node_obj.attributes["color"]
+                node_dict["color"] = node_color
             elif "fillcolor" in node_obj.attributes:
-                node_dict["color"] = node_obj.attributes["fillcolor"]
+                node_color = node_obj.attributes["fillcolor"]
+                node_dict["color"] = node_color
+
+            # Set font color based on background color for contrast
+            if node_color:
+                node_dict["font"] = {"color": get_contrast_color(node_color)}
+
             if "size" in node_obj.attributes:
                 node_dict["value"] = node_obj.attributes["size"]
         vis_nodes.append(node_dict)
