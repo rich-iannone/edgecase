@@ -1853,10 +1853,6 @@ def _generate_webgl_html(
     else:
         initial_zoom = 0.1
 
-    print(
-        f"Initial zoom calculated: {initial_zoom:.4f} (graph_extent: {graph_extent:.2f}, edge_density: {len(edges) / len(nodes) if len(nodes) > 0 else 0:.2f})"
-    )
-
     # Add diagnostic info for zoom tuning
     diagnostic_info = {
         "node_count": len(nodes),
@@ -1931,9 +1927,10 @@ def _generate_webgl_html(
 
             if "size" in node_obj.attributes:
                 node_dict["value"] = node_obj.attributes["size"]
-        vis_nodes.append(node_dict)
 
-    print(f"Generated {len(vis_nodes)} nodes for visualization (from {len(nodes)} total)")
+            # Store all original attributes for info panel display
+            node_dict["attrs"] = dict(node_obj.attributes)
+        vis_nodes.append(node_dict)
 
     vis_edges = []
     for src, tgt in edges:
@@ -1949,6 +1946,9 @@ def _generate_webgl_html(
                 edge_dict["color"] = edge_obj.attributes["color"]
             if "weight" in edge_obj.attributes:
                 edge_dict["value"] = edge_obj.attributes["weight"]
+
+            # Store all original attributes for info panel display
+            edge_dict["attrs"] = dict(edge_obj.attributes)
         vis_edges.append(edge_dict)
 
     # Load vis-network library inline
@@ -2018,10 +2018,49 @@ def _generate_webgl_html(
         .zoom-btn:active {
             transform: translateY(0);
         }
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 13px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            max-width: 300px;
+            display: none;
+            z-index: 1000;
+        }
+        #info-panel.visible {
+            display: block;
+        }
+        #info-panel .info-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        #info-panel .info-item {
+            margin: 4px 0;
+            color: #555;
+        }
+        #info-panel .info-label {
+            font-weight: 500;
+            color: #666;
+        }
+        #info-panel .info-value {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            color: #333;
+        }
     </style>
 </head>
 <body>
     <div id="viz-container">
+        <div id="info-panel">
+            <div id="info-content"></div>
+        </div>
         <div id="mynetwork"></div>
         <div id="controls">
             <button class="zoom-btn" onclick="zoomOut()">Zoom Out</button>
@@ -2065,7 +2104,12 @@ def _generate_webgl_html(
 
             var nodes = new vis.DataSet(nodesData);
             var edges = new vis.DataSet(edgesData);
-            
+
+            // Graph properties
+            var isDirected = """
+        + ("true" if is_directed else "false")
+        + """;
+
             // Adaptive settings based on graph size
             var nodeCount = nodesData.length;
             var isLargeGraph = nodeCount > 1000;
@@ -2181,12 +2225,79 @@ def _generate_webgl_html(
 
             console.log('Network created, starting stabilization...');
 
-            // Add click handler for node info
+            // Add click handler for node and edge info
             network.on("click", function(params) {
+                var infoPanel = document.getElementById('info-panel');
+                var infoContent = document.getElementById('info-content');
+
                 if (params.nodes.length > 0) {
+                    // Node clicked
                     var nodeId = params.nodes[0];
                     var node = nodes.get(nodeId);
                     console.log('Node clicked:', node);
+
+                    var html = '<div class="info-title">Node: ' + nodeId + '</div>';
+
+                    // Show node attributes from the attrs object
+                    if (node.attrs) {
+                        var keys = Object.keys(node.attrs);
+                        for (var i = 0; i < keys.length; i++) {
+                            var key = keys[i];
+
+                            // Skip aesthetic attributes
+                            if (key === 'size' || key === 'color' || key === 'fillcolor') {
+                                continue;
+                            }
+
+                            var value = node.attrs[key];
+
+                            // Format floats to 4 decimal places
+                            if (typeof value === 'number' && !Number.isInteger(value)) {
+                                value = value.toFixed(4);
+                            }
+
+                            html += '<div class="info-item"><span class="info-label">' + key + ':</span> <span class="info-value">' + value + '</span></div>';
+                        }
+                    }
+
+                    infoContent.innerHTML = html;
+                    infoPanel.classList.add('visible');
+                } else if (params.edges.length > 0) {
+                    // Edge clicked
+                    var edgeId = params.edges[0];
+                    var edge = edges.get(edgeId);
+                    console.log('Edge clicked:', edge);
+
+                    var separator = isDirected ? ' → ' : ' — ';
+                    var html = '<div class="info-title">Edge: ' + edge.from + separator + edge.to + '</div>';
+
+                    // Show edge attributes from the attrs object
+                    if (edge.attrs) {
+                        var keys = Object.keys(edge.attrs);
+                        for (var i = 0; i < keys.length; i++) {
+                            var key = keys[i];
+
+                            // Skip aesthetic attributes
+                            if (key === 'color' || key === 'weight') {
+                                continue;
+                            }
+
+                            var value = edge.attrs[key];
+
+                            // Format floats to 4 decimal places
+                            if (typeof value === 'number' && !Number.isInteger(value)) {
+                                value = value.toFixed(4);
+                            }
+
+                            html += '<div class="info-item"><span class="info-label">' + key + ':</span> <span class="info-value">' + value + '</span></div>';
+                        }
+                    }
+
+                    infoContent.innerHTML = html;
+                    infoPanel.classList.add('visible');
+                } else {
+                    // Clicked on empty space - hide panel
+                    infoPanel.classList.remove('visible');
                 }
             });
 
