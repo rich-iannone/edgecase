@@ -135,6 +135,7 @@ def plot_graph(
             width=width,
             height=height,
         )
+
     # Compute simple layout
     elif layout == "force":
         # Use fewer iterations for large graphs to improve performance
@@ -158,10 +159,12 @@ def plot_graph(
         )
     elif layout == "circular":
         positions = _circular_layout(nodes)
+
         # Calculate extent for circular layout
         all_x = [pos[0] for pos in positions.values()]
         all_y = [pos[1] for pos in positions.values()]
         graph_extent = max(max(all_x) - min(all_x), max(all_y) - min(all_y)) if all_x else 0
+
         html = _generate_webgl_html(
             graph,
             nodes,
@@ -175,7 +178,9 @@ def plot_graph(
         )
     else:
         positions = _random_layout(nodes)
+
         graph_extent = 2.0  # Random layout uses [-1,1] range
+
         html = _generate_webgl_html(
             graph,
             nodes,
