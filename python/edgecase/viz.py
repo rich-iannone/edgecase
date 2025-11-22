@@ -1873,8 +1873,11 @@ def _generate_webgl_html(
         }
         # Add custom attributes if present
         if node_obj and node_obj.attributes:
+            # Support both 'color' and 'fillcolor' (for compatibility with Graphviz)
             if "color" in node_obj.attributes:
                 node_dict["color"] = node_obj.attributes["color"]
+            elif "fillcolor" in node_obj.attributes:
+                node_dict["color"] = node_obj.attributes["fillcolor"]
             if "size" in node_obj.attributes:
                 node_dict["value"] = node_obj.attributes["size"]
         vis_nodes.append(node_dict)
