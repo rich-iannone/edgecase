@@ -139,7 +139,12 @@ def plot_graph(
     elif layout == "force":
         # Use fewer iterations for large graphs to improve performance
         iterations = 25 if len(nodes) > 200 else 50
-        positions, graph_extent = _force_directed_layout(nodes, edges, iterations=iterations)
+        # positions, graph_extent = _force_directed_layout(nodes, edges, iterations=iterations)
+
+        # Experiment: skip initial positions to let vis-network handle layout
+        positions = None
+        graph_extent = 1.0
+
         html = _generate_webgl_html(
             graph,
             nodes,
@@ -1797,7 +1802,7 @@ def _generate_webgl_html(
     graph,
     nodes: list[str],
     edges: list[list[str]],
-    positions: dict,
+    positions: dict | None,
     graph_extent: float,
     width: int,
     height: int,
@@ -1891,9 +1896,6 @@ def _generate_webgl_html(
     # Convert to vis-network format
     vis_nodes = []
     for node in nodes:
-        if node not in positions:
-            print(f"WARNING: Node {node} not in positions dict!")
-            continue
         node_obj = graph.get_node(node)
 
         # Add subtle spacing hack for single-digit labels to improve centering
@@ -1905,6 +1907,13 @@ def _generate_webgl_html(
             "id": str(node),
             "label": label,
         }
+
+        # Optionally add initial positions if provided
+        if positions and node in positions:
+            pos = positions[node]
+            node_dict["x"] = pos[0]
+            node_dict["y"] = pos[1]
+
         # Add custom attributes if present
         if node_obj and node_obj.attributes:
             # Support both 'color' and 'fillcolor' (for compatibility with Graphviz)
@@ -2056,6 +2065,12 @@ def _generate_webgl_html(
 
             var nodes = new vis.DataSet(nodesData);
             var edges = new vis.DataSet(edgesData);
+            
+            // Adaptive settings based on graph size
+            var nodeCount = nodesData.length;
+            var isLargeGraph = nodeCount > 1000;
+            var stabilizationIterations = isLargeGraph ? 100 : 200;
+            var physicsEnabled = true;  // Keep physics running
 
             // Create network
             var container = document.getElementById('mynetwork');
@@ -2121,7 +2136,7 @@ def _generate_webgl_html(
                     }
                 },
                 physics: {
-                    enabled: true,
+                    enabled: physicsEnabled,
                     barnesHut: {
                         theta: 0.5,
                         gravitationalConstant: -2000,
@@ -2136,8 +2151,8 @@ def _generate_webgl_html(
                     solver: 'barnesHut',
                     stabilization: {
                         enabled: true,
-                        iterations: 200,
-                        updateInterval: 100,
+                        iterations: stabilizationIterations,
+                        updateInterval: isLargeGraph ? 50 : 100,
                         fit: true
                     }
                 },
@@ -2145,9 +2160,11 @@ def _generate_webgl_html(
                     dragNodes: true,
                     dragView: true,
                     zoomView: true,
-                    hover: true,
+                    hover: !isLargeGraph,  // Disable hover for large graphs
                     tooltipDelay: 100,
-                    zoomSpeed: 0.5
+                    zoomSpeed: 0.5,
+                    hideEdgesOnDrag: isLargeGraph,  // Hide edges while dragging for performance
+                    hideEdgesOnZoom: isLargeGraph   // Hide edges while zooming for performance
                 }
             };
 
@@ -2184,7 +2201,6 @@ def _generate_webgl_html(
             // Log when stabilization is done
             network.on("stabilizationIterationsDone", function() {
                 console.log("Network stabilized!");
-                network.setOptions({ physics: false });
                 network.fit();
             });
 
