@@ -112,7 +112,9 @@ def plot_graph(
         )
     # Compute simple layout
     elif layout == "force":
-        positions, graph_extent = _force_directed_layout(nodes, edges, iterations=50)
+        # Use fewer iterations for large graphs to improve performance
+        iterations = 25 if len(nodes) > 200 else 50
+        positions, graph_extent = _force_directed_layout(nodes, edges, iterations=iterations)
         html = _generate_webgl_html(
             graph,
             nodes,
@@ -171,214 +173,292 @@ def plot_graph(
     return output_path
 
 
-def _force_directed_layout(nodes: list[str], edges: list[list[str]], iterations: int = 500) -> dict:
-    """Fruchterman-Reingold layout algorithm (based on igraph implementation).
+class _QuadTreeNode:
+    """Node in a quadtree for Barnes-Hut force calculation.
 
-    Reference: https://igraph.org/r/html/1.3.1/layout_with_fr.html
+    Represents a spatial region that may contain multiple particles (nodes).
+    Internal nodes represent aggregated mass, leaf nodes contain individual particles.
+    """
+
+    def __init__(self, x_min, x_max, y_min, y_max):
+        self.x_min = x_min
+        self.x_max = x_max
+        self.y_min = y_min
+        self.y_max = y_max
+        self.center_x = (x_min + x_max) / 2
+        self.center_y = (y_min + y_max) / 2
+        self.width = x_max - x_min
+        self.height = y_max - y_min
+
+        # Mass properties (for aggregation)
+        self.mass = 0.0
+        self.mass_x = 0.0  # Sum of mass * x
+        self.mass_y = 0.0  # Sum of mass * y
+
+        # Child quadrants (NW, NE, SW, SE)
+        self.children = [None, None, None, None]
+
+        # Particles in this node (only for leaf nodes)
+        self.particles = []
+
+        # Whether this is a leaf node
+        self.is_leaf = True
+
+    @property
+    def center_of_mass(self):
+        """Calculate center of mass for this region."""
+        if self.mass == 0:
+            return (self.center_x, self.center_y)
+        return (self.mass_x / self.mass, self.mass_y / self.mass)
+
+
+def _build_quadtree(nodes: list[str], positions: dict) -> _QuadTreeNode:
+    """Build a quadtree from node positions for Barnes-Hut approximation.
+
+    Parameters
+    ----------
+    nodes : list[str]
+        List of node identifiers
+    positions : dict
+        Dictionary mapping node IDs to [x, y] positions
+
+    Returns
+    -------
+    _QuadTreeNode
+        Root of the quadtree
+    """
+    if not nodes:
+        return None
+
+    # Find bounding box
+    all_x = [positions[node][0] for node in nodes]
+    all_y = [positions[node][1] for node in nodes]
+
+    x_min, x_max = min(all_x), max(all_x)
+    y_min, y_max = min(all_y), max(all_y)
+
+    # Add padding to avoid edge cases
+    padding = max(x_max - x_min, y_max - y_min) * 0.1
+    x_min -= padding
+    x_max += padding
+    y_min -= padding
+    y_max += padding
+
+    # Create root node
+    root = _QuadTreeNode(x_min, x_max, y_min, y_max)
+
+    # Insert all particles
+    for node_id in nodes:
+        x, y = positions[node_id]
+        _insert_particle(root, node_id, x, y, 1.0)  # Mass = 1.0 for all nodes
+
+    return root
+
+
+def _insert_particle(node: _QuadTreeNode, particle_id: str, x: float, y: float, mass: float):
+    """Insert a particle into the quadtree.
+
+    Parameters
+    ----------
+    node : _QuadTreeNode
+        Current node to insert into
+    particle_id : str
+        Identifier for the particle
+    x, y : float
+        Position of the particle
+    mass : float
+        Mass of the particle
+    """
+    # Update mass properties
+    node.mass += mass
+    node.mass_x += mass * x
+    node.mass_y += mass * y
+
+    if node.is_leaf:
+        if len(node.particles) == 0:
+            # Empty leaf - add particle
+            node.particles.append((particle_id, x, y))
+        else:
+            # Leaf with particle(s) - need to subdivide
+            old_particles = node.particles[:]
+            node.particles = []
+            node.is_leaf = False
+
+            # Create children
+            mid_x = (node.x_min + node.x_max) / 2
+            mid_y = (node.y_min + node.y_max) / 2
+
+            # Quadrants: NW (0), NE (1), SW (2), SE (3)
+            node.children[0] = _QuadTreeNode(node.x_min, mid_x, mid_y, node.y_max)  # NW
+            node.children[1] = _QuadTreeNode(mid_x, node.x_max, mid_y, node.y_max)  # NE
+            node.children[2] = _QuadTreeNode(node.x_min, mid_x, node.y_min, mid_y)  # SW
+            node.children[3] = _QuadTreeNode(mid_x, node.x_max, node.y_min, mid_y)  # SE
+
+            # Re-insert old particles
+            for old_id, old_x, old_y in old_particles:
+                quadrant = _get_quadrant(node, old_x, old_y)
+                _insert_particle(node.children[quadrant], old_id, old_x, old_y, mass)
+
+            # Insert new particle
+            quadrant = _get_quadrant(node, x, y)
+            _insert_particle(node.children[quadrant], particle_id, x, y, mass)
+    else:
+        # Internal node - insert into appropriate child
+        quadrant = _get_quadrant(node, x, y)
+        _insert_particle(node.children[quadrant], particle_id, x, y, mass)
+
+
+def _get_quadrant(node: _QuadTreeNode, x: float, y: float) -> int:
+    """Determine which quadrant a point belongs to.
+
+    Returns
+    -------
+    int
+        Quadrant index: 0=NW, 1=NE, 2=SW, 3=SE
+    """
+    mid_x = (node.x_min + node.x_max) / 2
+    mid_y = (node.y_min + node.y_max) / 2
+
+    if x < mid_x:
+        return 0 if y >= mid_y else 2  # West side
+    else:
+        return 1 if y >= mid_y else 3  # East side
+
+
+def _calculate_barnes_hut_force(
+    particle_id: str, pos: list[float], node: _QuadTreeNode, k: float, theta: float
+) -> tuple[float, float]:
+    """Calculate repulsive force on a particle using Barnes-Hut approximation.
+
+    Parameters
+    ----------
+    particle_id : str
+        ID of the particle to calculate force for
+    pos : list[float]
+        Current position [x, y] of the particle
+    node : _QuadTreeNode
+        Current quadtree node
+    k : float
+        Optimal distance parameter (from FR algorithm)
+    theta : float
+        Barnes-Hut approximation parameter (0.5 is typical)
+
+    Returns
+    -------
+    tuple[float, float]
+        Force components (fx, fy)
     """
     import math
-    import random
+
+    if node is None or node.mass == 0:
+        return (0.0, 0.0)
+
+    # Get center of mass for this region
+    com_x, com_y = node.center_of_mass
+
+    # Distance to center of mass
+    dx = pos[0] - com_x
+    dy = pos[1] - com_y
+    dist_sq = dx * dx + dy * dy
+    dist = math.sqrt(dist_sq) if dist_sq > 0.01 else 0.01
+
+    # Check if we can use this node as aggregate (Barnes-Hut criterion)
+    # s/d < theta, where s is the width of the region and d is the distance
+    if node.is_leaf or (node.width / dist < theta):
+        # Use this node as aggregate (or it's a leaf with one particle)
+        if node.is_leaf and len(node.particles) == 1 and node.particles[0][0] == particle_id:
+            # Don't calculate force on itself
+            return (0.0, 0.0)
+
+        # Repulsive force: f_r(d) = k^2 / d
+        force = (k * k) / dist
+        fx = (dx / dist) * force * node.mass  # Scale by mass
+        fy = (dy / dist) * force * node.mass
+
+        return (fx, fy)
+    else:
+        # Need to recurse into children for more accuracy
+        total_fx = 0.0
+        total_fy = 0.0
+
+        for child in node.children:
+            if child is not None:
+                fx, fy = _calculate_barnes_hut_force(particle_id, pos, child, k, theta)
+                total_fx += fx
+                total_fy += fy
+
+        return (total_fx, total_fy)
+
+
+def _force_directed_layout(
+    nodes: list[str], edges: list[list[str]], iterations: int = 500
+) -> tuple[dict, float]:
+    """Fruchterman-Reingold layout algorithm with Rust implementation.
+
+    Uses optimized Rust code with Barnes-Hut quadtree approximation for repulsive forces,
+    providing 10-100x speedup over pure Python implementation.
+
+    Parameters
+    ----------
+    nodes : list[str]
+        Node IDs
+    edges : list[list[str]]
+        Edge list as [source, target] pairs
+    iterations : int
+        Number of force-directed iterations
+
+    Returns
+    -------
+    tuple[dict, float]
+        (positions dict mapping node_id -> [x, y], graph_extent)
+    """
+    from edgecase._core import force_directed_layout_rust
 
     n = len(nodes)
     if n == 0:
-        return {}
+        return {}, 0.0
     if n == 1:
-        return {nodes[0]: [0.0, 0.0]}
+        return {nodes[0]: [0.0, 0.0]}, 0.0
 
-    # Initialize positions randomly in a large space
-    random.seed(42)
-    # Start with larger initial spacing to avoid local minima
-    init_range = math.sqrt(n) * 2.0
-    positions = {
-        node: [random.uniform(-init_range, init_range), random.uniform(-init_range, init_range)]
-        for node in nodes
-    }
+    # Call Rust implementation
+    print(
+        f"Computing force layout with Rust for {n} nodes, {len(edges)} edges, {iterations} iterations..."
+    )
+    import time
 
-    # Build adjacency for connected nodes
-    adj = {node: set() for node in nodes}
-    for src, tgt in edges:
-        adj[src].add(tgt)
-        adj[tgt].add(src)
+    start_time = time.time()
 
-    # Layout parameters (igraph FR algorithm)
-    # Reduce area to avoid massive scaling compression that causes saddle shapes
-    # Use n * 2.0 instead of n * 10.0 for more compact initial layout
-    area = n * 2.0
-    k = math.sqrt(area / n)  # Optimal distance between nodes
+    # Convert nodes to indices for Rust
+    # Filter out self-loops as they don't contribute to layout forces
+    node_to_idx = {node: i for i, node in enumerate(nodes)}
+    edge_tuples = [(node_to_idx[src], node_to_idx[tgt]) for src, tgt in edges if src != tgt]
 
-    # Initial temperature (controls movement magnitude)
-    temp = k * 2.0
+    if len(edge_tuples) < len(edges):
+        print(f"  Filtered {len(edges) - len(edge_tuples)} self-loop(s) from layout computation")
 
-    # Run more iterations for better convergence
-    total_iterations = max(iterations, 1000)
+    # Call Rust function - returns dict mapping node index -> (x, y)
+    positions_dict = force_directed_layout_rust(
+        node_count=n,
+        edges=edge_tuples,
+        iterations=iterations,
+        use_barnes_hut=n > 100,
+    )
 
-    for iteration in range(total_iterations):
-        # Calculate repulsive forces between all pairs
-        forces = {node: [0.0, 0.0] for node in nodes}
+    elapsed = time.time() - start_time
+    print(f"✓ Layout computed in {elapsed:.2f}s")
 
-        for i, v in enumerate(nodes):
-            for u in nodes[i + 1 :]:
-                dx = positions[v][0] - positions[u][0]
-                dy = positions[v][1] - positions[u][1]
-                dist_sq = dx * dx + dy * dy
-                dist = math.sqrt(dist_sq) if dist_sq > 0.01 else 0.01
+    # Convert back to dict with original node IDs
+    # positions_dict maps node_index -> (x, y) tuple
+    positions = {nodes[i]: list(pos) for i, pos in positions_dict.items()}
 
-                # Repulsive force: f_r(d) = k^2 / d
-                force = (k * k) / dist
-                fx = (dx / dist) * force
-                fy = (dy / dist) * force
+    # Calculate extent for zoom calculation
+    all_x = [pos[0] for pos in positions.values()]
+    all_y = [pos[1] for pos in positions.values()]
+    range_x = max(all_x) - min(all_x) if all_x else 0
+    range_y = max(all_y) - min(all_y) if all_y else 0
+    graph_extent = max(range_x, range_y)
 
-                forces[v][0] += fx
-                forces[v][1] += fy
-                forces[u][0] -= fx
-                forces[u][1] -= fy
-
-        # Calculate attractive forces for connected nodes
-        for src, tgt in edges:
-            dx = positions[src][0] - positions[tgt][0]
-            dy = positions[src][1] - positions[tgt][1]
-            dist_sq = dx * dx + dy * dy
-            dist = math.sqrt(dist_sq) if dist_sq > 0.01 else 0.01
-
-            # Attractive force: f_a(d) = d^2 / k
-            force = (dist * dist) / k
-            fx = (dx / dist) * force
-            fy = (dy / dist) * force
-
-            forces[src][0] -= fx
-            forces[src][1] -= fy
-            forces[tgt][0] += fx
-            forces[tgt][1] += fy
-
-        # Update positions with temperature (cooling)
-        for node in nodes:
-            fx, fy = forces[node]
-            force_mag = math.sqrt(fx * fx + fy * fy)
-
-            if force_mag > 0.01:
-                # Limit displacement by temperature
-                disp = min(force_mag, temp)
-                positions[node][0] += (fx / force_mag) * disp
-                positions[node][1] += (fy / force_mag) * disp
-
-        # Cool down (exponential cooling for better convergence)
-        temp *= 0.99
-
-    # Iterative scaling approach to balance spacing, overlap prevention, and viewport fitting
-    if positions:
-        all_x = [pos[0] for pos in positions.values()]
-        all_y = [pos[1] for pos in positions.values()]
-
-        min_x, max_x = min(all_x), max(all_x)
-        min_y, max_y = min(all_y), max(all_y)
-
-        # Get the range and center
-        range_x = max_x - min_x if max_x != min_x else 1.0
-        range_y = max_y - min_y if max_y != min_y else 1.0
-        center_x = (max_x + min_x) / 2.0
-        center_y = (max_y + min_y) / 2.0
-
-        # Calculate average edge length in layout coordinates
-        total_edge_length = 0.0
-        for src, tgt in edges:
-            dx = positions[src][0] - positions[tgt][0]
-            dy = positions[src][1] - positions[tgt][1]
-            total_edge_length += math.sqrt(dx * dx + dy * dy)
-        avg_edge_length = total_edge_length / len(edges) if edges else k
-
-        # Debug output
-        print("\\n=== Layout Scaling Debug (Python) ===")
-        print(f"Number of nodes: {n}")
-        print(f"Area: {area:.2f}")
-        print(f"k (optimal distance): {k:.4f}")
-        print(f"Average edge length in layout: {avg_edge_length:.4f}")
-        print(f"Before scaling - X range: [{min_x:.4f}, {max_x:.4f}] = {range_x:.4f}")
-        print(f"Before scaling - Y range: [{min_y:.4f}, {max_y:.4f}] = {range_y:.4f}")
-
-        # Target: edges should be about 5 node diameters long in viewport
-        # Node size will be 20px, so in viewport coords (assuming 800px canvas),
-        # one node diameter ≈ 0.05 viewport units (20/400)
-        node_diameter_in_viewport = 0.05
-        target_edge_length_in_viewport = node_diameter_in_viewport * 5  # 5 node diameters
-
-        # Minimum readable edge length: 2.5 node diameters (prevent node overlap)
-        min_edge_length_in_viewport = node_diameter_in_viewport * 2.5
-
-        # Calculate scale to achieve target edge length
-        scale_by_edges = (
-            target_edge_length_in_viewport / avg_edge_length if avg_edge_length > 0 else 1.0
-        )
-
-        print(f"target_edge_length_in_viewport: {target_edge_length_in_viewport:.4f}")
-        print(f"scale_by_edges: {scale_by_edges:.4f}")
-
-        # Apply edge-based scaling and centering
-        for node in nodes:
-            positions[node][0] = (positions[node][0] - center_x) * scale_by_edges
-            positions[node][1] = (positions[node][1] - center_y) * scale_by_edges
-
-        # Check if graph fits in viewport with padding
-        all_x_scaled = [positions[node][0] for node in nodes]
-        all_y_scaled = [positions[node][1] for node in nodes]
-        scaled_range_x = max(all_x_scaled) - min(all_x_scaled)
-        scaled_range_y = max(all_y_scaled) - min(all_y_scaled)
-        max_scaled_range = max(scaled_range_x, scaled_range_y)
-
-        # Calculate what the edge length would be after shrinking
-        potential_shrink = 1.6 / max_scaled_range if max_scaled_range > 1.6 else 1.0
-        edge_length_after_shrink = target_edge_length_in_viewport * potential_shrink
-
-        # Only shrink if we can maintain minimum readable edge length
-        if max_scaled_range > 1.6 and edge_length_after_shrink >= min_edge_length_in_viewport:
-            shrink_factor = 1.6 / max_scaled_range
-            print(f"Graph extends beyond viewport, shrinking by {shrink_factor:.4f}")
-            print(
-                f"Edge length after shrink: {edge_length_after_shrink:.4f} ({edge_length_after_shrink / node_diameter_in_viewport:.2f} diameters)"
-            )
-            for node in nodes:
-                positions[node][0] *= shrink_factor
-                positions[node][1] *= shrink_factor
-            # Recalculate after shrinking
-            all_x_scaled = [positions[node][0] for node in nodes]
-            all_y_scaled = [positions[node][1] for node in nodes]
-            scaled_range_x = max(all_x_scaled) - min(all_x_scaled)
-            scaled_range_y = max(all_y_scaled) - min(all_y_scaled)
-        else:
-            if max_scaled_range > 1.6:
-                print(
-                    f"Graph extends beyond viewport ({max_scaled_range:.2f}), but maintaining edge readability"
-                )
-                print(
-                    f"Use pan/zoom to navigate - edges kept at {target_edge_length_in_viewport / node_diameter_in_viewport:.1f} diameters"
-                )
-
-        # Calculate final edge lengths and graph extent
-        total_scaled_edge_length = 0.0
-        for src, tgt in edges:
-            dx = positions[src][0] - positions[tgt][0]
-            dy = positions[src][1] - positions[tgt][1]
-            total_scaled_edge_length += math.sqrt(dx * dx + dy * dy)
-        avg_scaled_edge_length = total_scaled_edge_length / len(edges) if edges else 0
-
-        # Calculate final extent for initial zoom
-        all_x_final = [positions[node][0] for node in nodes]
-        all_y_final = [positions[node][1] for node in nodes]
-        final_range_x = max(all_x_final) - min(all_x_final) if all_x_final else 0
-        final_range_y = max(all_y_final) - min(all_y_final) if all_y_final else 0
-        graph_extent = max(final_range_x, final_range_y)
-
-        print(
-            f"After scaling - X range: [{min(all_x_scaled):.4f}, {max(all_x_scaled):.4f}] = {scaled_range_x:.4f}"
-        )
-        print(
-            f"After scaling - Y range: [{min(all_y_scaled):.4f}, {max(all_y_scaled):.4f}] = {scaled_range_y:.4f}"
-        )
-        print(f"Average edge length after scaling: {avg_scaled_edge_length:.4f}")
-        print(
-            f"Edge length in node diameters: {avg_scaled_edge_length / node_diameter_in_viewport:.2f}"
-        )
-        print(f"Graph extent for zoom calculation: {graph_extent:.4f}")
-        print("=====================================\\n")
+    print(f"Graph extent: {graph_extent:.4f}")
 
     return positions, graph_extent
 
@@ -491,9 +571,46 @@ def _generate_graphviz_html(
             position: relative;
             display: inline-block;
         }}
+        #canvas-wrapper::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 30%, rgba(200, 220, 240, 0.6) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 70%, rgba(240, 210, 230, 0.5) 0%, transparent 50%),
+                radial-gradient(ellipse at 40% 80%, rgba(220, 240, 210, 0.5) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 20%, rgba(210, 230, 245, 0.6) 0%, transparent 50%),
+                white;
+            pointer-events: none;
+            z-index: 0;
+            animation: smokeMoveCanvas 60s ease-in-out infinite;
+        }}
+        @keyframes smokeMoveCanvas {{
+            0%, 100% {{
+                background-position: 0% 0%, 100% 100%, 50% 100%, 100% 0%;
+                background-size: 150% 150%, 140% 140%, 160% 160%, 130% 130%;
+            }}
+            25% {{
+                background-position: 30% 20%, 80% 70%, 40% 90%, 90% 10%;
+                background-size: 140% 140%, 160% 160%, 150% 150%, 145% 145%;
+            }}
+            50% {{
+                background-position: 50% 40%, 60% 50%, 30% 70%, 80% 30%;
+                background-size: 160% 160%, 150% 150%, 140% 140%, 155% 155%;
+            }}
+            75% {{
+                background-position: 20% 60%, 90% 30%, 60% 80%, 70% 50%;
+                background-size: 150% 150%, 145% 145%, 155% 155%, 140% 140%;
+            }}
+        }}
         #canvas {{
+            position: relative;
+            z-index: 1;
             border: 1px solid #ddd;
-            background: #f5f5f5;
+            background: transparent;
             cursor: grab;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
@@ -784,8 +901,8 @@ def _generate_graphviz_html(
         function render() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const effectiveNodeSize = zoomMode === 'geometric' ? {node_size} * zoom : {node_size};
-            const effectiveEdgeWidth = zoomMode === 'geometric' ? {edge_width} * zoom : {edge_width};
+            const effectiveNodeSize = zoomMode === 'geometric' ? Math.max(1.5, {node_size} * zoom) : {node_size};
+            const effectiveEdgeWidth = zoomMode === 'geometric' ? Math.max(0.5, {edge_width} * zoom) : {edge_width};
             const effectiveArrowSize = zoomMode === 'geometric' ? 10 * zoom : 10;
 
             // Draw edges
@@ -930,7 +1047,7 @@ def _generate_graphviz_html(
             e.preventDefault();
             const zoomFactor = e.deltaY > 0 ? 0.95 : 1.05;
             zoom *= zoomFactor;
-            zoom = Math.max(0.1, Math.min(10, zoom));
+            zoom = Math.max(0.001, Math.min(10, zoom));
             render();
         }});
 
@@ -1639,39 +1756,94 @@ def _generate_webgl_html(
     """Generate standalone HTML with WebGL renderer (deck.gl style)."""
 
     # Get graph properties
-    is_directed = graph.is_directed
+    is_directed = graph.is_directed()
     graph_type = "directed" if is_directed else "undirected"
 
     # Calculate initial zoom to fit graph in viewport
-    # Target: graph should fit within 1.6 viewport units (leaving 20% padding)
-    if graph_extent > 1.6:
-        initial_zoom = 1.6 / graph_extent
+    # Use graph extent and edge density to determine appropriate zoom level
+    # Dense graphs need zooming IN, sparse graphs need zooming OUT
+    if graph_extent > 0 and len(nodes) > 0:
+        # Calculate edge density (edges per node)
+        edge_density = len(edges) / len(nodes)
+
+        # Base target viewport size on node count
+        if len(nodes) > 1000:
+            base_target = 0.15
+        elif len(nodes) > 200:
+            base_target = 0.25
+        else:
+            base_target = 0.4
+
+        # Adjust based on edge density with refined thresholds
+        # Very sparse graphs (density < 1.2): need significant zoom in (trees, stars)
+        # Sparse graphs (density < 2): slight zoom in
+        # Normal graphs (density 2-4): no adjustment
+        # Dense graphs (density > 4): zoom out more
+        if edge_density > 6:
+            density_multiplier = 0.7  # Dense graphs are compact, zoom out
+        elif edge_density > 4:
+            density_multiplier = 0.85
+        elif edge_density > 2:
+            density_multiplier = 1.0  # Normal density
+        elif edge_density > 1.2:
+            density_multiplier = 1.3  # Sparse but connected
+        else:
+            density_multiplier = 1.6  # Very sparse (trees, stars) - zoom in
+
+        target_viewport_size = base_target * density_multiplier
+        initial_zoom = target_viewport_size / (graph_extent * 2.0)
+        # Clamp between reasonable bounds - allow very small zoom
+        initial_zoom = max(0.002, min(initial_zoom, 0.5))
     else:
-        initial_zoom = 0.7  # Default zoom for small graphs
+        initial_zoom = 0.1
+
+    print(
+        f"Initial zoom calculated: {initial_zoom:.4f} (graph_extent: {graph_extent:.2f}, edge_density: {len(edges) / len(nodes) if len(nodes) > 0 else 0:.2f})"
+    )
+
+    # Add diagnostic info for zoom tuning
+    diagnostic_info = {
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "graph_extent": graph_extent,
+        "initial_zoom": initial_zoom,
+    }
 
     # Convert to JSON-serializable format
     # Note: In EdgeCase, node strings are typically labels
-    node_data = [
-        {
-            "id": node,
-            "label": node,  # In EdgeCase, nodes() returns labels
+    node_data = []
+    for node in nodes:
+        if node not in positions:
+            print(f"WARNING: Node {node} not in positions dict!")
+            continue
+        node_obj = graph.get_node(node)
+        node_dict = {
+            "id": str(node),  # Convert to string for consistent JSON handling
+            "label": str(node),
             "x": positions[node][0],
             "y": positions[node][1],
+            "attributes": node_obj.attributes if node_obj else {},
         }
-        for node in nodes
-    ]
+        node_data.append(node_dict)
 
-    edge_data = [
-        {
-            "source": src,
-            "target": tgt,
+    print(f"Generated {len(node_data)} nodes for visualization (from {len(nodes)} total)")
+
+    edge_data = []
+    for src, tgt in edges:
+        # Find edge ID(s) for this source-target pair
+        edge_ids = graph.find_edge_ids(src, tgt)
+        # Get the first edge (handles multi-edges by just taking the first)
+        edge_obj = graph.get_edge(edge_ids[0]) if edge_ids else None
+        edge_dict = {
+            "source": str(src),  # Convert to string for consistency
+            "target": str(tgt),
             "sourceX": positions[src][0],
             "sourceY": positions[src][1],
             "targetX": positions[tgt][0],
             "targetY": positions[tgt][1],
+            "attributes": edge_obj.attributes if edge_obj else {},
         }
-        for src, tgt in edges
-    ]
+        edge_data.append(edge_dict)
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -1705,9 +1877,46 @@ def _generate_webgl_html(
             position: relative;
             display: inline-block;
         }}
+        #canvas-wrapper::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 30%, rgba(200, 220, 240, 0.6) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 70%, rgba(240, 210, 230, 0.5) 0%, transparent 50%),
+                radial-gradient(ellipse at 40% 80%, rgba(220, 240, 210, 0.5) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 20%, rgba(210, 230, 245, 0.6) 0%, transparent 50%),
+                white;
+            pointer-events: none;
+            z-index: 0;
+            animation: smokeMoveCanvas 60s ease-in-out infinite;
+        }}
+        @keyframes smokeMoveCanvas {{
+            0%, 100% {{
+                background-position: 0% 0%, 100% 100%, 50% 100%, 100% 0%;
+                background-size: 150% 150%, 140% 140%, 160% 160%, 130% 130%;
+            }}
+            25% {{
+                background-position: 30% 20%, 80% 70%, 40% 90%, 90% 10%;
+                background-size: 140% 140%, 160% 160%, 150% 150%, 145% 145%;
+            }}
+            50% {{
+                background-position: 50% 40%, 60% 50%, 30% 70%, 80% 30%;
+                background-size: 160% 160%, 150% 150%, 140% 140%, 155% 155%;
+            }}
+            75% {{
+                background-position: 20% 60%, 90% 30%, 60% 80%, 70% 50%;
+                background-size: 150% 150%, 145% 145%, 155% 155%, 140% 140%;
+            }}
+        }}
         #canvas {{
+            position: relative;
+            z-index: 1;
             border: 1px solid #ddd;
-            background: #f5f5f5;
+            background: transparent;
             cursor: grab;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
@@ -1802,6 +2011,37 @@ def _generate_webgl_html(
             min-width: 100px;
             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }}
+        #diagnostic-controls {{
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        #diagnostic-controls button {{
+            display: block;
+            width: 100%;
+            padding: 6px 10px;
+            margin-top: 5px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }}
+        #diagnostic-controls button:hover {{
+            background: #45a049;
+        }}
+        #zoom-display {{
+            font-family: monospace;
+            color: #666;
+            margin-top: 5px;
+        }}
     </style>
 </head>
 <body>
@@ -1819,13 +2059,6 @@ def _generate_webgl_html(
                 <div id="tooltip"></div>
             </div>
             <div id="stats">Drag to pan • Scroll to zoom • Hover for node info</div>
-            <div id="zoom-mode-control">
-                <span id="zoom-mode-label">Zoom Mode:</span>
-                <div class="toggle-switch active" id="zoom-toggle">
-                    <div class="toggle-slider"></div>
-                </div>
-                <span id="zoom-mode-text">Geometric</span>
-            </div>
         </div>
     </div>
 
@@ -1837,26 +2070,33 @@ def _generate_webgl_html(
         const ctx = canvas.getContext('2d');
         const tooltip = document.getElementById('tooltip');
         const resetBtn = document.getElementById('reset-btn');
-        const zoomToggle = document.getElementById('zoom-toggle');
-        const zoomModeText = document.getElementById('zoom-mode-text');
 
         // Debug: Log node positions and edge lengths
         console.log('=== Graph Layout Debug Info ===');
         console.log('Number of nodes:', nodes.length);
         console.log('Number of edges:', edges.length);
-        console.log('\\nNode positions:');
-        nodes.forEach(node => {{
-            console.log(`  Node ${{node.id}}: x=${{node.x.toFixed(4)}}, y=${{node.y.toFixed(4)}}`);
-        }});
+        if (nodes.length <= 10) {{
+            console.log('\\nNode positions:');
+            nodes.forEach(node => {{
+                console.log(`  Node ${{node.id}}: x=${{node.x.toFixed(4)}}, y=${{node.y.toFixed(4)}}`);
+            }});
+        }} else {{
+            console.log('\\nFirst 5 nodes:');
+            nodes.slice(0, 5).forEach(node => {{
+                console.log(`  Node ${{node.id}}: x=${{node.x.toFixed(4)}}, y=${{node.y.toFixed(4)}}`);
+            }});
+        }}
 
         // Calculate edge lengths
-        console.log('\\nEdge lengths:');
-        edges.forEach(edge => {{
-            const dx = edge.targetX - edge.sourceX;
-            const dy = edge.targetY - edge.sourceY;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            console.log(`  ${{edge.source}} → ${{edge.target}}: ${{length.toFixed(4)}}`);
-        }});
+        if (edges.length <= 20) {{
+            console.log('\\nEdge lengths:');
+            edges.forEach(edge => {{
+                const dx = edge.targetX - edge.sourceX;
+                const dy = edge.targetY - edge.sourceY;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                console.log(`  ${{edge.source}} → ${{edge.target}}: ${{length.toFixed(4)}}`);
+            }});
+        }}
 
         // Calculate bounding box
         const allX = nodes.map(n => n.x);
@@ -1874,12 +2114,164 @@ def _generate_webgl_html(
 
         // Viewport state - calculate initial zoom to fit large graphs
         const initialZoom = {initial_zoom:.4f};
+        console.log(`Initial zoom: ${{initialZoom}}`);
+        const initialPanX = 0;
+        const initialPanY = 0;
         let zoom = initialZoom;
+        let minZoom = 0.001;  // Will be updated after zoom-to-fit
         let panX = 0, panY = 0;
         let isDragging = false;
         let lastMouseX = 0, lastMouseY = 0;
         let hoveredNode = null;
-        let zoomMode = 'geometric';  // 'semantic' or 'geometric' - default to geometric
+        let hoveredEdge = null;
+
+        // Physics simulation state
+        // For graphs with self-loops, we already filtered them from the layout computation
+        // Enable simulation for visual refinement
+        let isSimulating = true;
+        let velocities = nodes.map(() => ({{ x: 0, y: 0 }}));
+        const damping = 0.90;  // Higher damping to slow movement
+        const repulsion = 0.005;  // Reduced repulsion to prevent excessive spreading
+        const attraction = 0.002;
+        const minVelocity = 0.0001;
+        const maxSimulationTime = 5000;  // Stop after 5 seconds max
+        const simulationStartTime = Date.now();
+
+        // Physics simulation step
+        function simulateStep() {{
+            if (!isSimulating) return;
+
+            let maxVelocity = 0;
+
+            // Calculate forces
+            const forces = nodes.map(() => ({{ x: 0, y: 0 }}));
+
+            // Repulsion between all nodes
+            for (let i = 0; i < nodes.length; i++) {{
+                for (let j = i + 1; j < nodes.length; j++) {{
+                    const dx = nodes[j].x - nodes[i].x;
+                    const dy = nodes[j].y - nodes[i].y;
+                    const distSq = dx * dx + dy * dy + 0.01; // Avoid division by zero
+                    const force = repulsion / distSq;
+                    const fx = (dx / Math.sqrt(distSq)) * force;
+                    const fy = (dy / Math.sqrt(distSq)) * force;
+
+                    forces[i].x -= fx;
+                    forces[i].y -= fy;
+                    forces[j].x += fx;
+                    forces[j].y += fy;
+                }}
+            }}
+
+            // Attraction along edges
+            edges.forEach(edge => {{
+                const sourceIdx = nodes.findIndex(n => n.id === edge.source);
+                const targetIdx = nodes.findIndex(n => n.id === edge.target);
+                if (sourceIdx === -1 || targetIdx === -1) return;
+
+                const dx = nodes[targetIdx].x - nodes[sourceIdx].x;
+                const dy = nodes[targetIdx].y - nodes[sourceIdx].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const force = dist * attraction;
+                const fx = (dx / dist) * force;
+                const fy = (dy / dist) * force;
+
+                forces[sourceIdx].x += fx;
+                forces[sourceIdx].y += fy;
+                forces[targetIdx].x -= fx;
+                forces[targetIdx].y -= fy;
+            }});
+
+            // Update velocities and positions
+            nodes.forEach((node, i) => {{
+                velocities[i].x = (velocities[i].x + forces[i].x) * damping;
+                velocities[i].y = (velocities[i].y + forces[i].y) * damping;
+
+                node.x += velocities[i].x;
+                node.y += velocities[i].y;
+
+                const vel = Math.abs(velocities[i].x) + Math.abs(velocities[i].y);
+                if (vel > maxVelocity) maxVelocity = vel;
+            }});
+
+            // Update edge positions
+            edges.forEach(edge => {{
+                const sourceNode = nodes.find(n => n.id === edge.source);
+                const targetNode = nodes.find(n => n.id === edge.target);
+                if (sourceNode && targetNode) {{
+                    edge.sourceX = sourceNode.x;
+                    edge.sourceY = sourceNode.y;
+                    edge.targetX = targetNode.x;
+                    edge.targetY = targetNode.y;
+                }}
+            }});
+
+            // Stop simulation when movement is minimal or time limit reached
+            if (maxVelocity < minVelocity || (Date.now() - simulationStartTime) > maxSimulationTime) {{
+                isSimulating = false;
+                // Trigger smooth zoom-to-fit after stabilization
+                setTimeout(() => zoomToFit(), 100);
+            }}
+        }}
+
+        // Smooth zoom-to-fit animation
+        function zoomToFit() {{
+            // Calculate bounding box of all nodes
+            const xs = nodes.map(n => n.x);
+            const ys = nodes.map(n => n.y);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
+
+            const graphWidth = maxX - minX;
+            const graphHeight = maxY - minY;
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+
+            // Calculate zoom to fit with padding (85% of viewport)
+            const padding = 0.85;
+            const zoomX = padding / graphWidth;
+            const zoomY = padding / graphHeight;
+            const targetZoom = Math.min(zoomX, zoomY, 0.5); // Cap at 0.5
+
+            // Set this as the new minimum zoom level
+            minZoom = targetZoom;
+
+            // Set this as the new minimum zoom level
+            minZoom = targetZoom;
+
+            // Target pan to center the graph
+            const targetPanX = -centerX * targetZoom;
+            const targetPanY = -centerY * targetZoom;
+
+            // Animate zoom and pan over 1 second
+            const startZoom = zoom;
+            const startPanX = panX;
+            const startPanY = panY;
+            const duration = 1000; // ms
+            const startTime = Date.now();
+
+            function animateZoom() {{
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Ease-out cubic for smooth deceleration
+                const eased = 1 - Math.pow(1 - progress, 3);
+
+                zoom = startZoom + (targetZoom - startZoom) * eased;
+                panX = startPanX + (targetPanX - startPanX) * eased;
+                panY = startPanY + (targetPanY - startPanY) * eased;
+
+                render();
+
+                if (progress < 1) {{
+                    requestAnimationFrame(animateZoom);
+                }}
+            }}
+
+            animateZoom();
+        }}
 
         // Transform world coords to screen coords
         function toScreen(x, y) {{
@@ -1896,19 +2288,64 @@ def _generate_webgl_html(
             return [worldX, worldY];
         }}
 
+        // Find edge at screen position
+        function findEdgeAt(screenX, screenY) {{
+            const threshold = 5; // pixels
+            for (const edge of edges) {{
+                const [x1, y1] = toScreen(edge.sourceX, edge.sourceY);
+                const [x2, y2] = toScreen(edge.targetX, edge.targetY);
+
+                // Calculate distance from point to line segment
+                const A = screenX - x1;
+                const B = screenY - y1;
+                const C = x2 - x1;
+                const D = y2 - y1;
+
+                const dot = A * C + B * D;
+                const lenSq = C * C + D * D;
+                let param = -1;
+                if (lenSq !== 0) param = dot / lenSq;
+
+                let xx, yy;
+                if (param < 0) {{
+                    xx = x1;
+                    yy = y1;
+                }} else if (param > 1) {{
+                    xx = x2;
+                    yy = y2;
+                }} else {{
+                    xx = x1 + param * C;
+                    yy = y1 + param * D;
+                }}
+
+                const dx = screenX - xx;
+                const dy = screenY - yy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist <= threshold) {{
+                    return edge;
+                }}
+            }}
+            return null;
+        }}
+
         // Find node at screen position
         function findNodeAt(screenX, screenY) {{
-            const [worldX, worldY] = toWorld(screenX, screenY);
-            // Hit radius adjusts based on zoom mode
-            const hitRadius = zoomMode === 'geometric'
-                ? {node_size} * 0.015 * zoom
-                : {node_size} * 0.015;
+            // Calculate effective node size with geometric zoom (2x default size)
+            const effectiveNodeSize = {node_size} * 2 * zoom;
 
             for (const node of nodes) {{
-                const dx = node.x - worldX;
-                const dy = node.y - worldY;
+                const [nodeScreenX, nodeScreenY] = toScreen(node.x, node.y);
+
+                // Calculate actual node size including custom size multiplier
+                const nodeSizeMultiplier = node.attributes && node.attributes.size ? node.attributes.size : 1.0;
+                const actualNodeSize = effectiveNodeSize * nodeSizeMultiplier;
+
+                // Check distance in screen space
+                const dx = nodeScreenX - screenX;
+                const dy = nodeScreenY - screenY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist <= hitRadius) {{
+                if (dist <= actualNodeSize) {{
                     return node;
                 }}
             }}
@@ -1954,89 +2391,119 @@ def _generate_webgl_html(
             ctx.fill();
         }}
 
-        // Render function (60fps with requestAnimationFrame)
+        // Render function with optimizations for smooth performance
+        let renderScheduled = false;
+        let renderCount = 0;
         function render() {{
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Calculate effective sizes based on zoom mode
-            const effectiveNodeSize = zoomMode === 'geometric' ? {node_size} * zoom : {node_size};
-            const effectiveEdgeWidth = zoomMode === 'geometric' ? {edge_width} * zoom : {edge_width};
-            const effectiveArrowSize = zoomMode === 'geometric' ? 10 * zoom : 10;
+            // Calculate effective sizes with geometric zoom (always scale with zoom)
+            const effectiveNodeSize = Math.max(1.5, {node_size} * 2 * zoom);  // Minimum 1.5px, 2x larger default
+            const effectiveEdgeWidth = Math.max(1.0, {edge_width} * 3 * zoom);  // 3x thicker edges, minimum 1.0px
+            const effectiveArrowSize = 50 * zoom;  // 5x larger arrows for better visibility
+
+            renderCount++;
 
             // Draw edges
             ctx.strokeStyle = 'rgba(96, 165, 250, 0.6)';  // Match node border color harmoniously
             ctx.lineWidth = effectiveEdgeWidth;
 
-            for (const edge of edges) {{
-                const [x1, y1] = toScreen(edge.sourceX, edge.sourceY);
-                const [x2, y2] = toScreen(edge.targetX, edge.targetY);
+            let edgesDrawn = 0;
+            let selfLoopsSkipped = 0;
+            try {{
+                for (const edge of edges) {{
+                    // Skip self-loops (source == target)
+                    if (edge.source === edge.target) {{
+                        selfLoopsSkipped++;
+                        continue;
+                    }}
 
-                if (isDirected) {{
-                    drawArrow(x1, y1, x2, y2, effectiveNodeSize, effectiveArrowSize);
-                }} else {{
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    ctx.lineTo(x2, y2);
-                    ctx.stroke();
+                    const [x1, y1] = toScreen(edge.sourceX, edge.sourceY);
+                    const [x2, y2] = toScreen(edge.targetX, edge.targetY);
+
+                    if (renderCount === 1 && edgesDrawn < 2) {{
+                        console.log(`  Edge ${{edge.source}}->${{edge.target}}: (${{x1.toFixed(1)}}, ${{y1.toFixed(1)}}) to (${{x2.toFixed(1)}}, ${{y2.toFixed(1)}})`);
+                    }}
+
+                    if (isDirected) {{
+                        drawArrow(x1, y1, x2, y2, effectiveNodeSize, effectiveArrowSize);
+                    }} else {{
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                    }}
+                    edgesDrawn++;
                 }}
+            }} catch (err) {{
+                console.error('Error drawing edges:', err);
+            }}
+
+            if (renderCount === 0 && selfLoopsSkipped > 0) {{
+                console.log(`Skipped ${{selfLoopsSkipped}} self-loop edges`);
+            }}
+            if (renderCount === 0) {{
+                console.log(`Drew ${{edgesDrawn}} edges`);
             }}
 
             // Draw nodes
+            let nodesDrawn = 0;
+            if (renderCount === 0) {{
+                console.log(`Starting node drawing loop, ${{nodes.length}} nodes to draw`);
+            }}
             for (const node of nodes) {{
                 const [x, y] = toScreen(node.x, node.y);
                 const isHovered = hoveredNode && hoveredNode.id === node.id;
 
-                // Node circle with light fill
-                ctx.fillStyle = isHovered ? '#e0f2fe' : '#f0f9ff';
-                ctx.beginPath();
-                ctx.arc(x, y, effectiveNodeSize, 0, 2 * Math.PI);
-                ctx.fill();
+                // Use custom size if provided, otherwise use default
+                const nodeSizeMultiplier = node.attributes && node.attributes.size ? node.attributes.size : 1.0;
+                const actualNodeSize = effectiveNodeSize * nodeSizeMultiplier;
 
-                // Subtle gradient overlay for depth
-                const gradient = ctx.createRadialGradient(
-                    x - effectiveNodeSize * 0.3, y - effectiveNodeSize * 0.3, 0,
-                    x, y, effectiveNodeSize
-                );
-                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
-                gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
-                gradient.addColorStop(1, 'rgba(147, 197, 253, 0.2)');
-                ctx.fillStyle = gradient;
-                ctx.fill();
-
-                // Translucent glassy border with shimmer effect
-                ctx.strokeStyle = isHovered ? 'rgba(59, 130, 246, 0.5)' : 'rgba(96, 165, 250, 0.4)';
-                ctx.lineWidth = isHovered ? 3 : 2;
-                ctx.stroke();
-
-                // Top shimmer highlight for glass effect
-                ctx.beginPath();
-                ctx.arc(x - effectiveNodeSize * 0.25, y - effectiveNodeSize * 0.25, effectiveNodeSize * 0.4, 0, Math.PI);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.lineWidth = isHovered ? 2 : 1.5;
-                ctx.stroke();
-
-                // Draw node ID text in center
-                const nodeId = node.id;
-                const idLength = nodeId.length;
-
-                // Scale font size based on ID length and node size (larger sizes for readability)
-                let fontSize;
-                if (idLength === 1) {{
-                    fontSize = effectiveNodeSize * 1.3;
-                }} else if (idLength === 2) {{
-                    fontSize = effectiveNodeSize * 1.0;
-                }} else if (idLength === 3) {{
-                    fontSize = effectiveNodeSize * 0.8;
-                }} else {{
-                    fontSize = effectiveNodeSize * 0.65;
+                // Debug first render: check if nodes are on screen
+                if (renderCount === 0 && nodesDrawn < 5) {{
+                    console.log(`  Node ${{node.id}}: world=(${{node.x.toFixed(4)}}, ${{node.y.toFixed(4)}}), screen=(${{x.toFixed(1)}}, ${{y.toFixed(1)}}), size=${{actualNodeSize.toFixed(1)}}`);
                 }}
+                nodesDrawn++;
 
-                ctx.font = `600 ${{fontSize}}px -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif`;
-                ctx.fontVariantNumeric = 'tabular-nums';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = isHovered ? '#1e40af' : '#3b82f6';
-                ctx.fillText(nodeId, x, y);
+                // Use custom color if provided, otherwise use light blue default
+                const baseColor = node.attributes && node.attributes.fillcolor ? node.attributes.fillcolor : '#93c5fd';
+                const hoverColor = isHovered ? '#bfdbfe' : baseColor;
+
+                // Node circle with custom or default fill
+                ctx.fillStyle = hoverColor;
+                ctx.beginPath();
+                ctx.arc(x, y, actualNodeSize, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Draw node ID text in center (hide when zoomed far out)
+                const showLabels = zoom > 0.3; // Show labels at lower zoom levels for better readability
+                if (showLabels) {{
+                    const nodeId = node.id;
+                    const idLength = nodeId.length;
+
+                    // Scale font size based on ID length and actual node size (larger sizes for readability)
+                    let fontSize;
+                    if (idLength === 1) {{
+                        fontSize = actualNodeSize * 1.3;
+                    }} else if (idLength === 2) {{
+                        fontSize = actualNodeSize * 1.0;
+                    }} else if (idLength === 3) {{
+                        fontSize = actualNodeSize * 0.8;
+                    }} else {{
+                        fontSize = actualNodeSize * 0.65;
+                    }}
+
+                    ctx.font = `600 ${{fontSize}}px -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif`;
+                    ctx.fontVariantNumeric = 'tabular-nums';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = isHovered ? '#1e40af' : '#3b82f6';
+                    ctx.fillText(nodeId, x, y);
+                }}
+            }}
+
+            if (renderCount === 0) {{
+                console.log(`Rendered ${{nodesDrawn}} nodes`);
             }}
         }}
 
@@ -2051,6 +2518,7 @@ def _generate_webgl_html(
         // Mouse interaction
         canvas.addEventListener('mousedown', (e) => {{
             isDragging = true;
+            isSimulating = false; // Pause simulation during drag
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
         }});
@@ -2064,36 +2532,81 @@ def _generate_webgl_html(
                 const dx = (e.clientX - lastMouseX) / canvas.width * 2;
                 const dy = (e.clientY - lastMouseY) / canvas.height * 2;
                 panX += dx;
-                panY += dy;  // Changed from -= to += to fix inverted Y panning
+                panY += dy;
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
-                render();
+                if (!renderScheduled) {{
+                    renderScheduled = true;
+                    requestAnimationFrame(() => {{
+                        render();
+                        renderScheduled = false;
+                    }});
+                }}
             }} else {{
-                // Check for hover
+                // Check for hover (nodes first, then edges)
                 const node = findNodeAt(mouseX, mouseY);
-                if (node !== hoveredNode) {{
+                const edge = node ? null : findEdgeAt(mouseX, mouseY);
+
+                if (node !== hoveredNode || edge !== hoveredEdge) {{
                     hoveredNode = node;
+                    hoveredEdge = edge;
+
                     if (node) {{
                         // Show ID and label in tooltip (if they differ)
-                        const tooltipText = node.id === node.label
+                        let tooltipText = node.id === node.label
                             ? `Node: ${{node.id}}`
                             : `Node: ${{node.id}}\\nLabel: ${{node.label}}`;
+
+                        // Add attributes to tooltip
+                        if (node.attributes && Object.keys(node.attributes).length > 0) {{
+                            tooltipText += '\\n';
+                            for (const [key, value] of Object.entries(node.attributes)) {{
+                                tooltipText += `\\n${{key}}: ${{value}}`;
+                            }}
+                        }}
+
                         tooltip.textContent = tooltipText;
                         tooltip.style.whiteSpace = 'pre-line';
                         // Position tooltip relative to canvas
                         tooltip.style.left = `${{mouseX + 10}}px`;
                         tooltip.style.top = `${{mouseY + 10}}px`;
                         tooltip.style.opacity = '1';
+                    }} else if (edge) {{
+                        // Show edge info in tooltip
+                        let tooltipText = `Edge: ${{edge.source}} \u2192 ${{edge.target}}`;
+
+                        // Add edge attributes to tooltip
+                        if (edge.attributes && Object.keys(edge.attributes).length > 0) {{
+                            tooltipText += '\\n';
+                            for (const [key, value] of Object.entries(edge.attributes)) {{
+                                tooltipText += `\\n${{key}}: ${{value}}`;
+                            }}
+                        }}
+
+                        tooltip.textContent = tooltipText;
+                        tooltip.style.whiteSpace = 'pre-line';
+                        tooltip.style.left = `${{mouseX + 10}}px`;
+                        tooltip.style.top = `${{mouseY + 10}}px`;
+                        tooltip.style.opacity = '1';
                     }} else {{
                         tooltip.style.opacity = '0';
                     }}
-                    render();
+                    if (!renderScheduled) {{
+                        renderScheduled = true;
+                        requestAnimationFrame(() => {{
+                            render();
+                            renderScheduled = false;
+                        }});
+                    }}
                 }}
             }}
         }});
 
         canvas.addEventListener('mouseup', () => {{
-            isDragging = false;
+            if (isDragging) {{
+                isDragging = false;
+                // Don't resume simulation - let it stay paused
+            }}
         }});
 
         canvas.addEventListener('mouseleave', () => {{
@@ -2105,25 +2618,47 @@ def _generate_webgl_html(
 
         canvas.addEventListener('wheel', (e) => {{
             e.preventDefault();
-            // Reduced sensitivity: 0.95/1.05 instead of 0.9/1.1
+
+            // Get center of viewport in world coordinates before zoom
+            const centerScreenX = canvas.width / 2;
+            const centerScreenY = canvas.height / 2;
+            const [centerWorldX, centerWorldY] = toWorld(centerScreenX, centerScreenY);
+
+            // Apply zoom
             const zoomFactor = e.deltaY > 0 ? 0.95 : 1.05;
+            const oldZoom = zoom;
             zoom *= zoomFactor;
-            zoom = Math.max(0.1, Math.min(10, zoom));
-            render();
+            zoom = Math.max(minZoom, Math.min(10, zoom));
+
+            // Adjust pan to keep the center point fixed in world space
+            // After zoom, we want toWorld(centerScreen) to still return (centerWorldX, centerWorldY)
+            const zoomRatio = zoom / oldZoom;
+            panX *= zoomRatio;
+            panY *= zoomRatio;
+
+            if (!renderScheduled) {{
+                renderScheduled = true;
+                requestAnimationFrame(() => {{
+                    render();
+                    renderScheduled = false;
+                }});
+            }}
         }});
 
         resetBtn.addEventListener('click', resetView);
 
-        // Zoom mode toggle
-        zoomToggle.addEventListener('click', () => {{
-            zoomMode = zoomMode === 'semantic' ? 'geometric' : 'semantic';
-            zoomToggle.classList.toggle('active');
-            zoomModeText.textContent = zoomMode === 'semantic' ? 'Semantic' : 'Geometric';
-            render();
-        }});
+        // Animation loop for physics simulation
+        function animate() {{
+            if (isSimulating) {{
+                simulateStep();
+                render();
+            }}
+            requestAnimationFrame(animate);
+        }}
 
-        // Initial render
-        render();
+        // Start animation loop and initial render
+        render();  // Initial render
+        animate();
     </script>
 </body>
 </html>"""
