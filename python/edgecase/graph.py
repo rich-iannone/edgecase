@@ -1241,7 +1241,7 @@ class Graph:
         height: int = 600,
         node_size: float = 20.0,
         edge_width: float = 2.0,
-        layout: str = "neato",
+        layout: str = "force",
     ) -> None:
         """
         Display the graph visualization in a notebook or web browser.
@@ -1260,8 +1260,8 @@ class Graph:
         edge_width
             Edge line width in pixels
         layout
-            Layout algorithm: "neato" (Graphviz spring), "dot" (hierarchical),
-            "fdp" (force-directed), "circo" (circular), "twopi" (radial), or "force" (simple FR)
+            Layout algorithm: "force" (vis-network physics), "neato" (Graphviz spring),
+            "dot" (hierarchical), "fdp" (force-directed), "circo" (circular), "twopi" (radial)
 
         Examples
         --------
