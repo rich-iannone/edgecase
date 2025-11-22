@@ -1895,9 +1895,15 @@ def _generate_webgl_html(
             print(f"WARNING: Node {node} not in positions dict!")
             continue
         node_obj = graph.get_node(node)
+
+        # Add subtle spacing hack for single-digit labels to improve centering
+        label = str(node)
+        if len(label) == 1:
+            label = "\u2009" + label  # Add thin space (U+2009) to nudge right
+
         node_dict = {
             "id": str(node),
-            "label": str(node),
+            "label": label,
         }
         # Add custom attributes if present
         if node_obj and node_obj.attributes:
