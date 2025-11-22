@@ -2094,7 +2094,13 @@ def _generate_webgl_html(
                         size: 12,
                         color: '#fff',
                         face: 'arial',
-                        bold: '600'
+                        bold: '600',
+                        vadjust: 0
+                    },
+                    scaling: {
+                        label: {
+                            enabled: false
+                        }
                     },
                     borderWidth: 2,
                     color: {
