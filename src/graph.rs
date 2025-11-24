@@ -5007,9 +5007,9 @@ impl Graph {
         crate::algorithms::connectivity::count_weakly_connected_components(self)
     }
 
-    /// Count strongly connected components (directed graphs only).
-    /// A strongly connected component is a maximal set of nodes where
-    /// every node is reachable from every other node.
+    /// Count strongly connected components.
+    /// For directed graphs: maximal sets where every node is reachable from every other.
+    /// For undirected graphs: equivalent to connected components (same as weakly connected).
     pub fn count_strongly_connected_components(&self) -> PyResult<usize> {
         crate::algorithms::connectivity::count_strongly_connected_components(self)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))

@@ -74,6 +74,9 @@ Issues = "https://github.com/rich-iannone/edgecase/issues"
 python-source = "python"
 module-name = "edgecase._core"
 features = ["pyo3/extension-module"]
+include = [
+    "python/edgecase/static/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -134,7 +137,7 @@ exclude = ["docs", ".venv", "tests/*", "target/*", "build/*"]
 # Select rule sets
 select = [
     "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings  
+    "W",   # pycodestyle warnings
     "F",   # pyflakes
     "I",   # isort (import sorting)
 ]

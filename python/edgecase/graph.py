@@ -1241,7 +1241,7 @@ class Graph:
         height: int = 600,
         node_size: float = 20.0,
         edge_width: float = 2.0,
-        layout: str = "neato",
+        layout: str = "force",
     ) -> None:
         """
         Display the graph visualization in a notebook or web browser.
@@ -1260,8 +1260,8 @@ class Graph:
         edge_width
             Edge line width in pixels
         layout
-            Layout algorithm: "neato" (Graphviz spring), "dot" (hierarchical),
-            "fdp" (force-directed), "circo" (circular), "twopi" (radial), or "force" (simple FR)
+            Layout algorithm: "force" (vis-network physics), "neato" (Graphviz spring),
+            "dot" (hierarchical), "fdp" (force-directed), "circo" (circular), "twopi" (radial)
 
         Examples
         --------
@@ -1284,38 +1284,17 @@ class Graph:
             target = self._infer_render_target()
 
         if target == "notebook":
-            # Display inline in notebook
-            try:
-                from IPython.core.display import display_html
-
-                html = plot_graph(
-                    self,
-                    output_path=None,
-                    open_browser=False,
-                    width=width,
-                    height=height,
-                    node_size=node_size,
-                    edge_width=edge_width,
-                    layout=layout,
-                )
-
-                # Read the generated HTML file
-                with open(html, "r") as f:
-                    html_content = f.read()
-
-                display_html(html_content, raw=True, metadata={"text/html": {"isolated": True}})
-            except ImportError:
-                # Fallback to browser if IPython not available
-                plot_graph(
-                    self,
-                    output_path=None,
-                    open_browser=True,
-                    width=width,
-                    height=height,
-                    node_size=node_size,
-                    edge_width=edge_width,
-                    layout=layout,
-                )
+            # Display inline in notebook - plot_graph handles this now
+            plot_graph(
+                self,
+                output_path=None,
+                open_browser=False,
+                width=width,
+                height=height,
+                node_size=node_size,
+                edge_width=edge_width,
+                layout=layout,
+            )
         elif target == "browser":
             # Open in browser
             plot_graph(
@@ -11904,25 +11883,24 @@ class Graph:
 
     def count_strongly_connected_components(self) -> int:
         """
-        Count strongly connected components (directed graphs only).
+        Count strongly connected components.
 
-        A strongly connected component is a maximal set of nodes where every node
-        is reachable from every other node following directed edges. Uses Kosaraju's
-        algorithm for efficient computation.
+        For directed graphs, a strongly connected component is a maximal set of nodes
+        where every node is reachable from every other node following directed edges.
+        Uses Kosaraju's algorithm for efficient computation.
+
+        For undirected graphs, returns the same result as
+        `count_weakly_connected_components()` since strong connectivity equals regular
+        connectivity when edges are bidirectional. This matches igraph's behavior.
 
         Returns
         -------
         int
             Number of strongly connected components.
 
-        Raises
-        ------
-        ValueError
-            If called on an undirected graph.
-
         Examples
         --------
-        Count strongly connected components:
+        Count strongly connected components in a directed graph:
 
         ```python
         graph = (
@@ -11939,6 +11917,22 @@ class Graph:
         )
 
         print(graph.count_strongly_connected_components())  # 2
+        ```
+
+        For undirected graphs, equivalent to connected components:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_edge("A", "B")
+        )
+
+        # Both return the same result for undirected graphs
+        print(graph.count_strongly_connected_components())  # 2
+        print(graph.count_weakly_connected_components())     # 2
         ```
         """
         return self._graph.count_strongly_connected_components()
