@@ -9993,7 +9993,7 @@ class Graph:
         """
         return self._graph.edge_connectivity()
 
-    def get_graph_adhesion(self) -> int:
+    def get_adhesion(self) -> int:
         """
         Get adhesion (minimum edge cut size).
 
@@ -10031,12 +10031,12 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_graph_adhesion())  # 2
+        print(graph.get_adhesion())  # 2
         ```
         """
         return self._graph.get_adhesion()
 
-    def get_graph_cohesion(self) -> int:
+    def get_cohesion(self) -> int:
         """
         Get cohesion (minimum node cut size).
 
@@ -10074,7 +10074,7 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_graph_cohesion())  # 2
+        print(graph.get_cohesion())  # 2
         ```
         """
         return self._graph.get_cohesion()
