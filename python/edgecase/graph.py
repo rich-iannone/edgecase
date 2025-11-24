@@ -1186,7 +1186,7 @@ class Graph:
             return info
 
         # Density
-        density = self.get_graph_density()
+        density = self.get_density()
         info["Density"] = f"{density:.2f}"
 
         # Degree statistics: compute for all nodes
@@ -10079,7 +10079,7 @@ class Graph:
         """
         return self._graph.get_cohesion()
 
-    def get_graph_density(self) -> float:
+    def get_density(self) -> float:
         """
         Calculate graph density (ratio of actual to possible edges).
 
@@ -10109,7 +10109,7 @@ class Graph:
         )
 
         # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
-        print(f"{graph.get_graph_density():.3f}")  # 0.667
+        print(f"{graph.get_density():.3f}")  # 0.667
         ```
 
         Compare sparse vs. dense graphs:
@@ -10126,7 +10126,7 @@ class Graph:
             .add_edge("A", "C")
         )
 
-        print(f"{complete.get_graph_density():.3f}")  # 1.000
+        print(f"{complete.get_density():.3f}")  # 1.000
         ```
         """
         return self._graph.density()
