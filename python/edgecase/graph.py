@@ -7725,7 +7725,7 @@ class Graph:
         """
         return self._graph.get_graph_diameter_with_unconnected(unconnected)
 
-    def get_graph_radius(self, unconnected: bool = True) -> int | None:
+    def get_radius(self, unconnected: bool = True) -> int | None:
         """
         Get graph radius (minimum eccentricity).
 
@@ -7759,7 +7759,7 @@ class Graph:
             .add_edge("hub", "C")
         )
 
-        print(graph.get_graph_radius())  # 1 (hub is center)
+        print(graph.get_radius())  # 1 (hub is center)
         ```
         """
         return self._graph.get_graph_radius_with_unconnected(unconnected)
