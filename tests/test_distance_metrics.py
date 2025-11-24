@@ -151,7 +151,7 @@ class TestMinEccentricity:
         G = ec.Graph()
         G.add_star_graph(7)
 
-        assert G.get_min_eccentricity() == G.get_graph_radius()
+        assert G.get_min_eccentricity() == G.get_radius()
 
 
 class TestMaxEccentricity:
@@ -212,7 +212,7 @@ class TestMaxEccentricity:
         G = ec.Graph()
         G.add_path_graph(10)
 
-        assert G.get_max_eccentricity() == G.get_graph_diameter()
+        assert G.get_max_eccentricity() == G.get_diameter()
 
 
 class TestDistanceMetricsIntegration:
@@ -351,11 +351,11 @@ class TestUnconnectedParameter:
         G.add_node("isolated")
 
         # unconnected=True (default): max diameter across components
-        assert G.get_graph_diameter() == 3
-        assert G.get_graph_diameter(unconnected=True) == 3
+        assert G.get_diameter() == 3
+        assert G.get_diameter(unconnected=True) == 3
 
         # unconnected=False: None for disconnected
-        assert G.get_graph_diameter(unconnected=False) is None
+        assert G.get_diameter(unconnected=False) is None
 
     def test_unconnected_parameter_radius(self):
         """Test radius with unconnected parameter on various graph types."""
@@ -365,11 +365,11 @@ class TestUnconnectedParameter:
         G.add_cycle_graph(3)  # All nodes have radius 1
 
         # unconnected=True (default): min radius across components
-        assert G.get_graph_radius() == 1
-        assert G.get_graph_radius(unconnected=True) == 1
+        assert G.get_radius() == 1
+        assert G.get_radius(unconnected=True) == 1
 
         # unconnected=False: None for disconnected
-        assert G.get_graph_radius(unconnected=False) is None
+        assert G.get_radius(unconnected=False) is None
 
     def test_unconnected_parameter_mean_distance(self):
         """Test mean distance with unconnected parameter."""
@@ -394,8 +394,8 @@ class TestUnconnectedParameter:
         G.add_node("C")
 
         # Isolated nodes have eccentricity 0
-        assert G.get_graph_diameter() == 2  # Max ecc from path
-        assert G.get_graph_radius() == 0  # Min ecc from isolated nodes
+        assert G.get_diameter() == 2  # Max ecc from path
+        assert G.get_radius() == 0  # Min ecc from isolated nodes
 
         # Mean distance computed only for reachable pairs
         mean = G.get_mean_distance()
@@ -408,8 +408,8 @@ class TestUnconnectedParameter:
         G.add_cycle_graph(6)
 
         # Connected graph: unconnected parameter shouldn't matter
-        assert G.get_graph_diameter() == G.get_graph_diameter(unconnected=False) == 3
-        assert G.get_graph_radius() == G.get_graph_radius(unconnected=False) == 3
+        assert G.get_diameter() == G.get_diameter(unconnected=False) == 3
+        assert G.get_radius() == G.get_radius(unconnected=False) == 3
         assert G.get_mean_distance() == G.get_mean_distance(unconnected=False)
 
     def test_unconnected_matches_igraph_behavior(self):
@@ -421,13 +421,13 @@ class TestUnconnectedParameter:
         G.add_star_graph(6)  # diameter 2, radius 1 (center)
 
         # Default should return max/min across all components
-        diameter = G.get_graph_diameter()
-        radius = G.get_graph_radius()
+        diameter = G.get_diameter()
+        radius = G.get_radius()
 
         # Diameter = max(4, 2, 2) = 4, Radius = min(2, 2, 1) = 1
         assert diameter == 4  # From the path
         assert radius == 1  # From the star center
 
         # With unconnected=False, should be None
-        assert G.get_graph_diameter(unconnected=False) is None
-        assert G.get_graph_radius(unconnected=False) is None
+        assert G.get_diameter(unconnected=False) is None
+        assert G.get_radius(unconnected=False) is None
