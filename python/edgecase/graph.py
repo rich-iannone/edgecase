@@ -7764,7 +7764,7 @@ class Graph:
         """
         return self._graph.get_graph_radius_with_unconnected(unconnected)
 
-    def get_graph_girth(self) -> int | None:
+    def get_girth(self) -> int | None:
         """
         Get girth (length of shortest cycle).
 
@@ -7812,14 +7812,14 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_graph_girth())  # 4 (cycle length)
+        print(graph.get_girth())  # 4 (cycle length)
         ```
 
         Self-loops have girth 1:
 
         ```python
         graph = Graph().add_node(label="A").add_edge("A", "A")
-        print(graph.get_graph_girth())  # 1
+        print(graph.get_girth())  # 1
         ```
 
         Triangles have girth 3:
@@ -7834,14 +7834,14 @@ class Graph:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        print(graph.get_graph_girth())  # 3
+        print(graph.get_girth())  # 3
         ```
 
         Trees have no cycles:
 
         ```python
         tree = Graph(directed=True).add_balanced_tree(k=2, h=3)
-        print(tree.get_graph_girth())  # None
+        print(tree.get_girth())  # None
         ```
         """
         return self._graph.get_girth()
