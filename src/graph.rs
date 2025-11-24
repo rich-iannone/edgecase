@@ -120,6 +120,7 @@ struct UnionFind {
 }
 
 impl UnionFind {
+    #[allow(dead_code)]
     #[inline]
     fn new() -> Self {
         UnionFind {
@@ -594,7 +595,7 @@ impl Graph {
 
         // Get or create attributes dict
         if node.attributes.is_none() {
-            let dict = PyDict::new_bound(py);
+            let dict = PyDict::new(py);
             node.attributes = Some(dict.unbind().into());
         }
 
@@ -627,7 +628,7 @@ impl Graph {
         } else {
             // Handle regular attributes
             if edge.attributes.is_none() {
-                let dict = PyDict::new_bound(py);
+                let dict = PyDict::new(py);
                 edge.attributes = Some(dict.unbind().into());
             }
 
@@ -672,7 +673,6 @@ impl Graph {
     // ========== Selection Methods ==========
 
     /// Select nodes by their IDs
-    #[inline]
     #[inline]
     pub fn select_nodes_by_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
         for node_id in node_ids {
@@ -943,7 +943,6 @@ impl Graph {
     /// Select nodes in the K-hop neighborhood of specified nodes
     #[pyo3(signature = (node_ids, k=1, mode="out"))]
     #[inline]
-    #[inline]
     pub fn select_nodes_in_neighborhood(
         &mut self,
         node_ids: Vec<u64>,
@@ -1093,6 +1092,7 @@ impl Graph {
     /// Generate Erdős-Rényi G(n,p) random graph
     /// Each possible edge is included independently with probability p
     #[inline]
+    #[pyo3(signature = (n, p, seed=None))]
     fn generate_gnp_graph(
         &mut self,
         n: usize,
@@ -1161,6 +1161,7 @@ impl Graph {
     /// Generate Erdős-Rényi G(n,m) random graph
     /// Graph with n nodes and exactly m randomly placed edges
     #[inline]
+    #[pyo3(signature = (n, m, seed=None))]
     fn generate_gnm_graph(
         &mut self,
         n: usize,
@@ -1229,6 +1230,7 @@ impl Graph {
     /// Generate Barabási-Albert preferential attachment graph
     /// Grows a graph by adding nodes one at a time with preferential attachment
     #[inline]
+    #[pyo3(signature = (n, m, seed=None))]
     fn generate_pa_graph(
         &mut self,
         n: usize,
@@ -1324,6 +1326,7 @@ impl Graph {
     /// Generate Watts-Strogatz small-world graph
     /// Creates a ring lattice with rewiring probability p
     #[inline]
+    #[pyo3(signature = (n, k, p, seed=None))]
     fn generate_smallworld_graph(
         &mut self,
         n: usize,
@@ -2556,17 +2559,18 @@ impl Graph {
     ///   - blocks: Vec of node sets (each block as list of labels)
     ///   - cohesion: Vec of k-values (cohesion of each block)
     ///   - parent: Vec of parent block indices (None for root blocks)
+    #[allow(deprecated)] // Allow into_py during PyO3 migration
     pub fn cohesive_blocks(&self, py: Python) -> PyResult<PyObject> {
         let n = self.num_nodes();
 
         // Handle empty or trivial graphs
         if n == 0 {
-            return Ok((vec![] as Vec<Vec<u64>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).to_object(py));
+            return Ok((vec![] as Vec<Vec<u64>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).into_py(py));
         }
 
         if n == 1 {
             let node_id = *self.nodes.keys().next().unwrap();
-            return Ok((vec![vec![node_id]], vec![0_usize], vec![None::<usize>]).to_object(py));
+            return Ok((vec![vec![node_id]], vec![0_usize], vec![None::<usize>]).into_py(py));
         }
 
         // If graph is disconnected, process each component separately
@@ -2603,7 +2607,7 @@ impl Graph {
             }
 
             // Return node IDs directly (no label conversion)
-            return Ok((all_blocks, all_cohesions, all_parents).to_object(py));
+            return Ok((all_blocks, all_cohesions, all_parents).into_py(py));
         }
 
         // Process connected graph
@@ -2613,7 +2617,7 @@ impl Graph {
             self.cohesive_blocks_for_subgraph(&all_nodes, None, &mut all_blocks)?;
 
         // Return node IDs directly (no label conversion)
-        Ok((blocks, cohesions, parents).to_object(py))
+        Ok((blocks, cohesions, parents).into_py(py))
     }
 
     /// Get eccentricity for each node
@@ -2807,7 +2811,7 @@ impl Graph {
         // Convert to Python list with node IDs
         let result = PyList::empty(py);
         for (n1, n2, n3) in triangles {
-            let tuple = PyTuple::new_bound(py, &[n1, n2, n3]);
+            let tuple = PyTuple::new(py, &[n1, n2, n3])?;
             result.append(tuple)?;
         }
 
@@ -3350,6 +3354,7 @@ impl Graph {
     ///
     /// Returns None for isolated vertices (no connections)
     #[inline]
+    #[pyo3(signature = (weights=None))]
     pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<u64, Option<f64>>> {
         let n = self.num_nodes();
         let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
@@ -3363,7 +3368,7 @@ impl Graph {
             // Get outgoing neighbors
             if let Some(neighbors) = self.adjacency_list.get(&node_id) {
                 for &neighbor_id in neighbors {
-                    let weight = if let Some(weight_attr) = weights {
+                    let weight = if let Some(_weight_attr) = weights {
                         // Try to get weight from edge attributes
                         self.edges.iter()
                             .find(|e| e.source == node_id && e.target == neighbor_id)
@@ -3616,7 +3621,7 @@ impl Graph {
         // This is simpler than Baswana-Sen but still gives good results
 
         // Initialize RNG
-        let mut rng = if let Some(s) = seed {
+        let _rng = if let Some(s) = seed {
             ChaCha8Rng::seed_from_u64(s)
         } else {
             ChaCha8Rng::from_entropy()
@@ -4770,7 +4775,6 @@ impl Graph {
     /// Replaces the current node selection with neighbors in the outward direction.
     /// For directed graphs, this follows edges where selected nodes are sources.
     #[inline]
-    #[inline]
     pub fn trav_out(&mut self) -> PyResult<()> {
         // Get current selected nodes
         let n = self.selected_nodes.len();
@@ -5043,6 +5047,7 @@ impl Graph {
     /// # Note
     /// * For undirected graphs, edges are considered bidirectional
     /// * Self-loops are traversed at most once per trail
+    #[pyo3(signature = (source, target, max_trails=None))]
     fn count_trails(
         &self,
         source: u64,
@@ -5128,6 +5133,7 @@ impl Graph {
     /// # Warning
     /// * Can generate massive output for dense graphs
     /// * Use max_trails to limit memory usage
+    #[pyo3(signature = (source, target, max_trails=None))]
     fn enumerate_trails(
         &self,
         source: u64,
@@ -6414,7 +6420,7 @@ impl Graph {
         };
 
         // Build result dictionary
-        let result = PyDict::new_bound(py);
+        let result = PyDict::new(py);
         result.set_item("values", final_eigenvalues)?;
         result.set_item("vectors", selected_eigenvectors)?;
         if let Some(gap) = spectral_gap {
@@ -6592,7 +6598,7 @@ impl Graph {
         };
 
         // Build result dictionary
-        let result = PyDict::new_bound(py);
+        let result = PyDict::new(py);
         result.set_item("values", final_eigenvalues)?;
         result.set_item("vectors", selected_eigenvectors)?;
         if let Some(connectivity) = algebraic_connectivity {
@@ -6937,7 +6943,8 @@ impl Graph {
             working_adj.insert(k, neighbors);
         }
 
-        // Track best partition and modularity
+        // Track best partition
+        #[allow(unused_assignments)]
         let mut best_modularity = -1.0;
         let mut best_partition = self.find_components(&working_adj);
 
@@ -7277,9 +7284,11 @@ impl Graph {
         }
 
         // Compute transition probability matrix P
+        #[allow(non_snake_case)]
         let P = self.compute_transition_matrix(&node_ids, &node_to_idx);
 
         // Compute t-step transition probabilities P^t
+        #[allow(non_snake_case)]
         let P_t = self.matrix_power(&P, steps);
 
         // Compute distance matrix between nodes
@@ -7715,7 +7724,7 @@ impl Graph {
         }
 
         // Create node index mapping
-        let n = nodes.len();
+        let _n = nodes.len();
         let node_to_idx: FxHashMap<u64, usize> = FxHashMap::from_iter(
             nodes.iter().enumerate().map(|(idx, &id)| (id, idx))
         );
@@ -7979,6 +7988,7 @@ impl Graph {
 
     /// Compute modularity for a given partition
     #[inline]
+    #[allow(non_snake_case)]
     fn compute_modularity_for_partition(&self, partition: &FxHashMap<u64, usize>, m: f64) -> f64 {
         if m == 0.0 {
             return 0.0;
@@ -7995,6 +8005,7 @@ impl Graph {
                         .map(|neighbors| neighbors.contains(&node_j))
                         .unwrap_or(false);
 
+                    #[allow(non_snake_case)]
                     let A_ij = if has_edge { 1.0 } else { 0.0 };
 
                     let k_i = self.degree(node_i) as f64;
@@ -8088,7 +8099,7 @@ impl Graph {
 
             // Explore all possible outgoing edges with residual capacity > 0
             // Check all possible transformed nodes
-            for (&from, &to, &cap) in residual.iter().filter_map(|(k, v)| {
+            for (&from, &to, &_cap) in residual.iter().filter_map(|(k, v)| {
                 if k.0 == current && *v > 0 {
                     Some((&k.0, &k.1, v))
                 } else {
@@ -8906,6 +8917,7 @@ impl Graph {
 
     /// Compute transition probability matrix P
     /// P[i][j] = 1/deg(i) if edge (i,j) exists, 0 otherwise
+    #[allow(non_snake_case)]
     fn compute_transition_matrix(
         &self,
         node_ids: &[u64],
@@ -8934,6 +8946,7 @@ impl Graph {
 
     /// Compute P^t (matrix to the power of t)
     #[inline]
+    #[allow(non_snake_case)]
     fn matrix_power(&self, P: &[Vec<f64>], t: usize) -> Vec<Vec<f64>> {
         let n = P.len();
         let mut result = vec![vec![0.0; n]; n];
@@ -8953,6 +8966,7 @@ impl Graph {
 
     /// Matrix multiplication
     #[inline]
+    #[allow(non_snake_case)]
     fn matrix_multiply(&self, A: &[Vec<f64>], B: &[Vec<f64>]) -> Vec<Vec<f64>> {
         let n = A.len();
         let mut C = vec![vec![0.0; n]; n];
@@ -8970,11 +8984,12 @@ impl Graph {
 
     /// Compute random walk distances between all pairs of nodes
     /// d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
+    #[allow(non_snake_case)]
     fn compute_random_walk_distances(
         &self,
         P_t: &[Vec<f64>],
         node_ids: &[u64],
-        node_to_idx: &FxHashMap<u64, usize>,
+        _node_to_idx: &FxHashMap<u64, usize>,
     ) -> Vec<Vec<f64>> {
         let n = node_ids.len();
         let mut distances = vec![vec![0.0; n]; n];
@@ -9104,7 +9119,7 @@ impl Graph {
         &self,
         dendrogram: &[(usize, usize, f64)],
         node_ids: &[u64],
-        node_to_idx: &FxHashMap<u64, usize>,
+        _node_to_idx: &FxHashMap<u64, usize>,
     ) -> Vec<usize> {
         let n = node_ids.len();
 
@@ -9131,7 +9146,7 @@ impl Graph {
                 let nodes_c2 = self.get_cluster_nodes(c2, n, &dendrogram[..i]);
 
                 // Union all nodes from c2 into c1's community
-                if let (Some(rep1), Some(rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next()) {
+                if let (Some(rep1), Some(_rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next()) {
                     let root1 = self.find_root(&mut parent, *rep1);
                     for &node in &nodes_c2 {
                         parent[node] = root1;
@@ -9160,6 +9175,7 @@ impl Graph {
                 .collect();
 
             // Compute modularity for this partition
+            #[allow(non_snake_case)]
             let Q = self.compute_modularity_from_partition(node_ids, &renumbered);
 
             if Q > best_modularity {
@@ -9205,6 +9221,7 @@ impl Graph {
     }
 
     /// Compute modularity for a given partition
+    #[allow(non_snake_case)]
     fn compute_modularity_from_partition(&self, node_ids: &[u64], partition: &[usize]) -> f64 {
         let m = self.num_edges() as f64;
         if m == 0.0 {
@@ -9597,7 +9614,7 @@ impl AdaStar {
 
 impl AdaStar {
     /// Update the state (rhs value) of a node
-    fn update_state(&mut self, py: Python, n: u64, graph: &Graph) -> PyResult<()> {
+    fn update_state(&mut self, _py: Python, n: u64, graph: &Graph) -> PyResult<()> {
         if n != self.target {
             // Compute rhs(n) = min over successors of (g(s') + c(n, s'))
             let mut min_rhs = f64::INFINITY;

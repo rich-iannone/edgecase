@@ -374,7 +374,7 @@ impl QuadTree {
         }
 
         // If this is a leaf with a node, we need to subdivide
-        if let Some(existing_index) = self.node_index.take() {
+        if let Some(_existing_index) = self.node_index.take() {
             self.subdivide();
             // Re-insert the existing node (find its position from somewhere - we'll need to pass positions)
             // For now, we'll skip this and handle it differently
@@ -386,7 +386,7 @@ impl QuadTree {
         }
 
         if let Some(ref mut children) = self.children {
-            for (i, child) in children.iter_mut().enumerate() {
+            for (_i, child) in children.iter_mut().enumerate() {
                 if child.bounds.contains(pos) {
                     child.insert(node_index, pos);
                     return;

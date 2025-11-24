@@ -5,8 +5,6 @@
 //! - Optimized scalar merge for balanced sizes
 //! - SIMD hints for auto-vectorization
 
-use rustc_hash::FxHashSet;
-
 /// Count common elements in two sorted slices where elements > threshold
 /// Returns the count of elements that appear in both slices and are > threshold
 ///
@@ -104,6 +102,7 @@ fn count_intersection_merge(a: &[u64], b: &[u64], threshold: u64) -> usize {
 }
 
 /// Scalar merge-based intersection (safe fallback)
+#[allow(dead_code)]
 #[inline(always)]
 fn count_intersection_scalar(a: &[u64], b: &[u64], threshold: u64) -> usize {
     let mut count = 0;

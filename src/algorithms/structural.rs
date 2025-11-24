@@ -3,7 +3,6 @@
 
 use crate::graph::Graph;
 use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use std::collections::HashSet;
 
 /// Count triangles in the graph
