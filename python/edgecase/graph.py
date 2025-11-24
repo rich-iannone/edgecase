@@ -14651,7 +14651,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Centrality Methods
+    # Core and Structural Importance
     # ==============================================================================
 
     def closeness_vitality(
@@ -14801,6 +14801,10 @@ class Graph:
         self._computations.append(("coreness", {}, attr_name))
 
         return self
+
+    # ==============================================================================
+    # Centrality Methods
+    # ==============================================================================
 
     def betweenness_centrality(
         self, attr_name: str = None, return_dict: bool = False
