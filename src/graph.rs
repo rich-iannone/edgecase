@@ -1991,8 +1991,8 @@ impl Graph {
     /// Get graph diameter (maximum eccentricity)
     /// Returns None if graph is disconnected
     #[inline]
-    fn get_graph_diameter(&self) -> Option<usize> {
-        self.get_graph_diameter_with_unconnected(true)
+    fn get_diameter(&self) -> Option<usize> {
+        self.get_diameter_with_unconnected(true)
     }
 
     /// Get graph diameter with optional handling of disconnected graphs
@@ -2000,7 +2000,7 @@ impl Graph {
     /// # Arguments
     /// * `unconnected` - If true (default), compute max diameter across all components.
     ///                   If false, return None for disconnected graphs.
-    fn get_graph_diameter_with_unconnected(&self, unconnected: bool) -> Option<usize> {
+    fn get_diameter_with_unconnected(&self, unconnected: bool) -> Option<usize> {
         // Check if graph is connected
         let is_connected = self.count_weakly_connected_components() == 1;
 
@@ -2020,8 +2020,8 @@ impl Graph {
     /// Get graph radius (minimum eccentricity)
     /// Returns None if graph is disconnected (by default handles disconnected graphs)
     #[inline]
-    fn get_graph_radius(&self) -> Option<usize> {
-        self.get_graph_radius_with_unconnected(true)
+    fn get_radius(&self) -> Option<usize> {
+        self.get_radius_with_unconnected(true)
     }
 
     /// Get graph radius with optional handling of disconnected graphs
@@ -2029,7 +2029,7 @@ impl Graph {
     /// # Arguments
     /// * `unconnected` - If true (default), compute min radius across all components.
     ///                   If false, return None for disconnected graphs.
-    fn get_graph_radius_with_unconnected(&self, unconnected: bool) -> Option<usize> {
+    fn get_radius_with_unconnected(&self, unconnected: bool) -> Option<usize> {
         // Check if graph is connected
         let is_connected = self.count_weakly_connected_components() == 1;
 
@@ -2642,7 +2642,7 @@ impl Graph {
         }
 
         let eccentricities = self.compute_eccentricities();
-        let diameter = self.get_graph_diameter();
+        let diameter = self.get_diameter();
 
         match diameter {
             Some(d) => {
