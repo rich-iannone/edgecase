@@ -189,7 +189,7 @@ def test_girth_vs_networkx(name, nx_graph, directed, expected_girth):
     ec_graph = nx_to_edgecase(nx_graph, directed)
 
     # Compute girth
-    ec_girth = ec_graph.get_graph_girth()
+    ec_girth = ec_graph.get_girth()
     nx_girth = compute_girth_networkx(nx_graph)
 
     print(f"EdgeCase girth: {ec_girth}")
@@ -232,7 +232,7 @@ def test_girth_vs_igraph(name, nx_graph, directed, expected_girth):
     ig_graph, node_list = nx_to_igraph(nx_graph, directed)
 
     # Compute girth
-    ec_girth = ec_graph.get_graph_girth()
+    ec_girth = ec_graph.get_girth()
     try:
         ig_girth = ig_graph.girth()
     except Exception as e:
