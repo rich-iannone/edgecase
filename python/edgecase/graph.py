@@ -9277,7 +9277,7 @@ class Graph:
 
         return neighbors
 
-    def get_predecessors(self, node_id: Union[int, str]) -> list[int]:
+    def get_predecessors(self, node: Union[int, str]) -> list[int]:
         """
         Get direct predecessors of a node (incoming neighbors).
 
@@ -9286,13 +9286,13 @@ class Graph:
 
         Parameters
         ----------
-        node_id
+        node
             Node ID or label to find predecessors for.
 
         Returns
         -------
         list[int]
-            List of predecessor node IDs (nodes with edges pointing to `node_id`).
+            List of predecessor node IDs (nodes with edges pointing to `node`).
 
         Raises
         ------
@@ -9322,9 +9322,9 @@ class Graph:
         """
         if not self._graph.is_directed:
             raise ValueError("get_predecessors only available for directed graphs")
-        return self.neighbors(node_id, mode="in")
+        return self.neighbors(node, mode="in")
 
-    def get_successors(self, node_id: Union[int, str]) -> list[int]:
+    def get_successors(self, node: Union[int, str]) -> list[int]:
         """
         Get direct successors of a node (outgoing neighbors).
 
@@ -9333,13 +9333,13 @@ class Graph:
 
         Parameters
         ----------
-        node_id
+        node
             Node ID or label to find successors for.
 
         Returns
         -------
         list[int]
-            List of successor node IDs (nodes that `node_id` points to).
+            List of successor node IDs (nodes that `node` points to).
 
         Raises
         ------
@@ -9371,7 +9371,7 @@ class Graph:
         """
         if not self._graph.is_directed:
             raise ValueError("get_successors only available for directed graphs")
-        return self.neighbors(node_id, mode="out")
+        return self.neighbors(node, mode="out")
 
     def get_non_neighbors(self, node_id: Union[int, str]) -> list[int]:
         """
