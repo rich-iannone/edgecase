@@ -3,24 +3,24 @@ import edgecase as ec
 
 
 class TestDensity:
-    """Test get_graph_density() method."""
+    """Test get_density() method."""
 
     def test_density_empty_graph(self):
         """Empty graph has density 0."""
         G = ec.Graph()
-        assert G.get_graph_density() == 0.0
+        assert G.get_density() == 0.0
 
     def test_density_single_node(self):
         """Single node has density 0."""
         G = ec.Graph()
         G.add_node("A")
-        assert G.get_graph_density() == 0.0
+        assert G.get_density() == 0.0
 
     def test_density_complete_graph_undirected(self):
         """Complete undirected graph has density 1.0."""
         G = ec.Graph()
         G.add_full_graph(4)
-        assert G.get_graph_density() == 1.0
+        assert G.get_density() == 1.0
 
     def test_density_complete_graph_directed(self):
         """Complete directed graph has density 1.0."""
@@ -33,14 +33,14 @@ class TestDensity:
             for j in range(len(nodes)):
                 if i != j:
                     G.add_edge(nodes[i], nodes[j])
-        assert G.get_graph_density() == 1.0
+        assert G.get_density() == 1.0
 
     def test_density_sparse_graph(self):
         """Sparse graph has low density."""
         G = ec.Graph()
         G.add_path_graph(10)  # 9 edges, 10 nodes
         # Undirected: 9 / (10*9/2) = 9 / 45 = 0.2
-        assert abs(G.get_graph_density() - 0.2) < 1e-10
+        assert abs(G.get_density() - 0.2) < 1e-10
 
     def test_density_partial_graph(self):
         """Partial graph has intermediate density."""
@@ -50,7 +50,7 @@ class TestDensity:
         G.add_node("C")
         G.add_edge("A", "B")  # 1 edge out of 3 possible
         # 1 / 3 = 0.333...
-        assert abs(G.get_graph_density() - 1.0 / 3.0) < 1e-10
+        assert abs(G.get_density() - 1.0 / 3.0) < 1e-10
 
 
 class TestIsConnected:
@@ -387,7 +387,7 @@ class TestStructuralPropertiesIntegration:
         assert G3.is_connected()
         assert G3.is_simple()
         assert not G3.is_bipartite()  # Contains triangles
-        assert G3.get_graph_density() == 1.0
+        assert G3.get_density() == 1.0
 
     def test_dag_properties(self):
         """Test DAG-specific properties."""
@@ -412,4 +412,4 @@ class TestStructuralPropertiesIntegration:
 
         assert not G.is_connected()
         assert G.is_simple()
-        assert G.get_graph_density() < 0.5  # Sparse
+        assert G.get_density() < 0.5  # Sparse
