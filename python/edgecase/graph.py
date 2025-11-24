@@ -1038,7 +1038,7 @@ class Graph:
         def custom_stats(g):
             return {
                 "Clustering": g.get_avg_clustering_coefficient(),
-                "Diameter": g.get_graph_diameter() or "N/A"
+                "Diameter": g.get_diameter() or "N/A"
             }
 
         graph.describe(describe_hook=custom_stats)
@@ -7628,7 +7628,7 @@ class Graph:
         """
         Get minimum eccentricity (graph radius).
 
-        Alias for `get_graph_radius()`. The minimum eccentricity is the smallest maximum distance
+        Alias for `get_radius()`. The minimum eccentricity is the smallest maximum distance
         from any node to all other nodes.
 
         Parameters
@@ -7653,7 +7653,7 @@ class Graph:
         print(radius)  # 1 (center reaches all nodes in 1 step)
         ```
         """
-        return self.get_graph_radius(unconnected)
+        return self.get_radius(unconnected)
 
     def get_max_eccentricity(self, unconnected: bool = True) -> int | None:
         """
