@@ -7659,7 +7659,7 @@ class Graph:
         """
         Get maximum eccentricity (graph diameter).
 
-        Alias for `get_graph_diameter()`. The maximum eccentricity is the longest shortest path
+        Alias for `get_diameter()`. The maximum eccentricity is the longest shortest path
         between any two nodes.
 
         Parameters
@@ -7684,9 +7684,9 @@ class Graph:
         print(diameter)  # 4 (end-to-end distance)
         ```
         """
-        return self.get_graph_diameter(unconnected)
+        return self.get_diameter(unconnected)
 
-    def get_graph_diameter(self, unconnected: bool = True) -> int | None:
+    def get_diameter(self, unconnected: bool = True) -> int | None:
         """
         Get graph diameter (maximum eccentricity).
 
@@ -7720,7 +7720,7 @@ class Graph:
             .add_edge("C", "D")
         )
 
-        print(graph.get_graph_diameter())  # 3 (A to D)
+        print(graph.get_diameter())  # 3 (A to D)
         ```
         """
         return self._graph.get_graph_diameter_with_unconnected(unconnected)
