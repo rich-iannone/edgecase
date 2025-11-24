@@ -298,7 +298,7 @@ class TestGraphPropertiesValidation:
 
         nx_graph = to_networkx(G)
 
-        ec_density = G.get_graph_density()
+        ec_density = G.get_density()
         nx_density = nx.density(nx_graph)
 
         assert abs(ec_density - nx_density) < 0.001, (
