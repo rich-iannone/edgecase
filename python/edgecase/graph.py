@@ -6256,7 +6256,7 @@ class Graph:
         G.add_edge(source="0", target="3")
 
         # Calculate degrees and rescale
-        degrees = {n: len(G.neighbors(node_id=n)) for n in G.get_node_ids(limit=None)}
+        degrees = {n: len(G.neighbors(node=n)) for n in G.get_node_ids(limit=None)}
         G.rescale_node_attrs(
             values=degrees,
             node_attr_to="width",
@@ -9186,7 +9186,7 @@ class Graph:
     # Neighbor and Connectivity Methods
     # ==============================================================================
 
-    def neighbors(self, node_id: Union[int, str], mode: str = "out") -> list[int]:
+    def neighbors(self, node: Union[int, str], mode: str = "out") -> list[int]:
         """
         Get neighbors of a node.
 
@@ -9198,7 +9198,7 @@ class Graph:
 
         Parameters
         ----------
-        node_id
+        node
             The node ID or label to find neighbors for.
         mode
             Direction mode for neighbor lookup:
@@ -9251,8 +9251,8 @@ class Graph:
         print(neighbor_labels)  # ['B']
         ```
         """
-        # Resolve node_id to integer ID
-        node_id = self._resolve_node_id(node_id)
+        # Resolve node to integer ID
+        node_id = self._resolve_node_id(node)
 
         if mode not in ["out", "in", "all"]:
             raise ValueError("mode must be 'out', 'in', or 'all'")
@@ -9373,7 +9373,7 @@ class Graph:
             raise ValueError("get_successors only available for directed graphs")
         return self.neighbors(node, mode="out")
 
-    def get_non_neighbors(self, node_id: Union[int, str]) -> list[int]:
+    def get_non_neighbors(self, node: Union[int, str]) -> list[int]:
         """
         Get nodes that are NOT neighbors of the specified node.
 
@@ -9382,14 +9382,14 @@ class Graph:
 
         Parameters
         ----------
-        node_id
+        node
             Node ID or label to find non-neighbors for.
 
         Returns
         -------
         list[int]
-            Sorted list of node IDs that are not neighbors of `node_id` and are not
-            `node_id` itself.
+            Sorted list of node IDs that are not neighbors of `node` and are not
+            `node` itself.
 
         Examples
         --------
@@ -9428,8 +9428,8 @@ class Graph:
         ]
         ```
         """
-        # Resolve node_id to integer ID
-        node_id = self._resolve_node_id(node_id)
+        # Resolve node to integer ID
+        node_id = self._resolve_node_id(node)
 
         all_nodes = set(self.get_node_ids(limit=None))
         neighbors = set(self.neighbors(node_id, mode="all"))
@@ -9502,7 +9502,7 @@ class Graph:
         )
 
         a_id = graph.get_id_from_label(label="A")
-        for neighbor_id in graph.neighbors(node_id=a_id):
+        for neighbor_id in graph.neighbors(node=a_id):
             common = graph.get_common_neighbors(a_id, neighbor_id)
             for third_id in common:
                 neighbor_label = graph.get_label_from_id(node_id=neighbor_id)
@@ -9516,7 +9516,7 @@ class Graph:
 
     def get_similar_neighbors(
         self,
-        node_id: Union[int, str],
+        node: Union[int, str],
         node_attr: str,
         tol_abs: tuple[float, float] | None = None,
         tol_pct: tuple[float, float] | None = None,
@@ -9529,7 +9529,7 @@ class Graph:
 
         Parameters
         ----------
-        node_id
+        node
             Starting node ID or label to compare against.
         node_attr
             Name of the numeric attribute to compare.
@@ -9595,7 +9595,7 @@ class Graph:
         - non-numeric attribute values raise a `ValueError`.
         """
         # Get starting node's attribute value
-        start_node = self.get_node(node_id)
+        start_node = self.get_node(node)
         if not start_node or not start_node.attributes:
             return []
 
@@ -9621,7 +9621,7 @@ class Graph:
             upper_bound = start_value
 
         # Get all neighbors
-        neighbors = self.neighbors(node_id, mode="all")
+        neighbors = self.neighbors(node, mode="all")
 
         # Filter by attribute similarity
         similar = []
