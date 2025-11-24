@@ -51,15 +51,24 @@ pub fn count_weakly_connected_components(graph: &Graph) -> usize {
     component_count
 }
 
-/// Count strongly connected components in a directed graph.
-/// Uses Kosaraju's algorithm:
+/// Count strongly connected components.
+///
+/// For directed graphs: Uses Kosaraju's algorithm to find maximal sets where
+/// every node is reachable from every other node following directed edges.
+///
+/// For undirected graphs: Returns the same result as weakly connected components,
+/// since strong connectivity equals regular connectivity in undirected graphs.
+/// This matches igraph's behavior.
+///
+/// Uses Kosaraju's algorithm for directed graphs:
 /// 1. Fill order by finishing times (DFS)
 /// 2. Transpose the graph
 /// 3. DFS on transposed graph in reverse finish order
 #[inline]
 pub fn count_strongly_connected_components(graph: &Graph) -> Result<usize, String> {
+    // For undirected graphs, strong connectivity = regular connectivity
     if !graph.is_directed() {
-        return Err("Strongly connected components only defined for directed graphs".to_string());
+        return Ok(count_weakly_connected_components(graph));
     }
 
     let node_ids: Vec<u64> = graph.get_node_ids();

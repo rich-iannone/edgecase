@@ -11883,25 +11883,24 @@ class Graph:
 
     def count_strongly_connected_components(self) -> int:
         """
-        Count strongly connected components (directed graphs only).
+        Count strongly connected components.
 
-        A strongly connected component is a maximal set of nodes where every node
-        is reachable from every other node following directed edges. Uses Kosaraju's
-        algorithm for efficient computation.
+        For directed graphs, a strongly connected component is a maximal set of nodes
+        where every node is reachable from every other node following directed edges.
+        Uses Kosaraju's algorithm for efficient computation.
+
+        For undirected graphs, returns the same result as
+        `count_weakly_connected_components()` since strong connectivity equals regular
+        connectivity when edges are bidirectional. This matches igraph's behavior.
 
         Returns
         -------
         int
             Number of strongly connected components.
 
-        Raises
-        ------
-        ValueError
-            If called on an undirected graph.
-
         Examples
         --------
-        Count strongly connected components:
+        Count strongly connected components in a directed graph:
 
         ```python
         graph = (
@@ -11918,6 +11917,22 @@ class Graph:
         )
 
         print(graph.count_strongly_connected_components())  # 2
+        ```
+
+        For undirected graphs, equivalent to connected components:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_edge("A", "B")
+        )
+
+        # Both return the same result for undirected graphs
+        print(graph.count_strongly_connected_components())  # 2
+        print(graph.count_weakly_connected_components())     # 2
         ```
         """
         return self._graph.count_strongly_connected_components()
