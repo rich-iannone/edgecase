@@ -120,7 +120,7 @@ def example_3_social_network_analysis():
     print("\nNetwork structure analysis:")
     print(f"  Nodes: {g.count_nodes()}")
     print(f"  Edges: {g.count_edges()}")
-    print(f"  Density: {g.get_graph_density():.4f}")
+    print(f"  Density: {g.get_density():.4f}")
 
     # Triangle analysis
     triangle_counts = g.count_triangles()
