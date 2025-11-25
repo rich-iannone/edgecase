@@ -2349,6 +2349,58 @@ impl Graph {
         true
     }
 
+    /// Find all maximal cliques in the graph using the Bron-Kerbosch algorithm.
+    /// A clique is a subset of nodes where every pair is connected.
+    /// A maximal clique cannot be extended by adding another node.
+    ///
+    /// Only works on undirected graphs.
+    ///
+    /// # Returns
+    /// Vector of cliques, where each clique is a vector of node IDs
+    fn find_cliques(&self) -> PyResult<Vec<Vec<u64>>> {
+        if self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "find_cliques() only works on undirected graphs"
+            ));
+        }
+
+        let mut cliques = Vec::new();
+        let mut r = FxHashSet::default(); // Current clique being built
+        let mut p: FxHashSet<u64> = self.nodes.keys().copied().collect(); // Candidate nodes
+        let mut x = FxHashSet::default(); // Already processed nodes
+
+        self.bron_kerbosch_internal(&mut r, &mut p, &mut x, &mut cliques);
+
+        Ok(cliques)
+    }
+
+    /// Find a maximum clique (largest clique) in the graph.
+    /// Returns one of potentially multiple maximum cliques.
+    ///
+    /// Only works on undirected graphs.
+    ///
+    /// # Returns
+    /// Vector of node IDs forming a maximum clique, or empty vector if graph is empty
+    fn max_clique(&self) -> PyResult<Vec<u64>> {
+        let cliques = self.find_cliques()?;
+
+        Ok(cliques
+            .into_iter()
+            .max_by_key(|clique| clique.len())
+            .unwrap_or_default())
+    }
+
+    /// Get the clique number (size of the maximum clique).
+    ///
+    /// Only works on undirected graphs.
+    ///
+    /// # Returns
+    /// Size of the maximum clique (0 if graph is empty)
+    fn clique_number(&self) -> PyResult<usize> {
+        let max_clique = self.max_clique()?;
+        Ok(max_clique.len())
+    }
+
     /// Breadth-first search (BFS) traversal from a start node
     /// Returns list of node IDs in BFS order
     ///
@@ -7857,6 +7909,60 @@ impl Graph {
 
 
 impl Graph {
+    /// Bron-Kerbosch algorithm for finding maximal cliques (internal helper)
+    ///
+    /// # Arguments
+    /// * `r` - Current clique being built
+    /// * `p` - Candidate nodes that could extend the clique
+    /// * `x` - Already processed nodes
+    /// * `cliques` - Vector to store found maximal cliques
+    fn bron_kerbosch_internal(
+        &self,
+        r: &mut FxHashSet<u64>,
+        p: &mut FxHashSet<u64>,
+        x: &mut FxHashSet<u64>,
+        cliques: &mut Vec<Vec<u64>>,
+    ) {
+        if p.is_empty() && x.is_empty() {
+            // Found a maximal clique
+            let mut clique: Vec<u64> = r.iter().copied().collect();
+            clique.sort_unstable();
+            cliques.push(clique);
+            return;
+        }
+
+        // Choose a pivot to minimize recursion
+        let pivot = p.union(x).next().copied();
+
+        let mut candidates: Vec<u64> = if let Some(pivot_node) = pivot {
+            let pivot_neighbors: FxHashSet<u64> = self.adjacency_list
+                .get(&pivot_node)
+                .map(|neighbors| neighbors.iter().copied().collect())
+                .unwrap_or_default();
+            p.difference(&pivot_neighbors).copied().collect()
+        } else {
+            p.iter().copied().collect()
+        };
+
+        for v in candidates.drain(..) {
+            let neighbors: FxHashSet<u64> = self.adjacency_list
+                .get(&v)
+                .map(|n| n.iter().copied().collect())
+                .unwrap_or_default();
+
+            r.insert(v);
+
+            let mut new_p: FxHashSet<u64> = p.intersection(&neighbors).copied().collect();
+            let mut new_x: FxHashSet<u64> = x.intersection(&neighbors).copied().collect();
+
+            self.bron_kerbosch_internal(r, &mut new_p, &mut new_x, cliques);
+
+            r.remove(&v);
+            p.remove(&v);
+            x.insert(v);
+        }
+    }
+
     /// Get the adjacency list (internal method)
     pub fn get_adjacency_list(&self) -> &FxHashMap<u64, Vec<u64>> {
         &self.adjacency_list

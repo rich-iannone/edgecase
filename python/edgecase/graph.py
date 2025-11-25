@@ -3638,6 +3638,267 @@ class Graph:
         return self._graph.is_arborescence()
 
     # ==============================================================================
+    # Clique Operations
+    # ==============================================================================
+
+    def find_cliques(self) -> list[list[int]]:
+        """
+        Find all maximal cliques in the graph.
+
+        A clique is a subset of nodes where every pair of nodes is connected by an edge. A maximal
+        clique is a clique that cannot be extended by adding another node. Uses the Bron-Kerbosch
+        algorithm for efficient enumeration.
+
+        Note that this finds *maximal* cliques (cannot be extended), not necessarily *maximum*
+        cliques (largest possible). Use `max_clique()` to find a maximum clique.
+
+        Returns
+        -------
+        list[list[int]]
+            List of cliques, where each clique is a sorted list of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Notes
+        -----
+        - time complexity: O(3^(n/3)) worst case, but typically much faster in practice
+        - only works on undirected graphs
+        - returns cliques in arbitrary order
+        - each node ID list within a clique is sorted
+
+        Examples
+        --------
+        Find all maximal cliques in a triangle:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        cliques = graph.find_cliques()
+        print(len(cliques))  # 1 (the triangle itself)
+        print(len(cliques[0]))  # 3 (all three nodes)
+        ```
+
+        Multiple cliques in a graph:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        cliques = graph.find_cliques()
+        # Returns pairs of connected nodes: [[A,B], [B,C], [C,D]]
+        print(len(cliques))  # 3 maximal cliques
+        ```
+
+        Complete graph has one clique:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=5)
+
+        cliques = graph.find_cliques()
+        print(len(cliques))  # 1 (entire graph is a clique)
+        print(len(cliques[0]))  # 5 (all nodes)
+        ```
+        """
+        return self._graph.find_cliques()
+
+    def max_clique(self) -> list[int]:
+        """
+        Find a maximum clique in the graph.
+
+        A maximum clique is a largest possible clique in the graph. If multiple maximum cliques
+        exist with the same size, returns one of them (arbitrary choice). Uses the Bron-Kerbosch
+        algorithm to enumerate all maximal cliques and selects the largest.
+
+        Returns
+        -------
+        list[int]
+            Sorted list of node IDs forming a maximum clique. Empty list if graph is empty.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Notes
+        -----
+        - Time complexity: O(3^(n/3)) worst case
+        - Only works on undirected graphs
+        - Finding the maximum clique is NP-hard
+        - Returns one maximum clique if multiple exist
+
+        Examples
+        --------
+        Maximum clique in a triangle:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        max_clique = graph.max_clique()
+
+        print(len(max_clique))  # 3 (all nodes form a clique)
+        ```
+
+        Maximum clique in a path graph:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        max_clique = graph.max_clique()
+
+        print(len(max_clique))  # 2 (any connected pair)
+        ```
+
+        Empty graph:
+
+        ```python
+        graph = Graph(directed=False)
+        max_clique = graph.max_clique()
+        print(max_clique)  # []
+        ```
+
+        Complete graph:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=6)
+
+        max_clique = graph.max_clique()
+        print(len(max_clique))  # 6 (all nodes)
+        ```
+        """
+        return self._graph.max_clique()
+
+    def clique_number(self) -> int:
+        """
+        Get the clique number (size of the maximum clique).
+
+        The clique number ω(G) is the size of the largest clique in the graph. This is a fundamental
+        graph invariant used in graph theory and combinatorial optimization.
+
+        Returns
+        -------
+        int
+            Size of the maximum clique. Returns 0 for empty graphs.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Notes
+        -----
+        - time complexity: O(3^(n/3)) worst case
+        - only works on undirected graphs
+        - determining the clique number is NP-hard
+        - for a complete graph `K_n`, the clique number is `n`
+        - for a bipartite graph, the clique number is at most `2`
+
+        Examples
+        --------
+        Clique number of a triangle:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        print(graph.clique_number())  # 3
+        ```
+
+        Clique number of a path:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.clique_number())  # 2 (any edge)
+        ```
+
+        Empty graph has clique number 0:
+
+        ```python
+        graph = Graph(directed=False)
+        print(graph.clique_number())  # 0
+        ```
+
+        Complete graph K_n has clique number n:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=7)
+        print(graph.clique_number())  # 7
+        ```
+
+        Bipartite graphs have clique number at most 2:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "C")
+            .add_edge("A", "D")
+            .add_edge("B", "C")
+            .add_edge("B", "D")
+        )
+
+        print(graph.clique_number())  # 2 (bipartite K_2,2)
+        ```
+        """
+        return self._graph.clique_number()
+
+    # ==============================================================================
     # Graph Selection System
     # ==============================================================================
 
