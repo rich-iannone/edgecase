@@ -1400,7 +1400,7 @@ class TestClosenessAndHarmonic:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "harmonic_centrality"):
-            ec_hc = G.harmonic_centrality()
+            ec_hc = G.harmonic_centrality(return_dict=True)
             nx_hc = nx.harmonic_centrality(nx_graph)
 
             for node_id in G.get_node_ids(limit=None):
