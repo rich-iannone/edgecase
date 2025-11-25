@@ -9937,6 +9937,177 @@ class Graph:
 
         return k_shortest_paths(self._graph, source_id, target_id, k)
 
+    def k_core(self, k: int) -> "Graph":
+        """
+        Extract the k-core subgraph.
+
+        The k-core is the maximal subgraph where all nodes have degree >= k. Iteratively removes
+        nodes with degree < k until all remaining nodes satisfy the condition.
+
+        Parameters
+        ----------
+        k
+            Minimum degree required for nodes to remain in the k-core.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-core nodes and edges.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(6):
+            g.add_node(label=str(i))
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "4")
+        g.add_edge("4", "5")
+
+        # Get 2-core (nodes with degree >= 2)
+        core_2 = g.k_core(2)
+        print(f"Nodes in 2-core: {core_2.count_nodes()}")
+        ```
+        """
+        from edgecase._core import k_core
+
+        result = Graph.__new__(Graph)
+        result._graph = k_core(self._graph, k)
+        return result
+
+    def k_shell(self, k: int) -> "Graph":
+        """
+        Extract the k-shell subgraph.
+
+        The k-shell contains nodes with coreness exactly equal to k. The coreness of a node is the
+        highest k for which the node is part of the k-core.
+
+        Parameters
+        ----------
+        k
+            Coreness value to extract.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-shell nodes and their connecting edges.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(5):
+            g.add_node(label=str(i))
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "4")
+
+        # Get shell of nodes with coreness exactly 1
+        shell_1 = g.k_shell(1)
+        print(f"Nodes in 1-shell: {shell_1.count_nodes()}")
+        ```
+        """
+        from edgecase._core import k_shell
+
+        result = Graph.__new__(Graph)
+        result._graph = k_shell(self._graph, k)
+        return result
+
+    def k_crust(self, k: int) -> "Graph":
+        """
+        Extract the k-crust subgraph.
+
+        The k-crust contains all nodes with coreness <= k. This is the complement of nodes with
+        high coreness values.
+
+        Parameters
+        ----------
+        k
+            Maximum coreness value to include.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-crust nodes and their connecting edges.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(5):
+            g.add_node(label=str(i))
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "4")
+
+        # Get nodes with coreness <= 2
+        crust_2 = g.k_crust(2)
+        print(f"Nodes in 2-crust: {crust_2.count_nodes()}")
+        ```
+        """
+        from edgecase._core import k_crust
+
+        result = Graph.__new__(Graph)
+        result._graph = k_crust(self._graph, k)
+        return result
+
+    def k_truss(self, k: int) -> "Graph":
+        """
+        Extract the k-truss subgraph.
+
+        The k-truss is the maximal subgraph where every edge is part of at least (k-2) triangles.
+        Iteratively removes edges with insufficient triangle support.
+
+        Parameters
+        ----------
+        k
+            Minimum number of triangles + 2 for edges. Must be >= 3.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-truss edges and their endpoints. Isolated nodes are
+            removed.
+
+        Raises
+        ------
+        ValueError
+            If k < 3.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(4):
+            g.add_node(label=str(i))
+        # Create complete graph K4
+        for i in range(4):
+            for j in range(i + 1, 4):
+                g.add_edge(str(i), str(j))
+
+        # Get 4-truss (edges in >= 2 triangles)
+        truss_4 = g.k_truss(4)
+        print(f"Edges in 4-truss: {truss_4.count_edges()}")
+        ```
+        """
+        from edgecase._core import k_truss
+
+        result = Graph.__new__(Graph)
+        result._graph = k_truss(self._graph, k)
+        return result
+
     def bfs(
         self,
         start: Union[int, str],
