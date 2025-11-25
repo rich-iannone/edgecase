@@ -21,6 +21,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Algorithm functions
     m.add_function(wrap_pyfunction!(algorithms::centrality::betweenness_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality::harmonic_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::pagerank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community::detect_communities, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::cycles::find_cycles, m)?)?;

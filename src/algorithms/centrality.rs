@@ -158,6 +158,187 @@ fn compute_betweenness_from_source(
     betweenness
 }
 
+/// Calculate harmonic centrality for all nodes
+///
+/// Harmonic centrality is the sum of the reciprocal of the shortest path distances
+/// from a node to all other reachable nodes. For unreachable nodes, the distance is
+/// considered infinite, and the reciprocal is 0.
+///
+/// Formula: H(v) = sum_{u != v} 1/d(v,u)
+///
+/// When normalized=true, divides by (n-1) to get the mean inverse distance.
+///
+/// References:
+/// - Marchiori, M., & Latora, V. (2000). Harmony in the small-world.
+///   Physica A: Statistical Mechanics and its Applications, 285(3-4), 539-546.
+///
+/// Performance: O(V·E) time with BFS from each node, parallelized with Rayon
+#[pyfunction]
+#[pyo3(signature = (graph, mode="out", weights=None, normalized=false, cutoff=-1))]
+#[inline]
+pub fn harmonic_centrality(
+    graph: &Graph,
+    mode: &str,
+    weights: Option<&str>,
+    normalized: bool,
+    cutoff: i32,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Ok(FxHashMap::default());
+    }
+
+    // Validate mode parameter
+    let reverse_edges = match mode {
+        "out" => false,
+        "in" => true,
+        "all" | "total" => {
+            // For undirected mode, we'll handle it by treating the graph as undirected
+            if graph.is_directed() {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "mode='all' requires treating directed graph as undirected"
+                ));
+            }
+            false
+        }
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                format!("Invalid mode '{}'. Must be 'out', 'in', 'all', or 'total'", mode)
+            ));
+        }
+    };
+
+    // Currently only supporting unweighted version
+    if weights.is_some() {
+        return Err(pyo3::exceptions::PyNotImplementedError::new_err(
+            "Weighted harmonic centrality not yet implemented"
+        ));
+    }
+
+    // Create node_id to index mapping
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    // Parallel computation: compute harmonic centrality for each node
+    let harmonic: Vec<f64> = node_ids
+        .par_iter()
+        .map(|&source| {
+            compute_harmonic_from_node(
+                graph,
+                source,
+                &node_ids,
+                &node_to_idx,
+                reverse_edges,
+                cutoff,
+            )
+        })
+        .collect();
+
+    // Normalize if requested
+    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+
+    if normalized && n > 1 {
+        let normalization = 1.0 / (n - 1) as f64;
+        for (idx, &node_id) in node_ids.iter().enumerate() {
+            result.insert(node_id, harmonic[idx] * normalization);
+        }
+    } else {
+        for (idx, &node_id) in node_ids.iter().enumerate() {
+            result.insert(node_id, harmonic[idx]);
+        }
+    }
+
+    Ok(result)
+}
+
+/// Helper: Compute harmonic centrality for a single node
+///
+/// Uses BFS to find shortest path distances to all reachable nodes,
+/// then sums 1/distance for each reachable node.
+#[inline]
+fn compute_harmonic_from_node(
+    graph: &Graph,
+    source: u64,
+    node_ids: &[u64],
+    node_to_idx: &FxHashMap<u64, usize>,
+    reverse_edges: bool,
+    cutoff: i32,
+) -> f64 {
+    use std::collections::VecDeque;
+
+    let n = node_ids.len();
+    let source_idx = node_to_idx[&source];
+
+    let mut distance: Vec<i32> = vec![-1; n];
+    let mut queue: VecDeque<usize> = VecDeque::with_capacity(n);
+
+    // Initialize source
+    distance[source_idx] = 0;
+    queue.push_back(source_idx);
+
+    let mut harmonic_sum = 0.0;
+
+    // BFS to find shortest path distances
+    while let Some(v_idx) = queue.pop_front() {
+        let v = node_ids[v_idx];
+        let dist_v = distance[v_idx];
+
+        // Check cutoff
+        if cutoff >= 0 && dist_v >= cutoff {
+            continue;
+        }
+
+        // Get neighbors based on edge direction
+        let neighbors = if reverse_edges {
+            // For 'in' mode, we need predecessors (nodes that point to v)
+            // This requires iterating through all nodes - less efficient
+            let mut preds = Vec::new();
+            for &u in node_ids {
+                if u != v {
+                    if let Ok(u_neighbors) = graph.neighbors(u) {
+                        if u_neighbors.contains(&v) {
+                            preds.push(u);
+                        }
+                    }
+                }
+            }
+            Ok(preds)
+        } else {
+            // For 'out' mode, use normal successors
+            graph.neighbors(v)
+        };
+
+        if let Ok(neighbors) = neighbors {
+            for w in neighbors {
+                if let Some(&w_idx) = node_to_idx.get(&w) {
+                    // First time we see w?
+                    if distance[w_idx] < 0 {
+                        let new_dist = dist_v + 1;
+
+                        // Check if we should explore this node (cutoff check)
+                        if cutoff < 0 || new_dist <= cutoff {
+                            distance[w_idx] = new_dist;
+                            queue.push_back(w_idx);
+
+                            // Add to harmonic sum: 1/distance
+                            harmonic_sum += 1.0 / new_dist as f64;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    harmonic_sum
+}
+
 /// Calculate PageRank for all nodes
 ///
 /// Highly optimized implementation for large graphs using:
