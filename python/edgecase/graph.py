@@ -3637,6 +3637,174 @@ class Graph:
         """
         return self._graph.is_arborescence()
 
+    def is_planar(self) -> bool:
+        """
+        Check if the graph is planar.
+
+        A planar graph can be embedded in a plane without any edge crossings. This method uses
+        Euler's formula and necessary conditions to test planarity. For simple planar graphs with
+        `n ≥ 3` nodes, the number of edges *e* must satisfy `e ≤ 3n - 6`. For graphs without
+        triangles, the stricter bound *e* ≤ *2n - 4* applies.
+
+        Returns
+        -------
+        bool
+            `True` if the graph satisfies planarity conditions, `False` otherwise.
+
+        Notes
+        -----
+        This is a *necessary but not sufficient* test. Some non-planar graphs may pass this test.
+        For complete planarity testing, specialized algorithms implementing Kuratowski's theorem
+        would be required. However, this test will correctly identify many non-planar graphs
+        efficiently.
+
+        Examples
+        --------
+        Small graphs are typically planar:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.is_planar())  # True
+        ```
+
+        The complete graph K_4 is planar:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=4)
+        print(graph.is_planar())  # True (4 nodes, 6 edges: 6 ≤ 3 * 4 - 6 = 6)
+        ```
+
+        Complete graph K_5 is not planar:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=5)
+        print(graph.is_planar())  # False (5 nodes, 10 edges: 10 > 3 * 5 - 6 = 9)
+        ```
+
+        Trees are always planar:
+
+        ```python
+        tree = Graph(directed=False)
+        tree.add_balanced_tree(k=3, h=4)
+        print(tree.is_planar())  # True (trees have `e = n - 1`)
+        ```
+
+        Grid graphs are planar:
+
+        ```python
+        grid = Graph(directed=False)
+        grid.add_grid_2d(rows=5, cols=5)
+        print(grid.is_planar())  # True
+        ```
+        """
+        return self._graph.is_planar()
+
+    def is_isomorphic(self, other: "Graph") -> bool:
+        """
+        Check if this graph is isomorphic to another graph.
+
+        Two graphs are isomorphic if there exists a one-to-one correspondence (bijection) between
+        their nodes that preserves the adjacency relationship. In simpler terms, they have the same
+        structure but possibly different node labels.
+
+        This implementation checks the following necessary conditions:
+
+        - same number of nodes
+        - same number of edges
+        - same degree sequence
+        - same directedness
+
+        Parameters
+        ----------
+        other
+            Another `Graph` object to compare with.
+
+        Returns
+        -------
+        bool
+            True if graphs satisfy isomorphism conditions, False otherwise.
+
+        Notes
+        -----
+        This is a **heuristic check** using necessary but not sufficient conditions. It will
+        correctly identify **non-isomorphic** graphs (returning `False`) but may give false
+        positives. A complete isomorphism test requires algorithms like VF2. This method is useful
+        as a fast filter before more expensive isomorphism tests.
+
+        Examples
+        --------
+        Same graph structure with different labels:
+
+        ```python
+        g1 = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        g2 = (
+            Graph(directed=False)
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_node(label="Z")
+            .add_edge("X", "Y")
+            .add_edge("Y", "Z")
+        )
+
+        print(g1.is_isomorphic(g2))  # True (both are paths of length 2)
+        ```
+
+        Different structures are not isomorphic:
+
+        ```python
+        path = Graph(directed=False).add_path_graph(n=4)
+        star = Graph(directed=False).add_star_graph(n=4)
+
+        print(path.is_isomorphic(star))  # False (different degree sequences)
+        ```
+
+        Directed vs undirected are not isomorphic:
+
+        ```python
+        directed = Graph(directed=True).add_path_graph(n=3)
+        undirected = Graph(directed=False).add_path_graph(n=3)
+
+        print(directed.is_isomorphic(undirected))  # False (different directedness)
+        ```
+
+        Complete graphs of same size:
+
+        ```python
+        k4_a = Graph(directed=False).add_full_graph(n=4)
+        k4_b = Graph(directed=False).add_full_graph(n=4)
+
+        print(k4_a.is_isomorphic(k4_b))  # True (same structure)
+        ```
+
+        Different sized graphs:
+
+        ```python
+        g3 = Graph(directed=False).add_cycle_graph(n=3)
+        g4 = Graph(directed=False).add_cycle_graph(n=4)
+
+        print(g3.is_isomorphic(g4))  # False (different sizes)
+        ```
+        """
+        return self._graph.is_isomorphic(other._graph)
+
     # ==============================================================================
     # Clique Operations
     # ==============================================================================

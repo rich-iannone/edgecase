@@ -2349,6 +2349,124 @@ impl Graph {
         true
     }
 
+    /// Check if the graph is planar using Euler's formula.
+    /// A planar graph can be drawn on a plane without edge crossings.
+    ///
+    /// Uses necessary conditions:
+    /// - For simple planar graphs: e ≤ 3n - 6 (n ≥ 3)
+    /// - For simple planar graphs without triangles: e ≤ 2n - 4
+    ///
+    /// Note: This is a necessary but not sufficient test. Some non-planar
+    /// graphs may pass this test. For a complete test, use specialized
+    /// planarity testing algorithms (Kuratowski's theorem).
+    ///
+    /// # Returns
+    /// true if graph satisfies planarity conditions, false otherwise
+    #[inline]
+    fn is_planar(&self) -> bool {
+        let n = self.num_nodes();
+        let e = self.num_edges();
+
+        // Empty graph, single node, or very small graphs are planar
+        if n <= 2 {
+            return true;
+        }
+
+        // Must be simple (no self-loops or multi-edges)
+        if !self.is_simple() {
+            return false;
+        }
+
+        // Euler's formula for planar graphs: e ≤ 3n - 6
+        if e > 3 * n - 6 {
+            return false;
+        }
+
+        // If no triangles exist, stricter bound: e ≤ 2n - 4
+        // Check for triangles by looking for 3-cycles
+        let has_triangles = self.has_triangles();
+
+        if !has_triangles && e > 2 * n - 4 {
+            return false;
+        }
+
+        // Passed necessary conditions (but not sufficient)
+        true
+    }
+
+    /// Helper method to check if graph has any triangles (3-cycles)
+    fn has_triangles(&self) -> bool {
+        for (&node, neighbors) in &self.adjacency_list {
+            for &neighbor in neighbors {
+                if let Some(neighbor_neighbors) = self.adjacency_list.get(&neighbor) {
+                    for &third in neighbor_neighbors {
+                        if third != node && self.adjacency_list.get(&third)
+                            .map_or(false, |thirds| thirds.contains(&node))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Check if this graph is isomorphic to another graph.
+    /// Two graphs are isomorphic if there exists a bijection between their
+    /// nodes that preserves adjacency.
+    ///
+    /// This implementation uses a simple necessary conditions check:
+    /// - Same number of nodes
+    /// - Same number of edges
+    /// - Same degree sequence
+    /// - Same directedness
+    ///
+    /// Note: These are necessary but not sufficient conditions. This is a
+    /// heuristic check that will correctly identify *non-isomorphic* graphs
+    /// but may give false positives. A complete isomorphism test requires
+    /// algorithms like VF2.
+    ///
+    /// # Arguments
+    /// * `other` - Another graph to compare with
+    ///
+    /// # Returns
+    /// true if graphs satisfy isomorphism conditions, false otherwise
+    fn is_isomorphic(&self, other: &Graph) -> bool {
+        // Must have same directedness
+        if self.directed != other.directed {
+            return false;
+        }
+
+        // Must have same number of nodes
+        if self.num_nodes() != other.num_nodes() {
+            return false;
+        }
+
+        // Must have same number of edges
+        if self.num_edges() != other.num_edges() {
+            return false;
+        }
+
+        // Must have same degree sequence
+        let mut degrees1: Vec<usize> = self.nodes.keys()
+            .map(|&node_id| self.degree(node_id))
+            .collect();
+        degrees1.sort_unstable();
+
+        let mut degrees2: Vec<usize> = other.nodes.keys()
+            .map(|&node_id| other.degree(node_id))
+            .collect();
+        degrees2.sort_unstable();
+
+        if degrees1 != degrees2 {
+            return false;
+        }
+
+        // Passed necessary conditions
+        true
+    }
+
     /// Find all maximal cliques in the graph using the Bron-Kerbosch algorithm.
     /// A clique is a subset of nodes where every pair is connected.
     /// A maximal clique cannot be extended by adding another node.
