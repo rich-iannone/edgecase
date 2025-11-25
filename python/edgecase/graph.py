@@ -7905,7 +7905,7 @@ class Graph:
         print(graph.get_diameter())  # 3 (A to D)
         ```
         """
-        return self._graph.get_graph_diameter_with_unconnected(unconnected)
+        return self._graph.get_diameter_with_unconnected(unconnected)
 
     def get_radius(self, unconnected: bool = True) -> int | None:
         """
@@ -7944,7 +7944,7 @@ class Graph:
         print(graph.get_radius())  # 1 (hub is center)
         ```
         """
-        return self._graph.get_graph_radius_with_unconnected(unconnected)
+        return self._graph.get_radius_with_unconnected(unconnected)
 
     def get_girth(self) -> int | None:
         """
