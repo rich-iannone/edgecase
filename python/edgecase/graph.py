@@ -3664,7 +3664,7 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(3^(n/3)) worst case, but typically much faster in practice
+        - time complexity: `O(3^(n/3))` (worst case), but typically much faster in practice
         - only works on undirected graphs
         - returns cliques in arbitrary order
         - each node ID list within a clique is sorted
@@ -3708,7 +3708,7 @@ class Graph:
         print(len(cliques))  # 3 maximal cliques
         ```
 
-        Complete graph has one clique:
+        A complete graph has one clique:
 
         ```python
         graph = Graph(directed=False)
@@ -3741,7 +3741,7 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(3^(n/3)) worst case
+        - Time complexity: `O(3^(n/3))` in the worst case
         - Only works on undirected graphs
         - Finding the maximum clique is NP-hard
         - Returns one maximum clique if multiple exist
@@ -3815,7 +3815,7 @@ class Graph:
         Returns
         -------
         int
-            Size of the maximum clique. Returns 0 for empty graphs.
+            Size of the maximum clique. Returns `0` for empty graphs.
 
         Raises
         ------
@@ -3824,7 +3824,7 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(3^(n/3)) worst case
+        - time complexity: `O(3^(n/3))` in the worst case
         - only works on undirected graphs
         - determining the clique number is NP-hard
         - for a complete graph `K_n`, the clique number is `n`
