@@ -3587,6 +3587,127 @@ impl Graph {
     /// A spanner is a sparse subgraph that approximates distances in the original graph.
     /// For any pair of nodes u, v: distance_H(u,v) <= stretch * distance_G(u,v)
     ///
+    /// Convert directed graph to undirected by making all edges bidirectional
+    ///
+    /// Creates a new graph with the same nodes but converts directed edges to undirected.
+    /// If the graph is already undirected, returns a copy.
+    ///
+    /// # Returns
+    /// A new undirected Graph
+    pub fn to_undirected(&self, py: Python) -> PyResult<Graph> {
+        let mut result = Graph::new(false, self.weighted);
+
+        // Copy all nodes
+        for (node_id, node) in &self.nodes {
+            let label = node.label.clone();
+            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let node_obj = Node::new(*node_id, label, attrs);
+            result.add_node(node_obj)?;
+        }
+
+        // Copy all edges (removing directedness)
+        // For undirected graphs, this is already correct
+        // For directed graphs, we just change the graph type
+        let mut seen_pairs: FxHashSet<(u64, u64)> = FxHashSet::default();
+
+        for edge in &self.edges {
+            let pair = if edge.source < edge.target {
+                (edge.source, edge.target)
+            } else {
+                (edge.target, edge.source)
+            };
+
+            // Skip if we've already added this undirected edge
+            if seen_pairs.contains(&pair) {
+                continue;
+            }
+            seen_pairs.insert(pair);
+
+            let weight = edge.weight;
+            let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+            let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs);
+            result.add_edge(edge_obj)?;
+        }
+
+        Ok(result)
+    }
+
+    /// Convert undirected graph to directed by creating both directions for each edge
+    ///
+    /// Creates a new graph with the same nodes but converts undirected edges to directed
+    /// by creating both directions (u->v and v->u) for each edge.
+    /// If the graph is already directed, returns a copy.
+    ///
+    /// # Returns
+    /// A new directed Graph
+    pub fn to_directed(&self, py: Python) -> PyResult<Graph> {
+        let mut result = Graph::new(true, self.weighted);
+
+        // Copy all nodes
+        for (node_id, node) in &self.nodes {
+            let label = node.label.clone();
+            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let node_obj = Node::new(*node_id, label, attrs);
+            result.add_node(node_obj)?;
+        }
+
+        // Copy all edges
+        for edge in &self.edges {
+            let weight = edge.weight;
+            let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+
+            // Add edge in original direction
+            let attrs_clone = attrs.as_ref().map(|a| a.clone_ref(py));
+            let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs_clone);
+            result.add_edge(edge_obj)?;
+
+            // If originally undirected, add reverse direction too
+            if !self.directed {
+                let edge_obj_rev = Edge::new(0, edge.target, edge.source, weight, attrs);
+                result.add_edge(edge_obj_rev)?;
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Reverse the direction of all edges in a directed graph
+    ///
+    /// Creates a new graph with all edge directions reversed.
+    /// For undirected graphs, returns a copy (no change in structure).
+    ///
+    /// # Returns
+    /// A new Graph with reversed edges
+    pub fn reverse(&self, py: Python) -> PyResult<Graph> {
+        let mut result = Graph::new(self.directed, self.weighted);
+
+        // Copy all nodes
+        for (node_id, node) in &self.nodes {
+            let label = node.label.clone();
+            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let node_obj = Node::new(*node_id, label, attrs);
+            result.add_node(node_obj)?;
+        }
+
+        // Copy edges with reversed direction (if directed)
+        for edge in &self.edges {
+            let weight = edge.weight;
+            let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+
+            if self.directed {
+                // Swap source and target
+                let edge_obj = Edge::new(0, edge.target, edge.source, weight, attrs);
+                result.add_edge(edge_obj)?;
+            } else {
+                // For undirected, keep as is
+                let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs);
+                result.add_edge(edge_obj)?;
+            }
+        }
+
+        Ok(result)
+    }
+
     /// # Arguments
     /// * `stretch` - Maximum distance approximation factor (must be >= 1.0)
     /// * `weight` - Optional edge attribute name to use as weight
