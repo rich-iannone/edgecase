@@ -15794,18 +15794,17 @@ class Graph:
         Parameters
         ----------
         attr_name
-            Column name to store betweenness scores in the node DataFrame.
-            If None (default), automatically uses 'betweenness_centrality'.
-            Overwrites column if it already exists.
+            Column name to store betweenness scores in the node DataFrame. If `None` (default),
+            automatically uses `betweenness_centrality`. Overwrites column if it already exists.
         return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
+            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to betweenness scores (range [0, 1]).
-            If return_dict is False (default): returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to betweenness scores (range of
+            `[0, 1]`). If `return_dict` is `False` (default): returns self for method chaining.
 
         Examples
         --------
@@ -15877,6 +15876,206 @@ class Graph:
             return result_ids
         return self
 
+    def harmonic_centrality(
+        self,
+        mode: str = "out",
+        weights: str = None,
+        normalized: bool = False,
+        cutoff: int = -1,
+        attr_name: str = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate harmonic centrality scores for all nodes.
+
+        Harmonic centrality is the sum of the reciprocal of shortest path distances from a node to
+        all other reachable nodes. For unreachable nodes, the distance is considered infinite, and
+        the reciprocal is 0. This makes harmonic centrality more robust than closeness centrality
+        for disconnected graphs.
+
+        The formula is: H(v) = Σ 1 / d(v,u) for all u ≠ v, where d(v,u) is the shortest path
+        distance from v to u.
+
+        When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse distance,
+        which is bounded between 0 and 1.
+
+        Parameters
+        ----------
+        mode
+            Direction for measuring distances in directed graphs where: (1) `"out"` follows edges in
+            their direction (default), (2) `"in"` follows edges in reverse, and (3) `"all"` or
+            `"total"` ignores edge directions (only for undirected graphs).
+        weights
+            Optional edge attribute name for weighted distances. Currently not implemented; uses
+            unweighted shortest paths (hop count).
+        normalized
+            If `True`, divides by `(n - 1)` to normalize scores to the `[0, 1]` range. If `False`
+            (the default), returns raw sum of inverse distances.
+        cutoff
+            Maximum path length to consider. Paths longer than cutoff are ignored. Use `-1`
+            (default) for no limit.
+        attr_name
+            Column name to store harmonic centrality scores in the node DataFrame. If `None`
+            (default), automatically uses 'harmonic_centrality'. Overwrites column if it already
+            exists.
+        return_dict
+            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to harmonic centrality scores.
+            If `return_dict` is `False` (the default): returns self for method chaining.
+
+        References
+        ----------
+        Marchiori, M., & Latora, V. (2000). Harmony in the small-world.
+        Physica A: Statistical Mechanics and its Applications, 285(3-4), 539-546.
+
+        Examples
+        --------
+        Calculate harmonic centrality in a simple network:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a star network
+        graph = (
+            Graph()
+            .add_node(label="Center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("Center", "A")
+            .add_edge("Center", "B")
+            .add_edge("Center", "C")
+        )
+
+        scores = graph.harmonic_centrality(return_dict=True)
+        center_id = graph.get_id_from_label("Center")
+        print(scores[center_id])  # Center has highest harmonic centrality
+        ```
+
+        Compare with normalized version:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        # Raw harmonic centrality
+        raw_scores = graph.harmonic_centrality(return_dict=True)
+
+        # Normalized to [0, 1] range
+        norm_scores = graph.harmonic_centrality(normalized=True, return_dict=True)
+        ```
+
+        Use with cutoff for local neighborhoods:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+        )
+
+        # Only consider paths of length 2 or less
+        local_scores = graph.harmonic_centrality(cutoff=2, return_dict=True)
+        ```
+
+        Chain with other operations:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .harmonic_centrality(attr_name="harmonic", normalized=True)
+        )
+
+        # Access the stored values
+        ndf = graph.get_node_df()
+        print(ndf[["label", "harmonic"]])
+        ```
+
+        For directed graphs, use mode to control direction:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # Out-going paths (default)
+        out_scores = graph.harmonic_centrality(mode="out", return_dict=True)
+
+        # In-coming paths
+        in_scores = graph.harmonic_centrality(mode="in", return_dict=True)
+        ```
+        """
+        result_ids = rust.harmonic_centrality(
+            self._graph,
+            mode=mode,
+            weights=weights,
+            normalized=normalized,
+            cutoff=cutoff,
+        )
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "harmonic_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            params = {}
+            if mode != "out":
+                params["mode"] = mode
+            if weights is not None:
+                params["weights"] = weights
+            if normalized:
+                params["normalized"] = normalized
+            if cutoff != -1:
+                params["cutoff"] = cutoff
+            self._computations.append(("harmonic_centrality", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
     def authority_centrality(
         self,
         max_iter: int = 100,
@@ -15887,14 +16086,13 @@ class Graph:
         """
         Get HITS authority scores for each node (directed graphs only).
 
-        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores
-        for nodes in a directed graph. Authority score measures how much a node
-        is pointed to by good hubs:
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
+        directed graph. Authority score measures how much a node is pointed to by good hubs:
 
         authority(v) = sum of hub scores of nodes pointing to v
 
-        Uses power iteration until convergence. Good authorities are nodes that
-        are pointed to by many high-quality hubs. Requires a directed graph.
+        Uses power iteration until convergence. Good authorities are nodes that are pointed to by
+        many high-quality hubs. Requires a directed graph.
 
         Parameters
         ----------
@@ -15903,17 +16101,17 @@ class Graph:
         tol
             Convergence tolerance threshold.
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("authority_centrality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`authority_centrality`).
         return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to normalized authority scores.
-            If return_dict is False: returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to normalized authority scores.
+            If `return_dict` is `False`: returns self for method chaining.
 
         Raises
         ------
@@ -15990,14 +16188,13 @@ class Graph:
         """
         Get HITS hub scores for each node (directed graphs only).
 
-        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores
-        for nodes in a directed graph. Hub score measures how much a node points
-        to good authorities:
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
+        directed graph. Hub score measures how much a node points to good authorities:
 
         hub(v) = sum of authority scores of nodes v points to
 
-        Uses power iteration until convergence. Good hubs are nodes that point
-        to many high-quality authorities. Requires a directed graph.
+        Uses power iteration until convergence. Good hubs are nodes that point to many high-quality
+        authorities. Requires a directed graph.
 
         Parameters
         ----------
@@ -16006,17 +16203,17 @@ class Graph:
         tol
             Convergence tolerance threshold.
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("hub_centrality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`hub_centrality`).
         return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to normalized hub scores.
-            If return_dict is False: returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to normalized hub scores. If
+            `return_dict` is `False`: returns self for method chaining.
 
         Raises
         ------
@@ -16093,15 +16290,14 @@ class Graph:
         """
         Get eigenvector centrality for each node.
 
-        Eigenvector centrality measures node importance based on connections
-        to other important nodes. It's the principal eigenvector of the adjacency
-        matrix, computed via power iteration:
+        Eigenvector centrality measures node importance based on connections to other important
+        nodes. It's the principal eigenvector of the adjacency matrix, computed via power iteration:
 
         x = λ⁻¹ · A · x
 
-        A node has high eigenvector centrality if it's connected to other nodes
-        that themselves have high centrality. Unlike degree centrality, it accounts
-        for the quality (not just quantity) of connections.
+        A node has high eigenvector centrality if it's connected to other nodes that themselves have
+        high centrality. Unlike degree centrality, it accounts for the quality (not just quantity)
+        of connections.
 
         Parameters
         ----------
@@ -16110,18 +16306,18 @@ class Graph:
         tol
             Convergence tolerance threshold.
         attr_name
-            Column name to store eigenvector centrality scores in the node DataFrame.
-            If None (default), automatically uses 'eigen_centrality'.
-            Overwrites column if it already exists.
+            Column name to store eigenvector centrality scores in the node DataFrame. If `None`
+            (default), automatically uses `eigen_centrality`. Overwrites column if it already
+            exists.
         return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
+            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to centrality scores.
-            If return_dict is False (default): returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
+            `return_dict` is `False` (default): returns self for method chaining.
 
         Examples
         --------
@@ -16200,36 +16396,36 @@ class Graph:
         """
         Get alpha centrality for each node.
 
-        Alpha centrality is a generalization of eigenvector centrality that adds
-        an exogenous factor:
+        Alpha centrality is a generalization of eigenvector centrality that adds an exogenous
+        factor:
 
         x = α · A · x + e
 
-        where α is the attenuation factor, A is the adjacency matrix, and e is
-        the exogenous factor (set to 1 for all nodes). Lower α emphasizes local
-        neighborhood structure, while higher α considers more global structure.
+        where α is the attenuation factor, A is the adjacency matrix, and e is the exogenous factor
+        (set to `1` for all nodes). Lower α emphasizes local neighborhood structure, while higher α
+        considers more global structure.
 
         Parameters
         ----------
         alpha
-            Attenuation factor (range: 0 to 1). Controls the balance between
-            local and global structure.
+            Attenuation factor (range: `0` to `1`). Controls the balance between local and global
+            structure.
         max_iter
             Maximum number of iterations for convergence.
         tol
             Convergence tolerance threshold.
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("alpha_centrality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`alpha_centrality`).
         return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         Union[dict[str, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to centrality scores.
-            If return_dict is False: returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
+            `return_dict` is `False`: returns self for method chaining.
 
         Examples
         --------
@@ -16306,10 +16502,9 @@ class Graph:
         """
         Get Bonacich power centrality for each node.
 
-        Bonacich power centrality generalizes eigenvector centrality to capture
-        both cooperative and competitive network dynamics. The key innovation is
-        the β parameter, which controls whether neighbors' power increases (+β)
-        or decreases (-β) a node's own power.
+        Bonacich power centrality generalizes eigenvector centrality to capture both cooperative and
+        competitive network dynamics. The key innovation is the β parameter, which controls whether
+        neighbors' power increases (+β) or decreases (-β) a node's own power.
 
         The centrality is computed as:
             c(α, β) = α(I - βA)^(-1) A 1
@@ -16348,14 +16543,14 @@ class Graph:
             Name for the node attribute to store results. If not provided,
             auto-generates name from method name ("bonacich_power_centrality").
         return_dict
-            If True, returns dictionary of results. If False, stores results
+            If `True`, returns dictionary of results. If `False`, stores results
             as node attributes and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to centrality scores.
-            If return_dict is False: returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores.
+            If `return_dict` is `False`: returns self for method chaining.
             Interpretation depends on β:
 
             - β > 0: Higher scores = more powerful due to powerful neighbors
@@ -16364,8 +16559,8 @@ class Graph:
         Raises
         ------
         RuntimeError
-            If (I - βA) is singular. This happens when β is too close to 1/λ_max.
-            Try reducing |β| or choosing a different value.
+            If (I - βA) is singular. This happens when β is too close to 1/λ_max. Try reducing |β|
+            or choosing a different value.
 
         Examples
         --------
@@ -16516,30 +16711,29 @@ class Graph:
         Parameters
         ----------
         alpha
-            Attenuation factor for walk lengths. Must be smaller than the
-            reciprocal of the largest eigenvalue (typically < 0.2 for safety).
-            Higher values give more weight to longer paths.
+            Attenuation factor for walk lengths. Must be smaller than the reciprocal of the largest
+            eigenvalue (typically < `0.2` for safety). Higher values give more weight to longer
+            paths.
         beta
-            Bias/weight added to each node. Acts as a "free" centrality that
-            every node gets. Higher values reduce the relative importance of
-            network position.
+            Bias/weight added to each node. Acts as a 'free' centrality that every node gets. Higher
+            values reduce the relative importance of network position.
         max_iter
             Maximum number of iterations for convergence.
         tol
             Convergence tolerance threshold.
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("katz_centrality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`katz_centrality`).
         return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to normalized Katz centrality scores.
-            If return_dict is False: returns self for method chaining.
-            Scores sum to 1.0.
+            If `return_dict` is `True`: dictionary mapping node IDs to normalized Katz centrality
+            scores. If `return_dict` is `False`: returns self for method chaining. Scores sum to
+            `1.0`.
 
         Examples
         --------
@@ -16627,8 +16821,7 @@ class Graph:
         """
         Get leverage centrality for each node.
 
-        Leverage centrality measures the degree connectivity of a node relative
-        to its neighbors:
+        Leverage centrality measures the degree connectivity of a node relative to its neighbors:
 
         leverage(v) = (1/k_v) · Σ[(k_v - k_n) / (k_v + k_n)]
 
@@ -16636,24 +16829,24 @@ class Graph:
 
         Interpretation:
 
-        - Positive values: Node has more connections than its neighbors (influential)
-        - Negative values: Node has fewer connections than its neighbors (peripheral)
-        - Zero: Node has similar connectivity to its neighbors
+        - positive values: node has more connections than its neighbors (influential)
+        - negative values: node has fewer connections than its neighbors (peripheral)
+        - zero: node has similar connectivity to its neighbors
 
         Parameters
         ----------
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("leverage_centrality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`leverage_centrality`).
         return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to leverage centrality scores.
-            If return_dict is False: returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to leverage centrality scores.
+            If `return_dict` is `False`: returns self for method chaining.
 
         Examples
         --------
@@ -16753,43 +16946,41 @@ class Graph:
         Parameters
         ----------
         sigma
-            Competition parameter. If None (default), automatically computed
-            from smallest eigenvalue and alpha. Higher values increase global
-            competition for dominance.
+            Competition parameter. If `None` (default), automatically computed from smallest
+            eigenvalue and alpha. Higher values increase global competition for dominance.
         alpha
-            Alpha parameter for auto-computing sigma (sigma = alpha / |λ_min|).
-            Only used if sigma is None. Must be positive.
+            Alpha parameter for auto-computing sigma (sigma = alpha / |λ_min|). Only used if sigma
+            is `None`. Must be positive.
         method
-            Solution method. Currently only "iterative" is implemented.
-            (Analytical method may be added in future for small graphs)
+            Solution method. Currently only "iterative" is implemented. (Analytical method may be
+            added in the future for small graphs.)
         tolerance
             Convergence tolerance for iterative solver.
         max_iter
             Maximum iterations for Newton's method.
         patience
-            Number of steps between convergence checks. Must satisfy
-            max_iter > 3 * patience.
+            Number of steps between convergence checks. Must satisfy `max_iter > 3 * patience`.
         max_depth
-            Maximum bisection steps for finding smallest eigenvalue
-            (when auto-computing sigma).
+            Maximum bisection steps for finding smallest eigenvalue (when auto-computing sigma).
         return_sigma
-            If True, return (centrality_dict, sigma) tuple or (Graph, sigma) tuple
-            instead of just dict or Graph.
+            If `True`, return (centrality_dict, sigma) tuple or (Graph, sigma) tuple instead of just
+            dict or Graph.
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("domirank_centrality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`domirank_centrality`).
         return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         dict[int, float] or tuple[dict[int, float], float] or Graph or tuple[Graph, float]
-            If return_dict is True and return_sigma is False: dictionary mapping node IDs to dominance scores.
-            If return_dict is True and return_sigma is True: tuple of (centrality dict, sigma value).
-            If return_dict is False and return_sigma is False: returns self for method chaining.
-            If return_dict is False and return_sigma is True: tuple of (self, sigma value).
-            Nodes with positive scores are dominant; negative scores indicate submissive nodes.
+            If `return_dict` is `True` and `return_sigma` is `False`: dictionary mapping node IDs to
+            dominance scores. If `return_dict` is `True` and `return_sigma` is `True`: tuple of
+            (centrality dict, sigma value). If `return_dict` is `False` and `return_sigma` is
+            `False`: returns self for method chaining. If `return_dict` is `False` and
+            `return_sigma` is `True`: tuple of (self, sigma value). Nodes with positive scores are
+            dominant; negative scores indicate submissive nodes.
 
         Raises
         ------
@@ -16932,25 +17123,24 @@ class Graph:
         """
         Find the minimum spanning tree using Kruskal's algorithm.
 
-        A minimum spanning tree (MST) is a subset of edges that connects all nodes
-        with the minimum total edge weight. Uses the optimized union-find data
-        structure with path-halving for efficient cycle detection.
+        A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
+        total edge weight. Uses the optimized union-find data structure with path-halving for
+        efficient cycle detection.
 
         Parameters
         ----------
         weight_attr
-            Name of edge attribute to use for weights. If None (default), uses
-            the edge's weight field. If the attribute doesn't exist on an edge,
-            defaults to 1.0.
+            Name of edge attribute to use for weights. If None (default), uses the edge's weight
+            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
         return_subgraph
-            If True, returns a new Graph containing only the MST edges.
-            If False, returns a list of edge IDs as strings.
+            If `True`, returns a new Graph containing only the MST edges. If `False`, returns a list
+            of edge IDs as strings.
 
         Returns
         -------
         Graph or list[str]
-            Either a new Graph with MST edges or a list of edge ID strings,
-            depending on `return_subgraph` parameter.
+            Either a new Graph with MST edges or a list of edge ID strings, depending on
+            the `return_subgraph=` parameter.
 
         Examples
         --------
@@ -17032,25 +17222,23 @@ class Graph:
         """
         Find the maximum spanning tree using Kruskal's algorithm.
 
-        A maximum spanning tree is a subset of edges that connects all nodes
-        with the maximum total edge weight. Essentially finds the MST of the
-        negated edge weights.
+        A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
+        edge weight. Essentially finds the MST of the negated edge weights.
 
         Parameters
         ----------
         weight_attr
-            Name of edge attribute to use for weights. If None (default), uses
-            the edge's weight field. If the attribute doesn't exist on an edge,
-            defaults to 1.0.
+            Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
+            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
         return_subgraph
-            If True, returns a new Graph containing only the spanning tree edges.
-            If False, returns a list of edge IDs as strings.
+            If `True`, returns a new Graph containing only the spanning tree edges. If `False`,
+            returns a list of edge IDs as strings.
 
         Returns
         -------
         Graph or list[str]
-            Either a new Graph with spanning tree edges or a list of edge ID
-            strings, depending on `return_subgraph` parameter.
+            Either a new Graph with spanning tree edges or a list of edge ID strings, depending on
+            the `return_subgraph=` parameter.
 
         Examples
         --------
