@@ -985,6 +985,278 @@ class Graph:
 
         return self
 
+    def remove_selfloops(self) -> "Graph":
+        """
+        Remove all self-loops from the graph.
+
+        A self-loop is an edge where the source and target nodes are the same. This method removes
+        all such edges from the graph, which is a common preprocessing step for many graph
+        lgorithms that assume simple graphs.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+
+        Examples
+        --------
+        Remove self-loops from a graph:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="A", target="A")  # Self-loop
+        g.add_edge(source="B", target="B")  # Self-loop
+
+        print(g.count_edges())  # 3
+        g.remove_selfloops()
+        print(g.count_edges())  # 1
+        ```
+
+        Use in preprocessing pipeline:
+
+        ```python
+        g = (
+            Graph()
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_node(label="Z")
+            .add_edge(source="X", target="Y")
+            .add_edge(source="Y", target="Z")
+            .add_edge(source="X", target="X")  # Self-loop
+            .remove_selfloops()
+        )
+
+        print(g.is_simple())  # True (if no multi-edges)
+        ```
+
+        Notes
+        -----
+        - works for both directed and undirected graphs.
+        - does not affect multi-edges (use `remove_duplicate_edges()` or `simplify()` for those).
+        - use `which_loops()` to identify self-loops before removal.
+        - use `count_loops()` to count self-loops per node before removal.
+        """
+        loop_ids = self.which_loops()
+        for edge_id in loop_ids:
+            self.delete_edge_by_id(edge_id)
+        return self
+
+    def remove_duplicate_edges(self, keep_distinct_attributes: bool = False) -> "Graph":
+        """
+        Remove duplicate edges, keeping only one edge per node pair.
+
+        For each pair of nodes with multiple edges between them, keeps only the first edge
+        (by edge ID order) and removes all others. This converts a multigraph into a simple
+        graph with respect to multi-edges, but does not remove self-loops.
+
+        Parameters
+        ----------
+        keep_distinct_attributes
+            If `False` (default), edges are considered duplicates based solely on their
+            source and target nodes, regardless of weight, `rel`, or other attributes.
+            If `True`, edges with different attribute values (weight, `rel`, or custom
+            attributes) are considered distinct and will not be removed.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+
+        Examples
+        --------
+        Remove duplicate edges from a multigraph (default behavior):
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge(source="A", target="B", weight=1.0)
+        g.add_edge(source="A", target="B", weight=2.0)  # Duplicate
+        g.add_edge(source="A", target="B", weight=3.0)  # Duplicate
+
+        print(g.count_edges())  # 3
+        g.remove_duplicate_edges()
+        print(g.count_edges())  # 1
+        ```
+
+        Keep edges with different attributes:
+
+        ```python
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge(source="A", target="B", rel="friend")
+        g.add_edge(source="A", target="B", rel="colleague")
+        g.add_edge(source="A", target="B", rel="friend")  # True duplicate
+
+        print(g.count_edges())  # 3
+        g.remove_duplicate_edges(keep_distinct_attributes=True)
+        print(g.count_edges())  # 2 (friend and colleague kept)
+        ```
+
+        Use in preprocessing pipeline:
+
+        ```python
+        g = (
+            Graph()
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge(source="X", target="Y", type="email")
+            .add_edge(source="X", target="Y", type="message")
+            .add_edge(source="X", target="Y", type="call")
+            .remove_duplicate_edges()
+        )
+
+        print(g.count_edges())  # 1 (first edge kept)
+        ```
+
+        Notes
+        -----
+        - by default, **edge attributes are ignored**: edges are considered duplicates based
+          solely on their source and target nodes.
+        - use `keep_distinct_attributes=True` to preserve edges that have different weights,
+          `rel` values, or other attributes.
+        - the first edge (lowest edge ID) in each group of true duplicates is retained.
+        - for directed graphs, edges (u, v) and (v, u) are considered different pairs.
+        - for undirected graphs, edges (u, v) and (v, u) are considered the same pair.
+        - does not remove self-loops (use `remove_selfloops()` or `simplify()` for those).
+        - use `which_multiple()` to identify duplicate edges before removal.
+        - use `count_multiple()` to count duplicates per node pair before removal.
+
+        See Also
+        --------
+        which_multiple : Find edge IDs of duplicate edges.
+        count_multiple : Count edges grouped by node pair.
+        simplify : Remove both self-loops and duplicate edges.
+        is_simple : Check if graph has no self-loops or multi-edges.
+        """
+        multiple_ids = self.which_multiple()
+        if not multiple_ids:
+            return self
+
+        # Group edges by node pair to identify which to keep
+        # We need to keep one edge per pair and remove the rest
+        edge_groups: dict[tuple[int, int], list[int]] = {}
+
+        for edge_id in multiple_ids:
+            edge = self.get_edge(edge_id)
+            if edge:
+                if self.is_directed():
+                    key = (edge.source, edge.target)
+                else:
+                    # For undirected, normalize the key
+                    key = (min(edge.source, edge.target), max(edge.source, edge.target))
+
+                if key not in edge_groups:
+                    edge_groups[key] = []
+                edge_groups[key].append(edge_id)
+
+        if keep_distinct_attributes:
+            # Only remove edges that have identical attributes
+            for edge_ids in edge_groups.values():
+                # Group by attribute signature within each node pair
+                attr_groups: dict[tuple, list[int]] = {}
+                for edge_id in edge_ids:
+                    edge = self.get_edge(edge_id)
+                    if edge:
+                        # Create a hashable signature from weight and attributes
+                        attrs = edge.attributes or {}
+                        # Sort attributes for consistent hashing
+                        attr_items = tuple(sorted(attrs.items()))
+                        signature = (edge.weight, attr_items)
+
+                        if signature not in attr_groups:
+                            attr_groups[signature] = []
+                        attr_groups[signature].append(edge_id)
+
+                # For each attribute group, keep the first and remove duplicates
+                for attr_edge_ids in attr_groups.values():
+                    if len(attr_edge_ids) > 1:
+                        sorted_ids = sorted(attr_edge_ids)
+                        for edge_id in sorted_ids[1:]:  # Skip first, remove rest
+                            self.delete_edge_by_id(edge_id)
+        else:
+            # Default behavior: remove all but first edge per node pair
+            for edge_ids in edge_groups.values():
+                sorted_ids = sorted(edge_ids)
+                for edge_id in sorted_ids[1:]:  # Skip first, remove rest
+                    self.delete_edge_by_id(edge_id)
+
+        return self
+
+    def simplify(self) -> "Graph":
+        """
+        Remove all self-loops and duplicate edges, making the graph simple.
+
+        A simple graph has no self-loops (edges from a node to itself) and no multi-edges (multiple
+        edges between the same pair of nodes). This method removes both types, which is a common
+        preprocessing step for algorithms that require simple graphs.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+
+        Examples
+        --------
+        Simplify a graph with both self-loops and multi-edges:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge(source="A", target="B", weight=1.0)
+        g.add_edge(source="A", target="B", weight=2.0)  # Duplicate
+        g.add_edge(source="A", target="A")  # Self-loop
+        g.add_edge(source="B", target="B")  # Self-loop
+
+        print(g.count_edges())  # 4
+        print(g.is_simple())  # False
+
+        g.simplify()
+        print(g.count_edges())  # 1
+        print(g.is_simple())  # True
+        ```
+
+        Use in preprocessing pipeline:
+
+        ```python
+        g = (
+            Graph()
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_node(label="Z")
+            .add_edge(source="X", target="Y")
+            .add_edge(source="X", target="Y")  # Duplicate
+            .add_edge(source="Y", target="Z")
+            .add_edge(source="Z", target="Z")  # Self-loop
+            .simplify()
+        )
+
+        print(g.is_simple())  # True
+        ```
+
+        Notes
+        -----
+        - equivalent to calling `remove_selfloops()` followed by `remove_duplicate_edges()`.
+        - for duplicate edges, the first edge (lowest edge ID) in each group is retained.
+        - for directed graphs, edges (u, v) and (v, u) are considered different pairs.
+        - for undirected graphs, edges (u, v) and (v, u) are considered the same pair.
+        - after simplification, `is_simple()` will return `True`.
+        """
+        self.remove_selfloops()
+        self.remove_duplicate_edges()
+        return self
+
     # ====================================================================
     # Graph Information
     # ====================================================================
