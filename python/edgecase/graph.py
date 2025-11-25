@@ -6510,6 +6510,9 @@ class Graph:
         # Directed: A follows B, B follows C
         followers = (
             Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
             .add_edge("Alice", "Bob")
             .add_edge("Bob", "Charlie")
         )
@@ -6559,6 +6562,9 @@ class Graph:
         ```python
         # Undirected road network
         roads = Graph(directed=False)
+        roads.add_node(label="A")
+        roads.add_node(label="B")
+        roads.add_node(label="C")
         roads.add_edge("A", "B", weight=5)
         roads.add_edge("B", "C", weight=3)
 
@@ -6571,6 +6577,9 @@ class Graph:
 
         ```python
         g = Graph(directed=False)
+        g.add_node(label="X")
+        g.add_node(label="Y")
+        g.add_node(label="Z")
         g.add_edge("X", "Y")
         g.add_edge("Y", "Z")
 
@@ -6624,6 +6633,9 @@ class Graph:
         # Dependencies: B depends on A, C depends on B
         deps = (
             Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
             .add_edge("A", "B", label="provides")
             .add_edge("B", "C", label="provides")
         )
@@ -6637,6 +6649,9 @@ class Graph:
 
         ```python
         g = Graph(directed=True)
+        g.add_node(label="X")
+        g.add_node(label="Y")
+        g.add_node(label="Z")
         g.add_edge("X", "Y")
         g.add_edge("Y", "Z")
 
