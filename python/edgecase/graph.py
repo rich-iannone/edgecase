@@ -9669,6 +9669,274 @@ class Graph:
 
         return planner.compute_or_improve_path(epsilon)
 
+    def all_pairs_shortest_path_length(self) -> dict[int, dict[int, float]]:
+        """
+        Compute shortest path lengths for all pairs of nodes.
+
+        Uses Dijkstra's algorithm from each source node to find the shortest path distance to all
+        other reachable nodes. For unweighted graphs, all edges are treated as having weight `1.0`.
+
+        Returns
+        -------
+        dict[int, dict[int, float]]
+            Nested dictionary where `result[source][target] = distance`. Only includes reachable
+            pairs. Unreachable pairs are omitted.
+
+        Examples
+        --------
+        Simple path graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(4)  # Creates 1-2-3-4
+
+        distances = graph.all_pairs_shortest_path_length()
+        print(distances[1][4])  # 3.0 (three hops)
+        print(distances[2][4])  # 2.0 (two hops)
+        ```
+
+        Weighted graph:
+
+        ```python
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="B", target="C", weight=2.0)
+            .add_edge(source="A", target="C", weight=5.0)
+        )
+
+        distances = graph.all_pairs_shortest_path_length()
+        a_id = graph.get_id_from_label("A")
+        c_id = graph.get_id_from_label("C")
+        print(distances[a_id][c_id])  # 3.0 (A->B->C is shorter than A->C)
+        ```
+
+        Disconnected components:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(3)  # 1-2-3
+        graph.add_node(4)  # Isolated node
+
+        distances = graph.all_pairs_shortest_path_length()
+        print(1 in distances)  # True
+        print(4 in distances[1])  # False (not reachable from 1)
+        ```
+
+        Notes
+        -----
+        Time complexity: `O(n * (m + n) * log(n))` where `n` is nodes and `m` is edges. Space
+        complexity: `O(n²)` for storing all pairwise distances.
+
+        For dense graphs or when you need all pairs, this is more efficient than calling
+        `shortest_path()` repeatedly. For sparse queries, use `shortest_path()` instead.
+        """
+        from edgecase._core import all_pairs_shortest_path_length
+
+        return all_pairs_shortest_path_length(self._graph)
+
+    def all_pairs_shortest_path(self) -> dict[int, dict[int, list[int]]]:
+        """
+        Compute shortest paths for all pairs of nodes.
+
+        Uses Dijkstra's algorithm from each source node to find the shortest path to all other
+        reachable nodes. Returns the full path as a list of node IDs.
+
+        Returns
+        -------
+        dict[int, dict[int, list[int]]]
+            Nested dictionary where `result[source][target] = path` (list of node IDs from source to
+            target, inclusive). Only includes reachable pairs. Unreachable pairs are omitted.
+
+        Examples
+        --------
+        Simple path graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(4)  # Creates 1-2-3-4
+
+        paths = graph.all_pairs_shortest_path()
+        print(paths[1][4])  # [1, 2, 3, 4]
+        print(paths[2][4])  # [2, 3, 4]
+        ```
+
+        Weighted graph with multiple routes:
+
+        ```python
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="B", target="D", weight=1.0)
+            .add_edge(source="A", target="C", weight=1.0)
+            .add_edge(source="C", target="D", weight=5.0)
+        )
+
+        paths = graph.all_pairs_shortest_path()
+        a_id = graph.get_id_from_label("A")
+        d_id = graph.get_id_from_label("D")
+        path = paths[a_id][d_id]
+        # Returns [a_id, b_id, d_id] (shortest by weight)
+        ```
+
+        Distance matrix for centrality calculations:
+
+        ```python
+        graph = Graph()
+        graph.add_star_graph(5)  # Star with center node 1
+
+        paths = graph.all_pairs_shortest_path()
+        node_ids = graph.get_node_ids()
+        center = 1
+
+        # Check paths from periphery to periphery go through center
+        leaves = [n for n in node_ids if n != center]
+        for source in leaves:
+            for target in leaves:
+                if source < target:
+                    path = paths[source][target]
+                    assert center in path  # Center node 1 is on all periphery-to-periphery paths
+        ```
+
+        Notes
+        -----
+        Time complexity: `O(n * (m + n) * log(n))` where `n` is nodes and `m` is edges. Space
+        complexity: `O(n² * average_path_length)` for storing all paths.
+
+        This method stores full paths, which can be memory intensive for large graphs. If you only
+        need distances, use `all_pairs_shortest_path_length()` instead.
+        """
+        from edgecase._core import all_pairs_shortest_path
+
+        return all_pairs_shortest_path(self._graph)
+
+    def k_shortest_paths(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        k: int,
+    ) -> list[tuple[list[int], float]]:
+        """
+        Find k shortest paths between source and target using Yen's algorithm.
+
+        Finds multiple alternative paths ranked by total path weight/length. Useful for finding
+        backup routes, route diversity analysis, or identifying critical edges.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        target
+            Target node (integer ID or string label).
+        k
+            Number of shortest paths to find. If fewer than `k` paths exist, returns all available
+            paths.
+
+        Returns
+        -------
+        list[tuple[list[int], float]]
+            List of `(path, distance)` tuples sorted by distance (shortest first). Each path is a
+            list of node IDs from source to target (inclusive). Returns empty list if no path
+            exists or `k=0`.
+
+        Examples
+        --------
+        Find alternative routes:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="B", target="D", weight=1.0)  # Route 1: A->B->D (cost 2.0)
+            .add_edge(source="A", target="C", weight=1.5)
+            .add_edge(source="C", target="D", weight=1.0)  # Route 2: A->C->D (cost 2.5)
+            .add_edge(source="A", target="D", weight=4.0)  # Route 3: A->D (cost 4.0)
+        )
+
+        paths = graph.k_shortest_paths("A", "D", k=3)
+        for i, (path, distance) in enumerate(paths, 1):
+            labels = [graph.get_node(nid).label for nid in path]
+            print(f"Route {i}: {' -> '.join(labels)} (distance: {distance})")
+        # Route 1: A -> B -> D (distance: 2.0)
+        # Route 2: A -> C -> D (distance: 2.5)
+        # Route 3: A -> D (distance: 4.0)
+        ```
+
+        Unweighted graph (counts hops):
+
+        ```python
+        graph = Graph()
+        graph.add_grid_2d(rows=3, cols=3)
+        # Grid:
+        # 1 - 2 - 3
+        # |   |   |
+        # 4 - 5 - 6
+        # |   |   |
+        # 7 - 8 - 9
+
+        paths = graph.k_shortest_paths(1, 9, k=5)
+        print(f"Found {len(paths)} paths from corner to corner")
+        print(f"Shortest path length: {paths[0][1]}")  # 4.0 hops
+        ```
+
+        Identify critical edges:
+
+        ```python
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="start")
+            .add_node(label="mid")
+            .add_node(label="end")
+            .add_edge(source="start", target="mid", weight=1.0)
+            .add_edge(source="mid", target="end", weight=1.0)
+        )
+
+        paths = graph.k_shortest_paths("start", "end", k=2)
+        if len(paths) == 1:
+            print("Critical path - no alternative routes!")
+        else:
+            path1, dist1 = paths[0]
+            path2, dist2 = paths[1]
+            redundancy = (dist2 - dist1) / dist1 * 100
+            print(f"Backup route is {redundancy:.1f}% longer")
+        ```
+
+        Notes
+        -----
+        Time complexity: `O(k * n * (m + n * log(n)))` where `n` is nodes, `m` is edges. Space
+        complexity: `O(k * average_path_length)`.
+
+        Uses Yen's algorithm which iteratively finds the next shortest path by systematically
+        removing edges from previous paths. More efficient than finding all simple paths when `k`
+        is small relative to the total number of paths.
+
+        Paths are simple (no repeated nodes) and loop-free. For graphs with negative weights,
+        consider using `bellman_ford_shortest_path()` for single shortest path instead.
+        """
+        from edgecase._core import k_shortest_paths
+
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+
+        return k_shortest_paths(self._graph, source_id, target_id, k)
+
     def bfs(
         self,
         start: Union[int, str],
