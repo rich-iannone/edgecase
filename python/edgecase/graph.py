@@ -6583,6 +6583,72 @@ class Graph:
         result._graph = self._graph.to_directed()
         return result
 
+    def reverse(self) -> "Graph":
+        """
+        Reverse the direction of all edges in the graph.
+
+        Creates a new graph with the same nodes but all edge directions reversed (u->v becomes
+        v->u). For undirected graphs, returns a new copy (no structural change). Preserves all node
+        and edge attributes.
+
+        Returns
+        -------
+        Graph
+            A new Graph with reversed edge directions.
+
+        Examples
+        --------
+        Reverse a directed graph:
+
+        ```python
+        original = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        reversed_graph = original.reverse()
+
+        # Original: A→B→C
+        # Reversed: C→B→A
+        print(original.has_edge("A", "B"))    # True
+        print(reversed_graph.has_edge("B", "A"))  # True
+        ```
+
+        Analyze reverse dependencies:
+
+        ```python
+        # Dependencies: B depends on A, C depends on B
+        deps = (
+            Graph(directed=True)
+            .add_edge("A", "B", label="provides")
+            .add_edge("B", "C", label="provides")
+        )
+
+        # Reverse to find what depends on each package
+        dependents = deps.reverse()
+        # Now: B→A (B dependent on A), C→B (C dependent on B)
+        ```
+
+        Use for transpose graph algorithms:
+
+        ```python
+        g = Graph(directed=True)
+        g.add_edge("X", "Y")
+        g.add_edge("Y", "Z")
+
+        # Find strongly connected components
+        # (some algorithms use both G and G^T)
+        g_transpose = g.reverse()
+        ```
+        """
+        result = Graph.__new__(Graph)
+        result._graph = self._graph.reverse()
+        return result
+
     # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
