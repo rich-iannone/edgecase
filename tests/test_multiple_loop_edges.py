@@ -599,3 +599,451 @@ class TestEdgeCases:
 
         total_issues = len(edges_to_review) + len(loops_to_review)
         assert total_issues == 3  # 2 multiples + 1 loop
+
+
+class TestRemoveSelfloops:
+    """Tests for remove_selfloops() method."""
+
+    def test_empty_graph(self):
+        """Empty graph should remain empty."""
+        g = Graph(directed=True)
+        g.remove_selfloops()
+
+        assert g.count_edges() == 0
+
+    def test_graph_without_selfloops(self):
+        """Graph without self-loops should be unchanged."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B", "C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+
+        initial_edges = g.count_edges()
+        g.remove_selfloops()
+
+        assert g.count_edges() == initial_edges
+
+    def test_single_selfloop(self):
+        """Remove a single self-loop."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")  # Self-loop
+
+        assert g.count_edges() == 2
+
+        g.remove_selfloops()
+
+        assert g.count_edges() == 1
+        assert len(g.which_loops()) == 0
+
+    def test_multiple_selfloops(self):
+        """Remove multiple self-loops from different nodes."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B", "C")
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")  # Self-loop on A
+        g.add_edge("B", "B")  # Self-loop on B
+        g.add_edge("C", "C")  # Self-loop on C
+
+        assert g.count_edges() == 4
+
+        g.remove_selfloops()
+
+        assert g.count_edges() == 1
+        assert len(g.which_loops()) == 0
+
+    def test_multiple_selfloops_same_node(self):
+        """Remove multiple self-loops on the same node."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")  # Self-loop 1
+        g.add_edge("A", "A")  # Self-loop 2
+        g.add_edge("A", "A")  # Self-loop 3
+
+        assert g.count_edges() == 4
+
+        g.remove_selfloops()
+
+        assert g.count_edges() == 1
+        assert len(g.which_loops()) == 0
+
+    def test_undirected_graph(self):
+        """Remove self-loops from undirected graph."""
+        g = Graph(directed=False)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")
+
+        assert g.count_edges() == 2
+
+        g.remove_selfloops()
+
+        assert g.count_edges() == 1
+        assert len(g.which_loops()) == 0
+
+    def test_method_chaining(self):
+        """Method should return self for chaining."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "A")
+
+        result = g.remove_selfloops()
+
+        assert result is g
+
+    def test_preserves_regular_edges(self):
+        """Ensure regular edges are not affected."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B", "C")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=2.0)
+        g.add_edge("A", "A")  # Self-loop
+
+        g.remove_selfloops()
+
+        assert g.has_edge("A", "B")
+        assert g.has_edge("B", "C")
+        assert g.count_edges() == 2
+
+
+class TestRemoveDuplicateEdges:
+    """Tests for remove_duplicate_edges() method."""
+
+    def test_empty_graph(self):
+        """Empty graph should remain empty."""
+        g = Graph(directed=True)
+        g.remove_duplicate_edges()
+
+        assert g.count_edges() == 0
+
+    def test_graph_without_duplicates(self):
+        """Graph without duplicates should be unchanged."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B", "C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+
+        initial_edges = g.count_edges()
+        g.remove_duplicate_edges()
+
+        assert g.count_edges() == initial_edges
+
+    def test_single_duplicate_pair(self):
+        """Remove duplicate edges between one pair."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")  # Duplicate
+        g.add_edge("A", "B")  # Duplicate
+
+        assert g.count_edges() == 3
+
+        g.remove_duplicate_edges()
+
+        assert g.count_edges() == 1
+        assert len(g.which_multiple()) == 0
+
+    def test_multiple_duplicate_pairs(self):
+        """Remove duplicates from multiple node pairs."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B", "C")
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")  # Duplicate
+        g.add_edge("B", "C")
+        g.add_edge("B", "C")  # Duplicate
+        g.add_edge("B", "C")  # Duplicate
+
+        assert g.count_edges() == 5
+
+        g.remove_duplicate_edges()
+
+        assert g.count_edges() == 2
+        assert len(g.which_multiple()) == 0
+
+    def test_directed_graph_respects_direction(self):
+        """In directed graphs, A->B and B->A are different pairs."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("B", "A")  # Not a duplicate (different direction)
+        g.add_edge("A", "B")  # Duplicate of first
+
+        assert g.count_edges() == 3
+
+        g.remove_duplicate_edges()
+
+        assert g.count_edges() == 2  # A->B and B->A
+
+    def test_undirected_graph_treats_directions_same(self):
+        """In undirected graphs, A-B and B-A are the same pair."""
+        g = Graph(directed=False)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("B", "A")  # Duplicate in undirected
+        g.add_edge("A", "B")  # Also duplicate
+
+        assert g.count_edges() == 3
+
+        g.remove_duplicate_edges()
+
+        assert g.count_edges() == 1
+
+    def test_keeps_first_edge(self):
+        """Should keep the first edge (lowest ID) in each group."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("A", "B", weight=2.0)
+        g.add_edge("A", "B", weight=3.0)
+
+        edge_ids_before = g.get_edge_ids()
+        first_edge_id = min(edge_ids_before)
+
+        g.remove_duplicate_edges()
+
+        edge_ids_after = g.get_edge_ids()
+
+        assert len(edge_ids_after) == 1
+        assert edge_ids_after[0] == first_edge_id
+
+    def test_method_chaining(self):
+        """Method should return self for chaining."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")
+
+        result = g.remove_duplicate_edges()
+
+        assert result is g
+
+    def test_does_not_remove_selfloops(self):
+        """Self-loops should not be removed by this method."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")  # Self-loop
+
+        g.remove_duplicate_edges()
+
+        assert g.count_edges() == 2
+        assert len(g.which_loops()) == 1
+
+    def test_keep_distinct_attributes_false(self):
+        """Default behavior ignores attributes."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("A", "B", weight=2.0)
+        g.add_edge("A", "B", weight=3.0)
+
+        g.remove_duplicate_edges(keep_distinct_attributes=False)
+
+        assert g.count_edges() == 1
+
+    def test_keep_distinct_attributes_true_different_weights(self):
+        """With keep_distinct_attributes=True, different weights are kept."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("A", "B", weight=2.0)
+        g.add_edge("A", "B", weight=1.0)  # True duplicate
+
+        g.remove_duplicate_edges(keep_distinct_attributes=True)
+
+        assert g.count_edges() == 2  # weight 1.0 and 2.0
+
+    def test_keep_distinct_attributes_true_different_rel(self):
+        """With keep_distinct_attributes=True, different rel values are kept."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B", rel="friend")
+        g.add_edge("A", "B", rel="colleague")
+        g.add_edge("A", "B", rel="friend")  # True duplicate
+
+        g.remove_duplicate_edges(keep_distinct_attributes=True)
+
+        assert g.count_edges() == 2  # friend and colleague
+
+    def test_keep_distinct_attributes_true_different_custom_attrs(self):
+        """With keep_distinct_attributes=True, different custom attrs are kept."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B", color="red")
+        g.add_edge("A", "B", color="blue")
+        g.add_edge("A", "B", color="red")  # True duplicate
+        g.add_edge("A", "B", color="red")  # True duplicate
+
+        g.remove_duplicate_edges(keep_distinct_attributes=True)
+
+        assert g.count_edges() == 2  # red and blue
+
+    def test_keep_distinct_attributes_true_all_identical(self):
+        """With keep_distinct_attributes=True, identical edges are removed."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B", weight=1.0, rel="friend")
+        g.add_edge("A", "B", weight=1.0, rel="friend")  # True duplicate
+        g.add_edge("A", "B", weight=1.0, rel="friend")  # True duplicate
+
+        g.remove_duplicate_edges(keep_distinct_attributes=True)
+
+        assert g.count_edges() == 1
+
+    def test_keep_distinct_attributes_true_no_attributes(self):
+        """Edges with no attributes are all duplicates."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")
+
+        g.remove_duplicate_edges(keep_distinct_attributes=True)
+
+        assert g.count_edges() == 1
+
+
+class TestSimplify:
+    """Tests for simplify() method."""
+
+    def test_empty_graph(self):
+        """Empty graph should remain empty."""
+        g = Graph(directed=True)
+        g.simplify()
+
+        assert g.count_edges() == 0
+        assert g.is_simple()
+
+    def test_already_simple_graph(self):
+        """Simple graph should be unchanged."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B", "C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+
+        initial_edges = g.count_edges()
+
+        assert g.is_simple()
+
+        g.simplify()
+
+        assert g.count_edges() == initial_edges
+        assert g.is_simple()
+
+    def test_removes_selfloops(self):
+        """Should remove self-loops."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")  # Self-loop
+
+        assert not g.is_simple()
+
+        g.simplify()
+
+        assert g.is_simple()
+        assert g.count_edges() == 1
+
+    def test_removes_duplicates(self):
+        """Should remove duplicate edges."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")  # Duplicate
+
+        assert not g.is_simple()
+
+        g.simplify()
+
+        assert g.is_simple()
+        assert g.count_edges() == 1
+
+    def test_removes_both_selfloops_and_duplicates(self):
+        """Should remove both self-loops and duplicates."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")  # Duplicate
+        g.add_edge("A", "A")  # Self-loop
+        g.add_edge("B", "B")  # Self-loop
+
+        assert g.count_edges() == 4
+        assert not g.is_simple()
+
+        g.simplify()
+
+        assert g.count_edges() == 1
+        assert g.is_simple()
+        assert len(g.which_loops()) == 0
+        assert len(g.which_multiple()) == 0
+
+    def test_complex_graph(self):
+        """Test on a more complex graph."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B", "C", "D")
+        # Regular edges
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        g.add_edge("C", "D")
+        # Duplicates
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        # Self-loops
+        g.add_edge("A", "A")
+        g.add_edge("C", "C")
+        g.add_edge("D", "D")
+
+        assert g.count_edges() == 9
+        assert not g.is_simple()
+
+        g.simplify()
+
+        assert g.count_edges() == 3  # A->B, B->C, C->D
+        assert g.is_simple()
+
+    def test_undirected_graph(self):
+        """Test simplify on undirected graph."""
+        g = Graph(directed=False)
+        add_nodes(g, "A", "B", "C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "A")  # Duplicate in undirected
+        g.add_edge("B", "C")
+        g.add_edge("A", "A")  # Self-loop
+
+        assert not g.is_simple()
+
+        g.simplify()
+
+        assert g.is_simple()
+        assert g.count_edges() == 2  # A-B and B-C
+
+    def test_method_chaining(self):
+        """Method should return self for chaining."""
+        g = Graph(directed=True)
+        add_nodes(g, "A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("A", "A")
+
+        result = g.simplify()
+
+        assert result is g
+
+    def test_chaining_pipeline(self):
+        """Test using simplify in a method chain."""
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("A", "B")  # Duplicate
+            .add_edge("B", "C")
+            .add_edge("C", "C")  # Self-loop
+            .simplify()
+        )
+
+        assert g.is_simple()
+        assert g.count_edges() == 2
