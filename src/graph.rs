@@ -4334,7 +4334,7 @@ impl Graph {
     /// k-core is maximal subgraph where all nodes have degree >= k
     /// Coreness is the highest k for which a node belongs to the k-core
     #[inline]
-    fn get_coreness(&self) -> FxHashMap<u64, usize> {
+    pub fn get_coreness(&self) -> FxHashMap<u64, usize> {
         let n = self.nodes.len();
         let mut coreness: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
@@ -8295,6 +8295,197 @@ impl Graph {
     /// Get edges vector (internal method for algorithms)
     pub fn get_edges_internal(&self) -> &Vec<Edge> {
         &self.edges
+    }
+
+    /// Create a new graph (public constructor for Rust code)
+    pub fn new_rust(directed: bool, weighted: bool) -> Self {
+        Graph {
+            next_node_id: 1,
+            nodes: FxHashMap::default(),
+            node_labels: FxHashMap::default(),
+            deleted_node_ids: FxHashSet::default(),
+            edges: Vec::new(),
+            next_edge_id: 1,
+            deleted_edge_ids: FxHashSet::default(),
+            adjacency_list: FxHashMap::default(),
+            directed,
+            weighted,
+            selected_nodes: FxHashSet::default(),
+            selected_edges: FxHashSet::default(),
+            node_creation_order: Vec::new(),
+            edge_creation_order: Vec::new(),
+        }
+    }
+
+    /// Add a node (public method for Rust code)
+    pub fn add_node_rust(&mut self, mut node: Node) -> PyResult<u64> {
+        // Auto-assign node ID if it's 0
+        let node_id = if node.id == 0 {
+            let new_id = self.next_node_id;
+            self.next_node_id += 1;
+            node.id = new_id;
+            new_id
+        } else {
+            if node.id >= self.next_node_id {
+                self.next_node_id = node.id + 1;
+            }
+            node.id
+        };
+
+        if self.nodes.contains_key(&node_id) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node with ID {} already exists",
+                node_id
+            )));
+        }
+
+        if let Some(ref label) = node.label {
+            if self.node_labels.contains_key(label) {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Node with label '{}' already exists",
+                    label
+                )));
+            }
+            self.node_labels.insert(label.clone(), node_id);
+        }
+
+        self.adjacency_list.insert(node_id, Vec::new());
+        self.nodes.insert(node_id, node);
+        self.node_creation_order.push(node_id);
+
+        Ok(node_id)
+    }
+
+    /// Add an edge (public method for Rust code)
+    pub fn add_edge_rust(&mut self, mut edge: Edge) -> PyResult<u64> {
+        let edge_id = if edge.id == 0 {
+            let new_id = self.next_edge_id;
+            self.next_edge_id += 1;
+            edge.id = new_id;
+            new_id
+        } else {
+            if edge.id >= self.next_edge_id {
+                self.next_edge_id = edge.id + 1;
+            }
+            edge.id
+        };
+
+        if !self.nodes.contains_key(&edge.source) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Source node {} does not exist",
+                edge.source
+            )));
+        }
+        if !self.nodes.contains_key(&edge.target) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Target node {} does not exist",
+                edge.target
+            )));
+        }
+
+        self.adjacency_list
+            .entry(edge.source)
+            .or_insert_with(Vec::new)
+            .push(edge.target);
+
+        if !self.directed {
+            self.adjacency_list
+                .entry(edge.target)
+                .or_insert_with(Vec::new)
+                .push(edge.source);
+        }
+
+        self.edges.push(edge);
+        self.edge_creation_order.push(edge_id);
+
+        Ok(edge_id)
+    }
+
+    /// Remove an edge by ID (public method for Rust code)
+    pub fn remove_edge_rust(&mut self, edge_id: u64) -> PyResult<()> {
+        let edge_idx = self.edges.iter().position(|e| e.id == edge_id);
+
+        if let Some(idx) = edge_idx {
+            let edge = &self.edges[idx];
+            let source = edge.source;
+            let target = edge.target;
+
+            // Remove from adjacency list
+            if let Some(neighbors) = self.adjacency_list.get_mut(&source) {
+                neighbors.retain(|&n| n != target);
+            }
+
+            if !self.directed {
+                if let Some(neighbors) = self.adjacency_list.get_mut(&target) {
+                    neighbors.retain(|&n| n != source);
+                }
+            }
+
+            // Remove edge
+            self.edges.remove(idx);
+            self.deleted_edge_ids.insert(edge_id);
+
+            Ok(())
+        } else {
+            Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Edge {} not found",
+                edge_id
+            )))
+        }
+    }
+
+    /// Remove a node by ID (public method for Rust code)
+    pub fn remove_node_rust(&mut self, node_id: u64) -> PyResult<()> {
+        if !self.nodes.contains_key(&node_id) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node {} not found",
+                node_id
+            )));
+        }
+
+        // Remove all edges connected to this node
+        let mut edges_to_remove = Vec::new();
+        for edge in &self.edges {
+            if edge.source == node_id || edge.target == node_id {
+                edges_to_remove.push(edge.id);
+            }
+        }
+
+        for edge_id in edges_to_remove {
+            self.remove_edge_rust(edge_id)?;
+        }
+
+        // Remove from adjacency list
+        self.adjacency_list.remove(&node_id);
+
+        // Remove node from other nodes' adjacency lists
+        for neighbors in self.adjacency_list.values_mut() {
+            neighbors.retain(|&n| n != node_id);
+        }
+
+        // Remove node
+        if let Some(node) = self.nodes.remove(&node_id) {
+            if let Some(label) = &node.label {
+                self.node_labels.remove(label);
+            }
+        }
+
+        self.deleted_node_ids.insert(node_id);
+
+        Ok(())
+    }
+
+    /// Get degree of a node (public method for Rust code)
+    pub fn degree_rust(&self, node_id: u64) -> usize {
+        self.adjacency_list
+            .get(&node_id)
+            .map(|neighbors| neighbors.len())
+            .unwrap_or(0)
+    }
+
+    /// Get nodes hashmap (public method for Rust code)
+    pub fn get_nodes(&self) -> &FxHashMap<u64, Node> {
+        &self.nodes
     }
 
     /// Check if there's an edge between two nodes

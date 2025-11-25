@@ -8,6 +8,7 @@ pub mod domirank;
 pub mod paths;
 pub mod simd_intersection;
 pub mod structural;
+pub mod structure;
 
 #[cfg(test)]
 mod tests {
