@@ -3111,6 +3111,10 @@ class Graph:
         """
         return self._graph_name
 
+    # ==============================================================================
+    # Graph Properties
+    # ==============================================================================
+
     def is_directed(self) -> bool:
         """
         Check if the graph is directed.
@@ -3388,6 +3392,250 @@ class Graph:
         ```
         """
         return self._graph.is_bipartite()
+
+    def is_tree(self) -> bool:
+        """
+        Check if the graph is a tree.
+
+        A tree is a connected, acyclic, undirected graph. For a graph with *n* nodes to be a tree
+        it:
+
+        - must be undirected
+        - must be connected (single component)
+        - must have exactly *n - 1* edges
+        - must be acyclic
+
+        Returns
+        -------
+        bool
+            `True` if graph is a tree, `False` otherwise.
+
+        Notes
+        -----
+        For directed graphs, use `is_arborescence()` instead. For disconnected forests, use
+        `is_forest()`.
+
+        Examples
+        --------
+        Path graph is a tree:
+
+        ```python
+        tree = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(tree.is_tree())  # True
+        ```
+
+        Graph with cycle is not a tree:
+
+        ```python
+        cycle = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        print(cycle.is_tree())  # False (has cycle)
+        ```
+
+        Disconnected graph is not a tree:
+
+        ```python
+        disconnected = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            # C is isolated
+        )
+
+        print(disconnected.is_tree())  # False (not connected)
+        ```
+
+        Star graph is a tree:
+
+        ```python
+        star = Graph(directed=False)
+        star.add_star_graph(n=5)
+        print(star.is_tree())  # True
+        ```
+        """
+        return self._graph.is_tree()
+
+    def is_forest(self) -> bool:
+        """
+        Check if the graph is a forest.
+
+        A forest is an acyclic, undirected graph (disjoint union of trees). For a graph with *n*
+        nodes and *k* connected components to be a forest it:
+
+        - must be undirected
+        - must have exactly *n - k* edges
+        - must be acyclic
+
+        Returns
+        -------
+        bool
+            `True` if graph is a forest, `False` otherwise.
+
+        Notes
+        -----
+        A tree is a special case of a forest with k=1 (single component).
+
+        Examples
+        --------
+        Single tree is a forest:
+
+        ```python
+        tree = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(tree.is_forest())  # True
+        ```
+
+        Multiple disjoint trees form a forest:
+
+        ```python
+        forest = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")  # Tree 1
+            .add_edge("C", "D")  # Tree 2
+        )
+
+        print(forest.is_forest())  # True
+        print(forest.is_tree())    # False (not connected)
+        ```
+
+        Graph with cycle is not a forest:
+
+        ```python
+        cycle = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        print(cycle.is_forest())  # False (has cycle)
+        ```
+
+        Empty graph is a forest:
+
+        ```python
+        empty = Graph(directed=False)
+        print(empty.is_forest())  # True
+        ```
+        """
+        return self._graph.is_forest()
+
+    def is_arborescence(self) -> bool:
+        """
+        Check if the graph is an arborescence (directed tree).
+
+        An arborescence is a directed graph which:
+
+        - must be directed
+        - has exactly one root (a node with in-degree `0`)
+        - has other nodes with in-degree exactly `1`
+        - must be weakly connected
+        - has exactly `n - 1` edges
+
+        This represents a tree structure with a clear parent-child hierarchy flowing from a single
+        root.
+
+        Returns
+        -------
+        bool
+            `True` if graph is an arborescence, `False` otherwise.
+
+        Notes
+        -----
+        For undirected graphs, use `is_tree()` instead. An arborescence is also called a 'directed
+        rooted tree' or 'out-tree'.
+
+        Examples
+        --------
+        Directed tree with single root:
+
+        ```python
+        arb = (
+            Graph(directed=True)
+            .add_node(label="root")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("root", "A")
+            .add_edge("root", "B")
+            .add_edge("A", "C")
+        )
+
+        print(arb.is_arborescence())  # True
+        ```
+
+        Multiple roots is not an arborescence:
+
+        ```python
+        multi_root = (
+            Graph(directed=True)
+            .add_node(label="root1")
+            .add_node(label="root2")
+            .add_node(label="A")
+            .add_edge("root1", "A")
+            .add_edge("root2", "A")
+        )
+
+        print(multi_root.is_arborescence())  # False (A has in-degree 2)
+        ```
+
+        Directed cycle is not an arborescence:
+
+        ```python
+        cycle = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        print(cycle.is_arborescence())  # False (no root, all in-degree 1)
+        ```
+
+        Balanced tree is an arborescence:
+
+        ```python
+        tree = Graph(directed=True)
+        tree.add_balanced_tree(k=2, h=3)
+        print(tree.is_arborescence())  # True
+        ```
+        """
+        return self._graph.is_arborescence()
 
     # ==============================================================================
     # Graph Selection System

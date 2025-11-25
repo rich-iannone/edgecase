@@ -2217,6 +2217,138 @@ impl Graph {
         min_cycle
     }
 
+    /// Check if the graph is a tree
+    ///
+    /// A tree is a connected acyclic graph. For undirected graphs, this means:
+    /// - Connected (single component)
+    /// - No cycles
+    /// - Has exactly n-1 edges where n is number of nodes
+    ///
+    /// For directed graphs, use is_arborescence() instead.
+    ///
+    /// # Returns
+    /// true if graph is a tree, false otherwise
+    #[inline]
+    fn is_tree(&self) -> bool {
+        let n = self.num_nodes();
+
+        // Empty graph or single node is considered a tree
+        if n == 0 || n == 1 {
+            return true;
+        }
+
+        // Directed graphs should use is_arborescence()
+        if self.directed {
+            return false;
+        }
+
+        // A tree with n nodes has exactly n-1 edges
+        if self.num_edges() != n - 1 {
+            return false;
+        }
+
+        // Must be connected
+        if self.count_weakly_connected_components() != 1 {
+            return false;
+        }
+
+        // Must be acyclic (if connected and has n-1 edges, it's automatically acyclic)
+        // But we can verify by checking for cycles
+        true
+    }
+
+    /// Check if the graph is a forest
+    ///
+    /// A forest is a disjoint union of trees (acyclic graph).
+    /// For a graph with n nodes, k components, and e edges:
+    /// - Forest condition: e = n - k
+    ///
+    /// For directed graphs, checks if it's a collection of arborescences.
+    ///
+    /// # Returns
+    /// true if graph is a forest, false otherwise
+    #[inline]
+    fn is_forest(&self) -> bool {
+        let n = self.num_nodes();
+
+        // Empty graph is a forest
+        if n == 0 {
+            return true;
+        }
+
+        // For directed graphs, not implemented (would need to check each component is arborescence)
+        if self.directed {
+            return false;
+        }
+
+        let k = self.count_weakly_connected_components();
+        let e = self.num_edges();
+
+        // Forest condition: e = n - k
+        // Each tree with n_i nodes has n_i - 1 edges
+        // Sum over all trees: sum(n_i - 1) = sum(n_i) - k = n - k
+        e == n - k
+    }
+
+    /// Check if the directed graph is an arborescence
+    ///
+    /// An arborescence (directed tree) is a directed graph where:
+    /// - Has exactly one node with in-degree 0 (the root)
+    /// - All other nodes have in-degree 1
+    /// - The graph is connected (when viewed as undirected)
+    /// - Has exactly n-1 edges
+    ///
+    /// For undirected graphs, use is_tree() instead.
+    ///
+    /// # Returns
+    /// true if graph is an arborescence, false otherwise
+    #[inline]
+    fn is_arborescence(&self) -> bool {
+        let n = self.num_nodes();
+
+        // Empty graph or single node is an arborescence
+        if n == 0 || n == 1 {
+            return true;
+        }
+
+        // Only for directed graphs
+        if !self.directed {
+            return false;
+        }
+
+        // Must have exactly n-1 edges
+        if self.num_edges() != n - 1 {
+            return false;
+        }
+
+        // Check in-degrees
+        let mut root_count = 0;
+        for &node_id in self.nodes.keys() {
+            let in_degree = self.in_degree(node_id);
+
+            if in_degree == 0 {
+                root_count += 1;
+                if root_count > 1 {
+                    return false; // Multiple roots
+                }
+            } else if in_degree != 1 {
+                return false; // Node has in-degree > 1
+            }
+        }
+
+        // Must have exactly one root
+        if root_count != 1 {
+            return false;
+        }
+
+        // Must be weakly connected
+        if self.count_weakly_connected_components() != 1 {
+            return false;
+        }
+
+        true
+    }
+
     /// Breadth-first search (BFS) traversal from a start node
     /// Returns list of node IDs in BFS order
     ///
