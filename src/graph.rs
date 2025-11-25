@@ -6083,6 +6083,212 @@ impl Graph {
         Ok(loop_counts)
     }
 
+    /// Remove all self-loops from the graph
+    ///
+    /// A self-loop is an edge where source == target. This method removes all such edges.
+    ///
+    /// # Returns
+    /// * Number of self-loops removed
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// g = Graph(directed=True)
+    /// g.add_edge("A", "B")
+    /// g.add_edge("A", "A")  # Self-loop
+    /// g.add_edge("B", "B")  # Self-loop
+    ///
+    /// removed = g.remove_selfloops()
+    /// # removed == 2
+    /// ```
+    pub fn remove_selfloops(&mut self) -> PyResult<usize> {
+        // Find all self-loop edge IDs
+        let loop_ids: Vec<u64> = self.edges
+            .iter()
+            .filter(|e| e.source == e.target)
+            .map(|e| e.id)
+            .collect();
+
+        let count = loop_ids.len();
+
+        // Remove from adjacency list and edges
+        for edge_id in &loop_ids {
+            if let Some(idx) = self.edges.iter().position(|e| e.id == *edge_id) {
+                let edge = &self.edges[idx];
+                let node = edge.source;
+
+                // Remove from adjacency list (self-loop appears once for undirected, once for directed)
+                if let Some(neighbors) = self.adjacency_list.get_mut(&node) {
+                    if let Some(pos) = neighbors.iter().position(|n| *n == node) {
+                        neighbors.remove(pos);
+                    }
+                }
+
+                // Remove from selection if selected
+                self.selected_edges.remove(edge_id);
+
+                // Remove edge
+                self.edges.remove(idx);
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Remove duplicate edges, keeping only one edge per node pair
+    ///
+    /// For each pair of nodes with multiple edges, keeps the first edge (lowest ID)
+    /// and removes all others.
+    ///
+    /// # Arguments
+    /// * `keep_distinct_attrs` - If true, edges with different attributes are kept
+    ///
+    /// # Returns
+    /// * Number of duplicate edges removed
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// g = Graph(directed=True)
+    /// g.add_edge("A", "B", weight=1.0)
+    /// g.add_edge("A", "B", weight=2.0)  # Duplicate
+    /// g.add_edge("A", "B", weight=3.0)  # Duplicate
+    ///
+    /// removed = g.remove_duplicate_edges(False)
+    /// # removed == 2
+    /// ```
+    pub fn remove_duplicate_edges(&mut self, keep_distinct_attrs: bool) -> PyResult<usize> {
+        use std::collections::BTreeMap;
+
+        let m = self.num_edges();
+        let mut edges_to_remove: Vec<u64> = Vec::with_capacity(m / 10);
+
+        if keep_distinct_attrs {
+            // Group by (node_pair, attribute_signature)
+            // Use BTreeMap for deterministic ordering
+            let mut seen: FxHashMap<(u64, u64), BTreeMap<String, u64>> = FxHashMap::default();
+
+            for edge in &self.edges {
+                let pair = if self.directed {
+                    (edge.source, edge.target)
+                } else {
+                    (edge.source.min(edge.target), edge.source.max(edge.target))
+                };
+
+                // Create attribute signature
+                let mut sig_parts: Vec<String> = Vec::new();
+
+                // Include weight in signature
+                if let Some(w) = edge.weight {
+                    sig_parts.push(format!("w:{}", w));
+                }
+
+                // Include sorted attributes (need GIL to access PyDict)
+                if let Some(ref attrs) = edge.attributes {
+                    Python::with_gil(|py| {
+                        let dict = attrs.bind(py);
+                        let mut attr_pairs: Vec<(String, String)> = dict.iter()
+                            .map(|(k, v)| (k.to_string(), format!("{:?}", v)))
+                            .collect();
+                        attr_pairs.sort_by(|a, b| a.0.cmp(&b.0));
+                        for (k, v) in attr_pairs {
+                            sig_parts.push(format!("{}:{}", k, v));
+                        }
+                    });
+                }
+
+                let signature = sig_parts.join("|");
+
+                let pair_map = seen.entry(pair).or_insert_with(BTreeMap::new);
+                if let Some(&first_id) = pair_map.get(&signature) {
+                    // Duplicate with same attributes - mark for removal
+                    if edge.id != first_id {
+                        edges_to_remove.push(edge.id);
+                    }
+                } else {
+                    pair_map.insert(signature, edge.id);
+                }
+            }
+        } else {
+            // Simple mode: just look at node pairs
+            let mut seen: FxHashMap<(u64, u64), u64> = FxHashMap::default();
+
+            for edge in &self.edges {
+                let pair = if self.directed {
+                    (edge.source, edge.target)
+                } else {
+                    (edge.source.min(edge.target), edge.source.max(edge.target))
+                };
+
+                if let Some(&first_id) = seen.get(&pair) {
+                    // Duplicate - mark for removal (keep first)
+                    if edge.id != first_id {
+                        edges_to_remove.push(edge.id);
+                    }
+                } else {
+                    seen.insert(pair, edge.id);
+                }
+            }
+        }
+
+        let count = edges_to_remove.len();
+
+        // Remove edges (in reverse order to maintain indices, though we use IDs)
+        for edge_id in &edges_to_remove {
+            // Find and remove edge
+            if let Some(idx) = self.edges.iter().position(|e| e.id == *edge_id) {
+                let edge = &self.edges[idx];
+
+                // Remove from adjacency list
+                if let Some(neighbors) = self.adjacency_list.get_mut(&edge.source) {
+                    if let Some(pos) = neighbors.iter().position(|n| *n == edge.target) {
+                        neighbors.remove(pos);
+                    }
+                }
+
+                if !self.directed {
+                    if let Some(neighbors) = self.adjacency_list.get_mut(&edge.target) {
+                        if let Some(pos) = neighbors.iter().position(|n| *n == edge.source) {
+                            neighbors.remove(pos);
+                        }
+                    }
+                }
+
+                // Remove from selection if selected
+                self.selected_edges.remove(edge_id);
+
+                // Remove edge
+                self.edges.remove(idx);
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Simplify the graph by removing self-loops and duplicate edges
+    ///
+    /// Equivalent to calling remove_selfloops() followed by remove_duplicate_edges().
+    ///
+    /// # Returns
+    /// * Tuple of (selfloops_removed, duplicates_removed)
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// g = Graph(directed=True)
+    /// g.add_edge("A", "B")
+    /// g.add_edge("A", "B")  # Duplicate
+    /// g.add_edge("A", "A")  # Self-loop
+    ///
+    /// loops, dupes = g.simplify()
+    /// # loops == 1, dupes == 1
+    /// ```
+    pub fn simplify(&mut self) -> PyResult<(usize, usize)> {
+        let loops_removed = self.remove_selfloops()?;
+        let dupes_removed = self.remove_duplicate_edges(false)?;
+        Ok((loops_removed, dupes_removed))
+    }
+
     // ========== Assortativity ==========
 
     /// Calculate degree assortativity coefficient

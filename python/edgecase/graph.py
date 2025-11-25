@@ -1041,9 +1041,7 @@ class Graph:
         - use `which_loops()` to identify self-loops before removal.
         - use `count_loops()` to count self-loops per node before removal.
         """
-        loop_ids = self.which_loops()
-        for edge_id in loop_ids:
-            self.delete_edge_by_id(edge_id)
+        self._graph.remove_selfloops()
         return self
 
     def remove_duplicate_edges(self, keep_distinct_attributes: bool = False) -> "Graph":
@@ -1137,58 +1135,7 @@ class Graph:
         simplify : Remove both self-loops and duplicate edges.
         is_simple : Check if graph has no self-loops or multi-edges.
         """
-        multiple_ids = self.which_multiple()
-        if not multiple_ids:
-            return self
-
-        # Group edges by node pair to identify which to keep
-        # We need to keep one edge per pair and remove the rest
-        edge_groups: dict[tuple[int, int], list[int]] = {}
-
-        for edge_id in multiple_ids:
-            edge = self.get_edge(edge_id)
-            if edge:
-                if self.is_directed():
-                    key = (edge.source, edge.target)
-                else:
-                    # For undirected, normalize the key
-                    key = (min(edge.source, edge.target), max(edge.source, edge.target))
-
-                if key not in edge_groups:
-                    edge_groups[key] = []
-                edge_groups[key].append(edge_id)
-
-        if keep_distinct_attributes:
-            # Only remove edges that have identical attributes
-            for edge_ids in edge_groups.values():
-                # Group by attribute signature within each node pair
-                attr_groups: dict[tuple, list[int]] = {}
-                for edge_id in edge_ids:
-                    edge = self.get_edge(edge_id)
-                    if edge:
-                        # Create a hashable signature from weight and attributes
-                        attrs = edge.attributes or {}
-                        # Sort attributes for consistent hashing
-                        attr_items = tuple(sorted(attrs.items()))
-                        signature = (edge.weight, attr_items)
-
-                        if signature not in attr_groups:
-                            attr_groups[signature] = []
-                        attr_groups[signature].append(edge_id)
-
-                # For each attribute group, keep the first and remove duplicates
-                for attr_edge_ids in attr_groups.values():
-                    if len(attr_edge_ids) > 1:
-                        sorted_ids = sorted(attr_edge_ids)
-                        for edge_id in sorted_ids[1:]:  # Skip first, remove rest
-                            self.delete_edge_by_id(edge_id)
-        else:
-            # Default behavior: remove all but first edge per node pair
-            for edge_ids in edge_groups.values():
-                sorted_ids = sorted(edge_ids)
-                for edge_id in sorted_ids[1:]:  # Skip first, remove rest
-                    self.delete_edge_by_id(edge_id)
-
+        self._graph.remove_duplicate_edges(keep_distinct_attributes)
         return self
 
     def simplify(self) -> "Graph":
@@ -1253,8 +1200,7 @@ class Graph:
         - for undirected graphs, edges (u, v) and (v, u) are considered the same pair.
         - after simplification, `is_simple()` will return `True`.
         """
-        self.remove_selfloops()
-        self.remove_duplicate_edges()
+        self._graph.simplify()
         return self
 
     # ====================================================================
