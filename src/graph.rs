@@ -3708,6 +3708,78 @@ impl Graph {
         Ok(result)
     }
 
+    /// Return the complement of the graph
+    ///
+    /// Creates a new graph with the same nodes but complementary edges:
+    /// - Edges NOT in the original graph become edges in the complement
+    /// - Edges in the original graph are NOT in the complement
+    /// - Self-loops are never included in the complement
+    ///
+    /// For directed graphs, complements all possible directed edges.
+    /// For undirected graphs, complements all possible undirected edges.
+    ///
+    /// # Returns
+    /// A new Graph with complementary edges (no attributes on new edges)
+    pub fn complement(&self, py: Python) -> PyResult<Graph> {
+        let mut result = Graph::new(self.directed, self.weighted);
+
+        // Copy all nodes (with attributes)
+        for (node_id, node) in &self.nodes {
+            let label = node.label.clone();
+            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let node_obj = Node::new(*node_id, label, attrs);
+            result.add_node(node_obj)?;
+        }
+
+        // Build set of existing edges for fast lookup
+        let mut existing_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
+        for edge in &self.edges {
+            if self.directed {
+                existing_edges.insert((edge.source, edge.target));
+            } else {
+                // For undirected, normalize the pair
+                let pair = if edge.source < edge.target {
+                    (edge.source, edge.target)
+                } else {
+                    (edge.target, edge.source)
+                };
+                existing_edges.insert(pair);
+            }
+        }
+
+        // Add all edges that don't exist in the original graph
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        for &source in &node_ids {
+            for &target in &node_ids {
+                // Skip self-loops
+                if source == target {
+                    continue;
+                }
+
+                if self.directed {
+                    // For directed graphs, check each direction separately
+                    if !existing_edges.contains(&(source, target)) {
+                        let weight = if self.weighted { Some(1.0) } else { None };
+                        let edge_obj = Edge::new(0, source, target, weight, None);
+                        result.add_edge(edge_obj)?;
+                    }
+                } else {
+                    // For undirected graphs, only check one direction to avoid duplicates
+                    if source < target {
+                        let pair = (source, target);
+                        if !existing_edges.contains(&pair) {
+                            let weight = if self.weighted { Some(1.0) } else { None };
+                            let edge_obj = Edge::new(0, source, target, weight, None);
+                            result.add_edge(edge_obj)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     /// # Arguments
     /// * `stretch` - Maximum distance approximation factor (must be >= 1.0)
     /// * `weight` - Optional edge attribute name to use as weight

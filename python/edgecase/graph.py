@@ -1337,7 +1337,7 @@ class Graph:
         """
         Add a path graph (linear chain) to the current graph.
 
-        Creates a sequence of n nodes connected linearly: 1 → 2 → 3 → ... → n.
+        Creates a sequence of n nodes connected linearly: 1 -> 2 -> 3 -> ... -> n.
         End nodes have degree 1, internal nodes have degree 2.
 
         Parameters
@@ -3045,7 +3045,7 @@ class Graph:
             .add_edge(source="A", target="B")
             .add_edge(source="B", target="A")
         )
-        print(directed.count_edges())  # 2 (A→B and B→A are separate)
+        print(directed.count_edges())  # 2 (A->B and B->A are separate)
 
         # Undirected graph
         undirected = (
@@ -4472,7 +4472,7 @@ class Graph:
         Traverse to reverse edges.
 
         From the currently selected edges, finds the reverse edges. For each selected edge A->B,
-        looks for the corresponding edge B→A. Only works with directed graphs.
+        looks for the corresponding edge B->A. Only works with directed graphs.
 
         Parameters
         ----------
@@ -4498,15 +4498,15 @@ class Graph:
             .add_edge(source="B", target="A")  # Reverse edge
         )
 
-        # Select A→B edge
+        # Select A->B edge
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
         graph.select_edges_by_node([a_id, b_id])
 
-        # Traverse to reverse edge (B→A)
+        # Traverse to reverse edge (B->A)
         graph.trav_reverse_edge()
         edges = graph.get_selected_edge_ids()
-        # Now selects only the B→A edge
+        # Now selects only the B->A edge
         ```
 
         Add reverse edges to selection:
@@ -4525,7 +4525,7 @@ class Graph:
             .select_edges_by_id([edge_ids[0]])
             .trav_reverse_edge(add_to_selection=True)
         )
-        # Selection now includes both A→B and B→A
+        # Selection now includes both A->B and B->A
         ```
         """
         self._graph.trav_reverse_edge(add_to_selection)
@@ -6554,7 +6554,7 @@ class Graph:
 
         directed = undirected.to_directed()
         print(directed.is_directed())  # True
-        print(directed.count_edges())  # 4 (A→B, B→A, B→C, C→B)
+        print(directed.count_edges())  # 4 (A->B, B->A, B->C, C->B)
         ```
 
         Create directed graph for flow analysis:
@@ -6621,8 +6621,8 @@ class Graph:
 
         reversed_graph = original.reverse()
 
-        # Original: A→B→C
-        # Reversed: C→B→A
+        # Original: A->B->C
+        # Reversed: C->B->A
         print(original.has_edge("A", "B"))    # True
         print(reversed_graph.has_edge("B", "A"))  # True
         ```
@@ -6642,7 +6642,7 @@ class Graph:
 
         # Reverse to find what depends on each package
         dependents = deps.reverse()
-        # Now: B→A (B dependent on A), C→B (C dependent on B)
+        # Now: B->A (B dependent on A), C->B (C dependent on B)
         ```
 
         Use for transpose graph algorithms:
@@ -6662,6 +6662,98 @@ class Graph:
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.reverse()
+        return result
+
+    def complement(self) -> "Graph":
+        """
+        Return the complement of the graph.
+
+        Creates a new graph with the same nodes but complementary edges. An edge exists in the
+        complement if and only if it does *not* exist in the original graph. Self-loops are never
+        included. New edges have no attributes and default weight (`1.0` for weighted graphs).
+
+        For directed graphs, complements directed edges independently in each direction. For
+        undirected graphs, complements undirected edges.
+
+        Returns
+        -------
+        Graph
+            A new Graph with complementary edge set.
+
+        Examples
+        --------
+        Complement of a simple graph:
+
+        ```python
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+        )
+
+        comp = g.complement()
+        print(comp.count_edges())  # 2 (A-C and B-C)
+        print(comp.has_edge("A", "C"))  # True
+        print(comp.has_edge("A", "B"))  # False (was in original)
+        ```
+
+        Finding missing connections in a network:
+
+        ```python
+        # Social network with some friendships
+        friends = (
+            Graph(directed=False)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+            .add_node(label="Diana")
+            .add_edge("Alice", "Bob")
+            .add_edge("Bob", "Charlie")
+        )
+
+        # Find all non-friend pairs (potential connections)
+        non_friends = friends.complement()
+        # Contains: Alice-Charlie, Alice-Diana, Bob-Diana, Charlie-Diana
+        ```
+
+        Use in graph theory analysis:
+
+        ```python
+        # Check if graph is self-complementary
+        g = Graph(directed=False)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_node(label="D")
+        g.add_edge("A", "B")
+        g.add_edge("C", "D")
+
+        comp = g.complement()
+        # comp has edges: A-C, A-D, B-C, B-D
+        # Can test if `g` and `comp` are isomorphic
+        ```
+
+        Directed graph complement:
+
+        ```python
+        # Directed graph
+        g = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+        )
+
+        comp = g.complement()
+        # `comp` has directed edges: A->C, B->A, B->C, C->A, C->B
+        # (all edges except A->B)
+        ```
+        """
+        result = Graph.__new__(Graph)
+        result._graph = self._graph.complement()
         return result
 
     # ==============================================================================
@@ -6771,7 +6863,7 @@ class Graph:
         g.add_edge(source="A", target="C", weight=5.0)
 
         spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
-        # The direct A-C edge might be omitted since going A→B→C
+        # The direct A-C edge might be omitted since going A->B->C
         # gives distance 2, which is < 3 × (distance 5)
         print(spanner.count_edges() <= 2)  # True
         ```
@@ -6794,7 +6886,7 @@ class Graph:
         spanner2 = g.transform_with_spanner(stretch=2.0, seed=42)
         spanner3 = g.transform_with_spanner(stretch=3.0, seed=42)
 
-        # Higher stretch → fewer edges
+        # Higher stretch -> fewer edges
         result = spanner3.count_edges() < spanner2.count_edges() < original_edges
         print(result)  # True
         ```
@@ -6999,7 +7091,7 @@ class Graph:
             .fully_connect_nodes_ws()
         )
 
-        # Creates X→Y and Y→X
+        # Creates X->Y and Y->X
         print(graph_directed.count_edges())  # 2
         ```
 
@@ -7075,7 +7167,7 @@ class Graph:
             .add_reverse_edges_ws(weight=1.0)
         )
 
-        print(graph.count_edges())  # 2 (A→B and B→A)
+        print(graph.count_edges())  # 2 (A->B and B->A)
         ```
 
         Make selected edges bidirectional:
@@ -7154,7 +7246,7 @@ class Graph:
         graph.select_edges_by_id([edge_ids[0]])
         graph.rev_edge_dir_ws()
 
-        # Edge now goes B → A
+        # Edge now goes B -> A
         source, target = graph.get_node_ids_by_edge_id(edge_ids[0])
         print(f"{source} -> {target}")  # B -> A
 
@@ -7167,14 +7259,14 @@ class Graph:
 
         ```python
         graph = ec.Graph(directed=True)
-        graph.add_path_graph(4)  # 0→1→2→3
+        graph.add_path_graph(4)  # 0->1->2->3
 
         # Reverse middle edges
         edge_ids = graph.get_edge_ids()[1:3]
         graph.select_edges_by_id(edge_ids)
         graph.rev_edge_dir_ws()
 
-        # Path is now: 0→1←2←3
+        # Path is now: 0->1<-2<-3
         ```
 
         Notes
@@ -9594,7 +9686,7 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_path_graph(5)  # 1 → 2 → 3 → 4 → 5
+        graph.add_path_graph(5)  # 1 -> 2 -> 3 -> 4 -> 5
 
         # Node 2 is connected to 1 and 3
         # Non-neighbors are 4 and 5 (returns node IDs)
@@ -10685,7 +10777,7 @@ class Graph:
         """
         Find pairs of mutual (reciprocal) edges in directed graph.
 
-        Identifies edge pairs where both A→B and B→A exist, indicating bidirectional
+        Identifies edge pairs where both A->B and B->A exist, indicating bidirectional
         connections. Only meaningful for directed graphs. Each pair is returned once
         with edge IDs in ascending order.
 
@@ -11775,9 +11867,9 @@ class Graph:
 
         - **Spectral gap**: λ₁ - λ₂
           - measures connectivity and expansion
-          - large gap → well-connected graph
-          - small gap → bottlenecks or clusters
-          - zero gap → disconnected graph
+          - large gap -> well-connected graph
+          - small gap -> bottlenecks or clusters
+          - zero gap -> disconnected graph
 
         - **Trace**: Σλᵢ = 0 (sum of eigenvalues equals zero for undirected)
 
@@ -11931,8 +12023,8 @@ class Graph:
 
         # Cheeger inequality: h²/(2Δ) ≤ λ₂ ≤ 2h
         # where h = edge expansion, Δ = max degree
-        # Large λ₂ → expander graph (hard to partition)
-        # Small λ₂ → bottleneck (easy to cut)
+        # Large λ₂ -> expander graph (hard to partition)
+        # Small λ₂ -> bottleneck (easy to cut)
         ```
 
         **Normalized Laplacian for Weighted Graphs**
@@ -11971,8 +12063,8 @@ class Graph:
         spec = g.get_laplacian_spectrum(which="smallest", k=5)
 
         # Mixing time ≈ 1 / λ₂ (algebraic connectivity)
-        # Small λ₂ → slow mixing (long random walks to reach steady state)
-        # Large λ₂ → fast mixing (rapid convergence)
+        # Small λ₂ -> slow mixing (long random walks to reach steady state)
+        # Large λ₂ -> fast mixing (rapid convergence)
         ```
 
         Notes
@@ -12968,7 +13060,7 @@ class Graph:
         Sort nodes in topological order (DAG only).
 
         Returns a linear ordering of nodes such that for every directed edge
-        u → v, node u appears before v in the ordering. This is only possible
+        u -> v, node u appears before v in the ordering. This is only possible
         for directed acyclic graphs (DAGs).
 
         Uses Kahn's algorithm (BFS-based) which has O(V + E) time complexity.
@@ -13011,8 +13103,8 @@ class Graph:
         order_ids = graph.get_topological_sort_order()
         # Convert to labels for display
         order_labels = [graph.get_label_from_id(nid) for nid in order_ids]
-        print("Build order:", " → ".join(order_labels))
-        # Output: config.h → utils.h → main.cpp → utils.cpp (or similar valid order)
+        print("Build order:", " -> ".join(order_labels))
+        # Output: config.h -> utils.h -> main.cpp -> utils.cpp (or similar valid order)
         ```
 
         Course prerequisites:
@@ -13150,8 +13242,8 @@ class Graph:
         node_0 = g.get_id_from_label("0")
         node_1 = g.get_id_from_label("1")
         node_2 = g.get_id_from_label("2")
-        print(walks[node_0][node_2])  # 1 (path: 0 → 1 → 2)
-        print(walks[node_1][node_1])  # 2 (paths: 1 → 0 → 1 and 1 → 2 → 1)
+        print(walks[node_0][node_2])  # 1 (path: 0 -> 1 -> 2)
+        print(walks[node_1][node_1])  # 2 (paths: 1 -> 0 -> 1 and 1 -> 2 -> 1)
         ```
 
         Count walks in a triangle:
@@ -13167,7 +13259,7 @@ class Graph:
         # Walks of length 3 (can return to start)
         walks = g.count_walks(3)
         node_0 = g.get_id_from_label("0")
-        print(walks[node_0][node_0])  # 2 (two ways to return: 0→1→2→0 and 0→1→0→0)
+        print(walks[node_0][node_0])  # 2 (two ways to return: 0->1->2->0 and 0->1->0->0)
         ```
 
         Total number of walks in the graph:
@@ -13315,7 +13407,7 @@ class Graph:
 
         # Triangle: multiple trails from A to C
         count = graph.count_trails("A", "C")
-        print(f"Trails from A to C: {count}")  # 2 trails: A→C and A→B→C
+        print(f"Trails from A to C: {count}")  # 2 trails: A->C and A->B->C
         ```
 
         Count trails using node IDs:
@@ -13372,7 +13464,7 @@ class Graph:
 
         # Trails: can use different edges
         trails = graph.count_trails("A", "D")
-        print(f"Trails: {trails}")  # 2: A→B→D and A→B→C→D
+        print(f"Trails: {trails}")  # 2: A->B->D and A->B->C->D
 
         # Simple paths would only count non-repeated nodes
         ```
@@ -13463,9 +13555,9 @@ class Graph:
 
         trails = graph.enumerate_trails("A", "C")
         for i, trail in enumerate(trails, 1):
-            print(f"Trail {i}: {' → '.join(trail)}")
-        # Trail 1: A → C
-        # Trail 2: A → B → C
+            print(f"Trail {i}: {' -> '.join(trail)}")
+        # Trail 1: A -> C
+        # Trail 2: A -> B -> C
         ```
 
         Enumerate using node IDs:
@@ -14499,7 +14591,7 @@ class Graph:
         1. Start with all nodes in one community
         2. Compute modularity matrix: B_ij = A_ij - (k_i × k_j) / 2m
         3. Find leading eigenvector using power iteration
-        4. Split by sign: positive → community 1, negative → community 2
+        4. Split by sign: positive -> community 1, negative -> community 2
         5. Accept split only if modularity improves
         6. Recursively split each community
 
@@ -15564,8 +15656,8 @@ class Graph:
         beta
             The decay/attenuation parameter. Controls the nature and reach of influence:
 
-            - β > 0: Cooperative (powerful neighbors → more power)
-            - β < 0: Competitive (weak neighbors → more power)
+            - β > 0: Cooperative (powerful neighbors -> more power)
+            - β < 0: Competitive (weak neighbors -> more power)
             - Must satisfy |β| < 1/λ_max to avoid singularity
             - Typical range: -0.5 to 0.5
             - β = 0: Reduces to simple degree centrality
@@ -15978,7 +16070,7 @@ class Graph:
         important), DomiRank identifies nodes that dominate their local structure. Being close to a
         dominant node can suppress your own dominance in high-competition contexts.
 
-        For σ → 0: Converges to degree centrality (only local information)
+        For σ -> 0: Converges to degree centrality (only local information)
         For large σ: Identifies globally dominant nodes
 
         Parameters
