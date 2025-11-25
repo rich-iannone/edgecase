@@ -6522,6 +6522,67 @@ class Graph:
         result._graph = self._graph.to_undirected()
         return result
 
+    def to_directed(self) -> "Graph":
+        """
+        Convert the graph to a directed graph.
+
+        Creates a new graph with the same nodes but directed edges. If the graph is already
+        directed, returns a new copy. For undirected graphs, creates both directions (u->v and v->u)
+        for each edge.
+
+        Returns
+        -------
+        Graph
+            A new directed Graph with the same nodes and bidirectional edges.
+
+        Examples
+        --------
+        Convert an undirected graph to directed:
+
+        ```python
+        undirected = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        directed = undirected.to_directed()
+        print(directed.is_directed())  # True
+        print(directed.count_edges())  # 4 (A→B, B→A, B→C, C→B)
+        ```
+
+        Create directed graph for flow analysis:
+
+        ```python
+        # Undirected road network
+        roads = Graph(directed=False)
+        roads.add_edge("A", "B", weight=5)
+        roads.add_edge("B", "C", weight=3)
+
+        # Directed for traffic flow (both directions)
+        traffic = roads.to_directed()
+        # Now can analyze: traffic from A to C vs C to A
+        ```
+
+        Use with algorithms requiring directed graphs:
+
+        ```python
+        g = Graph(directed=False)
+        g.add_edge("X", "Y")
+        g.add_edge("Y", "Z")
+
+        # Convert for topological sort or cycle detection
+        g_dir = g.to_directed()
+        cycles = g_dir.get_cycles()
+        ```
+        """
+        result = Graph.__new__(Graph)
+        result._graph = self._graph.to_directed()
+        return result
+
     # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
