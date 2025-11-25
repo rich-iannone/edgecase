@@ -6468,6 +6468,61 @@ class Graph:
         return self._graph.get_cycles(float(min_length))
 
     # ==============================================================================
+    # Graph Type Conversions
+    # ==============================================================================
+
+    def to_undirected(self) -> "Graph":
+        """
+        Convert the graph to an undirected graph.
+
+        Creates a new graph with the same nodes and edges, but without edge direction. If the graph
+        is already undirected, returns a new copy. For directed graphs, converts directed edges to
+        undirected edges, removing duplicate pairs.
+
+        Returns
+        -------
+        Graph
+            A new undirected Graph with the same nodes and edges.
+
+        Examples
+        --------
+        Convert a directed graph to undirected:
+
+        ```python
+        directed = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        undirected = directed.to_undirected()
+        print(undirected.is_directed())  # False
+        print(undirected.count_edges())  # 3 (one per unique pair)
+        ```
+
+        Use case for symmetrizing a social network:
+
+        ```python
+        # Directed: A follows B, B follows C
+        followers = (
+            Graph(directed=True)
+            .add_edge("Alice", "Bob")
+            .add_edge("Bob", "Charlie")
+        )
+
+        # Undirected: mutual connections
+        connections = followers.to_undirected()
+        ```
+        """
+        result = Graph.__new__(Graph)
+        result._graph = self._graph.to_undirected()
+        return result
+
+    # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
 
