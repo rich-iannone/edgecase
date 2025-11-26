@@ -46,6 +46,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::node_vitality::node_vitality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::regularity::is_regular, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::regularity::is_k_regular, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::dispersion::dispersion, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::efficiency::global_efficiency, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::efficiency::local_efficiency, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
