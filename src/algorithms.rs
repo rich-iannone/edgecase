@@ -1,5 +1,6 @@
 //! Graph algorithms module
 
+pub mod bridges;
 pub mod centrality;
 pub mod community;
 pub mod connectivity;
