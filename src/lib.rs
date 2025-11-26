@@ -38,6 +38,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::matching::is_matching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::matching::maximal_matching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::matching::max_weight_matching, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::eulerian::is_eulerian, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::eulerian::is_semieulerian, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::eulerian::eulerian_circuit, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;

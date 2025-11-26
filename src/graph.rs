@@ -8483,6 +8483,30 @@ impl Graph {
             .unwrap_or(0)
     }
 
+    /// Get in-degree of a node (public method for Rust code)
+    pub fn get_in_degree(&self, node_id: u64) -> usize {
+        if !self.directed {
+            return self.degree_rust(node_id);
+        }
+
+        self.edges
+            .iter()
+            .filter(|e| e.target == node_id)
+            .count()
+    }
+
+    /// Get out-degree of a node (public method for Rust code)
+    pub fn get_out_degree(&self, node_id: u64) -> usize {
+        if !self.directed {
+            return self.degree_rust(node_id);
+        }
+
+        self.edges
+            .iter()
+            .filter(|e| e.source == node_id)
+            .count()
+    }
+
     /// Get nodes hashmap (public method for Rust code)
     pub fn get_nodes(&self) -> &FxHashMap<u64, Node> {
         &self.nodes
