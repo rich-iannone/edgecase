@@ -10699,6 +10699,193 @@ class Graph:
 
         return max_weight_matching(self._graph)
 
+    def is_eulerian(self) -> bool:
+        """
+        Check if the graph has an Eulerian circuit.
+
+        An Eulerian circuit is a closed trail that visits every edge exactly once.
+
+        For undirected graphs, an Eulerian circuit exists if and only if:
+        - The graph is connected (ignoring isolated nodes)
+        - All vertices have even degree
+
+        For directed graphs, an Eulerian circuit exists if and only if:
+
+        - The graph is weakly connected
+        - Every vertex has equal in-degree and out-degree
+
+        Returns
+        -------
+        bool
+            True if the graph has an Eulerian circuit, False otherwise.
+
+        Examples
+        --------
+        Check a cycle graph (has Eulerian circuit):
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(5)
+
+        print(graph.is_eulerian())  # True (all degrees are 2)
+        ```
+
+        Check a path graph (no Eulerian circuit):
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        print(graph.is_eulerian())  # False (endpoints have odd degree)
+        ```
+
+        Check a directed graph:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_cycle_graph(4)
+
+        print(graph.is_eulerian())  # True (in-degree = out-degree for all)
+        ```
+        """
+        from edgecase._core import is_eulerian
+
+        return is_eulerian(self._graph)
+
+    def is_semieulerian(self) -> bool:
+        """
+        Check if the graph has an Eulerian path but not an Eulerian circuit.
+
+        An Eulerian path is a trail that visits every edge exactly once.
+        A graph is semi-Eulerian if it has an Eulerian path but NOT an Eulerian circuit.
+
+        For undirected graphs, this occurs when:
+
+        - The graph is connected
+        - Exactly two vertices have odd degree (start and end of path)
+
+        For directed graphs, this occurs when:
+
+        - The graph is weakly connected
+        - Exactly one vertex has out-degree - in-degree = 1 (start)
+        - Exactly one vertex has in-degree - out-degree = 1 (end)
+        - All other vertices have equal in-degree and out-degree
+
+        Returns
+        -------
+        bool
+            True if the graph has an Eulerian path but not circuit, False otherwise.
+
+        Examples
+        --------
+        Check a path graph (semi-Eulerian):
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        print(graph.is_semieulerian())  # True (2 odd-degree nodes)
+        print(graph.is_eulerian())      # False (not a circuit)
+        ```
+
+        Check a cycle graph (not semi-Eulerian):
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(5)
+
+        print(graph.is_semieulerian())  # False (has Eulerian circuit)
+        print(graph.is_eulerian())      # True
+        ```
+
+        Check a directed path:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_path_graph(5)
+
+        print(graph.is_semieulerian())  # True (one source, one sink)
+        ```
+        """
+        from edgecase._core import is_semieulerian
+
+        return is_semieulerian(self._graph)
+
+    def eulerian_circuit(self) -> Optional[list[int]]:
+        """
+        Find an Eulerian circuit in the graph if one exists.
+
+        An Eulerian circuit is a closed trail that visits every edge exactly once,
+        starting and ending at the same node. Uses Hierholzer's algorithm.
+
+        Returns
+        -------
+        Optional[list[int]]
+            List of node IDs forming the Eulerian circuit, or None if no circuit exists.
+            The circuit starts and ends at the same node.
+
+        Examples
+        --------
+        Find circuit in a cycle graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(5)
+
+        circuit = graph.eulerian_circuit()
+        print(circuit)  # e.g., [0, 1, 2, 3, 4, 0]
+        print(len(circuit))  # 6 (5 edges + return to start)
+        ```
+
+        No circuit in a path graph:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        circuit = graph.eulerian_circuit()
+        print(circuit)  # None (path has no circuit)
+        ```
+
+        Find circuit in a cycle graph:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(6)
+
+        circuit = graph.eulerian_circuit()
+        if circuit:
+            print(f"Circuit length: {len(circuit)}")
+            print(f"Visits {len(circuit) - 1} edges")
+        ```
+
+        Directed Eulerian circuit:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_cycle_graph(5)
+
+        circuit = graph.eulerian_circuit()
+        print(len(circuit))  # 6 (visits 5 edges + returns to start)
+        ```
+
+        Notes
+        -----
+        - Uses Hierholzer's algorithm: O(E) time complexity
+        - Only returns a circuit if one exists (use is_eulerian() to check first)
+        - For semi-Eulerian graphs (path but no circuit), use a pathfinding approach
+        - The returned circuit is one of potentially many valid circuits
+        """
+        from edgecase._core import eulerian_circuit
+
+        return eulerian_circuit(self._graph)
+
     # ==============================================================================
     # Similarity Methods
     # ==============================================================================
