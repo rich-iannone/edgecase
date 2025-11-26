@@ -17973,6 +17973,168 @@ class Graph:
             return result_ids
         return self
 
+    def average_neighbor_degree(
+        self,
+        source: str = "out",
+        target: str = "out",
+        weight: str | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[str, float], "Graph"]:
+        """
+        Compute average neighbor degree for each node.
+
+        For each node, calculates the average degree of its neighbors. This metric helps analyze
+        degree correlations and mixing patterns in networks, indicating whether nodes tend to
+        connect to similar-degree neighbors (assortative) or different-degree neighbors
+        (disassortative).
+
+        For undirected graphs, computes the average degree of all neighbors. For directed graphs,
+        the `source` parameter controls which neighbors to consider, and the `target` parameter
+        controls how to measure their degrees.
+
+        Parameters
+        ----------
+        source : str, default "out"
+            For directed graphs only, specifies which neighbors to consider: (1) `"out"` for
+            out-neighbors (successors), (2) `"in"` for in-neighbors (predecessors), and (3)
+            `"in+out"` for both in-neighbors and out-neighbors. Raises error if used with undirected
+            graphs.
+        target : str, default "out"
+            For directed graphs only, specifies how to measure neighbor degrees: (1) `"out"` for
+            out-neighbors (successors), (2) `"in"` for in-neighbors (predecessors), and (3)
+            `"in+out"` for both in-neighbors and out-neighbors. Raises error if used with undirected
+            graphs.
+        weight : str, optional
+            Edge attribute name containing weights. If provided, computes weighted average using:
+            `k_nn,i = (1 / s_i) * Σ_j w_ij * k_j`, where `s_i` is the weighted degree. Currently not
+            implemented and will raise error if specified.
+        attr_name : str, optional
+            Name of node attribute to store results. If `None`, uses `average_neighbor_degree`. Only
+            used when `return_dict=False`.
+        return_dict : bool, default False
+            If `True`, returns dict mapping node labels to average neighbor degrees. If `False`,
+            stores values in graph and returns self for chaining.
+
+        Returns
+        -------
+        dict or Graph
+            If `return_dict=True`: dictionary mapping node label to average neighbor degree. If
+            `return_dict=False`: self (for method chaining).
+
+        Raises
+        ------
+        ValueError
+            - if graph is empty
+            - if `source` or `target` parameters are used with undirected graphs
+            - if `source` or `target` values are invalid
+            - if `weight` is specified (not yet implemented)
+
+        Examples
+        --------
+        **Path Graph - Undirected**
+
+        ```python
+        from edgecase import Graph
+
+        # In a path graph, end nodes have neighbors with degree 1,
+        # middle nodes have neighbors with varying degrees
+        g = Graph(directed=False)
+        for i in range(5):
+            g.add_node(label=str(i))
+        for i in range(4):
+            g.add_edge(str(i), str(i+1))
+
+        and_values = g.average_neighbor_degree(return_dict=True)
+        # Node '0': neighbor '1' has degree 2 → average = 2.0
+        # Node '1': neighbors '0','2' have degrees 1,2 → average = 1.5
+        # Node '2': neighbors '1','3' have degrees 2,2 → average = 2.0
+        ```
+
+        **Directed Graph - Different source/target combinations**
+
+        ```python
+        g = Graph(directed=True)
+        g.add_node(label='A')
+        g.add_node(label='B')
+        g.add_node(label='C')
+        g.add_edge('A', 'B')
+        g.add_edge('B', 'C')
+        g.add_edge('C', 'A')
+
+        # Average out-degree of out-neighbors
+        and_out_out = g.average_neighbor_degree(source="out", target="out", return_dict=True)
+
+        # Average in-degree of in-neighbors
+        and_in_in = g.average_neighbor_degree(source="in", target="in", return_dict=True)
+        ```
+
+        **Store in Graph and Chain**
+
+        ```python
+        g = (
+            Graph(directed=False)
+            .add_node(label='A')
+            .add_node(label='B')
+            .add_node(label='C')
+            .add_edge('A', 'B')
+            .add_edge('B', 'C')
+            .average_neighbor_degree(attr_name='knn')
+        )
+
+        # Values stored as node attribute 'knn'
+        ```
+
+        Notes
+        -----
+        - measures degree correlation patterns in networks
+        - high values indicate nodes connect to high-degree neighbors (assortative mixing)
+        - low values indicate nodes connect to low-degree neighbors (disassortative mixing)
+        - for undirected graphs, ignores `source` and `target` parameters
+        - nodes with no neighbors have average neighbor degree of `0`
+        - weighted version not yet implemented
+
+        References
+        ----------
+        Barrat, A., Barthélemy, M., Pastor-Satorras, R., & Vespignani, A. (2004).
+        "The architecture of complex weighted networks". PNAS, 101(11), 3747-3752.
+        https://doi.org/10.1073/pnas.0400087101
+        """
+        from edgecase import _core as rust
+
+        # Call Rust implementation
+        result_ids = rust.average_neighbor_degree(
+            self._graph,
+            source=source if self.is_directed() else None,
+            target=target if self.is_directed() else None,
+            weight=weight,
+        )
+
+        if not result_ids:
+            return {} if return_dict else self
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "average_neighbor_degree"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            params = {}
+            if self.is_directed():
+                params["source"] = source
+                params["target"] = target
+            if weight is not None:
+                params["weight"] = weight
+            self._computations.append(("average_neighbor_degree", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
     def harmonic_centrality(
         self,
         mode: str = "out",
