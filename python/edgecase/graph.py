@@ -7340,8 +7340,8 @@ class Graph:
         Parameters
         ----------
         node_attr_from
-            Attribute name to read values from (e.g., 'betweenness', 'degree') If None, must
-            provide values dict.
+            Attribute name to read values from (e.g., 'betweenness', 'degree') If None, must provide
+            values dict.
         values
             Dictionary mapping node IDs to numeric values. If None, reads from `node_attr_from`
             attribute.
@@ -17649,6 +17649,147 @@ class Graph:
         # Track computation
         if not return_dict:
             self._computations.append(("betweenness_centrality", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def load_centrality(
+        self,
+        normalized: bool = True,
+        cutoff: int = None,
+        attr_name: str = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate load centrality scores for all nodes.
+
+        Load centrality measures the fraction of shortest paths that pass through each node. It is
+        similar to betweenness centrality but uses a different accumulation formula that counts the
+        'load' or traffic on nodes from shortest path routing.
+
+        The key differences from betweenness centrality:
+
+        - **Betweenness**: uses dependency accumulation with path count ratios
+        - **Load**: uses simpler load counting based on predecessors
+
+        Both metrics identify important bridge nodes, but load centrality can produce slightly
+        different rankings that may be more intuitive for certain applications like network traffic
+        analysis or identifying bottlenecks in routing systems.
+
+        Parameters
+        ----------
+        normalized
+            If `True` (default), normalizes scores by dividing by `(n-1)(n-2)` where `n` is the
+            number of nodes. If `False`, returns raw load counts.
+        cutoff
+            Optional maximum path length to consider. Only paths of length ≤ cutoff are included.
+            If `None` (default), considers all path lengths.
+        attr_name
+            Column name to store load centrality scores in the node DataFrame. If `None` (default),
+            automatically uses 'load_centrality'. Overwrites column if it already exists.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF
+            and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to load centrality scores. If
+            `return_dict` is `False` (default): returns self for method chaining.
+
+        References
+        ----------
+        Newman, M. E. J. (2001). Scientific collaboration networks. II. Shortest paths,
+        weighted networks, and centrality. Physical Review E, 64(016132).
+        https://doi.org/10.1103/PhysRevE.64.016132
+
+        Examples
+        --------
+        Identify bridge nodes using load centrality:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a network with a central bridge
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="Bridge")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "Bridge")
+            .add_edge("Bridge", "C")
+            .add_edge("C", "D")
+        )
+
+        scores = graph.load_centrality(return_dict=True)
+        bridge_id = graph.get_id_from_label("Bridge")
+        print(f"Bridge load: {scores[bridge_id]:.4f}")  # High load score
+        ```
+
+        Compare load vs betweenness centrality:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        load = graph.load_centrality(return_dict=True)
+        betweenness = graph.betweenness_centrality(return_dict=True)
+
+        for node_id in sorted(load.keys()):
+            label = graph.get_label_from_id(node_id)
+            print(f"{label}: load={load[node_id]:.3f}, betweenness={betweenness[node_id]:.3f}")
+        ```
+
+        Store centrality as node attribute for later use:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple path graph
+        graph = Graph()
+        for i in range(5):
+            graph.add_node(label=str(i))
+        for i in range(4):
+            graph.add_edge(str(i), str(i+1))
+
+        # Compute and store load centrality
+        graph.load_centrality(attr_name="load")
+
+        # Verify it was stored
+        any_comp = any("load" in str(c) for c in graph._computations)
+        print(f"Load centrality computed: {any_comp}")
+        ```
+        """
+        # Call Rust implementation
+        result_ids = rust.load_centrality(self._graph, normalized=normalized, cutoff=cutoff)
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "load_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(
+                ("load_centrality", {"normalized": normalized, "cutoff": cutoff}, attr_name)
+            )
 
         # Return dict if requested, otherwise return self for chaining
         if return_dict:
