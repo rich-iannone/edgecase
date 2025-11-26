@@ -43,6 +43,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::eulerian::eulerian_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::bridges::bridges, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::bridges::has_bridges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::node_vitality::node_vitality, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
