@@ -4160,6 +4160,111 @@ class Graph:
         return is_k_regular(self._graph, k)
 
     # ==============================================================================
+    # Link Analysis
+    # ==============================================================================
+
+    def dispersion(self, u: Union[int, str], v: Union[int, str], normalized: bool = True) -> float:
+        """
+        Calculate dispersion between two nodes.
+
+        Dispersion measures the embeddedness of a link in the network. A link between two nodes
+        (u and v) has high dispersion when their mutual neighbors (friends in common) are not
+        well connected to each other. This can indicate structural diversity in the network.
+
+        Parameters
+        ----------
+        u
+            Source node (node ID or label).
+        v
+            Target node (node ID or label).
+        normalized
+            If True (default), normalize by the number of common neighbors (embeddedness).
+
+        Returns
+        -------
+        float
+            The dispersion score between u and v.
+
+        Examples
+        --------
+        Basic dispersion calculation:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple social network
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node()
+        for s, t in [(1, 2), (1, 3), (1, 4), (2, 3), (2, 5), (3, 4), (3, 5), (4, 5)]:
+            graph.add_edge(s, t)
+
+        # Calculate dispersion between nodes 1 and 2
+        disp = graph.dispersion(1, 2)
+        print(f"Dispersion: {disp:.2f}")
+        ```
+
+        Using node labels:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="Alice")
+        graph.add_node(label="Bob")
+        graph.add_node(label="Charlie")
+        graph.add_node(label="David")
+
+        alice = graph.get_id_from_label("Alice")
+        bob = graph.get_id_from_label("Bob")
+        charlie = graph.get_id_from_label("Charlie")
+        david = graph.get_id_from_label("David")
+
+        graph.add_edge(alice, bob)
+        graph.add_edge(alice, charlie)
+        graph.add_edge(bob, charlie)
+        graph.add_edge(bob, david)
+
+        # Check dispersion
+        disp = graph.dispersion(alice, bob, normalized=True)
+        print(f"Dispersion: {disp:.2f}")
+        ```
+
+        Normalized vs unnormalized:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(6)
+
+        nodes = sorted(graph.get_node_ids())
+
+        # Normalized divides by embeddedness
+        norm = graph.dispersion(nodes[0], nodes[1], normalized=True)
+        # Unnormalized gives raw count
+        unnorm = graph.dispersion(nodes[0], nodes[1], normalized=False)
+
+        print(f"Normalized: {norm:.2f}, Unnormalized: {unnorm}")
+        ```
+
+        Notes
+        -----
+        - Higher dispersion indicates the link spans different network regions
+        - Low dispersion means the link is embedded in a dense cluster
+        - Useful for identifying bridges between communities
+        - Based on the algorithm by Backstrom & Kleinberg (2013)
+
+        References
+        ----------
+        Backstrom, L., & Kleinberg, J. (2013). Romantic partnerships and the dispersion of
+        social ties: a network analysis of relationship status on Facebook. arXiv preprint
+        arXiv:1310.6753.
+        """
+        from edgecase._core import dispersion
+
+        u_id = self._resolve_node_id(u)
+        v_id = self._resolve_node_id(v)
+
+        return dispersion(self._graph, u_id, v_id, normalized)
+
+    # ==============================================================================
     # Clique Operations
     # ==============================================================================
 
@@ -16413,6 +16518,195 @@ class Graph:
         with low average path lengths.
         """
         return self._graph.get_avg_clustering_coefficient()
+
+    # ==============================================================================
+    # Network Efficiency
+    # ==============================================================================
+
+    def global_efficiency(self) -> float:
+        """
+        Calculate the global efficiency of the graph.
+
+        Global efficiency is the average efficiency over all pairs of nodes, where efficiency
+        is the multiplicative inverse of the shortest path distance. It measures how efficiently
+        information flows through the network.
+
+        Returns
+        -------
+        float
+            The global efficiency (between 0 and 1).
+
+        Examples
+        --------
+        Complete graph has efficiency 1:
+
+        ```python
+        from edgecase import Graph
+
+        # Complete graph K_5
+        graph = Graph()
+        n = 5
+        for i in range(n):
+            graph.add_node(label=f"n{i}")
+
+        nodes = sorted(graph.get_node_ids())
+        for i in range(n):
+            for j in range(i + 1, n):
+                graph.add_edge(nodes[i], nodes[j])
+
+        eff = graph.global_efficiency()
+        print(f"Efficiency: {eff:.4f}")  # Close to 1.0
+        ```
+
+        Compare different topologies:
+
+        ```python
+        # Path graph
+        path = Graph()
+        path.add_path_graph(10)
+        path_eff = path.global_efficiency()
+
+        # Cycle graph
+        cycle = Graph()
+        cycle.add_cycle_graph(10)
+        cycle_eff = cycle.global_efficiency()
+
+        # Star graph
+        star = Graph()
+        star.add_star_graph(10)
+        star_eff = star.global_efficiency()
+
+        print(f"Path: {path_eff:.4f}")
+        print(f"Cycle: {cycle_eff:.4f}")
+        print(f"Star: {star_eff:.4f}")
+        ```
+
+        Disconnected graph:
+
+        ```python
+        graph = Graph()
+        # Two separate triangles
+        for i in range(1, 7):
+            graph.add_node()
+        graph.add_edge(1, 2)
+        graph.add_edge(2, 3)
+        graph.add_edge(3, 1)
+        graph.add_edge(4, 5)
+        graph.add_edge(5, 6)
+        graph.add_edge(6, 4)
+
+        eff = graph.global_efficiency()
+        print(f"Efficiency: {eff:.4f}")  # Lower due to disconnection
+        ```
+
+        Notes
+        -----
+        - Returns 0 for graphs with 0 or 1 nodes
+        - Returns 1 for complete graphs
+        - Unweighted shortest paths are used (all edge weights = 1)
+        - For disconnected node pairs, efficiency is 0
+        - Related to the average inverse distance
+
+        References
+        ----------
+        Latora, V., & Marchiori, M. (2001). Efficient behavior of small-world networks.
+        Physical Review Letters, 87(19), 198701.
+        """
+        from edgecase._core import global_efficiency
+
+        return global_efficiency(self._graph)
+
+    def local_efficiency(self) -> float:
+        """
+        Calculate the local efficiency of the graph.
+
+        Local efficiency is the average global efficiency of each node's neighborhood subgraph.
+        It measures how efficiently the neighbors of a node can communicate when that node
+        is removed. High local efficiency indicates good redundancy and fault tolerance.
+
+        Returns
+        -------
+        float
+            The average local efficiency (between 0 and 1).
+
+        Examples
+        --------
+        Complete graph has local efficiency 1:
+
+        ```python
+        from edgecase import Graph
+
+        # Complete graph K_5
+        graph = Graph()
+        n = 5
+        for i in range(n):
+            graph.add_node(label=f"n{i}")
+
+        nodes = sorted(graph.get_node_ids())
+        for i in range(n):
+            for j in range(i + 1, n):
+                graph.add_edge(nodes[i], nodes[j])
+
+        local_eff = graph.local_efficiency()
+        print(f"Local efficiency: {local_eff:.4f}")  # 1.0
+        ```
+
+        Compare different topologies:
+
+        ```python
+        # Cycle graph
+        cycle = Graph()
+        cycle.add_cycle_graph(10)
+        cycle_eff = cycle.local_efficiency()
+
+        # Star graph
+        star = Graph()
+        star.add_star_graph(10)
+        star_eff = star.local_efficiency()
+
+        # Path graph
+        path = Graph()
+        path.add_path_graph(10)
+        path_eff = path.local_efficiency()
+
+        print(f"Cycle: {cycle_eff:.4f}")
+        print(f"Star: {star_eff:.4f}")
+        print(f"Path: {path_eff:.4f}")
+        ```
+
+        Fault tolerance analysis:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(20)
+
+        local_eff = graph.local_efficiency()
+        global_eff = graph.global_efficiency()
+
+        print(f"Local efficiency: {local_eff:.4f}")
+        print(f"Global efficiency: {global_eff:.4f}")
+
+        # High local efficiency suggests good fault tolerance
+        if local_eff > 0.5:
+            print("Network has good redundancy!")
+        ```
+
+        Notes
+        -----
+        - Returns 0 for empty graphs
+        - Nodes with fewer than 2 neighbors contribute 0 to the average
+        - Useful for measuring network resilience
+        - Related to clustering but considers path lengths
+        - Unweighted shortest paths are used
+
+        References
+        ----------
+        Latora, V., & Marchiori, M. (2001). Efficient behavior of small-world networks.
+        Physical Review Letters, 87(19), 198701.
+        """
+        from edgecase._core import local_efficiency
+
+        return local_efficiency(self._graph)
 
     # ==============================================================================
     # Community Detection Methods
