@@ -11015,6 +11015,109 @@ class Graph:
 
         return has_bridges(self._graph)
 
+    def get_node_vitality(self, node: Union[int, str]) -> float:
+        """
+        Compute the vitality of a single node.
+
+        Node vitality measures the impact of removing a node on graph connectivity, defined as the
+        change in sum of all pairwise shortest path distances:
+
+        vitality(v) = sum_distances(G) - sum_distances(G - v)
+
+        Higher values indicate more important nodes whose removal would significantly increase
+        average path lengths or disconnect the graph. Infinite values indicate the node's removal
+        disconnects the graph.
+
+        Parameters
+        ----------
+        node
+            Node ID (int) or label (str) to compute vitality for.
+
+        Returns
+        -------
+        float
+            The vitality score for the node. Higher values indicate more vital nodes. Returns `inf`
+            if removing the node disconnects the graph.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist in the graph.
+
+        Examples
+        --------
+        Compute vitality for nodes in a path graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(5)
+        nodes = sorted(graph.get_node_ids())
+
+        # Middle nodes are most vital (removal disconnects)
+        middle_vitality = graph.get_node_vitality(nodes[2])
+        end_vitality = graph.get_node_vitality(nodes[0])
+
+        print(f"Middle node vitality: {middle_vitality}")
+        print(f"End node vitality: {end_vitality}")
+        # Middle has higher vitality (or infinite if it disconnects)
+        ```
+
+        Compare vitality in a star graph:
+
+        ```python
+        graph = Graph()
+        graph.add_star_graph(4)
+        nodes = sorted(graph.get_node_ids())
+
+        # Hub (first node) is most vital
+        hub_vitality = graph.get_node_vitality(nodes[0])
+        leaf_vitality = graph.get_node_vitality(nodes[1])
+
+        print(f"Hub vitality: {hub_vitality}")
+        print(f"Leaf vitality: {leaf_vitality}")
+        # Hub has much higher vitality
+        ```
+
+        Use with node labels:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+
+        # B is the critical connector
+        vitality_b = graph.get_node_vitality("B")
+        vitality_a = graph.get_node_vitality("A")
+
+        print(f"Node B vitality: {vitality_b}")
+        print(f"Node A vitality: {vitality_a}")
+        ```
+
+        Notes
+        -----
+        - computationally expensive: `O(V * E)` where `V` is vertices, `E` is edges
+        - returns `inf` if node removal disconnects the graph
+        - related to `closeness_vitality()` which computes for all nodes
+        - useful for identifying critical nodes in network vulnerability analysis
+        - for all nodes, consider using `closeness_vitality()` instead
+        """
+        from edgecase._core import node_vitality
+
+        # Convert label to node ID if necessary
+        if isinstance(node, str):
+            node_id = self.get_id_from_label(node)
+            if node_id is None:
+                raise ValueError(f"Node with label '{node}' does not exist")
+        else:
+            node_id = node
+
+        return node_vitality(self._graph, node_id)
+
     # ==============================================================================
     # Similarity Methods
     # ==============================================================================
