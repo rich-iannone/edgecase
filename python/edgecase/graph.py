@@ -4023,6 +4023,142 @@ class Graph:
         """
         return self._graph.is_isomorphic(other._graph)
 
+    def is_regular(self) -> bool:
+        """
+        Check if the graph is regular (all nodes have the same degree).
+
+        A graph is regular if every node has the same degree. For directed graphs, this means all
+        nodes have the same in-degree AND the same out-degree (though in-degree and out-degree don't
+        need to equal each other).
+
+        Returns
+        -------
+        bool
+            True if the graph is regular, False otherwise.
+
+        Examples
+        --------
+        Check if a cycle is regular:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(5)
+
+        print(graph.is_regular())  # True (all nodes have degree 2)
+        ```
+
+        Check if a star graph is regular:
+
+        ```python
+        graph = Graph()
+        graph.add_star_graph(4)
+
+        print(graph.is_regular())  # False (hub has different degree than leaves)
+        ```
+
+        Check a complete graph:
+
+        ```python
+        graph = Graph()
+        n = 5
+        for i in range(n):
+            graph.add_node(label=f"n{i}")
+
+        nodes = sorted(graph.get_node_ids())
+        for i in range(n):
+            for j in range(i + 1, n):
+                graph.add_edge(nodes[i], nodes[j])
+
+        print(graph.is_regular())  # True (all nodes have degree n-1)
+        ```
+
+        Notes
+        -----
+        - empty graphs and single-node graphs are considered regular
+        - cycles are 2-regular
+        - complete graphs K_n are (n-1)-regular
+        - for directed graphs, checks both in-degree and out-degree regularity
+        """
+        from edgecase._core import is_regular
+
+        return is_regular(self._graph)
+
+    def is_k_regular(self, k: int) -> bool:
+        """
+        Check if the graph is k-regular (all nodes have degree k).
+
+        A graph is k-regular if every node has degree exactly k. For directed graphs, this means all
+        nodes have in-degree k AND out-degree k.
+
+        Parameters
+        ----------
+        k
+            The degree value to check for.
+
+        Returns
+        -------
+        bool
+            True if the graph is k-regular, False otherwise.
+
+        Examples
+        --------
+        Check if a cycle is 2-regular:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(6)
+
+        print(graph.is_k_regular(2))  # True (cycles are 2-regular)
+        print(graph.is_k_regular(3))  # False
+        ```
+
+        Check complete graph regularity:
+
+        ```python
+        graph = Graph()
+        n = 5
+        for i in range(n):
+            graph.add_node(label=f"n{i}")
+
+        nodes = sorted(graph.get_node_ids())
+        for i in range(n):
+            for j in range(i + 1, n):
+                graph.add_edge(nodes[i], nodes[j])
+
+        # Complete graph K_n is (n-1)-regular
+        print(graph.is_k_regular(n - 1))  # True
+        print(graph.is_k_regular(n))      # False
+        ```
+
+        Check isolated nodes:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+
+        # All isolated nodes have degree 0
+        print(graph.is_k_regular(0))  # True
+        print(graph.is_k_regular(1))  # False
+        ```
+
+        Notes
+        -----
+        - empty graphs are considered 0-regular
+        - cycles are 2-regular
+        - complete graphs K_n are (n-1)-regular
+        - path graphs are *not* regular (end nodes have degree 1, middle nodes have degree 2)
+        - for directed graphs, checks both in-degree and out-degree equal k
+        """
+        from edgecase._core import is_k_regular
+
+        return is_k_regular(self._graph, k)
+
     # ==============================================================================
     # Clique Operations
     # ==============================================================================
