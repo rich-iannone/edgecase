@@ -10,6 +10,7 @@ pub mod eulerian;
 pub mod matching;
 pub mod node_vitality;
 pub mod paths;
+pub mod regularity;
 pub mod simd_intersection;
 pub mod structural;
 pub mod structure;
