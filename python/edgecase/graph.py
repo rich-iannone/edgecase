@@ -17796,6 +17796,183 @@ class Graph:
             return result_ids
         return self
 
+    def second_order_centrality(
+        self,
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[str, float], "Graph"]:
+        """
+        Compute the second order centrality for nodes in the graph.
+
+        Second order centrality measures the standard deviation of return times to a node in a
+        perpetual random walk on the graph. Lower values indicate higher centrality, as nodes with
+        lower return time variance are more centrally positioned in the network structure.
+
+        This metric is particularly useful for identifying nodes that are consistently reached in
+        random walks, indicating their importance in network flow and connectivity patterns.
+
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name of node attribute to store centrality values. If `None`, uses
+            `second_order_centrality`. Only used when `return_dict=False`.
+        return_dict : bool, default False
+            If `True`, returns dict mapping node labels to centrality values. If `False`, stores
+            values in graph and returns self for chaining.
+
+        Returns
+        -------
+        dict or Graph
+            If r`eturn_dict=True`: dictionary mapping node label to centrality value. If
+            `return_dict=False`: self (for method chaining).
+
+        Raises
+        ------
+        ValueError
+            - If graph is directed (algorithm only works for undirected graphs)
+            - If graph is empty
+            - If graph is not connected
+
+        Notes
+        -----
+        **Algorithm Overview:**
+
+        The algorithm implements the analytical solution from Kermarrec et al. (2011)
+        based on Metropolis-Hastings random walks:
+
+        1. Balance the graph by adding self-loops to equalize in-degrees
+        2. Create transition probability matrix P
+        3. For each node i, solve the linear system: (I - Q_i) * M[:, i] = 1
+           where Q_i is P with column i zeroed
+        4. Compute centrality as: sqrt(2 * sum(M[:, i]) - n * (n + 1))
+
+        **Complexity:**
+
+        - Time: O(n³) due to solving n linear systems of size n×n
+        - Space: O(n²) for storing matrices
+        - **Viable only for small to medium graphs (< 1,000 nodes)**
+
+        **Interpretation:**
+
+        - **Lower values** = **higher centrality** (more central nodes)
+        - Values represent consistency of return times in random walks
+        - Captures both direct and indirect influence through network structure
+        - Complements first-order metrics like degree or betweenness
+
+        **Current Limitation:**
+
+        - Only supports unweighted graphs (all edges treated equally)
+
+        Examples
+        --------
+        Identify central nodes in a path graph (lower values = higher centrality):
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple path: 0 - 1 - 2 - 3 - 4
+        graph = Graph()
+        for i in range(5):
+            graph.add_node(label=str(i))
+        for i in range(4):
+            graph.add_edge(str(i), str(i+1))
+
+        soc = graph.second_order_centrality(return_dict=True)
+
+        # Middle nodes have lower values (higher centrality)
+        most_central = min(soc, key=soc.get)
+        print(f"Most central node: {most_central}")  # Node '2'
+        print(f"Centrality value: {soc[most_central]:.3f}")
+        ```
+
+        Compare centrality across different graph structures:
+
+        ```python
+        from edgecase import Graph
+
+        # Star graph - center should be most central
+        star = Graph()
+        star.add_node(label='center')
+        for i in range(5):
+            star.add_node(label=f'leaf_{i}')
+            star.add_edge('center', f'leaf_{i}')
+
+        star_soc = star.second_order_centrality(return_dict=True)
+        print(f"Center: {star_soc['center']:.3f}")
+        print(f"Leaf: {star_soc['leaf_0']:.3f}")  # Higher value (less central)
+
+        # Complete graph - all nodes equally central
+        complete = Graph()
+        for i in range(4):
+            complete.add_node(label=str(i))
+        for i in range(4):
+            for j in range(i+1, 4):
+                complete.add_edge(str(i), str(j))
+
+        complete_soc = complete.second_order_centrality(return_dict=True)
+        vals = list(complete_soc.values())
+        print(f"All equal: {all(abs(v - vals[0]) < 0.01 for v in vals)}")
+        ```
+
+        Store centrality as node attribute for later analysis:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label='A')
+            .add_node(label='B')
+            .add_node(label='C')
+            .add_node(label='D')
+            .add_edge('A', 'B')
+            .add_edge('B', 'C')
+            .add_edge('C', 'D')
+        )
+
+        # Store with custom attribute name
+        graph.second_order_centrality(attr_name='soc')
+
+        # Verify it was computed
+        has_soc = any('soc' in str(c) for c in graph._computations)
+        print(f"Second order centrality computed: {has_soc}")
+        ```
+
+        References
+        ----------
+        .. [1] Kermarrec, A.M., Le Merrer, E., Sericola, B., Trédan, G. (2011).
+           "Second order centrality: Distributed assessment of nodes criticity in
+           complex networks". Computer Communications, 34(5), 619-628.
+           https://doi.org/10.1016/j.comcom.2010.06.007
+        """
+        if self.is_directed():
+            raise ValueError(
+                "second_order_centrality() requires an undirected graph. "
+                "The algorithm is not defined for directed graphs."
+            )
+
+        # Call Rust implementation
+        result_ids = rust.second_order_centrality(self._graph)
+
+        if not result_ids:
+            return {} if return_dict else self
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "second_order_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("second_order_centrality", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
     def harmonic_centrality(
         self,
         mode: str = "out",
