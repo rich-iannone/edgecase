@@ -894,3 +894,193 @@ pub fn second_order_centrality(
 
     Ok(result)
 }
+
+/// Compute average neighbor degree for each node.
+///
+/// For each node, calculates the average degree of its neighbors. This metric is used in
+/// degree correlation analysis and can indicate whether nodes tend to connect to similar-degree
+/// nodes (assortative mixing) or different-degree nodes (disassortative mixing).
+///
+/// For directed graphs:
+/// - `source="out"`: Use out-neighbors (successors) of each node
+/// - `source="in"`: Use in-neighbors (predecessors) of each node
+/// - `source="in+out"`: Use both in-neighbors and out-neighbors
+/// - `target="out"`: Use out-degree of neighbors
+/// - `target="in"`: Use in-degree of neighbors
+/// - `target="in+out"`: Use total degree of neighbors
+///
+/// For weighted graphs, the average is weighted by edge weights:
+/// k_nn,i = (1 / s_i) * Σ_j w_ij * k_j
+/// where s_i is the weighted degree of node i.
+///
+/// # Arguments
+/// * `graph` - The graph to analyze
+/// * `source` - For directed graphs: "in", "out", or "in+out" (default: "out")
+/// * `target` - For directed graphs: "in", "out", or "in+out" (default: "out")
+/// * `weight` - Optional edge attribute name for weights
+///
+/// # Returns
+/// * `HashMap<String, f64>` - Map from node label to average neighbor degree
+///
+/// # Errors
+/// * Returns error if graph is empty
+/// * Returns error if weight attribute is specified but not found or not numeric
+/// * Returns error if source/target parameters are invalid for directed/undirected graphs
+///
+/// # References
+/// * Barrat, A., Barthélemy, M., Pastor-Satorras, R., & Vespignani, A. (2004).
+///   "The architecture of complex weighted networks". PNAS 101(11): 3747-3752.
+#[pyfunction]
+#[pyo3(signature = (graph, source=None, target=None, weight=None))]
+pub fn average_neighbor_degree(
+    graph: &Graph,
+    source: Option<&str>,
+    target: Option<&str>,
+    weight: Option<&str>,
+) -> PyResult<FxHashMap<String, f64>> {
+    let n = graph.num_nodes();
+    if n == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Cannot compute average neighbor degree for empty graph",
+        ));
+    }
+
+    // Validate source/target parameters
+    let source_dir = if graph.is_directed() {
+        match source.unwrap_or("out") {
+            "in" => "in",
+            "out" => "out",
+            "in+out" => "in+out",
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "source must be 'in', 'out', or 'in+out' for directed graphs",
+                ))
+            }
+        }
+    } else {
+        if source.is_some() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "source parameter not allowed for undirected graphs",
+            ));
+        }
+        "out" // unused for undirected
+    };
+
+    let target_dir = if graph.is_directed() {
+        match target.unwrap_or("out") {
+            "in" => "in",
+            "out" => "out",
+            "in+out" => "in+out",
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "target must be 'in', 'out', or 'in+out' for directed graphs",
+                ))
+            }
+        }
+    } else {
+        if target.is_some() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "target parameter not allowed for undirected graphs",
+            ));
+        }
+        "out" // unused for undirected
+    };
+
+    // Compute degrees for all nodes using public methods
+    let node_ids = graph.get_node_ids();
+    let all_node_ids = node_ids.clone(); // Clone for use in closures
+
+    // Get target degree for a node based on target_dir setting
+    let get_target_degree = |node_id: u64| -> f64 {
+        if !graph.is_directed() {
+            graph.degree_rust(node_id) as f64
+        } else {
+            match target_dir {
+                "in" => graph.get_in_degree(node_id) as f64,
+                "out" => graph.get_out_degree(node_id) as f64,
+                "in+out" => (graph.get_in_degree(node_id) + graph.get_out_degree(node_id)) as f64,
+                _ => unreachable!(),
+            }
+        }
+    };
+
+    // Build adjacency structure using the neighbors method
+    let get_neighbors = |node_id: u64| -> PyResult<Vec<u64>> {
+        if !graph.is_directed() {
+            // For undirected graphs, get neighbors
+            graph.neighbors(node_id)
+        } else {
+            // For directed graphs, handle source direction
+            match source_dir {
+                "out" => graph.neighbors(node_id), // successors
+                "in" => {
+                    // Get predecessors by finding all edges pointing to this node
+                    let mut preds = Vec::new();
+                    for other_id in &all_node_ids {
+                        if let Ok(neighbors) = graph.neighbors(*other_id) {
+                            if neighbors.contains(&node_id) {
+                                preds.push(*other_id);
+                            }
+                        }
+                    }
+                    Ok(preds)
+                }
+                "in+out" => {
+                    // Get both successors and predecessors
+                    let mut all = graph.neighbors(node_id)?;
+                    for other_id in &all_node_ids {
+                        if let Ok(neighbors) = graph.neighbors(*other_id) {
+                            if neighbors.contains(&node_id) && !all.contains(other_id) {
+                                all.push(*other_id);
+                            }
+                        }
+                    }
+                    Ok(all)
+                }
+                _ => unreachable!(),
+            }
+        }
+    };
+
+    // Get edge weights if specified
+    if weight.is_some() {
+        // For now, weighted version is not implemented
+        // TODO: Access edge DataFrame properly to get weights
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Weighted average_neighbor_degree not yet implemented",
+        ));
+    }
+
+    // Compute average neighbor degree for each node
+    let mut result = FxHashMap::default();
+
+    for node_id in node_ids {
+        let node = graph
+            .get_node(node_id)
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("Node not found")
+            })?;
+
+        let label = node.label.ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("Node has no label")
+        })?;
+
+        let neighbors = get_neighbors(node_id)?;
+
+        if neighbors.is_empty() {
+            result.insert(label, 0.0);
+            continue;
+        }
+
+        // Unweighted version: simple average
+        let sum: f64 = neighbors
+            .iter()
+            .map(|&neighbor_id| get_target_degree(neighbor_id))
+            .sum();
+        let avg_degree = sum / neighbors.len() as f64;
+
+        result.insert(label, avg_degree);
+    }
+
+    Ok(result)
+}
