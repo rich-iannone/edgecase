@@ -158,6 +158,178 @@ fn compute_betweenness_from_source(
     betweenness
 }
 
+/// Calculate load centrality for all nodes
+///
+/// Load centrality is similar to betweenness centrality but uses a different
+/// accumulation formula. It measures the fraction of shortest paths that pass
+/// through each node, where the load on each node is accumulated differently
+/// than in betweenness centrality.
+///
+/// The key difference from betweenness:
+/// - Betweenness: dependency accumulation with sigma ratios
+/// - Load: simpler load accumulation counting predecessor contributions
+///
+/// References:
+/// - Newman, M. E. J. (2001). Scientific collaboration networks. II.
+///   Shortest paths, weighted networks, and centrality.
+///   Physical Review E, 64(016132).
+///
+/// Performance: O(V·E) time with BFS from each node, parallelized with Rayon
+#[pyfunction]
+#[pyo3(signature = (graph, normalized=true, cutoff=None))]
+#[inline]
+pub fn load_centrality(
+    graph: &Graph,
+    normalized: bool,
+    cutoff: Option<i32>,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Ok(FxHashMap::default());
+    }
+
+    // Create node_id to index mapping for array-based storage
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    // Parallel computation: each source node processes independently
+    let load = node_ids
+        .par_iter()
+        .map(|&source| {
+            compute_load_from_source(graph, source, &node_ids, &node_to_idx, cutoff)
+        })
+        .reduce(
+            || vec![0.0; n],
+            |mut acc, partial| {
+                for i in 0..n {
+                    acc[i] += partial[i];
+                }
+                acc
+            }
+        );
+
+    let mut result_vec = load;
+
+    // Normalization if requested
+    if normalized && n > 2 {
+        let scale = 1.0 / ((n - 1) * (n - 2)) as f64;
+        for value in result_vec.iter_mut() {
+            *value *= scale;
+        }
+    }
+
+    // Convert back to HashMap with node IDs
+    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for (idx, &node_id) in node_ids.iter().enumerate() {
+        result.insert(node_id, result_vec[idx]);
+    }
+
+    Ok(result)
+}
+
+/// Helper: Compute load contribution from a single source node
+///
+/// This implements the Newman load centrality algorithm which differs
+/// from betweenness in the accumulation step.
+#[inline]
+fn compute_load_from_source(
+    graph: &Graph,
+    source: u64,
+    node_ids: &[u64],
+    node_to_idx: &FxHashMap<u64, usize>,
+    cutoff: Option<i32>,
+) -> Vec<f64> {
+    use std::collections::VecDeque;
+
+    let n = node_ids.len();
+    let source_idx = node_to_idx[&source];
+
+    // Local arrays for this source's BFS
+    let mut predecessors: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut distance: Vec<i32> = vec![-1; n];
+    let mut load: Vec<f64> = vec![1.0; n];  // Initialize with 1.0
+    let mut queue: VecDeque<usize> = VecDeque::with_capacity(n);
+    let mut ordered_nodes: Vec<usize> = Vec::with_capacity(n);
+
+    // Initialize source
+    distance[source_idx] = 0;
+    queue.push_back(source_idx);
+
+    // BFS to find shortest paths
+    while let Some(v_idx) = queue.pop_front() {
+        ordered_nodes.push(v_idx);
+        let v = node_ids[v_idx];
+        let dist_v = distance[v_idx];
+
+        // Check cutoff
+        if let Some(max_dist) = cutoff {
+            if dist_v >= max_dist {
+                continue;
+            }
+        }
+
+        // Get neighbors of v
+        if let Ok(neighbors) = graph.neighbors(v) {
+            for w in neighbors {
+                let w_idx = node_to_idx[&w];
+
+                // First time we see w?
+                if distance[w_idx] < 0 {
+                    queue.push_back(w_idx);
+                    distance[w_idx] = dist_v + 1;
+                }
+
+                // Shortest path to w via v?
+                if distance[w_idx] == dist_v + 1 {
+                    predecessors[w_idx].push(v_idx);
+                }
+            }
+        }
+    }
+
+    // Accumulation: process nodes in reverse order (by distance)
+    // Start from nodes furthest from source
+    while let Some(v_idx) = ordered_nodes.pop() {
+        if v_idx == source_idx {
+            continue;  // Skip source
+        }
+
+        let num_preds = predecessors[v_idx].len();
+        if num_preds > 0 {
+            let load_v = load[v_idx];
+            let contribution = load_v / num_preds as f64;
+
+            for &pred_idx in &predecessors[v_idx] {
+                if pred_idx == source_idx {
+                    break;  // Stop if we hit source
+                }
+                load[pred_idx] += contribution;
+            }
+        }
+    }
+
+    // Subtract 1 from each (initial value) and zero out source
+    for i in 0..n {
+        if i != source_idx && distance[i] >= 0 {
+            load[i] -= 1.0;
+        } else if i == source_idx {
+            load[i] = 0.0;
+        } else {
+            // Unreachable nodes get 0
+            load[i] = 0.0;
+        }
+    }
+
+    load
+}
+
 /// Calculate harmonic centrality for all nodes
 ///
 /// Harmonic centrality is the sum of the reciprocal of the shortest path distances
