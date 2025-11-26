@@ -10886,6 +10886,135 @@ class Graph:
 
         return eulerian_circuit(self._graph)
 
+    def bridges(self) -> list[int]:
+        """
+        Find all bridge edges in the graph.
+
+        A bridge (also called a cut edge) is an edge whose removal increases the number
+        of connected components. Bridges are critical edges that, if removed, would
+        disconnect parts of the network.
+
+        Uses Tarjan's algorithm for undirected graphs (O(V+E) time complexity) and
+        strongly connected component analysis for directed graphs.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs that are bridges. Empty list if no bridges exist.
+
+        Examples
+        --------
+        Find bridges in a simple graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(4)
+
+        bridges = graph.bridges()
+        print(len(bridges))  # 3 (all edges are bridges in a path)
+        ```
+
+        Find bridges in a graph with a cycle:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(4)  # 0-1-2-3-0
+        graph.add_node(label="tail")
+        tail_id = graph.get_id_from_label("tail")
+        nodes = sorted(graph.get_node_ids())
+        graph.add_edge(nodes[-1], tail_id)  # Add a tail
+
+        bridges = graph.bridges()
+        print(len(bridges))  # 1 (only edge to tail is a bridge)
+        ```
+
+        Check bridge edges in a network:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(3)
+
+        bridge_ids = graph.bridges()
+        for edge_id in bridge_ids:
+            result = graph.get_node_ids_by_edge_id(edge_id)
+            if result:
+                u, v = result
+                print(f"Bridge: {u} - {v}")
+        ```
+
+        Notes
+        -----
+        - Bridges are critical for network vulnerability analysis
+        - In a tree, all edges are bridges
+        - In a cycle, no edges are bridges
+        - Related to articulation points (vertices whose removal disconnects the graph)
+        """
+        from edgecase._core import bridges
+
+        return bridges(self._graph)
+
+    def has_bridges(self) -> bool:
+        """
+        Check if the graph contains any bridge edges.
+
+        A bridge (cut edge) is an edge whose removal increases the number of
+        connected components. This method is more efficient than bridges() when
+        you only need to know if bridges exist, not which edges they are.
+
+        Returns
+        -------
+        bool
+            True if at least one bridge exists, False otherwise.
+
+        Examples
+        --------
+        Check if a cycle has bridges:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(5)
+
+        print(graph.has_bridges())  # False (cycles have no bridges)
+        ```
+
+        Check if a path has bridges:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        print(graph.has_bridges())  # True (all tree edges are bridges)
+        ```
+
+        Check a mixed graph:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(4)  # Dense component
+        graph.add_node(label="isolated")
+        isolated_id = graph.get_id_from_label("isolated")
+        nodes = sorted(graph.get_node_ids())
+        graph.add_edge(nodes[-2], isolated_id)  # Bridge to isolated node
+
+        if graph.has_bridges():
+            bridges = graph.bridges()
+            print(f"Found {len(bridges)} bridge(s)")
+        ```
+
+        Notes
+        -----
+        - More efficient than `len(bridges()) > 0` for large graphs
+        - Useful for quick connectivity analysis
+        - Returns False for complete graphs and cycles
+        """
+        from edgecase._core import has_bridges
+
+        return has_bridges(self._graph)
+
     # ==============================================================================
     # Similarity Methods
     # ==============================================================================
