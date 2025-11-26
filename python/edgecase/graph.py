@@ -10427,6 +10427,279 @@ class Graph:
         return self
 
     # ==============================================================================
+    # Matching Methods
+    # ==============================================================================
+
+    def is_matching(self, edges: list[Union[int, str]]) -> bool:
+        """
+        Check if a set of edges forms a valid matching.
+
+        A matching is a set of edges where no two edges share a common endpoint (node).
+        This is useful for validating matchings or checking matching constraints.
+
+        Parameters
+        ----------
+        edges
+            List of edge IDs or edge labels to check.
+
+        Returns
+        -------
+        bool
+            True if the edges form a valid matching (no shared endpoints), False otherwise.
+
+        Examples
+        --------
+        Check a valid matching:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("C", "D")
+        )
+
+        edge_ids = graph.get_edge_ids()
+        is_valid = graph.is_matching(edge_ids)
+        print(is_valid)  # True (no shared endpoints)
+        ```
+
+        Check an invalid matching:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        edge_ids = graph.get_edge_ids()
+        is_valid = graph.is_matching(edge_ids)
+        print(is_valid)  # False (B is shared)
+        ```
+
+        Validate a computed matching:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(6)
+
+        matching = graph.maximal_matching()
+        assert graph.is_matching(matching)  # Always True for maximal_matching result
+        ```
+        """
+        from edgecase._core import is_matching
+
+        # Edge IDs are already integers, no need to resolve
+        return is_matching(self._graph, edges)
+
+    def maximal_matching(self) -> list[int]:
+        """
+        Find a maximal matching in the graph.
+
+        A maximal matching is a matching (set of edges with no shared endpoints) that cannot be
+        extended by adding any other edge. Uses a greedy algorithm.
+
+        Note: A maximal matching is not necessarily a maximum matching (largest possible).
+        For weighted graphs, use `max_weight_matching()`.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs forming a maximal matching.
+
+        Examples
+        --------
+        Find a maximal matching in a path:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(6)  # 1-2-3-4-5-6
+
+        matching = graph.maximal_matching()
+        print(f"Matched {len(matching)} edges")
+        # Will match 3 edges (e.g., 1-2, 3-4, 5-6)
+
+        # Verify it's a valid matching
+        assert graph.is_matching(matching)
+        ```
+
+        Visualize the matching:
+
+        ```python
+        graph = Graph()
+        graph.add_grid_2d(rows=4, cols=4)
+
+        matching = graph.maximal_matching()
+
+        # Mark matched edges
+        matched_dict = {edge_id: True for edge_id in matching}
+        graph.set_edge_attrs("matched", matched_dict)
+
+        # Color matched edges
+        colors = {edge_id: "red" for edge_id in matching}
+        graph.set_edge_attrs("color", colors)
+        ```
+
+        Compare with complete graph:
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(10)
+
+        matching = graph.maximal_matching()
+        print(f"Nodes: {graph.count_nodes()}")  # 10
+        print(f"Matched edges: {len(matching)}")  # 5 (perfect matching)
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(E) where E is the number of edges
+        - Space complexity: O(V) for tracking matched nodes
+        - Greedy algorithm: processes edges in arbitrary order
+        - Result may vary between calls due to iteration order
+        - For maximum cardinality matching, use specialized algorithms
+        - For weighted matching, use `max_weight_matching()`
+        """
+        from edgecase._core import maximal_matching
+
+        return maximal_matching(self._graph)
+
+    def max_weight_matching(self) -> list[int]:
+        """
+        Find a maximum weight matching in the graph.
+
+        Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
+        selects edges by weight in descending order. For unweighted graphs, all edges have
+        weight 1.0.
+
+        Note: This is a greedy approximation, not guaranteed to be optimal for general graphs.
+        For optimal solutions on bipartite graphs, use specialized bipartite matching algorithms.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs forming a maximum weight matching.
+
+        Examples
+        --------
+        Find maximum weight matching:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B", weight=10.0)
+            .add_edge("B", "C", weight=1.0)
+            .add_edge("C", "D", weight=1.0)
+            .add_edge("A", "C", weight=2.0)
+        )
+
+        matching = graph.max_weight_matching()
+
+        # Calculate total weight
+        total_weight = sum(
+            graph.get_edge(eid).weight for eid in matching
+        )
+        print(f"Total weight: {total_weight}")
+        ```
+
+        Unweighted graph (maximizes cardinality):
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(8)
+
+        matching = graph.max_weight_matching()
+        print(f"Matched {len(matching)} edges")  # 4 (perfect matching)
+
+        # Verify it's valid
+        assert graph.is_matching(matching)
+        ```
+
+        Compare greedy with optimal:
+
+        ```python
+        from edgecase import Graph
+
+        # Triangle with one heavy edge
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=5.0)
+            .add_edge("B", "C", weight=3.0)
+            .add_edge("A", "C", weight=2.0)
+        )
+
+        matching = graph.max_weight_matching()
+        # Greedy picks A-B (5.0), blocks B-C and A-C
+        # Optimal would be A-C (2.0) + B-? if more nodes existed
+
+        matched_edges = [graph.get_edge(eid) for eid in matching]
+        for edge in matched_edges:
+            print(f"{edge.source} - {edge.target}: {edge.weight}")
+        ```
+
+        Visualize the matching:
+
+        ```python
+        import random
+        from edgecase import Graph
+
+        graph = Graph(weighted=True)
+        graph.add_grid_2d(rows=5, cols=5)
+
+        # Add random weights
+        weights = {eid: random.uniform(0.5, 2.0) for eid in graph.get_edge_ids()}
+        graph.set_edge_attrs("weight", weights)
+
+        matching = graph.max_weight_matching()
+
+        # Highlight matched edges
+        colors = {edge_id: "red" for edge_id in matching}
+        widths = {edge_id: 3.0 for edge_id in matching}
+        graph.set_edge_attrs("color", colors)
+        graph.set_edge_attrs("width", widths)
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(E log E) for sorting edges
+        - Space complexity: O(V + E) for tracking matched nodes and edges
+        - Greedy approximation: selects heaviest edges first
+        - Not guaranteed optimal for general graphs
+        - Optimal for trees and forests
+        - For bipartite graphs, consider Hungarian algorithm
+        - For unweighted graphs, equivalent to maximal matching
+
+        References
+        ----------
+        For optimal maximum weight matching, see:
+        - Edmond's Blossom algorithm for general graphs
+        - Hungarian algorithm for bipartite graphs
+        """
+        from edgecase._core import max_weight_matching
+
+        return max_weight_matching(self._graph)
+
+    # ==============================================================================
     # Similarity Methods
     # ==============================================================================
 
