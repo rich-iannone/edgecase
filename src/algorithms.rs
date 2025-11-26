@@ -5,6 +5,7 @@ pub mod community;
 pub mod connectivity;
 pub mod cycles;
 pub mod domirank;
+pub mod matching;
 pub mod paths;
 pub mod simd_intersection;
 pub mod structural;
