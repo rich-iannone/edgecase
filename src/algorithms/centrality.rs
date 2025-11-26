@@ -710,3 +710,187 @@ mod tests {
         assert!((ranks["A"] - 1.0).abs() < 1e-6);
     }
 }
+
+/// Calculate second order centrality for all nodes in an undirected graph
+///
+/// Second order centrality measures the standard deviation of return times
+/// for a perpetual random walk on the graph. Lower values indicate higher centrality.
+///
+/// Based on: Kermarrec, Le Merrer, Sericola, Trédan (2011)
+/// "Second order centrality: Distributed assessment of nodes criticity in complex networks"
+/// Computer Communications 34(5):619-628
+///
+/// Algorithm:
+/// 1. Balance graph for Metropolis-Hastings random walk (add self-loops)
+/// 2. Create transition probability matrix P
+/// 3. For each node i, compute M[:, i] by solving: (I - Q_i) * M[:, i] = 1
+///    where Q_i is P with column i zeroed
+/// 4. Centrality = sqrt(2 * sum(M[:, i]) - n * (n + 1))
+///
+/// Complexity: O(n^3) due to solving n linear systems of size n
+/// This makes it viable only for small to medium graphs (< 1000 nodes)
+///
+/// Note: Currently only supports unweighted graphs
+///
+/// Returns:
+/// - HashMap mapping node_label to second order centrality value
+///
+/// Errors:
+/// - Returns error if graph is directed (not supported)
+/// - Returns error if graph is empty
+/// - Returns error if graph is not connected
+#[pyfunction]
+#[pyo3(signature = (graph))]
+pub fn second_order_centrality(
+    graph: &Graph,
+) -> PyResult<FxHashMap<String, f64>> {
+    use nalgebra::{DMatrix, DVector};
+
+    // Check if graph is directed
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Second order centrality is not defined for directed graphs",
+        ));
+    }
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err("Empty graph"));
+    }
+
+    // Check connectivity - use BFS from first node
+    {
+        let mut visited = vec![false; n];
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(0);
+        visited[0] = true;
+        let mut count = 1;
+
+        while let Some(idx) = queue.pop_front() {
+            let node_id = node_ids[idx];
+            if let Ok(neighbors) = graph.neighbors(node_id) {
+                for neighbor_id in neighbors {
+                    if let Some(neighbor_idx) = node_ids.iter().position(|&id| id == neighbor_id) {
+                        if !visited[neighbor_idx] {
+                            visited[neighbor_idx] = true;
+                            queue.push_back(neighbor_idx);
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        if count != n {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Graph is not connected",
+            ));
+        }
+    }
+
+    // Create node_id to index mapping
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    // Build degree vector (unweighted)
+    let mut in_degree = vec![0; n];
+    for i in 0..n {
+        let node_id = node_ids[i];
+        if let Ok(neighbors) = graph.neighbors(node_id) {
+            in_degree[i] = neighbors.len();
+        }
+    }
+
+    let d_max = *in_degree.iter().max().unwrap_or(&0);
+
+    // Build transition probability matrix P
+    // Balance graph by adding self-loops to achieve equal in-degree
+    let mut p_matrix = DMatrix::<f64>::zeros(n, n);
+
+    for i in 0..n {
+        let node_id = node_ids[i];
+        let self_loop_weight = d_max - in_degree[i];
+
+        // Add self-loop if needed
+        if self_loop_weight > 0 {
+            p_matrix[(i, i)] = self_loop_weight as f64;
+        }
+
+        // Add edges to neighbors (weight 1.0 each)
+        if let Ok(neighbors) = graph.neighbors(node_id) {
+            for neighbor_id in neighbors {
+                if let Some(&j) = node_to_idx.get(&neighbor_id) {
+                    p_matrix[(i, j)] += 1.0;
+                }
+            }
+        }
+
+        // Normalize row to get transition probabilities
+        let row_sum = p_matrix.row(i).sum();
+        if row_sum > 0.0 {
+            for j in 0..n {
+                p_matrix[(i, j)] /= row_sum;
+            }
+        }
+    }
+
+    // Compute M matrix: M[:, i] = solve((I - Q_i), ones)
+    // where Q_i is P with column i zeroed
+    let identity = DMatrix::<f64>::identity(n, n);
+    let ones = DVector::<f64>::from_element(n, 1.0);
+    let mut m_matrix = DMatrix::<f64>::zeros(n, n);
+
+    for i in 0..n {
+        // Create Q_i: P with column i zeroed
+        let mut q_i = p_matrix.clone();
+        for j in 0..n {
+            q_i[(j, i)] = 0.0;
+        }
+
+        // Solve (I - Q_i) * m_col = ones
+        let system = &identity - &q_i;
+
+        // Use LU decomposition to solve the system
+        match system.lu().solve(&ones) {
+            Some(m_col) => {
+                for j in 0..n {
+                    m_matrix[(j, i)] = m_col[j];
+                }
+            }
+            None => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Failed to solve linear system (matrix may be singular)",
+                ));
+            }
+        }
+    }
+
+    // Compute second order centrality: sqrt(2 * sum(M[:, i]) - n * (n + 1))
+    let mut result = FxHashMap::default();
+    let n_f64 = n as f64;
+
+    for i in 0..n {
+        let node_id = node_ids[i];
+        let node = graph
+            .get_node(node_id)
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("Node not found")
+            })?;
+
+        let label = node.label.ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("Node has no label")
+        })?;
+
+        let m_sum: f64 = m_matrix.column(i).iter().sum();
+        let centrality = (2.0 * m_sum - n_f64 * (n_f64 + 1.0)).sqrt();
+
+        result.insert(label, centrality);
+    }
+
+    Ok(result)
+}
