@@ -17799,7 +17799,7 @@ class Graph:
         self,
         attr_name: str | None = None,
         return_dict: bool = False,
-    ) -> Union[dict[str, float], "Graph"]:
+    ) -> Union[dict[int, float], "Graph"]:
         """
         Compute the second order centrality for nodes in the graph.
 
@@ -17816,13 +17816,13 @@ class Graph:
             Name of node attribute to store centrality values. If `None`, uses
             `second_order_centrality`. Only used when `return_dict=False`.
         return_dict : bool, default False
-            If `True`, returns dict mapping node labels to centrality values. If `False`, stores
+            If `True`, returns dict mapping node IDs to centrality values. If `False`, stores
             values in graph and returns self for chaining.
 
         Returns
         -------
         dict or Graph
-            If r`eturn_dict=True`: dictionary mapping node label to centrality value. If
+            If r`eturn_dict=True`: dictionary mapping node ID to centrality value. If
             `return_dict=False`: self (for method chaining).
 
         Raises
@@ -17879,9 +17879,11 @@ class Graph:
         soc = graph.second_order_centrality(return_dict=True)
 
         # Middle nodes have lower values (higher centrality)
-        most_central = min(soc, key=soc.get)
-        print(f"Most central node: {most_central}")  # Node '2'
-        print(f"Centrality value: {soc[most_central]:.3f}")
+        # Note: keys are node IDs, not labels
+        most_central_id = min(soc, key=soc.get)
+        most_central_label = graph.get_label_from_id(most_central_id)
+        print(f"Most central node: {most_central_label}")  # Node '2'
+        print(f"Centrality value: {soc[most_central_id]:.3f}")
         ```
 
         Compare centrality across different graph structures:
@@ -17889,7 +17891,7 @@ class Graph:
         ```python
         from edgecase import Graph
 
-        # Star graph - center should be most central
+        # Star graph: center should be most central
         star = Graph()
         star.add_node(label='center')
         for i in range(5):
@@ -17897,10 +17899,12 @@ class Graph:
             star.add_edge('center', f'leaf_{i}')
 
         star_soc = star.second_order_centrality(return_dict=True)
-        print(f"Center: {star_soc['center']:.3f}")
-        print(f"Leaf: {star_soc['leaf_0']:.3f}")  # Higher value (less central)
+        center_id = star.get_id_from_label('center')
+        leaf_id = star.get_id_from_label('leaf_0')
+        print(f"Center: {star_soc[center_id]:.3f}")
+        print(f"Leaf: {star_soc[leaf_id]:.3f}")  # Higher value (less central)
 
-        # Complete graph - all nodes equally central
+        # Complete graph: all nodes equally central
         complete = Graph()
         for i in range(4):
             complete.add_node(label=str(i))
