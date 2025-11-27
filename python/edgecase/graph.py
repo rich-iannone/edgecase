@@ -18685,7 +18685,7 @@ class Graph:
 
         Returns
         -------
-        Union[dict[str, float], Graph]
+        Union[dict[int, float], Graph]
             If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
             `return_dict` is `False`: returns self for method chaining.
 
