@@ -920,7 +920,7 @@ pub fn second_order_centrality(
 /// * `weight` - Optional edge attribute name for weights
 ///
 /// # Returns
-/// * `HashMap<String, f64>` - Map from node label to average neighbor degree
+/// * `HashMap<u64, f64>` - Map from node ID to average neighbor degree
 ///
 /// # Errors
 /// * Returns error if graph is empty
@@ -937,7 +937,7 @@ pub fn average_neighbor_degree(
     source: Option<&str>,
     target: Option<&str>,
     weight: Option<&str>,
-) -> PyResult<FxHashMap<String, f64>> {
+) -> PyResult<FxHashMap<u64, f64>> {
     let n = graph.num_nodes();
     if n == 0 {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -1055,20 +1055,10 @@ pub fn average_neighbor_degree(
     let mut result = FxHashMap::default();
 
     for node_id in node_ids {
-        let node = graph
-            .get_node(node_id)
-            .ok_or_else(|| {
-                pyo3::exceptions::PyValueError::new_err("Node not found")
-            })?;
-
-        let label = node.label.ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("Node has no label")
-        })?;
-
         let neighbors = get_neighbors(node_id)?;
 
         if neighbors.is_empty() {
-            result.insert(label, 0.0);
+            result.insert(node_id, 0.0);
             continue;
         }
 
@@ -1079,7 +1069,7 @@ pub fn average_neighbor_degree(
             .sum();
         let avg_degree = sum / neighbors.len() as f64;
 
-        result.insert(label, avg_degree);
+        result.insert(node_id, avg_degree);
     }
 
     Ok(result)
