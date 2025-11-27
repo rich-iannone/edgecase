@@ -17980,7 +17980,7 @@ class Graph:
         weight: str | None = None,
         attr_name: str | None = None,
         return_dict: bool = False,
-    ) -> Union[dict[str, float], "Graph"]:
+    ) -> Union[dict[int, float], "Graph"]:
         """
         Compute average neighbor degree for each node.
 
@@ -18019,7 +18019,7 @@ class Graph:
         Returns
         -------
         dict or Graph
-            If `return_dict=True`: dictionary mapping node label to average neighbor degree. If
+            If `return_dict=True`: dictionary mapping node ID to average neighbor degree. If
             `return_dict=False`: self (for method chaining).
 
         Raises
