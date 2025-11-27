@@ -743,7 +743,7 @@ mod tests {
 #[pyo3(signature = (graph))]
 pub fn second_order_centrality(
     graph: &Graph,
-) -> PyResult<FxHashMap<String, f64>> {
+) -> PyResult<FxHashMap<u64, f64>> {
     use nalgebra::{DMatrix, DVector};
 
     // Check if graph is directed
@@ -876,20 +876,11 @@ pub fn second_order_centrality(
 
     for i in 0..n {
         let node_id = node_ids[i];
-        let node = graph
-            .get_node(node_id)
-            .ok_or_else(|| {
-                pyo3::exceptions::PyValueError::new_err("Node not found")
-            })?;
-
-        let label = node.label.ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("Node has no label")
-        })?;
 
         let m_sum: f64 = m_matrix.column(i).iter().sum();
         let centrality = (2.0 * m_sum - n_f64 * (n_f64 + 1.0)).sqrt();
 
-        result.insert(label, centrality);
+        result.insert(node_id, centrality);
     }
 
     Ok(result)
