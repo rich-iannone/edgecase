@@ -1,7 +1,7 @@
 //! Graph data structure and core operations
 
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
@@ -3255,6 +3255,232 @@ impl Graph {
         }
 
         Ok(max_flow)
+    }
+
+    /// Get minimum edge cut between two nodes
+    /// Returns the set of edges (as tuples) that form the minimum cut separating source from sink
+    /// Uses Ford-Fulkerson algorithm and then identifies the cut edges
+    pub fn minimum_edge_cut<'py>(&self, py: Python<'py>, source: u64, sink: u64) -> PyResult<Bound<'py, PySet>> {
+        if !self.nodes.contains_key(&source) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Source node {} does not exist", source),
+            ));
+        }
+        if !self.nodes.contains_key(&sink) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Sink node {} does not exist", sink),
+            ));
+        }
+        if source == sink {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Source and sink must be different nodes",
+            ));
+        }
+
+        // Build capacity matrix
+        let estimated_size = if self.directed { self.edges.len() } else { self.edges.len() * 2 };
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(estimated_size, Default::default());
+
+        for edge in &self.edges {
+            let key = (edge.source, edge.target);
+            *capacity.entry(key).or_insert(0) += 1;
+
+            if !self.directed {
+                let rev_key = (edge.target, edge.source);
+                *capacity.entry(rev_key).or_insert(0) += 1;
+            }
+        }
+
+        // Run max flow algorithm
+        let mut residual = capacity.clone();
+
+        loop {
+            let path = self.bfs_augmenting_path(source, sink, &residual);
+            if path.is_empty() {
+                break;
+            }
+
+            let mut path_flow = usize::MAX;
+            for i in 0..path.len() - 1 {
+                let edge_key = (path[i], path[i + 1]);
+                let cap = residual.get(&edge_key).copied().unwrap_or(0);
+                path_flow = path_flow.min(cap);
+            }
+
+            for i in 0..path.len() - 1 {
+                let forward_key = (path[i], path[i + 1]);
+                let backward_key = (path[i + 1], path[i]);
+                *residual.entry(forward_key).or_insert(0) -= path_flow;
+                *residual.entry(backward_key).or_insert(0) += path_flow;
+            }
+        }
+
+        // Find reachable nodes from source in residual graph
+        let mut reachable = FxHashSet::default();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(source);
+        reachable.insert(source);
+
+        while let Some(current) = queue.pop_front() {
+            for &other_node in self.nodes.keys() {
+                let edge_key = (current, other_node);
+                let cap = residual.get(&edge_key).copied().unwrap_or(0);
+                if cap > 0 && !reachable.contains(&other_node) {
+                    reachable.insert(other_node);
+                    queue.push_back(other_node);
+                }
+            }
+        }
+
+        // Find cut edges: edges from reachable to non-reachable nodes
+        let result = PySet::empty(py)?;
+        for edge in &self.edges {
+            let in_source_side = reachable.contains(&edge.source);
+            let in_sink_side = reachable.contains(&edge.target);
+
+            // For undirected graphs, we need to check both directions
+            if !self.directed {
+                if (in_source_side && !in_sink_side) || (!in_source_side && in_sink_side) {
+                    let edge_tuple = (edge.source, edge.target);
+                    result.add(edge_tuple)?;
+                }
+            } else {
+                // For directed graphs, only edges going from source side to sink side
+                if in_source_side && !in_sink_side {
+                    let edge_tuple = (edge.source, edge.target);
+                    result.add(edge_tuple)?;
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Get minimum node cut between two nodes
+    /// Returns the set of nodes whose removal disconnects source from sink
+    /// Uses transformation to edge connectivity problem
+    pub fn minimum_node_cut<'py>(&self, py: Python<'py>, source: u64, sink: u64) -> PyResult<Bound<'py, PySet>> {
+        if !self.nodes.contains_key(&source) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Source node {} does not exist", source),
+            ));
+        }
+        if !self.nodes.contains_key(&sink) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Sink node {} does not exist", sink),
+            ));
+        }
+        if source == sink {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Source and sink must be different nodes",
+            ));
+        }
+
+        // Node connectivity is computed by transforming to edge connectivity:
+        // Split each node v into v_in and v_out with an edge of capacity 1
+        // This ensures removing a node requires removing its internal edge
+
+        // Create node mapping: original_node -> (in_node, out_node)
+        // Use high IDs to avoid collisions: in = id * 2, out = id * 2 + 1
+        let max_id = self.nodes.keys().max().copied().unwrap_or(0);
+        let offset = max_id + 1;
+
+        // Build capacity matrix for transformed graph
+        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+
+        // Add internal edges (node capacity = 1)
+        // Exception: source and sink have infinite capacity (don't count them in the cut)
+        for &node_id in self.nodes.keys() {
+            let in_node = node_id + offset;
+            let out_node = node_id + offset * 2;
+
+            if node_id != source && node_id != sink {
+                capacity.insert((in_node, out_node), 1);
+            } else {
+                // Source and sink should not be part of the cut
+                capacity.insert((in_node, out_node), usize::MAX / 2);
+            }
+        }
+
+        // Add external edges (infinite capacity, as we only cut nodes, not edges)
+        for edge in &self.edges {
+            let from_out = edge.source + offset * 2;
+            let to_in = edge.target + offset;
+
+            capacity.insert((from_out, to_in), usize::MAX / 2);
+
+            if !self.directed {
+                let to_out = edge.target + offset * 2;
+                let from_in = edge.source + offset;
+                capacity.insert((to_out, from_in), usize::MAX / 2);
+            }
+        }
+
+        // Run max flow from source_out to sink_in
+        let source_transformed = source + offset * 2;
+        let sink_transformed = sink + offset;
+
+        let mut residual = capacity.clone();
+
+        loop {
+            let path = self.bfs_augmenting_path_custom(source_transformed, sink_transformed, &residual);
+            if path.is_empty() {
+                break;
+            }
+
+            let mut path_flow = usize::MAX;
+            for i in 0..path.len() - 1 {
+                let edge_key = (path[i], path[i + 1]);
+                let cap = residual.get(&edge_key).copied().unwrap_or(0);
+                path_flow = path_flow.min(cap);
+            }
+
+            for i in 0..path.len() - 1 {
+                let forward_key = (path[i], path[i + 1]);
+                let backward_key = (path[i + 1], path[i]);
+                *residual.entry(forward_key).or_insert(0) -= path_flow;
+                *residual.entry(backward_key).or_insert(0) += path_flow;
+            }
+        }
+
+        // Find reachable nodes from source in residual graph
+        let mut reachable = FxHashSet::default();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(source_transformed);
+        reachable.insert(source_transformed);
+
+        while let Some(current) = queue.pop_front() {
+            for (&_from, &to, &_cap) in residual.iter().filter_map(|(k, v)| {
+                if k.0 == current && *v > 0 {
+                    Some((&k.0, &k.1, v))
+                } else {
+                    None
+                }
+            }) {
+                if !reachable.contains(&to) {
+                    reachable.insert(to);
+                    queue.push_back(to);
+                }
+            }
+        }
+
+        // Find nodes whose internal edge was saturated (in reachable but out not reachable)
+        let result = PySet::empty(py)?;
+        for &node_id in self.nodes.keys() {
+            if node_id == source || node_id == sink {
+                continue; // Don't include source or sink in the cut
+            }
+
+            let in_node = node_id + offset;
+            let out_node = node_id + offset * 2;
+
+            // If in_node is reachable but out_node is not, this node is in the cut
+            if reachable.contains(&in_node) && !reachable.contains(&out_node) {
+                result.add(node_id)?;
+            }
+        }
+
+        Ok(result)
     }
 
     /// Compute edge connectivity (minimum edge cut)
