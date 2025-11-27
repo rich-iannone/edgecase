@@ -8427,7 +8427,7 @@ class Graph:
     # ==============================================================================
 
     def degrees(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """
         Get degree for all nodes in the graph.
@@ -9272,7 +9272,7 @@ class Graph:
         return self._graph.get_girth()
 
     def eccentricity(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int | None], "Graph"]:
         """
         Calculate eccentricity for each node in the graph.
@@ -9337,7 +9337,7 @@ class Graph:
         return self
 
     def radiality(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float | None], "Graph"]:
         """
         Calculate radiality centrality for each node in the graph.
@@ -9407,7 +9407,7 @@ class Graph:
         self,
         source: Union[int, str],
         target: Union[int, str],
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[int], "Graph", None]:
         """
@@ -9580,7 +9580,7 @@ class Graph:
         self,
         source: Union[int, str],
         target: Union[int, str],
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[int], "Graph", None]:
         """
@@ -10352,7 +10352,7 @@ class Graph:
     def bfs(
         self,
         start: Union[int, str],
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[int], "Graph"]:
         """
@@ -10443,7 +10443,7 @@ class Graph:
     def dfs(
         self,
         start: Union[int, str],
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[int], "Graph"]:
         """
@@ -10534,7 +10534,7 @@ class Graph:
         damping: float = 0.85,
         max_iter: int = 100,
         tol: float = 1e-6,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -10551,27 +10551,26 @@ class Graph:
         Parameters
         ----------
         damping
-            The probability of following an edge (vs. random jump). Higher values (closer
-            to 1.0) give more weight to the graph structure. Typical range: 0.8-0.95.
+            The probability of following an edge (vs. random jump). Higher values (closer to `1.0`)
+            give more weight to the graph structure. Typical range: `0.8`-`0.95`.
         max_iter
-            Maximum number of iterations to run. The algorithm stops early if convergence
-            is reached.
+            Maximum number of iterations to run. The algorithm stops early if convergence is
+            reached.
         tol
-            Convergence tolerance. The algorithm stops when the sum of absolute differences
-            between iterations is less than this value.
+            Convergence tolerance. The algorithm stops when the sum of absolute differences between
+            iterations is less than this value.
         attr_name
-            Column name to store PageRank scores in the node DataFrame.
-            If None (default), automatically uses 'pagerank'.
-            Overwrites column if it already exists.
+            Column name to store PageRank scores in the node DataFrame. If `None` (default),
+            automatically uses `pagerank`. Overwrites column if it already exists.
         return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
+            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to PageRank scores (sum to 1.0).
-            If return_dict is False (default): returns self for method chaining.
+            If `return_dict` is `True`: dictionary mapping node IDs to PageRank scores (sum to
+            `1.0`). If `return_dict` is `False` (default): returns self for method chaining.
 
         Examples
         --------
@@ -10675,8 +10674,8 @@ class Graph:
         """
         Check if a set of edges forms a valid matching.
 
-        A matching is a set of edges where no two edges share a common endpoint (node).
-        This is useful for validating matchings or checking matching constraints.
+        A matching is a set of edges where no two edges share a common endpoint (node). This is
+        useful for validating matchings or checking matching constraints.
 
         Parameters
         ----------
@@ -14947,7 +14946,7 @@ class Graph:
         mode: str = "out",
         stuck: str = "return",
         seed: int | None = None,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[int], "Graph"]:
         """
@@ -15137,7 +15136,7 @@ class Graph:
         mode: str = "out",
         stuck: str = "return",
         seed: int | None = None,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[tuple[int, int, int]], "Graph"]:
         """
@@ -15920,7 +15919,7 @@ class Graph:
         return result
 
     def constraint(
-        self, weights: str | None = None, attr_name: str = None, return_dict: bool = False
+        self, weights: str | None = None, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float | None], "Graph"]:
         """
         Calculate Burt's constraint for each node.
@@ -16095,7 +16094,7 @@ class Graph:
     # ==============================================================================
 
     def local_clustering_coefficient(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, Optional[float]], "Graph"]:
         """
         Compute local clustering coefficient for each node.
@@ -16230,7 +16229,7 @@ class Graph:
         return self
 
     def clustering_coefficient(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
         """
         Calculate local clustering coefficient for each node.
@@ -16713,7 +16712,7 @@ class Graph:
     # ==============================================================================
 
     def cmty_fast_greedy(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """
         Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
@@ -16825,7 +16824,7 @@ class Graph:
         return self
 
     def cmty_edge_btwns(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """
         Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
@@ -16954,7 +16953,7 @@ class Graph:
         return self
 
     def cmty_l_eigenvec(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """
         Detect communities using Leading Eigenvector (Newman) algorithm.
@@ -17084,7 +17083,7 @@ class Graph:
         return self
 
     def cmty_louvain(
-        self, resolution: float = 1.0, attr_name: str = None, return_dict: bool = False
+        self, resolution: float = 1.0, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """
         Detect communities using Louvain multi-level optimization algorithm.
@@ -17234,7 +17233,7 @@ class Graph:
         return self
 
     def cmty_walktrap(
-        self, steps: int = 4, attr_name: str = None, return_dict: bool = False
+        self, steps: int = 4, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """
         Detect communities using Walktrap random walk algorithm.
@@ -17400,7 +17399,7 @@ class Graph:
     # ==============================================================================
 
     def closeness_vitality(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
         """
         Get closeness vitality centrality for each node.
@@ -17480,7 +17479,7 @@ class Graph:
         return self
 
     def coreness(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
         """
         Calculate k-core decomposition (coreness for each node).
@@ -17552,7 +17551,7 @@ class Graph:
     # ==============================================================================
 
     def betweenness_centrality(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
         """
         Calculate betweenness centrality scores for all nodes.
@@ -17659,7 +17658,7 @@ class Graph:
         self,
         normalized: bool = True,
         cutoff: int = None,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -17798,7 +17797,7 @@ class Graph:
 
     def second_order_centrality(
         self,
-        attr_name: Optional[str] = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[str, float], "Graph"]:
         """
@@ -18141,7 +18140,7 @@ class Graph:
         weights: str = None,
         normalized: bool = False,
         cutoff: int = -1,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -18339,7 +18338,7 @@ class Graph:
         self,
         max_iter: int = 100,
         tol: float = 1e-6,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -18441,7 +18440,7 @@ class Graph:
         self,
         max_iter: int = 100,
         tol: float = 1e-6,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -18543,7 +18542,7 @@ class Graph:
         self,
         max_iter: int = 100,
         tol: float = 1e-6,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -18649,7 +18648,7 @@ class Graph:
         alpha: float = 0.1,
         max_iter: int = 100,
         tol: float = 1e-6,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -18755,7 +18754,7 @@ class Graph:
         self,
         beta: float = 0.1,
         normalized: bool = False,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -18945,7 +18944,7 @@ class Graph:
         beta: float = 1.0,
         max_iter: int = 100,
         tol: float = 1e-6,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
@@ -19075,7 +19074,7 @@ class Graph:
         return self
 
     def leverage_centrality(
-        self, attr_name: str = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
         """
         Get leverage centrality for each node.
@@ -19176,7 +19175,7 @@ class Graph:
         patience: int = 10,
         max_depth: int = 50,
         return_sigma: bool = False,
-        attr_name: str = None,
+        attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], tuple[dict[int, float], float], "Graph", tuple["Graph", float]]:
         """
