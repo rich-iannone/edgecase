@@ -12,12 +12,17 @@ def test_second_order_centrality_path_graph():
 
     soc = graph.second_order_centrality(return_dict=True)
 
+    # Get node IDs
+    id_0 = graph.get_id_from_label("0")
+    id_1 = graph.get_id_from_label("1")
+    id_2 = graph.get_id_from_label("2")
+
     # Middle node should have lowest (best) centrality
-    assert soc["1"] < soc["0"]
-    assert soc["1"] < soc["2"]
+    assert soc[id_1] < soc[id_0]
+    assert soc[id_1] < soc[id_2]
 
     # End nodes should have similar centrality
-    assert abs(soc["0"] - soc["2"]) < 0.1
+    assert abs(soc[id_0] - soc[id_2]) < 0.1
 
 
 def test_second_order_centrality_complete_graph():
@@ -51,13 +56,17 @@ def test_second_order_centrality_star_graph():
 
     soc = graph.second_order_centrality(return_dict=True)
 
+    # Get node IDs
+    center_id = graph.get_id_from_label("center")
+    leaf_ids = [graph.get_id_from_label(f"leaf_{i}") for i in range(5)]
+
     # Center should have lowest (best) centrality
-    center_val = soc["center"]
-    for i in range(5):
-        assert center_val < soc[f"leaf_{i}"]
+    center_val = soc[center_id]
+    for leaf_id in leaf_ids:
+        assert center_val < soc[leaf_id]
 
     # All leaves should have similar centrality
-    leaf_vals = [soc[f"leaf_{i}"] for i in range(5)]
+    leaf_vals = [soc[leaf_id] for leaf_id in leaf_ids]
     for v in leaf_vals:
         assert abs(v - leaf_vals[0]) < 0.1
 
@@ -121,8 +130,9 @@ def test_second_order_centrality_single_node_with_self_loop():
 
     soc = graph.second_order_centrality(return_dict=True)
 
-    assert "A" in soc
-    assert soc["A"] == 0.0  # Single node should have centrality 0
+    node_id = graph.get_id_from_label("A")
+    assert node_id in soc
+    assert soc[node_id] == 0.0  # Single node should have centrality 0
 
 
 def test_second_order_centrality_two_nodes():
@@ -134,8 +144,12 @@ def test_second_order_centrality_two_nodes():
 
     soc = graph.second_order_centrality(return_dict=True)
 
+    # Get node IDs
+    id_a = graph.get_id_from_label("A")
+    id_b = graph.get_id_from_label("B")
+
     # Both nodes should have equal centrality
-    assert abs(soc["A"] - soc["B"]) < 0.01
+    assert abs(soc[id_a] - soc[id_b]) < 0.01
 
 
 def test_second_order_centrality_store_in_graph():
@@ -211,9 +225,15 @@ def test_second_order_centrality_barbell_graph():
 
     soc = graph.second_order_centrality(return_dict=True)
 
+    # Get node IDs
+    l0_id = graph.get_id_from_label("L0")
+    l1_id = graph.get_id_from_label("L1")
+    r0_id = graph.get_id_from_label("R0")
+    r1_id = graph.get_id_from_label("R1")
+
     # Bridge nodes should have lower centrality than other clique members
-    assert soc["L0"] < soc["L1"]
-    assert soc["R0"] < soc["R1"]
+    assert soc[l0_id] < soc[l1_id]
+    assert soc[r0_id] < soc[r1_id]
 
 
 def test_second_order_centrality_numerical_stability():
@@ -253,10 +273,15 @@ def test_second_order_centrality_values_match_paper():
 
     soc = graph.second_order_centrality(return_dict=True)
 
+    # Get node IDs
+    id_0 = graph.get_id_from_label("0")
+    id_1 = graph.get_id_from_label("1")
+    id_2 = graph.get_id_from_label("2")
+
     # Check values are in expected range (allowing some numerical variation)
-    assert 3.6 < soc["0"] < 3.9
-    assert 1.3 < soc["1"] < 1.6
-    assert 3.6 < soc["2"] < 3.9
+    assert 3.6 < soc[id_0] < 3.9
+    assert 1.3 < soc[id_1] < 1.6
+    assert 3.6 < soc[id_2] < 3.9
 
     # Complete graph K3: Expected values approximately [1.414, 1.414, 1.414]
     graph2 = Graph()
@@ -283,7 +308,7 @@ def test_second_order_centrality_return_types():
     # With return_dict=True
     result_dict = graph.second_order_centrality(return_dict=True)
     assert isinstance(result_dict, dict)
-    assert all(isinstance(k, str) for k in result_dict.keys())
+    assert all(isinstance(k, int) for k in result_dict.keys())  # Keys should be node IDs (int)
     assert all(isinstance(v, float) for v in result_dict.values())
 
     # With return_dict=False (default)
