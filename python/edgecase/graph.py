@@ -12807,6 +12807,164 @@ class Graph:
         sink_id = self._resolve_node_id(sink, auto_create=False)
         return self._graph.get_min_cut_between(source_id, sink_id)
 
+    def minimum_node_cut(self, source: Union[int, str], sink: Union[int, str]) -> set[int]:
+        """
+        Find minimum node cut between source and sink nodes.
+
+        Returns the set of nodes whose removal disconnects the source from the sink. Uses
+        transformation to an edge connectivity problem where each node is split into in/out copies
+        connected by unit capacity.
+
+        The source and sink themselves are never included in the returned cut set.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        set[int]
+            Set of node IDs forming the minimum node cut.
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Notes
+        -----
+        The node connectivity between two nodes is the minimum number of nodes that
+        must be removed to disconnect them. This is closely related to Menger's theorem.
+
+        Examples
+        --------
+        Find minimum node cut:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("A", "C", auto_create_nodes=True)
+            .add_edge("B", "D", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+            .add_edge("D", "E", auto_create_nodes=True)
+        )
+
+        # Find nodes that separate A from E
+        cut_nodes = graph.minimum_node_cut("A", "E")
+        # Returns {node_id_d} where removing node D disconnects A from E
+        ```
+
+        Here's an example on the topic of network vulnerability. We can identify single points of
+        failure:
+
+        ```python
+        # Communication network
+        graph = (
+            Graph()
+            .add_edge("Client", "Gateway", auto_create_nodes=True)
+            .add_edge("Gateway", "Server1", auto_create_nodes=True)
+            .add_edge("Gateway", "Server2", auto_create_nodes=True)
+            .add_edge("Server1", "Database", auto_create_nodes=True)
+            .add_edge("Server2", "Database", auto_create_nodes=True)
+        )
+
+        critical_nodes = graph.minimum_node_cut("Client", "Database")
+        # Identifies Gateway as single point of failure
+        print(f"Critical nodes: {len(critical_nodes)}")
+        ```
+
+        Social network bottlenecks:
+
+        ```python
+        # Find intermediaries between two people
+        graph = (
+            Graph()
+            .add_edge("Alice", "Bob", auto_create_nodes=True)
+            .add_edge("Bob", "Carol", auto_create_nodes=True)
+            .add_edge("Alice", "Dave", auto_create_nodes=True)
+            .add_edge("Dave", "Carol", auto_create_nodes=True)
+        )
+
+        intermediaries = graph.minimum_node_cut("Alice", "Carol")
+        # Returns {bob_id, dave_id} - both must be removed to disconnect
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.minimum_node_cut(source_id, sink_id)
+
+    def minimum_edge_cut(
+        self, source: Union[int, str], sink: Union[int, str]
+    ) -> set[tuple[int, int]]:
+        """
+        Find minimum edge cut between source and sink nodes.
+
+        Returns the set of edges whose removal disconnects the source from the sink. Uses the
+        max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut.
+
+        For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
+        edges are considered.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        set[tuple[int, int]]
+            Set of edge tuples (source_id, target_id) forming the minimum cut.
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Examples
+        --------
+        Find minimum edge cut in a simple graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("B", "C", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+            .add_edge("A", "D", auto_create_nodes=True)
+        )
+
+        # Find edges that separate A from C
+        cut_edges = graph.minimum_edge_cut("A", "C")
+        # Returns set of edge tuples like {(node_id_b, node_id_c), (node_id_d, node_id_c)}
+        ```
+
+        Network vulnerability analysis:
+
+        ```python
+        # Analyze which connections are critical
+        graph = (
+            Graph(directed=True)
+            .add_edge("Server1", "Router1", auto_create_nodes=True)
+            .add_edge("Router1", "Router2", auto_create_nodes=True)
+            .add_edge("Router2", "Server2", auto_create_nodes=True)
+            .add_edge("Router1", "Router3", auto_create_nodes=True)
+            .add_edge("Router3", "Server2", auto_create_nodes=True)
+        )
+
+        critical_links = graph.minimum_edge_cut("Server1", "Server2")
+        print(f"Removing {len(critical_links)} link(s) disconnects the servers")
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.minimum_edge_cut(source_id, sink_id)
+
     # ==============================================================================
     # Triangle and Transitivity Analysis
     # ==============================================================================
