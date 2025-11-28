@@ -8470,6 +8470,178 @@ class Graph:
 
         return rust_simple_cycles(self._graph, length_bound)
 
+    def cycle_basis(self, root: int | None = None) -> list[list[int]]:
+        """
+        Find a fundamental cycle basis of the graph.
+
+        A cycle basis is a minimal set of cycles such that any cycle in the graph can be
+        expressed as a symmetric difference (XOR) of cycles in the basis. For a connected
+        graph with V vertices and E edges, the cycle basis has exactly E - V + 1 cycles
+        (the cyclomatic complexity).
+
+        The algorithm builds a spanning tree using BFS from a root node, then for each
+        non-tree edge (back edge), finds the fundamental cycle it creates with the tree.
+
+        Parameters
+        ----------
+        root
+            Optional root node ID to start BFS from. If None, uses an arbitrary node.
+            Different root nodes may produce different (but equally valid) cycle bases.
+
+        Returns
+        -------
+        list[list[int]]
+            A list of cycles forming the cycle basis. Each cycle is a list of node IDs.
+            The cycles are fundamental cycles (each contains exactly one back edge).
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph (cycle basis only applies to undirected graphs).
+        ValueError
+            If the specified root node does not exist in the graph.
+
+        Examples
+        --------
+        Find the cycle basis of a simple graph:
+
+        ```python
+        # Square with diagonal
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+            .add_edge("A", "C")  # diagonal
+        )
+
+        basis = graph.cycle_basis()
+        print(len(basis))  # 2 fundamental cycles
+        # The two triangles formed by the diagonal
+        ```
+
+        Specify a root node:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        node_ids = graph.get_node_ids()
+        basis = graph.cycle_basis(root=node_ids[0])
+        print(len(basis))  # 1 (the triangle)
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(V + E) for building spanning tree and finding cycles.
+        - The cycle basis is not unique - different spanning trees yield different bases.
+        - Works on disconnected graphs (finds cycles in each component).
+        - For weighted graphs needing minimum total weight, use `minimum_cycle_basis()`.
+        """
+        from edgecase._core import cycle_basis as rust_cycle_basis
+
+        return rust_cycle_basis(self._graph, root)
+
+    def minimum_cycle_basis(self, weight: str | None = None) -> list[list[int]]:
+        """
+        Find a minimum weight cycle basis for the graph.
+
+        A minimum cycle basis is a cycle basis where the sum of weights of all cycles
+        is minimized. For unweighted graphs, this minimizes the sum of cycle lengths.
+
+        This implements a variant of Horton's algorithm:
+        1. For each edge (u,v), find the shortest path from u to v not using (u,v)
+        2. This gives a candidate cycle for each edge
+        3. Sort candidates by weight and greedily select linearly independent cycles
+
+        Parameters
+        ----------
+        weight
+            Edge attribute name to use as weight. If None, uses the default edge weight
+            (or 1.0 if edges don't have weights). The algorithm finds the basis that
+            minimizes the sum of cycle weights.
+
+        Returns
+        -------
+        list[list[int]]
+            A list of cycles forming a minimum weight cycle basis. Each cycle is a
+            list of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Examples
+        --------
+        Find minimum cycle basis of an unweighted graph:
+
+        ```python
+        # Two triangles sharing an edge
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+            .add_edge("B", "D")
+            .add_edge("D", "C")
+        )
+
+        basis = graph.minimum_cycle_basis()
+        print(len(basis))  # 2 cycles (the two triangles)
+        # Sum of cycle lengths is minimized (3 + 3 = 6)
+        ```
+
+        Find minimum cycle basis with edge weights:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=1.0)
+            .add_edge("B", "C", weight=2.0)
+            .add_edge("C", "A", weight=3.0)
+        )
+
+        basis = graph.minimum_cycle_basis(weight="weight")
+        # Returns the triangle with total weight 6.0
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(E * V^2) for Horton's algorithm variant.
+        - The minimum cycle basis is unique in terms of total weight (though there
+          may be multiple bases with the same minimum weight).
+        - Works on disconnected graphs (finds minimum basis for each component).
+        - For simple (unweighted) cycle basis, use `cycle_basis()` which is faster.
+
+        References
+        ----------
+        Horton, J. D. (1987). A polynomial-time algorithm to find the shortest cycle
+        basis of a graph. SIAM Journal on Computing, 16(2), 358-366.
+        """
+        from edgecase._core import minimum_cycle_basis as rust_minimum_cycle_basis
+
+        return rust_minimum_cycle_basis(self._graph, weight)
+
     # ==============================================================================
     # Clique Operations
     # ==============================================================================
