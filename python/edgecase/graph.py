@@ -8371,6 +8371,105 @@ class Graph:
         # Get cycles as node IDs from Rust
         return self._graph.get_cycles(float(min_length))
 
+    def simple_cycles(self, length_bound: int | None = None) -> list[list[int]]:
+        """
+        Find all simple cycles in the graph.
+
+        A simple cycle is a closed path where no node appears more than once (except that the first
+        and last node are the same). This method works for both directed and undirected graphs.
+
+        For directed graphs, uses Johnson's algorithm which is efficient and finds each cycle
+        exactly once.
+
+        For undirected graphs, uses a backtracking DFS approach that finds all elementary cycles by
+        starting from each node and exploring all paths that return to the starting node.
+
+        Parameters
+        ----------
+        length_bound
+            Optional maximum cycle length. If specified, only cycles with at most this many nodes
+            are returned. If None (default), all cycles are returned regardless of length.
+
+        Returns
+        -------
+        list[list[int]]
+            A list of cycles, where each cycle is a list of node IDs forming the cycle. The start
+            node is not repeated at the end.
+
+        Examples
+        --------
+        Find all cycles in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Creates cycle A -> B -> C -> A
+            .add_edge(source="B", target="A")  # Creates cycle A -> B -> A
+        )
+
+        cycles = graph.simple_cycles()
+        print(len(cycles))  # 2 cycles found
+        ```
+
+        Find cycles in an undirected graph (triangle):
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        cycles = graph.simple_cycles()
+        print(len(cycles))  # 1 cycle (the triangle)
+        ```
+
+        Limit cycle length:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="A")  # 2-cycle
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="A")  # 4-cycle
+        )
+
+        short_cycles = graph.simple_cycles(length_bound=3)
+        # Only returns cycles of length <= 3
+        ```
+
+        Notes
+        -----
+        - for directed graphs: `O(V + E)(C + 1)` where `C` is the number of cycles
+        - for undirected graphs: Can be exponential in worst case
+        - unlike `get_cycles()`, this method works for both directed and undirected graphs
+        - cycles are represented as sequences of node IDs without repeating the start node
+        - for undirected graphs, each cycle is returned only once (canonicalized)
+
+        References
+        ----------
+        Johnson, D. B. (1975). Finding all the elementary circuits of a directed
+        graph. SIAM Journal on Computing, 4(1), 77-84.
+        """
+        from edgecase._core import simple_cycles as rust_simple_cycles
+
+        return rust_simple_cycles(self._graph, length_bound)
+
     # ==============================================================================
     # Clique Operations
     # ==============================================================================
