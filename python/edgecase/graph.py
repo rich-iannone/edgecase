@@ -347,6 +347,28 @@ class Graph:
             else:
                 self.add_edge(source, target, rel=rel_value, **other_attrs)
 
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the graph.
+
+        Uses the describe() method to show comprehensive graph information
+        including structure, computations, and aesthetics.
+        """
+        import io
+        import sys
+
+        # Capture describe() output
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = io.StringIO()
+
+        try:
+            self.describe()
+            result = captured_output.getvalue()
+        finally:
+            sys.stdout = old_stdout
+
+        return result.rstrip()  # Remove trailing newline
+
     # ==============================================================================
     # ------------------------------------------------------------------------------
     # FOUNDATION
@@ -11362,6 +11384,313 @@ class Graph:
     # Centrality
     # ==============================================================================
 
+    def pagerank(
+        self,
+        damping: float = 0.85,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate PageRank scores for all nodes in the graph.
+
+        PageRank is a link analysis algorithm that assigns importance scores to nodes based on their
+        incoming connections. Originally developed by Google to rank web pages, it's widely used in
+        social network analysis, recommendation systems, and influence detection.
+
+        The algorithm iteratively distributes "rank" from each node to its neighbors, with a damping
+        factor to model random jumps. Nodes with many incoming edges from high-ranking nodes receive
+        higher scores.
+
+        Parameters
+        ----------
+        damping
+            The probability of following an edge (vs. random jump). Higher values (closer to `1.0`)
+            give more weight to the graph structure. Typical range: `0.8`-`0.95`.
+        max_iter
+            Maximum number of iterations to run. The algorithm stops early if convergence is
+            reached.
+        tol
+            Convergence tolerance. The algorithm stops when the sum of absolute differences between
+            iterations is less than this value.
+        attr_name
+            Column name to store PageRank scores in the node DataFrame. If `None` (default),
+            automatically uses `pagerank`. Overwrites column if it already exists.
+        return_dict
+            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to PageRank scores (sum to
+            `1.0`). If `return_dict` is `False` (default): returns self for method chaining.
+
+        Examples
+        --------
+        Calculate PageRank on a simple social network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+        )
+        alice_id = graph.get_id_from_label("Alice")
+        bob_id = graph.get_id_from_label("Bob")
+        charlie_id = graph.get_id_from_label("Charlie")
+
+        graph.add_edge(alice_id, bob_id)
+        graph.add_edge(alice_id, charlie_id)
+        graph.add_edge(bob_id, charlie_id)
+
+        scores = graph.pagerank(return_dict=True)
+        print(scores)
+        # {1: 0.262, 2: 0.262, 3: 0.475}  # Node IDs to scores
+
+        # Convert to labels if needed
+        label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
+        print(label_scores)
+        # {'Alice': 0.262, 'Bob': 0.262, 'Charlie': 0.475}
+        ```
+
+        Use custom damping factor for more exploration:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+        )
+        graph.add_edge(source="Alice", target="Bob")
+        graph.add_edge(source="Alice", target="Charlie")
+        graph.add_edge(source="Bob", target="Charlie")
+
+        scores = graph.pagerank(damping=0.5)  # More random jumping
+        ```
+
+        Find the most influential nodes:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+        )
+        graph.add_edge(source="Alice", target="Bob")
+        graph.add_edge(source="Alice", target="Charlie")
+        graph.add_edge(source="Bob", target="Charlie")
+
+        scores = graph.pagerank(return_dict=True)
+        top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
+        for node_id, score in top_nodes:
+            label = graph.get_label_from_id(node_id=node_id)
+            print(f"{label} (ID {node_id}): {score:.4f}")
+        ```
+        """
+        result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "pagerank"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            params = {}
+            if damping != 0.85:
+                params["damping"] = damping
+            if max_iter != 100:
+                params["max_iter"] = max_iter
+            if tol != 1e-6:
+                params["tol"] = tol
+            self._computations.append(("pagerank", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def constraint(
+        self, weights: str | None = None, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, float | None], "Graph"]:
+        """
+        Calculate Burt's constraint for each node.
+
+        Burt's constraint measures the extent to which ego's contacts are redundant, that is,
+        connected to each other. Higher constraint indicates fewer structural holes and less
+        brokerage opportunity. Lower constraint indicates a network position with more non-redundant
+        contacts, offering greater access to diverse information and control benefits.
+
+        The constraint of node i's ego network is:
+
+            C_i = Σ_j (p_ij + Σ_q p_iq × p_qj)²
+
+        where p_ij are proportional tie strengths:
+
+            p_ij = (a_ij + a_ji) / Σ_k (a_ik + a_ki)
+
+        and a_ij are elements of the adjacency matrix (edge weights).
+
+        Time complexity: O(V × D²) where D is average degree
+        Space complexity: O(V)
+
+        Parameters
+        ----------
+        weights
+            Name of edge attribute to use as weights. If `None`, uses edge
+            weight field. If weights don't exist, treats all edges equally.
+        attr_name
+            Name of the node attribute to store constraint values. If `None`, uses `constraint` as
+            the attribute name.
+        return_dict
+            If `True`, returns a dictionary mapping node IDs to constraint values.
+            If `False`, stores values as node attributes and returns the Graph for chaining.
+
+        Returns
+        -------
+        dict[int, float | None] or Graph
+            If `return_dict` is `True`: Dictionary mapping node IDs to constraint values.
+            Returns None for isolated nodes (undefined constraint).
+            If `return_dict` is `False`: Returns self for method chaining.
+
+        Examples
+        --------
+        Calculate and store constraint values:
+
+        ```python
+        # Simple network with a broker (B)
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")  # Broker
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("B", "D")
+            # Note: C and D are not connected
+            .constraint()  # Stores as 'constraint' attribute
+        )
+
+        # Access values by node ID
+        b_id = g.get_id_from_label("B")
+        a_id = g.get_id_from_label("A")
+        constraints = g.constraint(return_dict=True)
+        print(f"B (broker): {constraints[b_id]:.3f}")  # Low constraint
+        print(f"A (connected): {constraints[a_id]:.3f}")  # High constraint
+        ```
+
+        Analyze structural holes:
+
+        ```python
+        from edgecase import Graph
+
+        # Compare dense vs. sparse ego networks
+        g = Graph()
+        for i in range(6):
+            g.add_node(label=str(i))
+
+        # Node 0: connects to 1,2 which are connected (no structural hole)
+        g.add_edge(source="0", target="1")
+        g.add_edge(source="0", target="2")
+        g.add_edge(source="1", target="2")
+
+        # Node 3: connects to 4,5 which are NOT connected (structural hole)
+        g.add_edge(source="3", target="4")
+        g.add_edge(source="3", target="5")
+        # Note: 4 and 5 are not connected
+
+        constraints = g.constraint(return_dict=True)
+        node_0_id = g.get_id_from_label("0")
+        node_3_id = g.get_id_from_label("3")
+        if constraints[node_0_id] is not None:
+            print(f"Node 0 (dense): {constraints[node_0_id]:.3f}")  # Higher
+        if constraints[node_3_id] is not None:
+            print(f"Node 3 (sparse): {constraints[node_3_id]:.3f}")  # Lower
+        ```
+
+        Weighted networks:
+
+        ```python
+        g = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=5.0)
+            .add_edge("A", "C", weight=1.0)
+            .add_edge("B", "C", weight=3.0)
+        )
+
+        # Strong tie to B dominates A's network
+        constraints = g.constraint(return_dict=True)
+        print(constraints)
+        ```
+
+        Notes
+        -----
+        **Interpretation**:
+
+        - **High constraint** (approaching 1.0): Ego's contacts are highly
+          interconnected. Limited brokerage opportunities, high closure.
+        - **Low constraint** (approaching 0.0): Ego's contacts are disconnected.
+          Many structural holes, high brokerage potential.
+
+        **Structural holes** occur when ego's contacts are not connected to each
+        other, providing opportunities for:
+
+        - Information brokerage (access to diverse information)
+        - Control benefits (mediating between disconnected groups)
+        - Innovation (combining ideas from separate clusters)
+
+        **Use cases**:
+
+        - Social capital analysis: Who has advantageous network positions?
+        - Innovation research: Individuals spanning structural holes
+        - Organizational networks: Identifying key boundary spanners
+        - Entrepreneurship: Access to diverse resources and information
+
+        **Undefined values**: Isolated nodes have no ego network and return None.
+
+        References
+        ----------
+        Burt, R. S. (2004). Structural holes and good ideas. American Journal
+        of Sociology, 110(2), 349-399.
+
+        Burt, R. S. (1992). Structural Holes: The Social Structure of Competition.
+        Harvard University Press.
+        """
+        if attr_name is None:
+            attr_name = "constraint"
+
+        constraint_values = self._graph.constraint(weights)
+
+        if return_dict:
+            return constraint_values
+
+        # Store as node attributes
+        for node_id, value in constraint_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        params = {}
+        if weights is not None:
+            params["weights"] = weights
+        self._computations.append(("constraint", params, attr_name))
+
+        return self
+
     def betweenness_centrality(
         self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
@@ -13337,6 +13666,177 @@ class Graph:
 
         return self
 
+    def k_core(self, k: int) -> "Graph":
+        """
+        Extract the k-core subgraph.
+
+        The k-core is the maximal subgraph where all nodes have degree >= k. Iteratively removes
+        nodes with degree < k until all remaining nodes satisfy the condition.
+
+        Parameters
+        ----------
+        k
+            Minimum degree required for nodes to remain in the k-core.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-core nodes and edges.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(6):
+            g.add_node(label=str(i))
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "4")
+        g.add_edge("4", "5")
+
+        # Get 2-core (nodes with degree >= 2)
+        core_2 = g.k_core(2)
+        print(f"Nodes in 2-core: {core_2.count_nodes()}")
+        ```
+        """
+        from edgecase._core import k_core
+
+        result = Graph.__new__(Graph)
+        result._graph = k_core(self._graph, k)
+        return result
+
+    def k_shell(self, k: int) -> "Graph":
+        """
+        Extract the k-shell subgraph.
+
+        The k-shell contains nodes with coreness exactly equal to k. The coreness of a node is the
+        highest k for which the node is part of the k-core.
+
+        Parameters
+        ----------
+        k
+            Coreness value to extract.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-shell nodes and their connecting edges.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(5):
+            g.add_node(label=str(i))
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "4")
+
+        # Get shell of nodes with coreness exactly 1
+        shell_1 = g.k_shell(1)
+        print(f"Nodes in 1-shell: {shell_1.count_nodes()}")
+        ```
+        """
+        from edgecase._core import k_shell
+
+        result = Graph.__new__(Graph)
+        result._graph = k_shell(self._graph, k)
+        return result
+
+    def k_crust(self, k: int) -> "Graph":
+        """
+        Extract the k-crust subgraph.
+
+        The k-crust contains all nodes with coreness <= k. This is the complement of nodes with
+        high coreness values.
+
+        Parameters
+        ----------
+        k
+            Maximum coreness value to include.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-crust nodes and their connecting edges.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(5):
+            g.add_node(label=str(i))
+        g.add_edge("0", "1")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "4")
+
+        # Get nodes with coreness <= 2
+        crust_2 = g.k_crust(2)
+        print(f"Nodes in 2-crust: {crust_2.count_nodes()}")
+        ```
+        """
+        from edgecase._core import k_crust
+
+        result = Graph.__new__(Graph)
+        result._graph = k_crust(self._graph, k)
+        return result
+
+    def k_truss(self, k: int) -> "Graph":
+        """
+        Extract the k-truss subgraph.
+
+        The k-truss is the maximal subgraph where every edge is part of at least (k-2) triangles.
+        Iteratively removes edges with insufficient triangle support.
+
+        Parameters
+        ----------
+        k
+            Minimum number of triangles + 2 for edges. Must be >= 3.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-truss edges and their endpoints. Isolated nodes are
+            removed.
+
+        Raises
+        ------
+        ValueError
+            If k < 3.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        for i in range(4):
+            g.add_node(label=str(i))
+        # Create complete graph K4
+        for i in range(4):
+            for j in range(i + 1, 4):
+                g.add_edge(str(i), str(j))
+
+        # Get 4-truss (edges in >= 2 triangles)
+        truss_4 = g.k_truss(4)
+        print(f"Edges in 4-truss: {truss_4.count_edges()}")
+        ```
+        """
+        from edgecase._core import k_truss
+
+        result = Graph.__new__(Graph)
+        result._graph = k_truss(self._graph, k)
+        return result
+
     # ==============================================================================
     # ------------------------------------------------------------------------------
     # PATHS & DISTANCE
@@ -14526,177 +15026,6 @@ class Graph:
 
         return k_shortest_paths(self._graph, source_id, target_id, k)
 
-    def k_core(self, k: int) -> "Graph":
-        """
-        Extract the k-core subgraph.
-
-        The k-core is the maximal subgraph where all nodes have degree >= k. Iteratively removes
-        nodes with degree < k until all remaining nodes satisfy the condition.
-
-        Parameters
-        ----------
-        k
-            Minimum degree required for nodes to remain in the k-core.
-
-        Returns
-        -------
-        Graph
-            New graph containing only the k-core nodes and edges.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph()
-        for i in range(6):
-            g.add_node(label=str(i))
-        g.add_edge("0", "1")
-        g.add_edge("1", "2")
-        g.add_edge("2", "3")
-        g.add_edge("3", "4")
-        g.add_edge("4", "5")
-
-        # Get 2-core (nodes with degree >= 2)
-        core_2 = g.k_core(2)
-        print(f"Nodes in 2-core: {core_2.count_nodes()}")
-        ```
-        """
-        from edgecase._core import k_core
-
-        result = Graph.__new__(Graph)
-        result._graph = k_core(self._graph, k)
-        return result
-
-    def k_shell(self, k: int) -> "Graph":
-        """
-        Extract the k-shell subgraph.
-
-        The k-shell contains nodes with coreness exactly equal to k. The coreness of a node is the
-        highest k for which the node is part of the k-core.
-
-        Parameters
-        ----------
-        k
-            Coreness value to extract.
-
-        Returns
-        -------
-        Graph
-            New graph containing only the k-shell nodes and their connecting edges.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph()
-        for i in range(5):
-            g.add_node(label=str(i))
-        g.add_edge("0", "1")
-        g.add_edge("1", "2")
-        g.add_edge("2", "3")
-        g.add_edge("3", "4")
-
-        # Get shell of nodes with coreness exactly 1
-        shell_1 = g.k_shell(1)
-        print(f"Nodes in 1-shell: {shell_1.count_nodes()}")
-        ```
-        """
-        from edgecase._core import k_shell
-
-        result = Graph.__new__(Graph)
-        result._graph = k_shell(self._graph, k)
-        return result
-
-    def k_crust(self, k: int) -> "Graph":
-        """
-        Extract the k-crust subgraph.
-
-        The k-crust contains all nodes with coreness <= k. This is the complement of nodes with
-        high coreness values.
-
-        Parameters
-        ----------
-        k
-            Maximum coreness value to include.
-
-        Returns
-        -------
-        Graph
-            New graph containing only the k-crust nodes and their connecting edges.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph()
-        for i in range(5):
-            g.add_node(label=str(i))
-        g.add_edge("0", "1")
-        g.add_edge("1", "2")
-        g.add_edge("2", "3")
-        g.add_edge("3", "4")
-
-        # Get nodes with coreness <= 2
-        crust_2 = g.k_crust(2)
-        print(f"Nodes in 2-crust: {crust_2.count_nodes()}")
-        ```
-        """
-        from edgecase._core import k_crust
-
-        result = Graph.__new__(Graph)
-        result._graph = k_crust(self._graph, k)
-        return result
-
-    def k_truss(self, k: int) -> "Graph":
-        """
-        Extract the k-truss subgraph.
-
-        The k-truss is the maximal subgraph where every edge is part of at least (k-2) triangles.
-        Iteratively removes edges with insufficient triangle support.
-
-        Parameters
-        ----------
-        k
-            Minimum number of triangles + 2 for edges. Must be >= 3.
-
-        Returns
-        -------
-        Graph
-            New graph containing only the k-truss edges and their endpoints. Isolated nodes are
-            removed.
-
-        Raises
-        ------
-        ValueError
-            If k < 3.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph()
-        for i in range(4):
-            g.add_node(label=str(i))
-        # Create complete graph K4
-        for i in range(4):
-            for j in range(i + 1, 4):
-                g.add_edge(str(i), str(j))
-
-        # Get 4-truss (edges in >= 2 triangles)
-        truss_4 = g.k_truss(4)
-        print(f"Edges in 4-truss: {truss_4.count_edges()}")
-        ```
-        """
-        from edgecase._core import k_truss
-
-        result = Graph.__new__(Graph)
-        result._graph = k_truss(self._graph, k)
-        return result
-
     def bfs(
         self,
         start: Union[int, str],
@@ -14875,143 +15204,6 @@ class Graph:
         params = {"start": start}
         self._computations.append(("dfs", params, attr_name))
 
-        return self
-
-    def pagerank(
-        self,
-        damping: float = 0.85,
-        max_iter: int = 100,
-        tol: float = 1e-6,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Calculate PageRank scores for all nodes in the graph.
-
-        PageRank is a link analysis algorithm that assigns importance scores to nodes based on their
-        incoming connections. Originally developed by Google to rank web pages, it's widely used in
-        social network analysis, recommendation systems, and influence detection.
-
-        The algorithm iteratively distributes "rank" from each node to its neighbors, with a damping
-        factor to model random jumps. Nodes with many incoming edges from high-ranking nodes receive
-        higher scores.
-
-        Parameters
-        ----------
-        damping
-            The probability of following an edge (vs. random jump). Higher values (closer to `1.0`)
-            give more weight to the graph structure. Typical range: `0.8`-`0.95`.
-        max_iter
-            Maximum number of iterations to run. The algorithm stops early if convergence is
-            reached.
-        tol
-            Convergence tolerance. The algorithm stops when the sum of absolute differences between
-            iterations is less than this value.
-        attr_name
-            Column name to store PageRank scores in the node DataFrame. If `None` (default),
-            automatically uses `pagerank`. Overwrites column if it already exists.
-        return_dict
-            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
-            returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to PageRank scores (sum to
-            `1.0`). If `return_dict` is `False` (default): returns self for method chaining.
-
-        Examples
-        --------
-        Calculate PageRank on a simple social network:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-        )
-        alice_id = graph.get_id_from_label("Alice")
-        bob_id = graph.get_id_from_label("Bob")
-        charlie_id = graph.get_id_from_label("Charlie")
-
-        graph.add_edge(alice_id, bob_id)
-        graph.add_edge(alice_id, charlie_id)
-        graph.add_edge(bob_id, charlie_id)
-
-        scores = graph.pagerank(return_dict=True)
-        print(scores)
-        # {1: 0.262, 2: 0.262, 3: 0.475}  # Node IDs to scores
-
-        # Convert to labels if needed
-        label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
-        print(label_scores)
-        # {'Alice': 0.262, 'Bob': 0.262, 'Charlie': 0.475}
-        ```
-
-        Use custom damping factor for more exploration:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-        )
-        graph.add_edge(source="Alice", target="Bob")
-        graph.add_edge(source="Alice", target="Charlie")
-        graph.add_edge(source="Bob", target="Charlie")
-
-        scores = graph.pagerank(damping=0.5)  # More random jumping
-        ```
-
-        Find the most influential nodes:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-        )
-        graph.add_edge(source="Alice", target="Bob")
-        graph.add_edge(source="Alice", target="Charlie")
-        graph.add_edge(source="Bob", target="Charlie")
-
-        scores = graph.pagerank(return_dict=True)
-        top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
-        for node_id, score in top_nodes:
-            label = graph.get_label_from_id(node_id=node_id)
-            print(f"{label} (ID {node_id}): {score:.4f}")
-        ```
-        """
-        result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "pagerank"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
-        # Track computation
-        if not return_dict:
-            params = {}
-            if damping != 0.85:
-                params["damping"] = damping
-            if max_iter != 100:
-                params["max_iter"] = max_iter
-            if tol != 1e-6:
-                params["tol"] = tol
-            self._computations.append(("pagerank", params, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
         return self
 
     # ==============================================================================
@@ -16279,177 +16471,6 @@ class Graph:
             result.append([self.get_label_from_id(node_id) or str(node_id) for node_id in trail])
 
         return result
-
-    def constraint(
-        self, weights: str | None = None, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, float | None], "Graph"]:
-        """
-        Calculate Burt's constraint for each node.
-
-        Burt's constraint measures the extent to which ego's contacts are
-        redundant, that is, connected to each other. Higher constraint indicates
-        fewer structural holes and less brokerage opportunity. Lower constraint
-        indicates a network position with more non-redundant contacts, offering
-        greater access to diverse information and control benefits.
-
-        The constraint of node i's ego network is:
-
-            C_i = Σ_j (p_ij + Σ_q p_iq × p_qj)²
-
-        where p_ij are proportional tie strengths:
-
-            p_ij = (a_ij + a_ji) / Σ_k (a_ik + a_ki)
-
-        and a_ij are elements of the adjacency matrix (edge weights).
-
-        Time complexity: O(V × D²) where D is average degree
-        Space complexity: O(V)
-
-        Parameters
-        ----------
-        weights
-            Name of edge attribute to use as weights. If None, uses edge
-            weight field. If weights don't exist, treats all edges equally.
-        attr_name
-            Name of the node attribute to store constraint values.
-            If None, uses "constraint" as the attribute name.
-        return_dict
-            If True, returns a dictionary mapping node IDs to constraint values.
-            If False, stores values as node attributes and returns the Graph for chaining.
-
-        Returns
-        -------
-        dict[int, float | None] or Graph
-            If return_dict is True: Dictionary mapping node IDs to constraint values.
-            Returns None for isolated nodes (undefined constraint).
-            If return_dict is False: Returns self for method chaining.
-
-        Examples
-        --------
-        Calculate and store constraint values:
-
-        ```python
-        # Simple network with a broker (B)
-        g = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")  # Broker
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            # Note: C and D are not connected
-            .constraint()  # Stores as 'constraint' attribute
-        )
-
-        # Access values by node ID
-        b_id = g.get_id_from_label("B")
-        a_id = g.get_id_from_label("A")
-        constraints = g.constraint(return_dict=True)
-        print(f"B (broker): {constraints[b_id]:.3f}")  # Low constraint
-        print(f"A (connected): {constraints[a_id]:.3f}")  # High constraint
-        ```
-
-        Analyze structural holes:
-
-        ```python
-        from edgecase import Graph
-
-        # Compare dense vs. sparse ego networks
-        g = Graph()
-        for i in range(6):
-            g.add_node(label=str(i))
-
-        # Node 0: connects to 1,2 which are connected (no structural hole)
-        g.add_edge(source="0", target="1")
-        g.add_edge(source="0", target="2")
-        g.add_edge(source="1", target="2")
-
-        # Node 3: connects to 4,5 which are NOT connected (structural hole)
-        g.add_edge(source="3", target="4")
-        g.add_edge(source="3", target="5")
-        # Note: 4 and 5 are not connected
-
-        constraints = g.constraint(return_dict=True)
-        node_0_id = g.get_id_from_label("0")
-        node_3_id = g.get_id_from_label("3")
-        if constraints[node_0_id] is not None:
-            print(f"Node 0 (dense): {constraints[node_0_id]:.3f}")  # Higher
-        if constraints[node_3_id] is not None:
-            print(f"Node 3 (sparse): {constraints[node_3_id]:.3f}")  # Lower
-        ```
-
-        Weighted networks:
-
-        ```python
-        g = (
-            Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", weight=5.0)
-            .add_edge("A", "C", weight=1.0)
-            .add_edge("B", "C", weight=3.0)
-        )
-
-        # Strong tie to B dominates A's network
-        constraints = g.constraint(return_dict=True)
-        print(constraints)
-        ```
-
-        Notes
-        -----
-        **Interpretation**:
-
-        - **High constraint** (approaching 1.0): Ego's contacts are highly
-          interconnected. Limited brokerage opportunities, high closure.
-        - **Low constraint** (approaching 0.0): Ego's contacts are disconnected.
-          Many structural holes, high brokerage potential.
-
-        **Structural holes** occur when ego's contacts are not connected to each
-        other, providing opportunities for:
-
-        - Information brokerage (access to diverse information)
-        - Control benefits (mediating between disconnected groups)
-        - Innovation (combining ideas from separate clusters)
-
-        **Use cases**:
-
-        - Social capital analysis: Who has advantageous network positions?
-        - Innovation research: Individuals spanning structural holes
-        - Organizational networks: Identifying key boundary spanners
-        - Entrepreneurship: Access to diverse resources and information
-
-        **Undefined values**: Isolated nodes have no ego network and return None.
-
-        References
-        ----------
-        Burt, R. S. (2004). Structural holes and good ideas. American Journal
-        of Sociology, 110(2), 349-399.
-
-        Burt, R. S. (1992). Structural Holes: The Social Structure of Competition.
-        Harvard University Press.
-        """
-        if attr_name is None:
-            attr_name = "constraint"
-
-        constraint_values = self._graph.constraint(weights)
-
-        if return_dict:
-            return constraint_values
-
-        # Store as node attributes
-        for node_id, value in constraint_values.items():
-            self._graph.set_node_attr(node_id, attr_name, value)
-
-        # Track computation
-        params = {}
-        if weights is not None:
-            params["weights"] = weights
-        self._computations.append(("constraint", params, attr_name))
-
-        return self
 
     # ==============================================================================
     # Eulerian Paths and Circuits
@@ -19541,6 +19562,10 @@ class Graph:
         """
         return self._graph.assortativity(attribute)
 
+    # ==============================================================================
+    # Spectral Analysis
+    # ==============================================================================
+
     def get_spectrum(
         self,
         which: str = "largest",
@@ -20138,28 +20163,6 @@ class Graph:
         from edgecase._core import local_efficiency
 
         return local_efficiency(self._graph)
-
-    def __repr__(self) -> str:
-        """
-        Return a detailed string representation of the graph.
-
-        Uses the describe() method to show comprehensive graph information
-        including structure, computations, and aesthetics.
-        """
-        import io
-        import sys
-
-        # Capture describe() output
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = io.StringIO()
-
-        try:
-            self.describe()
-            result = captured_output.getvalue()
-        finally:
-            sys.stdout = old_stdout
-
-        return result.rstrip()  # Remove trailing newline
 
 
 # ============================================================================
