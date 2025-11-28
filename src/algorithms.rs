@@ -9,6 +9,7 @@ pub mod dispersion;
 pub mod domirank;
 pub mod efficiency;
 pub mod eulerian;
+pub mod independent_set;
 pub mod matching;
 pub mod node_vitality;
 pub mod paths;

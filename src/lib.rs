@@ -52,6 +52,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::dispersion::dispersion, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::efficiency::global_efficiency, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::efficiency::local_efficiency, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::independent_set::maximal_independent_set, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::independent_set::maximum_independent_set, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::independent_set::is_independent_set, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::independent_set::find_maximal_independent_sets, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
