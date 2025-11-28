@@ -18725,8 +18725,8 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(E log E) for sorting edges
-        - space complexity: O(V) for union-find structure
+        - time complexity: `O(E log E)` for sorting edges
+        - space complexity: `O(V)` for union-find structure
         - for disconnected graphs, finds a minimum spanning forest
         - if graph has < 2 nodes, returns empty graph or list
 
@@ -18819,8 +18819,8 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(E log E) for sorting edges
-        - space complexity: O(V) for union-find structure
+        - time complexity: `O(E log E)` for sorting edges
+        - space complexity: `O(V)` for union-find structure
         - useful for finding most important connections in a network
         """
         edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
@@ -18856,6 +18856,309 @@ class Graph:
             return st
         else:
             return [str(eid) for eid in edge_ids]
+
+    def steiner_tree(
+        self,
+        terminal_nodes: list[str],
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[tuple[str, str, float]]":
+        """
+        Find an approximate Steiner tree connecting the given terminal nodes.
+
+        A Steiner tree is a minimum weight tree that connects a specified set of terminal nodes. It
+        may include additional non-terminal nodes (called Steiner nodes) if they help reduce the
+        total weight. This implementation uses Mehlhorn's algorithm which provides a 2-approximation.
+
+        Parameters
+        ----------
+        terminal_nodes
+            List of node labels that must be connected by the tree. Must contain at least 2 nodes.
+        weight_attr
+            Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
+            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
+        return_subgraph
+            If `True`, returns a new Graph containing only the Steiner tree edges. If `False`,
+            returns a list of (source_label, target_label, weight) tuples.
+
+        Returns
+        -------
+        Graph or list[tuple[str, str, float]]
+            Either a new Graph with Steiner tree edges or a list of edge tuples, depending on the
+            `return_subgraph=` parameter.
+
+        Raises
+        ------
+        ValueError
+            If fewer than 2 terminal nodes are provided, if any terminal node doesn't exist in the
+            graph, or if the terminal nodes are not all connected.
+
+        Examples
+        --------
+        **Network Design: Connecting Data Centers**
+
+        Find the minimum cost network to connect specific data centers:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a network topology with connection costs
+        g = Graph(weighted=True)
+        for node in ["DC1", "DC2", "DC3", "Router1", "Router2", "Router3"]:
+            g.add_node(node)
+
+        # Add network links with costs
+        g.add_edge("DC1", "Router1", weight=10.0)
+        g.add_edge("DC2", "Router1", weight=15.0)
+        g.add_edge("DC3", "Router2", weight=12.0)
+        g.add_edge("Router1", "Router2", weight=5.0)
+        g.add_edge("Router2", "Router3", weight=8.0)
+        g.add_edge("Router1", "Router3", weight=20.0)
+
+        # Find minimum cost tree connecting the data centers
+        terminals = ["DC1", "DC2", "DC3"]
+        steiner = g.steiner_tree(terminals)
+
+        print(f"Steiner tree has {steiner.count_edges()} edges")
+        # May include Router1 and Router2 as Steiner nodes
+        ```
+
+        **Phylogenetics: Connecting Key Species**
+
+        Connect a subset of species with minimum evolutionary distance:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(weighted=True)
+        species = ["Human", "Chimp", "Gorilla", "Mouse", "CommonAncestor1", "CommonAncestor2"]
+        for s in species:
+            g.add_node(s)
+
+        g.add_edge("Human", "CommonAncestor1", weight=1.0)
+        g.add_edge("Chimp", "CommonAncestor1", weight=1.2)
+        g.add_edge("CommonAncestor1", "CommonAncestor2", weight=3.0)
+        g.add_edge("Gorilla", "CommonAncestor2", weight=2.5)
+        g.add_edge("Mouse", "CommonAncestor2", weight=10.0)
+
+        # Find tree connecting just the primates
+        primates = ["Human", "Chimp", "Gorilla"]
+        tree = g.steiner_tree(primates)
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(|T| * (E log V))` where `T` is the number of terminal nodes
+        - space complexity: `O(V + E)`
+        - uses Mehlhorn's 2-approximation algorithm
+        - the approximation factor of 2 means the result is at most twice the optimal weight
+        - for graphs with only 2 terminal nodes, returns the shortest path between them
+
+        References
+        ----------
+        .. [1] Mehlhorn, K. (1988). "A faster approximation algorithm for the Steiner
+               problem in graphs". Information Processing Letters. 27 (3): 125–128.
+        .. [2] Vazirani, V. V. (2001). "Approximation Algorithms". Springer-Verlag.
+               Chapter 3: Steiner Tree and TSP.
+        """
+        from edgecase._core import steiner_tree as _steiner_tree
+
+        edges = _steiner_tree(self._graph, terminal_nodes, weight_attr)
+
+        if return_subgraph:
+            # Create a new graph with the Steiner tree edges
+            st = Graph(directed=self.is_directed(), weighted=True)
+
+            # Collect all nodes that appear in the tree
+            tree_nodes = set()
+            for source, target, _ in edges:
+                tree_nodes.add(source)
+                tree_nodes.add(target)
+
+            # Add the tree nodes
+            for label in tree_nodes:
+                try:
+                    node_obj = self._graph.get_node(label)
+                    st.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    st.add_node(label)
+
+            # Add the Steiner tree edges
+            for source, target, weight in edges:
+                st.add_edge(source, target, weight=weight)
+
+            return st
+        else:
+            return edges
+
+    def all_spanning_trees(
+        self,
+        max_trees: int | None = None,
+        weight_attr: str | None = None,
+        return_subgraphs: bool = True,
+    ) -> "list[Graph] | list[list[tuple[str, str, float]]]":
+        """
+        Enumerate all spanning trees of the graph.
+
+        A spanning tree is a subgraph that connects all vertices with the minimum number of edges
+        (`V-1` edges for `V` vertices) and contains no cycles. This method enumerates all possible
+        spanning trees, which is useful for reliability analysis and network design.
+
+        Parameters
+        ----------
+        max_trees
+            Maximum number of spanning trees to return. If `None`, defaults to 1000 to prevent
+            excessive memory usage. Set to a specific value for different limits.
+        weight_attr
+            Name of edge attribute to use for weights in the returned edges. If `None` (default),
+            uses the edge's weight field. If the attribute doesn't exist, defaults to `1.0`.
+        return_subgraphs
+            If `True`, returns a list of Graph objects, each representing a spanning tree.
+            If `False`, returns a list of edge lists (each edge is a (source, target, weight) tuple).
+
+        Returns
+        -------
+        list[Graph] or list[list[tuple[str, str, float]]]
+            Either a list of Graph objects or a list of edge lists, depending on the
+            `return_subgraphs=` parameter.
+
+        Raises
+        ------
+        ValueError
+            If the graph is disconnected (no spanning tree exists) or empty.
+
+        Examples
+        --------
+        **Reliability Analysis: Finding Backup Paths**
+
+        Enumerate all ways to connect a network:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple network
+        g = Graph()
+        for node in ["A", "B", "C", "D"]:
+            g.add_node(node)
+
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        g.add_edge("C", "D")
+        g.add_edge("D", "A")
+        g.add_edge("A", "C")
+
+        # Get all spanning trees
+        trees = g.all_spanning_trees()
+        print(f"Found {len(trees)} spanning trees")
+
+        # Each tree connects all 4 nodes with exactly 3 edges
+        for i, tree in enumerate(trees):
+            print(f"Tree {i+1}: {tree.count_edges()} edges")
+        ```
+
+        **Counting Spanning Trees**
+
+        Count the number of spanning trees (related to the matrix tree theorem):
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        # Create a complete graph K4
+        nodes = ["A", "B", "C", "D"]
+        for n in nodes:
+            g.add_node(n)
+
+        for i, n1 in enumerate(nodes):
+            for n2 in nodes[i+1:]:
+                g.add_edge(n1, n2)
+
+        # K4 should have 16 spanning trees
+        trees = g.all_spanning_trees()
+        print(f"K4 has {len(trees)} spanning trees")  # 16
+        ```
+
+        **Getting Edge Lists Instead of Graphs**
+
+        For more efficient processing of many trees:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(weighted=True)
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=2.0)
+        g.add_edge("C", "A", weight=3.0)
+
+        # Get edge lists for efficiency
+        tree_edges = g.all_spanning_trees(return_subgraphs=False)
+        for edges in tree_edges:
+            total_weight = sum(w for _, _, w in edges)
+            print(f"Tree weight: {total_weight}")
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(N * E)` where `N` is the number of spanning trees
+        - space complexity: `O(N * V)` for storing all trees
+        - the number of spanning trees can grow exponentially with graph size
+        - for dense graphs, the default `max_trees=1000` prevents memory issues
+        - uses a systematic edge enumeration algorithm based on Kruskal's approach
+
+        Warnings
+        --------
+        The number of spanning trees can be extremely large. For a complete graph `Kn`, there are
+        `n^(n-2)` spanning trees (Cayley's formula). Use `max_trees=` to limit results.
+
+        References
+        ----------
+        .. [1] Cayley, A. (1889). "A theorem on trees". Quarterly Journal of Pure and
+               Applied Mathematics. 23: 376–378.
+        .. [2] Gabow, H. N.; Myers, E. W. (1978). "Finding all spanning trees of directed
+               and undirected graphs". SIAM Journal on Computing. 7 (3): 280–287.
+        """
+        from edgecase._core import all_spanning_trees as _all_spanning_trees
+
+        # Default max_trees to 1000 if not specified
+        effective_max = max_trees if max_trees is not None else 1000
+
+        tree_edge_lists = _all_spanning_trees(self._graph, effective_max, weight_attr)
+
+        if return_subgraphs:
+            result = []
+            for edges in tree_edge_lists:
+                # Create a new graph for this spanning tree
+                st = Graph(directed=self.is_directed(), weighted=True)
+
+                # Add all nodes from the original graph
+                for node_id in self.get_node_ids(limit=None):
+                    label = self.get_label_from_id(node_id)
+                    try:
+                        node_obj = self._graph.get_node(label)
+                        st.add_node(
+                            label,
+                            attributes=node_obj.attributes
+                            if hasattr(node_obj, "attributes")
+                            else None,
+                        )
+                    except Exception:
+                        st.add_node(label)
+
+                # Add the spanning tree edges
+                for source, target, weight in edges:
+                    st.add_edge(source, target, weight=weight)
+
+                result.append(st)
+
+            return result
+        else:
+            return tree_edge_lists
 
     # ==============================================================================
     # ------------------------------------------------------------------------------
