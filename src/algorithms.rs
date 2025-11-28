@@ -6,6 +6,7 @@ pub mod community;
 pub mod connectivity;
 pub mod cycles;
 pub mod dispersion;
+pub mod dominating_set;
 pub mod domirank;
 pub mod efficiency;
 pub mod eulerian;
