@@ -4160,6 +4160,166 @@ class Graph:
         return is_k_regular(self._graph, k)
 
     # ==============================================================================
+    # Simple Counts
+    # ==============================================================================
+
+    def count_all_loops(self) -> int:
+        """
+        Count total number of self-loop edges in the graph.
+
+        A self-loop is an edge where the source and target are the same node.
+        This counts all self-loop edges in the entire graph, regardless of which
+        nodes they belong to. Use `count_loops()` to get per-node counts.
+
+        Self-loops are common in state machines, reflexive relationships, and
+        chemical reaction networks.
+
+        Returns
+        -------
+        int
+            Total number of edges where source equals target.
+
+        Examples
+        --------
+        Count all self-loops in graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+            .add_edge("A", "A")  # Self-loop
+            .add_edge("B", "B")  # Self-loop
+        )
+
+        print(graph.count_all_loops())  # 2
+        ```
+
+        Multiple self-loops on same node:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="A")
+        graph.add_edge("A", "A")  # First self-loop
+        graph.add_edge("A", "A")  # Second self-loop
+
+        print(graph.count_all_loops())  # 2
+        ```
+        """
+        return self._graph.count_all_loops()
+
+    def count_multi_edges(self) -> int:
+        """
+        Count multi-edges (parallel edges between same node pair).
+
+        Only counts edges beyond the first one for each node pair.
+        For example, if there are 3 edges from A to B, this counts 2 of them.
+        Multi-edges are useful for modeling scenarios like multiple flights
+        between cities or repeated transactions.
+
+        Returns
+        -------
+        int
+            Number of duplicate edges (beyond first edge per pair).
+
+        Examples
+        --------
+        Count multi-edges in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B", id=1)
+            .add_edge("A", "B", id=2)  # Multi-edge
+            .add_edge("A", "B", id=3)  # Another multi-edge
+            .add_edge("B", "A", id=4)  # Different direction
+        )
+
+        print(graph.count_multi_edges())  # 2
+        ```
+        """
+        return self._graph.count_multi_edges()
+
+    def count_mutual_node_pairs(self) -> int:
+        """
+        Count mutual node pairs (bidirectional edges) in directed graphs.
+
+        Returns the number of node pairs (a,b) where both edges a->b and b->a exist.
+        Only works for directed graphs. Self-loops are excluded. This metric is
+        useful for analyzing reciprocity in directed networks like social graphs.
+
+        Returns
+        -------
+        int
+            Number of node pairs with edges in both directions.
+
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+
+        Examples
+        --------
+        Count mutual relationships:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Mutual with A
+            .add_edge("A", "C")  # One-way only
+        )
+
+        print(graph.count_mutual_node_pairs())  # 1
+        ```
+        """
+        return self._graph.count_mutual_node_pairs()
+
+    def count_asymmetric_node_pairs(self) -> int:
+        """
+        Count asymmetric node pairs (one-way edges) in directed graphs.
+
+        Returns the number of node pairs (a,b) where edge a->b exists but not b->a.
+        Only works for directed graphs. Self-loops are excluded. This metric helps
+        analyze directional flow or hierarchy in directed networks.
+
+        Returns
+        -------
+        int
+            Number of node pairs with edges in only one direction.
+
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+
+        Examples
+        --------
+        Count one-way relationships:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Mutual, not counted
+            .add_edge("A", "C")  # Asymmetric
+        )
+
+        print(graph.count_asymmetric_node_pairs())  # 1
+        ```
+        """
+        return self._graph.count_asymmetric_node_pairs()
+
+    # ==============================================================================
     # Link Analysis
     # ==============================================================================
 
@@ -8996,6 +9156,1833 @@ class Graph:
                 return float(sorted_degrees[n // 2])
 
     # ==============================================================================
+    # Centrality
+    # ==============================================================================
+
+    def betweenness_centrality(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate betweenness centrality scores for all nodes.
+
+        Betweenness centrality measures how often a node appears on the shortest paths between other
+        nodes in the graph. Nodes with high betweenness act as bridges or bottlenecks, controlling
+        the flow of information or resources through the network.
+
+        This metric is particularly useful for:
+
+        - identifying key connectors in social networks
+        - finding critical infrastructure nodes in transportation/communication networks
+        - detecting potential bottlenecks or points of failure
+
+        The algorithm computes shortest paths between all pairs of nodes and counts how many times
+        each node appears on these paths.
+
+        Parameters
+        ----------
+        attr_name
+            Column name to store betweenness scores in the node DataFrame. If `None` (default),
+            automatically uses `betweenness_centrality`. Overwrites column if it already exists.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to betweenness scores (range of
+            `[0, 1]`). If `return_dict` is `False` (default): returns self for method chaining.
+
+        Examples
+        --------
+        Find bridge nodes in a network:
+
+        ```python
+        # Create two clusters connected by a bridge node
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="Bridge")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "Bridge")
+            .add_edge("Bridge", "C")
+            .add_edge("C", "D")
+        )
+
+        scores = graph.betweenness_centrality(return_dict=True)
+        bridge_id = graph.get_id_from_label("Bridge")
+        print(scores[bridge_id])  # High score: bridges two clusters
+
+        # Convert to labels if needed
+        label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
+        print(label_scores["Bridge"])  # Same result
+        ```
+
+        Identify the most important connectors:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+        )
+
+        scores = graph.betweenness_centrality(return_dict=True)
+        connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        for node_id, score in connectors:
+            label = graph.get_label_from_id(node_id)
+            print(f"{label} (ID {node_id}): {score:.4f}")
+        ```
+        """
+        result_ids = rust.betweenness_centrality(self._graph)
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "betweenness_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("betweenness_centrality", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def load_centrality(
+        self,
+        normalized: bool = True,
+        cutoff: int = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate load centrality scores for all nodes.
+
+        Load centrality measures the fraction of shortest paths that pass through each node. It is
+        similar to betweenness centrality but uses a different accumulation formula that counts the
+        'load' or traffic on nodes from shortest path routing.
+
+        The key differences from betweenness centrality:
+
+        - **Betweenness**: uses dependency accumulation with path count ratios
+        - **Load**: uses simpler load counting based on predecessors
+
+        Both metrics identify important bridge nodes, but load centrality can produce slightly
+        different rankings that may be more intuitive for certain applications like network traffic
+        analysis or identifying bottlenecks in routing systems.
+
+        Parameters
+        ----------
+        normalized
+            If `True` (default), normalizes scores by dividing by `(n-1)(n-2)` where `n` is the
+            number of nodes. If `False`, returns raw load counts.
+        cutoff
+            Optional maximum path length to consider. Only paths of length ≤ cutoff are included.
+            If `None` (default), considers all path lengths.
+        attr_name
+            Column name to store load centrality scores in the node DataFrame. If `None` (default),
+            automatically uses 'load_centrality'. Overwrites column if it already exists.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF
+            and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to load centrality scores. If
+            `return_dict` is `False` (default): returns self for method chaining.
+
+        References
+        ----------
+        Newman, M. E. J. (2001). Scientific collaboration networks. II. Shortest paths,
+        weighted networks, and centrality. Physical Review E, 64(016132).
+        https://doi.org/10.1103/PhysRevE.64.016132
+
+        Examples
+        --------
+        Identify bridge nodes using load centrality:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a network with a central bridge
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="Bridge")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "Bridge")
+            .add_edge("Bridge", "C")
+            .add_edge("C", "D")
+        )
+
+        scores = graph.load_centrality(return_dict=True)
+        bridge_id = graph.get_id_from_label("Bridge")
+        print(f"Bridge load: {scores[bridge_id]:.4f}")  # High load score
+        ```
+
+        Compare load vs betweenness centrality:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        load = graph.load_centrality(return_dict=True)
+        betweenness = graph.betweenness_centrality(return_dict=True)
+
+        for node_id in sorted(load.keys()):
+            label = graph.get_label_from_id(node_id)
+            print(f"{label}: load={load[node_id]:.3f}, betweenness={betweenness[node_id]:.3f}")
+        ```
+
+        Store centrality as node attribute for later use:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple path graph
+        graph = Graph()
+        for i in range(5):
+            graph.add_node(label=str(i))
+        for i in range(4):
+            graph.add_edge(str(i), str(i+1))
+
+        # Compute and store load centrality
+        graph.load_centrality(attr_name="load")
+
+        # Verify it was stored
+        any_comp = any("load" in str(c) for c in graph._computations)
+        print(f"Load centrality computed: {any_comp}")
+        ```
+        """
+        # Call Rust implementation
+        result_ids = rust.load_centrality(self._graph, normalized=normalized, cutoff=cutoff)
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "load_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(
+                ("load_centrality", {"normalized": normalized, "cutoff": cutoff}, attr_name)
+            )
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def second_order_centrality(
+        self,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Compute the second order centrality for nodes in the graph.
+
+        Second order centrality measures the standard deviation of return times to a node in a
+        perpetual random walk on the graph. Lower values indicate higher centrality, as nodes with
+        lower return time variance are more centrally positioned in the network structure.
+
+        This metric is particularly useful for identifying nodes that are consistently reached in
+        random walks, indicating their importance in network flow and connectivity patterns.
+
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name of node attribute to store centrality values. If `None`, uses
+            `second_order_centrality`. Only used when `return_dict=False`.
+        return_dict : bool, default False
+            If `True`, returns dict mapping node IDs to centrality values. If `False`, stores
+            values in graph and returns self for chaining.
+
+        Returns
+        -------
+        dict or Graph
+            If r`eturn_dict=True`: dictionary mapping node ID to centrality value. If
+            `return_dict=False`: self (for method chaining).
+
+        Raises
+        ------
+        ValueError
+            - If graph is directed (algorithm only works for undirected graphs)
+            - If graph is empty
+            - If graph is not connected
+
+        Notes
+        -----
+        **Algorithm Overview:**
+
+        The algorithm implements the analytical solution from Kermarrec et al. (2011)
+        based on Metropolis-Hastings random walks:
+
+        1. Balance the graph by adding self-loops to equalize in-degrees
+        2. Create transition probability matrix P
+        3. For each node i, solve the linear system: (I - Q_i) * M[:, i] = 1
+           where Q_i is P with column i zeroed
+        4. Compute centrality as: sqrt(2 * sum(M[:, i]) - n * (n + 1))
+
+        **Complexity:**
+
+        - Time: O(n³) due to solving n linear systems of size n×n
+        - Space: O(n²) for storing matrices
+        - **Viable only for small to medium graphs (< 1,000 nodes)**
+
+        **Interpretation:**
+
+        - **Lower values** = **higher centrality** (more central nodes)
+        - Values represent consistency of return times in random walks
+        - Captures both direct and indirect influence through network structure
+        - Complements first-order metrics like degree or betweenness
+
+        **Current Limitation:**
+
+        - Only supports unweighted graphs (all edges treated equally)
+
+        Examples
+        --------
+        Identify central nodes in a path graph (lower values = higher centrality):
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple path: 0 - 1 - 2 - 3 - 4
+        graph = Graph()
+        for i in range(5):
+            graph.add_node(label=str(i))
+        for i in range(4):
+            graph.add_edge(str(i), str(i+1))
+
+        soc = graph.second_order_centrality(return_dict=True)
+
+        # Middle nodes have lower values (higher centrality)
+        # Note: keys are node IDs, not labels
+        most_central_id = min(soc, key=soc.get)
+        most_central_label = graph.get_label_from_id(most_central_id)
+        print(f"Most central node: {most_central_label}")  # Node '2'
+        print(f"Centrality value: {soc[most_central_id]:.3f}")
+        ```
+
+        Compare centrality across different graph structures:
+
+        ```python
+        from edgecase import Graph
+
+        # Star graph: center should be most central
+        star = Graph()
+        star.add_node(label='center')
+        for i in range(5):
+            star.add_node(label=f'leaf_{i}')
+            star.add_edge('center', f'leaf_{i}')
+
+        star_soc = star.second_order_centrality(return_dict=True)
+        center_id = star.get_id_from_label('center')
+        leaf_id = star.get_id_from_label('leaf_0')
+        print(f"Center: {star_soc[center_id]:.3f}")
+        print(f"Leaf: {star_soc[leaf_id]:.3f}")  # Higher value (less central)
+
+        # Complete graph: all nodes equally central
+        complete = Graph()
+        for i in range(4):
+            complete.add_node(label=str(i))
+        for i in range(4):
+            for j in range(i+1, 4):
+                complete.add_edge(str(i), str(j))
+
+        complete_soc = complete.second_order_centrality(return_dict=True)
+        vals = list(complete_soc.values())
+        print(f"All equal: {all(abs(v - vals[0]) < 0.01 for v in vals)}")
+        ```
+
+        Store centrality as node attribute for later analysis:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label='A')
+            .add_node(label='B')
+            .add_node(label='C')
+            .add_node(label='D')
+            .add_edge('A', 'B')
+            .add_edge('B', 'C')
+            .add_edge('C', 'D')
+        )
+
+        # Store with custom attribute name
+        graph.second_order_centrality(attr_name='soc')
+
+        # Verify it was computed
+        has_soc = any('soc' in str(c) for c in graph._computations)
+        print(f"Second order centrality computed: {has_soc}")
+        ```
+
+        References
+        ----------
+        .. [1] Kermarrec, A.M., Le Merrer, E., Sericola, B., Trédan, G. (2011).
+           "Second order centrality: Distributed assessment of nodes criticity in
+           complex networks". Computer Communications, 34(5), 619-628.
+           https://doi.org/10.1016/j.comcom.2010.06.007
+        """
+        if self.is_directed():
+            raise ValueError(
+                "second_order_centrality() requires an undirected graph. "
+                "The algorithm is not defined for directed graphs."
+            )
+
+        # Call Rust implementation
+        result_ids = rust.second_order_centrality(self._graph)
+
+        if not result_ids:
+            return {} if return_dict else self
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "second_order_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("second_order_centrality", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def average_neighbor_degree(
+        self,
+        source: str = "out",
+        target: str = "out",
+        weight: str | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Compute average neighbor degree for each node.
+
+        For each node, calculates the average degree of its neighbors. This metric helps analyze
+        degree correlations and mixing patterns in networks, indicating whether nodes tend to
+        connect to similar-degree neighbors (assortative) or different-degree neighbors
+        (disassortative).
+
+        For undirected graphs, computes the average degree of all neighbors. For directed graphs,
+        the `source` parameter controls which neighbors to consider, and the `target` parameter
+        controls how to measure their degrees.
+
+        Parameters
+        ----------
+        source : str, default "out"
+            For directed graphs only, specifies which neighbors to consider: (1) `"out"` for
+            out-neighbors (successors), (2) `"in"` for in-neighbors (predecessors), and (3)
+            `"in+out"` for both in-neighbors and out-neighbors. Raises error if used with undirected
+            graphs.
+        target : str, default "out"
+            For directed graphs only, specifies how to measure neighbor degrees: (1) `"out"` for
+            out-neighbors (successors), (2) `"in"` for in-neighbors (predecessors), and (3)
+            `"in+out"` for both in-neighbors and out-neighbors. Raises error if used with undirected
+            graphs.
+        weight : str, optional
+            Edge attribute name containing weights. If provided, computes weighted average using:
+            `k_nn,i = (1 / s_i) * Σ_j w_ij * k_j`, where `s_i` is the weighted degree. Currently not
+            implemented and will raise error if specified.
+        attr_name : str, optional
+            Name of node attribute to store results. If `None`, uses `average_neighbor_degree`. Only
+            used when `return_dict=False`.
+        return_dict : bool, default False
+            If `True`, returns dict mapping node labels to average neighbor degrees. If `False`,
+            stores values in graph and returns self for chaining.
+
+        Returns
+        -------
+        dict or Graph
+            If `return_dict=True`: dictionary mapping node ID to average neighbor degree. If
+            `return_dict=False`: self (for method chaining).
+
+        Raises
+        ------
+        ValueError
+            - if graph is empty
+            - if `source` or `target` parameters are used with undirected graphs
+            - if `source` or `target` values are invalid
+            - if `weight` is specified (not yet implemented)
+
+        Examples
+        --------
+        **Path Graph - Undirected**
+
+        ```python
+        from edgecase import Graph
+
+        # In a path graph, end nodes have neighbors with degree 1,
+        # middle nodes have neighbors with varying degrees
+        g = Graph(directed=False)
+        for i in range(5):
+            g.add_node(label=str(i))
+        for i in range(4):
+            g.add_edge(str(i), str(i+1))
+
+        and_values = g.average_neighbor_degree(return_dict=True)
+        # Node '0': neighbor '1' has degree 2 → average = 2.0
+        # Node '1': neighbors '0','2' have degrees 1,2 → average = 1.5
+        # Node '2': neighbors '1','3' have degrees 2,2 → average = 2.0
+        ```
+
+        **Directed Graph - Different source/target combinations**
+
+        ```python
+        g = Graph(directed=True)
+        g.add_node(label='A')
+        g.add_node(label='B')
+        g.add_node(label='C')
+        g.add_edge('A', 'B')
+        g.add_edge('B', 'C')
+        g.add_edge('C', 'A')
+
+        # Average out-degree of out-neighbors
+        and_out_out = g.average_neighbor_degree(source="out", target="out", return_dict=True)
+
+        # Average in-degree of in-neighbors
+        and_in_in = g.average_neighbor_degree(source="in", target="in", return_dict=True)
+        ```
+
+        **Store in Graph and Chain**
+
+        ```python
+        g = (
+            Graph(directed=False)
+            .add_node(label='A')
+            .add_node(label='B')
+            .add_node(label='C')
+            .add_edge('A', 'B')
+            .add_edge('B', 'C')
+            .average_neighbor_degree(attr_name='knn')
+        )
+
+        # Values stored as node attribute 'knn'
+        ```
+
+        Notes
+        -----
+        - measures degree correlation patterns in networks
+        - high values indicate nodes connect to high-degree neighbors (assortative mixing)
+        - low values indicate nodes connect to low-degree neighbors (disassortative mixing)
+        - for undirected graphs, ignores `source` and `target` parameters
+        - nodes with no neighbors have average neighbor degree of `0`
+        - weighted version not yet implemented
+
+        References
+        ----------
+        Barrat, A., Barthélemy, M., Pastor-Satorras, R., & Vespignani, A. (2004).
+        "The architecture of complex weighted networks". PNAS, 101(11), 3747-3752.
+        https://doi.org/10.1073/pnas.0400087101
+        """
+        from edgecase import _core as rust
+
+        # Call Rust implementation
+        result_ids = rust.average_neighbor_degree(
+            self._graph,
+            source=source if self.is_directed() else None,
+            target=target if self.is_directed() else None,
+            weight=weight,
+        )
+
+        if not result_ids:
+            return {} if return_dict else self
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "average_neighbor_degree"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            params = {}
+            if self.is_directed():
+                params["source"] = source
+                params["target"] = target
+            if weight is not None:
+                params["weight"] = weight
+            self._computations.append(("average_neighbor_degree", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def harmonic_centrality(
+        self,
+        mode: str = "out",
+        weights: str = None,
+        normalized: bool = False,
+        cutoff: int = -1,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate harmonic centrality scores for all nodes.
+
+        Harmonic centrality is the sum of the reciprocal of shortest path distances from a node to
+        all other reachable nodes. For unreachable nodes, the distance is considered infinite, and
+        the reciprocal is 0. This makes harmonic centrality more robust than closeness centrality
+        for disconnected graphs.
+
+        The formula is: H(v) = Σ 1 / d(v,u) for all u ≠ v, where d(v,u) is the shortest path
+        distance from v to u.
+
+        When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse distance,
+        which is bounded between 0 and 1.
+
+        Parameters
+        ----------
+        mode
+            Direction for measuring distances in directed graphs where: (1) `"out"` follows edges in
+            their direction (default), (2) `"in"` follows edges in reverse, and (3) `"all"` or
+            `"total"` ignores edge directions (only for undirected graphs).
+        weights
+            Optional edge attribute name for weighted distances. Currently not implemented; uses
+            unweighted shortest paths (hop count).
+        normalized
+            If `True`, divides by `(n - 1)` to normalize scores to the `[0, 1]` range. If `False`
+            (the default), returns raw sum of inverse distances.
+        cutoff
+            Maximum path length to consider. Paths longer than cutoff are ignored. Use `-1`
+            (default) for no limit.
+        attr_name
+            Column name to store harmonic centrality scores in the node DataFrame. If `None`
+            (default), automatically uses 'harmonic_centrality'. Overwrites column if it already
+            exists.
+        return_dict
+            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to harmonic centrality scores.
+            If `return_dict` is `False` (the default): returns self for method chaining.
+
+        References
+        ----------
+        Marchiori, M., & Latora, V. (2000). Harmony in the small-world.
+        Physica A: Statistical Mechanics and its Applications, 285(3-4), 539-546.
+
+        Examples
+        --------
+        Calculate harmonic centrality in a simple network:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a star network
+        graph = (
+            Graph()
+            .add_node(label="Center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("Center", "A")
+            .add_edge("Center", "B")
+            .add_edge("Center", "C")
+        )
+
+        scores = graph.harmonic_centrality(return_dict=True)
+        center_id = graph.get_id_from_label("Center")
+        print(scores[center_id])  # Center has highest harmonic centrality
+        ```
+
+        Compare with normalized version:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        # Raw harmonic centrality
+        raw_scores = graph.harmonic_centrality(return_dict=True)
+
+        # Normalized to [0, 1] range
+        norm_scores = graph.harmonic_centrality(normalized=True, return_dict=True)
+        ```
+
+        Use with cutoff for local neighborhoods:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+        )
+
+        # Only consider paths of length 2 or less
+        local_scores = graph.harmonic_centrality(cutoff=2, return_dict=True)
+        ```
+
+        Chain with other operations:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .harmonic_centrality(attr_name="harmonic", normalized=True)
+        )
+
+        # Access the stored values
+        ndf = graph.get_node_df()
+        print(ndf[["label", "harmonic"]])
+        ```
+
+        For directed graphs, use mode to control direction:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # Out-going paths (default)
+        out_scores = graph.harmonic_centrality(mode="out", return_dict=True)
+
+        # In-coming paths
+        in_scores = graph.harmonic_centrality(mode="in", return_dict=True)
+        ```
+        """
+        result_ids = rust.harmonic_centrality(
+            self._graph,
+            mode=mode,
+            weights=weights,
+            normalized=normalized,
+            cutoff=cutoff,
+        )
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "harmonic_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result_ids)
+
+        # Track computation
+        if not return_dict:
+            params = {}
+            if mode != "out":
+                params["mode"] = mode
+            if weights is not None:
+                params["weights"] = weights
+            if normalized:
+                params["normalized"] = normalized
+            if cutoff != -1:
+                params["cutoff"] = cutoff
+            self._computations.append(("harmonic_centrality", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def authority_centrality(
+        self,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get HITS authority scores for each node (directed graphs only).
+
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
+        directed graph. Authority score measures how much a node is pointed to by good hubs:
+
+        authority(v) = sum of hub scores of nodes pointing to v
+
+        Uses power iteration until convergence. Good authorities are nodes that are pointed to by
+        many high-quality hubs. Requires a directed graph.
+
+        Parameters
+        ----------
+        max_iter
+            Maximum number of iterations for convergence.
+        tol
+            Convergence tolerance threshold.
+        attr_name
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`authority_centrality`).
+        return_dict
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to normalized authority scores.
+            If `return_dict` is `False`: returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+
+        Examples
+        --------
+        Calculate authority scores in a citation network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Paper1")
+            .add_node(label="Paper2")
+            .add_node(label="Paper3")
+            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
+            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
+        )
+
+        auth = graph.authority_centrality(return_dict=True, )
+        # Paper2 and Paper3 have high authority (cited)
+        # Paper1 has low authority (not cited)
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Paper1")
+            .add_node(label="Paper2")
+            .add_node(label="Paper3")
+            .add_edge(source="Paper1", target="Paper2")
+            .add_edge(source="Paper1", target="Paper3")
+        )
+
+        # (graph
+        #     .authority_centrality(attr_name="authority")
+        #     .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
+        #     .show())
+        ```
+        """
+        centrality = self._graph.get_authority_centrality(max_iter, tol)
+
+        if return_dict:
+            return centrality
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "authority_centrality"
+
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation
+        params = {}
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("authority_centrality", params, attr_name))
+
+        return self
+
+    def hub_centrality(
+        self,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get HITS hub scores for each node (directed graphs only).
+
+        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
+        directed graph. Hub score measures how much a node points to good authorities:
+
+        hub(v) = sum of authority scores of nodes v points to
+
+        Uses power iteration until convergence. Good hubs are nodes that point to many high-quality
+        authorities. Requires a directed graph.
+
+        Parameters
+        ----------
+        max_iter
+            Maximum number of iterations for convergence.
+        tol
+            Convergence tolerance threshold.
+        attr_name
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`hub_centrality`).
+        return_dict
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to normalized hub scores. If
+            `return_dict` is `False`: returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If graph is undirected.
+
+        Examples
+        --------
+        Calculate hub scores in a citation network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Paper1")
+            .add_node(label="Paper2")
+            .add_node(label="Paper3")
+            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
+            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
+        )
+
+        hub = graph.hub_centrality(return_dict=True, )
+        # Paper1 has high hub score (cites many papers)
+        # Paper2 and Paper3 have low hub scores
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Paper1")
+            .add_node(label="Paper2")
+            .add_node(label="Paper3")
+            .add_edge(source="Paper1", target="Paper2")
+            .add_edge(source="Paper1", target="Paper3")
+        )
+
+        # (graph
+        #     .hub_centrality(attr_name="hub")
+        #     .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
+        #     .show())
+        ```
+        """
+        centrality = self._graph.get_hub_centrality(max_iter, tol)
+
+        if return_dict:
+            return centrality
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "hub_centrality"
+
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation
+        params = {}
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("hub_centrality", params, attr_name))
+
+        return self
+
+    def eigen_centrality(
+        self,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get eigenvector centrality for each node.
+
+        Eigenvector centrality measures node importance based on connections to other important
+        nodes. It's the principal eigenvector of the adjacency matrix, computed via power iteration:
+
+        x = λ⁻¹ · A · x
+
+        A node has high eigenvector centrality if it's connected to other nodes that themselves have
+        high centrality. Unlike degree centrality, it accounts for the quality (not just quantity)
+        of connections.
+
+        Parameters
+        ----------
+        max_iter
+            Maximum number of iterations for convergence.
+        tol
+            Convergence tolerance threshold.
+        attr_name
+            Column name to store eigenvector centrality scores in the node DataFrame. If `None`
+            (default), automatically uses `eigen_centrality`. Overwrites column if it already
+            exists.
+        return_dict
+            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
+            returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
+            `return_dict` is `False` (default): returns self for method chaining.
+
+        Examples
+        --------
+        Calculate eigenvector centrality in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        eigen = graph.eigen_centrality()
+        # Hub has highest eigenvector centrality
+        # All connected nodes have non-zero centrality
+        ```
+
+        Store as node attributes and chain other operations:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="hub", target="A")
+            .add_edge(source="hub", target="B")
+            .add_edge(source="hub", target="C")
+        )
+
+        # (graph
+        #     .eigen_centrality(attr_name="centrality")
+        #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", range=[0.5, 2.0])
+        #     .show())
+        ```
+        """
+        centrality = self._graph.get_eigen_centrality(max_iter, tol)
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "eigen_centrality"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation
+        if not return_dict:
+            params = {}
+            if max_iter != 100:
+                params["max_iter"] = max_iter
+            if tol != 1e-6:
+                params["tol"] = tol
+            self._computations.append(("eigen_centrality", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return centrality
+        return self
+
+    def alpha_centrality(
+        self,
+        alpha: float = 0.1,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get alpha centrality for each node.
+
+        Alpha centrality is a generalization of eigenvector centrality that adds an exogenous
+        factor:
+
+        x = α · A · x + e
+
+        where α is the attenuation factor, A is the adjacency matrix, and e is the exogenous factor
+        (set to `1` for all nodes). Lower α emphasizes local neighborhood structure, while higher α
+        considers more global structure.
+
+        Parameters
+        ----------
+        alpha
+            Attenuation factor (range: `0` to `1`). Controls the balance between local and global
+            structure.
+        max_iter
+            Maximum number of iterations for convergence.
+        tol
+            Convergence tolerance threshold.
+        attr_name
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`alpha_centrality`).
+        return_dict
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
+            `return_dict` is `False`: returns self for method chaining.
+
+        Examples
+        --------
+        Calculate alpha centrality with different α values:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        alpha_local = graph.alpha_centrality(return_dict=True, alpha=0.05)  # Local emphasis
+        alpha_global = graph.alpha_centrality(return_dict=True, alpha=0.5)  # Global emphasis
+        ```
+
+        Store as node attributes and chain visualization:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="hub", target="A")
+            .add_edge(source="hub", target="B")
+            .add_edge(source="hub", target="C")
+        )
+
+        # (graph
+        #     .alpha_centrality(attr_name="alpha_cent")
+        #     .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
+        #     .show())
+        ```
+        """
+        centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
+
+        if return_dict:
+            return centrality
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "alpha_centrality"
+
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation
+        params = {}
+        if alpha != 0.1:
+            params["alpha"] = alpha
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("alpha_centrality", params, attr_name))
+
+        return self
+
+    def bonacich_power_centrality(
+        self,
+        beta: float = 0.1,
+        normalized: bool = False,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get Bonacich power centrality for each node.
+
+        Bonacich power centrality generalizes eigenvector centrality to capture both cooperative and
+        competitive network dynamics. The key innovation is the β parameter, which controls whether
+        neighbors' power increases (+β) or decreases (-β) a node's own power.
+
+        The centrality is computed as:
+            c(α, β) = α(I - βA)^(-1) A 1
+
+        where A is the adjacency matrix, α is a scaling parameter (set automatically),
+        β controls the nature of relations, and 1 is a vector of ones.
+
+        β > 0: Cooperative relations: being connected to powerful nodes makes you powerful
+               (e.g., collaboration networks, social influence, information diffusion)
+
+        β < 0: Competitive relations: being connected to weak nodes makes you powerful
+               (e.g., exchange networks, competitive markets, bargaining power)
+
+        β = 1/λ_max: Equivalent to eigenvector centrality
+
+        The magnitude of |β| controls how far influence propagates through the network.
+        Larger |β| means distant nodes have more influence; smaller |β| localizes influence.
+
+        Parameters
+        ----------
+        beta
+            The decay/attenuation parameter. Controls the nature and reach of influence:
+
+            - β > 0: Cooperative (powerful neighbors -> more power)
+            - β < 0: Competitive (weak neighbors -> more power)
+            - Must satisfy |β| < 1/λ_max to avoid singularity
+            - Typical range: -0.5 to 0.5
+            - β = 0: Reduces to simple degree centrality
+        normalized
+            Normalization method:
+
+            - False: L2 normalization where sum(c^2) = n, making c=1 the "middle" value
+                     (Bonacich 1987 original formulation)
+            - True: Sum normalization where sum(c) = 1 (probability distribution)
+        attr_name
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("bonacich_power_centrality").
+        return_dict
+            If `True`, returns dictionary of results. If `False`, stores results
+            as node attributes and returns self for method chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores.
+            If `return_dict` is `False`: returns self for method chaining.
+            Interpretation depends on β:
+
+            - β > 0: Higher scores = more powerful due to powerful neighbors
+            - β < 0: Higher scores = more powerful due to weak neighbors
+
+        Raises
+        ------
+        RuntimeError
+            If (I - βA) is singular. This happens when β is too close to 1/λ_max. Try reducing |β|
+            or choosing a different value.
+
+        Examples
+        --------
+        Cooperative network (β > 0) star graph:
+
+        ```python
+        import edgecase as ec
+
+        # Create star: center connected to 3 leaves
+        g = (
+            ec.Graph(directed=True)
+            .add_node(label="center")
+            .add_node(label="leaf1")
+            .add_node(label="leaf2")
+            .add_node(label="leaf3")
+            .add_edge(source="center", target="leaf1")
+            .add_edge(source="center", target="leaf2")
+            .add_edge(source="center", target="leaf3")
+        )
+
+        # Cooperative: powerful neighbors increase your power
+        power = g.bonacich_power_centrality(return_dict=True, beta=0.1)
+        # center will have highest centrality (connected to many)
+        ```
+
+        Competitive network (β < 0) exchange network:
+
+        ```python
+        import edgecase as ec
+
+        # In exchange/bargaining networks, connecting to weak partners
+        # gives you more bargaining power
+        g = ec.Graph(directed=False)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_node(label="D")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="B", target="C")
+        g.add_edge(source="C", target="D")
+
+        # Negative beta: weak neighbors increase your power
+        power = g.bonacich_power_centrality(return_dict=True, beta=-0.2)
+        # End nodes (A, D) have higher power, so, fewer alternatives
+        ```
+
+        Compare with eigenvector centrality:
+
+        ```python
+        import edgecase as ec
+
+        # β near 1/λ_max approximates eigenvector centrality
+        # For small graphs, λ_max ≈ max_degree, so try β ≈ 1/max_degree
+        g = ec.Graph(directed=False)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_node(label="D")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="B", target="C")
+        g.add_edge(source="B", target="D")
+
+        max_deg = max(g.get_degree(node=nid) for nid in g.get_node_ids())
+        bonacich = g.bonacich_power_centrality(return_dict=True, beta=0.9/max_deg)
+        eigen = g.eigen_centrality()
+        # Should be similar
+        ```
+
+        Notes
+        -----
+        - **Algorithm**: Uses matrix inversion via LU decomposition to solve (I - βA)x = A1
+        - **Time complexity**: O(n³) for dense graphs due to matrix operations
+        - **Space complexity**: O(n²) to store the adjacency matrix
+        - **Numerical stability**: The algorithm may fail if β is too close to 1/λ_max,
+          where λ_max is the largest eigenvalue of A. Choose |β| < 0.9/λ_max for safety.
+        - **β selection**: There's no universal "correct" β value - it should be chosen
+          based on theory and the specific application. See Rodan (2011) for guidance.
+        - **Negative β instability**: Centrality can be more sensitive to β changes when
+          β < 0 compared to β > 0. Test multiple values.
+        - **Directed graphs**: Works for both directed and undirected graphs. In directed
+          graphs, the interpretation relates to in-degree influence patterns.
+
+        References
+        ----------
+        .. [1] Bonacich, P. (1987). "Power and Centrality: A Family of Measures."
+               American Journal of Sociology, 92, 1170-1182.
+               https://www.jstor.org/stable/2780000
+
+        .. [2] Rodan, S. (2011). "Choosing the 'β' parameter when using the Bonacich
+               power measure." Journal of Social Structure, 12(1), 1-23.
+               https://www.exeley.com/journal_of_social_structure/doi/10.21307/joss-2019-032
+        """
+        result = self._graph.get_bonacich_power_centrality(beta, normalized)
+        # Empty result indicates singular matrix error
+        if not result and self.count_nodes() > 0:
+            raise RuntimeError(
+                "Matrix (I - β·A) is singular. β is too close to 1/λ_max. "
+                "Try a smaller |β| value (e.g., reduce by half)."
+            )
+
+        if return_dict:
+            return result
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "bonacich_power_centrality"
+
+        self.set_node_attrs(attr_name, result)
+
+        # Track computation
+        params = {}
+        if beta != 0.1:
+            params["beta"] = beta
+        if normalized:
+            params["normalized"] = normalized
+        self._computations.append(("bonacich_power_centrality", params, attr_name))
+
+        return self
+
+    def katz_centrality(
+        self,
+        alpha: float = 0.1,
+        beta: float = 1.0,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get Katz centrality for each node.
+
+        Katz centrality measures node influence based on the number of walks of all lengths reaching
+        the node, with walks weighted by α^length:
+
+        x = α · Aᵀ · x + β
+
+        where α is the attenuation factor, Aᵀ is the transpose of the adjacency matrix, and β is a
+        bias vector (constant for all nodes). For directed graphs, this counts incoming paths,
+        making it suitable for measuring "prestige" or "influence received".
+
+        Key differences from other centralities:
+
+        - PageRank: Uses teleportation and out-degree normalization
+        - Eigenvector: Only considers infinite-length walks (principal eigenvector)
+        - Alpha centrality: Uses A instead of Aᵀ (outgoing vs incoming)
+        - Katz: Weights walks by path length, considers all finite walks
+
+        Parameters
+        ----------
+        alpha
+            Attenuation factor for walk lengths. Must be smaller than the reciprocal of the largest
+            eigenvalue (typically < `0.2` for safety). Higher values give more weight to longer
+            paths.
+        beta
+            Bias/weight added to each node. Acts as a 'free' centrality that every node gets. Higher
+            values reduce the relative importance of network position.
+        max_iter
+            Maximum number of iterations for convergence.
+        tol
+            Convergence tolerance threshold.
+        attr_name
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`katz_centrality`).
+        return_dict
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to normalized Katz centrality
+            scores. If `return_dict` is `False`: returns self for method chaining. Scores sum to
+            `1.0`.
+
+        Examples
+        --------
+        Calculate Katz centrality on a simple directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("A", "D")
+        )
+
+        katz = graph.katz_centrality(return_dict=True, alpha=0.1)
+        # D has highest Katz (receives edges from A and C via B)
+        ```
+
+        Compare different alpha values:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+            .add_edge(source="A", target="D")
+        )
+
+        katz_local = graph.katz_centrality(return_dict=True, alpha=0.05)  # Emphasis on short paths
+        katz_global = graph.katz_centrality(return_dict=True, alpha=0.15) # Include longer paths
+        ```
+
+        Notes
+        -----
+        - for undirected graphs, Aᵀ = A, so behavior is similar to alpha centrality
+        - for directed graphs, high Katz = many incoming paths (prestige/authority)
+        - alpha should be < 1/λ_max to ensure convergence (typically α < 0.2)
+        - beta = 1.0 treats all nodes equally; adjust to bias certain nodes
+        - normalizes final scores to sum to 1.0 for interpretability
+
+        References
+        ----------
+        .. [1] Katz, L. (1953). "A new status index derived from sociometric analysis."
+               Psychometrika, 18(1), 39-43.
+        """
+        scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
+
+        if return_dict:
+            return scores_by_id
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "katz_centrality"
+
+        self.set_node_attrs(attr_name, scores_by_id)
+
+        # Track computation
+        params = {}
+        if alpha != 0.1:
+            params["alpha"] = alpha
+        if beta != 1.0:
+            params["beta"] = beta
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("katz_centrality", params, attr_name))
+
+        return self
+
+    def leverage_centrality(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get leverage centrality for each node.
+
+        Leverage centrality measures the degree connectivity of a node relative to its neighbors:
+
+        leverage(v) = (1/k_v) · Σ[(k_v - k_n) / (k_v + k_n)]
+
+        where k_v is the degree of node v, and k_n is the degree of each neighbor n.
+
+        Interpretation:
+
+        - positive values: node has more connections than its neighbors (influential)
+        - negative values: node has fewer connections than its neighbors (peripheral)
+        - zero: node has similar connectivity to its neighbors
+
+        Parameters
+        ----------
+        attr_name
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`leverage_centrality`).
+        return_dict
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to leverage centrality scores.
+            If `return_dict` is `False`: returns self for method chaining.
+
+        Examples
+        --------
+        Calculate leverage centrality in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        leverage = graph.leverage_centrality(return_dict=True)
+        # Hub has positive leverage (high degree, low-degree neighbors)
+        # Leaves have negative leverage (low degree, high-degree neighbor)
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="hub", target="A")
+            .add_edge(source="hub", target="B")
+            .add_edge(source="hub", target="C")
+        )
+
+        # (graph
+        #     .leverage_centrality(attr_name="leverage")
+        #     .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
+        #     .show())
+        ```
+        """
+        centrality = self._graph.get_leverage_centrality()
+
+        if return_dict:
+            return centrality
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "leverage_centrality"
+
+        self.set_node_attrs(attr_name, centrality)
+
+        # Track computation (no non-default params)
+        self._computations.append(("leverage_centrality", {}, attr_name))
+
+        return self
+
+    def domirank_centrality(
+        self,
+        sigma: float | None = None,
+        alpha: float = 0.95,
+        method: str = "iterative",
+        tolerance: float = 1e-5,
+        max_iter: int = 1000,
+        patience: int = 10,
+        max_depth: int = 50,
+        return_sigma: bool = False,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], tuple[dict[int, float], float], "Graph", tuple["Graph", float]]:
+        """
+        Get DomiRank centrality for each node.
+
+        DomiRank centrality quantifies node dominance in their neighborhoods. The competition
+        parameter sigma (or alpha) provides a tunable trade-off between local and global topological
+        information:
+
+        d𝚪ᵢ(t)/dt = σ(dᵢ - Σⱼ Aᵢⱼ 𝚪ⱼ(t)) - 𝚪ᵢ(t)
+
+        Where:
+
+        - 𝚪ᵢ is the dominance score for node i
+        - σ is the competition parameter
+        - dᵢ is the degree of node i
+        - A is the adjacency matrix
+
+        Unlike eigenvector-type centralities (where being connected to important nodes makes you
+        important), DomiRank identifies nodes that dominate their local structure. Being close to a
+        dominant node can suppress your own dominance in high-competition contexts.
+
+        For σ -> 0: Converges to degree centrality (only local information)
+        For large σ: Identifies globally dominant nodes
+
+        Parameters
+        ----------
+        sigma
+            Competition parameter. If `None` (default), automatically computed from smallest
+            eigenvalue and alpha. Higher values increase global competition for dominance.
+        alpha
+            Alpha parameter for auto-computing sigma (sigma = alpha / |λ_min|). Only used if sigma
+            is `None`. Must be positive.
+        method
+            Solution method. Currently only "iterative" is implemented. (Analytical method may be
+            added in the future for small graphs.)
+        tolerance
+            Convergence tolerance for iterative solver.
+        max_iter
+            Maximum iterations for Newton's method.
+        patience
+            Number of steps between convergence checks. Must satisfy `max_iter > 3 * patience`.
+        max_depth
+            Maximum bisection steps for finding smallest eigenvalue (when auto-computing sigma).
+        return_sigma
+            If `True`, return (centrality_dict, sigma) tuple or (Graph, sigma) tuple instead of just
+            dict or Graph.
+        attr_name
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`domirank_centrality`).
+        return_dict
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
+
+        Returns
+        -------
+        dict[int, float] or tuple[dict[int, float], float] or Graph or tuple[Graph, float]
+            If `return_dict` is `True` and `return_sigma` is `False`: dictionary mapping node IDs to
+            dominance scores. If `return_dict` is `True` and `return_sigma` is `True`: tuple of
+            (centrality dict, sigma value). If `return_dict` is `False` and `return_sigma` is
+            `False`: returns self for method chaining. If `return_dict` is `False` and
+            `return_sigma` is `True`: tuple of (self, sigma value). Nodes with positive scores are
+            dominant; negative scores indicate submissive nodes.
+
+        Raises
+        ------
+        ValueError
+            If alpha <= 0, dt not in (0, 1), tolerance <= 0, or max_iter <= 3*patience.
+
+        Examples
+        --------
+        Auto-optimized DomiRank for a path graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Cycle
+        )
+
+        # Auto-optimize sigma based on graph structure
+        domirank = graph.domirank_centrality(return_dict=True, )
+        # Middle nodes often have high dominance scores
+
+        # Get sigma value used
+        domirank, sigma = graph.domirank_centrality(return_dict=True, return_sigma=True)
+        print(f"Used sigma={sigma:.3f}")
+        ```
+
+        Manual sigma for specific competition level:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
+        # High competition (more global)
+        dr_high = graph.domirank_centrality(return_dict=True, sigma=2.0)
+
+        # Low competition (more local, like degree)
+        dr_low = graph.domirank_centrality(return_dict=True, sigma=0.1)
+        ```
+
+        Notes
+        -----
+        - computational complexity: O(E × iterations) where E is edges
+        - suitable for large graphs (tested on millions of nodes)
+        - works for directed, undirected, weighted, and unweighted graphs
+        - negative values indicate submissive nodes that yield to neighbors
+        - joint dominance: Multiple nodes can co-dominate a neighborhood
+
+        Algorithm notes:
+
+        - uses Newton iteration with adaptive convergence detection
+        - automatically finds optimal sigma via smallest eigenvalue
+        - detects divergence via monotonic increase in updates
+
+        References
+        ----------
+        .. [1] Engsig, M., Tejedor, A., Moreno, Y. et al. "DomiRank Centrality
+               reveals structural fragility of complex networks via node dominance."
+               Nat Commun 15, 56 (2024). https://doi.org/10.1038/s41467-023-44257-0
+        """
+        if method != "iterative":
+            raise ValueError("Only method='iterative' is currently supported")
+
+        # Import the Rust function
+        from edgecase._core import domirank as rust_domirank
+
+        # Call Rust implementation
+        scores_by_id, final_sigma, converged = rust_domirank(
+            self._graph,
+            sigma,
+            alpha,
+            0.1,  # dt fixed at 0.1 for stability
+            tolerance,
+            max_iter,
+            patience,
+            max_depth,
+        )
+
+        if not converged:
+            import warnings
+
+            warnings.warn(
+                "DomiRank did not converge within max_iter iterations. "
+                "Consider increasing max_iter or adjusting tolerance.",
+                RuntimeWarning,
+            )
+
+        if return_dict:
+            if return_sigma:
+                return scores_by_id, final_sigma
+            return scores_by_id
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "domirank_centrality"
+
+        self.set_node_attrs(attr_name, scores_by_id)
+
+        # Track computation
+        params = {}
+        if sigma is not None:
+            params["sigma"] = sigma
+        if alpha != 0.95:
+            params["alpha"] = alpha
+        if tolerance != 1e-5:
+            params["tolerance"] = tolerance
+        if max_iter != 1000:
+            params["max_iter"] = max_iter
+        if patience != 10:
+            params["patience"] = patience
+        if max_depth != 50:
+            params["max_depth"] = max_depth
+        self._computations.append(("domirank_centrality", params, attr_name))
+
+        if return_sigma:
+            return self, final_sigma
+        return self
+
+    # ==============================================================================
     # Distance and Path Metrics
     # ==============================================================================
 
@@ -11297,6 +13284,196 @@ class Graph:
         from edgecase._core import find_maximal_independent_sets
 
         return find_maximal_independent_sets(self._graph, count, seed)
+
+    # ==============================================================================
+    # Minimum/Maximum Spanning Trees
+    # ==============================================================================
+
+    def minimum_spanning_tree(
+        self,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[str]":
+        """
+        Find the minimum spanning tree using Kruskal's algorithm.
+
+        A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
+        total edge weight. Uses the optimized union-find data structure with path-halving for
+        efficient cycle detection.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of edge attribute to use for weights. If None (default), uses the edge's weight
+            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
+        return_subgraph
+            If `True`, returns a new Graph containing only the MST edges. If `False`, returns a list
+            of edge IDs as strings.
+
+        Returns
+        -------
+        Graph or list[str]
+            Either a new Graph with MST edges or a list of edge ID strings, depending on
+            the `return_subgraph=` parameter.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph(weighted=True)
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_node("D")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=2.0)
+        g.add_edge("C", "D", weight=3.0)
+        g.add_edge("D", "A", weight=4.0)
+        g.add_edge("A", "C", weight=5.0)
+
+        mst = g.minimum_spanning_tree()
+        print(mst.count_edges())  # 3
+
+        # Calculate total weight
+        total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
+                    if e and e.weight is not None)
+        print(total)  # 6.0
+        ```
+
+        Notes
+        -----
+        - time complexity: O(E log E) for sorting edges
+        - space complexity: O(V) for union-find structure
+        - for disconnected graphs, finds a minimum spanning forest
+        - if graph has < 2 nodes, returns empty graph or list
+
+        References
+        ----------
+        .. [1] Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph
+               and the traveling salesman problem". Proceedings of the American
+               Mathematical Society. 7: 48–50.
+        """
+        edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
+
+        if return_subgraph:
+            # Create a new graph with the MST edges
+            mst = Graph(directed=self.is_directed(), weighted=True)
+
+            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
+            for node_id in self.get_node_ids(limit=None):
+                label = self.get_label_from_id(node_id)
+                # Try to get node attributes if they exist
+                try:
+                    node_obj = self._graph.get_node(label)
+                    mst.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    mst.add_node(label)
+
+            # Add MST edges
+            for edge_id in edge_ids:
+                edge = self.get_edge(edge_id)
+                if edge:
+                    mst.add_edge(
+                        self.get_label_from_id(edge.source),
+                        self.get_label_from_id(edge.target),
+                        weight=edge.weight,
+                        attributes=edge.attributes,
+                    )
+
+            return mst
+        else:
+            return [str(eid) for eid in edge_ids]
+
+    def maximum_spanning_tree(
+        self,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[str]":
+        """
+        Find the maximum spanning tree using Kruskal's algorithm.
+
+        A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
+        edge weight. Essentially finds the MST of the negated edge weights.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
+            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
+        return_subgraph
+            If `True`, returns a new Graph containing only the spanning tree edges. If `False`,
+            returns a list of edge IDs as strings.
+
+        Returns
+        -------
+        Graph or list[str]
+            Either a new Graph with spanning tree edges or a list of edge ID strings, depending on
+            the `return_subgraph=` parameter.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph(weighted=True)
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=3.0)
+        g.add_edge("C", "A", weight=2.0)
+
+        max_st = g.maximum_spanning_tree()
+
+        # Calculate total weight
+        total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.get_edges_as_tuples()]
+                    if e and e.weight is not None)
+        print(total)  # 5.0 (chooses edges with weights 3.0 and 2.0)
+        ```
+
+        Notes
+        -----
+        - time complexity: O(E log E) for sorting edges
+        - space complexity: O(V) for union-find structure
+        - useful for finding most important connections in a network
+        """
+        edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
+
+        if return_subgraph:
+            # Create a new graph with the spanning tree edges
+            st = Graph(directed=self.is_directed(), weighted=True)
+
+            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
+            for node_id in self.get_node_ids(limit=None):
+                label = self.get_label_from_id(node_id)
+                # Try to get node attributes if they exist
+                try:
+                    node_obj = self._graph.get_node(label)
+                    st.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    st.add_node(label)
+
+            # Add spanning tree edges
+            for edge_id in edge_ids:
+                edge = self.get_edge(edge_id)
+                if edge:
+                    st.add_edge(
+                        self.get_label_from_id(edge.source),
+                        self.get_label_from_id(edge.target),
+                        weight=edge.weight,
+                        attributes=edge.attributes,
+                    )
+
+            return st
+        else:
+            return [str(eid) for eid in edge_ids]
 
     # ==============================================================================
     # Eulerian Paths and Circuits
@@ -15015,166 +17192,6 @@ class Graph:
         return self._graph.count_strongly_connected_components()
 
     # ==============================================================================
-    # Simple Counts
-    # ==============================================================================
-
-    def count_all_loops(self) -> int:
-        """
-        Count total number of self-loop edges in the graph.
-
-        A self-loop is an edge where the source and target are the same node.
-        This counts all self-loop edges in the entire graph, regardless of which
-        nodes they belong to. Use `count_loops()` to get per-node counts.
-
-        Self-loops are common in state machines, reflexive relationships, and
-        chemical reaction networks.
-
-        Returns
-        -------
-        int
-            Total number of edges where source equals target.
-
-        Examples
-        --------
-        Count all self-loops in graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-            .add_edge("A", "A")  # Self-loop
-            .add_edge("B", "B")  # Self-loop
-        )
-
-        print(graph.count_all_loops())  # 2
-        ```
-
-        Multiple self-loops on same node:
-
-        ```python
-        graph = Graph()
-        graph.add_node(label="A")
-        graph.add_edge("A", "A")  # First self-loop
-        graph.add_edge("A", "A")  # Second self-loop
-
-        print(graph.count_all_loops())  # 2
-        ```
-        """
-        return self._graph.count_all_loops()
-
-    def count_multi_edges(self) -> int:
-        """
-        Count multi-edges (parallel edges between same node pair).
-
-        Only counts edges beyond the first one for each node pair.
-        For example, if there are 3 edges from A to B, this counts 2 of them.
-        Multi-edges are useful for modeling scenarios like multiple flights
-        between cities or repeated transactions.
-
-        Returns
-        -------
-        int
-            Number of duplicate edges (beyond first edge per pair).
-
-        Examples
-        --------
-        Count multi-edges in a directed graph:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B", id=1)
-            .add_edge("A", "B", id=2)  # Multi-edge
-            .add_edge("A", "B", id=3)  # Another multi-edge
-            .add_edge("B", "A", id=4)  # Different direction
-        )
-
-        print(graph.count_multi_edges())  # 2
-        ```
-        """
-        return self._graph.count_multi_edges()
-
-    def count_mutual_node_pairs(self) -> int:
-        """
-        Count mutual node pairs (bidirectional edges) in directed graphs.
-
-        Returns the number of node pairs (a,b) where both edges a->b and b->a exist.
-        Only works for directed graphs. Self-loops are excluded. This metric is
-        useful for analyzing reciprocity in directed networks like social graphs.
-
-        Returns
-        -------
-        int
-            Number of node pairs with edges in both directions.
-
-        Raises
-        ------
-        ValueError
-            If graph is undirected.
-
-        Examples
-        --------
-        Count mutual relationships:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # Mutual with A
-            .add_edge("A", "C")  # One-way only
-        )
-
-        print(graph.count_mutual_node_pairs())  # 1
-        ```
-        """
-        return self._graph.count_mutual_node_pairs()
-
-    def count_asymmetric_node_pairs(self) -> int:
-        """
-        Count asymmetric node pairs (one-way edges) in directed graphs.
-
-        Returns the number of node pairs (a,b) where edge a->b exists but not b->a.
-        Only works for directed graphs. Self-loops are excluded. This metric helps
-        analyze directional flow or hierarchy in directed networks.
-
-        Returns
-        -------
-        int
-            Number of node pairs with edges in only one direction.
-
-        Raises
-        ------
-        ValueError
-            If graph is undirected.
-
-        Examples
-        --------
-        Count one-way relationships:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # Mutual, not counted
-            .add_edge("A", "C")  # Asymmetric
-        )
-
-        print(graph.count_asymmetric_node_pairs())  # 1
-        ```
-        """
-        return self._graph.count_asymmetric_node_pairs()
-
-    # ==============================================================================
     # Path and Topological Analysis
     # ==============================================================================
 
@@ -18067,2023 +20084,6 @@ class Graph:
         self._computations.append(("coreness", {}, attr_name))
 
         return self
-
-    # ==============================================================================
-    # Centrality
-    # ==============================================================================
-
-    def betweenness_centrality(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Calculate betweenness centrality scores for all nodes.
-
-        Betweenness centrality measures how often a node appears on the shortest paths between other
-        nodes in the graph. Nodes with high betweenness act as bridges or bottlenecks, controlling
-        the flow of information or resources through the network.
-
-        This metric is particularly useful for:
-
-        - identifying key connectors in social networks
-        - finding critical infrastructure nodes in transportation/communication networks
-        - detecting potential bottlenecks or points of failure
-
-        The algorithm computes shortest paths between all pairs of nodes and counts how many times
-        each node appears on these paths.
-
-        Parameters
-        ----------
-        attr_name
-            Column name to store betweenness scores in the node DataFrame. If `None` (default),
-            automatically uses `betweenness_centrality`. Overwrites column if it already exists.
-        return_dict
-            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF and
-            returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to betweenness scores (range of
-            `[0, 1]`). If `return_dict` is `False` (default): returns self for method chaining.
-
-        Examples
-        --------
-        Find bridge nodes in a network:
-
-        ```python
-        # Create two clusters connected by a bridge node
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="Bridge")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "Bridge")
-            .add_edge("Bridge", "C")
-            .add_edge("C", "D")
-        )
-
-        scores = graph.betweenness_centrality(return_dict=True)
-        bridge_id = graph.get_id_from_label("Bridge")
-        print(scores[bridge_id])  # High score: bridges two clusters
-
-        # Convert to labels if needed
-        label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
-        print(label_scores["Bridge"])  # Same result
-        ```
-
-        Identify the most important connectors:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
-        )
-
-        scores = graph.betweenness_centrality(return_dict=True)
-        connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-
-        for node_id, score in connectors:
-            label = graph.get_label_from_id(node_id)
-            print(f"{label} (ID {node_id}): {score:.4f}")
-        ```
-        """
-        result_ids = rust.betweenness_centrality(self._graph)
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "betweenness_centrality"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
-        # Track computation
-        if not return_dict:
-            self._computations.append(("betweenness_centrality", {}, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
-        return self
-
-    def load_centrality(
-        self,
-        normalized: bool = True,
-        cutoff: int = None,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Calculate load centrality scores for all nodes.
-
-        Load centrality measures the fraction of shortest paths that pass through each node. It is
-        similar to betweenness centrality but uses a different accumulation formula that counts the
-        'load' or traffic on nodes from shortest path routing.
-
-        The key differences from betweenness centrality:
-
-        - **Betweenness**: uses dependency accumulation with path count ratios
-        - **Load**: uses simpler load counting based on predecessors
-
-        Both metrics identify important bridge nodes, but load centrality can produce slightly
-        different rankings that may be more intuitive for certain applications like network traffic
-        analysis or identifying bottlenecks in routing systems.
-
-        Parameters
-        ----------
-        normalized
-            If `True` (default), normalizes scores by dividing by `(n-1)(n-2)` where `n` is the
-            number of nodes. If `False`, returns raw load counts.
-        cutoff
-            Optional maximum path length to consider. Only paths of length ≤ cutoff are included.
-            If `None` (default), considers all path lengths.
-        attr_name
-            Column name to store load centrality scores in the node DataFrame. If `None` (default),
-            automatically uses 'load_centrality'. Overwrites column if it already exists.
-        return_dict
-            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF
-            and returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to load centrality scores. If
-            `return_dict` is `False` (default): returns self for method chaining.
-
-        References
-        ----------
-        Newman, M. E. J. (2001). Scientific collaboration networks. II. Shortest paths,
-        weighted networks, and centrality. Physical Review E, 64(016132).
-        https://doi.org/10.1103/PhysRevE.64.016132
-
-        Examples
-        --------
-        Identify bridge nodes using load centrality:
-
-        ```python
-        from edgecase import Graph
-
-        # Create a network with a central bridge
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="Bridge")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "Bridge")
-            .add_edge("Bridge", "C")
-            .add_edge("C", "D")
-        )
-
-        scores = graph.load_centrality(return_dict=True)
-        bridge_id = graph.get_id_from_label("Bridge")
-        print(f"Bridge load: {scores[bridge_id]:.4f}")  # High load score
-        ```
-
-        Compare load vs betweenness centrality:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-        )
-
-        load = graph.load_centrality(return_dict=True)
-        betweenness = graph.betweenness_centrality(return_dict=True)
-
-        for node_id in sorted(load.keys()):
-            label = graph.get_label_from_id(node_id)
-            print(f"{label}: load={load[node_id]:.3f}, betweenness={betweenness[node_id]:.3f}")
-        ```
-
-        Store centrality as node attribute for later use:
-
-        ```python
-        from edgecase import Graph
-
-        # Create a simple path graph
-        graph = Graph()
-        for i in range(5):
-            graph.add_node(label=str(i))
-        for i in range(4):
-            graph.add_edge(str(i), str(i+1))
-
-        # Compute and store load centrality
-        graph.load_centrality(attr_name="load")
-
-        # Verify it was stored
-        any_comp = any("load" in str(c) for c in graph._computations)
-        print(f"Load centrality computed: {any_comp}")
-        ```
-        """
-        # Call Rust implementation
-        result_ids = rust.load_centrality(self._graph, normalized=normalized, cutoff=cutoff)
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "load_centrality"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
-        # Track computation
-        if not return_dict:
-            self._computations.append(
-                ("load_centrality", {"normalized": normalized, "cutoff": cutoff}, attr_name)
-            )
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
-        return self
-
-    def second_order_centrality(
-        self,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Compute the second order centrality for nodes in the graph.
-
-        Second order centrality measures the standard deviation of return times to a node in a
-        perpetual random walk on the graph. Lower values indicate higher centrality, as nodes with
-        lower return time variance are more centrally positioned in the network structure.
-
-        This metric is particularly useful for identifying nodes that are consistently reached in
-        random walks, indicating their importance in network flow and connectivity patterns.
-
-        Parameters
-        ----------
-        attr_name : str, optional
-            Name of node attribute to store centrality values. If `None`, uses
-            `second_order_centrality`. Only used when `return_dict=False`.
-        return_dict : bool, default False
-            If `True`, returns dict mapping node IDs to centrality values. If `False`, stores
-            values in graph and returns self for chaining.
-
-        Returns
-        -------
-        dict or Graph
-            If r`eturn_dict=True`: dictionary mapping node ID to centrality value. If
-            `return_dict=False`: self (for method chaining).
-
-        Raises
-        ------
-        ValueError
-            - If graph is directed (algorithm only works for undirected graphs)
-            - If graph is empty
-            - If graph is not connected
-
-        Notes
-        -----
-        **Algorithm Overview:**
-
-        The algorithm implements the analytical solution from Kermarrec et al. (2011)
-        based on Metropolis-Hastings random walks:
-
-        1. Balance the graph by adding self-loops to equalize in-degrees
-        2. Create transition probability matrix P
-        3. For each node i, solve the linear system: (I - Q_i) * M[:, i] = 1
-           where Q_i is P with column i zeroed
-        4. Compute centrality as: sqrt(2 * sum(M[:, i]) - n * (n + 1))
-
-        **Complexity:**
-
-        - Time: O(n³) due to solving n linear systems of size n×n
-        - Space: O(n²) for storing matrices
-        - **Viable only for small to medium graphs (< 1,000 nodes)**
-
-        **Interpretation:**
-
-        - **Lower values** = **higher centrality** (more central nodes)
-        - Values represent consistency of return times in random walks
-        - Captures both direct and indirect influence through network structure
-        - Complements first-order metrics like degree or betweenness
-
-        **Current Limitation:**
-
-        - Only supports unweighted graphs (all edges treated equally)
-
-        Examples
-        --------
-        Identify central nodes in a path graph (lower values = higher centrality):
-
-        ```python
-        from edgecase import Graph
-
-        # Create a simple path: 0 - 1 - 2 - 3 - 4
-        graph = Graph()
-        for i in range(5):
-            graph.add_node(label=str(i))
-        for i in range(4):
-            graph.add_edge(str(i), str(i+1))
-
-        soc = graph.second_order_centrality(return_dict=True)
-
-        # Middle nodes have lower values (higher centrality)
-        # Note: keys are node IDs, not labels
-        most_central_id = min(soc, key=soc.get)
-        most_central_label = graph.get_label_from_id(most_central_id)
-        print(f"Most central node: {most_central_label}")  # Node '2'
-        print(f"Centrality value: {soc[most_central_id]:.3f}")
-        ```
-
-        Compare centrality across different graph structures:
-
-        ```python
-        from edgecase import Graph
-
-        # Star graph: center should be most central
-        star = Graph()
-        star.add_node(label='center')
-        for i in range(5):
-            star.add_node(label=f'leaf_{i}')
-            star.add_edge('center', f'leaf_{i}')
-
-        star_soc = star.second_order_centrality(return_dict=True)
-        center_id = star.get_id_from_label('center')
-        leaf_id = star.get_id_from_label('leaf_0')
-        print(f"Center: {star_soc[center_id]:.3f}")
-        print(f"Leaf: {star_soc[leaf_id]:.3f}")  # Higher value (less central)
-
-        # Complete graph: all nodes equally central
-        complete = Graph()
-        for i in range(4):
-            complete.add_node(label=str(i))
-        for i in range(4):
-            for j in range(i+1, 4):
-                complete.add_edge(str(i), str(j))
-
-        complete_soc = complete.second_order_centrality(return_dict=True)
-        vals = list(complete_soc.values())
-        print(f"All equal: {all(abs(v - vals[0]) < 0.01 for v in vals)}")
-        ```
-
-        Store centrality as node attribute for later analysis:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label='A')
-            .add_node(label='B')
-            .add_node(label='C')
-            .add_node(label='D')
-            .add_edge('A', 'B')
-            .add_edge('B', 'C')
-            .add_edge('C', 'D')
-        )
-
-        # Store with custom attribute name
-        graph.second_order_centrality(attr_name='soc')
-
-        # Verify it was computed
-        has_soc = any('soc' in str(c) for c in graph._computations)
-        print(f"Second order centrality computed: {has_soc}")
-        ```
-
-        References
-        ----------
-        .. [1] Kermarrec, A.M., Le Merrer, E., Sericola, B., Trédan, G. (2011).
-           "Second order centrality: Distributed assessment of nodes criticity in
-           complex networks". Computer Communications, 34(5), 619-628.
-           https://doi.org/10.1016/j.comcom.2010.06.007
-        """
-        if self.is_directed():
-            raise ValueError(
-                "second_order_centrality() requires an undirected graph. "
-                "The algorithm is not defined for directed graphs."
-            )
-
-        # Call Rust implementation
-        result_ids = rust.second_order_centrality(self._graph)
-
-        if not result_ids:
-            return {} if return_dict else self
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "second_order_centrality"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
-        # Track computation
-        if not return_dict:
-            self._computations.append(("second_order_centrality", {}, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
-        return self
-
-    def average_neighbor_degree(
-        self,
-        source: str = "out",
-        target: str = "out",
-        weight: str | None = None,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Compute average neighbor degree for each node.
-
-        For each node, calculates the average degree of its neighbors. This metric helps analyze
-        degree correlations and mixing patterns in networks, indicating whether nodes tend to
-        connect to similar-degree neighbors (assortative) or different-degree neighbors
-        (disassortative).
-
-        For undirected graphs, computes the average degree of all neighbors. For directed graphs,
-        the `source` parameter controls which neighbors to consider, and the `target` parameter
-        controls how to measure their degrees.
-
-        Parameters
-        ----------
-        source : str, default "out"
-            For directed graphs only, specifies which neighbors to consider: (1) `"out"` for
-            out-neighbors (successors), (2) `"in"` for in-neighbors (predecessors), and (3)
-            `"in+out"` for both in-neighbors and out-neighbors. Raises error if used with undirected
-            graphs.
-        target : str, default "out"
-            For directed graphs only, specifies how to measure neighbor degrees: (1) `"out"` for
-            out-neighbors (successors), (2) `"in"` for in-neighbors (predecessors), and (3)
-            `"in+out"` for both in-neighbors and out-neighbors. Raises error if used with undirected
-            graphs.
-        weight : str, optional
-            Edge attribute name containing weights. If provided, computes weighted average using:
-            `k_nn,i = (1 / s_i) * Σ_j w_ij * k_j`, where `s_i` is the weighted degree. Currently not
-            implemented and will raise error if specified.
-        attr_name : str, optional
-            Name of node attribute to store results. If `None`, uses `average_neighbor_degree`. Only
-            used when `return_dict=False`.
-        return_dict : bool, default False
-            If `True`, returns dict mapping node labels to average neighbor degrees. If `False`,
-            stores values in graph and returns self for chaining.
-
-        Returns
-        -------
-        dict or Graph
-            If `return_dict=True`: dictionary mapping node ID to average neighbor degree. If
-            `return_dict=False`: self (for method chaining).
-
-        Raises
-        ------
-        ValueError
-            - if graph is empty
-            - if `source` or `target` parameters are used with undirected graphs
-            - if `source` or `target` values are invalid
-            - if `weight` is specified (not yet implemented)
-
-        Examples
-        --------
-        **Path Graph - Undirected**
-
-        ```python
-        from edgecase import Graph
-
-        # In a path graph, end nodes have neighbors with degree 1,
-        # middle nodes have neighbors with varying degrees
-        g = Graph(directed=False)
-        for i in range(5):
-            g.add_node(label=str(i))
-        for i in range(4):
-            g.add_edge(str(i), str(i+1))
-
-        and_values = g.average_neighbor_degree(return_dict=True)
-        # Node '0': neighbor '1' has degree 2 → average = 2.0
-        # Node '1': neighbors '0','2' have degrees 1,2 → average = 1.5
-        # Node '2': neighbors '1','3' have degrees 2,2 → average = 2.0
-        ```
-
-        **Directed Graph - Different source/target combinations**
-
-        ```python
-        g = Graph(directed=True)
-        g.add_node(label='A')
-        g.add_node(label='B')
-        g.add_node(label='C')
-        g.add_edge('A', 'B')
-        g.add_edge('B', 'C')
-        g.add_edge('C', 'A')
-
-        # Average out-degree of out-neighbors
-        and_out_out = g.average_neighbor_degree(source="out", target="out", return_dict=True)
-
-        # Average in-degree of in-neighbors
-        and_in_in = g.average_neighbor_degree(source="in", target="in", return_dict=True)
-        ```
-
-        **Store in Graph and Chain**
-
-        ```python
-        g = (
-            Graph(directed=False)
-            .add_node(label='A')
-            .add_node(label='B')
-            .add_node(label='C')
-            .add_edge('A', 'B')
-            .add_edge('B', 'C')
-            .average_neighbor_degree(attr_name='knn')
-        )
-
-        # Values stored as node attribute 'knn'
-        ```
-
-        Notes
-        -----
-        - measures degree correlation patterns in networks
-        - high values indicate nodes connect to high-degree neighbors (assortative mixing)
-        - low values indicate nodes connect to low-degree neighbors (disassortative mixing)
-        - for undirected graphs, ignores `source` and `target` parameters
-        - nodes with no neighbors have average neighbor degree of `0`
-        - weighted version not yet implemented
-
-        References
-        ----------
-        Barrat, A., Barthélemy, M., Pastor-Satorras, R., & Vespignani, A. (2004).
-        "The architecture of complex weighted networks". PNAS, 101(11), 3747-3752.
-        https://doi.org/10.1073/pnas.0400087101
-        """
-        from edgecase import _core as rust
-
-        # Call Rust implementation
-        result_ids = rust.average_neighbor_degree(
-            self._graph,
-            source=source if self.is_directed() else None,
-            target=target if self.is_directed() else None,
-            weight=weight,
-        )
-
-        if not result_ids:
-            return {} if return_dict else self
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "average_neighbor_degree"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
-        # Track computation
-        if not return_dict:
-            params = {}
-            if self.is_directed():
-                params["source"] = source
-                params["target"] = target
-            if weight is not None:
-                params["weight"] = weight
-            self._computations.append(("average_neighbor_degree", params, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
-        return self
-
-    def harmonic_centrality(
-        self,
-        mode: str = "out",
-        weights: str = None,
-        normalized: bool = False,
-        cutoff: int = -1,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Calculate harmonic centrality scores for all nodes.
-
-        Harmonic centrality is the sum of the reciprocal of shortest path distances from a node to
-        all other reachable nodes. For unreachable nodes, the distance is considered infinite, and
-        the reciprocal is 0. This makes harmonic centrality more robust than closeness centrality
-        for disconnected graphs.
-
-        The formula is: H(v) = Σ 1 / d(v,u) for all u ≠ v, where d(v,u) is the shortest path
-        distance from v to u.
-
-        When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse distance,
-        which is bounded between 0 and 1.
-
-        Parameters
-        ----------
-        mode
-            Direction for measuring distances in directed graphs where: (1) `"out"` follows edges in
-            their direction (default), (2) `"in"` follows edges in reverse, and (3) `"all"` or
-            `"total"` ignores edge directions (only for undirected graphs).
-        weights
-            Optional edge attribute name for weighted distances. Currently not implemented; uses
-            unweighted shortest paths (hop count).
-        normalized
-            If `True`, divides by `(n - 1)` to normalize scores to the `[0, 1]` range. If `False`
-            (the default), returns raw sum of inverse distances.
-        cutoff
-            Maximum path length to consider. Paths longer than cutoff are ignored. Use `-1`
-            (default) for no limit.
-        attr_name
-            Column name to store harmonic centrality scores in the node DataFrame. If `None`
-            (default), automatically uses 'harmonic_centrality'. Overwrites column if it already
-            exists.
-        return_dict
-            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
-            returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to harmonic centrality scores.
-            If `return_dict` is `False` (the default): returns self for method chaining.
-
-        References
-        ----------
-        Marchiori, M., & Latora, V. (2000). Harmony in the small-world.
-        Physica A: Statistical Mechanics and its Applications, 285(3-4), 539-546.
-
-        Examples
-        --------
-        Calculate harmonic centrality in a simple network:
-
-        ```python
-        from edgecase import Graph
-
-        # Create a star network
-        graph = (
-            Graph()
-            .add_node(label="Center")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("Center", "A")
-            .add_edge("Center", "B")
-            .add_edge("Center", "C")
-        )
-
-        scores = graph.harmonic_centrality(return_dict=True)
-        center_id = graph.get_id_from_label("Center")
-        print(scores[center_id])  # Center has highest harmonic centrality
-        ```
-
-        Compare with normalized version:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-        )
-
-        # Raw harmonic centrality
-        raw_scores = graph.harmonic_centrality(return_dict=True)
-
-        # Normalized to [0, 1] range
-        norm_scores = graph.harmonic_centrality(normalized=True, return_dict=True)
-        ```
-
-        Use with cutoff for local neighborhoods:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-        )
-
-        # Only consider paths of length 2 or less
-        local_scores = graph.harmonic_centrality(cutoff=2, return_dict=True)
-        ```
-
-        Chain with other operations:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .harmonic_centrality(attr_name="harmonic", normalized=True)
-        )
-
-        # Access the stored values
-        ndf = graph.get_node_df()
-        print(ndf[["label", "harmonic"]])
-        ```
-
-        For directed graphs, use mode to control direction:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        # Out-going paths (default)
-        out_scores = graph.harmonic_centrality(mode="out", return_dict=True)
-
-        # In-coming paths
-        in_scores = graph.harmonic_centrality(mode="in", return_dict=True)
-        ```
-        """
-        result_ids = rust.harmonic_centrality(
-            self._graph,
-            mode=mode,
-            weights=weights,
-            normalized=normalized,
-            cutoff=cutoff,
-        )
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "harmonic_centrality"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
-        # Track computation
-        if not return_dict:
-            params = {}
-            if mode != "out":
-                params["mode"] = mode
-            if weights is not None:
-                params["weights"] = weights
-            if normalized:
-                params["normalized"] = normalized
-            if cutoff != -1:
-                params["cutoff"] = cutoff
-            self._computations.append(("harmonic_centrality", params, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
-        return self
-
-    def authority_centrality(
-        self,
-        max_iter: int = 100,
-        tol: float = 1e-6,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get HITS authority scores for each node (directed graphs only).
-
-        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
-        directed graph. Authority score measures how much a node is pointed to by good hubs:
-
-        authority(v) = sum of hub scores of nodes pointing to v
-
-        Uses power iteration until convergence. Good authorities are nodes that are pointed to by
-        many high-quality hubs. Requires a directed graph.
-
-        Parameters
-        ----------
-        max_iter
-            Maximum number of iterations for convergence.
-        tol
-            Convergence tolerance threshold.
-        attr_name
-            Name for the node attribute to store results. If not provided, auto-generates name from
-            method name (`authority_centrality`).
-        return_dict
-            If `True`, returns dictionary of results. If `False`, stores results as node attributes
-            and returns self for method chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to normalized authority scores.
-            If `return_dict` is `False`: returns self for method chaining.
-
-        Raises
-        ------
-        ValueError
-            If graph is undirected.
-
-        Examples
-        --------
-        Calculate authority scores in a citation network:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Paper1")
-            .add_node(label="Paper2")
-            .add_node(label="Paper3")
-            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
-            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
-        )
-
-        auth = graph.authority_centrality(return_dict=True, )
-        # Paper2 and Paper3 have high authority (cited)
-        # Paper1 has low authority (not cited)
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Paper1")
-            .add_node(label="Paper2")
-            .add_node(label="Paper3")
-            .add_edge(source="Paper1", target="Paper2")
-            .add_edge(source="Paper1", target="Paper3")
-        )
-
-        # (graph
-        #     .authority_centrality(attr_name="authority")
-        #     .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
-        #     .show())
-        ```
-        """
-        centrality = self._graph.get_authority_centrality(max_iter, tol)
-
-        if return_dict:
-            return centrality
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "authority_centrality"
-
-        self.set_node_attrs(attr_name, centrality)
-
-        # Track computation
-        params = {}
-        if max_iter != 100:
-            params["max_iter"] = max_iter
-        if tol != 1e-6:
-            params["tol"] = tol
-        self._computations.append(("authority_centrality", params, attr_name))
-
-        return self
-
-    def hub_centrality(
-        self,
-        max_iter: int = 100,
-        tol: float = 1e-6,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get HITS hub scores for each node (directed graphs only).
-
-        HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
-        directed graph. Hub score measures how much a node points to good authorities:
-
-        hub(v) = sum of authority scores of nodes v points to
-
-        Uses power iteration until convergence. Good hubs are nodes that point to many high-quality
-        authorities. Requires a directed graph.
-
-        Parameters
-        ----------
-        max_iter
-            Maximum number of iterations for convergence.
-        tol
-            Convergence tolerance threshold.
-        attr_name
-            Name for the node attribute to store results. If not provided, auto-generates name from
-            method name (`hub_centrality`).
-        return_dict
-            If `True`, returns dictionary of results. If `False`, stores results as node attributes
-            and returns self for method chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to normalized hub scores. If
-            `return_dict` is `False`: returns self for method chaining.
-
-        Raises
-        ------
-        ValueError
-            If graph is undirected.
-
-        Examples
-        --------
-        Calculate hub scores in a citation network:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Paper1")
-            .add_node(label="Paper2")
-            .add_node(label="Paper3")
-            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
-            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
-        )
-
-        hub = graph.hub_centrality(return_dict=True, )
-        # Paper1 has high hub score (cites many papers)
-        # Paper2 and Paper3 have low hub scores
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Paper1")
-            .add_node(label="Paper2")
-            .add_node(label="Paper3")
-            .add_edge(source="Paper1", target="Paper2")
-            .add_edge(source="Paper1", target="Paper3")
-        )
-
-        # (graph
-        #     .hub_centrality(attr_name="hub")
-        #     .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
-        #     .show())
-        ```
-        """
-        centrality = self._graph.get_hub_centrality(max_iter, tol)
-
-        if return_dict:
-            return centrality
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "hub_centrality"
-
-        self.set_node_attrs(attr_name, centrality)
-
-        # Track computation
-        params = {}
-        if max_iter != 100:
-            params["max_iter"] = max_iter
-        if tol != 1e-6:
-            params["tol"] = tol
-        self._computations.append(("hub_centrality", params, attr_name))
-
-        return self
-
-    def eigen_centrality(
-        self,
-        max_iter: int = 100,
-        tol: float = 1e-6,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get eigenvector centrality for each node.
-
-        Eigenvector centrality measures node importance based on connections to other important
-        nodes. It's the principal eigenvector of the adjacency matrix, computed via power iteration:
-
-        x = λ⁻¹ · A · x
-
-        A node has high eigenvector centrality if it's connected to other nodes that themselves have
-        high centrality. Unlike degree centrality, it accounts for the quality (not just quantity)
-        of connections.
-
-        Parameters
-        ----------
-        max_iter
-            Maximum number of iterations for convergence.
-        tol
-            Convergence tolerance threshold.
-        attr_name
-            Column name to store eigenvector centrality scores in the node DataFrame. If `None`
-            (default), automatically uses `eigen_centrality`. Overwrites column if it already
-            exists.
-        return_dict
-            If `True`, returns dictionary instead of self. If `False` (default), stores in NDF and
-            returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
-            `return_dict` is `False` (default): returns self for method chaining.
-
-        Examples
-        --------
-        Calculate eigenvector centrality in a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        eigen = graph.eigen_centrality()
-        # Hub has highest eigenvector centrality
-        # All connected nodes have non-zero centrality
-        ```
-
-        Store as node attributes and chain other operations:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="hub", target="A")
-            .add_edge(source="hub", target="B")
-            .add_edge(source="hub", target="C")
-        )
-
-        # (graph
-        #     .eigen_centrality(attr_name="centrality")
-        #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", range=[0.5, 2.0])
-        #     .show())
-        ```
-        """
-        centrality = self._graph.get_eigen_centrality(max_iter, tol)
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "eigen_centrality"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, centrality)
-
-        # Track computation
-        if not return_dict:
-            params = {}
-            if max_iter != 100:
-                params["max_iter"] = max_iter
-            if tol != 1e-6:
-                params["tol"] = tol
-            self._computations.append(("eigen_centrality", params, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return centrality
-        return self
-
-    def alpha_centrality(
-        self,
-        alpha: float = 0.1,
-        max_iter: int = 100,
-        tol: float = 1e-6,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get alpha centrality for each node.
-
-        Alpha centrality is a generalization of eigenvector centrality that adds an exogenous
-        factor:
-
-        x = α · A · x + e
-
-        where α is the attenuation factor, A is the adjacency matrix, and e is the exogenous factor
-        (set to `1` for all nodes). Lower α emphasizes local neighborhood structure, while higher α
-        considers more global structure.
-
-        Parameters
-        ----------
-        alpha
-            Attenuation factor (range: `0` to `1`). Controls the balance between local and global
-            structure.
-        max_iter
-            Maximum number of iterations for convergence.
-        tol
-            Convergence tolerance threshold.
-        attr_name
-            Name for the node attribute to store results. If not provided, auto-generates name from
-            method name (`alpha_centrality`).
-        return_dict
-            If `True`, returns dictionary of results. If `False`, stores results as node attributes
-            and returns self for method chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
-            `return_dict` is `False`: returns self for method chaining.
-
-        Examples
-        --------
-        Calculate alpha centrality with different α values:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        alpha_local = graph.alpha_centrality(return_dict=True, alpha=0.05)  # Local emphasis
-        alpha_global = graph.alpha_centrality(return_dict=True, alpha=0.5)  # Global emphasis
-        ```
-
-        Store as node attributes and chain visualization:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="hub", target="A")
-            .add_edge(source="hub", target="B")
-            .add_edge(source="hub", target="C")
-        )
-
-        # (graph
-        #     .alpha_centrality(attr_name="alpha_cent")
-        #     .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
-        #     .show())
-        ```
-        """
-        centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
-
-        if return_dict:
-            return centrality
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "alpha_centrality"
-
-        self.set_node_attrs(attr_name, centrality)
-
-        # Track computation
-        params = {}
-        if alpha != 0.1:
-            params["alpha"] = alpha
-        if max_iter != 100:
-            params["max_iter"] = max_iter
-        if tol != 1e-6:
-            params["tol"] = tol
-        self._computations.append(("alpha_centrality", params, attr_name))
-
-        return self
-
-    def bonacich_power_centrality(
-        self,
-        beta: float = 0.1,
-        normalized: bool = False,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get Bonacich power centrality for each node.
-
-        Bonacich power centrality generalizes eigenvector centrality to capture both cooperative and
-        competitive network dynamics. The key innovation is the β parameter, which controls whether
-        neighbors' power increases (+β) or decreases (-β) a node's own power.
-
-        The centrality is computed as:
-            c(α, β) = α(I - βA)^(-1) A 1
-
-        where A is the adjacency matrix, α is a scaling parameter (set automatically),
-        β controls the nature of relations, and 1 is a vector of ones.
-
-        β > 0: Cooperative relations: being connected to powerful nodes makes you powerful
-               (e.g., collaboration networks, social influence, information diffusion)
-
-        β < 0: Competitive relations: being connected to weak nodes makes you powerful
-               (e.g., exchange networks, competitive markets, bargaining power)
-
-        β = 1/λ_max: Equivalent to eigenvector centrality
-
-        The magnitude of |β| controls how far influence propagates through the network.
-        Larger |β| means distant nodes have more influence; smaller |β| localizes influence.
-
-        Parameters
-        ----------
-        beta
-            The decay/attenuation parameter. Controls the nature and reach of influence:
-
-            - β > 0: Cooperative (powerful neighbors -> more power)
-            - β < 0: Competitive (weak neighbors -> more power)
-            - Must satisfy |β| < 1/λ_max to avoid singularity
-            - Typical range: -0.5 to 0.5
-            - β = 0: Reduces to simple degree centrality
-        normalized
-            Normalization method:
-
-            - False: L2 normalization where sum(c^2) = n, making c=1 the "middle" value
-                     (Bonacich 1987 original formulation)
-            - True: Sum normalization where sum(c) = 1 (probability distribution)
-        attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("bonacich_power_centrality").
-        return_dict
-            If `True`, returns dictionary of results. If `False`, stores results
-            as node attributes and returns self for method chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores.
-            If `return_dict` is `False`: returns self for method chaining.
-            Interpretation depends on β:
-
-            - β > 0: Higher scores = more powerful due to powerful neighbors
-            - β < 0: Higher scores = more powerful due to weak neighbors
-
-        Raises
-        ------
-        RuntimeError
-            If (I - βA) is singular. This happens when β is too close to 1/λ_max. Try reducing |β|
-            or choosing a different value.
-
-        Examples
-        --------
-        Cooperative network (β > 0) star graph:
-
-        ```python
-        import edgecase as ec
-
-        # Create star: center connected to 3 leaves
-        g = (
-            ec.Graph(directed=True)
-            .add_node(label="center")
-            .add_node(label="leaf1")
-            .add_node(label="leaf2")
-            .add_node(label="leaf3")
-            .add_edge(source="center", target="leaf1")
-            .add_edge(source="center", target="leaf2")
-            .add_edge(source="center", target="leaf3")
-        )
-
-        # Cooperative: powerful neighbors increase your power
-        power = g.bonacich_power_centrality(return_dict=True, beta=0.1)
-        # center will have highest centrality (connected to many)
-        ```
-
-        Competitive network (β < 0) exchange network:
-
-        ```python
-        import edgecase as ec
-
-        # In exchange/bargaining networks, connecting to weak partners
-        # gives you more bargaining power
-        g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_node(label="D")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="B", target="C")
-        g.add_edge(source="C", target="D")
-
-        # Negative beta: weak neighbors increase your power
-        power = g.bonacich_power_centrality(return_dict=True, beta=-0.2)
-        # End nodes (A, D) have higher power, so, fewer alternatives
-        ```
-
-        Compare with eigenvector centrality:
-
-        ```python
-        import edgecase as ec
-
-        # β near 1/λ_max approximates eigenvector centrality
-        # For small graphs, λ_max ≈ max_degree, so try β ≈ 1/max_degree
-        g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_node(label="D")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="B", target="C")
-        g.add_edge(source="B", target="D")
-
-        max_deg = max(g.get_degree(node=nid) for nid in g.get_node_ids())
-        bonacich = g.bonacich_power_centrality(return_dict=True, beta=0.9/max_deg)
-        eigen = g.eigen_centrality()
-        # Should be similar
-        ```
-
-        Notes
-        -----
-        - **Algorithm**: Uses matrix inversion via LU decomposition to solve (I - βA)x = A1
-        - **Time complexity**: O(n³) for dense graphs due to matrix operations
-        - **Space complexity**: O(n²) to store the adjacency matrix
-        - **Numerical stability**: The algorithm may fail if β is too close to 1/λ_max,
-          where λ_max is the largest eigenvalue of A. Choose |β| < 0.9/λ_max for safety.
-        - **β selection**: There's no universal "correct" β value - it should be chosen
-          based on theory and the specific application. See Rodan (2011) for guidance.
-        - **Negative β instability**: Centrality can be more sensitive to β changes when
-          β < 0 compared to β > 0. Test multiple values.
-        - **Directed graphs**: Works for both directed and undirected graphs. In directed
-          graphs, the interpretation relates to in-degree influence patterns.
-
-        References
-        ----------
-        .. [1] Bonacich, P. (1987). "Power and Centrality: A Family of Measures."
-               American Journal of Sociology, 92, 1170-1182.
-               https://www.jstor.org/stable/2780000
-
-        .. [2] Rodan, S. (2011). "Choosing the 'β' parameter when using the Bonacich
-               power measure." Journal of Social Structure, 12(1), 1-23.
-               https://www.exeley.com/journal_of_social_structure/doi/10.21307/joss-2019-032
-        """
-        result = self._graph.get_bonacich_power_centrality(beta, normalized)
-        # Empty result indicates singular matrix error
-        if not result and self.count_nodes() > 0:
-            raise RuntimeError(
-                "Matrix (I - β·A) is singular. β is too close to 1/λ_max. "
-                "Try a smaller |β| value (e.g., reduce by half)."
-            )
-
-        if return_dict:
-            return result
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "bonacich_power_centrality"
-
-        self.set_node_attrs(attr_name, result)
-
-        # Track computation
-        params = {}
-        if beta != 0.1:
-            params["beta"] = beta
-        if normalized:
-            params["normalized"] = normalized
-        self._computations.append(("bonacich_power_centrality", params, attr_name))
-
-        return self
-
-    def katz_centrality(
-        self,
-        alpha: float = 0.1,
-        beta: float = 1.0,
-        max_iter: int = 100,
-        tol: float = 1e-6,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get Katz centrality for each node.
-
-        Katz centrality measures node influence based on the number of walks of all lengths reaching
-        the node, with walks weighted by α^length:
-
-        x = α · Aᵀ · x + β
-
-        where α is the attenuation factor, Aᵀ is the transpose of the adjacency matrix, and β is a
-        bias vector (constant for all nodes). For directed graphs, this counts incoming paths,
-        making it suitable for measuring "prestige" or "influence received".
-
-        Key differences from other centralities:
-
-        - PageRank: Uses teleportation and out-degree normalization
-        - Eigenvector: Only considers infinite-length walks (principal eigenvector)
-        - Alpha centrality: Uses A instead of Aᵀ (outgoing vs incoming)
-        - Katz: Weights walks by path length, considers all finite walks
-
-        Parameters
-        ----------
-        alpha
-            Attenuation factor for walk lengths. Must be smaller than the reciprocal of the largest
-            eigenvalue (typically < `0.2` for safety). Higher values give more weight to longer
-            paths.
-        beta
-            Bias/weight added to each node. Acts as a 'free' centrality that every node gets. Higher
-            values reduce the relative importance of network position.
-        max_iter
-            Maximum number of iterations for convergence.
-        tol
-            Convergence tolerance threshold.
-        attr_name
-            Name for the node attribute to store results. If not provided, auto-generates name from
-            method name (`katz_centrality`).
-        return_dict
-            If `True`, returns dictionary of results. If `False`, stores results as node attributes
-            and returns self for method chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to normalized Katz centrality
-            scores. If `return_dict` is `False`: returns self for method chaining. Scores sum to
-            `1.0`.
-
-        Examples
-        --------
-        Calculate Katz centrality on a simple directed graph:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_node("D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("A", "D")
-        )
-
-        katz = graph.katz_centrality(return_dict=True, alpha=0.1)
-        # D has highest Katz (receives edges from A and C via B)
-        ```
-
-        Compare different alpha values:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-            .add_edge(source="A", target="D")
-        )
-
-        katz_local = graph.katz_centrality(return_dict=True, alpha=0.05)  # Emphasis on short paths
-        katz_global = graph.katz_centrality(return_dict=True, alpha=0.15) # Include longer paths
-        ```
-
-        Notes
-        -----
-        - for undirected graphs, Aᵀ = A, so behavior is similar to alpha centrality
-        - for directed graphs, high Katz = many incoming paths (prestige/authority)
-        - alpha should be < 1/λ_max to ensure convergence (typically α < 0.2)
-        - beta = 1.0 treats all nodes equally; adjust to bias certain nodes
-        - normalizes final scores to sum to 1.0 for interpretability
-
-        References
-        ----------
-        .. [1] Katz, L. (1953). "A new status index derived from sociometric analysis."
-               Psychometrika, 18(1), 39-43.
-        """
-        scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
-
-        if return_dict:
-            return scores_by_id
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "katz_centrality"
-
-        self.set_node_attrs(attr_name, scores_by_id)
-
-        # Track computation
-        params = {}
-        if alpha != 0.1:
-            params["alpha"] = alpha
-        if beta != 1.0:
-            params["beta"] = beta
-        if max_iter != 100:
-            params["max_iter"] = max_iter
-        if tol != 1e-6:
-            params["tol"] = tol
-        self._computations.append(("katz_centrality", params, attr_name))
-
-        return self
-
-    def leverage_centrality(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get leverage centrality for each node.
-
-        Leverage centrality measures the degree connectivity of a node relative to its neighbors:
-
-        leverage(v) = (1/k_v) · Σ[(k_v - k_n) / (k_v + k_n)]
-
-        where k_v is the degree of node v, and k_n is the degree of each neighbor n.
-
-        Interpretation:
-
-        - positive values: node has more connections than its neighbors (influential)
-        - negative values: node has fewer connections than its neighbors (peripheral)
-        - zero: node has similar connectivity to its neighbors
-
-        Parameters
-        ----------
-        attr_name
-            Name for the node attribute to store results. If not provided, auto-generates name from
-            method name (`leverage_centrality`).
-        return_dict
-            If `True`, returns dictionary of results. If `False`, stores results as node attributes
-            and returns self for method chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to leverage centrality scores.
-            If `return_dict` is `False`: returns self for method chaining.
-
-        Examples
-        --------
-        Calculate leverage centrality in a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        leverage = graph.leverage_centrality(return_dict=True)
-        # Hub has positive leverage (high degree, low-degree neighbors)
-        # Leaves have negative leverage (low degree, high-degree neighbor)
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="hub", target="A")
-            .add_edge(source="hub", target="B")
-            .add_edge(source="hub", target="C")
-        )
-
-        # (graph
-        #     .leverage_centrality(attr_name="leverage")
-        #     .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
-        #     .show())
-        ```
-        """
-        centrality = self._graph.get_leverage_centrality()
-
-        if return_dict:
-            return centrality
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "leverage_centrality"
-
-        self.set_node_attrs(attr_name, centrality)
-
-        # Track computation (no non-default params)
-        self._computations.append(("leverage_centrality", {}, attr_name))
-
-        return self
-
-    def domirank_centrality(
-        self,
-        sigma: float | None = None,
-        alpha: float = 0.95,
-        method: str = "iterative",
-        tolerance: float = 1e-5,
-        max_iter: int = 1000,
-        patience: int = 10,
-        max_depth: int = 50,
-        return_sigma: bool = False,
-        attr_name: str | None = None,
-        return_dict: bool = False,
-    ) -> Union[dict[int, float], tuple[dict[int, float], float], "Graph", tuple["Graph", float]]:
-        """
-        Get DomiRank centrality for each node.
-
-        DomiRank centrality quantifies node dominance in their neighborhoods. The competition
-        parameter sigma (or alpha) provides a tunable trade-off between local and global topological
-        information:
-
-        d𝚪ᵢ(t)/dt = σ(dᵢ - Σⱼ Aᵢⱼ 𝚪ⱼ(t)) - 𝚪ᵢ(t)
-
-        Where:
-
-        - 𝚪ᵢ is the dominance score for node i
-        - σ is the competition parameter
-        - dᵢ is the degree of node i
-        - A is the adjacency matrix
-
-        Unlike eigenvector-type centralities (where being connected to important nodes makes you
-        important), DomiRank identifies nodes that dominate their local structure. Being close to a
-        dominant node can suppress your own dominance in high-competition contexts.
-
-        For σ -> 0: Converges to degree centrality (only local information)
-        For large σ: Identifies globally dominant nodes
-
-        Parameters
-        ----------
-        sigma
-            Competition parameter. If `None` (default), automatically computed from smallest
-            eigenvalue and alpha. Higher values increase global competition for dominance.
-        alpha
-            Alpha parameter for auto-computing sigma (sigma = alpha / |λ_min|). Only used if sigma
-            is `None`. Must be positive.
-        method
-            Solution method. Currently only "iterative" is implemented. (Analytical method may be
-            added in the future for small graphs.)
-        tolerance
-            Convergence tolerance for iterative solver.
-        max_iter
-            Maximum iterations for Newton's method.
-        patience
-            Number of steps between convergence checks. Must satisfy `max_iter > 3 * patience`.
-        max_depth
-            Maximum bisection steps for finding smallest eigenvalue (when auto-computing sigma).
-        return_sigma
-            If `True`, return (centrality_dict, sigma) tuple or (Graph, sigma) tuple instead of just
-            dict or Graph.
-        attr_name
-            Name for the node attribute to store results. If not provided, auto-generates name from
-            method name (`domirank_centrality`).
-        return_dict
-            If `True`, returns dictionary of results. If `False`, stores results as node attributes
-            and returns self for method chaining.
-
-        Returns
-        -------
-        dict[int, float] or tuple[dict[int, float], float] or Graph or tuple[Graph, float]
-            If `return_dict` is `True` and `return_sigma` is `False`: dictionary mapping node IDs to
-            dominance scores. If `return_dict` is `True` and `return_sigma` is `True`: tuple of
-            (centrality dict, sigma value). If `return_dict` is `False` and `return_sigma` is
-            `False`: returns self for method chaining. If `return_dict` is `False` and
-            `return_sigma` is `True`: tuple of (self, sigma value). Nodes with positive scores are
-            dominant; negative scores indicate submissive nodes.
-
-        Raises
-        ------
-        ValueError
-            If alpha <= 0, dt not in (0, 1), tolerance <= 0, or max_iter <= 3*patience.
-
-        Examples
-        --------
-        Auto-optimized DomiRank for a path graph:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Cycle
-        )
-
-        # Auto-optimize sigma based on graph structure
-        domirank = graph.domirank_centrality(return_dict=True, )
-        # Middle nodes often have high dominance scores
-
-        # Get sigma value used
-        domirank, sigma = graph.domirank_centrality(return_dict=True, return_sigma=True)
-        print(f"Used sigma={sigma:.3f}")
-        ```
-
-        Manual sigma for specific competition level:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-        )
-
-        # High competition (more global)
-        dr_high = graph.domirank_centrality(return_dict=True, sigma=2.0)
-
-        # Low competition (more local, like degree)
-        dr_low = graph.domirank_centrality(return_dict=True, sigma=0.1)
-        ```
-
-        Notes
-        -----
-        - computational complexity: O(E × iterations) where E is edges
-        - suitable for large graphs (tested on millions of nodes)
-        - works for directed, undirected, weighted, and unweighted graphs
-        - negative values indicate submissive nodes that yield to neighbors
-        - joint dominance: Multiple nodes can co-dominate a neighborhood
-
-        Algorithm notes:
-
-        - uses Newton iteration with adaptive convergence detection
-        - automatically finds optimal sigma via smallest eigenvalue
-        - detects divergence via monotonic increase in updates
-
-        References
-        ----------
-        .. [1] Engsig, M., Tejedor, A., Moreno, Y. et al. "DomiRank Centrality
-               reveals structural fragility of complex networks via node dominance."
-               Nat Commun 15, 56 (2024). https://doi.org/10.1038/s41467-023-44257-0
-        """
-        if method != "iterative":
-            raise ValueError("Only method='iterative' is currently supported")
-
-        # Import the Rust function
-        from edgecase._core import domirank as rust_domirank
-
-        # Call Rust implementation
-        scores_by_id, final_sigma, converged = rust_domirank(
-            self._graph,
-            sigma,
-            alpha,
-            0.1,  # dt fixed at 0.1 for stability
-            tolerance,
-            max_iter,
-            patience,
-            max_depth,
-        )
-
-        if not converged:
-            import warnings
-
-            warnings.warn(
-                "DomiRank did not converge within max_iter iterations. "
-                "Consider increasing max_iter or adjusting tolerance.",
-                RuntimeWarning,
-            )
-
-        if return_dict:
-            if return_sigma:
-                return scores_by_id, final_sigma
-            return scores_by_id
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "domirank_centrality"
-
-        self.set_node_attrs(attr_name, scores_by_id)
-
-        # Track computation
-        params = {}
-        if sigma is not None:
-            params["sigma"] = sigma
-        if alpha != 0.95:
-            params["alpha"] = alpha
-        if tolerance != 1e-5:
-            params["tolerance"] = tolerance
-        if max_iter != 1000:
-            params["max_iter"] = max_iter
-        if patience != 10:
-            params["patience"] = patience
-        if max_depth != 50:
-            params["max_depth"] = max_depth
-        self._computations.append(("domirank_centrality", params, attr_name))
-
-        if return_sigma:
-            return self, final_sigma
-        return self
-
-    # ==============================================================================
-    # Minimum/Maximum Spanning Trees
-    # ==============================================================================
-
-    def minimum_spanning_tree(
-        self,
-        weight_attr: str | None = None,
-        return_subgraph: bool = True,
-    ) -> "Graph | list[str]":
-        """
-        Find the minimum spanning tree using Kruskal's algorithm.
-
-        A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
-        total edge weight. Uses the optimized union-find data structure with path-halving for
-        efficient cycle detection.
-
-        Parameters
-        ----------
-        weight_attr
-            Name of edge attribute to use for weights. If None (default), uses the edge's weight
-            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
-        return_subgraph
-            If `True`, returns a new Graph containing only the MST edges. If `False`, returns a list
-            of edge IDs as strings.
-
-        Returns
-        -------
-        Graph or list[str]
-            Either a new Graph with MST edges or a list of edge ID strings, depending on
-            the `return_subgraph=` parameter.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph(weighted=True)
-        g.add_node("A")
-        g.add_node("B")
-        g.add_node("C")
-        g.add_node("D")
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=2.0)
-        g.add_edge("C", "D", weight=3.0)
-        g.add_edge("D", "A", weight=4.0)
-        g.add_edge("A", "C", weight=5.0)
-
-        mst = g.minimum_spanning_tree()
-        print(mst.count_edges())  # 3
-
-        # Calculate total weight
-        total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
-                    if e and e.weight is not None)
-        print(total)  # 6.0
-        ```
-
-        Notes
-        -----
-        - time complexity: O(E log E) for sorting edges
-        - space complexity: O(V) for union-find structure
-        - for disconnected graphs, finds a minimum spanning forest
-        - if graph has < 2 nodes, returns empty graph or list
-
-        References
-        ----------
-        .. [1] Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph
-               and the traveling salesman problem". Proceedings of the American
-               Mathematical Society. 7: 48–50.
-        """
-        edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
-
-        if return_subgraph:
-            # Create a new graph with the MST edges
-            mst = Graph(directed=self.is_directed(), weighted=True)
-
-            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids(limit=None):
-                label = self.get_label_from_id(node_id)
-                # Try to get node attributes if they exist
-                try:
-                    node_obj = self._graph.get_node(label)
-                    mst.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    mst.add_node(label)
-
-            # Add MST edges
-            for edge_id in edge_ids:
-                edge = self.get_edge(edge_id)
-                if edge:
-                    mst.add_edge(
-                        self.get_label_from_id(edge.source),
-                        self.get_label_from_id(edge.target),
-                        weight=edge.weight,
-                        attributes=edge.attributes,
-                    )
-
-            return mst
-        else:
-            return [str(eid) for eid in edge_ids]
-
-    def maximum_spanning_tree(
-        self,
-        weight_attr: str | None = None,
-        return_subgraph: bool = True,
-    ) -> "Graph | list[str]":
-        """
-        Find the maximum spanning tree using Kruskal's algorithm.
-
-        A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
-        edge weight. Essentially finds the MST of the negated edge weights.
-
-        Parameters
-        ----------
-        weight_attr
-            Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
-            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
-        return_subgraph
-            If `True`, returns a new Graph containing only the spanning tree edges. If `False`,
-            returns a list of edge IDs as strings.
-
-        Returns
-        -------
-        Graph or list[str]
-            Either a new Graph with spanning tree edges or a list of edge ID strings, depending on
-            the `return_subgraph=` parameter.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph(weighted=True)
-        g.add_node("A")
-        g.add_node("B")
-        g.add_node("C")
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=3.0)
-        g.add_edge("C", "A", weight=2.0)
-
-        max_st = g.maximum_spanning_tree()
-
-        # Calculate total weight
-        total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.get_edges_as_tuples()]
-                    if e and e.weight is not None)
-        print(total)  # 5.0 (chooses edges with weights 3.0 and 2.0)
-        ```
-
-        Notes
-        -----
-        - time complexity: O(E log E) for sorting edges
-        - space complexity: O(V) for union-find structure
-        - useful for finding most important connections in a network
-        """
-        edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
-
-        if return_subgraph:
-            # Create a new graph with the spanning tree edges
-            st = Graph(directed=self.is_directed(), weighted=True)
-
-            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids(limit=None):
-                label = self.get_label_from_id(node_id)
-                # Try to get node attributes if they exist
-                try:
-                    node_obj = self._graph.get_node(label)
-                    st.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    st.add_node(label)
-
-            # Add spanning tree edges
-            for edge_id in edge_ids:
-                edge = self.get_edge(edge_id)
-                if edge:
-                    st.add_edge(
-                        self.get_label_from_id(edge.source),
-                        self.get_label_from_id(edge.target),
-                        weight=edge.weight,
-                        attributes=edge.attributes,
-                    )
-
-            return st
-        else:
-            return [str(eid) for eid in edge_ids]
 
     def __repr__(self) -> str:
         """
