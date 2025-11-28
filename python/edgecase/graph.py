@@ -18414,6 +18414,260 @@ class Graph:
         return find_maximal_independent_sets(self._graph, count, seed)
 
     # ==============================================================================
+    # Dominating Sets
+    # ==============================================================================
+
+    def is_dominating_set(self, nodes: list[int]) -> bool:
+        """
+        Check if a set of nodes forms a dominating set.
+
+        A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
+        `D` is adjacent to at least one member of `D`. In other words, every node is either in `D`
+        or has a neighbor in `D`.
+
+        Parameters
+        ----------
+        nodes
+            List of node IDs to check.
+
+        Returns
+        -------
+        bool
+            `True` if the nodes form a valid dominating set, `False` otherwise.
+
+        Examples
+        --------
+        Check a valid dominating set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path: A-B-C-D
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        # {B, D} dominates: B covers A,C and D covers C
+        b_id = graph.get_id_from_label("B")
+        d_id = graph.get_id_from_label("D")
+        print(graph.is_dominating_set([b_id, d_id]))  # True
+
+        # {B} alone doesn't dominate D
+        print(graph.is_dominating_set([b_id]))  # False
+        ```
+
+        Validate a computed dominating set:
+
+        ```python
+        graph = Graph()
+        graph.add_gnm_graph(n=50, m=100, seed=42)
+
+        dom = graph.dominating_set()
+        assert graph.is_dominating_set(dom)  # Always True
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V + E)` where `V` is nodes and `E` is edges
+        - empty set is NOT a dominating set (unless graph is empty)
+        - the entire node set is always a dominating set
+        - a single node dominates only itself and its neighbors
+        """
+        from edgecase._core import is_dominating_set
+
+        return is_dominating_set(self._graph, nodes)
+
+    def dominating_set(self, start_with: int | None = None) -> list[int]:
+        """
+        Find a dominating set for the graph.
+
+        A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
+        `D` is adjacent to at least one member of `D`. This method uses a greedy algorithm that
+        finds some dominating set, but not necessarily the minimum one.
+
+        Parameters
+        ----------
+        start_with
+            Optional node ID to start the algorithm from. If `None`, an arbitrary node is chosen.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs forming a dominating set.
+
+        Raises
+        ------
+        ValueError
+            If the `start_with` node doesn't exist in the graph.
+
+        Examples
+        --------
+        Find a dominating set:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_gnm_graph(n=100, m=200, seed=42)
+
+        dom = graph.dominating_set()
+        print(f"Dominating set size: {len(dom)}")
+
+        # Verify it's valid
+        assert graph.is_dominating_set(dom)
+        ```
+
+        Start from a specific node:
+
+        ```python
+        graph = Graph()
+        graph.add_star_graph(10)  # Hub with 9 leaves
+
+        # Start from the hub (node ID 1)
+        dom = graph.dominating_set(start_with=1)
+        print(f"Size: {len(dom)}")  # 1 (just the hub)
+        ```
+
+        Compare with independent sets:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(8)
+
+        dom = graph.dominating_set()
+        ind = graph.maximal_independent_set(seed=42)
+
+        print(f"Dominating set: {len(dom)}")
+        print(f"Independent set: {len(ind)}")
+        # Note: Every maximal independent set is also a dominating set!
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V + E)` greedy algorithm
+        - space complexity: `O(V)` for tracking dominated nodes
+        - not guaranteed to find the minimum dominating set (NP-hard problem)
+        - every maximal independent set is a dominating set
+        - related to but different from `domirank_centrality()`
+
+        References
+        ----------
+        .. [1] Esfahanian, Abdol-Hossein. "Connectivity Algorithms."
+               http://www.cse.msu.edu/~cse835/Papers/Graph_connectivity_revised.pdf
+
+        """
+        from edgecase._core import dominating_set
+
+        return dominating_set(self._graph, start_with)
+
+    def min_weighted_dominating_set(self, weight_attr: str | None = None) -> list[int]:
+        """
+        Find an approximate minimum weighted dominating set.
+
+        Uses a greedy algorithm that iteratively adds the most cost-effective node (lowest weight
+        per number of newly dominated nodes) to the dominating set. This provides an `O(log n)`
+        approximation to the optimal solution.
+
+        Parameters
+        ----------
+        weight_attr
+            Optional node attribute name to use as weights. If `None` or the attribute doesn't
+            exist on a node, the node is assumed to have weight `1`.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs forming an approximate minimum weighted dominating set.
+
+        Examples
+        --------
+        Find minimum weighted dominating set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create graph with node weights
+        graph = (
+            Graph()
+            .add_node(label="hub", attributes={"cost": 10})
+            .add_node(label="leaf1", attributes={"cost": 1})
+            .add_node(label="leaf2", attributes={"cost": 1})
+            .add_node(label="leaf3", attributes={"cost": 1})
+            .add_edge("hub", "leaf1")
+            .add_edge("hub", "leaf2")
+            .add_edge("hub", "leaf3")
+        )
+
+        # Without weights: any dominating set
+        dom1 = graph.dominating_set()
+
+        # With weights: prefer lower cost nodes
+        dom2 = graph.min_weighted_dominating_set(weight_attr="cost")
+
+        labels = [graph.get_label_from_id(n) for n in dom2]
+        print(f"Weighted dominating set: {labels}")
+        ```
+
+        Facility location problem:
+
+        ```python
+        # Place facilities to cover all nodes with minimum cost
+        graph = Graph()
+        graph.add_grid_2d(rows=5, cols=5)
+
+        # Assign random costs to each node
+        import random
+        random.seed(42)
+        node_ids = graph.get_node_ids()
+        costs = {nid: random.uniform(1, 10) for nid in node_ids}
+        graph.set_node_attrs("facility_cost", costs)
+
+        facilities = graph.min_weighted_dominating_set(weight_attr="facility_cost")
+        print(f"Need {len(facilities)} facilities to cover all nodes")
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V × E)` for the greedy algorithm
+        - approximation guarantee: O(log(sum of weights)) × optimal
+        - for unweighted case (all weights = 1), equivalent to `dominating_set()`
+        - NP-hard to find the exact minimum; this is a greedy approximation
+
+        References
+        ----------
+        .. [1] Vazirani, Vijay V. "Approximation Algorithms."
+               Springer Science & Business Media, 2001.
+        """
+        from edgecase._core import min_weighted_dominating_set
+
+        # Build weights dictionary from node attributes if specified
+        weights = None
+        if weight_attr is not None:
+            weights = {}
+            for node_id in self.get_node_ids(limit=None):
+                try:
+                    node = self._graph.get_node(node_id)
+                    if node and node.attributes:
+                        val = node.attributes.get(weight_attr)
+                        if val is not None:
+                            weights[node_id] = float(val)
+                        else:
+                            weights[node_id] = 1.0
+                    else:
+                        weights[node_id] = 1.0
+                except (KeyError, TypeError, ValueError):
+                    weights[node_id] = 1.0
+
+        return min_weighted_dominating_set(self._graph, weights)
+
+    # ==============================================================================
     # Minimum/Maximum Spanning Trees
     # ==============================================================================
 
