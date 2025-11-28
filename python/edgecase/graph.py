@@ -7481,7 +7481,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Cycle Detection Methods
+    # Cycle Detection
     # ==============================================================================
 
     def has_cycles(self) -> bool:
@@ -8423,7 +8423,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Degree Methods
+    # Degree
     # ==============================================================================
 
     def degrees(
@@ -10667,7 +10667,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Matching Methods
+    # Matching
     # ==============================================================================
 
     def is_matching(self, edges: list[Union[int, str]]) -> bool:
@@ -10939,6 +10939,368 @@ class Graph:
 
         return max_weight_matching(self._graph)
 
+    # ==============================================================================
+    # Independent Sets
+    # ==============================================================================
+
+    def is_independent_set(self, nodes: list[int]) -> bool:
+        """
+        Check if a set of nodes forms an independent set.
+
+        An independent set (also called a stable set) is a set of vertices in a graph where no two
+        vertices are adjacent. This method validates whether the given nodes satisfy this property.
+
+        Parameters
+        ----------
+        nodes
+            List of node IDs to check.
+
+        Returns
+        -------
+        bool
+            `True` if the nodes form a valid independent set (no edges between them), `False`
+            otherwise.
+
+        Examples
+        --------
+        Check a valid independent set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path: A-B-C-D
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        # A and C are not adjacent
+        a_id = graph.get_id_from_label("A")
+        c_id = graph.get_id_from_label("C")
+        print(graph.is_independent_set([a_id, c_id]))  # True
+
+        # A, C, D: C and D are adjacent
+        d_id = graph.get_id_from_label("D")
+        print(graph.is_independent_set([a_id, c_id, d_id]))  # False
+        ```
+
+        Validate a computed independent set:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(10)
+
+        mis = graph.maximal_independent_set()
+        assert graph.is_independent_set(mis)  # Always True
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V + E)` where `V` is nodes in the set and `E` is edges
+        - empty set is trivially an independent set
+        - single node is trivially an independent set
+        """
+        from edgecase._core import is_independent_set
+
+        return is_independent_set(self._graph, nodes)
+
+    def maximal_independent_set(
+        self,
+        nodes: list[int] | None = None,
+        seed: int | None = None,
+    ) -> list[int]:
+        """
+        Find a maximal independent set in the graph.
+
+        A maximal independent set is an independent set that cannot be extended by adding any other
+        vertex. In other words, every vertex not in the set is adjacent to at least one vertex in
+        the set.
+
+        This uses a randomized greedy algorithm that picks nodes randomly and adds them if they
+        don't conflict with already-chosen nodes.
+
+        Parameters
+        ----------
+        nodes
+            Optional starting set of node IDs. These nodes must already form an independent set. The
+            algorithm will extend this set to be maximal. If `None`, starts with an empty set.
+        seed
+            Optional random seed for reproducibility. If `None`, uses system entropy.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs forming a maximal independent set.
+
+        Raises
+        ------
+        ValueError
+            If the starting nodes don't form an independent set (have adjacent nodes).
+        ValueError
+            If any starting node doesn't exist in the graph.
+
+        Examples
+        --------
+        Find a maximal independent set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path graph: 1-2-3-4-5
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        mis = graph.maximal_independent_set(seed=42)
+        print(f"Independent set size: {len(mis)}")  # 2 or 3
+
+        # Verify validity
+        assert graph.is_independent_set(mis)
+        ```
+
+        Start with specific nodes:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(6)
+
+        # Start with a specific node
+        first_node = graph.get_node_ids()[0]
+        mis = graph.maximal_independent_set(nodes=[first_node], seed=42)
+
+        assert first_node in mis
+        ```
+
+        Find multiple maximal independent sets:
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(6)
+
+        # Different seeds give different results
+        sets = [graph.maximal_independent_set(seed=i) for i in range(5)]
+        for i, s in enumerate(sets):
+            print(f"Seed {i}: {s}")
+        ```
+
+        Scheduling application:
+
+        ```python
+        # Jobs are nodes, edges connect conflicting jobs
+        graph = (
+            Graph()
+            .add_node(label="Job_A")
+            .add_node(label="Job_B")
+            .add_node(label="Job_C")
+            .add_node(label="Job_D")
+            .add_edge("Job_A", "Job_B")  # A conflicts with B
+            .add_edge("Job_B", "Job_C")  # B conflicts with C
+            .add_edge("Job_C", "Job_D")  # C conflicts with D
+        )
+
+        # Find jobs that can run simultaneously
+        parallel_jobs = graph.maximal_independent_set()
+        labels = [graph.get_label_from_id(nid) for nid in parallel_jobs]
+        print(f"Can run together: {labels}")
+        ```
+
+        Notes
+        -----
+        - time complexity: O(V + E) where V is vertices and E is edges
+        - space complexity: O(V) for tracking available nodes
+        - randomized algorithm: results may vary without a seed
+        - maximal ≠ Maximum: this is not guaranteed to find the largest possible set
+        - for the largest independent set, use `maximum_independent_set()`
+        """
+        from edgecase._core import maximal_independent_set
+
+        return maximal_independent_set(self._graph, nodes, seed)
+
+    def maximum_independent_set(self) -> list[int]:
+        """
+        Find an approximate maximum independent set in the graph.
+
+        The maximum independent set problem is NP-hard, so this method uses a greedy heuristic that
+        prioritizes nodes with minimum degree. This provides a good approximation but is not
+        guaranteed to find the true maximum.
+
+        The algorithm works by iteratively selecting the node with the minimum number of neighbors
+        (among remaining candidates), adding it to the set, and removing it and its neighbors from
+        further consideration.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs forming an approximate maximum independent set.
+
+        Examples
+        --------
+        Find maximum independent set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path graph: 1-2-3-4-5
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        mis = graph.maximum_independent_set()
+        print(f"Maximum independent set size: {len(mis)}")  # 3 for path of 5
+
+        # Verify it's valid
+        assert graph.is_independent_set(mis)
+        ```
+
+        Compare with maximal independent set:
+
+        ```python
+        graph = Graph()
+        graph.add_star_graph(10)  # Hub with 10 leaves
+
+        maximal = graph.maximal_independent_set(seed=42)
+        maximum = graph.maximum_independent_set()
+
+        print(f"Maximal size: {len(maximal)}")
+        print(f"Maximum size: {len(maximum)}")  # Should be larger or equal
+        ```
+
+        Vertex cover complement:
+
+        ```python
+        # Maximum independent set + minimum vertex cover = all nodes
+        graph = Graph()
+        graph.add_cycle_graph(8)
+
+        mis = graph.maximum_independent_set()
+        vertex_cover = set(graph.get_node_ids()) - set(mis)
+
+        print(f"Independent set: {len(mis)}")
+        print(f"Vertex cover: {len(vertex_cover)}")
+        print(f"Total: {len(mis) + len(vertex_cover)} = {graph.count_nodes()}")
+        ```
+
+        Optimization problem:
+
+        ```python
+        # Find maximum set of non-conflicting items
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+            .add_edge("E", "A")  # Cycle
+        )
+
+        mis = graph.maximum_independent_set()
+        labels = [graph.get_label_from_id(nid) for nid in mis]
+        print(f"Best selection: {labels}")
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V² + VE)` due to repeated neighbor lookups
+        - space complexity: `O(V)` for tracking available nodes
+        - this is a greedy approximation, not an exact algorithm
+        - for exact solutions on small graphs, exhaustive search is needed
+        - the complement of a maximum independent set is a minimum vertex cover
+
+        References
+        ----------
+        The maximum independent set problem is one of Karp's 21 NP-complete problems.
+        This implementation uses the minimum-degree greedy heuristic.
+        """
+        from edgecase._core import maximum_independent_set
+
+        return maximum_independent_set(self._graph)
+
+    def find_maximal_independent_sets(
+        self,
+        count: int = 10,
+        seed: int | None = None,
+    ) -> list[list[int]]:
+        """
+        Find multiple distinct maximal independent sets.
+
+        Runs the maximal independent set algorithm multiple times with different random seeds to
+        discover diverse solutions. This is useful for exploring the space of possible independent
+        sets or for ensemble methods.
+
+        Parameters
+        ----------
+        count
+            Number of maximal independent sets to find. Default is 10.
+        seed
+            Optional base seed for reproducibility. Each iteration uses seed + iteration_number.
+
+        Returns
+        -------
+        list[list[int]]
+            List of maximal independent sets, each represented as a list of node IDs. May return
+            fewer than `count` if there aren't enough unique sets.
+
+        Examples
+        --------
+        Find multiple independent sets:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(8)
+
+        sets = graph.find_maximal_independent_sets(count=5, seed=42)
+        for i, s in enumerate(sets):
+            print(f"Set {i}: size={len(s)}, nodes={s}")
+        ```
+
+        Find the best among multiple:
+
+        ```python
+        graph = Graph()
+        graph.add_gnm_graph(n=50, m=100, seed=42)
+
+        sets = graph.find_maximal_independent_sets(count=20, seed=0)
+        best = max(sets, key=len)
+        print(f"Best size: {len(best)}")
+        ```
+
+        Analyze diversity:
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(8)
+
+        sets = graph.find_maximal_independent_sets(count=10)
+        unique_sizes = set(len(s) for s in sets)
+        print(f"Found {len(sets)} unique sets with sizes: {unique_sizes}")
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(count × (V + E))
+        - Attempts to find unique sets; may return fewer than requested
+        - With a seed, results are reproducible
+        - Without a seed, each call may produce different sets
+        """
+        from edgecase._core import find_maximal_independent_sets
+
+        return find_maximal_independent_sets(self._graph, count, seed)
+
+    # ==============================================================================
+    # Eulerian Paths and Circuits
+    # ==============================================================================
+
     def is_eulerian(self) -> bool:
         """
         Check if the graph has an Eulerian circuit.
@@ -11125,6 +11487,10 @@ class Graph:
         from edgecase._core import eulerian_circuit
 
         return eulerian_circuit(self._graph)
+
+    # ==============================================================================
+    # Bridges and Connectivity
+    # ==============================================================================
 
     def bridges(self) -> list[int]:
         """
@@ -11359,7 +11725,7 @@ class Graph:
         return node_vitality(self._graph, node_id)
 
     # ==============================================================================
-    # Similarity Methods
+    # Similarity
     # ==============================================================================
 
     def get_pairwise_similarity(
@@ -11738,7 +12104,7 @@ class Graph:
         return self._graph.get_overlap_similarity()
 
     # ==============================================================================
-    # Neighbor and Connectivity Methods
+    # Neighbors and Connectivity
     # ==============================================================================
 
     def neighbors(self, node: Union[int, str], mode: str = "out") -> list[int]:
@@ -12191,7 +12557,7 @@ class Graph:
         return similar
 
     # ==============================================================================
-    # Connectivity and Flow Methods
+    # Connectivity and Flow
     # ==============================================================================
 
     def get_all_connected_nodes(self, node: Union[int, str]) -> list[int]:
@@ -14651,7 +15017,7 @@ class Graph:
         return self._graph.count_strongly_connected_components()
 
     # ==============================================================================
-    # Simple Count Methods
+    # Simple Counts
     # ==============================================================================
 
     def count_all_loops(self) -> int:
@@ -16248,7 +16614,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Clustering Methods
+    # Clustering
     # ==============================================================================
 
     def local_clustering_coefficient(
@@ -16866,7 +17232,7 @@ class Graph:
         return local_efficiency(self._graph)
 
     # ==============================================================================
-    # Community Detection Methods
+    # Community Detection
     # ==============================================================================
 
     def cmty_fast_greedy(
@@ -17705,7 +18071,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Centrality Methods
+    # Centrality
     # ==============================================================================
 
     def betweenness_centrality(
@@ -19532,7 +19898,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Minimum/Maximum Spanning Tree Methods
+    # Minimum/Maximum Spanning Trees
     # ==============================================================================
 
     def minimum_spanning_tree(
