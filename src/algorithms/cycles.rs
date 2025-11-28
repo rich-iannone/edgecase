@@ -5,6 +5,324 @@ use pyo3::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
+/// Find all simple cycles in the graph.
+///
+/// For directed graphs, uses Johnson's algorithm.
+/// For undirected graphs, uses a backtracking DFS approach that finds all
+/// elementary cycles by starting from each node and exploring all paths
+/// that return to the starting node.
+///
+/// # Arguments
+/// * `graph` - The graph to search for cycles
+/// * `length_bound` - Optional maximum cycle length (None for no limit)
+///
+/// # Returns
+/// A vector of cycles, where each cycle is a vector of node IDs.
+/// Each cycle is represented starting from its lexicographically smallest node
+/// to avoid duplicates.
+#[pyfunction]
+#[pyo3(signature = (graph, length_bound=None))]
+pub fn simple_cycles(graph: &Graph, length_bound: Option<usize>) -> PyResult<Vec<Vec<u64>>> {
+    if graph.is_directed() {
+        // For directed graphs, use Johnson's algorithm (existing implementation)
+        simple_cycles_directed(graph, length_bound)
+    } else {
+        // For undirected graphs, use backtracking DFS
+        simple_cycles_undirected(graph, length_bound)
+    }
+}
+
+/// Find simple cycles in a directed graph using Johnson's algorithm
+fn simple_cycles_directed(graph: &Graph, length_bound: Option<usize>) -> PyResult<Vec<Vec<u64>>> {
+    let node_ids: Vec<u64> = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+
+    let mut all_cycles = Vec::new();
+
+    // Build adjacency list for efficient traversal
+    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for &node_id in &node_ids {
+        if let Ok(neighbors) = graph.neighbors(node_id) {
+            adj_list.insert(node_id, neighbors);
+        } else {
+            adj_list.insert(node_id, Vec::new());
+        }
+    }
+
+    // Process nodes in order
+    for start_idx in 0..node_ids.len() {
+        let start_node = node_ids[start_idx];
+
+        // Build subgraph containing start_node and all nodes with higher indices
+        let remaining = n - start_idx;
+        let mut subgraph_nodes: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(remaining, Default::default());
+        subgraph_nodes.extend(node_ids[start_idx..].iter().copied());
+
+        // Find strongly connected component containing start_node in subgraph
+        let scc = find_scc_containing_node(start_node, &adj_list, &subgraph_nodes);
+
+        if scc.len() > 1 || (scc.len() == 1 && adj_list.get(&start_node)
+            .map_or(false, |neighbors| neighbors.contains(&start_node))) {
+            let mut blocked: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut path = Vec::with_capacity(scc.len());
+            path.push(start_node);
+            let mut path_set = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
+            path_set.insert(start_node);
+
+            simple_cycles_from_node_directed(
+                start_node,
+                start_node,
+                &adj_list,
+                &scc,
+                &mut path,
+                &mut path_set,
+                &mut blocked,
+                &mut blocked_map,
+                &mut all_cycles,
+                length_bound,
+            );
+        }
+    }
+
+    Ok(all_cycles)
+}
+
+/// Recursive function to find cycles using backtracking (directed version)
+#[allow(clippy::too_many_arguments)]
+fn simple_cycles_from_node_directed(
+    current: u64,
+    start: u64,
+    adj_list: &FxHashMap<u64, Vec<u64>>,
+    scc: &FxHashSet<u64>,
+    path: &mut Vec<u64>,
+    path_set: &mut FxHashSet<u64>,
+    blocked: &mut FxHashSet<u64>,
+    blocked_map: &mut FxHashMap<u64, FxHashSet<u64>>,
+    cycles: &mut Vec<Vec<u64>>,
+    length_bound: Option<usize>,
+) -> bool {
+    let mut found_cycle = false;
+    blocked.insert(current);
+
+    if let Some(neighbors) = adj_list.get(&current) {
+        for &neighbor in neighbors {
+            if !scc.contains(&neighbor) {
+                continue;
+            }
+
+            if neighbor == start {
+                // Found a cycle
+                found_cycle = true;
+                // Check length bound
+                if length_bound.map_or(true, |bound| path.len() <= bound) {
+                    cycles.push(path.clone());
+                }
+            } else if !blocked.contains(&neighbor) && !path_set.contains(&neighbor) {
+                // Check if adding this node would exceed length bound
+                if length_bound.map_or(true, |bound| path.len() < bound) {
+                    path.push(neighbor);
+                    path_set.insert(neighbor);
+
+                    let found = simple_cycles_from_node_directed(
+                        neighbor,
+                        start,
+                        adj_list,
+                        scc,
+                        path,
+                        path_set,
+                        blocked,
+                        blocked_map,
+                        cycles,
+                        length_bound,
+                    );
+
+                    path.pop();
+                    path_set.remove(&neighbor);
+
+                    found_cycle = found_cycle || found;
+                }
+            }
+        }
+    }
+
+    if found_cycle {
+        unblock(current, blocked, blocked_map);
+    } else {
+        if let Some(neighbors) = adj_list.get(&current) {
+            for &neighbor in neighbors {
+                if scc.contains(&neighbor) {
+                    blocked_map
+                        .entry(neighbor)
+                        .or_insert_with(FxHashSet::default)
+                        .insert(current);
+                }
+            }
+        }
+    }
+
+    found_cycle
+}
+
+/// Find simple cycles in an undirected graph using backtracking DFS
+fn simple_cycles_undirected(graph: &Graph, length_bound: Option<usize>) -> PyResult<Vec<Vec<u64>>> {
+    let node_ids: Vec<u64> = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+
+    // Build adjacency list
+    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for &node_id in &node_ids {
+        if let Ok(neighbors) = graph.neighbors(node_id) {
+            adj_list.insert(node_id, neighbors);
+        } else {
+            adj_list.insert(node_id, Vec::new());
+        }
+    }
+
+    // Create node index mapping for canonical ordering
+    let node_to_idx: FxHashMap<u64, usize> = node_ids.iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
+
+    let mut all_cycles: Vec<Vec<u64>> = Vec::new();
+    let mut seen_cycles: FxHashSet<Vec<u64>> = FxHashSet::default();
+
+    // Try starting from each node
+    for &start_node in &node_ids {
+        let mut path = vec![start_node];
+        let mut path_set = FxHashSet::default();
+        path_set.insert(start_node);
+
+        find_cycles_undirected_dfs(
+            start_node,
+            start_node,
+            None, // No previous edge initially
+            &adj_list,
+            &node_to_idx,
+            &mut path,
+            &mut path_set,
+            &mut all_cycles,
+            &mut seen_cycles,
+            length_bound,
+        );
+    }
+
+    Ok(all_cycles)
+}
+
+/// DFS helper for finding cycles in undirected graphs
+#[allow(clippy::too_many_arguments)]
+fn find_cycles_undirected_dfs(
+    current: u64,
+    start: u64,
+    prev: Option<u64>,
+    adj_list: &FxHashMap<u64, Vec<u64>>,
+    node_to_idx: &FxHashMap<u64, usize>,
+    path: &mut Vec<u64>,
+    path_set: &mut FxHashSet<u64>,
+    cycles: &mut Vec<Vec<u64>>,
+    seen_cycles: &mut FxHashSet<Vec<u64>>,
+    length_bound: Option<usize>,
+) {
+    if let Some(neighbors) = adj_list.get(&current) {
+        for &neighbor in neighbors {
+            // Skip the edge we came from (avoid trivial backtracking)
+            if Some(neighbor) == prev {
+                continue;
+            }
+
+            if neighbor == start && path.len() >= 3 {
+                // Found a cycle - canonicalize it
+                let canonical = canonicalize_cycle(path, node_to_idx);
+                if !seen_cycles.contains(&canonical) {
+                    // Check length bound
+                    if length_bound.map_or(true, |bound| path.len() <= bound) {
+                        seen_cycles.insert(canonical);
+                        cycles.push(path.clone());
+                    }
+                }
+            } else if !path_set.contains(&neighbor) {
+                // Only explore if we haven't visited this node in current path
+                // and the neighbor has a higher index than start (to avoid duplicates)
+                let start_idx = node_to_idx.get(&start).copied().unwrap_or(0);
+                let neighbor_idx = node_to_idx.get(&neighbor).copied().unwrap_or(0);
+
+                // Only continue if neighbor index >= start index to avoid finding same cycle twice
+                if neighbor_idx >= start_idx {
+                    // Check if adding this node would exceed length bound
+                    if length_bound.map_or(true, |bound| path.len() < bound) {
+                        path.push(neighbor);
+                        path_set.insert(neighbor);
+
+                        find_cycles_undirected_dfs(
+                            neighbor,
+                            start,
+                            Some(current),
+                            adj_list,
+                            node_to_idx,
+                            path,
+                            path_set,
+                            cycles,
+                            seen_cycles,
+                            length_bound,
+                        );
+
+                        path.pop();
+                        path_set.remove(&neighbor);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Canonicalize a cycle for deduplication
+/// Returns the lexicographically smallest rotation of the cycle
+fn canonicalize_cycle(cycle: &[u64], node_to_idx: &FxHashMap<u64, usize>) -> Vec<u64> {
+    if cycle.is_empty() {
+        return Vec::new();
+    }
+
+    let n = cycle.len();
+
+    // Find the position of the minimum element (by index)
+    let min_pos = (0..n)
+        .min_by_key(|&i| node_to_idx.get(&cycle[i]).copied().unwrap_or(usize::MAX))
+        .unwrap_or(0);
+
+    // Determine direction: compare neighbors of min element
+    let next_pos = (min_pos + 1) % n;
+    let prev_pos = (min_pos + n - 1) % n;
+
+    let next_idx = node_to_idx.get(&cycle[next_pos]).copied().unwrap_or(usize::MAX);
+    let prev_idx = node_to_idx.get(&cycle[prev_pos]).copied().unwrap_or(usize::MAX);
+
+    let mut result = Vec::with_capacity(n);
+
+    if next_idx <= prev_idx {
+        // Forward direction
+        for i in 0..n {
+            result.push(cycle[(min_pos + i) % n]);
+        }
+    } else {
+        // Reverse direction
+        for i in 0..n {
+            result.push(cycle[(min_pos + n - i) % n]);
+        }
+    }
+
+    result
+}
+
 /// Find all elementary cycles in the graph using Johnson's algorithm
 ///
 /// This implements Donald B. Johnson's 1975 algorithm for finding all elementary
