@@ -348,6 +348,12 @@ class Graph:
                 self.add_edge(source, target, rel=rel_value, **other_attrs)
 
     # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # FOUNDATION
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
+
+    # ==============================================================================
     # Graph Construction
     # ==============================================================================
 
@@ -2407,7 +2413,7 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Node and edge Accessors
+    # Node and Edge Accessors
     # ==============================================================================
 
     def get_node(self, node: Union[int, str]) -> Optional[rust.Node]:
@@ -4320,370 +4326,463 @@ class Graph:
         return self._graph.count_asymmetric_node_pairs()
 
     # ==============================================================================
-    # Link Analysis
+    # ------------------------------------------------------------------------------
+    # RELATIONSHIPS & ACCESS
+    # ------------------------------------------------------------------------------
     # ==============================================================================
 
-    def dispersion(self, u: Union[int, str], v: Union[int, str], normalized: bool = True) -> float:
-        """
-        Calculate dispersion between two nodes.
+    # ==============================================================================
+    # Neighbors and Connectivity
+    # ==============================================================================
 
-        Dispersion measures the embeddedness of a link in the network. A link between two nodes
-        (u and v) has high dispersion when their mutual neighbors (friends in common) are not
-        well connected to each other. This can indicate structural diversity in the network.
+    def neighbors(self, node: Union[int, str], mode: str = "out") -> list[int]:
+        """
+        Get neighbors of a node.
+
+        Returns the neighboring nodes of a specified node, with control over directionality (for
+        directed graphs).
+
+        For directed graphs, the default mode is `"out"` (outgoing neighbors only). For undirected
+        graphs, mode doesn't affect the result since all edges are bidirectional.
 
         Parameters
         ----------
-        u
-            Source node (node ID or label).
-        v
-            Target node (node ID or label).
-        normalized
-            If True (default), normalize by the number of common neighbors (embeddedness).
+        node
+            The node ID or label to find neighbors for.
+        mode
+            Direction mode for neighbor lookup:
 
-        Returns
-        -------
-        float
-            The dispersion score between u and v.
-
-        Examples
-        --------
-        Basic dispersion calculation:
-
-        ```python
-        from edgecase import Graph
-
-        # Create a simple social network
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node()
-        for s, t in [(1, 2), (1, 3), (1, 4), (2, 3), (2, 5), (3, 4), (3, 5), (4, 5)]:
-            graph.add_edge(s, t)
-
-        # Calculate dispersion between nodes 1 and 2
-        disp = graph.dispersion(1, 2)
-        print(f"Dispersion: {disp:.2f}")
-        ```
-
-        Using node labels:
-
-        ```python
-        graph = Graph()
-        graph.add_node(label="Alice")
-        graph.add_node(label="Bob")
-        graph.add_node(label="Charlie")
-        graph.add_node(label="David")
-
-        alice = graph.get_id_from_label("Alice")
-        bob = graph.get_id_from_label("Bob")
-        charlie = graph.get_id_from_label("Charlie")
-        david = graph.get_id_from_label("David")
-
-        graph.add_edge(alice, bob)
-        graph.add_edge(alice, charlie)
-        graph.add_edge(bob, charlie)
-        graph.add_edge(bob, david)
-
-        # Check dispersion
-        disp = graph.dispersion(alice, bob, normalized=True)
-        print(f"Dispersion: {disp:.2f}")
-        ```
-
-        Normalized vs unnormalized:
-
-        ```python
-        graph = Graph()
-        graph.add_cycle_graph(6)
-
-        nodes = sorted(graph.get_node_ids())
-
-        # Normalized divides by embeddedness
-        norm = graph.dispersion(nodes[0], nodes[1], normalized=True)
-        # Unnormalized gives raw count
-        unnorm = graph.dispersion(nodes[0], nodes[1], normalized=False)
-
-        print(f"Normalized: {norm:.2f}, Unnormalized: {unnorm}")
-        ```
-
-        Notes
-        -----
-        - Higher dispersion indicates the link spans different network regions
-        - Low dispersion means the link is embedded in a dense cluster
-        - Useful for identifying bridges between communities
-        - Based on the algorithm by Backstrom & Kleinberg (2013)
-
-        References
-        ----------
-        Backstrom, L., & Kleinberg, J. (2013). Romantic partnerships and the dispersion of
-        social ties: a network analysis of relationship status on Facebook. arXiv preprint
-        arXiv:1310.6753.
-        """
-        from edgecase._core import dispersion
-
-        u_id = self._resolve_node_id(u)
-        v_id = self._resolve_node_id(v)
-
-        return dispersion(self._graph, u_id, v_id, normalized)
-
-    # ==============================================================================
-    # Clique Operations
-    # ==============================================================================
-
-    def find_cliques(self) -> list[list[int]]:
-        """
-        Find all maximal cliques in the graph.
-
-        A clique is a subset of nodes where every pair of nodes is connected by an edge. A maximal
-        clique is a clique that cannot be extended by adding another node. Uses the Bron-Kerbosch
-        algorithm for efficient enumeration.
-
-        Note that this finds *maximal* cliques (cannot be extended), not necessarily *maximum*
-        cliques (largest possible). Use `max_clique()` to find a maximum clique.
-
-        Returns
-        -------
-        list[list[int]]
-            List of cliques, where each clique is a sorted list of node IDs.
-
-        Raises
-        ------
-        ValueError
-            If called on a directed graph.
-
-        Notes
-        -----
-        - time complexity: `O(3^(n/3))` (worst case), but typically much faster in practice
-        - only works on undirected graphs
-        - returns cliques in arbitrary order
-        - each node ID list within a clique is sorted
-
-        Examples
-        --------
-        Find all maximal cliques in a triangle:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-
-        cliques = graph.find_cliques()
-        print(len(cliques))  # 1 (the triangle itself)
-        print(len(cliques[0]))  # 3 (all three nodes)
-        ```
-
-        Multiple cliques in a graph:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-        )
-
-        cliques = graph.find_cliques()
-        # Returns pairs of connected nodes: [[A,B], [B,C], [C,D]]
-        print(len(cliques))  # 3 maximal cliques
-        ```
-
-        A complete graph has one clique:
-
-        ```python
-        graph = Graph(directed=False)
-        graph.add_full_graph(n=5)
-
-        cliques = graph.find_cliques()
-        print(len(cliques))  # 1 (entire graph is a clique)
-        print(len(cliques[0]))  # 5 (all nodes)
-        ```
-        """
-        return self._graph.find_cliques()
-
-    def max_clique(self) -> list[int]:
-        """
-        Find a maximum clique in the graph.
-
-        A maximum clique is a largest possible clique in the graph. If multiple maximum cliques
-        exist with the same size, returns one of them (arbitrary choice). Uses the Bron-Kerbosch
-        algorithm to enumerate all maximal cliques and selects the largest.
+            - `"out"`: Only successors (outgoing edges), the default for directed graphs
+            - `"in"`: Only predecessors (incoming edges)
+            - `"all"`: Both successors and predecessors
 
         Returns
         -------
         list[int]
-            Sorted list of node IDs forming a maximum clique. Empty list if graph is empty.
+            List of neighbor node IDs.
 
         Raises
         ------
         ValueError
-            If called on a directed graph.
-
-        Notes
-        -----
-        - Time complexity: `O(3^(n/3))` in the worst case
-        - Only works on undirected graphs
-        - Finding the maximum clique is NP-hard
-        - Returns one maximum clique if multiple exist
+            If `mode` is not one of `"out"`, `"in"`, or `"all"`.
 
         Examples
         --------
-        Maximum clique in a triangle:
-
         ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
+        import edgecase as ec
 
-        max_clique = graph.max_clique()
+        # Directed graph example
+        graph = ec.Graph(directed=True)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
+        graph.add_edge("A", "B", weight=1.0)
+        graph.add_edge("C", "A", weight=2.0)
 
-        print(len(max_clique))  # 3 (all nodes form a clique)
-        ```
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+        c_id = graph.get_id_from_label("C")
 
-        Maximum clique in a path graph:
+        # Get successors (outgoing neighbors); returns node IDs
+        out_neighbors = graph.neighbors(a_id, mode="out")
+        print(out_neighbors)  # [<b_id>]: node IDs, not labels
 
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-        )
+        # Get predecessors (incoming neighbors)
+        in_neighbors = graph.neighbors(a_id, mode="in")
+        print(in_neighbors)  # [<c_id>]
 
-        max_clique = graph.max_clique()
+        # Get all neighbors
+        all_neighbors = graph.neighbors(a_id, mode="all")
+        print(all_neighbors)  # [<b_id>, <c_id>]
 
-        print(len(max_clique))  # 2 (any connected pair)
-        ```
-
-        Empty graph:
-
-        ```python
-        graph = Graph(directed=False)
-        max_clique = graph.max_clique()
-        print(max_clique)  # []
-        ```
-
-        Complete graph:
-
-        ```python
-        graph = Graph(directed=False)
-        graph.add_full_graph(n=6)
-
-        max_clique = graph.max_clique()
-        print(len(max_clique))  # 6 (all nodes)
+        # Convert IDs to labels if needed
+        neighbor_labels = [graph.get_label_from_id(nid) for nid in out_neighbors]
+        print(neighbor_labels)  # ['B']
         ```
         """
-        return self._graph.max_clique()
+        # Resolve node to integer ID
+        node_id = self._resolve_node_id(node)
 
-    def clique_number(self) -> int:
+        if mode not in ["out", "in", "all"]:
+            raise ValueError("mode must be 'out', 'in', or 'all'")
+
+        neighbors = []
+
+        if mode in ["out", "all"]:
+            # Outgoing neighbors from adjacency list
+            neighbors.extend(self._graph.neighbors(node_id))
+
+        if mode in ["in", "all"]:
+            # Incoming neighbors; find edges where this node is target
+            for edge_tuple in self._graph.edges():
+                # edge_tuple is (edge_id, source, target)
+                if edge_tuple[2] == node_id and edge_tuple[1] not in neighbors:
+                    neighbors.append(edge_tuple[1])
+
+        # For undirected graphs, mode doesn't matter
+        if not self._graph.is_directed and mode != "all":
+            # Already got all neighbors via adjacency list
+            pass
+
+        return neighbors
+
+    def get_predecessors(self, node: Union[int, str]) -> list[int]:
         """
-        Get the clique number (size of the maximum clique).
+        Get direct predecessors of a node (incoming neighbors).
 
-        The clique number ω(G) is the size of the largest clique in the graph. This is a fundamental
-        graph invariant used in graph theory and combinatorial optimization.
+        Returns nodes that have outgoing edges to the specified node. Only available
+        for directed graphs.
+
+        Parameters
+        ----------
+        node
+            Node ID or label to find predecessors for.
 
         Returns
         -------
-        int
-            Size of the maximum clique. Returns `0` for empty graphs.
+        list[int]
+            List of predecessor node IDs (nodes with edges pointing to `node`).
 
         Raises
         ------
         ValueError
-            If called on a directed graph.
-
-        Notes
-        -----
-        - time complexity: `O(3^(n/3))` in the worst case
-        - only works on undirected graphs
-        - determining the clique number is NP-hard
-        - for a complete graph `K_n`, the clique number is `n`
-        - for a bipartite graph, the clique number is at most `2`
+            If the graph is undirected.
 
         Examples
         --------
-        Clique number of a triangle:
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
+        graph.add_edge("A", "C")
+        graph.add_edge("B", "C")
+
+        c_id = graph.get_id_from_label("C")
+
+        # Find nodes with edges pointing to C; returns node IDs
+        predecessors = graph.get_predecessors(c_id)
+        # Convert to labels: ['A', 'B']
+        labels = [graph.get_label_from_id(nid) for nid in predecessors]
+        print(labels)  # ['A', 'B']
+        ```
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_predecessors only available for directed graphs")
+        return self.neighbors(node, mode="in")
+
+    def get_successors(self, node: Union[int, str]) -> list[int]:
+        """
+        Get direct successors of a node (outgoing neighbors).
+
+        Returns nodes that are targets of outgoing edges from the specified node.
+        Only available for directed graphs.
+
+        Parameters
+        ----------
+        node
+            Node ID or label to find successors for.
+
+        Returns
+        -------
+        list[int]
+            List of successor node IDs (nodes that `node` points to).
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "C")
+
+        a_id = graph.get_id_from_label("A")
+
+        # Find nodes that A points to; returns node IDs
+        successors = graph.get_successors(a_id)
+
+        # Convert to labels: ['B', 'C']
+        labels = [graph.get_label_from_id(nid) for nid in successors]
+
+        print(labels)  # ['B', 'C']
+        ```
+        """
+        if not self._graph.is_directed:
+            raise ValueError("get_successors only available for directed graphs")
+        return self.neighbors(node, mode="out")
+
+    def get_non_neighbors(self, node: Union[int, str]) -> list[int]:
+        """
+        Get nodes that are NOT neighbors of the specified node.
+
+        Returns all nodes in the graph except the specified node itself and its
+        neighbors. Useful for finding potential new connections or disconnected nodes.
+
+        Parameters
+        ----------
+        node
+            Node ID or label to find non-neighbors for.
+
+        Returns
+        -------
+        list[int]
+            Sorted list of node IDs that are not neighbors of `node` and are not
+            `node` itself.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_path_graph(5)  # 1 -> 2 -> 3 -> 4 -> 5
+
+        # Node 2 is connected to 1 and 3
+        # Non-neighbors are 4 and 5 (returns node IDs)
+        non_neighbors = graph.get_non_neighbors(2)
+        print(non_neighbors)  # [4, 5]
+        ```
+
+        Find potential new connections:
 
         ```python
         graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-
-        print(graph.clique_number())  # 3
-        ```
-
-        Clique number of a path:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        print(graph.clique_number())  # 2 (any edge)
-        ```
-
-        Empty graph has clique number 0:
-
-        ```python
-        graph = Graph(directed=False)
-        print(graph.clique_number())  # 0
-        ```
-
-        Complete graph K_n has clique number n:
-
-        ```python
-        graph = Graph(directed=False)
-        graph.add_full_graph(n=7)
-        print(graph.clique_number())  # 7
-        ```
-
-        Bipartite graphs have clique number at most 2:
-
-        ```python
-        graph = (
-            Graph(directed=False)
+            Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
             .add_node(label="D")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
         )
+        # Recommend connections for a node (using node ID)
+        node_id = graph.get_id_from_label("A")
+        candidates = graph.get_non_neighbors(node_id)
 
-        print(graph.clique_number())  # 2 (bipartite K_2,2)
+        # Score candidates by common neighbors
+        scores = [
+            (candidate, len(graph.get_common_neighbors(node_id, candidate)))
+            for candidate in candidates
+        ]
         ```
         """
-        return self._graph.clique_number()
+        # Resolve node to integer ID
+        node_id = self._resolve_node_id(node)
+
+        all_nodes = set(self.get_node_ids(limit=None))
+        neighbors = set(self.neighbors(node_id, mode="all"))
+
+        # Remove the node itself and its neighbors
+        non_neighbors = all_nodes - neighbors - {node_id}
+
+        return sorted(list(non_neighbors))
+
+    def get_common_neighbors(self, node_1: Union[int, str], node_2: Union[int, str]) -> list[int]:
+        """
+        Get nodes that are neighbors of both specified nodes.
+
+        Returns the intersection of neighbor sets for two nodes, useful for finding shared
+        connections or potential triangles in the graph.
+
+        Parameters
+        ----------
+        node_1
+            First node ID (int) or label (str).
+        node_2
+            Second node ID (int) or label (str).
+
+        Returns
+        -------
+        list[int]
+            List of node IDs that are neighbors to both `node_1` and `node_2`.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False)
+        graph.add_node("A")
+        graph.add_node("B")
+        graph.add_node("C")
+        graph.add_node("D")
+        graph.add_edge("A", "C")
+        graph.add_edge("B", "C")
+        graph.add_edge("A", "D")
+        graph.add_edge("B", "D")
+
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+
+        # Find nodes connected to both A and B; returns node IDs
+        common = graph.get_common_neighbors(a_id, b_id)
+
+        # Convert to labels: ['C', 'D']
+        common_labels = [graph.get_label_from_id(nid) for nid in common]
+
+        print(common_labels)  # ['C', 'D']
+        ```
+
+        Triangle detection using common neighbors:
+
+        ```python
+        # Find all triangles involving node A
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="B", target="C")
+            .add_edge(source="A", target="D")
+        )
+
+        a_id = graph.get_id_from_label(label="A")
+        for neighbor_id in graph.neighbors(node=a_id):
+            common = graph.get_common_neighbors(a_id, neighbor_id)
+            for third_id in common:
+                neighbor_label = graph.get_label_from_id(node_id=neighbor_id)
+                third_label = graph.get_label_from_id(node_id=third_id)
+                print(f"Triangle: A - {neighbor_label} - {third_label}")
+        ```
+        """
+        neighbors1 = set(self.neighbors(node_1, mode="all"))
+        neighbors2 = set(self.neighbors(node_2, mode="all"))
+        return list(neighbors1 & neighbors2)
+
+    def get_similar_neighbors(
+        self,
+        node: Union[int, str],
+        node_attr: str,
+        tol_abs: tuple[float, float] | None = None,
+        tol_pct: tuple[float, float] | None = None,
+    ) -> list[int]:
+        """
+        Get neighbors with similar attribute values.
+
+        Returns neighbors whose numeric attribute values fall within a specified tolerance range of
+        the starting node's value. Useful for finding connected nodes with comparable properties.
+
+        Parameters
+        ----------
+        node
+            Starting node ID or label to compare against.
+        node_attr
+            Name of the numeric attribute to compare.
+        tol_abs
+            Absolute tolerance as `(lower_bound, upper_bound)` from the starting value. For example,
+            `(1.0, 2.0)` means values from `start_value - 1.0` to `start_value + 2.0` are considered
+            similar.
+        tol_pct
+            Percentage tolerance as `(lower_pct, upper_pct)` from the starting value. For example,
+            `(10, 20)` means values from `start_value × 0.9` to `start_value × 1.2` are considered
+            similar.
+
+        Returns
+        -------
+        list[int]
+            List of neighbor node IDs with similar attribute values. Empty list if the starting node
+            lacks the attribute or has no neighbors in range.
+
+        Raises
+        ------
+        ValueError
+            If the attribute exists but is not numeric (int or float).
+
+        Examples
+        --------
+        ```python
+        graph = Graph()
+        graph.add_node("A", value=5.0)
+        graph.add_node("B", value=5.5)
+        graph.add_node("C", value=10.0)
+        graph.add_edge("A", "B")
+        graph.add_edge("A", "C")
+
+        # Find neighbors within ±1.0 of A's value (5.0)
+        similar = graph.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
+        print(similar)  # ['B'] (5.5 is within range, 10.0 is not)
+        ```
+
+        Using percentage tolerance:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A", value=5.0)
+            .add_node(label="B", value=4.5)
+            .add_node(label="C", value=10.0)
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="C")
+        )
+        # Find neighbors within ±20% of A's value
+        similar_pct = graph.get_similar_neighbors(
+            "A",
+            "value",
+            tol_pct=(20, 20)
+        )
+        # Range: 4.0 to 6.0 (20% of 5.0)
+        ```
+
+        Notes
+        -----
+        - if neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
+        - neighbors without the specified attribute are excluded from results.
+        - non-numeric attribute values raise a `ValueError`.
+        """
+        # Get starting node's attribute value
+        start_node = self.get_node(node)
+        if not start_node or not start_node.attributes:
+            return []
+
+        if node_attr not in start_node.attributes:
+            return []
+
+        start_value = start_node.attributes[node_attr]
+
+        # Must be numeric
+        if not isinstance(start_value, (int, float)):
+            raise ValueError(f"Attribute '{node_attr}' must be numeric for similarity comparison")
+
+        # Determine bounds
+        if tol_abs is not None:
+            lower_bound = start_value - tol_abs[0]
+            upper_bound = start_value + tol_abs[1]
+        elif tol_pct is not None:
+            lower_bound = start_value * (1 - tol_pct[0] / 100.0)
+            upper_bound = start_value * (1 + tol_pct[1] / 100.0)
+        else:
+            # Exact match if no tolerance specified
+            lower_bound = start_value
+            upper_bound = start_value
+
+        # Get all neighbors
+        neighbors = self.neighbors(node, mode="all")
+
+        # Filter by attribute similarity
+        similar = []
+        for neighbor_id in neighbors:
+            neighbor = self.get_node(neighbor_id)
+            if neighbor and neighbor.attributes and node_attr in neighbor.attributes:
+                neighbor_value = neighbor.attributes[node_attr]
+                if isinstance(neighbor_value, (int, float)):
+                    if lower_bound <= neighbor_value <= upper_bound:
+                        similar.append(neighbor_id)
+
+        return similar
 
     # ==============================================================================
     # Graph Selection System
@@ -7641,6 +7740,493 @@ class Graph:
         return self
 
     # ==============================================================================
+    # Link Analysis
+    # ==============================================================================
+
+    def dispersion(self, u: Union[int, str], v: Union[int, str], normalized: bool = True) -> float:
+        """
+        Calculate dispersion between two nodes.
+
+        Dispersion measures the embeddedness of a link in the network. A link between two nodes
+        (u and v) has high dispersion when their mutual neighbors (friends in common) are not
+        well connected to each other. This can indicate structural diversity in the network.
+
+        Parameters
+        ----------
+        u
+            Source node (node ID or label).
+        v
+            Target node (node ID or label).
+        normalized
+            If True (default), normalize by the number of common neighbors (embeddedness).
+
+        Returns
+        -------
+        float
+            The dispersion score between u and v.
+
+        Examples
+        --------
+        Basic dispersion calculation:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple social network
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node()
+        for s, t in [(1, 2), (1, 3), (1, 4), (2, 3), (2, 5), (3, 4), (3, 5), (4, 5)]:
+            graph.add_edge(s, t)
+
+        # Calculate dispersion between nodes 1 and 2
+        disp = graph.dispersion(1, 2)
+        print(f"Dispersion: {disp:.2f}")
+        ```
+
+        Using node labels:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="Alice")
+        graph.add_node(label="Bob")
+        graph.add_node(label="Charlie")
+        graph.add_node(label="David")
+
+        alice = graph.get_id_from_label("Alice")
+        bob = graph.get_id_from_label("Bob")
+        charlie = graph.get_id_from_label("Charlie")
+        david = graph.get_id_from_label("David")
+
+        graph.add_edge(alice, bob)
+        graph.add_edge(alice, charlie)
+        graph.add_edge(bob, charlie)
+        graph.add_edge(bob, david)
+
+        # Check dispersion
+        disp = graph.dispersion(alice, bob, normalized=True)
+        print(f"Dispersion: {disp:.2f}")
+        ```
+
+        Normalized vs unnormalized:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(6)
+
+        nodes = sorted(graph.get_node_ids())
+
+        # Normalized divides by embeddedness
+        norm = graph.dispersion(nodes[0], nodes[1], normalized=True)
+        # Unnormalized gives raw count
+        unnorm = graph.dispersion(nodes[0], nodes[1], normalized=False)
+
+        print(f"Normalized: {norm:.2f}, Unnormalized: {unnorm}")
+        ```
+
+        Notes
+        -----
+        - Higher dispersion indicates the link spans different network regions
+        - Low dispersion means the link is embedded in a dense cluster
+        - Useful for identifying bridges between communities
+        - Based on the algorithm by Backstrom & Kleinberg (2013)
+
+        References
+        ----------
+        Backstrom, L., & Kleinberg, J. (2013). Romantic partnerships and the dispersion of
+        social ties: a network analysis of relationship status on Facebook. arXiv preprint
+        arXiv:1310.6753.
+        """
+        from edgecase._core import dispersion
+
+        u_id = self._resolve_node_id(u)
+        v_id = self._resolve_node_id(v)
+
+        return dispersion(self._graph, u_id, v_id, normalized)
+
+    # ==============================================================================
+    # Similarity
+    # ==============================================================================
+
+    def get_pairwise_similarity(
+        self, nodes: list[Union[int, str]] = None, method: str = "jaccard"
+    ) -> list[list[float]]:
+        """
+        Calculate pairwise similarity between nodes based on neighborhoods.
+
+        Computes structural similarity using various metrics that compare the neighborhoods
+        (adjacent nodes) of node pairs. Returns a similarity matrix where higher values indicate
+        more similar neighborhood structures.
+
+        Parameters
+        ----------
+        nodes
+            List of node IDs (integers) or labels (strings) to compute similarities for. Can mix IDs
+            and labels in the same list. If `None` or empty, computes for all nodes in the graph.
+        method
+            Similarity metric to use. Options are: (1) `"jaccard"` for the Jaccard coefficient
+            (intersection over union), (2) `"dice"` for the Dice coefficient (2× intersection over
+            sum of sizes), (3) `"invlogweighted"` as inverse log-weighted (Adamic-Adar index), and
+            (4) `"cosine"` which uses Cosine similarity.
+
+        Returns
+        -------
+        list[list[float]]
+            Similarity matrix where entry (i,j) is the similarity between nodes[i] and nodes[j].
+            Diagonal entries are always `1.0`.
+
+        Raises
+        ------
+        ValueError
+            If a node ID or label is not found, or if method is invalid.
+
+        Examples
+        --------
+        **Link Prediction in Social Network**
+
+        ```python
+        # Find similar users for recommendation
+        g = Graph(directed=False)
+        for name in ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"]:
+            g.add_node(label=name)
+        g.add_edge(source="Alice", target="Bob")
+        g.add_edge(source="Alice", target="Carol")
+        g.add_edge(source="Bob", target="Carol")
+        g.add_edge(source="Dave", target="Eve")
+        g.add_edge(source="Dave", target="Frank")
+        g.add_edge(source="Eve", target="Frank")
+
+        # Alice and Dave have similar patterns (both connect to 2 people)
+        sim = g.get_pairwise_similarity(["Alice", "Dave"], method="jaccard")
+        # sim[0][1] = similarity between Alice and Dave
+
+        # Can also use node IDs (or mix IDs and labels)
+        sim = g.get_pairwise_similarity([1, 4], method="jaccard")
+        ```
+
+        **Comparing Similarity Metrics**
+
+        ```python
+        # Bipartite-like structure
+        g = Graph(directed=False)
+        for name in ["A", "B", "X", "Y"]:
+            g.add_node(label=name)
+        g.add_edge(source="A", target="X")
+        g.add_edge(source="A", target="Y")
+        g.add_edge(source="B", target="X")
+        g.add_edge(source="B", target="Y")
+
+        # A and B have identical neighborhoods
+        jaccard = g.get_pairwise_similarity(["A", "B"], method="jaccard")
+        dice = g.get_pairwise_similarity(["A", "B"], method="dice")
+        cosine = g.get_pairwise_similarity(["A", "B"], method="cosine")
+
+        # All should show high similarity (≈ 1.0)
+        assert jaccard[0][1] == 1.0
+        assert dice[0][1] == 1.0
+        assert cosine[0][1] == 1.0
+        ```
+
+        **Link Prediction with Inverse Log-Weighted**
+
+        ```python
+        # Protein interaction network
+        g = Graph(directed=False)
+        for name in ["P1", "P2", "Hub", "P3", "P4"]:
+            g.add_node(label=name)
+        g.add_edge(source="P1", target="Hub")
+        g.add_edge(source="P2", target="Hub")
+        g.add_edge(source="Hub", target="P3")
+        g.add_edge(source="Hub", target="P4")
+
+        # P1 and P2 connected through high-degree hub
+        # Inverse log-weighted gives lower weight to high-degree nodes
+        sim = g.get_pairwise_similarity(["P1", "P2"], method="invlogweighted")
+        # Lower similarity due to common high-degree neighbor
+        ```
+
+        **Community Detection Helper**
+
+        ```python
+        # Identify similar nodes within network
+        g = Graph(directed=False)
+        # Create nodes first
+        for i in range(5):
+            g.add_node(label=f"C1_{i}")
+        # Add edges for a community structure
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(source=f"C1_{i}", target=f"C1_{j}")
+
+        # Get all pairwise similarities
+        all_sim = g.get_pairwise_similarity(method="jaccard")
+        # Nodes in same dense community have high similarity
+        ```
+
+        Notes
+        -----
+        **Jaccard Similarity**:
+
+        - the most common metric
+        - range: [0, 1]
+        - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
+
+        **Dice Similarity**:
+
+        - gives more weight to common neighbors than Jaccard
+        - range: [0, 1]
+        - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
+
+        **Inverse Log-Weighted (Adamic-Adar)**:
+
+        - weights common neighbors by inverse log of their degree
+        - rare neighbors contribute more
+        - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
+        - popular for link prediction
+
+        **Cosine Similarity**:
+
+        - normalized dot product
+        - range: [0, 1]
+        - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
+
+        **Use Cases**:
+
+        - link prediction: which edges are likely to form?
+        - recommendations: find similar users/items
+        - community detection: group similar nodes
+        - network embedding: similarity-based features
+
+        References
+        ----------
+        Liben-Nowell, D., & Kleinberg, J. (2007). "The link-prediction
+        problem for social networks." CAIS, 58(7), 1019-1031.
+
+        Adamic, L. A., & Adar, E. (2003). "Friends and neighbors on
+        the Web." Social Networks, 25(3), 211-230.
+        """
+        if nodes is None:
+            nodes = []
+        return self._graph.get_pairwise_similarity(nodes, method)
+
+    def get_dice_similarity(self) -> dict[int, dict[int, float]]:
+        """
+        Get Dice similarity coefficient between all node pairs.
+
+        The Dice coefficient measures similarity between two nodes based on their neighborhood
+        overlap:
+
+        Dice(A, B) = 2 × |neighbors(A) ∩ neighbors(B)| / (|neighbors(A)| + |neighbors(B)|)
+
+        Range: [0, 1] where 0 means no common neighbors and 1 means identical neighborhoods (or same
+        node). Self-similarity is always 1.0.
+
+        Returns
+        -------
+        dict[int, dict[int, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Calculate Dice similarity for link prediction:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("D", "B")
+            .add_edge("D", "C")
+        )
+
+        sim = graph.get_dice_similarity()
+        # A and D share neighbors B and C
+        # Returns dict with node IDs as keys
+        a_id = graph.get_id_from_label("A")
+        d_id = graph.get_id_from_label("D")
+        print(sim[a_id][d_id])  # 1.0 (perfect overlap)
+        ```
+
+        Notes
+        -----
+        Useful for:
+
+        - link prediction (similar nodes likely to connect)
+        - community detection (nodes with similar neighborhoods)
+        - recommendation systems (find similar users/items)
+        """
+        return self._graph.get_dice_similarity()
+
+    def get_jaccard_similarity(self) -> dict[int, dict[int, float]]:
+        """
+        Get Jaccard similarity index between all node pairs.
+
+        The Jaccard index is a classic set similarity measure:
+
+        Jaccard(A, B) = |neighbors(A) ∩ neighbors(B)| / |neighbors(A) ∪ neighbors(B)|
+
+        Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods
+        (or same node). More conservative than Dice coefficient (always ≤ Dice score).
+        Self-similarity is always `1.0`.
+
+        Returns
+        -------
+        dict[int, dict[int, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Calculate Jaccard similarity in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        sim = graph.get_jaccard_similarity()
+
+        # Leaves have no common neighbors and returns dict with node IDs
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+
+        print(sim[a_id][b_id])  # 0.0
+        ```
+
+        Notes
+        -----
+        Widely used in:
+
+        - document similarity (bag-of-words)
+        - user similarity (common items/friends)
+        - biological networks (protein interactions)
+        """
+        return self._graph.get_jaccard_similarity()
+
+    def get_cosine_similarity(self) -> dict[int, dict[int, float]]:
+        """
+        Get cosine similarity between all node pairs.
+
+        Cosine similarity treats neighbors as vector components:
+
+        Cosine(A, B) = |neighbors(A) ∩ neighbors(B)| / √(|neighbors(A)| × |neighbors(B)|)
+
+        Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods.
+        Geometric interpretation: cosine of angle between neighbor vectors. Self-similarity is
+        always `1.0`.
+
+        Returns
+        -------
+        dict[int, dict[int, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Calculate cosine similarity in a triangle graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        sim = graph.get_cosine_similarity()
+
+        # Each node shares 1 neighbor with the others and returns dict with node IDs
+        a_id = graph.get_id_from_label("A")
+        b_id = graph.get_id_from_label("B")
+
+        print(sim[a_id][b_id])  # 0.5 (1 common / sqrt(2 * 2))
+        ```
+
+        Notes
+        -----
+        Advantages:
+
+        - scales well with high-degree nodes
+        - balances degree differences
+        - standard in text mining and recommendation systems
+        """
+        return self._graph.get_cosine_similarity()
+
+    def get_overlap_similarity(self) -> dict[int, dict[int, float]]:
+        """
+        Get overlap coefficient between all node pairs.
+
+        The overlap coefficient emphasizes subset relationships:
+
+        Overlap(A, B) = |neighbors(A) ∩ neighbors(B)| / min(|neighbors(A)|, |neighbors(B)|)
+
+        Range: `[0, 1]` where `0` means no common neighbors and `1` means one neighborhood is a
+        subset of the other. Asymmetric measure useful for hierarchical patterns. Self-similarity is
+        always `1.0`.
+
+        Returns
+        -------
+        dict[int, dict[int, float]]
+            Nested dictionary mapping node IDs to dictionaries of similarity scores.
+            Format: {node1_id: {node2_id: similarity_score}}
+
+        Examples
+        --------
+        Detect hierarchical relationships in a hub-spoke graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="spoke")
+            .add_node(label="extended")
+            .add_node(label="extra")
+            .add_edge(source="hub", target="spoke")
+            .add_edge(source="hub", target="extended")
+            .add_edge(source="spoke", target="extra")
+        )
+
+        sim = graph.get_overlap_similarity()
+
+        # Hub's neighborhood is subset of spoke's and returns dict with node IDs
+        hub_id = graph.get_id_from_label(label="hub")
+        spoke_id = graph.get_id_from_label(label="spoke")
+
+        print(sim[hub_id][spoke_id])  # 1.0
+        ```
+
+        Notes
+        -----
+        Use cases:
+
+        - detecting specialization/generalization
+        - finding hubs whose neighbors are subsets of others
+        - hierarchical community structure
+        """
+        return self._graph.get_overlap_similarity()
+
+    # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # STRUCTURAL PATTERNS
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
+
+    # ==============================================================================
     # Cycle Detection
     # ==============================================================================
 
@@ -7762,6 +8348,1617 @@ class Graph:
 
         # Get cycles as node IDs from Rust
         return self._graph.get_cycles(float(min_length))
+
+    # ==============================================================================
+    # Clique Operations
+    # ==============================================================================
+
+    def find_cliques(self) -> list[list[int]]:
+        """
+        Find all maximal cliques in the graph.
+
+        A clique is a subset of nodes where every pair of nodes is connected by an edge. A maximal
+        clique is a clique that cannot be extended by adding another node. Uses the Bron-Kerbosch
+        algorithm for efficient enumeration.
+
+        Note that this finds *maximal* cliques (cannot be extended), not necessarily *maximum*
+        cliques (largest possible). Use `max_clique()` to find a maximum clique.
+
+        Returns
+        -------
+        list[list[int]]
+            List of cliques, where each clique is a sorted list of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Notes
+        -----
+        - time complexity: `O(3^(n/3))` (worst case), but typically much faster in practice
+        - only works on undirected graphs
+        - returns cliques in arbitrary order
+        - each node ID list within a clique is sorted
+
+        Examples
+        --------
+        Find all maximal cliques in a triangle:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        cliques = graph.find_cliques()
+        print(len(cliques))  # 1 (the triangle itself)
+        print(len(cliques[0]))  # 3 (all three nodes)
+        ```
+
+        Multiple cliques in a graph:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        cliques = graph.find_cliques()
+        # Returns pairs of connected nodes: [[A,B], [B,C], [C,D]]
+        print(len(cliques))  # 3 maximal cliques
+        ```
+
+        A complete graph has one clique:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=5)
+
+        cliques = graph.find_cliques()
+        print(len(cliques))  # 1 (entire graph is a clique)
+        print(len(cliques[0]))  # 5 (all nodes)
+        ```
+        """
+        return self._graph.find_cliques()
+
+    def max_clique(self) -> list[int]:
+        """
+        Find a maximum clique in the graph.
+
+        A maximum clique is a largest possible clique in the graph. If multiple maximum cliques
+        exist with the same size, returns one of them (arbitrary choice). Uses the Bron-Kerbosch
+        algorithm to enumerate all maximal cliques and selects the largest.
+
+        Returns
+        -------
+        list[int]
+            Sorted list of node IDs forming a maximum clique. Empty list if graph is empty.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Notes
+        -----
+        - Time complexity: `O(3^(n/3))` in the worst case
+        - Only works on undirected graphs
+        - Finding the maximum clique is NP-hard
+        - Returns one maximum clique if multiple exist
+
+        Examples
+        --------
+        Maximum clique in a triangle:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        max_clique = graph.max_clique()
+
+        print(len(max_clique))  # 3 (all nodes form a clique)
+        ```
+
+        Maximum clique in a path graph:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        max_clique = graph.max_clique()
+
+        print(len(max_clique))  # 2 (any connected pair)
+        ```
+
+        Empty graph:
+
+        ```python
+        graph = Graph(directed=False)
+        max_clique = graph.max_clique()
+        print(max_clique)  # []
+        ```
+
+        Complete graph:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=6)
+
+        max_clique = graph.max_clique()
+        print(len(max_clique))  # 6 (all nodes)
+        ```
+        """
+        return self._graph.max_clique()
+
+    def clique_number(self) -> int:
+        """
+        Get the clique number (size of the maximum clique).
+
+        The clique number ω(G) is the size of the largest clique in the graph. This is a fundamental
+        graph invariant used in graph theory and combinatorial optimization.
+
+        Returns
+        -------
+        int
+            Size of the maximum clique. Returns `0` for empty graphs.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Notes
+        -----
+        - time complexity: `O(3^(n/3))` in the worst case
+        - only works on undirected graphs
+        - determining the clique number is NP-hard
+        - for a complete graph `K_n`, the clique number is `n`
+        - for a bipartite graph, the clique number is at most `2`
+
+        Examples
+        --------
+        Clique number of a triangle:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        print(graph.clique_number())  # 3
+        ```
+
+        Clique number of a path:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        print(graph.clique_number())  # 2 (any edge)
+        ```
+
+        Empty graph has clique number 0:
+
+        ```python
+        graph = Graph(directed=False)
+        print(graph.clique_number())  # 0
+        ```
+
+        Complete graph K_n has clique number n:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(n=7)
+        print(graph.clique_number())  # 7
+        ```
+
+        Bipartite graphs have clique number at most 2:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "C")
+            .add_edge("A", "D")
+            .add_edge("B", "C")
+            .add_edge("B", "D")
+        )
+
+        print(graph.clique_number())  # 2 (bipartite K_2,2)
+        ```
+        """
+        return self._graph.clique_number()
+
+    # ==============================================================================
+    # Triangle and Transitivity Analysis
+    # ==============================================================================
+
+    def count_triangles(self) -> dict[int, int]:
+        """
+        Count triangles containing each node.
+
+        Returns the number of triangles that include each node in the graph.
+        For undirected graphs, counts each triangle once per node.
+        For directed graphs, counts directed triangles (closed triplets).
+
+        A triangle is a set of three nodes where all three pairs are connected.
+        This is the smallest non-trivial cycle and a fundamental measure of local
+        clustering in networks.
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        dict[int, int]
+            Dictionary mapping node IDs to triangle counts.
+
+        Examples
+        --------
+        Count triangles in a simple triangle:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        counts = graph.count_triangles()
+        # Returns node IDs: {node_id_a: 1, node_id_b: 1, node_id_c: 1}
+
+        # Convert to labels if needed
+        counts_by_label = {graph.get_label_from_id(nid): count for nid, count in counts.items()}
+        print(counts_by_label)  # {"A": 1, "B": 1, "C": 1}
+        ```
+
+        Count triangles in a more complex graph:
+
+        ```python
+        # Graph with 2 triangles sharing an edge
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Triangle 1
+            .add_edge(source="B", target="D")
+            .add_edge(source="D", target="C")  # Triangle 2 with B-C
+        )
+
+        counts = graph.count_triangles()
+        # Returns node IDs: B and C each participate in 2 triangles
+
+        # Convert to labels for display
+        for node_id, count in counts.items():
+            label = graph.get_label_from_id(node_id)
+            print(f"{label}: {count} triangles")
+        ```
+        """
+        return self._graph.count_triangles()
+
+    def list_triangles(self) -> list[tuple[int, int, int]]:
+        """
+        List all triangles in the graph.
+
+        Returns a list of all triangles (3-cycles) in the graph. Each triangle is
+        represented as a sorted tuple of three node IDs. For undirected graphs,
+        each triangle appears once. For directed graphs, lists directed triangles.
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            List of triangles, where each triangle is a tuple of three node IDs.
+
+        Examples
+        --------
+        List triangles in a graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # One triangle
+            .add_edge(source="A", target="D")
+            .add_edge(source="D", target="B")  # Another triangle
+        )
+
+        triangles = graph.list_triangles()
+        # Returns node IDs: [(a_id, b_id, c_id), (a_id, b_id, d_id)]
+
+        # Convert to labels if needed
+        triangles_labels = [
+            tuple(graph.get_label_from_id(nid) for nid in tri)
+            for tri in triangles
+        ]
+        print(triangles_labels)  # [("A", "B", "C"), ("A", "B", "D")]
+        ```
+
+        For larger graphs, this can identify all triadic closures:
+
+        ```python
+        # Social network
+        graph = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+            .add_node(label="David")
+            .add_edge(source="Alice", target="Bob")
+            .add_edge(source="Bob", target="Charlie")
+            .add_edge(source="Charlie", target="Alice")
+            .add_edge(source="Alice", target="David")
+            .add_edge(source="David", target="Bob")
+        )
+
+        # Returns node IDs
+        for tri in graph.list_triangles():
+            # Convert to labels for display
+            labels = tuple(graph.get_label_from_id(nid) for nid in tri)
+            print(f"Triangle: {labels}")
+        ```
+        """
+        return self._graph.list_triangles()
+
+    def get_transitivity(self) -> Optional[float]:
+        """
+        Compute global transitivity (clustering coefficient).
+
+        Transitivity measures the probability that two neighbors of a node are
+        also connected. It's computed as:
+
+            transitivity = 3 * (number of triangles) / (number of connected triples)
+
+        A connected triple is a path of length 2 (three nodes where at least two
+        edges connect them). Higher transitivity indicates more clustering.
+
+        Returns None if there are no connected triples in the graph.
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Returns
+        -------
+        Optional[float]
+            Global clustering coefficient between 0.0 and 1.0, or None if undefined.
+
+        Examples
+        --------
+        Perfect triangle has transitivity 1.0:
+
+        ```python
+        from edgecase import Graph
+
+        triangle = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
+        print(triangle.get_transitivity())  # 1.0 (all triples are closed)
+        ```
+
+        Chain graph has transitivity 0.0:
+
+        ```python
+        from edgecase import Graph
+
+        chain = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+        )
+
+        print(chain.get_transitivity())  # 0.0 (no triangles, only open triples)
+        ```
+
+        Real-world networks typically have values between 0.1 and 0.5:
+
+        ```python
+        from edgecase import Graph
+
+        social_network = (
+            Graph()
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Charlie")
+            .add_node(label="David")
+            .add_edge(source="Alice", target="Bob")
+            .add_edge(source="Bob", target="Charlie")
+            .add_edge(source="Charlie", target="David")
+            .add_edge(source="David", target="Alice")
+            .add_edge(source="Alice", target="Charlie")  # Creates some triangles
+        )
+
+        trans = social_network.get_transitivity()
+        print(f"Clustering: {trans:.3f}")
+        ```
+        """
+        return self._graph.transitivity()
+
+    # ==============================================================================
+    # Clustering
+    # ==============================================================================
+
+    def local_clustering_coefficient(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, Optional[float]], "Graph"]:
+        """
+        Compute local clustering coefficient for each node.
+
+        The local clustering coefficient measures how close a node's neighbors are
+        to being a complete subgraph (clique). For a node with k neighbors, it's
+        the fraction of possible edges between neighbors that actually exist.
+
+        For undirected graphs:
+            C(v) = 2 * triangles(v) / (k * (k-1))
+
+        For directed graphs:
+            C(v) = triangles(v) / (k_out * (k_out-1))
+
+        Nodes with fewer than 2 neighbors return None (clustering undefined).
+
+        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
+
+        Parameters
+        ----------
+        attr_name
+            Name of the node attribute to store clustering coefficient values.
+            If None, uses "local_clustering_coefficient" as the attribute name.
+        return_dict
+            If True, returns a dictionary mapping node IDs to clustering coefficients.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
+        Returns
+        -------
+        Union[dict[int, Optional[float]], Graph]
+            If return_dict is True: Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0),
+            or None for nodes with degree < 2.
+            If return_dict is False: Returns self for method chaining.
+
+        Examples
+        --------
+        Measure clustering in a network:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Triangle: A,B,C
+            .add_edge(source="A", target="D")
+            .add_edge(source="A", target="E")  # A has additional neighbors
+        )
+
+        clustering = graph.local_clustering_coefficient(return_dict=True)
+        node_a_id = graph.get_id_from_label(label="A")
+        node_b_id = graph.get_id_from_label(label="B")
+        node_d_id = graph.get_id_from_label(label="D")
+        if clustering[node_a_id] is not None:
+            print(f"Node A: {clustering[node_a_id]:.3f}")  # Lower (not all neighbors connected)
+        if clustering[node_b_id] is not None:
+            print(f"Node B: {clustering[node_b_id]:.3f}")  # 1.0 (all neighbors connected)
+        print(f"Node D: {clustering[node_d_id]}")      # None (degree 1)
+
+        # Convert to labels if needed
+        clustering_by_label = {graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()}
+        if clustering_by_label['A'] is not None:
+            print(f"Node A: {clustering_by_label['A']:.3f}")
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .local_clustering_coefficient()  # Stores as 'local_clustering_coefficient' attribute
+        )
+
+        # Access stored values
+        node = graph.get_node(graph.get_id_from_label("A"))
+        print(f"Node A clustering: {node.attributes['local_clustering_coefficient']}")
+        ```
+
+        Find highly clustered nodes (hubs):
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
+        clustering = graph.local_clustering_coefficient(return_dict=True)
+        hubs = {
+            node_id: coeff
+            for node_id, coeff in clustering.items()
+            if coeff and coeff > 0.5
+        }
+        print(f"Highly clustered node IDs: {hubs}")
+        ```
+        """
+        if attr_name is None:
+            attr_name = "local_clustering_coefficient"
+
+        clustering_values = self._graph.local_clustering_coefficient()
+
+        if return_dict:
+            return clustering_values
+
+        # Store as node attributes
+        for node_id, value in clustering_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("local_clustering_coefficient", {}, attr_name))
+
+        return self
+
+    def clustering_coefficient(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate local clustering coefficient for each node.
+
+        The clustering coefficient measures the degree to which a node's neighbors
+        are connected to each other. For a node v:
+
+        C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
+             = (2 × triangles through v) / (degree(v) × (degree(v) - 1))
+
+        Returns 0.0 for nodes with degree < 2 (cannot form triangles).
+
+        Range: [0, 1] where:
+
+        - 0 = neighbors are not connected at all
+        - 1 = neighbors form a complete graph (clique)
+
+        Parameters
+        ----------
+        attr_name
+            Name of the node attribute to store clustering coefficient values.
+            If None, uses "clustering_coefficient" as the attribute name.
+        return_dict
+            If True, returns a dictionary mapping node IDs to clustering coefficients.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
+        Returns
+        -------
+        dict[int, float] or Graph
+            If return_dict is True: Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
+            If return_dict is False: Returns self for method chaining.
+
+        Examples
+        --------
+        Calculate and store clustering coefficients:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+            .clustering_coefficient()  # Stores as 'clustering_coefficient' attribute
+        )
+        # All nodes have clustering coefficient 1.0 (complete triangle)
+        ```
+
+        Calculate clustering in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("center", "A")
+            .add_edge("center", "B")
+            .add_edge("center", "C")
+        )
+
+        clustering = graph.clustering_coefficient(return_dict=True)
+        center_id = graph.get_id_from_label("center")
+        print(f"Center clustering: {clustering[center_id]}")  # 0.0 (no edges between spokes)
+        ```
+
+        Notes
+        -----
+        High clustering coefficients indicate nodes in tightly-knit groups.
+        The clustering coefficient is a key measure of network transitivity
+        and is used to identify small-world networks.
+        """
+        if attr_name is None:
+            attr_name = "clustering_coefficient"
+
+        clustering_values = self._graph.get_clustering_coefficient()
+
+        if return_dict:
+            return clustering_values
+
+        # Store as node attributes
+        for node_id, value in clustering_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("clustering_coefficient", {}, attr_name))
+
+        return self
+
+    def get_edge_clustering_coefficient(
+        self,
+        edge_ids: list[int] | None = None,
+        k: int = 3,
+        normalize: bool = True,
+        offset: bool = True,
+    ) -> dict[int, float]:
+        """
+        Get edge clustering coefficient for specified edges.
+
+        The edge clustering coefficient measures how "clustered" the neighborhood
+        around an edge is, based on k-cycles (cycles of length k) the edge participates in.
+
+        For k=3 (triangles):
+
+            - Counts triangles containing the edge
+            - Maximum possible: min(d_i - 1, d_j - 1) where d_i, d_j are endpoint degrees
+            - Value of 1.0 means edge is in a complete subgraph
+
+        For k=4 (4-cycles):
+
+            - Counts 4-cycles containing the edge
+            - Maximum possible: (d_i - 1)(d_j - 1)
+            - Measures "squareness" of edge neighborhood
+
+        Parameters
+        ----------
+        edge_ids
+            List of edge IDs (integers) to compute coefficient for. If None, computes for all edges.
+        k
+            Cycle size to use. Must be 3 (triangles) or 4 (4-cycles).
+        normalize
+            Whether to normalize by maximum possible cycles given endpoint degrees.
+            If False, returns raw cycle count.
+        offset
+            Whether to add 1 to cycle count (original Radicchi et al. definition).
+            When offset=True: C(e) = (z + 1) / s
+            When offset=False: C(e) = z / s
+
+        Returns
+        -------
+        dict[int, float]
+            Mapping from edge ID (integer) to clustering coefficient.
+
+            - With normalize=True: range [0, 1+] (can exceed 1 with offset)
+            - With normalize=False: raw cycle count
+
+        Raises
+        ------
+        ValueError
+            If k is not 3 or 4.
+
+        Examples
+        --------
+        Triangle graph (complete graph K3):
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        # All edges are in 1 triangle
+        ecc = graph.get_edge_clustering_coefficient(k=3, normalize=True, offset=True)
+        # Each edge: (1 triangle + 1) / min(2-1, 2-1) = 2/1 = 2.0
+
+        # Without offset
+        ecc = graph.get_edge_clustering_coefficient(k=3, normalize=True, offset=False)
+        # Each edge: 1 / 1 = 1.0 (maximum clustering)
+        ```
+
+        Square graph (4-cycle):
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+
+        # k=3: No triangles
+        ecc3 = graph.get_edge_clustering_coefficient(k=3, offset=False)
+        # All edges: 0.0 (no triangles)
+
+        # k=4: Each edge participates in 1 four-cycle
+        ecc4 = graph.get_edge_clustering_coefficient(k=4, offset=False)
+        # Edge A-B: 1 / ((2-1)*(2-1)) = 1.0
+        ```
+
+        Karate club network:
+
+        ```python
+        from edgecase import karate_club
+        G = karate_club()
+
+        # Get k=3 edge clustering for all edges
+        ecc = G.get_edge_clustering_coefficient(k=3, normalize=True, offset=False)
+
+        # Find edges with highest clustering (most embedded in triangles)
+        sorted_edges = sorted(ecc.items(), key=lambda x: x[1], reverse=True)
+        print(f"Top 5 edges by clustering: {sorted_edges[:5]}")
+        ```
+
+        Notes
+        -----
+        Complexity:
+
+        - k=3: O(|V| d log d + |E| d) where d is max degree
+        - k=4: O(|V| d log d + |E| d²)
+
+        The original Radicchi et al. definition uses normalize=True and offset=True.
+        Setting offset=False allows the normalized metric to reach exactly 1.0 for
+        edges in complete subgraphs.
+
+        References
+        ----------
+        Radicchi, F., Castellano, C., Cecconi, F., Loreto, V., & Parisi, D. (2004).
+        "Defining and identifying communities in networks."
+        Proceedings of the National Academy of Sciences, 101(9), 2658-2663.
+        https://doi.org/10.1073/pnas.0400054101
+        """
+        # Use edge_ids directly (they are already integers)
+        edge_id_list = edge_ids if edge_ids is not None else []
+
+        # Call Rust implementation
+        result = self._graph.get_edge_clustering_coefficient(edge_id_list, k, normalize, offset)
+
+        # Return result directly (keys are already integers)
+        return result
+
+    def get_avg_clustering_coefficient(self) -> float:
+        """
+        Get average clustering coefficient for the graph.
+
+        Returns the mean of all node clustering coefficients. This is a global
+        measure of how clustered the graph is overall.
+
+        Returns
+        -------
+        float
+            Average clustering coefficient (0.0 to 1.0).
+
+        Examples
+        --------
+        Compare clustering in different graph types:
+
+        ```python
+        # Triangle graph: highly clustered
+        triangle = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        print(f"Triangle: {triangle.get_avg_clustering_coefficient():.2f}")
+        # Triangle: 1.00
+
+        # Star graph: not clustered
+        star = (
+            Graph()
+            .add_node(label="center")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("center", "A")
+            .add_edge("center", "B")
+            .add_edge("center", "C")
+        )
+        print(f"Star: {star.get_avg_clustering_coefficient():.2f}")
+        # Star: 0.00
+        ```
+
+        Notes
+        -----
+        Values close to 1.0 indicate a highly clustered network (many triangles).
+        Values close to 0.0 indicate a tree-like or sparse network structure.
+
+        Small-world networks typically have high clustering coefficients combined
+        with low average path lengths.
+        """
+        return self._graph.get_avg_clustering_coefficient()
+
+    # ==============================================================================
+    # Community Detection
+    # ==============================================================================
+
+    def cmty_fast_greedy(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
+
+        This is a greedy modularity optimization algorithm that merges communities
+        to maximize modularity. It's efficient for medium to large graphs and provides
+        good quality communities. Only works with undirected graphs.
+
+        Algorithm:
+
+        1. Start with each node in its own community
+        2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
+        3. Repeatedly merge the pair with highest ΔQ until no improvement
+        4. Return the partition with maximum modularity
+
+        Parameters
+        ----------
+        attr_name
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_fast_greedy'.
+            Overwrites column if it already exists.
+        return_dict
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed).
+            If return_dict is False (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed (requires undirected graph).
+
+        Examples
+        --------
+        Detect communities in disconnected cliques:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Clique 1
+            .add_edge("D", "E")  # Clique 2
+        )
+
+        communities = graph.cmty_fast_greedy(return_dict=True)
+        print(len(set(communities.values())))  # 2 communities
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Clique 1
+            .add_edge(source="D", target="E")  # Clique 2
+        )
+
+        # (graph
+        #     .cmty_fast_greedy(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="Set1")
+        #     .show())
+        ```
+
+        Notes
+        -----
+        Complexity: O(n log²n) on sparse graphs, O(n + m) space.
+
+        References
+        ----------
+        Clauset, A., Newman, M. E., & Moore, C. (2004).
+        "Finding community structure in very large networks."
+        Physical review E, 70(6), 066111.
+        """
+        communities = self._graph.get_cmty_fast_greedy()
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_fast_greedy"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("cmty_fast_greedy", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
+
+    def cmty_edge_btwns(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
+
+        Iteratively removes edges with highest betweenness centrality to reveal
+        community structure. Uses Brandes' algorithm for efficient betweenness
+        calculation. More accurate than Fast Greedy but significantly slower
+        (O(m²n) complexity).
+
+        Best for small to medium graphs (< 5K nodes) with hierarchical community
+        structure and clear "bridge" edges between communities. When accuracy is
+        more important than speed.
+
+        Parameters
+        ----------
+        attr_name
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_edge_btwns'.
+            Overwrites column if it already exists.
+        return_dict
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed (requires undirected graph).
+
+        Examples
+        --------
+        Detect communities in bridged triangles:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Triangle 1
+            .add_edge("C", "D")  # Bridge edge
+            .add_edge("D", "E")
+            .add_edge("E", "F")
+            .add_edge("F", "D")  # Triangle 2
+        )
+
+        communities = graph.cmty_edge_btwns(return_dict=True)
+        # Bridge edge C-D has highest betweenness and is removed first
+        # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")  # Triangle 1
+            .add_edge(source="C", target="D")  # Bridge edge
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")  # Triangle 2
+        )
+
+        # (graph
+        #     .cmty_edge_btwns(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
+        #     .show())
+        ```
+
+        Notes
+        -----
+        Algorithm steps:
+        1. Compute edge betweenness for all edges using Brandes' algorithm
+        2. Remove edge with highest betweenness
+        3. Recompute betweenness and check if modularity improved
+        4. Repeat until modularity stops improving
+        5. Return partition with maximum modularity
+
+        Complexity: O(m²n) where m = edges, n = nodes. For graphs with > 10K nodes,
+        consider `get_cmty_fast_greedy()` or `cmty_louvain()` instead.
+
+        References
+        ----------
+        Girvan, M., & Newman, M. E. (2002). "Community structure in social
+        and biological networks." PNAS, 99(12), 7821-7826.
+
+        Brandes, U. (2001). "A faster algorithm for betweenness centrality."
+        Journal of Mathematical Sociology, 25(2), 163-177.
+        """
+        communities = self._graph.get_cmty_edge_btwns()
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_edge_btwns"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("cmty_edge_btwns", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
+
+    def cmty_l_eigenvec(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities using Leading Eigenvector (Newman) algorithm.
+
+        Spectral optimization method using recursive bisection based on the leading
+        eigenvector of the modularity matrix. Splits communities hierarchically when
+        modularity improves. Best for medium-sized graphs (< 20K nodes) with clear
+        2-way divisions and hierarchical structure.
+
+        Parameters
+        ----------
+        attr_name
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_l_eigenvec'.
+            Overwrites column if it already exists.
+        return_dict
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed (requires undirected graph).
+
+        Examples
+        --------
+        Detect communities in bridged cliques:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+        )
+
+        # Build two complete triangles
+        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
+            graph.add_edge(i, j)
+
+        graph.add_edge("C", "D")  # Bridge
+
+        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
+            graph.add_edge(i, j)
+
+        communities = graph.cmty_l_eigenvec(return_dict=True)
+        # Eigenvector method finds natural split at bridge
+        # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")
+        )
+
+        # (graph
+        #     .cmty_l_eigenvec(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="Spectral")
+        #     .show())
+        ```
+
+        Notes
+        -----
+        Algorithm steps:
+
+        1. Start with all nodes in one community
+        2. Compute modularity matrix: B_ij = A_ij - (k_i × k_j) / 2m
+        3. Find leading eigenvector using power iteration
+        4. Split by sign: positive -> community 1, negative -> community 2
+        5. Accept split only if modularity improves
+        6. Recursively split each community
+
+        Complexity: O(n²) per split (recursive). For very large graphs (> 50K nodes),
+        consider `get_cmty_fast_greedy()` or `cmty_louvain()` instead.
+
+        The algorithm only splits when modularity improves, so it may return fewer
+        communities than other methods if the structure is not hierarchically organized.
+
+        References
+        ----------
+        Newman, M. E. J. (2006). "Finding community structure in networks using
+        the eigenvectors of matrices." Physical Review E, 74(3), 036104.
+
+        Newman, M. E. J. (2006). "Modularity and community structure in networks."
+        PNAS, 103(23), 8577-8582.
+        """
+        communities = self._graph.get_cmty_l_eigenvec()
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_l_eigenvec"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("cmty_l_eigenvec", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
+
+    def cmty_louvain(
+        self, resolution: float = 1.0, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities using Louvain multi-level optimization algorithm.
+
+        The Louvain method is a hierarchical algorithm that maximizes modularity
+        through iterative optimization. It's the most widely-used community detection
+        algorithm in practice due to its speed (O(n log n)) and quality on large networks.
+
+        The method produces a dendrogram hierarchy but returns the partition with
+        maximum modularity. Works only with undirected graphs.
+
+        Parameters
+        ----------
+        resolution
+            Resolution parameter controlling community size. Higher values favor
+            smaller communities. Standard modularity uses resolution=1.0.
+        attr_name
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_louvain'.
+            Overwrites column if it already exists.
+        return_dict
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
+
+        Raises
+        ------
+        RuntimeError
+            If called on a directed graph.
+
+        Examples
+        --------
+        Detect communities in bridged triangles:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+        )
+
+        # Build two complete triangles connected by bridge
+        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
+            graph.add_edge(i, j)
+
+        graph.add_edge("C", "D")  # Bridge
+
+        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
+            graph.add_edge(i, j)
+
+        communities = graph.cmty_louvain(return_dict=True)
+        # Nodes in same triangle have same community ID
+        node_a = graph.get_id_from_label("A")
+        node_b = graph.get_id_from_label("B")
+        node_c = graph.get_id_from_label("C")
+        node_d = graph.get_id_from_label("D")
+        assert communities[node_a] == communities[node_b] == communities[node_c]
+        assert communities[node_d] == communities[graph.get_id_from_label("E")]
+
+        # Control community granularity with resolution
+        fine = graph.cmty_louvain(resolution=1.5, return_dict=True)  # Smaller communities
+        coarse = graph.cmty_louvain(resolution=0.5, return_dict=True)  # Larger communities
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")
+        )
+
+        # (graph
+        #     .cmty_louvain(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="viridis")
+        #     .show())
+        ```
+
+        Notes
+        -----
+        Algorithm steps:
+
+        1. Phase 1 (Local optimization): Each node tries joining neighboring
+           communities to maximize modularity gain ΔQ
+        2. Phase 2 (Aggregation): Communities are coarsened into super-nodes,
+           creating a new network where each community becomes a single node
+        3. Repeat until modularity converges (no further improvement)
+
+        The resolution parameter tunes community size:
+
+        - resolution < 1.0: Larger communities
+        - resolution = 1.0: Standard modularity optimization
+        - resolution > 1.0: Smaller communities
+
+        The algorithm is deterministic but may produce different (equivalent)
+        partitions depending on node ordering. Handles disconnected components
+        naturally. Self-loops and multi-edges are currently not supported.
+
+        References
+        ----------
+        Blondel, V. D., Guillaume, J. L., Lambiotte, R., & Lefebvre, E. (2008).
+        "Fast unfolding of communities in large networks." Journal of Statistical
+        Mechanics: Theory and Experiment, 2008(10), P10008.
+
+        Lambiotte, R., Delvenne, J. C., & Barahona, M. (2014). "Random walks,
+        Markov processes and the multiscale modular organization of complex
+        networks." IEEE Transactions on Network Science and Engineering, 1(2), 76-90.
+        """
+        communities = self._graph.get_cmty_louvain(resolution)
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_louvain"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+
+        # Track computation
+        if not return_dict:
+            params = {"resolution": resolution} if resolution != 1.0 else {}
+            self._computations.append(("cmty_louvain", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
+
+    def cmty_walktrap(
+        self, steps: int = 4, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities using Walktrap random walk algorithm.
+
+        The Walktrap algorithm exploits the property that random walks tend to stay trapped within
+        densely connected communities. It computes distances between nodes based on random walk
+        probabilities, then uses hierarchical clustering to identify community structure.
+
+        Works only with undirected graphs. Time complexity is O(n²log n) for typical
+        networks with small step parameter.
+
+        Parameters
+        ----------
+        steps
+            Number of random walk steps. Higher values capture longer-range
+            structural patterns. Typical values: 2-8.
+
+            - steps=2: Local structure only
+            - steps=4: Good balance (default, recommended)
+            - steps=6+: Longer-range patterns, more computation
+        attr_name
+            Column name to store community assignments in the node DataFrame.
+            If None (default), automatically uses 'cmty_walktrap'.
+            Overwrites column if it already exists.
+        return_dict
+            If True, returns dictionary instead of self.
+            If False (default), stores in NDF and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
+            If return_dict is False (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If called on a directed graph.
+
+        Examples
+        --------
+        Detect communities with default parameters:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+        )
+
+        # Two cliques connected by a bridge
+        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
+            graph.add_edge(i, j)
+
+        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
+            graph.add_edge(i, j)
+
+        graph.add_edge("C", "D")  # Bridge
+
+        communities = graph.cmty_walktrap(return_dict=True)
+        node_a = graph.get_id_from_label("A")
+        node_b = graph.get_id_from_label("B")
+        node_c = graph.get_id_from_label("C")
+        node_d = graph.get_id_from_label("D")
+        assert communities[node_a] == communities[node_b] == communities[node_c]
+        assert communities[node_d] == communities[graph.get_id_from_label("E")]
+
+        # Try different step lengths for different scales
+        local_cmty = graph.cmty_walktrap(return_dict=True, steps=2)   # More local communities
+        global_cmty = graph.cmty_walktrap(return_dict=True, steps=6)  # More global communities
+        ```
+
+        Store as node attributes and chain:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+            .add_edge(source="E", target="F")
+            .add_edge(source="F", target="D")
+        )
+
+        # (graph
+        #     .cmty_walktrap(attr_name="community")
+        #     .colorize_node_attrs(node_attr_from="community", palette="tab10")
+        #     .show())
+        ```
+
+        Notes
+        -----
+        Algorithm steps:
+
+        1. Compute transition probability matrix P (P[i][j] = 1/deg(i) if edge exists)
+        2. Compute t-step transition probabilities P^t by matrix exponentiation
+        3. Calculate random walk distance between each pair of nodes:
+           d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
+        4. Apply Ward's hierarchical clustering on the distance matrix
+        5. Cut the dendrogram at the level that maximizes modularity
+
+        The step parameter controls the scale of community detection:
+
+        - Lower steps (2-3): Detect finer, more local communities
+        - Higher steps (5-8): Detect coarser, more global communities
+
+        The algorithm is deterministic (no randomness despite the name). Works well
+        on hierarchical community structures and handles disconnected components
+        automatically. Performance degrades on very large graphs (>10,000 nodes)
+        due to O(n²) distance matrix computation. Self-loops and multi-edges are
+        currently not supported.
+
+        Performance:
+
+        - Small graphs (<1000 nodes): <1 second
+        - Medium graphs (1000-5000 nodes): 1-30 seconds
+        - Large graphs (>5000 nodes): May be slow, consider Louvain instead
+
+        References
+        ----------
+        Pons, P., & Latapy, M. (2005). "Computing communities in large networks
+        using random walks." In Computer and Information Sciences-ISCIS 2005
+        (pp. 284-293). Springer, Berlin, Heidelberg.
+
+        Pons, P., & Latapy, M. (2006). "Computing communities in large networks
+        using random walks (long version)." arXiv preprint physics/0512106.
+        """
+        communities = self._graph.get_cmty_walktrap(steps)
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "cmty_walktrap"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, communities)
+
+        # Track computation
+        params = {}
+        if steps != 4:
+            params["steps"] = steps
+        if not return_dict:
+            self._computations.append(("cmty_walktrap", params, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return communities
+        return self
+
+    # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # TRANSFORMATIONS
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
 
     # ==============================================================================
     # Graph Type Conversions
@@ -8581,6 +10778,12 @@ class Graph:
             self._graph.reverse_edge_direction(edge_id)
 
         return self
+
+    # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # NODE METRICS
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
 
     # ==============================================================================
     # Degree
@@ -10983,6 +13186,164 @@ class Graph:
         return self
 
     # ==============================================================================
+    # Core and Structural Importance
+    # ==============================================================================
+
+    def closeness_vitality(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get closeness vitality centrality for each node.
+
+        Closeness vitality measures a node's importance by computing the change
+        in total graph distances when the node is removed:
+
+        vitality(v) = sum_distances(G) - sum_distances(G - v)
+
+        Higher values indicate more important/central nodes whose removal would
+        significantly increase average path lengths. Uses parallel BFS with Rayon
+        for efficient computation.
+
+        Parameters
+        ----------
+        attr_name
+            Name for the node attribute to store results. If not provided,
+            auto-generates name from method name ("closeness_vitality").
+        return_dict
+            If True, returns dictionary of results. If False, stores results
+            as node attributes and returns self for method chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If return_dict is True: dictionary mapping node IDs to vitality scores.
+            If return_dict is False: returns self for method chaining.
+            Higher scores indicate more structurally important nodes.
+
+        Examples
+        --------
+        Calculate closeness vitality in a star graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="hub")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("hub", "A")
+            .add_edge("hub", "B")
+            .add_edge("hub", "C")
+        )
+
+        vitality = graph.closeness_vitality(return_dict=True)
+        hub_id = graph.get_id_from_label("hub")
+        a_id = graph.get_id_from_label("A")
+
+        # Hub has highest vitality (removal disconnects graph)
+        assert vitality[hub_id] > vitality[a_id]
+
+        # Convert to labels if needed
+        label_vitality = {graph.get_label_from_id(nid): score for nid, score in vitality.items()}
+        ```
+
+        Notes
+        -----
+        Computationally expensive for large graphs (O(V²E / num_cores) complexity).
+        Consider alternative centrality measures (degree, PageRank) for graphs
+        with >1000 nodes unless high accuracy is required.
+        """
+        vitality = self._graph.get_closeness_vitality()
+
+        if return_dict:
+            return vitality
+
+        # Auto-generate attr_name if not provided
+        if attr_name is None:
+            attr_name = "closeness_vitality"
+
+        self.set_node_attrs(attr_name, vitality)
+
+        # Track computation (no non-default params)
+        self._computations.append(("closeness_vitality", {}, attr_name))
+
+        return self
+
+    def coreness(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Calculate k-core decomposition (coreness for each node).
+
+        The k-core is the maximal subgraph where every node has degree >= k.
+        A node's coreness is the highest k-value for which it belongs to the k-core.
+        Uses iterative pruning: repeatedly removes nodes with degree < k until
+        all remaining nodes have degree >= k.
+
+        Higher coreness indicates nodes in denser, more cohesive parts of the graph.
+        The k-core decomposition is useful for finding the "nucleus" of a network.
+
+        Parameters
+        ----------
+        attr_name
+            Name of the node attribute to store coreness values.
+            If None, uses "coreness" as the attribute name.
+        return_dict
+            If True, returns a dictionary mapping node IDs to coreness values.
+            If False, stores values as node attributes and returns the Graph for chaining.
+
+        Returns
+        -------
+        dict[int, int] or Graph
+            If return_dict is True: Dictionary mapping node IDs to coreness values (non-negative integers).
+            If return_dict is False: Returns self for method chaining.
+
+        Examples
+        --------
+        Calculate and store coreness:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("A", "D")
+            .add_edge("B", "C")
+            .add_edge("B", "D")
+            .add_edge("C", "D")
+            .coreness()  # Stores as 'coreness' attribute
+        )
+        # All nodes in K4 have coreness 3
+        ```
+        """
+        if attr_name is None:
+            attr_name = "coreness"
+
+        coreness_values = self._graph.get_coreness()
+
+        if return_dict:
+            return coreness_values
+
+        # Store as node attributes
+        for node_id, value in coreness_values.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        # Track computation
+        self._computations.append(("coreness", {}, attr_name))
+
+        return self
+
+    # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # PATHS & DISTANCE
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
+
+    # ==============================================================================
     # Distance and Path Metrics
     # ==============================================================================
 
@@ -12654,4544 +15015,6 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Matching
-    # ==============================================================================
-
-    def is_matching(self, edges: list[Union[int, str]]) -> bool:
-        """
-        Check if a set of edges forms a valid matching.
-
-        A matching is a set of edges where no two edges share a common endpoint (node). This is
-        useful for validating matchings or checking matching constraints.
-
-        Parameters
-        ----------
-        edges
-            List of edge IDs or edge labels to check.
-
-        Returns
-        -------
-        bool
-            `True` if the edges form a valid matching (no shared endpoints), `False` otherwise.
-
-        Examples
-        --------
-        Check a valid matching:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("C", "D")
-        )
-
-        edge_ids = graph.get_edge_ids()
-        is_valid = graph.is_matching(edge_ids)
-        print(is_valid)  # True (no shared endpoints)
-        ```
-
-        Check an invalid matching:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        edge_ids = graph.get_edge_ids()
-        is_valid = graph.is_matching(edge_ids)
-        print(is_valid)  # False (B is shared)
-        ```
-
-        Validate a computed matching:
-
-        ```python
-        graph = Graph()
-        graph.add_path_graph(6)
-
-        matching = graph.maximal_matching()
-        assert graph.is_matching(matching)  # Always True for maximal_matching result
-        ```
-        """
-        from edgecase._core import is_matching
-
-        # Edge IDs are already integers, no need to resolve
-        return is_matching(self._graph, edges)
-
-    def maximal_matching(self) -> list[int]:
-        """
-        Find a maximal matching in the graph.
-
-        A maximal matching is a matching (set of edges with no shared endpoints) that cannot be
-        extended by adding any other edge. Uses a greedy algorithm.
-
-        Note that a maximal matching is not necessarily a maximum matching (largest possible). For
-        weighted graphs, use `max_weight_matching()`.
-
-        Returns
-        -------
-        list[int]
-            List of edge IDs forming a maximal matching.
-
-        Examples
-        --------
-        Find a maximal matching in a path:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_path_graph(6)  # 1-2-3-4-5-6
-
-        matching = graph.maximal_matching()
-        print(f"Matched {len(matching)} edges")
-        # Will match 3 edges (e.g., 1-2, 3-4, 5-6)
-
-        # Verify it's a valid matching
-        assert graph.is_matching(matching)
-        ```
-
-        Visualize the matching:
-
-        ```python
-        graph = Graph()
-        graph.add_grid_2d(rows=4, cols=4)
-
-        matching = graph.maximal_matching()
-
-        # Mark matched edges
-        matched_dict = {edge_id: True for edge_id in matching}
-        graph.set_edge_attrs("matched", matched_dict)
-
-        # Color matched edges
-        colors = {edge_id: "red" for edge_id in matching}
-        graph.set_edge_attrs("color", colors)
-        ```
-
-        Compare with complete graph:
-
-        ```python
-        graph = Graph()
-        graph.add_full_graph(10)
-
-        matching = graph.maximal_matching()
-        print(f"Nodes: {graph.count_nodes()}")  # 10
-        print(f"Matched edges: {len(matching)}")  # 5 (perfect matching)
-        ```
-
-        Notes
-        -----
-        - time complexity: `O(E)` where `E` is the number of edges
-        - space complexity: `O(V)` for tracking matched nodes
-        - greedy algorithm: processes edges in arbitrary order
-        - result may vary between calls due to iteration order
-        - for maximum cardinality matching, use specialized algorithms
-        - for weighted matching, use `max_weight_matching()`
-        """
-        from edgecase._core import maximal_matching
-
-        return maximal_matching(self._graph)
-
-    def max_weight_matching(self) -> list[int]:
-        """
-        Find a maximum weight matching in the graph.
-
-        Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
-        selects edges by weight in descending order. For unweighted graphs, all edges have weight
-        `1.0`.
-
-        Note that this is a greedy approximation, not guaranteed to be optimal for general graphs.
-        For optimal solutions on bipartite graphs, use specialized bipartite matching algorithms.
-
-        Returns
-        -------
-        list[int]
-            List of edge IDs forming a maximum weight matching.
-
-        Examples
-        --------
-        Find maximum weight matching:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", weight=10.0)
-            .add_edge("B", "C", weight=1.0)
-            .add_edge("C", "D", weight=1.0)
-            .add_edge("A", "C", weight=2.0)
-        )
-
-        matching = graph.max_weight_matching()
-
-        # Calculate total weight
-        total_weight = sum(
-            graph.get_edge(eid).weight for eid in matching
-        )
-        print(f"Total weight: {total_weight}")
-        ```
-
-        Unweighted graph (maximizes cardinality):
-
-        ```python
-        graph = Graph()
-        graph.add_full_graph(8)
-
-        matching = graph.max_weight_matching()
-        print(f"Matched {len(matching)} edges")  # 4 (perfect matching)
-
-        # Verify it's valid
-        assert graph.is_matching(matching)
-        ```
-
-        Compare greedy with optimal:
-
-        ```python
-        from edgecase import Graph
-
-        # Triangle with one heavy edge
-        graph = (
-            Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", weight=5.0)
-            .add_edge("B", "C", weight=3.0)
-            .add_edge("A", "C", weight=2.0)
-        )
-
-        matching = graph.max_weight_matching()
-        # Greedy picks A-B (5.0), blocks B-C and A-C
-        # Optimal would be A-C (2.0) + B-? if more nodes existed
-
-        matched_edges = [graph.get_edge(eid) for eid in matching]
-        for edge in matched_edges:
-            print(f"{edge.source} - {edge.target}: {edge.weight}")
-        ```
-
-        Visualize the matching:
-
-        ```python
-        import random
-        from edgecase import Graph
-
-        graph = Graph(weighted=True)
-        graph.add_grid_2d(rows=5, cols=5)
-
-        # Add random weights
-        weights = {eid: random.uniform(0.5, 2.0) for eid in graph.get_edge_ids()}
-        graph.set_edge_attrs("weight", weights)
-
-        matching = graph.max_weight_matching()
-
-        # Highlight matched edges
-        colors = {edge_id: "red" for edge_id in matching}
-        widths = {edge_id: 3.0 for edge_id in matching}
-        graph.set_edge_attrs("color", colors)
-        graph.set_edge_attrs("width", widths)
-        ```
-
-        Notes
-        -----
-        - time complexity: `O(E log E)` for sorting edges
-        - space complexity: `O(V + E)` for tracking matched nodes and edges
-        - greedy approximation: selects heaviest edges first
-        - not guaranteed to be optimal for general graphs
-        - optimal for trees and forests
-        - for bipartite graphs, consider Hungarian algorithm
-        - for unweighted graphs, equivalent to maximal matching
-
-        References
-        ----------
-        For optimal maximum weight matching, see:
-
-        - Edmond's Blossom algorithm for general graphs
-        - Hungarian algorithm for bipartite graphs
-        """
-        from edgecase._core import max_weight_matching
-
-        return max_weight_matching(self._graph)
-
-    # ==============================================================================
-    # Independent Sets
-    # ==============================================================================
-
-    def is_independent_set(self, nodes: list[int]) -> bool:
-        """
-        Check if a set of nodes forms an independent set.
-
-        An independent set (also called a stable set) is a set of vertices in a graph where no two
-        vertices are adjacent. This method validates whether the given nodes satisfy this property.
-
-        Parameters
-        ----------
-        nodes
-            List of node IDs to check.
-
-        Returns
-        -------
-        bool
-            `True` if the nodes form a valid independent set (no edges between them), `False`
-            otherwise.
-
-        Examples
-        --------
-        Check a valid independent set:
-
-        ```python
-        from edgecase import Graph
-
-        # Create a path: A-B-C-D
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-        )
-
-        # A and C are not adjacent
-        a_id = graph.get_id_from_label("A")
-        c_id = graph.get_id_from_label("C")
-        print(graph.is_independent_set([a_id, c_id]))  # True
-
-        # A, C, D: C and D are adjacent
-        d_id = graph.get_id_from_label("D")
-        print(graph.is_independent_set([a_id, c_id, d_id]))  # False
-        ```
-
-        Validate a computed independent set:
-
-        ```python
-        graph = Graph()
-        graph.add_path_graph(10)
-
-        mis = graph.maximal_independent_set()
-        assert graph.is_independent_set(mis)  # Always True
-        ```
-
-        Notes
-        -----
-        - time complexity: `O(V + E)` where `V` is nodes in the set and `E` is edges
-        - empty set is trivially an independent set
-        - single node is trivially an independent set
-        """
-        from edgecase._core import is_independent_set
-
-        return is_independent_set(self._graph, nodes)
-
-    def maximal_independent_set(
-        self,
-        nodes: list[int] | None = None,
-        seed: int | None = None,
-    ) -> list[int]:
-        """
-        Find a maximal independent set in the graph.
-
-        A maximal independent set is an independent set that cannot be extended by adding any other
-        vertex. In other words, every vertex not in the set is adjacent to at least one vertex in
-        the set.
-
-        This uses a randomized greedy algorithm that picks nodes randomly and adds them if they
-        don't conflict with already-chosen nodes.
-
-        Parameters
-        ----------
-        nodes
-            Optional starting set of node IDs. These nodes must already form an independent set. The
-            algorithm will extend this set to be maximal. If `None`, starts with an empty set.
-        seed
-            Optional random seed for reproducibility. If `None`, uses system entropy.
-
-        Returns
-        -------
-        list[int]
-            List of node IDs forming a maximal independent set.
-
-        Raises
-        ------
-        ValueError
-            If the starting nodes don't form an independent set (have adjacent nodes).
-        ValueError
-            If any starting node doesn't exist in the graph.
-
-        Examples
-        --------
-        Find a maximal independent set:
-
-        ```python
-        from edgecase import Graph
-
-        # Create a path graph: 1-2-3-4-5
-        graph = Graph()
-        graph.add_path_graph(5)
-
-        mis = graph.maximal_independent_set(seed=42)
-        print(f"Independent set size: {len(mis)}")  # 2 or 3
-
-        # Verify validity
-        assert graph.is_independent_set(mis)
-        ```
-
-        Start with specific nodes:
-
-        ```python
-        graph = Graph()
-        graph.add_cycle_graph(6)
-
-        # Start with a specific node
-        first_node = graph.get_node_ids()[0]
-        mis = graph.maximal_independent_set(nodes=[first_node], seed=42)
-
-        assert first_node in mis
-        ```
-
-        Find multiple maximal independent sets:
-
-        ```python
-        graph = Graph()
-        graph.add_full_graph(6)
-
-        # Different seeds give different results
-        sets = [graph.maximal_independent_set(seed=i) for i in range(5)]
-        for i, s in enumerate(sets):
-            print(f"Seed {i}: {s}")
-        ```
-
-        Scheduling application:
-
-        ```python
-        # Jobs are nodes, edges connect conflicting jobs
-        graph = (
-            Graph()
-            .add_node(label="Job_A")
-            .add_node(label="Job_B")
-            .add_node(label="Job_C")
-            .add_node(label="Job_D")
-            .add_edge("Job_A", "Job_B")  # A conflicts with B
-            .add_edge("Job_B", "Job_C")  # B conflicts with C
-            .add_edge("Job_C", "Job_D")  # C conflicts with D
-        )
-
-        # Find jobs that can run simultaneously
-        parallel_jobs = graph.maximal_independent_set()
-        labels = [graph.get_label_from_id(nid) for nid in parallel_jobs]
-        print(f"Can run together: {labels}")
-        ```
-
-        Notes
-        -----
-        - time complexity: `O(V + E)` where `V` is vertices and `E` is edges
-        - space complexity: `O(V)` for tracking available nodes
-        - randomized algorithm: results may vary without a seed
-        - maximal ≠ maximum: this is not guaranteed to find the largest possible set
-        - for the largest independent set, use `maximum_independent_set()`
-        """
-        from edgecase._core import maximal_independent_set
-
-        return maximal_independent_set(self._graph, nodes, seed)
-
-    def maximum_independent_set(self) -> list[int]:
-        """
-        Find an approximate maximum independent set in the graph.
-
-        The maximum independent set problem is NP-hard, so this method uses a greedy heuristic that
-        prioritizes nodes with minimum degree. This provides a good approximation but is not
-        guaranteed to find the true maximum.
-
-        The algorithm works by iteratively selecting the node with the minimum number of neighbors
-        (among remaining candidates), adding it to the set, and removing it and its neighbors from
-        further consideration.
-
-        Returns
-        -------
-        list[int]
-            List of node IDs forming an approximate maximum independent set.
-
-        Examples
-        --------
-        Find maximum independent set:
-
-        ```python
-        from edgecase import Graph
-
-        # Create a path graph: 1-2-3-4-5
-        graph = Graph()
-        graph.add_path_graph(5)
-
-        mis = graph.maximum_independent_set()
-        print(f"Maximum independent set size: {len(mis)}")  # 3 for path of 5
-
-        # Verify it's valid
-        assert graph.is_independent_set(mis)
-        ```
-
-        Compare with maximal independent set:
-
-        ```python
-        graph = Graph()
-        graph.add_star_graph(10)  # Hub with 10 leaves
-
-        maximal = graph.maximal_independent_set(seed=42)
-        maximum = graph.maximum_independent_set()
-
-        print(f"Maximal size: {len(maximal)}")
-        print(f"Maximum size: {len(maximum)}")  # Should be larger or equal
-        ```
-
-        Vertex cover complement:
-
-        ```python
-        # Maximum independent set + minimum vertex cover = all nodes
-        graph = Graph()
-        graph.add_cycle_graph(8)
-
-        mis = graph.maximum_independent_set()
-        vertex_cover = set(graph.get_node_ids()) - set(mis)
-
-        print(f"Independent set: {len(mis)}")
-        print(f"Vertex cover: {len(vertex_cover)}")
-        print(f"Total: {len(mis) + len(vertex_cover)} = {graph.count_nodes()}")
-        ```
-
-        Optimization problem:
-
-        ```python
-        # Find maximum set of non-conflicting items
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("E", "A")  # Cycle
-        )
-
-        mis = graph.maximum_independent_set()
-        labels = [graph.get_label_from_id(nid) for nid in mis]
-        print(f"Best selection: {labels}")
-        ```
-
-        Notes
-        -----
-        - time complexity: `O(V² + VE)` due to repeated neighbor lookups
-        - space complexity: `O(V)` for tracking available nodes
-        - this is a greedy approximation, not an exact algorithm
-        - for exact solutions on small graphs, exhaustive search is needed
-        - the complement of a maximum independent set is a minimum vertex cover
-
-        References
-        ----------
-        The maximum independent set problem is one of Karp's 21 NP-complete problems.
-        This implementation uses the minimum-degree greedy heuristic.
-        """
-        from edgecase._core import maximum_independent_set
-
-        return maximum_independent_set(self._graph)
-
-    def find_maximal_independent_sets(
-        self,
-        count: int = 10,
-        seed: int | None = None,
-    ) -> list[list[int]]:
-        """
-        Find multiple distinct maximal independent sets.
-
-        Runs the maximal independent set algorithm multiple times with different random seeds to
-        discover diverse solutions. This is useful for exploring the space of possible independent
-        sets or for ensemble methods.
-
-        Parameters
-        ----------
-        count
-            Number of maximal independent sets to find. Default is 10.
-        seed
-            Optional base seed for reproducibility. Each iteration uses seed + iteration_number.
-
-        Returns
-        -------
-        list[list[int]]
-            List of maximal independent sets, each represented as a list of node IDs. May return
-            fewer than `count` if there aren't enough unique sets.
-
-        Examples
-        --------
-        Find multiple independent sets:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_cycle_graph(8)
-
-        sets = graph.find_maximal_independent_sets(count=5, seed=42)
-        for i, s in enumerate(sets):
-            print(f"Set {i}: size={len(s)}, nodes={s}")
-        ```
-
-        Find the best among multiple:
-
-        ```python
-        graph = Graph()
-        graph.add_gnm_graph(n=50, m=100, seed=42)
-
-        sets = graph.find_maximal_independent_sets(count=20, seed=0)
-        best = max(sets, key=len)
-        print(f"Best size: {len(best)}")
-        ```
-
-        Analyze diversity:
-
-        ```python
-        graph = Graph()
-        graph.add_full_graph(8)
-
-        sets = graph.find_maximal_independent_sets(count=10)
-        unique_sizes = set(len(s) for s in sets)
-        print(f"Found {len(sets)} unique sets with sizes: {unique_sizes}")
-        ```
-
-        Notes
-        -----
-        - Time complexity: O(count × (V + E))
-        - Attempts to find unique sets; may return fewer than requested
-        - With a seed, results are reproducible
-        - Without a seed, each call may produce different sets
-        """
-        from edgecase._core import find_maximal_independent_sets
-
-        return find_maximal_independent_sets(self._graph, count, seed)
-
-    # ==============================================================================
-    # Minimum/Maximum Spanning Trees
-    # ==============================================================================
-
-    def minimum_spanning_tree(
-        self,
-        weight_attr: str | None = None,
-        return_subgraph: bool = True,
-    ) -> "Graph | list[str]":
-        """
-        Find the minimum spanning tree using Kruskal's algorithm.
-
-        A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
-        total edge weight. Uses the optimized union-find data structure with path-halving for
-        efficient cycle detection.
-
-        Parameters
-        ----------
-        weight_attr
-            Name of edge attribute to use for weights. If None (default), uses the edge's weight
-            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
-        return_subgraph
-            If `True`, returns a new Graph containing only the MST edges. If `False`, returns a list
-            of edge IDs as strings.
-
-        Returns
-        -------
-        Graph or list[str]
-            Either a new Graph with MST edges or a list of edge ID strings, depending on
-            the `return_subgraph=` parameter.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph(weighted=True)
-        g.add_node("A")
-        g.add_node("B")
-        g.add_node("C")
-        g.add_node("D")
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=2.0)
-        g.add_edge("C", "D", weight=3.0)
-        g.add_edge("D", "A", weight=4.0)
-        g.add_edge("A", "C", weight=5.0)
-
-        mst = g.minimum_spanning_tree()
-        print(mst.count_edges())  # 3
-
-        # Calculate total weight
-        total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
-                    if e and e.weight is not None)
-        print(total)  # 6.0
-        ```
-
-        Notes
-        -----
-        - time complexity: O(E log E) for sorting edges
-        - space complexity: O(V) for union-find structure
-        - for disconnected graphs, finds a minimum spanning forest
-        - if graph has < 2 nodes, returns empty graph or list
-
-        References
-        ----------
-        .. [1] Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph
-               and the traveling salesman problem". Proceedings of the American
-               Mathematical Society. 7: 48–50.
-        """
-        edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
-
-        if return_subgraph:
-            # Create a new graph with the MST edges
-            mst = Graph(directed=self.is_directed(), weighted=True)
-
-            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids(limit=None):
-                label = self.get_label_from_id(node_id)
-                # Try to get node attributes if they exist
-                try:
-                    node_obj = self._graph.get_node(label)
-                    mst.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    mst.add_node(label)
-
-            # Add MST edges
-            for edge_id in edge_ids:
-                edge = self.get_edge(edge_id)
-                if edge:
-                    mst.add_edge(
-                        self.get_label_from_id(edge.source),
-                        self.get_label_from_id(edge.target),
-                        weight=edge.weight,
-                        attributes=edge.attributes,
-                    )
-
-            return mst
-        else:
-            return [str(eid) for eid in edge_ids]
-
-    def maximum_spanning_tree(
-        self,
-        weight_attr: str | None = None,
-        return_subgraph: bool = True,
-    ) -> "Graph | list[str]":
-        """
-        Find the maximum spanning tree using Kruskal's algorithm.
-
-        A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
-        edge weight. Essentially finds the MST of the negated edge weights.
-
-        Parameters
-        ----------
-        weight_attr
-            Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
-            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
-        return_subgraph
-            If `True`, returns a new Graph containing only the spanning tree edges. If `False`,
-            returns a list of edge IDs as strings.
-
-        Returns
-        -------
-        Graph or list[str]
-            Either a new Graph with spanning tree edges or a list of edge ID strings, depending on
-            the `return_subgraph=` parameter.
-
-        Examples
-        --------
-        ```python
-        from edgecase import Graph
-
-        g = Graph(weighted=True)
-        g.add_node("A")
-        g.add_node("B")
-        g.add_node("C")
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=3.0)
-        g.add_edge("C", "A", weight=2.0)
-
-        max_st = g.maximum_spanning_tree()
-
-        # Calculate total weight
-        total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.get_edges_as_tuples()]
-                    if e and e.weight is not None)
-        print(total)  # 5.0 (chooses edges with weights 3.0 and 2.0)
-        ```
-
-        Notes
-        -----
-        - time complexity: O(E log E) for sorting edges
-        - space complexity: O(V) for union-find structure
-        - useful for finding most important connections in a network
-        """
-        edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
-
-        if return_subgraph:
-            # Create a new graph with the spanning tree edges
-            st = Graph(directed=self.is_directed(), weighted=True)
-
-            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids(limit=None):
-                label = self.get_label_from_id(node_id)
-                # Try to get node attributes if they exist
-                try:
-                    node_obj = self._graph.get_node(label)
-                    st.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    st.add_node(label)
-
-            # Add spanning tree edges
-            for edge_id in edge_ids:
-                edge = self.get_edge(edge_id)
-                if edge:
-                    st.add_edge(
-                        self.get_label_from_id(edge.source),
-                        self.get_label_from_id(edge.target),
-                        weight=edge.weight,
-                        attributes=edge.attributes,
-                    )
-
-            return st
-        else:
-            return [str(eid) for eid in edge_ids]
-
-    # ==============================================================================
-    # Eulerian Paths and Circuits
-    # ==============================================================================
-
-    def is_eulerian(self) -> bool:
-        """
-        Check if the graph has an Eulerian circuit.
-
-        An Eulerian circuit is a closed trail that visits every edge exactly once.
-
-        For undirected graphs, an Eulerian circuit exists if and only if:
-        - The graph is connected (ignoring isolated nodes)
-        - All vertices have even degree
-
-        For directed graphs, an Eulerian circuit exists if and only if:
-
-        - The graph is weakly connected
-        - Every vertex has equal in-degree and out-degree
-
-        Returns
-        -------
-        bool
-            True if the graph has an Eulerian circuit, False otherwise.
-
-        Examples
-        --------
-        Check a cycle graph (has Eulerian circuit):
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_cycle_graph(5)
-
-        print(graph.is_eulerian())  # True (all degrees are 2)
-        ```
-
-        Check a path graph (no Eulerian circuit):
-
-        ```python
-        graph = Graph()
-        graph.add_path_graph(5)
-
-        print(graph.is_eulerian())  # False (endpoints have odd degree)
-        ```
-
-        Check a directed graph:
-
-        ```python
-        graph = Graph(directed=True)
-        graph.add_cycle_graph(4)
-
-        print(graph.is_eulerian())  # True (in-degree = out-degree for all)
-        ```
-        """
-        from edgecase._core import is_eulerian
-
-        return is_eulerian(self._graph)
-
-    def is_semieulerian(self) -> bool:
-        """
-        Check if the graph has an Eulerian path but not an Eulerian circuit.
-
-        An Eulerian path is a trail that visits every edge exactly once. A graph is semi-Eulerian if
-        it has an Eulerian path but NOT an Eulerian circuit.
-
-        For undirected graphs, this occurs when:
-
-        - the graph is connected
-        - exactly two vertices have odd degree (start and end of path)
-
-        For directed graphs, this occurs when:
-
-        - the graph is weakly connected
-        - exactly one vertex has out-degree - in-degree = 1 (start)
-        - exactly one vertex has in-degree - out-degree = 1 (end)
-        - all other vertices have equal in-degree and out-degree
-
-        Returns
-        -------
-        bool
-            `True` if the graph has an Eulerian path but not circuit, `False` otherwise.
-
-        Examples
-        --------
-        Check a path graph (semi-Eulerian):
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_path_graph(5)
-
-        print(graph.is_semieulerian())  # True (2 odd-degree nodes)
-        print(graph.is_eulerian())      # False (not a circuit)
-        ```
-
-        Check a cycle graph (not semi-Eulerian):
-
-        ```python
-        graph = Graph()
-        graph.add_cycle_graph(5)
-
-        print(graph.is_semieulerian())  # False (has Eulerian circuit)
-        print(graph.is_eulerian())      # True
-        ```
-
-        Check a directed path:
-
-        ```python
-        graph = Graph(directed=True)
-        graph.add_path_graph(5)
-
-        print(graph.is_semieulerian())  # True (one source, one sink)
-        ```
-        """
-        from edgecase._core import is_semieulerian
-
-        return is_semieulerian(self._graph)
-
-    def eulerian_circuit(self) -> Optional[list[int]]:
-        """
-        Find an Eulerian circuit in the graph if one exists.
-
-        An Eulerian circuit is a closed trail that visits every edge exactly once, starting and
-        ending at the same node. Uses Hierholzer's algorithm.
-
-        Returns
-        -------
-        Optional[list[int]]
-            List of node IDs forming the Eulerian circuit, or `None` if no circuit exists. The
-            circuit starts and ends at the same node.
-
-        Examples
-        --------
-        Find a circuit in a cycle graph:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_cycle_graph(5)
-
-        circuit = graph.eulerian_circuit()
-        print(circuit)  # e.g., [0, 1, 2, 3, 4, 0]
-        print(len(circuit))  # 6 (5 edges + return to start)
-        ```
-
-        No circuit in a path graph:
-
-        ```python
-        graph = Graph()
-        graph.add_path_graph(5)
-
-        circuit = graph.eulerian_circuit()
-        print(circuit)  # None (path has no circuit)
-        ```
-
-        Find circuit in a cycle graph:
-
-        ```python
-        graph = Graph()
-        graph.add_cycle_graph(6)
-
-        circuit = graph.eulerian_circuit()
-        if circuit:
-            print(f"Circuit length: {len(circuit)}")
-            print(f"Visits {len(circuit) - 1} edges")
-        ```
-
-        Directed Eulerian circuit:
-
-        ```python
-        graph = Graph(directed=True)
-        graph.add_cycle_graph(5)
-
-        circuit = graph.eulerian_circuit()
-        print(len(circuit))  # 6 (visits 5 edges + returns to start)
-        ```
-
-        Notes
-        -----
-        - Uses Hierholzer's algorithm: O(E) time complexity
-        - Only returns a circuit if one exists (use is_eulerian() to check first)
-        - For semi-Eulerian graphs (path but no circuit), use a pathfinding approach
-        - The returned circuit is one of potentially many valid circuits
-        """
-        from edgecase._core import eulerian_circuit
-
-        return eulerian_circuit(self._graph)
-
-    # ==============================================================================
-    # Bridges and Connectivity
-    # ==============================================================================
-
-    def bridges(self) -> list[int]:
-        """
-        Find all bridge edges in the graph.
-
-        A bridge (also called a cut edge) is an edge whose removal increases the number of connected
-        components. Bridges are critical edges that, if removed, would disconnect parts of the
-        network.
-
-        Uses Tarjan's algorithm for undirected graphs (O(V+E) time complexity) and strongly
-        connected component analysis for directed graphs.
-
-        Returns
-        -------
-        list[int]
-            List of edge IDs that are bridges. Empty list if no bridges exist.
-
-        Examples
-        --------
-        Find bridges in a simple graph:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_path_graph(4)
-
-        bridges = graph.bridges()
-        print(len(bridges))  # 3 (all edges are bridges in a path)
-        ```
-
-        Find bridges in a graph with a cycle:
-
-        ```python
-        graph = Graph()
-        graph.add_cycle_graph(4)  # 0-1-2-3-0
-        graph.add_node(label="tail")
-        tail_id = graph.get_id_from_label("tail")
-        nodes = sorted(graph.get_node_ids())
-        graph.add_edge(nodes[-1], tail_id)  # Add a tail
-
-        bridges = graph.bridges()
-        print(len(bridges))  # 1 (only edge to tail is a bridge)
-        ```
-
-        Check bridge edges in a network:
-
-        ```python
-        graph = Graph()
-        graph.add_path_graph(3)
-
-        bridge_ids = graph.bridges()
-        for edge_id in bridge_ids:
-            result = graph.get_node_ids_by_edge_id(edge_id)
-            if result:
-                u, v = result
-                print(f"Bridge: {u} - {v}")
-        ```
-
-        Notes
-        -----
-        - bridges are critical for network vulnerability analysis
-        - in a tree, all edges are bridges
-        - in a cycle, no edges are bridges
-        - related to articulation points (vertices whose removal disconnects the graph)
-        """
-        from edgecase._core import bridges
-
-        return bridges(self._graph)
-
-    def has_bridges(self) -> bool:
-        """
-        Check if the graph contains any bridge edges.
-
-        A bridge (cut edge) is an edge whose removal increases the number of connected components.
-        This method is more efficient than `bridges()` when you only need to know if bridges exist,
-        not which edges they are.
-
-        Returns
-        -------
-        bool
-            `True` if at least one bridge exists, `False` otherwise.
-
-        Examples
-        --------
-        Check if a cycle has bridges:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_cycle_graph(5)
-
-        print(graph.has_bridges())  # False (cycles have no bridges)
-        ```
-
-        Check if a path has bridges:
-
-        ```python
-        graph = Graph()
-        graph.add_path_graph(5)
-
-        print(graph.has_bridges())  # True (all tree edges are bridges)
-        ```
-
-        Check a mixed graph:
-
-        ```python
-        graph = Graph()
-        graph.add_cycle_graph(4)  # Dense component
-        graph.add_node(label="isolated")
-        isolated_id = graph.get_id_from_label("isolated")
-        nodes = sorted(graph.get_node_ids())
-        graph.add_edge(nodes[-2], isolated_id)  # Bridge to isolated node
-
-        if graph.has_bridges():
-            bridges = graph.bridges()
-            print(f"Found {len(bridges)} bridge(s)")
-        ```
-
-        Notes
-        -----
-        - more efficient than `len(bridges()) > 0` for large graphs
-        - useful for quick connectivity analysis
-        - returns False for complete graphs and cycles
-        """
-        from edgecase._core import has_bridges
-
-        return has_bridges(self._graph)
-
-    def get_node_vitality(self, node: Union[int, str]) -> float:
-        """
-        Compute the vitality of a single node.
-
-        Node vitality measures the impact of removing a node on graph connectivity, defined as the
-        change in sum of all pairwise shortest path distances:
-
-        vitality(v) = sum_distances(G) - sum_distances(G - v)
-
-        Higher values indicate more important nodes whose removal would significantly increase
-        average path lengths or disconnect the graph. Infinite values indicate the node's removal
-        disconnects the graph.
-
-        Parameters
-        ----------
-        node
-            Node ID (int) or label (str) to compute vitality for.
-
-        Returns
-        -------
-        float
-            The vitality score for the node. Higher values indicate more vital nodes. Returns `inf`
-            if removing the node disconnects the graph.
-
-        Raises
-        ------
-        ValueError
-            If the node does not exist in the graph.
-
-        Examples
-        --------
-        Compute vitality for nodes in a path graph:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        graph.add_path_graph(5)
-        nodes = sorted(graph.get_node_ids())
-
-        # Middle nodes are most vital (removal disconnects)
-        middle_vitality = graph.get_node_vitality(nodes[2])
-        end_vitality = graph.get_node_vitality(nodes[0])
-
-        print(f"Middle node vitality: {middle_vitality}")
-        print(f"End node vitality: {end_vitality}")
-        # Middle has higher vitality (or infinite if it disconnects)
-        ```
-
-        Compare vitality in a star graph:
-
-        ```python
-        graph = Graph()
-        graph.add_star_graph(4)
-        nodes = sorted(graph.get_node_ids())
-
-        # Hub (first node) is most vital
-        hub_vitality = graph.get_node_vitality(nodes[0])
-        leaf_vitality = graph.get_node_vitality(nodes[1])
-
-        print(f"Hub vitality: {hub_vitality}")
-        print(f"Leaf vitality: {leaf_vitality}")
-        # Hub has much higher vitality
-        ```
-
-        Use with node labels:
-
-        ```python
-        graph = Graph()
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
-        graph.add_edge("A", "B")
-        graph.add_edge("B", "C")
-
-        # B is the critical connector
-        vitality_b = graph.get_node_vitality("B")
-        vitality_a = graph.get_node_vitality("A")
-
-        print(f"Node B vitality: {vitality_b}")
-        print(f"Node A vitality: {vitality_a}")
-        ```
-
-        Notes
-        -----
-        - computationally expensive: `O(V * E)` where `V` is vertices, `E` is edges
-        - returns `inf` if node removal disconnects the graph
-        - related to `closeness_vitality()` which computes for all nodes
-        - useful for identifying critical nodes in network vulnerability analysis
-        - for all nodes, consider using `closeness_vitality()` instead
-        """
-        from edgecase._core import node_vitality
-
-        # Convert label to node ID if necessary
-        if isinstance(node, str):
-            node_id = self.get_id_from_label(node)
-            if node_id is None:
-                raise ValueError(f"Node with label '{node}' does not exist")
-        else:
-            node_id = node
-
-        return node_vitality(self._graph, node_id)
-
-    # ==============================================================================
-    # Connectivity and Flow
-    # ==============================================================================
-
-    def get_all_connected_nodes(self, node: Union[int, str]) -> list[int]:
-        """
-        Get all nodes reachable from the specified node.
-
-        Uses breadth-first search (BFS) to find all nodes in the same connected
-        component. For directed graphs, treats edges as undirected during traversal.
-
-        Parameters
-        ----------
-        node
-            Starting node ID (int) or label (str) for the search.
-
-        Returns
-        -------
-        list[int]
-            List of all reachable node IDs, excluding the starting node itself.
-            Empty list if the node is isolated.
-
-        Raises
-        ------
-        KeyError
-            If `node` does not exist in the graph.
-
-        Examples
-        --------
-        ```python
-        graph = Graph()
-
-        # Create two separate components
-        graph.add_path_graph(3)  # Component 1: nodes 0-1-2
-        graph.add_path_graph(2)  # Component 2: nodes 3-4
-
-        # Find all nodes reachable from node 0
-        node_ids = list(graph.get_node_ids())
-        connected = graph.get_all_connected_nodes(node_ids[0])
-        print(len(connected))  # 2 (nodes 1 and 2)
-
-        # Node 3 is in a separate component
-        connected_3 = graph.get_all_connected_nodes(node_ids[3])
-        print(len(connected_3))  # 1 (node 4)
-        ```
-
-        Component size analysis:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        # Create two separate components
-        graph.add_path_graph(n=3)  # Component 1: nodes 0-1-2
-        graph.add_path_graph(n=2)  # Component 2: nodes 3-4
-
-        # Find size of each component
-        visited = set()
-        components = []
-
-        for node_id in graph.get_node_ids(limit=None):
-            if node_id not in visited:
-                component = graph.get_all_connected_nodes(node=node_id)
-                component.append(node_id)  # Include starting node
-                components.append(component)
-                visited.update(component)
-
-        print(f"Found {len(components)} components")
-        ```
-        """
-        # Resolve node to integer ID
-        node_id = self._resolve_node_id(node)
-
-        if not self.has_node(node_id):
-            raise KeyError(f"Node '{node}' does not exist")
-
-        visited = set()
-        queue = [node_id]
-        visited.add(node_id)
-
-        while queue:
-            current = queue.pop(0)
-
-            # Get all neighbors (treating directed as undirected)
-            neighbors = self.neighbors(current, mode="all")
-
-            for neighbor in neighbors:
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append(neighbor)
-
-        # Remove the starting node from results
-        visited.discard(node_id)
-
-        return sorted(list(visited))
-
-    def get_articulation_points(self) -> list[int]:
-        """
-        Find articulation points (cut nodes) in the graph.
-
-        An articulation point is a node whose removal disconnects the graph or increases the number
-        of connected components. Uses Tarjan's DFS-based algorithm. Only defined for undirected
-        graphs.
-
-        Returns
-        -------
-        list[int]
-            List of node IDs that are articulation points.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed.
-
-        Examples
-        --------
-        Find articulation points in a path graph:
-
-        ```python
-        graph = Graph().add_path_graph(5)
-
-        # In a path: 1-2-3-4-5
-        # Middle nodes 2, 3, 4 are articulation points
-        cut_node_ids = graph.get_articulation_points()
-        print(len(cut_node_ids))  # 3
-
-        # Convert to labels if needed
-        cut_node_labels = [graph.get_label_from_id(nid) for nid in cut_node_ids]
-        ```
-
-        Notes
-        -----
-        Applications:
-
-        - network vulnerability analysis: Critical infrastructure nodes
-        - social networks: Key influencers whose removal fragments communities
-        - communication networks: Single points of failure
-        """
-        return self._graph.get_articulation_points()
-
-    def get_periphery(self) -> list[int]:
-        """
-        Get periphery nodes (nodes with maximum eccentricity).
-
-        Periphery nodes are farthest from the graph's center. These nodes have the maximum
-        eccentricity (longest shortest path to any other node). Returns empty list if graph is
-        disconnected.
-
-        Returns
-        -------
-        list[int]
-            List of node IDs in the periphery, empty if disconnected.
-
-        Examples
-        --------
-        Find periphery nodes in a path graph:
-
-        ```python
-        graph = Graph().add_path_graph(5)
-
-        # In path 1-2-3-4-5, ends (1 and 5) are periphery
-        periphery_ids = graph.get_periphery()
-        print(len(periphery_ids))  # 2
-
-        # Convert to labels if needed
-        periphery_labels = sorted([graph.get_label_from_id(nid) for nid in periphery_ids])
-        ```
-
-        Notes
-        -----
-        Characteristics:
-
-        - opposite of center: peripheral vs central nodes
-        - in trees: always leaf nodes
-        - multiple nodes can have maximum eccentricity
-        """
-        return self._graph.get_periphery()
-
-    def get_node_connectivity(self) -> int:
-        """
-        Compute global node connectivity.
-
-        Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
-        the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
-
-        Uses Menger's theorem: node connectivity equals the maximum number of node-disjoint paths.
-        Implementation transforms the problem to max-flow.
-
-        Time complexity: O(V^4) for complete enumeration of pairs.
-
-        Returns
-        -------
-        int
-            Minimum number of nodes needed to disconnect the graph.
-            Returns 0 if already disconnected.
-            Returns n-1 for complete graph K_n.
-
-        Examples
-        --------
-        Cycle graph has node connectivity 2:
-
-        ```python
-        graph = Graph()
-        n = 6
-        for i in range(1, n + 1):
-            graph.add_node(label=str(i))
-        for i in range(1, n + 1):
-            graph.add_edge(str(i), str((i % n) + 1))
-
-        print(graph.get_node_connectivity())  # 2
-        ```
-
-        Complete graph K_5 has node connectivity 4:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
-
-        print(graph.get_node_connectivity())  # 4
-        ```
-        """
-        return self._graph.node_connectivity()
-
-    def get_node_connectivity_between(
-        self, source: Union[int, str], target: Union[int, str]
-    ) -> int:
-        """
-        Compute node connectivity between two nodes.
-
-        Returns the minimum number of nodes that must be removed to disconnect the source from the
-        target. Uses Menger's theorem: this equals the maximum number of node-disjoint paths between
-        the nodes.
-
-        Implementation transforms the graph by splitting each internal node into in-node and
-        out-node with capacity 1, converting node connectivity to edge connectivity, which is
-        computed using max-flow.
-
-        Time complexity: O(V * E^2) using Ford-Fulkerson with BFS.
-
-        Parameters
-        ----------
-        source
-            Source node ID (int) or label (str).
-        target
-            Target node ID (int) or label (str).
-
-        Returns
-        -------
-        int
-            Minimum number of nodes whose removal disconnects source from target.
-
-        Raises
-        ------
-        ValueError
-            If source or target doesn't exist, or if source == target.
-
-        Examples
-        --------
-        Path graph connectivity using labels:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            graph.add_edge(str(i), str(i + 1))
-
-        # Endpoints have connectivity 1 (any middle node disconnects them)
-        print(graph.get_node_connectivity_between("1", "5"))  # 1
-        ```
-
-        Using node IDs:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            graph.add_edge(str(i), str(i + 1))
-
-        # Get node IDs
-        node1_id = graph.get_id_from_label("1")
-        node5_id = graph.get_id_from_label("5")
-
-        # Can use node IDs directly
-        print(graph.get_node_connectivity_between(node1_id, node5_id))  # 1
-        ```
-
-        Complete graph connectivity:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
-
-        # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
-        print(graph.get_node_connectivity_between("1", "5"))  # 4
-        ```
-        """
-        source_id = self._resolve_node_id(source)
-        target_id = self._resolve_node_id(target)
-        return self._graph.node_connectivity_between(source_id, target_id)
-
-    def get_edge_connectivity(self) -> int:
-        """
-        Compute edge connectivity (minimum edge cut).
-
-        Returns the minimum number of edges whose removal disconnects the graph. For undirected
-        graphs, this is computed as the minimum over strategic pairs of nodes. For directed graphs,
-        respects edge directions.
-
-        Edge connectivity provides a measure of graph robustness: higher values indicate more
-        redundant paths and better fault tolerance.
-
-        Time complexity: O(V * E^2) using max-flow computations.
-
-        Returns
-        -------
-        int
-            Minimum number of edges needed to disconnect the graph.
-            Returns 0 if already disconnected or has isolated nodes.
-
-        Examples
-        --------
-        Cycle graph has edge connectivity 2:
-
-        ```python
-        graph = Graph()
-        n = 6
-        for i in range(1, n + 1):
-            graph.add_node(label=str(i))
-        for i in range(1, n + 1):
-            graph.add_edge(str(i), str((i % n) + 1))
-
-        print(graph.get_edge_connectivity())  # 2
-        ```
-
-        Star graph has edge connectivity 1:
-
-        ```python
-        graph = Graph()
-        graph.add_node(label="center")
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-            graph.add_edge("center", str(i))
-
-        print(graph.get_edge_connectivity())  # 1
-        ```
-        """
-        return self._graph.edge_connectivity()
-
-    def get_adhesion(self) -> int:
-        """
-        Get adhesion (minimum edge cut size).
-
-        The adhesion is the minimum number of edges whose removal would disconnect the graph. Also
-        called edge connectivity. Only defined for undirected graphs. Returns `0` if already
-        disconnected.
-
-        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
-        computation requires max-flow algorithms.
-
-        Returns
-        -------
-        int
-            Minimum edge cut size.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed.
-
-        Examples
-        --------
-        Calculate adhesion:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
-        )
-
-        print(graph.get_adhesion())  # 2
-        ```
-        """
-        return self._graph.get_adhesion()
-
-    def get_cohesion(self) -> int:
-        """
-        Get cohesion (minimum node cut size).
-
-        The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
-        called node connectivity. Only defined for undirected graphs. Returns `0` if already
-        disconnected.
-
-        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
-        computation requires sophisticated algorithms.
-
-        Returns
-        -------
-        int
-            Minimum node cut size.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed.
-
-        Examples
-        --------
-        Calculate cohesion:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
-        )
-
-        print(graph.get_cohesion())  # 2
-        ```
-        """
-        return self._graph.get_cohesion()
-
-    def get_density(self) -> float:
-        """
-        Calculate graph density (ratio of actual to possible edges).
-
-        Density measures how complete a graph is. A complete graph has density `1.0`, while a graph
-        with no edges has density `0.0`.
-
-        For directed graphs: density = E / (N × (N-1))
-        For undirected graphs: density = 2E / (N × (N-1))
-
-        Returns
-        -------
-        float
-            Graph density between 0.0 and 1.0.
-
-        Examples
-        --------
-        Calculate density of a sparse graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
-        print(f"{graph.get_density():.3f}")  # 0.667
-        ```
-
-        Compare sparse vs. dense graphs:
-
-        ```python
-        # Complete graph (all possible edges)
-        complete = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("A", "C")
-        )
-
-        print(f"{complete.get_density():.3f}")  # 1.000
-        ```
-        """
-        return self._graph.density()
-
-    def find_cohesive_blocks(self) -> tuple[list[list[int]], list[int], list[int | None]]:
-        """
-        Find hierarchical cohesive block structure.
-
-        Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal subgraph
-        that requires removal of at least k nodes to disconnect it. Returns a hierarchical structure
-        where child blocks have higher cohesion than their parents.
-
-        Based on Moody & White (2003) "Structural Cohesion and Embeddedness: A Hierarchical Concept
-        of Social Groups".
-
-        Time complexity: O(V^5) due to node connectivity computations.
-
-        Returns
-        -------
-        tuple[list[list[int]], list[int], list[int | None]]
-            A tuple containing:
-
-            - blocks: list of node sets (each as list of node IDs)
-            - cohesion: list of k-values (cohesion of each block)
-            - parent: list of parent block indices (None for root blocks)
-
-        Examples
-        --------
-        Find cohesive blocks in a complete graph:
-
-        ```python
-        # K_5 complete graph has cohesion 4
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
-
-        blocks, cohesions, parents = graph.find_cohesive_blocks()
-        # Returns: ([[1,2,3,4,5]], [4], [None])
-
-        # Convert to labels if needed
-        blocks_labels = [[graph.get_label_from_id(nid) for nid in block] for block in blocks]
-        ```
-
-        Find hierarchical structure:
-
-        ```python
-        # Graph with nested cohesive structure
-        graph = Graph()
-        # Build K_4 (cohesion 3)
-        for i in range(1, 5):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            for j in range(i + 1, 5):
-                graph.add_edge(str(i), str(j))
-
-        # Add nodes to create larger 2-cohesive block
-        graph.add_node(label="5")
-        graph.add_node(label="6")
-        graph.add_edge("1", "5")
-        graph.add_edge("2", "5")
-        graph.add_edge("5", "6")
-        graph.add_edge("6", "1")
-        graph.add_edge("6", "2")
-
-        blocks, cohesions, parents = graph.find_cohesive_blocks()
-        # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
-        ```
-        """
-        return self._graph.cohesive_blocks()
-
-    def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
-        """
-        Get minimum cut between source and sink nodes.
-
-        Computes the minimum number of edges that must be removed to disconnect the source from the
-        sink. Uses the Ford-Fulkerson algorithm with BFS (Edmonds-Karp) to find maximum flow, which
-        equals the minimum cut by the max-flow min-cut theorem.
-
-        For unweighted graphs, each edge has capacity `1`. For undirected graphs, edges are treated
-        as bidirectional.
-
-        Parameters
-        ----------
-        source
-            Source node (integer ID or string label).
-        sink
-            Sink node (integer ID or string label).
-
-        Returns
-        -------
-        int
-            Size of minimum cut (number of edges to remove).
-
-        Raises
-        ------
-        ValueError
-            If source or sink node doesn't exist, or if they're the same.
-
-        Examples
-        --------
-        Find minimum cut:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("B", "C", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-        )
-
-        a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
-        print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
-        ```
-        """
-        source_id = self._resolve_node_id(source, auto_create=False)
-        sink_id = self._resolve_node_id(sink, auto_create=False)
-        return self._graph.get_min_cut_between(source_id, sink_id)
-
-    def minimum_node_cut(self, source: Union[int, str], sink: Union[int, str]) -> set[int]:
-        """
-        Find minimum node cut between source and sink nodes.
-
-        Returns the set of nodes whose removal disconnects the source from the sink. Uses
-        transformation to an edge connectivity problem where each node is split into in/out copies
-        connected by unit capacity.
-
-        The source and sink themselves are never included in the returned cut set.
-
-        Parameters
-        ----------
-        source
-            Source node (integer ID or string label).
-        sink
-            Sink node (integer ID or string label).
-
-        Returns
-        -------
-        set[int]
-            Set of node IDs forming the minimum node cut.
-
-        Raises
-        ------
-        ValueError
-            If source or sink node doesn't exist, or if they're the same.
-
-        Notes
-        -----
-        The node connectivity between two nodes is the minimum number of nodes that
-        must be removed to disconnect them. This is closely related to Menger's theorem.
-
-        Examples
-        --------
-        Find minimum node cut:
-
-        ```python
-        graph = (
-            Graph()
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("A", "C", auto_create_nodes=True)
-            .add_edge("B", "D", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-            .add_edge("D", "E", auto_create_nodes=True)
-        )
-
-        # Find nodes that separate A from E
-        cut_nodes = graph.minimum_node_cut("A", "E")
-        # Returns {node_id_d} where removing node D disconnects A from E
-        ```
-
-        Here's an example on the topic of network vulnerability. We can identify single points of
-        failure:
-
-        ```python
-        # Communication network
-        graph = (
-            Graph()
-            .add_edge("Client", "Gateway", auto_create_nodes=True)
-            .add_edge("Gateway", "Server1", auto_create_nodes=True)
-            .add_edge("Gateway", "Server2", auto_create_nodes=True)
-            .add_edge("Server1", "Database", auto_create_nodes=True)
-            .add_edge("Server2", "Database", auto_create_nodes=True)
-        )
-
-        critical_nodes = graph.minimum_node_cut("Client", "Database")
-        # Identifies Gateway as single point of failure
-        print(f"Critical nodes: {len(critical_nodes)}")
-        ```
-
-        Social network bottlenecks:
-
-        ```python
-        # Find intermediaries between two people
-        graph = (
-            Graph()
-            .add_edge("Alice", "Bob", auto_create_nodes=True)
-            .add_edge("Bob", "Carol", auto_create_nodes=True)
-            .add_edge("Alice", "Dave", auto_create_nodes=True)
-            .add_edge("Dave", "Carol", auto_create_nodes=True)
-        )
-
-        intermediaries = graph.minimum_node_cut("Alice", "Carol")
-        # Returns {bob_id, dave_id} - both must be removed to disconnect
-        ```
-        """
-        source_id = self._resolve_node_id(source, auto_create=False)
-        sink_id = self._resolve_node_id(sink, auto_create=False)
-        return self._graph.minimum_node_cut(source_id, sink_id)
-
-    def minimum_edge_cut(
-        self, source: Union[int, str], sink: Union[int, str]
-    ) -> set[tuple[int, int]]:
-        """
-        Find minimum edge cut between source and sink nodes.
-
-        Returns the set of edges whose removal disconnects the source from the sink. Uses the
-        max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut.
-
-        For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
-        edges are considered.
-
-        Parameters
-        ----------
-        source
-            Source node (integer ID or string label).
-        sink
-            Sink node (integer ID or string label).
-
-        Returns
-        -------
-        set[tuple[int, int]]
-            Set of edge tuples (source_id, target_id) forming the minimum cut.
-
-        Raises
-        ------
-        ValueError
-            If source or sink node doesn't exist, or if they're the same.
-
-        Examples
-        --------
-        Find minimum edge cut in a simple graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("B", "C", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-            .add_edge("A", "D", auto_create_nodes=True)
-        )
-
-        # Find edges that separate A from C
-        cut_edges = graph.minimum_edge_cut("A", "C")
-        # Returns set of edge tuples like {(node_id_b, node_id_c), (node_id_d, node_id_c)}
-        ```
-
-        Network vulnerability analysis:
-
-        ```python
-        # Analyze which connections are critical
-        graph = (
-            Graph(directed=True)
-            .add_edge("Server1", "Router1", auto_create_nodes=True)
-            .add_edge("Router1", "Router2", auto_create_nodes=True)
-            .add_edge("Router2", "Server2", auto_create_nodes=True)
-            .add_edge("Router1", "Router3", auto_create_nodes=True)
-            .add_edge("Router3", "Server2", auto_create_nodes=True)
-        )
-
-        critical_links = graph.minimum_edge_cut("Server1", "Server2")
-        print(f"Removing {len(critical_links)} link(s) disconnects the servers")
-        ```
-        """
-        source_id = self._resolve_node_id(source, auto_create=False)
-        sink_id = self._resolve_node_id(sink, auto_create=False)
-        return self._graph.minimum_edge_cut(source_id, sink_id)
-
-    # ==============================================================================
-    # Component Counts
-    # ==============================================================================
-
-    def count_weakly_connected_components(self) -> int:
-        """
-        Count weakly connected components in the graph.
-
-        For undirected graphs, counts regular connected components. For directed graphs,
-        treats all edges as undirected (ignoring direction) when finding components.
-
-        A weakly connected component is a maximal set of nodes where every node is
-        reachable from every other node when edge directions are ignored.
-
-        Returns
-        -------
-        int
-            Number of weakly connected components.
-
-        Examples
-        --------
-        Count components in a disconnected graph:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("X", "Y")
-        )
-
-        print(graph.count_weakly_connected_components())  # 2
-        ```
-        """
-        return self._graph.count_weakly_connected_components()
-
-    def count_strongly_connected_components(self) -> int:
-        """
-        Count strongly connected components.
-
-        For directed graphs, a strongly connected component is a maximal set of nodes
-        where every node is reachable from every other node following directed edges.
-        Uses Kosaraju's algorithm for efficient computation.
-
-        For undirected graphs, returns the same result as
-        `count_weakly_connected_components()` since strong connectivity equals regular
-        connectivity when edges are bidirectional. This matches igraph's behavior.
-
-        Returns
-        -------
-        int
-            Number of strongly connected components.
-
-        Examples
-        --------
-        Count strongly connected components in a directed graph:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Cycle: all in same component
-            .add_edge("X", "Y")  # Separate component
-        )
-
-        print(graph.count_strongly_connected_components())  # 2
-        ```
-
-        For undirected graphs, equivalent to connected components:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_edge("A", "B")
-        )
-
-        # Both return the same result for undirected graphs
-        print(graph.count_strongly_connected_components())  # 2
-        print(graph.count_weakly_connected_components())     # 2
-        ```
-        """
-        return self._graph.count_strongly_connected_components()
-
-    # ==============================================================================
-    # Similarity
-    # ==============================================================================
-
-    def get_pairwise_similarity(
-        self, nodes: list[Union[int, str]] = None, method: str = "jaccard"
-    ) -> list[list[float]]:
-        """
-        Calculate pairwise similarity between nodes based on neighborhoods.
-
-        Computes structural similarity using various metrics that compare the neighborhoods
-        (adjacent nodes) of node pairs. Returns a similarity matrix where higher values indicate
-        more similar neighborhood structures.
-
-        Parameters
-        ----------
-        nodes
-            List of node IDs (integers) or labels (strings) to compute similarities for. Can mix IDs
-            and labels in the same list. If `None` or empty, computes for all nodes in the graph.
-        method
-            Similarity metric to use. Options are: (1) `"jaccard"` for the Jaccard coefficient
-            (intersection over union), (2) `"dice"` for the Dice coefficient (2× intersection over
-            sum of sizes), (3) `"invlogweighted"` as inverse log-weighted (Adamic-Adar index), and
-            (4) `"cosine"` which uses Cosine similarity.
-
-        Returns
-        -------
-        list[list[float]]
-            Similarity matrix where entry (i,j) is the similarity between nodes[i] and nodes[j].
-            Diagonal entries are always `1.0`.
-
-        Raises
-        ------
-        ValueError
-            If a node ID or label is not found, or if method is invalid.
-
-        Examples
-        --------
-        **Link Prediction in Social Network**
-
-        ```python
-        # Find similar users for recommendation
-        g = Graph(directed=False)
-        for name in ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"]:
-            g.add_node(label=name)
-        g.add_edge(source="Alice", target="Bob")
-        g.add_edge(source="Alice", target="Carol")
-        g.add_edge(source="Bob", target="Carol")
-        g.add_edge(source="Dave", target="Eve")
-        g.add_edge(source="Dave", target="Frank")
-        g.add_edge(source="Eve", target="Frank")
-
-        # Alice and Dave have similar patterns (both connect to 2 people)
-        sim = g.get_pairwise_similarity(["Alice", "Dave"], method="jaccard")
-        # sim[0][1] = similarity between Alice and Dave
-
-        # Can also use node IDs (or mix IDs and labels)
-        sim = g.get_pairwise_similarity([1, 4], method="jaccard")
-        ```
-
-        **Comparing Similarity Metrics**
-
-        ```python
-        # Bipartite-like structure
-        g = Graph(directed=False)
-        for name in ["A", "B", "X", "Y"]:
-            g.add_node(label=name)
-        g.add_edge(source="A", target="X")
-        g.add_edge(source="A", target="Y")
-        g.add_edge(source="B", target="X")
-        g.add_edge(source="B", target="Y")
-
-        # A and B have identical neighborhoods
-        jaccard = g.get_pairwise_similarity(["A", "B"], method="jaccard")
-        dice = g.get_pairwise_similarity(["A", "B"], method="dice")
-        cosine = g.get_pairwise_similarity(["A", "B"], method="cosine")
-
-        # All should show high similarity (≈ 1.0)
-        assert jaccard[0][1] == 1.0
-        assert dice[0][1] == 1.0
-        assert cosine[0][1] == 1.0
-        ```
-
-        **Link Prediction with Inverse Log-Weighted**
-
-        ```python
-        # Protein interaction network
-        g = Graph(directed=False)
-        for name in ["P1", "P2", "Hub", "P3", "P4"]:
-            g.add_node(label=name)
-        g.add_edge(source="P1", target="Hub")
-        g.add_edge(source="P2", target="Hub")
-        g.add_edge(source="Hub", target="P3")
-        g.add_edge(source="Hub", target="P4")
-
-        # P1 and P2 connected through high-degree hub
-        # Inverse log-weighted gives lower weight to high-degree nodes
-        sim = g.get_pairwise_similarity(["P1", "P2"], method="invlogweighted")
-        # Lower similarity due to common high-degree neighbor
-        ```
-
-        **Community Detection Helper**
-
-        ```python
-        # Identify similar nodes within network
-        g = Graph(directed=False)
-        # Create nodes first
-        for i in range(5):
-            g.add_node(label=f"C1_{i}")
-        # Add edges for a community structure
-        for i in range(5):
-            for j in range(i+1, 5):
-                g.add_edge(source=f"C1_{i}", target=f"C1_{j}")
-
-        # Get all pairwise similarities
-        all_sim = g.get_pairwise_similarity(method="jaccard")
-        # Nodes in same dense community have high similarity
-        ```
-
-        Notes
-        -----
-        **Jaccard Similarity**:
-
-        - the most common metric
-        - range: [0, 1]
-        - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
-
-        **Dice Similarity**:
-
-        - gives more weight to common neighbors than Jaccard
-        - range: [0, 1]
-        - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
-
-        **Inverse Log-Weighted (Adamic-Adar)**:
-
-        - weights common neighbors by inverse log of their degree
-        - rare neighbors contribute more
-        - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
-        - popular for link prediction
-
-        **Cosine Similarity**:
-
-        - normalized dot product
-        - range: [0, 1]
-        - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
-
-        **Use Cases**:
-
-        - link prediction: which edges are likely to form?
-        - recommendations: find similar users/items
-        - community detection: group similar nodes
-        - network embedding: similarity-based features
-
-        References
-        ----------
-        Liben-Nowell, D., & Kleinberg, J. (2007). "The link-prediction
-        problem for social networks." CAIS, 58(7), 1019-1031.
-
-        Adamic, L. A., & Adar, E. (2003). "Friends and neighbors on
-        the Web." Social Networks, 25(3), 211-230.
-        """
-        if nodes is None:
-            nodes = []
-        return self._graph.get_pairwise_similarity(nodes, method)
-
-    def get_dice_similarity(self) -> dict[int, dict[int, float]]:
-        """
-        Get Dice similarity coefficient between all node pairs.
-
-        The Dice coefficient measures similarity between two nodes based on their neighborhood
-        overlap:
-
-        Dice(A, B) = 2 × |neighbors(A) ∩ neighbors(B)| / (|neighbors(A)| + |neighbors(B)|)
-
-        Range: [0, 1] where 0 means no common neighbors and 1 means identical neighborhoods (or same
-        node). Self-similarity is always 1.0.
-
-        Returns
-        -------
-        dict[int, dict[int, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Calculate Dice similarity for link prediction:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("D", "B")
-            .add_edge("D", "C")
-        )
-
-        sim = graph.get_dice_similarity()
-        # A and D share neighbors B and C
-        # Returns dict with node IDs as keys
-        a_id = graph.get_id_from_label("A")
-        d_id = graph.get_id_from_label("D")
-        print(sim[a_id][d_id])  # 1.0 (perfect overlap)
-        ```
-
-        Notes
-        -----
-        Useful for:
-
-        - link prediction (similar nodes likely to connect)
-        - community detection (nodes with similar neighborhoods)
-        - recommendation systems (find similar users/items)
-        """
-        return self._graph.get_dice_similarity()
-
-    def get_jaccard_similarity(self) -> dict[int, dict[int, float]]:
-        """
-        Get Jaccard similarity index between all node pairs.
-
-        The Jaccard index is a classic set similarity measure:
-
-        Jaccard(A, B) = |neighbors(A) ∩ neighbors(B)| / |neighbors(A) ∪ neighbors(B)|
-
-        Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods
-        (or same node). More conservative than Dice coefficient (always ≤ Dice score).
-        Self-similarity is always `1.0`.
-
-        Returns
-        -------
-        dict[int, dict[int, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Calculate Jaccard similarity in a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        sim = graph.get_jaccard_similarity()
-
-        # Leaves have no common neighbors and returns dict with node IDs
-        a_id = graph.get_id_from_label("A")
-        b_id = graph.get_id_from_label("B")
-
-        print(sim[a_id][b_id])  # 0.0
-        ```
-
-        Notes
-        -----
-        Widely used in:
-
-        - document similarity (bag-of-words)
-        - user similarity (common items/friends)
-        - biological networks (protein interactions)
-        """
-        return self._graph.get_jaccard_similarity()
-
-    def get_cosine_similarity(self) -> dict[int, dict[int, float]]:
-        """
-        Get cosine similarity between all node pairs.
-
-        Cosine similarity treats neighbors as vector components:
-
-        Cosine(A, B) = |neighbors(A) ∩ neighbors(B)| / √(|neighbors(A)| × |neighbors(B)|)
-
-        Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods.
-        Geometric interpretation: cosine of angle between neighbor vectors. Self-similarity is
-        always `1.0`.
-
-        Returns
-        -------
-        dict[int, dict[int, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Calculate cosine similarity in a triangle graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-
-        sim = graph.get_cosine_similarity()
-
-        # Each node shares 1 neighbor with the others and returns dict with node IDs
-        a_id = graph.get_id_from_label("A")
-        b_id = graph.get_id_from_label("B")
-
-        print(sim[a_id][b_id])  # 0.5 (1 common / sqrt(2 * 2))
-        ```
-
-        Notes
-        -----
-        Advantages:
-
-        - scales well with high-degree nodes
-        - balances degree differences
-        - standard in text mining and recommendation systems
-        """
-        return self._graph.get_cosine_similarity()
-
-    def get_overlap_similarity(self) -> dict[int, dict[int, float]]:
-        """
-        Get overlap coefficient between all node pairs.
-
-        The overlap coefficient emphasizes subset relationships:
-
-        Overlap(A, B) = |neighbors(A) ∩ neighbors(B)| / min(|neighbors(A)|, |neighbors(B)|)
-
-        Range: `[0, 1]` where `0` means no common neighbors and `1` means one neighborhood is a
-        subset of the other. Asymmetric measure useful for hierarchical patterns. Self-similarity is
-        always `1.0`.
-
-        Returns
-        -------
-        dict[int, dict[int, float]]
-            Nested dictionary mapping node IDs to dictionaries of similarity scores.
-            Format: {node1_id: {node2_id: similarity_score}}
-
-        Examples
-        --------
-        Detect hierarchical relationships in a hub-spoke graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="spoke")
-            .add_node(label="extended")
-            .add_node(label="extra")
-            .add_edge(source="hub", target="spoke")
-            .add_edge(source="hub", target="extended")
-            .add_edge(source="spoke", target="extra")
-        )
-
-        sim = graph.get_overlap_similarity()
-
-        # Hub's neighborhood is subset of spoke's and returns dict with node IDs
-        hub_id = graph.get_id_from_label(label="hub")
-        spoke_id = graph.get_id_from_label(label="spoke")
-
-        print(sim[hub_id][spoke_id])  # 1.0
-        ```
-
-        Notes
-        -----
-        Use cases:
-
-        - detecting specialization/generalization
-        - finding hubs whose neighbors are subsets of others
-        - hierarchical community structure
-        """
-        return self._graph.get_overlap_similarity()
-
-    # ==============================================================================
-    # Neighbors and Connectivity
-    # ==============================================================================
-
-    def neighbors(self, node: Union[int, str], mode: str = "out") -> list[int]:
-        """
-        Get neighbors of a node.
-
-        Returns the neighboring nodes of a specified node, with control over directionality (for
-        directed graphs).
-
-        For directed graphs, the default mode is `"out"` (outgoing neighbors only). For undirected
-        graphs, mode doesn't affect the result since all edges are bidirectional.
-
-        Parameters
-        ----------
-        node
-            The node ID or label to find neighbors for.
-        mode
-            Direction mode for neighbor lookup:
-
-            - `"out"`: Only successors (outgoing edges), the default for directed graphs
-            - `"in"`: Only predecessors (incoming edges)
-            - `"all"`: Both successors and predecessors
-
-        Returns
-        -------
-        list[int]
-            List of neighbor node IDs.
-
-        Raises
-        ------
-        ValueError
-            If `mode` is not one of `"out"`, `"in"`, or `"all"`.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        # Directed graph example
-        graph = ec.Graph(directed=True)
-        graph.add_node("A")
-        graph.add_node("B")
-        graph.add_node("C")
-        graph.add_edge("A", "B", weight=1.0)
-        graph.add_edge("C", "A", weight=2.0)
-
-        a_id = graph.get_id_from_label("A")
-        b_id = graph.get_id_from_label("B")
-        c_id = graph.get_id_from_label("C")
-
-        # Get successors (outgoing neighbors); returns node IDs
-        out_neighbors = graph.neighbors(a_id, mode="out")
-        print(out_neighbors)  # [<b_id>]: node IDs, not labels
-
-        # Get predecessors (incoming neighbors)
-        in_neighbors = graph.neighbors(a_id, mode="in")
-        print(in_neighbors)  # [<c_id>]
-
-        # Get all neighbors
-        all_neighbors = graph.neighbors(a_id, mode="all")
-        print(all_neighbors)  # [<b_id>, <c_id>]
-
-        # Convert IDs to labels if needed
-        neighbor_labels = [graph.get_label_from_id(nid) for nid in out_neighbors]
-        print(neighbor_labels)  # ['B']
-        ```
-        """
-        # Resolve node to integer ID
-        node_id = self._resolve_node_id(node)
-
-        if mode not in ["out", "in", "all"]:
-            raise ValueError("mode must be 'out', 'in', or 'all'")
-
-        neighbors = []
-
-        if mode in ["out", "all"]:
-            # Outgoing neighbors from adjacency list
-            neighbors.extend(self._graph.neighbors(node_id))
-
-        if mode in ["in", "all"]:
-            # Incoming neighbors; find edges where this node is target
-            for edge_tuple in self._graph.edges():
-                # edge_tuple is (edge_id, source, target)
-                if edge_tuple[2] == node_id and edge_tuple[1] not in neighbors:
-                    neighbors.append(edge_tuple[1])
-
-        # For undirected graphs, mode doesn't matter
-        if not self._graph.is_directed and mode != "all":
-            # Already got all neighbors via adjacency list
-            pass
-
-        return neighbors
-
-    def get_predecessors(self, node: Union[int, str]) -> list[int]:
-        """
-        Get direct predecessors of a node (incoming neighbors).
-
-        Returns nodes that have outgoing edges to the specified node. Only available
-        for directed graphs.
-
-        Parameters
-        ----------
-        node
-            Node ID or label to find predecessors for.
-
-        Returns
-        -------
-        list[int]
-            List of predecessor node IDs (nodes with edges pointing to `node`).
-
-        Raises
-        ------
-        ValueError
-            If the graph is undirected.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=True)
-        graph.add_node("A")
-        graph.add_node("B")
-        graph.add_node("C")
-        graph.add_edge("A", "C")
-        graph.add_edge("B", "C")
-
-        c_id = graph.get_id_from_label("C")
-
-        # Find nodes with edges pointing to C; returns node IDs
-        predecessors = graph.get_predecessors(c_id)
-        # Convert to labels: ['A', 'B']
-        labels = [graph.get_label_from_id(nid) for nid in predecessors]
-        print(labels)  # ['A', 'B']
-        ```
-        """
-        if not self._graph.is_directed:
-            raise ValueError("get_predecessors only available for directed graphs")
-        return self.neighbors(node, mode="in")
-
-    def get_successors(self, node: Union[int, str]) -> list[int]:
-        """
-        Get direct successors of a node (outgoing neighbors).
-
-        Returns nodes that are targets of outgoing edges from the specified node.
-        Only available for directed graphs.
-
-        Parameters
-        ----------
-        node
-            Node ID or label to find successors for.
-
-        Returns
-        -------
-        list[int]
-            List of successor node IDs (nodes that `node` points to).
-
-        Raises
-        ------
-        ValueError
-            If the graph is undirected.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=True)
-        graph.add_node("A")
-        graph.add_node("B")
-        graph.add_node("C")
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "C")
-
-        a_id = graph.get_id_from_label("A")
-
-        # Find nodes that A points to; returns node IDs
-        successors = graph.get_successors(a_id)
-
-        # Convert to labels: ['B', 'C']
-        labels = [graph.get_label_from_id(nid) for nid in successors]
-
-        print(labels)  # ['B', 'C']
-        ```
-        """
-        if not self._graph.is_directed:
-            raise ValueError("get_successors only available for directed graphs")
-        return self.neighbors(node, mode="out")
-
-    def get_non_neighbors(self, node: Union[int, str]) -> list[int]:
-        """
-        Get nodes that are NOT neighbors of the specified node.
-
-        Returns all nodes in the graph except the specified node itself and its
-        neighbors. Useful for finding potential new connections or disconnected nodes.
-
-        Parameters
-        ----------
-        node
-            Node ID or label to find non-neighbors for.
-
-        Returns
-        -------
-        list[int]
-            Sorted list of node IDs that are not neighbors of `node` and are not
-            `node` itself.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=True)
-        graph.add_path_graph(5)  # 1 -> 2 -> 3 -> 4 -> 5
-
-        # Node 2 is connected to 1 and 3
-        # Non-neighbors are 4 and 5 (returns node IDs)
-        non_neighbors = graph.get_non_neighbors(2)
-        print(non_neighbors)  # [4, 5]
-        ```
-
-        Find potential new connections:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-        )
-        # Recommend connections for a node (using node ID)
-        node_id = graph.get_id_from_label("A")
-        candidates = graph.get_non_neighbors(node_id)
-
-        # Score candidates by common neighbors
-        scores = [
-            (candidate, len(graph.get_common_neighbors(node_id, candidate)))
-            for candidate in candidates
-        ]
-        ```
-        """
-        # Resolve node to integer ID
-        node_id = self._resolve_node_id(node)
-
-        all_nodes = set(self.get_node_ids(limit=None))
-        neighbors = set(self.neighbors(node_id, mode="all"))
-
-        # Remove the node itself and its neighbors
-        non_neighbors = all_nodes - neighbors - {node_id}
-
-        return sorted(list(non_neighbors))
-
-    def get_common_neighbors(self, node_1: Union[int, str], node_2: Union[int, str]) -> list[int]:
-        """
-        Get nodes that are neighbors of both specified nodes.
-
-        Returns the intersection of neighbor sets for two nodes, useful for finding shared
-        connections or potential triangles in the graph.
-
-        Parameters
-        ----------
-        node_1
-            First node ID (int) or label (str).
-        node_2
-            Second node ID (int) or label (str).
-
-        Returns
-        -------
-        list[int]
-            List of node IDs that are neighbors to both `node_1` and `node_2`.
-
-        Examples
-        --------
-        ```python
-        import edgecase as ec
-
-        graph = ec.Graph(directed=False)
-        graph.add_node("A")
-        graph.add_node("B")
-        graph.add_node("C")
-        graph.add_node("D")
-        graph.add_edge("A", "C")
-        graph.add_edge("B", "C")
-        graph.add_edge("A", "D")
-        graph.add_edge("B", "D")
-
-        a_id = graph.get_id_from_label("A")
-        b_id = graph.get_id_from_label("B")
-
-        # Find nodes connected to both A and B; returns node IDs
-        common = graph.get_common_neighbors(a_id, b_id)
-
-        # Convert to labels: ['C', 'D']
-        common_labels = [graph.get_label_from_id(nid) for nid in common]
-
-        print(common_labels)  # ['C', 'D']
-        ```
-
-        Triangle detection using common neighbors:
-
-        ```python
-        # Find all triangles involving node A
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="C")
-            .add_edge(source="B", target="C")
-            .add_edge(source="A", target="D")
-        )
-
-        a_id = graph.get_id_from_label(label="A")
-        for neighbor_id in graph.neighbors(node=a_id):
-            common = graph.get_common_neighbors(a_id, neighbor_id)
-            for third_id in common:
-                neighbor_label = graph.get_label_from_id(node_id=neighbor_id)
-                third_label = graph.get_label_from_id(node_id=third_id)
-                print(f"Triangle: A - {neighbor_label} - {third_label}")
-        ```
-        """
-        neighbors1 = set(self.neighbors(node_1, mode="all"))
-        neighbors2 = set(self.neighbors(node_2, mode="all"))
-        return list(neighbors1 & neighbors2)
-
-    def get_similar_neighbors(
-        self,
-        node: Union[int, str],
-        node_attr: str,
-        tol_abs: tuple[float, float] | None = None,
-        tol_pct: tuple[float, float] | None = None,
-    ) -> list[int]:
-        """
-        Get neighbors with similar attribute values.
-
-        Returns neighbors whose numeric attribute values fall within a specified tolerance range of
-        the starting node's value. Useful for finding connected nodes with comparable properties.
-
-        Parameters
-        ----------
-        node
-            Starting node ID or label to compare against.
-        node_attr
-            Name of the numeric attribute to compare.
-        tol_abs
-            Absolute tolerance as `(lower_bound, upper_bound)` from the starting value. For example,
-            `(1.0, 2.0)` means values from `start_value - 1.0` to `start_value + 2.0` are considered
-            similar.
-        tol_pct
-            Percentage tolerance as `(lower_pct, upper_pct)` from the starting value. For example,
-            `(10, 20)` means values from `start_value × 0.9` to `start_value × 1.2` are considered
-            similar.
-
-        Returns
-        -------
-        list[int]
-            List of neighbor node IDs with similar attribute values. Empty list if the starting node
-            lacks the attribute or has no neighbors in range.
-
-        Raises
-        ------
-        ValueError
-            If the attribute exists but is not numeric (int or float).
-
-        Examples
-        --------
-        ```python
-        graph = Graph()
-        graph.add_node("A", value=5.0)
-        graph.add_node("B", value=5.5)
-        graph.add_node("C", value=10.0)
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "C")
-
-        # Find neighbors within ±1.0 of A's value (5.0)
-        similar = graph.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
-        print(similar)  # ['B'] (5.5 is within range, 10.0 is not)
-        ```
-
-        Using percentage tolerance:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A", value=5.0)
-            .add_node(label="B", value=4.5)
-            .add_node(label="C", value=10.0)
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="C")
-        )
-        # Find neighbors within ±20% of A's value
-        similar_pct = graph.get_similar_neighbors(
-            "A",
-            "value",
-            tol_pct=(20, 20)
-        )
-        # Range: 4.0 to 6.0 (20% of 5.0)
-        ```
-
-        Notes
-        -----
-        - if neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
-        - neighbors without the specified attribute are excluded from results.
-        - non-numeric attribute values raise a `ValueError`.
-        """
-        # Get starting node's attribute value
-        start_node = self.get_node(node)
-        if not start_node or not start_node.attributes:
-            return []
-
-        if node_attr not in start_node.attributes:
-            return []
-
-        start_value = start_node.attributes[node_attr]
-
-        # Must be numeric
-        if not isinstance(start_value, (int, float)):
-            raise ValueError(f"Attribute '{node_attr}' must be numeric for similarity comparison")
-
-        # Determine bounds
-        if tol_abs is not None:
-            lower_bound = start_value - tol_abs[0]
-            upper_bound = start_value + tol_abs[1]
-        elif tol_pct is not None:
-            lower_bound = start_value * (1 - tol_pct[0] / 100.0)
-            upper_bound = start_value * (1 + tol_pct[1] / 100.0)
-        else:
-            # Exact match if no tolerance specified
-            lower_bound = start_value
-            upper_bound = start_value
-
-        # Get all neighbors
-        neighbors = self.neighbors(node, mode="all")
-
-        # Filter by attribute similarity
-        similar = []
-        for neighbor_id in neighbors:
-            neighbor = self.get_node(neighbor_id)
-            if neighbor and neighbor.attributes and node_attr in neighbor.attributes:
-                neighbor_value = neighbor.attributes[node_attr]
-                if isinstance(neighbor_value, (int, float)):
-                    if lower_bound <= neighbor_value <= upper_bound:
-                        similar.append(neighbor_id)
-
-        return similar
-
-    # ==============================================================================
-    # Triangle and Transitivity Analysis
-    # ==============================================================================
-
-    def count_triangles(self) -> dict[int, int]:
-        """
-        Count triangles containing each node.
-
-        Returns the number of triangles that include each node in the graph.
-        For undirected graphs, counts each triangle once per node.
-        For directed graphs, counts directed triangles (closed triplets).
-
-        A triangle is a set of three nodes where all three pairs are connected.
-        This is the smallest non-trivial cycle and a fundamental measure of local
-        clustering in networks.
-
-        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
-
-        Returns
-        -------
-        dict[int, int]
-            Dictionary mapping node IDs to triangle counts.
-
-        Examples
-        --------
-        Count triangles in a simple triangle:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-
-        counts = graph.count_triangles()
-        # Returns node IDs: {node_id_a: 1, node_id_b: 1, node_id_c: 1}
-
-        # Convert to labels if needed
-        counts_by_label = {graph.get_label_from_id(nid): count for nid, count in counts.items()}
-        print(counts_by_label)  # {"A": 1, "B": 1, "C": 1}
-        ```
-
-        Count triangles in a more complex graph:
-
-        ```python
-        # Graph with 2 triangles sharing an edge
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Triangle 1
-            .add_edge(source="B", target="D")
-            .add_edge(source="D", target="C")  # Triangle 2 with B-C
-        )
-
-        counts = graph.count_triangles()
-        # Returns node IDs: B and C each participate in 2 triangles
-
-        # Convert to labels for display
-        for node_id, count in counts.items():
-            label = graph.get_label_from_id(node_id)
-            print(f"{label}: {count} triangles")
-        ```
-        """
-        return self._graph.count_triangles()
-
-    def list_triangles(self) -> list[tuple[int, int, int]]:
-        """
-        List all triangles in the graph.
-
-        Returns a list of all triangles (3-cycles) in the graph. Each triangle is
-        represented as a sorted tuple of three node IDs. For undirected graphs,
-        each triangle appears once. For directed graphs, lists directed triangles.
-
-        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
-
-        Returns
-        -------
-        list[tuple[int, int, int]]
-            List of triangles, where each triangle is a tuple of three node IDs.
-
-        Examples
-        --------
-        List triangles in a graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # One triangle
-            .add_edge(source="A", target="D")
-            .add_edge(source="D", target="B")  # Another triangle
-        )
-
-        triangles = graph.list_triangles()
-        # Returns node IDs: [(a_id, b_id, c_id), (a_id, b_id, d_id)]
-
-        # Convert to labels if needed
-        triangles_labels = [
-            tuple(graph.get_label_from_id(nid) for nid in tri)
-            for tri in triangles
-        ]
-        print(triangles_labels)  # [("A", "B", "C"), ("A", "B", "D")]
-        ```
-
-        For larger graphs, this can identify all triadic closures:
-
-        ```python
-        # Social network
-        graph = (
-            Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-            .add_node(label="David")
-            .add_edge(source="Alice", target="Bob")
-            .add_edge(source="Bob", target="Charlie")
-            .add_edge(source="Charlie", target="Alice")
-            .add_edge(source="Alice", target="David")
-            .add_edge(source="David", target="Bob")
-        )
-
-        # Returns node IDs
-        for tri in graph.list_triangles():
-            # Convert to labels for display
-            labels = tuple(graph.get_label_from_id(nid) for nid in tri)
-            print(f"Triangle: {labels}")
-        ```
-        """
-        return self._graph.list_triangles()
-
-    def get_transitivity(self) -> Optional[float]:
-        """
-        Compute global transitivity (clustering coefficient).
-
-        Transitivity measures the probability that two neighbors of a node are
-        also connected. It's computed as:
-
-            transitivity = 3 * (number of triangles) / (number of connected triples)
-
-        A connected triple is a path of length 2 (three nodes where at least two
-        edges connect them). Higher transitivity indicates more clustering.
-
-        Returns None if there are no connected triples in the graph.
-
-        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
-
-        Returns
-        -------
-        Optional[float]
-            Global clustering coefficient between 0.0 and 1.0, or None if undefined.
-
-        Examples
-        --------
-        Perfect triangle has transitivity 1.0:
-
-        ```python
-        from edgecase import Graph
-
-        triangle = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-        )
-
-        print(triangle.get_transitivity())  # 1.0 (all triples are closed)
-        ```
-
-        Chain graph has transitivity 0.0:
-
-        ```python
-        from edgecase import Graph
-
-        chain = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-        )
-
-        print(chain.get_transitivity())  # 0.0 (no triangles, only open triples)
-        ```
-
-        Real-world networks typically have values between 0.1 and 0.5:
-
-        ```python
-        from edgecase import Graph
-
-        social_network = (
-            Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-            .add_node(label="David")
-            .add_edge(source="Alice", target="Bob")
-            .add_edge(source="Bob", target="Charlie")
-            .add_edge(source="Charlie", target="David")
-            .add_edge(source="David", target="Alice")
-            .add_edge(source="Alice", target="Charlie")  # Creates some triangles
-        )
-
-        trans = social_network.get_transitivity()
-        print(f"Clustering: {trans:.3f}")
-        ```
-        """
-        return self._graph.transitivity()
-
-    # ==============================================================================
-    # Reciprocity and Mutuality
-    # ==============================================================================
-
-    def which_mutual(self) -> list[tuple[int, int]]:
-        """
-        Find pairs of mutual (reciprocal) edges in directed graph.
-
-        Identifies edge pairs where both A->B and B->A exist, indicating bidirectional
-        connections. Only meaningful for directed graphs. Each pair is returned once
-        with edge IDs in ascending order.
-
-        This is useful for analyzing reciprocity patterns in social networks,
-        communication graphs, and other directed relationships.
-
-        Returns
-        -------
-        list[tuple[int, int]]
-            List of (edge_id1, edge_id2) tuples representing mutual edge pairs.
-            Empty list if no mutual edges exist.
-
-        Raises
-        ------
-        ValueError
-            If called on an undirected graph.
-
-        Examples
-        --------
-        Find mutual edges in a social network:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Carol")
-            .add_edge("Alice", "Bob")   # Edge 1
-            .add_edge("Bob", "Alice")   # Edge 2: mutual with 1
-            .add_edge("Alice", "Carol") # Edge 3: no reciprocal
-        )
-
-        mutual = graph.which_mutual()
-        print(mutual)  # [(1, 2)]
-        ```
-
-        Analyze communication patterns:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Carol")
-            .add_edge(source="Alice", target="Bob")   # Edge 1
-            .add_edge(source="Bob", target="Alice")   # Edge 2: mutual with 1
-            .add_edge(source="Alice", target="Carol") # Edge 3: no reciprocal
-            .add_edge(source="Bob", target="Carol")   # Edge 4
-            .add_edge(source="Carol", target="Bob")   # Edge 5: mutual with 4
-        )
-
-        # Find bidirectional communication
-        mutual_pairs = graph.which_mutual()
-        print(f"Bidirectional connections: {len(mutual_pairs)}")
-
-        # Get details of mutual relationships
-        for edge1_id, edge2_id in mutual_pairs:
-            e1 = graph.get_node_ids_by_edge_id(edge_id=edge1_id)
-            e2 = graph.get_node_ids_by_edge_id(edge_id=edge2_id)
-            if e1:
-                print(f"Mutual: {e1[0]} ↔ {e1[1]}")
-        ```
-        """
-        return self._graph.which_mutual()
-
-    def get_reciprocity(self, mode: str = "default") -> float:
-        """
-        Calculate reciprocity (fraction of edges with reciprocal counterpart).
-
-        Reciprocity measures the proportion of edges in a directed graph that are bidirectional
-        (mutual). Returns a value between `0.0` (no reciprocal edges) and `1.0` (all edges are
-        reciprocal).
-
-        This metric is fundamental for understanding relationship symmetry in social networks,
-        mutual influence in citation networks, and bidirectional flows in transportation or
-        communication networks.
-
-        Parameters
-        ----------
-        mode
-            Calculation mode for reciprocity:
-
-            - `"default"` or `"ratio"`: (# mutual edges) / (total # edges)
-
-        Returns
-        -------
-        float
-            Reciprocity value between `0.0` and `1.0`, or `0.0` for empty graphs.
-
-        Raises
-        ------
-        ValueError
-            If called on an undirected graph or with invalid mode.
-
-        Examples
-        --------
-        Measure reciprocity in a social network:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # Mutual with above
-            .add_edge("A", "C")  # No reciprocal
-        )
-
-        recip = graph.get_reciprocity()
-        print(f"Reciprocity: {recip:.3f}")  # 0.667 (2 mutual out of 3 edges)
-        ```
-
-        Compare different networks:
-
-        ```python
-        from edgecase import Graph
-
-        # Highly reciprocal network (e.g., friendships)
-        friendship = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="A")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="B")
-            .add_edge(source="A", target="C")
-            .add_edge(source="C", target="A")
-        )
-        print(f"Friendship reciprocity: {friendship.get_reciprocity():.2f}")  # 1.00
-
-        # Low reciprocity network (e.g., followers)
-        followers = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="C")
-            .add_edge(source="B", target="C")
-            .add_edge(source="D", target="A")
-        )
-        print(f"Follower reciprocity: {followers.get_reciprocity():.2f}")  # 0.00
-        ```
-
-        Analyze communication patterns:
-
-        ```python
-        # Email network with some mutual communication
-        email = Graph(directed=True)
-        # ... add edges ...
-
-        recip = email.get_reciprocity()
-        if recip > 0.5:
-            print("High mutual communication")
-        elif recip > 0.2:
-            print("Moderate mutual communication")
-        else:
-            print("Mostly one-way communication")
-        ```
-        """
-        return self._graph.reciprocity(mode)
-
-    # ==============================================================================
-    # Edge Type Analysis
-    # ==============================================================================
-
-    def which_multiple(self) -> list[int]:
-        """
-        Find edge IDs of multiple edges (duplicate edges between same node pairs).
-
-        Returns a list of edge IDs that represent multiple/duplicate edges. These edges share the
-        same source and target nodes as another edge in the graph. This is useful for detecting and
-        cleaning multigraphs.
-
-        For undirected graphs, edges (u,v) and (v,u) are considered the same pair. When multiple
-        edges exist between a pair, all edge IDs (including the first) are returned.
-
-        Returns
-        -------
-        list[int]
-            List of edge IDs representing multiple edges. Empty if no duplicates exist.
-
-        Examples
-        --------
-        **Data Cleaning: Finding Duplicate Relationships**
-
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=True)
-        g.add_node(label="Alice")
-        g.add_node(label="Bob")
-        g.add_node(label="Carol")
-        g.add_edge(source="Alice", target="Bob", weight=1.0)
-        g.add_edge(source="Alice", target="Bob", weight=2.0)  # Duplicate connection
-        g.add_edge(source="Alice", target="Bob", weight=3.0)  # Another duplicate
-        g.add_edge(source="Bob", target="Carol", weight=1.0)  # Single edge
-
-        multiples = g.which_multiple()
-        len(multiples)  # All 3 Alice->Bob edges
-        # 3
-        ```
-
-        **Multigraph Validation**
-
-        ```python
-        # Check if graph is a simple graph (no multiple edges)
-        g = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-        )
-
-        is_simple = len(g.which_multiple()) == 0
-        is_simple
-        # True
-        ```
-
-        **Network Simplification: Identifying Edges to Merge**
-
-        ```python
-        # Social network with multiple interactions
-        social = (
-            Graph(directed=True)
-            .add_node(label="User1")
-            .add_node(label="User2")
-            .add_node(label="User3")
-            .add_edge(source="User1", target="User2", interaction="like")
-            .add_edge(source="User1", target="User2", interaction="comment")
-            .add_edge(source="User1", target="User2", interaction="share")
-            .add_edge(source="User2", target="User3", interaction="like")
-        )
-
-        # Find which edges represent multiple interactions
-        multiple_edges = social.which_multiple()
-        # These could be merged into single weighted edges
-        len(multiple_edges)
-        # 3
-        ```
-
-        **Undirected Graph: Bidirectional Edges**
-
-        ```python
-        g = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="B")  # Duplicate in undirected graph
-            .add_edge(source="B", target="C")
-        )
-
-        multiples = g.which_multiple()
-        len(multiples)
-        # 2
-        ```
-
-        Notes
-        -----
-        - self-loops are not considered multiple edges (use `which_loops()` instead)
-        - in undirected graphs, (u,v) and (v,u) are treated as the same pair
-        - returns all edges involved in duplication, including the first occurrence
-        - useful for data quality checks before analysis
-        """
-        return self._graph.which_multiple()
-
-    def count_multiple(self) -> dict[tuple[int, int], int]:
-        """
-        Count multiple edges grouped by node pair.
-
-        Returns a dictionary showing how many edges exist between each pair of nodes
-        that has multiple edges. Only includes pairs with 2 or more edges.
-
-        For undirected graphs, returns unordered pairs (smaller node ID first).
-
-        Returns
-        -------
-        dict[tuple[int, int], int]
-            Dictionary mapping (source_id, target_id) to edge count.
-            Only includes pairs with count >= 2.
-
-        Examples
-        --------
-        **Data Quality Report**
-
-        ```python
-        g = Graph(directed=True)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="A", target="B")  # Duplicate
-        g.add_edge(source="A", target="B")  # Another duplicate
-        g.add_edge(source="B", target="C")
-        g.add_edge(source="B", target="C")  # Duplicate
-
-        counts = g.count_multiple()
-        # Returns node IDs: {(node_id_a, node_id_b): 3, (node_id_b, node_id_c): 2}
-
-        # Convert to labels if needed
-        counts_by_label = {
-            (g.get_label_from_id(src), g.get_label_from_id(tgt)): count
-            for (src, tgt), count in counts.items()
-        }
-        counts_by_label
-        # {('A', 'B'): 3, ('B', 'C'): 2}
-        ```
-
-        **Communication Network Analysis**
-
-        ```python
-        # Email network with multiple messages
-        email = Graph(directed=True)
-        email.add_node(label="Alice")
-        email.add_node(label="Bob")
-        email.add_node(label="Carol")
-        email.add_edge(source="Alice", target="Bob")    # Email 1
-        email.add_edge(source="Alice", target="Bob")    # Email 2
-        email.add_edge(source="Alice", target="Bob")    # Email 3
-        email.add_edge(source="Bob", target="Carol")    # Email 1
-        email.add_edge(source="Bob", target="Carol")    # Email 2
-
-        multi_count = email.count_multiple()
-        # Returns node IDs: {(alice_id, bob_id): 3, (bob_id, carol_id): 2}
-
-        # Convert to labels for display
-        for (sender_id, receiver_id), count in multi_count.items():
-            sender = email.get_label_from_id(sender_id)
-            receiver = email.get_label_from_id(receiver_id)
-            print(f"{sender} -> {receiver}: {count} emails")
-        # Alice -> Bob: 3 emails
-        # Bob -> Carol: 2 emails
-        ```
-
-        **Network Simplification Planning**
-
-        ```python
-        # Identify which edges need aggregation
-        transport = Graph(directed=False)
-        transport.add_node(label="CityA")
-        transport.add_node(label="CityB")
-        transport.add_node(label="CityC")
-        transport.add_edge(source="CityA", target="CityB", route="highway")
-        transport.add_edge(source="CityA", target="CityB", route="railway")
-        transport.add_edge(source="CityA", target="CityB", route="airline")
-        transport.add_edge(source="CityB", target="CityC", route="highway")
-
-        multi = transport.count_multiple()
-        # Returns node IDs: {(cityA_id, cityB_id): 3}
-
-        # Convert to labels
-        multi_labels = {
-            (transport.get_label_from_id(id1), transport.get_label_from_id(id2)): count
-            for (id1, id2), count in multi.items()
-        }
-        # CityA-CityB has 3 routes to consolidate
-        multi_labels
-        # {('CityA', 'CityB'): 3}
-        ```
-
-        Notes
-        -----
-        - only returns pairs with 2+ edges (single edges are excluded)
-        - for undirected graphs, pairs are normalized (smaller node ID first)
-        - self-loops are counted if there are 2+ self-loop edges for a node
-        - useful for understanding graph complexity before simplification
-        """
-        return self._graph.count_multiple()
-
-    def which_loops(self) -> list[int]:
-        """
-        Find edge IDs of self-loops (edges from a node to itself).
-
-        Returns a list of edge IDs for all edges where the source node equals the target node.
-        Self-loops are common in certain network types like state machines, chemical reactions, or
-        social networks (self-mentions).
-
-        Returns
-        -------
-        list[int]
-            List of edge IDs representing self-loops. Empty if no self-loops exist.
-
-        Examples
-        --------
-        Data cleaning and finding self-references:
-
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=True)
-        g.add_node(label="Alice")
-        g.add_node(label="Bob")
-        g.add_node(label="Carol")
-        g.add_edge(source="Alice", target="Bob")
-        g.add_edge(source="Alice", target="Alice")  # Self-loop
-        g.add_edge(source="Bob", target="Carol")
-        g.add_edge(source="Carol", target="Carol")  # Self-loop
-
-        loops = g.which_loops()
-        print(len(loops))  # 2
-        ```
-
-        State Machine Validation:
-
-        ```python
-        from edgecase import Graph
-
-        # Check for states that transition to themselves
-        fsm = Graph(directed=True)
-        fsm.add_node(label="Idle")
-        fsm.add_node(label="Processing")
-        fsm.add_node(label="Complete")
-        fsm.add_edge(source="Idle", target="Processing")
-        fsm.add_edge(source="Processing", target="Processing")  # Wait state
-        fsm.add_edge(source="Processing", target="Complete")
-        fsm.add_edge(source="Complete", target="Idle")
-
-        self_transitions = fsm.which_loops()
-        print(len(self_transitions))  # 1
-        ```
-
-        **Social Network Analysis**
-
-        ```python
-        from edgecase import Graph
-
-        # Find self-mentions or self-citations
-        social = Graph(directed=True)
-        social.add_node(label="@alice")
-        social.add_node(label="@bob")
-        social.add_node(label="@carol")
-        social.add_edge(source="@alice", target="@bob")
-        social.add_edge(source="@alice", target="@alice")  # Self-mention
-        social.add_edge(source="@bob", target="@carol")
-
-        self_mentions = social.which_loops()
-        # These might be removed for certain analyses
-        len(self_mentions)
-        # 1
-        ```
-
-        **Network Simplification**
-
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="B", target="B")  # Self-loop
-        g.add_edge(source="C", target="C")  # Self-loop
-
-        # Identify edges to remove for simple graph
-        loops_to_remove = g.which_loops()
-        len(loops_to_remove)
-        # 2
-        ```
-
-        Notes
-        -----
-        - works for both directed and undirected graphs
-        - a node can have multiple self-loops (use `count_loops()` to count per node)
-        - self-loops affect certain graph metrics (degree, centrality, etc.)
-        - common preprocessing step is to remove self-loops for cleaner analysis
-        """
-        return self._graph.which_loops()
-
-    def count_loops(self) -> dict[int, int]:
-        """
-        Count self-loops grouped by node.
-
-        Returns a dictionary mapping node IDs to the count of self-loops for each node.
-        Only includes nodes that have at least one self-loop.
-
-        Returns
-        -------
-        dict[int, int]
-            Dictionary mapping node IDs to self-loop counts.
-            Only includes nodes with count >= 1.
-
-        Examples
-        --------
-        **Data Quality Analysis**
-
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=True)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_node(label="D")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="A", target="A")  # Self-loop
-        g.add_edge(source="A", target="A")  # Another self-loop
-        g.add_edge(source="B", target="B")  # Self-loop
-        g.add_edge(source="C", target="D")  # No self-loop
-
-        loop_counts = g.count_loops()
-        # Returns node IDs: {a_id: 2, b_id: 1}
-
-        # Convert to labels if needed
-        loop_counts_labels = {g.get_label_from_id(nid): count for nid, count in loop_counts.items()}
-        loop_counts_labels
-        # {'A': 2, 'B': 1}
-        ```
-
-        **State Machine Analysis**
-
-        ```python
-        from edgecase import Graph
-
-        # Identify states with self-transitions
-        fsm = Graph(directed=True)
-        fsm.add_node(label="Loading")
-        fsm.add_node(label="Ready")
-        fsm.add_node(label="Processing")
-        fsm.add_node(label="Complete")
-        fsm.add_edge(source="Loading", target="Loading")  # Retry loop
-        fsm.add_edge(source="Loading", target="Loading")  # Another retry path
-        fsm.add_edge(source="Loading", target="Ready")
-        fsm.add_edge(source="Processing", target="Processing")  # Busy wait
-        fsm.add_edge(source="Processing", target="Complete")
-
-        wait_states = fsm.count_loops()
-        # Returns node IDs with self-transitions: {loading_id: 2, processing_id: 1}
-
-        # Convert to labels
-        wait_states_labels = {fsm.get_label_from_id(nid): count for nid, count in wait_states.items()}
-        wait_states_labels
-        # {'Loading': 2, 'Processing': 1}
-        ```
-
-        **Chemical Reaction Network**
-
-        ```python
-        # Autocatalytic reactions (self-referencing)
-        rxn = Graph(directed=True)
-        rxn.add_node(label="A")
-        rxn.add_node(label="B")
-        rxn.add_node(label="C")
-        rxn.add_edge(source="A", target="B")
-        rxn.add_edge(source="B", target="B")  # B catalyzes itself
-        rxn.add_edge(source="B", target="B")  # Multiple pathways
-        rxn.add_edge(source="C", target="C")  # C is autocatalytic
-
-        autocatalytic = rxn.count_loops()
-        # Returns node IDs: {b_id: 2, c_id: 1}
-
-        # Convert to labels
-        autocatalytic_labels = {rxn.get_label_from_id(nid): count for nid, count in autocatalytic.items()}
-        autocatalytic_labels
-        # {'B': 2, 'C': 1}
-        ```
-
-        **social network: self-interactions**
-
-        ```python
-        social = Graph(directed=True)
-        social.add_node(label="User1")
-        social.add_node(label="User2")
-        social.add_edge(source="User1", target="User1", action="self-like")
-        social.add_edge(source="User2", target="User1", action="like")
-        social.add_edge(source="User2", target="User2", action="self-like")
-        social.add_edge(source="User2", target="User2", action="self-comment")
-
-        self_interactions = social.count_loops()
-        # Returns node IDs: {user1_id: 1, user2_id: 2}
-
-        # Convert to labels
-        self_interactions_labels = {social.get_label_from_id(nid): count for nid, count in self_interactions.items()}
-        self_interactions_labels
-        # {'User1': 1, 'User2': 2}
-        ```
-
-        Notes
-        -----
-        - only returns nodes with at least one self-loop
-        - a node can have multiple self-loops (all counted)
-        - useful for identifying unusual patterns in network data
-        - common in multigraphs where multiple self-edges may exist
-        """
-        return self._graph.count_loops()
-
-    # ==============================================================================
-    # Assortativity Measures
-    # ==============================================================================
-
-    def get_assortativity_degree(self) -> float:
-        """
-        Calculate degree assortativity coefficient.
-
-        Measures the tendency of nodes to connect to other nodes with similar degrees. Returns the
-        Pearson correlation coefficient of node degrees across edges, quantifying whether
-        high-degree nodes preferentially connect to other high-degree nodes (assortative) or to
-        low-degree nodes (disassortative).
-
-        For directed graphs, uses out-degree for source nodes and in-degree for target nodes. For
-        undirected graphs, uses total degree.
-
-        Returns
-        -------
-        float
-            Assortativity coefficient in range [-1, 1]:
-
-            - r > 0: assortative mixing (similar degrees connect)
-            - r < 0: disassortative mixing (different degrees connect)
-            - r ≈ 0: no degree correlation
-
-        Raises
-        ------
-        ValueError
-            If graph has no edges or insufficient degree variance.
-
-        Examples
-        --------
-        **Social Network: Assortative Mixing**
-
-        ```python
-        # High-status users connect to high-status users
-        g = Graph(directed=False)
-        for label in ["Influencer1", "Influencer2", "Influencer3", "User1", "User2", "User3", "User4"]:
-            g.add_node(label=label)
-        g.add_edge(source="Influencer1", target="Influencer2")
-        g.add_edge(source="Influencer1", target="Influencer3")
-        g.add_edge(source="Influencer2", target="Influencer3")
-        g.add_edge(source="User1", target="User2")
-        g.add_edge(source="User3", target="User4")
-
-        r = g.get_assortativity_degree()
-        # r > 0: hubs connect to hubs, periphery to periphery
-        ```
-
-        **Technology Network: Disassortative Mixing**
-
-        ```python
-        # Client-server architecture: high-degree servers connect to low-degree clients
-        g = Graph(directed=False)
-        for label in ["Server1", "Server2", "Client1", "Client2", "Client3", "Client4", "Client5"]:
-            g.add_node(label=label)
-        g.add_edge(source="Server1", target="Client1")
-        g.add_edge(source="Server1", target="Client2")
-        g.add_edge(source="Server1", target="Client3")
-        g.add_edge(source="Server2", target="Client4")
-        g.add_edge(source="Server2", target="Client5")
-
-        r = g.get_assortativity_degree()
-        # r < 0: high-degree nodes connect to low-degree nodes
-        ```
-
-        **Random Network**
-
-        ```python
-        from edgecase import Graph
-        import random
-
-        # Erdős-Rényi random graph typically shows no correlation
-        random.seed(42)
-
-        g = Graph(directed=False)
-        nodes = [f"N{i}" for i in range(20)]
-        for node in nodes:
-            g.add_node(label=node)
-        for i in range(30):
-            u, v = random.sample(nodes, 2)
-            g.add_edge(source=u, target=v)
-
-        r = g.get_assortativity_degree()
-        # r ≈ 0: no systematic degree correlation
-        ```
-
-        Notes
-        -----
-        - uses Newman's formula for assortativity coefficient
-        - most real-world social networks are assortative (r > 0)
-        - many technological/biological networks are disassortative (r < 0)
-        - perfect assortativity (r = 1) means only equal-degree nodes connect
-        - requires at least one edge and variance in node degrees
-
-        References
-        ----------
-        Newman, M.E.J. (2002). "Assortative mixing in networks."
-        Physical Review Letters, 89(20), 208701.
-        """
-        return self._graph.assortativity_degree()
-
-    def get_assortativity_nominal(self, attribute: str) -> float:
-        """
-        Calculate assortativity for categorical (nominal) node attributes.
-
-        Measures the tendency of nodes with the same attribute value to connect, also known as
-        homophily. Uses Newman's formula for categorical mixing patterns.
-
-        Parameters
-        ----------
-        attribute
-            Name of the categorical node attribute to analyze. Must exist on all nodes as a node
-            attribute.
-
-        Returns
-        -------
-        float
-            Assortativity coefficient in range [-1, 1]:
-
-            - r = 1: perfect assortativity (only same-type connections)
-            - r > 0: assortative (same types prefer to connect)
-            - r = 0: random mixing
-            - r < 0: disassortative (different types prefer to connect)
-
-        Raises
-        ------
-        ValueError
-            If attribute doesn't exist on all nodes, graph has no edges, or there are fewer than two
-            different attribute values.
-
-        Examples
-        --------
-        **Homophily in Social Networks**
-
-        ```python
-        # People tend to befriend similar people
-        g = Graph(directed=False)
-        g.add_node("Alice", group="students")
-        g.add_node("Bob", group="students")
-        g.add_node("Carol", group="students")
-        g.add_node("Prof1", group="faculty")
-        g.add_node("Prof2", group="faculty")
-
-        # Mostly within-group friendships
-        g.add_edge("Alice", "Bob")
-        g.add_edge("Bob", "Carol")
-        g.add_edge("Prof1", "Prof2")
-        g.add_edge("Alice", "Prof1")  # One cross-group edge
-
-        r = g.get_assortativity_nominal("group")
-        # r > 0: since students connect to students, faculty to faculty
-        ```
-
-        **Mixing Patterns by Gender**
-
-        ```python
-        # Collaboration network
-        g = Graph(directed=False)
-        g.add_node("Alice", gender="F")
-        g.add_node("Bob", gender="M")
-        g.add_node("Carol", gender="F")
-        g.add_node("Dave", gender="M")
-
-        g.add_edge("Alice", "Bob")
-        g.add_edge("Bob", "Dave")
-        g.add_edge("Carol", "Dave")
-        g.add_edge("Alice", "Carol")
-
-        r = g.get_assortativity_nominal("gender")
-        # Measures gender homophily in collaboration
-        ```
-
-        **Biological Networks: Species Interactions**
-
-        ```python
-        # Predator-prey relationships are disassortative
-        g = Graph(directed=True)
-        g.add_node("Wolf", type="predator")
-        g.add_node("Lion", type="predator")
-        g.add_node("Deer", type="prey")
-        g.add_node("Rabbit", type="prey")
-
-        g.add_edge("Wolf", "Deer")
-        g.add_edge("Wolf", "Rabbit")
-        g.add_edge("Lion", "Deer")
-
-        r = g.get_assortativity_nominal("type")
-        # r < 0: predators connect to prey, not to each other
-        ```
-
-        **Network Segregation Analysis**
-
-        ```python
-        # Measure segregation in communication network
-        g = Graph(directed=False)
-        g.add_node("A", dept="Engineering")
-        g.add_node("B", dept="Engineering")
-        g.add_node("C", dept="Marketing")
-        g.add_node("D", dept="Marketing")
-
-        # All edges within departments
-        g.add_edge("A", "B")
-        g.add_edge("C", "D")
-
-        r = g.get_assortativity_nominal("dept")
-        # r = 1.0: perfect segregation by department
-        ```
-
-        Notes
-        -----
-        - also called "modularity by attribute" or "homophily coefficient"
-        - `r = 1` means complete segregation (no cross-type edges)
-        - common in social networks where "birds of a feather flock together"
-        - can be used to detect and measure community structure by attribute
-        - for undirected graphs, the mixing matrix is symmetric
-
-        References
-        ----------
-        Newman, M.E.J. (2003). "Mixing patterns in networks."
-        Physical Review E, 67(2), 026126.
-        """
-        return self._graph.get_assortativity_nominal(attribute)
-
-    def get_assortativity(self, attribute: str) -> float:
-        """
-        Calculate assortativity for numeric node attributes.
-
-        Measures the tendency of nodes with similar numeric attribute values to
-        connect. Returns the Pearson correlation coefficient of attribute values
-        across edges, indicating whether similar values tend to be connected.
-
-        Parameters
-        ----------
-        attribute
-            Name of the numeric node attribute to analyze.
-            Must exist on all nodes and be convertible to float.
-
-        Returns
-        -------
-        float
-            Assortativity coefficient in range [-1, 1]:
-
-            - r = 1: perfect positive correlation (identical values connect)
-            - r > 0: assortative (similar values prefer to connect)
-            - r = 0: no correlation
-            - r < 0: disassortative (dissimilar values prefer to connect)
-            - r = -1: perfect negative correlation
-
-        Raises
-        ------
-        ValueError
-            If attribute doesn't exist on all nodes, isn't numeric,
-            graph has no edges, or attribute has no variance.
-
-        Examples
-        --------
-        **Age-Based Friendship Networks**
-
-        ```python
-        # People befriend others of similar age
-        g = Graph(directed=False)
-        g.add_node("Alice", age=25)
-        g.add_node("Bob", age=27)
-        g.add_node("Carol", age=26)
-        g.add_node("Dave", age=55)
-        g.add_node("Eve", age=53)
-
-        g.add_edge("Alice", "Bob")  # Similar ages (25-27)
-        g.add_edge("Bob", "Carol")  # Similar ages (27-26)
-        g.add_edge("Dave", "Eve")   # Similar ages (55-53)
-        g.add_edge("Alice", "Carol")  # Similar ages (25-26)
-
-        r = g.get_assortativity("age")
-        # r > 0: people tend to befriend similar-aged people
-        ```
-
-        **Academic Collaboration by Experience**
-
-        ```python
-        # Citation network by publication count
-        g = Graph(directed=False)
-        g.add_node("Junior1", papers=5)
-        g.add_node("Junior2", papers=7)
-        g.add_node("Senior1", papers=50)
-        g.add_node("Senior2", papers=45)
-
-        # Cross-level mentorship
-        g.add_edge("Senior1", "Junior1")
-        g.add_edge("Senior1", "Junior2")
-        g.add_edge("Senior2", "Junior1")
-
-        r = g.get_assortativity("papers")
-        # r < 0: experienced researchers often collaborate with juniors
-        ```
-
-        **Wealth Inequality in Trade Networks**
-
-        ```python
-        # Economic network with GDP
-        g = Graph(directed=False)
-        g.add_node("USA", gdp=21.0)
-        g.add_node("China", gdp=14.7)
-        g.add_node("Germany", gdp=3.8)
-        g.add_node("India", gdp=2.9)
-        g.add_node("Brazil", gdp=1.8)
-
-        g.add_edge("USA", "China")
-        g.add_edge("Germany", "India")
-        g.add_edge("USA", "Germany")
-
-        r = g.get_assortativity("gdp")
-        # Measures if similar-wealth countries trade more
-        ```
-
-        **Protein Interaction Networks**
-
-        ```python
-        # Proteins by molecular weight
-        g = Graph(directed=False)
-        g.add_node("P1", weight=25.5)
-        g.add_node("P2", weight=27.3)
-        g.add_node("P3", weight=52.1)
-        g.add_node("P4", weight=51.8)
-
-        g.add_edge("P1", "P2")  # Similar weights
-        g.add_edge("P3", "P4")  # Similar weights
-
-        r = g.get_assortativity("weight")
-        # r > 0: similar-sized proteins tend to interact
-        ```
-
-        Notes
-        -----
-        - uses Pearson correlation coefficient formula
-        - common in social networks (homophily by age, income, education)
-        - can reveal hierarchical structures when negative
-        - sensitive to outliers: considers data normalization
-        - requires variance in attribute values (all same value will error)
-
-        References
-        ----------
-        Newman, M.E.J. (2002). "Assortative mixing in networks."
-        Physical Review Letters, 89(20), 208701.
-        """
-        return self._graph.assortativity(attribute)
-
-    def get_spectrum(
-        self,
-        which: str = "largest",
-        k: int | None = None,
-    ) -> dict[str, list[float] | list[list[float]] | float | None]:
-        """
-        Compute eigenvalues and eigenvectors of the adjacency matrix.
-
-        Returns the spectrum (eigenvalues and eigenvectors) of the graph's adjacency matrix. The
-        spectrum reveals important structural properties including connectivity, bipartiteness, and
-        graph regularity.
-
-        Parameters
-        ----------
-        which
-            Which eigenvalues to compute:
-
-            - `"all"`: All n eigenvalues (O(n³), recommended for n < 100)
-            - `"largest"`: Largest k eigenvalues (default k=6)
-            - `"smallest"`: Smallest k eigenvalues
-        k
-            Number of eigenvalues to compute for "largest"/"smallest".
-            Default is min(6, n-1) where n is the number of nodes.
-
-        Returns
-        -------
-        dict
-            Dictionary with keys:
-            - `"values"`: List of eigenvalues (sorted descending)
-            - `"vectors"`: List of eigenvectors (each as list of floats)
-            - `"spectral_gap"`: λ₁ - λ₂ (difference between two largest eigenvalues)
-
-        Raises
-        ------
-        ValueError
-            If graph is empty or eigenvalue computation fails.
-
-        Examples
-        --------
-        **Spectral Analysis of Complete Graph**
-
-        ```python
-        # Complete graph K_5
-        g = Graph(directed=False)
-
-        for i in range(5):
-            g.add_node(f"v{i}")
-        for i in range(5):
-            for j in range(i+1, 5):
-                g.add_edge(f"v{i}", f"v{j}")
-
-        spec = g.get_spectrum(which="all")
-        print(f"Eigenvalues: {spec['values']}")
-
-        # Complete graph: λ₁ = n-1, other λᵢ = -1
-        print(f"Spectral gap: {spec['spectral_gap']}")
-        # K_n has spectral gap = n
-        ```
-
-        **Detecting Bipartite Structure**
-
-        ```python
-        # Bipartite graph has symmetric spectrum
-        g = Graph(directed=False)
-
-        # Left partition: A, B
-        # Right partition: X, Y, Z
-        for node in ["A", "B", "X", "Y", "Z"]:
-            g.add_node(node)
-        g.add_edge("A", "X")
-        g.add_edge("A", "Y")
-        g.add_edge("B", "Y")
-        g.add_edge("B", "Z")
-
-        spec = g.get_spectrum(which="all")
-
-        # Bipartite: λ and -λ appear in pairs
-        # Check if λ_max ≈ -λ_min
-        values = spec['values']
-        is_bipartite = abs(values[0] + values[-1]) < 0.01
-        ```
-
-        **Spectral Clustering Using Leading Eigenvector**
-
-        ```python
-        from edgecase import Graph
-
-        # Use second eigenvector (Fiedler vector) for graph clustering
-        g = Graph(directed=False)
-
-        # Add two communities with a weak bridge
-        # Community 1: nodes 0-4
-        for i in range(5):
-            g.add_node(label=f"n{i}")
-        for i in range(5):
-            for j in range(i+1, 5):
-                g.add_edge(source=f"n{i}", target=f"n{j}")
-
-        # Community 2: nodes 5-9
-        for i in range(5, 10):
-            g.add_node(label=f"n{i}")
-        for i in range(5, 10):
-            for j in range(i+1, 10):
-                g.add_edge(source=f"n{i}", target=f"n{j}")
-
-        # Bridge
-        g.add_edge(source="n4", target="n5")
-
-        spec = g.get_spectrum(which="largest", k=2)
-        # Use eigenvector to partition graph
-        fiedler_vector = spec['vectors'][1]  # Second eigenvector
-        partition = [1 if v > 0 else 0 for v in fiedler_vector]
-        ```
-
-        **Computing Spectral Radius**
-
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=False)
-        for i in range(5):
-            g.add_node(label=f"v{i}")
-        for i in range(5):
-            for j in range(i+1, 5):
-                g.add_edge(source=f"v{i}", target=f"v{j}")
-
-        # Spectral radius = max absolute eigenvalue
-        spec = g.get_spectrum(which="all")
-        spectral_radius = max(abs(v) for v in spec['values'])
-
-        # For regular graphs: spectral radius = degree
-        # Bound: spectral_radius ≤ max_degree
-        ```
-
-        Notes
-        -----
-        **Spectral Properties**:
-
-        - **Spectral radius**: ρ(A) = max|λᵢ|
-          - always equals largest eigenvalue for undirected graphs
-          - bounded by max degree: ρ(A) ≤ Δ(G)
-          - for regular graphs: ρ(A) = degree
-
-        - **Spectral gap**: λ₁ - λ₂
-          - measures connectivity and expansion
-          - large gap -> well-connected graph
-          - small gap -> bottlenecks or clusters
-          - zero gap -> disconnected graph
-
-        - **Trace**: Σλᵢ = 0 (sum of eigenvalues equals zero for undirected)
-
-        - **Number of spanning trees**: Related to Laplacian eigenvalues
-
-        **Special Graph Spectra**:
-
-        - complete graph K_n: {n-1, -1, -1, ..., -1}
-        - cycle C_n: {2cos(2πk/n) | k=0,...,n-1}
-        - path P_n: {2cos(πk/(n+1)) | k=1,...,n}
-        - star S_n: {√(n-1), 0, ..., 0, -√(n-1)}
-
-        **Computational Complexity**:
-
-        - which="all": O(n³) using dense eigendecomposition
-        - which="largest"/"smallest": O(kn²) using iterative methods
-        - Recommended: Use k < 10 for large graphs (n > 1000)
-
-        **Use Cases**:
-
-        - spectral clustering: community detection via eigenvectors
-        - graph embedding: represent nodes using eigenvector coordinates
-        - bipartite detection: check if spectrum is symmetric about 0
-        - random walk analysis: eigenvalues determine mixing time
-        - graph comparison: compare spectral distributions
-
-        References
-        ----------
-        Chung, F. R. K. (1997). "Spectral Graph Theory."
-        American Mathematical Society.
-
-        Von Luxburg, U. (2007). "A tutorial on spectral clustering."
-        Statistics and Computing, 17(4), 395-416.
-        """
-        return self._graph.spectrum(which, k)
-
-    def get_laplacian_spectrum(
-        self,
-        which: str = "smallest",
-        k: int | None = None,
-        normalized: bool = False,
-    ) -> dict[str, list[float] | list[list[float]] | float | None]:
-        """
-        Compute eigenvalues and eigenvectors of the graph Laplacian.
-
-        Returns the spectrum of the Laplacian matrix L = D - A (or normalized variant). The
-        Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
-
-        Parameters
-        ----------
-        which
-            Which eigenvalues to compute:
-
-            - "all": All n eigenvalues (O(n³), recommended for n < 100)
-            - "smallest": Smallest k eigenvalues (default k=6)
-            - "largest": Largest k eigenvalues
-        k
-            Number of eigenvalues to compute for "largest"/"smallest".
-            Default is min(6, n-1) where n is the number of nodes.
-        normalized
-            If True, use normalized Laplacian: L_norm = D^(-1/2) L D^(-1/2).
-            Normalized version has eigenvalues in [0, 2] for undirected graphs.
-
-        Returns
-        -------
-        dict
-            Dictionary with keys:
-
-            - "values": List of eigenvalues (sorted ascending)
-            - "vectors": List of eigenvectors (each as list of floats)
-            - "algebraic_connectivity": λ₂ (second-smallest eigenvalue,
-              measures how well-connected the graph is; 0 if disconnected)
-
-        Raises
-        ------
-        ValueError
-            If graph is empty or eigenvalue computation fails.
-
-        Examples
-        --------
-        **Detecting Disconnected Components**
-
-        ```python
-        from edgecase import Graph
-
-        # Graph with 2 components
-        g = Graph(directed=False)
-        # Component 1
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="B", target="C")
-        # Component 2
-        g.add_node(label="X")
-        g.add_node(label="Y")
-        g.add_edge(source="X", target="Y")
-
-        spec = g.get_laplacian_spectrum(which="smallest", k=3)
-        zero_eigenvalues = sum(1 for v in spec['values'] if abs(v) < 1e-6)
-        print(f"Number of components: {zero_eigenvalues}")
-        # λ₁ = 0 has multiplicity = number of connected components
-
-        connectivity = spec['algebraic_connectivity']
-        print(f"Algebraic connectivity: {connectivity}")
-        # = 0 means disconnected
-        ```
-
-        **Spectral Clustering with Fiedler Vector**
-
-        ```python
-        # Two-way spectral clustering
-        g = Graph(directed=False)
-        # Create graph with two communities...
-        for i in range(6):
-            g.add_node(label=f"n{i}")
-
-        # Dense intra-community edges
-        g.add_edge(source="n0", target="n1")
-        g.add_edge(source="n1", target="n2")
-        g.add_edge(source="n3", target="n4")
-        g.add_edge(source="n4", target="n5")
-        # Sparse inter-community edge
-        g.add_edge(source="n2", target="n3")
-
-        spec = g.get_laplacian_spectrum(which="smallest", k=3)
-        fiedler_vector = spec['vectors'][1]  # Second eigenvector (λ₂)
-
-        # Partition based on sign of Fiedler vector
-        cluster_1 = [i for i, v in enumerate(fiedler_vector) if v < 0]
-        cluster_2 = [i for i, v in enumerate(fiedler_vector) if v >= 0]
-        ```
-
-        **Measuring Graph Expansion**
-
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=False)
-        for i in range(6):
-            g.add_node(label=f"n{i}")
-        g.add_edge(source="n0", target="n1")
-        g.add_edge(source="n1", target="n2")
-        g.add_edge(source="n3", target="n4")
-        g.add_edge(source="n4", target="n5")
-        g.add_edge(source="n2", target="n3")
-
-        # Algebraic connectivity measures expansion
-        spec = g.get_laplacian_spectrum(which="smallest", k=2)
-        algebraic_connectivity = spec['algebraic_connectivity']
-
-        # Cheeger inequality: h²/(2Δ) ≤ λ₂ ≤ 2h
-        # where h = edge expansion, Δ = max degree
-        # Large λ₂ -> expander graph (hard to partition)
-        # Small λ₂ -> bottleneck (easy to cut)
-        ```
-
-        **Normalized Laplacian for Weighted Graphs**
-
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B", weight=1.0)
-        g.add_edge(source="B", target="C", weight=2.0)
-        g.add_edge(source="C", target="A", weight=0.5)
-
-        # Normalized Laplacian accounts for degree variations
-        spec = g.get_laplacian_spectrum(which="all", normalized=True)
-        # Eigenvalues in [0, 2] for undirected graphs
-        # λ = 0 ⟺ connected component
-        # λ = 2 ⟺ bipartite structure
-        ```
-
-        **Random Walk and Diffusion Analysis**
-
-        ```python
-        g = Graph(directed=False)
-        for i in range(6):
-            g.add_node(label=f"n{i}")
-        g.add_edge(source="n0", target="n1")
-        g.add_edge(source="n1", target="n2")
-        g.add_edge(source="n3", target="n4")
-        g.add_edge(source="n4", target="n5")
-        g.add_edge(source="n2", target="n3")
-
-        # Laplacian eigenvalues determine diffusion speed
-        spec = g.get_laplacian_spectrum(which="smallest", k=5)
-
-        # Mixing time ≈ 1 / λ₂ (algebraic connectivity)
-        # Small λ₂ -> slow mixing (long random walks to reach steady state)
-        # Large λ₂ -> fast mixing (rapid convergence)
-        ```
-
-        Notes
-        -----
-        **Laplacian Properties**:
-
-        - **Always has 0 eigenvalue**: Corresponding eigenvector is constant
-        - **Number of 0 eigenvalues**: Equals number of connected components
-        - **Algebraic connectivity** (λ₂, Fiedler value):
-          - λ₂ > 0 ⟺ graph is connected
-          - λ₂ = 0 ⟺ disconnected
-          - measures robustness to edge removal
-          - lower bound on edge/node connectivity
-
-        - **Fiedler vector**: Eigenvector for λ₂
-          - sign pattern reveals natural graph partition
-          - used in spectral bisection algorithms
-          - minimizes cut weight among all bisections
-
-        **Normalized vs Unnormalized**:
-
-        - **Unnormalized L = D - A**:
-          - Eigenvalues: 0 = λ₁ ≤ λ₂ ≤ ... ≤ λₙ
-          - Sensitive to degree distribution
-          - Natural for unweighted graphs
-
-        - **Normalized L_norm = D^(-1/2) L D^(-1/2)**:
-          - Eigenvalues in [0, 2] for undirected
-          - Better for weighted/degree-imbalanced graphs
-          - Used in normalized cut clustering
-
-        **Special Graph Laplacians**:
-
-        - Path P_n: {2 - 2cos(πk/n) | k=1,...,n}, λ₂ = 2(1 - cos(π/n))
-        - Cycle C_n: {2 - 2cos(2πk/n) | k=0,...,n-1}, λ₂ = 2(1 - cos(2π/n))
-        - Complete K_n: {0, n, n, ..., n}, λ₂ = n
-        - Star S_n: {0, 1, 1, ..., 1, n}, λ₂ = 1
-
-        **Computational Complexity**:
-
-        - which="all": O(n³) for dense eigendecomposition
-        - which="smallest": O(kn²) for k smallest eigenvalues
-        - Normalized version: Additional O(n²) for degree computation
-
-        **Use Cases**:
-
-        - spectral clustering: use Fiedler vector for graph partitioning
-        - community detection: k-way clustering using k eigenvectors
-        - graph cuts: min-cut via spectral relaxation
-        - synchronization: analyze coupled oscillators on networks
-        - diffusion processes: heat kernel and random walks
-        - network robustness: algebraic connectivity as connectivity measure
-
-        References
-        ----------
-        Fiedler, M. (1973). "Algebraic connectivity of graphs."
-        Czechoslovak Mathematical Journal, 23(2), 298-305.
-
-        Chung, F. R. K. (1997). "Spectral Graph Theory."
-        American Mathematical Society.
-
-        Shi, J., & Malik, J. (2000). "Normalized cuts and image segmentation."
-        IEEE PAMI, 22(8), 888-905.
-        """
-        return self._graph.get_laplacian_spectrum(which, k, normalized)
-
-    # ==============================================================================
     # Path and Topological Analysis
     # ==============================================================================
 
@@ -18629,319 +16452,824 @@ class Graph:
         return self
 
     # ==============================================================================
-    # Clustering
+    # Eulerian Paths and Circuits
     # ==============================================================================
 
-    def local_clustering_coefficient(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, Optional[float]], "Graph"]:
+    def is_eulerian(self) -> bool:
         """
-        Compute local clustering coefficient for each node.
+        Check if the graph has an Eulerian circuit.
 
-        The local clustering coefficient measures how close a node's neighbors are
-        to being a complete subgraph (clique). For a node with k neighbors, it's
-        the fraction of possible edges between neighbors that actually exist.
+        An Eulerian circuit is a closed trail that visits every edge exactly once.
 
-        For undirected graphs:
-            C(v) = 2 * triangles(v) / (k * (k-1))
+        For undirected graphs, an Eulerian circuit exists if and only if:
+        - The graph is connected (ignoring isolated nodes)
+        - All vertices have even degree
 
-        For directed graphs:
-            C(v) = triangles(v) / (k_out * (k_out-1))
+        For directed graphs, an Eulerian circuit exists if and only if:
 
-        Nodes with fewer than 2 neighbors return None (clustering undefined).
-
-        Time complexity: O(m * d_max) where m is edges and d_max is maximum degree.
-
-        Parameters
-        ----------
-        attr_name
-            Name of the node attribute to store clustering coefficient values.
-            If None, uses "local_clustering_coefficient" as the attribute name.
-        return_dict
-            If True, returns a dictionary mapping node IDs to clustering coefficients.
-            If False, stores values as node attributes and returns the Graph for chaining.
+        - The graph is weakly connected
+        - Every vertex has equal in-degree and out-degree
 
         Returns
         -------
-        Union[dict[int, Optional[float]], Graph]
-            If return_dict is True: Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0),
-            or None for nodes with degree < 2.
-            If return_dict is False: Returns self for method chaining.
+        bool
+            True if the graph has an Eulerian circuit, False otherwise.
 
         Examples
         --------
-        Measure clustering in a network:
+        Check a cycle graph (has Eulerian circuit):
 
         ```python
         from edgecase import Graph
 
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Triangle: A,B,C
-            .add_edge(source="A", target="D")
-            .add_edge(source="A", target="E")  # A has additional neighbors
-        )
+        graph = Graph()
+        graph.add_cycle_graph(5)
 
-        clustering = graph.local_clustering_coefficient(return_dict=True)
-        node_a_id = graph.get_id_from_label(label="A")
-        node_b_id = graph.get_id_from_label(label="B")
-        node_d_id = graph.get_id_from_label(label="D")
-        if clustering[node_a_id] is not None:
-            print(f"Node A: {clustering[node_a_id]:.3f}")  # Lower (not all neighbors connected)
-        if clustering[node_b_id] is not None:
-            print(f"Node B: {clustering[node_b_id]:.3f}")  # 1.0 (all neighbors connected)
-        print(f"Node D: {clustering[node_d_id]}")      # None (degree 1)
-
-        # Convert to labels if needed
-        clustering_by_label = {graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()}
-        if clustering_by_label['A'] is not None:
-            print(f"Node A: {clustering_by_label['A']:.3f}")
+        print(graph.is_eulerian())  # True (all degrees are 2)
         ```
 
-        Store as node attributes and chain:
+        Check a path graph (no Eulerian circuit):
 
         ```python
-        from edgecase import Graph
+        graph = Graph()
+        graph.add_path_graph(5)
 
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-            .local_clustering_coefficient()  # Stores as 'local_clustering_coefficient' attribute
-        )
-
-        # Access stored values
-        node = graph.get_node(graph.get_id_from_label("A"))
-        print(f"Node A clustering: {node.attributes['local_clustering_coefficient']}")
+        print(graph.is_eulerian())  # False (endpoints have odd degree)
         ```
 
-        Find highly clustered nodes (hubs):
+        Check a directed graph:
 
         ```python
-        from edgecase import Graph
+        graph = Graph(directed=True)
+        graph.add_cycle_graph(4)
 
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-        )
-
-        clustering = graph.local_clustering_coefficient(return_dict=True)
-        hubs = {
-            node_id: coeff
-            for node_id, coeff in clustering.items()
-            if coeff and coeff > 0.5
-        }
-        print(f"Highly clustered node IDs: {hubs}")
+        print(graph.is_eulerian())  # True (in-degree = out-degree for all)
         ```
         """
-        if attr_name is None:
-            attr_name = "local_clustering_coefficient"
+        from edgecase._core import is_eulerian
 
-        clustering_values = self._graph.local_clustering_coefficient()
+        return is_eulerian(self._graph)
 
-        if return_dict:
-            return clustering_values
-
-        # Store as node attributes
-        for node_id, value in clustering_values.items():
-            self._graph.set_node_attr(node_id, attr_name, value)
-
-        # Track computation
-        self._computations.append(("local_clustering_coefficient", {}, attr_name))
-
-        return self
-
-    def clustering_coefficient(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, float], "Graph"]:
+    def is_semieulerian(self) -> bool:
         """
-        Calculate local clustering coefficient for each node.
+        Check if the graph has an Eulerian path but not an Eulerian circuit.
 
-        The clustering coefficient measures the degree to which a node's neighbors
-        are connected to each other. For a node v:
+        An Eulerian path is a trail that visits every edge exactly once. A graph is semi-Eulerian if
+        it has an Eulerian path but NOT an Eulerian circuit.
 
-        C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
-             = (2 × triangles through v) / (degree(v) × (degree(v) - 1))
+        For undirected graphs, this occurs when:
 
-        Returns 0.0 for nodes with degree < 2 (cannot form triangles).
+        - the graph is connected
+        - exactly two vertices have odd degree (start and end of path)
 
-        Range: [0, 1] where:
+        For directed graphs, this occurs when:
 
-        - 0 = neighbors are not connected at all
-        - 1 = neighbors form a complete graph (clique)
-
-        Parameters
-        ----------
-        attr_name
-            Name of the node attribute to store clustering coefficient values.
-            If None, uses "clustering_coefficient" as the attribute name.
-        return_dict
-            If True, returns a dictionary mapping node IDs to clustering coefficients.
-            If False, stores values as node attributes and returns the Graph for chaining.
+        - the graph is weakly connected
+        - exactly one vertex has out-degree - in-degree = 1 (start)
+        - exactly one vertex has in-degree - out-degree = 1 (end)
+        - all other vertices have equal in-degree and out-degree
 
         Returns
         -------
-        dict[int, float] or Graph
-            If return_dict is True: Dictionary mapping node IDs to clustering coefficients (0.0 to 1.0).
-            If return_dict is False: Returns self for method chaining.
+        bool
+            `True` if the graph has an Eulerian path but not circuit, `False` otherwise.
 
         Examples
         --------
-        Calculate and store clustering coefficients:
+        Check a path graph (semi-Eulerian):
 
         ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .clustering_coefficient()  # Stores as 'clustering_coefficient' attribute
-        )
-        # All nodes have clustering coefficient 1.0 (complete triangle)
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        print(graph.is_semieulerian())  # True (2 odd-degree nodes)
+        print(graph.is_eulerian())      # False (not a circuit)
         ```
 
-        Calculate clustering in a star graph:
+        Check a cycle graph (not semi-Eulerian):
 
         ```python
-        graph = (
-            Graph()
-            .add_node(label="center")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("center", "A")
-            .add_edge("center", "B")
-            .add_edge("center", "C")
-        )
+        graph = Graph()
+        graph.add_cycle_graph(5)
 
-        clustering = graph.clustering_coefficient(return_dict=True)
-        center_id = graph.get_id_from_label("center")
-        print(f"Center clustering: {clustering[center_id]}")  # 0.0 (no edges between spokes)
+        print(graph.is_semieulerian())  # False (has Eulerian circuit)
+        print(graph.is_eulerian())      # True
+        ```
+
+        Check a directed path:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_path_graph(5)
+
+        print(graph.is_semieulerian())  # True (one source, one sink)
+        ```
+        """
+        from edgecase._core import is_semieulerian
+
+        return is_semieulerian(self._graph)
+
+    def eulerian_circuit(self) -> Optional[list[int]]:
+        """
+        Find an Eulerian circuit in the graph if one exists.
+
+        An Eulerian circuit is a closed trail that visits every edge exactly once, starting and
+        ending at the same node. Uses Hierholzer's algorithm.
+
+        Returns
+        -------
+        Optional[list[int]]
+            List of node IDs forming the Eulerian circuit, or `None` if no circuit exists. The
+            circuit starts and ends at the same node.
+
+        Examples
+        --------
+        Find a circuit in a cycle graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(5)
+
+        circuit = graph.eulerian_circuit()
+        print(circuit)  # e.g., [0, 1, 2, 3, 4, 0]
+        print(len(circuit))  # 6 (5 edges + return to start)
+        ```
+
+        No circuit in a path graph:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        circuit = graph.eulerian_circuit()
+        print(circuit)  # None (path has no circuit)
+        ```
+
+        Find circuit in a cycle graph:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(6)
+
+        circuit = graph.eulerian_circuit()
+        if circuit:
+            print(f"Circuit length: {len(circuit)}")
+            print(f"Visits {len(circuit) - 1} edges")
+        ```
+
+        Directed Eulerian circuit:
+
+        ```python
+        graph = Graph(directed=True)
+        graph.add_cycle_graph(5)
+
+        circuit = graph.eulerian_circuit()
+        print(len(circuit))  # 6 (visits 5 edges + returns to start)
         ```
 
         Notes
         -----
-        High clustering coefficients indicate nodes in tightly-knit groups.
-        The clustering coefficient is a key measure of network transitivity
-        and is used to identify small-world networks.
+        - Uses Hierholzer's algorithm: O(E) time complexity
+        - Only returns a circuit if one exists (use is_eulerian() to check first)
+        - For semi-Eulerian graphs (path but no circuit), use a pathfinding approach
+        - The returned circuit is one of potentially many valid circuits
         """
-        if attr_name is None:
-            attr_name = "clustering_coefficient"
+        from edgecase._core import eulerian_circuit
 
-        clustering_values = self._graph.get_clustering_coefficient()
+        return eulerian_circuit(self._graph)
 
-        if return_dict:
-            return clustering_values
+    # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # CONNECTIVITY
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
 
-        # Store as node attributes
-        for node_id, value in clustering_values.items():
-            self._graph.set_node_attr(node_id, attr_name, value)
+    # ==============================================================================
+    # Bridges and Connectivity
+    # ==============================================================================
 
-        # Track computation
-        self._computations.append(("clustering_coefficient", {}, attr_name))
-
-        return self
-
-    def get_edge_clustering_coefficient(
-        self,
-        edge_ids: list[int] | None = None,
-        k: int = 3,
-        normalize: bool = True,
-        offset: bool = True,
-    ) -> dict[int, float]:
+    def bridges(self) -> list[int]:
         """
-        Get edge clustering coefficient for specified edges.
+        Find all bridge edges in the graph.
 
-        The edge clustering coefficient measures how "clustered" the neighborhood
-        around an edge is, based on k-cycles (cycles of length k) the edge participates in.
+        A bridge (also called a cut edge) is an edge whose removal increases the number of connected
+        components. Bridges are critical edges that, if removed, would disconnect parts of the
+        network.
 
-        For k=3 (triangles):
-
-            - Counts triangles containing the edge
-            - Maximum possible: min(d_i - 1, d_j - 1) where d_i, d_j are endpoint degrees
-            - Value of 1.0 means edge is in a complete subgraph
-
-        For k=4 (4-cycles):
-
-            - Counts 4-cycles containing the edge
-            - Maximum possible: (d_i - 1)(d_j - 1)
-            - Measures "squareness" of edge neighborhood
-
-        Parameters
-        ----------
-        edge_ids
-            List of edge IDs (integers) to compute coefficient for. If None, computes for all edges.
-        k
-            Cycle size to use. Must be 3 (triangles) or 4 (4-cycles).
-        normalize
-            Whether to normalize by maximum possible cycles given endpoint degrees.
-            If False, returns raw cycle count.
-        offset
-            Whether to add 1 to cycle count (original Radicchi et al. definition).
-            When offset=True: C(e) = (z + 1) / s
-            When offset=False: C(e) = z / s
+        Uses Tarjan's algorithm for undirected graphs (O(V+E) time complexity) and strongly
+        connected component analysis for directed graphs.
 
         Returns
         -------
-        dict[int, float]
-            Mapping from edge ID (integer) to clustering coefficient.
+        list[int]
+            List of edge IDs that are bridges. Empty list if no bridges exist.
 
-            - With normalize=True: range [0, 1+] (can exceed 1 with offset)
-            - With normalize=False: raw cycle count
+        Examples
+        --------
+        Find bridges in a simple graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(4)
+
+        bridges = graph.bridges()
+        print(len(bridges))  # 3 (all edges are bridges in a path)
+        ```
+
+        Find bridges in a graph with a cycle:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(4)  # 0-1-2-3-0
+        graph.add_node(label="tail")
+        tail_id = graph.get_id_from_label("tail")
+        nodes = sorted(graph.get_node_ids())
+        graph.add_edge(nodes[-1], tail_id)  # Add a tail
+
+        bridges = graph.bridges()
+        print(len(bridges))  # 1 (only edge to tail is a bridge)
+        ```
+
+        Check bridge edges in a network:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(3)
+
+        bridge_ids = graph.bridges()
+        for edge_id in bridge_ids:
+            result = graph.get_node_ids_by_edge_id(edge_id)
+            if result:
+                u, v = result
+                print(f"Bridge: {u} - {v}")
+        ```
+
+        Notes
+        -----
+        - bridges are critical for network vulnerability analysis
+        - in a tree, all edges are bridges
+        - in a cycle, no edges are bridges
+        - related to articulation points (vertices whose removal disconnects the graph)
+        """
+        from edgecase._core import bridges
+
+        return bridges(self._graph)
+
+    def has_bridges(self) -> bool:
+        """
+        Check if the graph contains any bridge edges.
+
+        A bridge (cut edge) is an edge whose removal increases the number of connected components.
+        This method is more efficient than `bridges()` when you only need to know if bridges exist,
+        not which edges they are.
+
+        Returns
+        -------
+        bool
+            `True` if at least one bridge exists, `False` otherwise.
+
+        Examples
+        --------
+        Check if a cycle has bridges:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(5)
+
+        print(graph.has_bridges())  # False (cycles have no bridges)
+        ```
+
+        Check if a path has bridges:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        print(graph.has_bridges())  # True (all tree edges are bridges)
+        ```
+
+        Check a mixed graph:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(4)  # Dense component
+        graph.add_node(label="isolated")
+        isolated_id = graph.get_id_from_label("isolated")
+        nodes = sorted(graph.get_node_ids())
+        graph.add_edge(nodes[-2], isolated_id)  # Bridge to isolated node
+
+        if graph.has_bridges():
+            bridges = graph.bridges()
+            print(f"Found {len(bridges)} bridge(s)")
+        ```
+
+        Notes
+        -----
+        - more efficient than `len(bridges()) > 0` for large graphs
+        - useful for quick connectivity analysis
+        - returns False for complete graphs and cycles
+        """
+        from edgecase._core import has_bridges
+
+        return has_bridges(self._graph)
+
+    def get_node_vitality(self, node: Union[int, str]) -> float:
+        """
+        Compute the vitality of a single node.
+
+        Node vitality measures the impact of removing a node on graph connectivity, defined as the
+        change in sum of all pairwise shortest path distances:
+
+        vitality(v) = sum_distances(G) - sum_distances(G - v)
+
+        Higher values indicate more important nodes whose removal would significantly increase
+        average path lengths or disconnect the graph. Infinite values indicate the node's removal
+        disconnects the graph.
+
+        Parameters
+        ----------
+        node
+            Node ID (int) or label (str) to compute vitality for.
+
+        Returns
+        -------
+        float
+            The vitality score for the node. Higher values indicate more vital nodes. Returns `inf`
+            if removing the node disconnects the graph.
 
         Raises
         ------
         ValueError
-            If k is not 3 or 4.
+            If the node does not exist in the graph.
 
         Examples
         --------
-        Triangle graph (complete graph K3):
+        Compute vitality for nodes in a path graph:
 
         ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
+        from edgecase import Graph
 
-        # All edges are in 1 triangle
-        ecc = graph.get_edge_clustering_coefficient(k=3, normalize=True, offset=True)
-        # Each edge: (1 triangle + 1) / min(2-1, 2-1) = 2/1 = 2.0
+        graph = Graph()
+        graph.add_path_graph(5)
+        nodes = sorted(graph.get_node_ids())
 
-        # Without offset
-        ecc = graph.get_edge_clustering_coefficient(k=3, normalize=True, offset=False)
-        # Each edge: 1 / 1 = 1.0 (maximum clustering)
+        # Middle nodes are most vital (removal disconnects)
+        middle_vitality = graph.get_node_vitality(nodes[2])
+        end_vitality = graph.get_node_vitality(nodes[0])
+
+        print(f"Middle node vitality: {middle_vitality}")
+        print(f"End node vitality: {end_vitality}")
+        # Middle has higher vitality (or infinite if it disconnects)
         ```
 
-        Square graph (4-cycle):
+        Compare vitality in a star graph:
+
+        ```python
+        graph = Graph()
+        graph.add_star_graph(4)
+        nodes = sorted(graph.get_node_ids())
+
+        # Hub (first node) is most vital
+        hub_vitality = graph.get_node_vitality(nodes[0])
+        leaf_vitality = graph.get_node_vitality(nodes[1])
+
+        print(f"Hub vitality: {hub_vitality}")
+        print(f"Leaf vitality: {leaf_vitality}")
+        # Hub has much higher vitality
+        ```
+
+        Use with node labels:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+
+        # B is the critical connector
+        vitality_b = graph.get_node_vitality("B")
+        vitality_a = graph.get_node_vitality("A")
+
+        print(f"Node B vitality: {vitality_b}")
+        print(f"Node A vitality: {vitality_a}")
+        ```
+
+        Notes
+        -----
+        - computationally expensive: `O(V * E)` where `V` is vertices, `E` is edges
+        - returns `inf` if node removal disconnects the graph
+        - related to `closeness_vitality()` which computes for all nodes
+        - useful for identifying critical nodes in network vulnerability analysis
+        - for all nodes, consider using `closeness_vitality()` instead
+        """
+        from edgecase._core import node_vitality
+
+        # Convert label to node ID if necessary
+        if isinstance(node, str):
+            node_id = self.get_id_from_label(node)
+            if node_id is None:
+                raise ValueError(f"Node with label '{node}' does not exist")
+        else:
+            node_id = node
+
+        return node_vitality(self._graph, node_id)
+
+    # ==============================================================================
+    # Connectivity and Flow
+    # ==============================================================================
+
+    def get_all_connected_nodes(self, node: Union[int, str]) -> list[int]:
+        """
+        Get all nodes reachable from the specified node.
+
+        Uses breadth-first search (BFS) to find all nodes in the same connected
+        component. For directed graphs, treats edges as undirected during traversal.
+
+        Parameters
+        ----------
+        node
+            Starting node ID (int) or label (str) for the search.
+
+        Returns
+        -------
+        list[int]
+            List of all reachable node IDs, excluding the starting node itself.
+            Empty list if the node is isolated.
+
+        Raises
+        ------
+        KeyError
+            If `node` does not exist in the graph.
+
+        Examples
+        --------
+        ```python
+        graph = Graph()
+
+        # Create two separate components
+        graph.add_path_graph(3)  # Component 1: nodes 0-1-2
+        graph.add_path_graph(2)  # Component 2: nodes 3-4
+
+        # Find all nodes reachable from node 0
+        node_ids = list(graph.get_node_ids())
+        connected = graph.get_all_connected_nodes(node_ids[0])
+        print(len(connected))  # 2 (nodes 1 and 2)
+
+        # Node 3 is in a separate component
+        connected_3 = graph.get_all_connected_nodes(node_ids[3])
+        print(len(connected_3))  # 1 (node 4)
+        ```
+
+        Component size analysis:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        # Create two separate components
+        graph.add_path_graph(n=3)  # Component 1: nodes 0-1-2
+        graph.add_path_graph(n=2)  # Component 2: nodes 3-4
+
+        # Find size of each component
+        visited = set()
+        components = []
+
+        for node_id in graph.get_node_ids(limit=None):
+            if node_id not in visited:
+                component = graph.get_all_connected_nodes(node=node_id)
+                component.append(node_id)  # Include starting node
+                components.append(component)
+                visited.update(component)
+
+        print(f"Found {len(components)} components")
+        ```
+        """
+        # Resolve node to integer ID
+        node_id = self._resolve_node_id(node)
+
+        if not self.has_node(node_id):
+            raise KeyError(f"Node '{node}' does not exist")
+
+        visited = set()
+        queue = [node_id]
+        visited.add(node_id)
+
+        while queue:
+            current = queue.pop(0)
+
+            # Get all neighbors (treating directed as undirected)
+            neighbors = self.neighbors(current, mode="all")
+
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        # Remove the starting node from results
+        visited.discard(node_id)
+
+        return sorted(list(visited))
+
+    def get_articulation_points(self) -> list[int]:
+        """
+        Find articulation points (cut nodes) in the graph.
+
+        An articulation point is a node whose removal disconnects the graph or increases the number
+        of connected components. Uses Tarjan's DFS-based algorithm. Only defined for undirected
+        graphs.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs that are articulation points.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+
+        Examples
+        --------
+        Find articulation points in a path graph:
+
+        ```python
+        graph = Graph().add_path_graph(5)
+
+        # In a path: 1-2-3-4-5
+        # Middle nodes 2, 3, 4 are articulation points
+        cut_node_ids = graph.get_articulation_points()
+        print(len(cut_node_ids))  # 3
+
+        # Convert to labels if needed
+        cut_node_labels = [graph.get_label_from_id(nid) for nid in cut_node_ids]
+        ```
+
+        Notes
+        -----
+        Applications:
+
+        - network vulnerability analysis: Critical infrastructure nodes
+        - social networks: Key influencers whose removal fragments communities
+        - communication networks: Single points of failure
+        """
+        return self._graph.get_articulation_points()
+
+    def get_periphery(self) -> list[int]:
+        """
+        Get periphery nodes (nodes with maximum eccentricity).
+
+        Periphery nodes are farthest from the graph's center. These nodes have the maximum
+        eccentricity (longest shortest path to any other node). Returns empty list if graph is
+        disconnected.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs in the periphery, empty if disconnected.
+
+        Examples
+        --------
+        Find periphery nodes in a path graph:
+
+        ```python
+        graph = Graph().add_path_graph(5)
+
+        # In path 1-2-3-4-5, ends (1 and 5) are periphery
+        periphery_ids = graph.get_periphery()
+        print(len(periphery_ids))  # 2
+
+        # Convert to labels if needed
+        periphery_labels = sorted([graph.get_label_from_id(nid) for nid in periphery_ids])
+        ```
+
+        Notes
+        -----
+        Characteristics:
+
+        - opposite of center: peripheral vs central nodes
+        - in trees: always leaf nodes
+        - multiple nodes can have maximum eccentricity
+        """
+        return self._graph.get_periphery()
+
+    def get_node_connectivity(self) -> int:
+        """
+        Compute global node connectivity.
+
+        Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
+        the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
+
+        Uses Menger's theorem: node connectivity equals the maximum number of node-disjoint paths.
+        Implementation transforms the problem to max-flow.
+
+        Time complexity: O(V^4) for complete enumeration of pairs.
+
+        Returns
+        -------
+        int
+            Minimum number of nodes needed to disconnect the graph.
+            Returns 0 if already disconnected.
+            Returns n-1 for complete graph K_n.
+
+        Examples
+        --------
+        Cycle graph has node connectivity 2:
+
+        ```python
+        graph = Graph()
+        n = 6
+        for i in range(1, n + 1):
+            graph.add_node(label=str(i))
+        for i in range(1, n + 1):
+            graph.add_edge(str(i), str((i % n) + 1))
+
+        print(graph.get_node_connectivity())  # 2
+        ```
+
+        Complete graph K_5 has node connectivity 4:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        print(graph.get_node_connectivity())  # 4
+        ```
+        """
+        return self._graph.node_connectivity()
+
+    def get_node_connectivity_between(
+        self, source: Union[int, str], target: Union[int, str]
+    ) -> int:
+        """
+        Compute node connectivity between two nodes.
+
+        Returns the minimum number of nodes that must be removed to disconnect the source from the
+        target. Uses Menger's theorem: this equals the maximum number of node-disjoint paths between
+        the nodes.
+
+        Implementation transforms the graph by splitting each internal node into in-node and
+        out-node with capacity 1, converting node connectivity to edge connectivity, which is
+        computed using max-flow.
+
+        Time complexity: O(V * E^2) using Ford-Fulkerson with BFS.
+
+        Parameters
+        ----------
+        source
+            Source node ID (int) or label (str).
+        target
+            Target node ID (int) or label (str).
+
+        Returns
+        -------
+        int
+            Minimum number of nodes whose removal disconnects source from target.
+
+        Raises
+        ------
+        ValueError
+            If source or target doesn't exist, or if source == target.
+
+        Examples
+        --------
+        Path graph connectivity using labels:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            graph.add_edge(str(i), str(i + 1))
+
+        # Endpoints have connectivity 1 (any middle node disconnects them)
+        print(graph.get_node_connectivity_between("1", "5"))  # 1
+        ```
+
+        Using node IDs:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            graph.add_edge(str(i), str(i + 1))
+
+        # Get node IDs
+        node1_id = graph.get_id_from_label("1")
+        node5_id = graph.get_id_from_label("5")
+
+        # Can use node IDs directly
+        print(graph.get_node_connectivity_between(node1_id, node5_id))  # 1
+        ```
+
+        Complete graph connectivity:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
+        print(graph.get_node_connectivity_between("1", "5"))  # 4
+        ```
+        """
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        return self._graph.node_connectivity_between(source_id, target_id)
+
+    def get_edge_connectivity(self) -> int:
+        """
+        Compute edge connectivity (minimum edge cut).
+
+        Returns the minimum number of edges whose removal disconnects the graph. For undirected
+        graphs, this is computed as the minimum over strategic pairs of nodes. For directed graphs,
+        respects edge directions.
+
+        Edge connectivity provides a measure of graph robustness: higher values indicate more
+        redundant paths and better fault tolerance.
+
+        Time complexity: O(V * E^2) using max-flow computations.
+
+        Returns
+        -------
+        int
+            Minimum number of edges needed to disconnect the graph.
+            Returns 0 if already disconnected or has isolated nodes.
+
+        Examples
+        --------
+        Cycle graph has edge connectivity 2:
+
+        ```python
+        graph = Graph()
+        n = 6
+        for i in range(1, n + 1):
+            graph.add_node(label=str(i))
+        for i in range(1, n + 1):
+            graph.add_edge(str(i), str((i % n) + 1))
+
+        print(graph.get_edge_connectivity())  # 2
+        ```
+
+        Star graph has edge connectivity 1:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="center")
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+            graph.add_edge("center", str(i))
+
+        print(graph.get_edge_connectivity())  # 1
+        ```
+        """
+        return self._graph.edge_connectivity()
+
+    def get_adhesion(self) -> int:
+        """
+        Get adhesion (minimum edge cut size).
+
+        The adhesion is the minimum number of edges whose removal would disconnect the graph. Also
+        called edge connectivity. Only defined for undirected graphs. Returns `0` if already
+        disconnected.
+
+        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
+        computation requires max-flow algorithms.
+
+        Returns
+        -------
+        int
+            Minimum edge cut size.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+
+        Examples
+        --------
+        Calculate adhesion:
 
         ```python
         graph = (
-            Graph(directed=False)
+            Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -18952,110 +17280,2675 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        # k=3: No triangles
-        ecc3 = graph.get_edge_clustering_coefficient(k=3, offset=False)
-        # All edges: 0.0 (no triangles)
-
-        # k=4: Each edge participates in 1 four-cycle
-        ecc4 = graph.get_edge_clustering_coefficient(k=4, offset=False)
-        # Edge A-B: 1 / ((2-1)*(2-1)) = 1.0
+        print(graph.get_adhesion())  # 2
         ```
+        """
+        return self._graph.get_adhesion()
 
-        Karate club network:
+    def get_cohesion(self) -> int:
+        """
+        Get cohesion (minimum node cut size).
+
+        The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
+        called node connectivity. Only defined for undirected graphs. Returns `0` if already
+        disconnected.
+
+        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
+        computation requires sophisticated algorithms.
+
+        Returns
+        -------
+        int
+            Minimum node cut size.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+
+        Examples
+        --------
+        Calculate cohesion:
 
         ```python
-        from edgecase import karate_club
-        G = karate_club()
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
 
-        # Get k=3 edge clustering for all edges
-        ecc = G.get_edge_clustering_coefficient(k=3, normalize=True, offset=False)
-
-        # Find edges with highest clustering (most embedded in triangles)
-        sorted_edges = sorted(ecc.items(), key=lambda x: x[1], reverse=True)
-        print(f"Top 5 edges by clustering: {sorted_edges[:5]}")
+        print(graph.get_cohesion())  # 2
         ```
-
-        Notes
-        -----
-        Complexity:
-
-        - k=3: O(|V| d log d + |E| d) where d is max degree
-        - k=4: O(|V| d log d + |E| d²)
-
-        The original Radicchi et al. definition uses normalize=True and offset=True.
-        Setting offset=False allows the normalized metric to reach exactly 1.0 for
-        edges in complete subgraphs.
-
-        References
-        ----------
-        Radicchi, F., Castellano, C., Cecconi, F., Loreto, V., & Parisi, D. (2004).
-        "Defining and identifying communities in networks."
-        Proceedings of the National Academy of Sciences, 101(9), 2658-2663.
-        https://doi.org/10.1073/pnas.0400054101
         """
-        # Use edge_ids directly (they are already integers)
-        edge_id_list = edge_ids if edge_ids is not None else []
+        return self._graph.get_cohesion()
 
-        # Call Rust implementation
-        result = self._graph.get_edge_clustering_coefficient(edge_id_list, k, normalize, offset)
-
-        # Return result directly (keys are already integers)
-        return result
-
-    def get_avg_clustering_coefficient(self) -> float:
+    def get_density(self) -> float:
         """
-        Get average clustering coefficient for the graph.
+        Calculate graph density (ratio of actual to possible edges).
 
-        Returns the mean of all node clustering coefficients. This is a global
-        measure of how clustered the graph is overall.
+        Density measures how complete a graph is. A complete graph has density `1.0`, while a graph
+        with no edges has density `0.0`.
+
+        For directed graphs: density = E / (N × (N-1))
+        For undirected graphs: density = 2E / (N × (N-1))
 
         Returns
         -------
         float
-            Average clustering coefficient (0.0 to 1.0).
+            Graph density between 0.0 and 1.0.
 
         Examples
         --------
-        Compare clustering in different graph types:
+        Calculate density of a sparse graph:
 
         ```python
-        # Triangle graph: highly clustered
-        triangle = (
+        graph = (
             Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
             .add_edge("A", "B")
             .add_edge("B", "C")
-            .add_edge("C", "A")
         )
-        print(f"Triangle: {triangle.get_avg_clustering_coefficient():.2f}")
-        # Triangle: 1.00
 
-        # Star graph: not clustered
-        star = (
+        # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
+        print(f"{graph.get_density():.3f}")  # 0.667
+        ```
+
+        Compare sparse vs. dense graphs:
+
+        ```python
+        # Complete graph (all possible edges)
+        complete = (
             Graph()
-            .add_node(label="center")
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
-            .add_edge("center", "A")
-            .add_edge("center", "B")
-            .add_edge("center", "C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("A", "C")
         )
-        print(f"Star: {star.get_avg_clustering_coefficient():.2f}")
-        # Star: 0.00
+
+        print(f"{complete.get_density():.3f}")  # 1.000
+        ```
+        """
+        return self._graph.density()
+
+    def find_cohesive_blocks(self) -> tuple[list[list[int]], list[int], list[int | None]]:
+        """
+        Find hierarchical cohesive block structure.
+
+        Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal subgraph
+        that requires removal of at least k nodes to disconnect it. Returns a hierarchical structure
+        where child blocks have higher cohesion than their parents.
+
+        Based on Moody & White (2003) "Structural Cohesion and Embeddedness: A Hierarchical Concept
+        of Social Groups".
+
+        Time complexity: O(V^5) due to node connectivity computations.
+
+        Returns
+        -------
+        tuple[list[list[int]], list[int], list[int | None]]
+            A tuple containing:
+
+            - blocks: list of node sets (each as list of node IDs)
+            - cohesion: list of k-values (cohesion of each block)
+            - parent: list of parent block indices (None for root blocks)
+
+        Examples
+        --------
+        Find cohesive blocks in a complete graph:
+
+        ```python
+        # K_5 complete graph has cohesion 4
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        blocks, cohesions, parents = graph.find_cohesive_blocks()
+        # Returns: ([[1,2,3,4,5]], [4], [None])
+
+        # Convert to labels if needed
+        blocks_labels = [[graph.get_label_from_id(nid) for nid in block] for block in blocks]
+        ```
+
+        Find hierarchical structure:
+
+        ```python
+        # Graph with nested cohesive structure
+        graph = Graph()
+        # Build K_4 (cohesion 3)
+        for i in range(1, 5):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            for j in range(i + 1, 5):
+                graph.add_edge(str(i), str(j))
+
+        # Add nodes to create larger 2-cohesive block
+        graph.add_node(label="5")
+        graph.add_node(label="6")
+        graph.add_edge("1", "5")
+        graph.add_edge("2", "5")
+        graph.add_edge("5", "6")
+        graph.add_edge("6", "1")
+        graph.add_edge("6", "2")
+
+        blocks, cohesions, parents = graph.find_cohesive_blocks()
+        # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
+        ```
+        """
+        return self._graph.cohesive_blocks()
+
+    def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
+        """
+        Get minimum cut between source and sink nodes.
+
+        Computes the minimum number of edges that must be removed to disconnect the source from the
+        sink. Uses the Ford-Fulkerson algorithm with BFS (Edmonds-Karp) to find maximum flow, which
+        equals the minimum cut by the max-flow min-cut theorem.
+
+        For unweighted graphs, each edge has capacity `1`. For undirected graphs, edges are treated
+        as bidirectional.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        int
+            Size of minimum cut (number of edges to remove).
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Examples
+        --------
+        Find minimum cut:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("B", "C", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+        )
+
+        a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
+        print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.get_min_cut_between(source_id, sink_id)
+
+    def minimum_node_cut(self, source: Union[int, str], sink: Union[int, str]) -> set[int]:
+        """
+        Find minimum node cut between source and sink nodes.
+
+        Returns the set of nodes whose removal disconnects the source from the sink. Uses
+        transformation to an edge connectivity problem where each node is split into in/out copies
+        connected by unit capacity.
+
+        The source and sink themselves are never included in the returned cut set.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        set[int]
+            Set of node IDs forming the minimum node cut.
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Notes
+        -----
+        The node connectivity between two nodes is the minimum number of nodes that
+        must be removed to disconnect them. This is closely related to Menger's theorem.
+
+        Examples
+        --------
+        Find minimum node cut:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("A", "C", auto_create_nodes=True)
+            .add_edge("B", "D", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+            .add_edge("D", "E", auto_create_nodes=True)
+        )
+
+        # Find nodes that separate A from E
+        cut_nodes = graph.minimum_node_cut("A", "E")
+        # Returns {node_id_d} where removing node D disconnects A from E
+        ```
+
+        Here's an example on the topic of network vulnerability. We can identify single points of
+        failure:
+
+        ```python
+        # Communication network
+        graph = (
+            Graph()
+            .add_edge("Client", "Gateway", auto_create_nodes=True)
+            .add_edge("Gateway", "Server1", auto_create_nodes=True)
+            .add_edge("Gateway", "Server2", auto_create_nodes=True)
+            .add_edge("Server1", "Database", auto_create_nodes=True)
+            .add_edge("Server2", "Database", auto_create_nodes=True)
+        )
+
+        critical_nodes = graph.minimum_node_cut("Client", "Database")
+        # Identifies Gateway as single point of failure
+        print(f"Critical nodes: {len(critical_nodes)}")
+        ```
+
+        Social network bottlenecks:
+
+        ```python
+        # Find intermediaries between two people
+        graph = (
+            Graph()
+            .add_edge("Alice", "Bob", auto_create_nodes=True)
+            .add_edge("Bob", "Carol", auto_create_nodes=True)
+            .add_edge("Alice", "Dave", auto_create_nodes=True)
+            .add_edge("Dave", "Carol", auto_create_nodes=True)
+        )
+
+        intermediaries = graph.minimum_node_cut("Alice", "Carol")
+        # Returns {bob_id, dave_id} - both must be removed to disconnect
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.minimum_node_cut(source_id, sink_id)
+
+    def minimum_edge_cut(
+        self, source: Union[int, str], sink: Union[int, str]
+    ) -> set[tuple[int, int]]:
+        """
+        Find minimum edge cut between source and sink nodes.
+
+        Returns the set of edges whose removal disconnects the source from the sink. Uses the
+        max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut.
+
+        For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
+        edges are considered.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        set[tuple[int, int]]
+            Set of edge tuples (source_id, target_id) forming the minimum cut.
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Examples
+        --------
+        Find minimum edge cut in a simple graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("B", "C", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+            .add_edge("A", "D", auto_create_nodes=True)
+        )
+
+        # Find edges that separate A from C
+        cut_edges = graph.minimum_edge_cut("A", "C")
+        # Returns set of edge tuples like {(node_id_b, node_id_c), (node_id_d, node_id_c)}
+        ```
+
+        Network vulnerability analysis:
+
+        ```python
+        # Analyze which connections are critical
+        graph = (
+            Graph(directed=True)
+            .add_edge("Server1", "Router1", auto_create_nodes=True)
+            .add_edge("Router1", "Router2", auto_create_nodes=True)
+            .add_edge("Router2", "Server2", auto_create_nodes=True)
+            .add_edge("Router1", "Router3", auto_create_nodes=True)
+            .add_edge("Router3", "Server2", auto_create_nodes=True)
+        )
+
+        critical_links = graph.minimum_edge_cut("Server1", "Server2")
+        print(f"Removing {len(critical_links)} link(s) disconnects the servers")
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.minimum_edge_cut(source_id, sink_id)
+
+    # ==============================================================================
+    # Component Counts
+    # ==============================================================================
+
+    def count_weakly_connected_components(self) -> int:
+        """
+        Count weakly connected components in the graph.
+
+        For undirected graphs, counts regular connected components. For directed graphs,
+        treats all edges as undirected (ignoring direction) when finding components.
+
+        A weakly connected component is a maximal set of nodes where every node is
+        reachable from every other node when edge directions are ignored.
+
+        Returns
+        -------
+        int
+            Number of weakly connected components.
+
+        Examples
+        --------
+        Count components in a disconnected graph:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("X", "Y")
+        )
+
+        print(graph.count_weakly_connected_components())  # 2
+        ```
+        """
+        return self._graph.count_weakly_connected_components()
+
+    def count_strongly_connected_components(self) -> int:
+        """
+        Count strongly connected components.
+
+        For directed graphs, a strongly connected component is a maximal set of nodes
+        where every node is reachable from every other node following directed edges.
+        Uses Kosaraju's algorithm for efficient computation.
+
+        For undirected graphs, returns the same result as
+        `count_weakly_connected_components()` since strong connectivity equals regular
+        connectivity when edges are bidirectional. This matches igraph's behavior.
+
+        Returns
+        -------
+        int
+            Number of strongly connected components.
+
+        Examples
+        --------
+        Count strongly connected components in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Cycle: all in same component
+            .add_edge("X", "Y")  # Separate component
+        )
+
+        print(graph.count_strongly_connected_components())  # 2
+        ```
+
+        For undirected graphs, equivalent to connected components:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_edge("A", "B")
+        )
+
+        # Both return the same result for undirected graphs
+        print(graph.count_strongly_connected_components())  # 2
+        print(graph.count_weakly_connected_components())     # 2
+        ```
+        """
+        return self._graph.count_strongly_connected_components()
+
+    # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # COMBINATORIAL OPTIMIZATION
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
+
+    # ==============================================================================
+    # Matching
+    # ==============================================================================
+
+    def is_matching(self, edges: list[Union[int, str]]) -> bool:
+        """
+        Check if a set of edges forms a valid matching.
+
+        A matching is a set of edges where no two edges share a common endpoint (node). This is
+        useful for validating matchings or checking matching constraints.
+
+        Parameters
+        ----------
+        edges
+            List of edge IDs or edge labels to check.
+
+        Returns
+        -------
+        bool
+            `True` if the edges form a valid matching (no shared endpoints), `False` otherwise.
+
+        Examples
+        --------
+        Check a valid matching:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("C", "D")
+        )
+
+        edge_ids = graph.get_edge_ids()
+        is_valid = graph.is_matching(edge_ids)
+        print(is_valid)  # True (no shared endpoints)
+        ```
+
+        Check an invalid matching:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        edge_ids = graph.get_edge_ids()
+        is_valid = graph.is_matching(edge_ids)
+        print(is_valid)  # False (B is shared)
+        ```
+
+        Validate a computed matching:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(6)
+
+        matching = graph.maximal_matching()
+        assert graph.is_matching(matching)  # Always True for maximal_matching result
+        ```
+        """
+        from edgecase._core import is_matching
+
+        # Edge IDs are already integers, no need to resolve
+        return is_matching(self._graph, edges)
+
+    def maximal_matching(self) -> list[int]:
+        """
+        Find a maximal matching in the graph.
+
+        A maximal matching is a matching (set of edges with no shared endpoints) that cannot be
+        extended by adding any other edge. Uses a greedy algorithm.
+
+        Note that a maximal matching is not necessarily a maximum matching (largest possible). For
+        weighted graphs, use `max_weight_matching()`.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs forming a maximal matching.
+
+        Examples
+        --------
+        Find a maximal matching in a path:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_path_graph(6)  # 1-2-3-4-5-6
+
+        matching = graph.maximal_matching()
+        print(f"Matched {len(matching)} edges")
+        # Will match 3 edges (e.g., 1-2, 3-4, 5-6)
+
+        # Verify it's a valid matching
+        assert graph.is_matching(matching)
+        ```
+
+        Visualize the matching:
+
+        ```python
+        graph = Graph()
+        graph.add_grid_2d(rows=4, cols=4)
+
+        matching = graph.maximal_matching()
+
+        # Mark matched edges
+        matched_dict = {edge_id: True for edge_id in matching}
+        graph.set_edge_attrs("matched", matched_dict)
+
+        # Color matched edges
+        colors = {edge_id: "red" for edge_id in matching}
+        graph.set_edge_attrs("color", colors)
+        ```
+
+        Compare with complete graph:
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(10)
+
+        matching = graph.maximal_matching()
+        print(f"Nodes: {graph.count_nodes()}")  # 10
+        print(f"Matched edges: {len(matching)}")  # 5 (perfect matching)
         ```
 
         Notes
         -----
-        Values close to 1.0 indicate a highly clustered network (many triangles).
-        Values close to 0.0 indicate a tree-like or sparse network structure.
-
-        Small-world networks typically have high clustering coefficients combined
-        with low average path lengths.
+        - time complexity: `O(E)` where `E` is the number of edges
+        - space complexity: `O(V)` for tracking matched nodes
+        - greedy algorithm: processes edges in arbitrary order
+        - result may vary between calls due to iteration order
+        - for maximum cardinality matching, use specialized algorithms
+        - for weighted matching, use `max_weight_matching()`
         """
-        return self._graph.get_avg_clustering_coefficient()
+        from edgecase._core import maximal_matching
+
+        return maximal_matching(self._graph)
+
+    def max_weight_matching(self) -> list[int]:
+        """
+        Find a maximum weight matching in the graph.
+
+        Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
+        selects edges by weight in descending order. For unweighted graphs, all edges have weight
+        `1.0`.
+
+        Note that this is a greedy approximation, not guaranteed to be optimal for general graphs.
+        For optimal solutions on bipartite graphs, use specialized bipartite matching algorithms.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs forming a maximum weight matching.
+
+        Examples
+        --------
+        Find maximum weight matching:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B", weight=10.0)
+            .add_edge("B", "C", weight=1.0)
+            .add_edge("C", "D", weight=1.0)
+            .add_edge("A", "C", weight=2.0)
+        )
+
+        matching = graph.max_weight_matching()
+
+        # Calculate total weight
+        total_weight = sum(
+            graph.get_edge(eid).weight for eid in matching
+        )
+        print(f"Total weight: {total_weight}")
+        ```
+
+        Unweighted graph (maximizes cardinality):
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(8)
+
+        matching = graph.max_weight_matching()
+        print(f"Matched {len(matching)} edges")  # 4 (perfect matching)
+
+        # Verify it's valid
+        assert graph.is_matching(matching)
+        ```
+
+        Compare greedy with optimal:
+
+        ```python
+        from edgecase import Graph
+
+        # Triangle with one heavy edge
+        graph = (
+            Graph(weighted=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", weight=5.0)
+            .add_edge("B", "C", weight=3.0)
+            .add_edge("A", "C", weight=2.0)
+        )
+
+        matching = graph.max_weight_matching()
+        # Greedy picks A-B (5.0), blocks B-C and A-C
+        # Optimal would be A-C (2.0) + B-? if more nodes existed
+
+        matched_edges = [graph.get_edge(eid) for eid in matching]
+        for edge in matched_edges:
+            print(f"{edge.source} - {edge.target}: {edge.weight}")
+        ```
+
+        Visualize the matching:
+
+        ```python
+        import random
+        from edgecase import Graph
+
+        graph = Graph(weighted=True)
+        graph.add_grid_2d(rows=5, cols=5)
+
+        # Add random weights
+        weights = {eid: random.uniform(0.5, 2.0) for eid in graph.get_edge_ids()}
+        graph.set_edge_attrs("weight", weights)
+
+        matching = graph.max_weight_matching()
+
+        # Highlight matched edges
+        colors = {edge_id: "red" for edge_id in matching}
+        widths = {edge_id: 3.0 for edge_id in matching}
+        graph.set_edge_attrs("color", colors)
+        graph.set_edge_attrs("width", widths)
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(E log E)` for sorting edges
+        - space complexity: `O(V + E)` for tracking matched nodes and edges
+        - greedy approximation: selects heaviest edges first
+        - not guaranteed to be optimal for general graphs
+        - optimal for trees and forests
+        - for bipartite graphs, consider Hungarian algorithm
+        - for unweighted graphs, equivalent to maximal matching
+
+        References
+        ----------
+        For optimal maximum weight matching, see:
+
+        - Edmond's Blossom algorithm for general graphs
+        - Hungarian algorithm for bipartite graphs
+        """
+        from edgecase._core import max_weight_matching
+
+        return max_weight_matching(self._graph)
+
+    # ==============================================================================
+    # Independent Sets
+    # ==============================================================================
+
+    def is_independent_set(self, nodes: list[int]) -> bool:
+        """
+        Check if a set of nodes forms an independent set.
+
+        An independent set (also called a stable set) is a set of vertices in a graph where no two
+        vertices are adjacent. This method validates whether the given nodes satisfy this property.
+
+        Parameters
+        ----------
+        nodes
+            List of node IDs to check.
+
+        Returns
+        -------
+        bool
+            `True` if the nodes form a valid independent set (no edges between them), `False`
+            otherwise.
+
+        Examples
+        --------
+        Check a valid independent set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path: A-B-C-D
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        # A and C are not adjacent
+        a_id = graph.get_id_from_label("A")
+        c_id = graph.get_id_from_label("C")
+        print(graph.is_independent_set([a_id, c_id]))  # True
+
+        # A, C, D: C and D are adjacent
+        d_id = graph.get_id_from_label("D")
+        print(graph.is_independent_set([a_id, c_id, d_id]))  # False
+        ```
+
+        Validate a computed independent set:
+
+        ```python
+        graph = Graph()
+        graph.add_path_graph(10)
+
+        mis = graph.maximal_independent_set()
+        assert graph.is_independent_set(mis)  # Always True
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V + E)` where `V` is nodes in the set and `E` is edges
+        - empty set is trivially an independent set
+        - single node is trivially an independent set
+        """
+        from edgecase._core import is_independent_set
+
+        return is_independent_set(self._graph, nodes)
+
+    def maximal_independent_set(
+        self,
+        nodes: list[int] | None = None,
+        seed: int | None = None,
+    ) -> list[int]:
+        """
+        Find a maximal independent set in the graph.
+
+        A maximal independent set is an independent set that cannot be extended by adding any other
+        vertex. In other words, every vertex not in the set is adjacent to at least one vertex in
+        the set.
+
+        This uses a randomized greedy algorithm that picks nodes randomly and adds them if they
+        don't conflict with already-chosen nodes.
+
+        Parameters
+        ----------
+        nodes
+            Optional starting set of node IDs. These nodes must already form an independent set. The
+            algorithm will extend this set to be maximal. If `None`, starts with an empty set.
+        seed
+            Optional random seed for reproducibility. If `None`, uses system entropy.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs forming a maximal independent set.
+
+        Raises
+        ------
+        ValueError
+            If the starting nodes don't form an independent set (have adjacent nodes).
+        ValueError
+            If any starting node doesn't exist in the graph.
+
+        Examples
+        --------
+        Find a maximal independent set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path graph: 1-2-3-4-5
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        mis = graph.maximal_independent_set(seed=42)
+        print(f"Independent set size: {len(mis)}")  # 2 or 3
+
+        # Verify validity
+        assert graph.is_independent_set(mis)
+        ```
+
+        Start with specific nodes:
+
+        ```python
+        graph = Graph()
+        graph.add_cycle_graph(6)
+
+        # Start with a specific node
+        first_node = graph.get_node_ids()[0]
+        mis = graph.maximal_independent_set(nodes=[first_node], seed=42)
+
+        assert first_node in mis
+        ```
+
+        Find multiple maximal independent sets:
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(6)
+
+        # Different seeds give different results
+        sets = [graph.maximal_independent_set(seed=i) for i in range(5)]
+        for i, s in enumerate(sets):
+            print(f"Seed {i}: {s}")
+        ```
+
+        Scheduling application:
+
+        ```python
+        # Jobs are nodes, edges connect conflicting jobs
+        graph = (
+            Graph()
+            .add_node(label="Job_A")
+            .add_node(label="Job_B")
+            .add_node(label="Job_C")
+            .add_node(label="Job_D")
+            .add_edge("Job_A", "Job_B")  # A conflicts with B
+            .add_edge("Job_B", "Job_C")  # B conflicts with C
+            .add_edge("Job_C", "Job_D")  # C conflicts with D
+        )
+
+        # Find jobs that can run simultaneously
+        parallel_jobs = graph.maximal_independent_set()
+        labels = [graph.get_label_from_id(nid) for nid in parallel_jobs]
+        print(f"Can run together: {labels}")
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V + E)` where `V` is vertices and `E` is edges
+        - space complexity: `O(V)` for tracking available nodes
+        - randomized algorithm: results may vary without a seed
+        - maximal ≠ maximum: this is not guaranteed to find the largest possible set
+        - for the largest independent set, use `maximum_independent_set()`
+        """
+        from edgecase._core import maximal_independent_set
+
+        return maximal_independent_set(self._graph, nodes, seed)
+
+    def maximum_independent_set(self) -> list[int]:
+        """
+        Find an approximate maximum independent set in the graph.
+
+        The maximum independent set problem is NP-hard, so this method uses a greedy heuristic that
+        prioritizes nodes with minimum degree. This provides a good approximation but is not
+        guaranteed to find the true maximum.
+
+        The algorithm works by iteratively selecting the node with the minimum number of neighbors
+        (among remaining candidates), adding it to the set, and removing it and its neighbors from
+        further consideration.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs forming an approximate maximum independent set.
+
+        Examples
+        --------
+        Find maximum independent set:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path graph: 1-2-3-4-5
+        graph = Graph()
+        graph.add_path_graph(5)
+
+        mis = graph.maximum_independent_set()
+        print(f"Maximum independent set size: {len(mis)}")  # 3 for path of 5
+
+        # Verify it's valid
+        assert graph.is_independent_set(mis)
+        ```
+
+        Compare with maximal independent set:
+
+        ```python
+        graph = Graph()
+        graph.add_star_graph(10)  # Hub with 10 leaves
+
+        maximal = graph.maximal_independent_set(seed=42)
+        maximum = graph.maximum_independent_set()
+
+        print(f"Maximal size: {len(maximal)}")
+        print(f"Maximum size: {len(maximum)}")  # Should be larger or equal
+        ```
+
+        Vertex cover complement:
+
+        ```python
+        # Maximum independent set + minimum vertex cover = all nodes
+        graph = Graph()
+        graph.add_cycle_graph(8)
+
+        mis = graph.maximum_independent_set()
+        vertex_cover = set(graph.get_node_ids()) - set(mis)
+
+        print(f"Independent set: {len(mis)}")
+        print(f"Vertex cover: {len(vertex_cover)}")
+        print(f"Total: {len(mis) + len(vertex_cover)} = {graph.count_nodes()}")
+        ```
+
+        Optimization problem:
+
+        ```python
+        # Find maximum set of non-conflicting items
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+            .add_edge("E", "A")  # Cycle
+        )
+
+        mis = graph.maximum_independent_set()
+        labels = [graph.get_label_from_id(nid) for nid in mis]
+        print(f"Best selection: {labels}")
+        ```
+
+        Notes
+        -----
+        - time complexity: `O(V² + VE)` due to repeated neighbor lookups
+        - space complexity: `O(V)` for tracking available nodes
+        - this is a greedy approximation, not an exact algorithm
+        - for exact solutions on small graphs, exhaustive search is needed
+        - the complement of a maximum independent set is a minimum vertex cover
+
+        References
+        ----------
+        The maximum independent set problem is one of Karp's 21 NP-complete problems.
+        This implementation uses the minimum-degree greedy heuristic.
+        """
+        from edgecase._core import maximum_independent_set
+
+        return maximum_independent_set(self._graph)
+
+    def find_maximal_independent_sets(
+        self,
+        count: int = 10,
+        seed: int | None = None,
+    ) -> list[list[int]]:
+        """
+        Find multiple distinct maximal independent sets.
+
+        Runs the maximal independent set algorithm multiple times with different random seeds to
+        discover diverse solutions. This is useful for exploring the space of possible independent
+        sets or for ensemble methods.
+
+        Parameters
+        ----------
+        count
+            Number of maximal independent sets to find. Default is 10.
+        seed
+            Optional base seed for reproducibility. Each iteration uses seed + iteration_number.
+
+        Returns
+        -------
+        list[list[int]]
+            List of maximal independent sets, each represented as a list of node IDs. May return
+            fewer than `count` if there aren't enough unique sets.
+
+        Examples
+        --------
+        Find multiple independent sets:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        graph.add_cycle_graph(8)
+
+        sets = graph.find_maximal_independent_sets(count=5, seed=42)
+        for i, s in enumerate(sets):
+            print(f"Set {i}: size={len(s)}, nodes={s}")
+        ```
+
+        Find the best among multiple:
+
+        ```python
+        graph = Graph()
+        graph.add_gnm_graph(n=50, m=100, seed=42)
+
+        sets = graph.find_maximal_independent_sets(count=20, seed=0)
+        best = max(sets, key=len)
+        print(f"Best size: {len(best)}")
+        ```
+
+        Analyze diversity:
+
+        ```python
+        graph = Graph()
+        graph.add_full_graph(8)
+
+        sets = graph.find_maximal_independent_sets(count=10)
+        unique_sizes = set(len(s) for s in sets)
+        print(f"Found {len(sets)} unique sets with sizes: {unique_sizes}")
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(count × (V + E))
+        - Attempts to find unique sets; may return fewer than requested
+        - With a seed, results are reproducible
+        - Without a seed, each call may produce different sets
+        """
+        from edgecase._core import find_maximal_independent_sets
+
+        return find_maximal_independent_sets(self._graph, count, seed)
+
+    # ==============================================================================
+    # Minimum/Maximum Spanning Trees
+    # ==============================================================================
+
+    def minimum_spanning_tree(
+        self,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[str]":
+        """
+        Find the minimum spanning tree using Kruskal's algorithm.
+
+        A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
+        total edge weight. Uses the optimized union-find data structure with path-halving for
+        efficient cycle detection.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of edge attribute to use for weights. If None (default), uses the edge's weight
+            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
+        return_subgraph
+            If `True`, returns a new Graph containing only the MST edges. If `False`, returns a list
+            of edge IDs as strings.
+
+        Returns
+        -------
+        Graph or list[str]
+            Either a new Graph with MST edges or a list of edge ID strings, depending on
+            the `return_subgraph=` parameter.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph(weighted=True)
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_node("D")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=2.0)
+        g.add_edge("C", "D", weight=3.0)
+        g.add_edge("D", "A", weight=4.0)
+        g.add_edge("A", "C", weight=5.0)
+
+        mst = g.minimum_spanning_tree()
+        print(mst.count_edges())  # 3
+
+        # Calculate total weight
+        total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
+                    if e and e.weight is not None)
+        print(total)  # 6.0
+        ```
+
+        Notes
+        -----
+        - time complexity: O(E log E) for sorting edges
+        - space complexity: O(V) for union-find structure
+        - for disconnected graphs, finds a minimum spanning forest
+        - if graph has < 2 nodes, returns empty graph or list
+
+        References
+        ----------
+        .. [1] Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph
+               and the traveling salesman problem". Proceedings of the American
+               Mathematical Society. 7: 48–50.
+        """
+        edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
+
+        if return_subgraph:
+            # Create a new graph with the MST edges
+            mst = Graph(directed=self.is_directed(), weighted=True)
+
+            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
+            for node_id in self.get_node_ids(limit=None):
+                label = self.get_label_from_id(node_id)
+                # Try to get node attributes if they exist
+                try:
+                    node_obj = self._graph.get_node(label)
+                    mst.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    mst.add_node(label)
+
+            # Add MST edges
+            for edge_id in edge_ids:
+                edge = self.get_edge(edge_id)
+                if edge:
+                    mst.add_edge(
+                        self.get_label_from_id(edge.source),
+                        self.get_label_from_id(edge.target),
+                        weight=edge.weight,
+                        attributes=edge.attributes,
+                    )
+
+            return mst
+        else:
+            return [str(eid) for eid in edge_ids]
+
+    def maximum_spanning_tree(
+        self,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[str]":
+        """
+        Find the maximum spanning tree using Kruskal's algorithm.
+
+        A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
+        edge weight. Essentially finds the MST of the negated edge weights.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
+            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
+        return_subgraph
+            If `True`, returns a new Graph containing only the spanning tree edges. If `False`,
+            returns a list of edge IDs as strings.
+
+        Returns
+        -------
+        Graph or list[str]
+            Either a new Graph with spanning tree edges or a list of edge ID strings, depending on
+            the `return_subgraph=` parameter.
+
+        Examples
+        --------
+        ```python
+        from edgecase import Graph
+
+        g = Graph(weighted=True)
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=3.0)
+        g.add_edge("C", "A", weight=2.0)
+
+        max_st = g.maximum_spanning_tree()
+
+        # Calculate total weight
+        total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.get_edges_as_tuples()]
+                    if e and e.weight is not None)
+        print(total)  # 5.0 (chooses edges with weights 3.0 and 2.0)
+        ```
+
+        Notes
+        -----
+        - time complexity: O(E log E) for sorting edges
+        - space complexity: O(V) for union-find structure
+        - useful for finding most important connections in a network
+        """
+        edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
+
+        if return_subgraph:
+            # Create a new graph with the spanning tree edges
+            st = Graph(directed=self.is_directed(), weighted=True)
+
+            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
+            for node_id in self.get_node_ids(limit=None):
+                label = self.get_label_from_id(node_id)
+                # Try to get node attributes if they exist
+                try:
+                    node_obj = self._graph.get_node(label)
+                    st.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    st.add_node(label)
+
+            # Add spanning tree edges
+            for edge_id in edge_ids:
+                edge = self.get_edge(edge_id)
+                if edge:
+                    st.add_edge(
+                        self.get_label_from_id(edge.source),
+                        self.get_label_from_id(edge.target),
+                        weight=edge.weight,
+                        attributes=edge.attributes,
+                    )
+
+            return st
+        else:
+            return [str(eid) for eid in edge_ids]
+
+    # ==============================================================================
+    # ------------------------------------------------------------------------------
+    # EDGE & NETWORK ANALYSIS
+    # ------------------------------------------------------------------------------
+    # ==============================================================================
+
+    # ==============================================================================
+    # Edge Type Analysis
+    # ==============================================================================
+
+    def which_multiple(self) -> list[int]:
+        """
+        Find edge IDs of multiple edges (duplicate edges between same node pairs).
+
+        Returns a list of edge IDs that represent multiple/duplicate edges. These edges share the
+        same source and target nodes as another edge in the graph. This is useful for detecting and
+        cleaning multigraphs.
+
+        For undirected graphs, edges (u,v) and (v,u) are considered the same pair. When multiple
+        edges exist between a pair, all edge IDs (including the first) are returned.
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs representing multiple edges. Empty if no duplicates exist.
+
+        Examples
+        --------
+        **Data Cleaning: Finding Duplicate Relationships**
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=True)
+        g.add_node(label="Alice")
+        g.add_node(label="Bob")
+        g.add_node(label="Carol")
+        g.add_edge(source="Alice", target="Bob", weight=1.0)
+        g.add_edge(source="Alice", target="Bob", weight=2.0)  # Duplicate connection
+        g.add_edge(source="Alice", target="Bob", weight=3.0)  # Another duplicate
+        g.add_edge(source="Bob", target="Carol", weight=1.0)  # Single edge
+
+        multiples = g.which_multiple()
+        len(multiples)  # All 3 Alice->Bob edges
+        # 3
+        ```
+
+        **Multigraph Validation**
+
+        ```python
+        # Check if graph is a simple graph (no multiple edges)
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
+        is_simple = len(g.which_multiple()) == 0
+        is_simple
+        # True
+        ```
+
+        **Network Simplification: Identifying Edges to Merge**
+
+        ```python
+        # Social network with multiple interactions
+        social = (
+            Graph(directed=True)
+            .add_node(label="User1")
+            .add_node(label="User2")
+            .add_node(label="User3")
+            .add_edge(source="User1", target="User2", interaction="like")
+            .add_edge(source="User1", target="User2", interaction="comment")
+            .add_edge(source="User1", target="User2", interaction="share")
+            .add_edge(source="User2", target="User3", interaction="like")
+        )
+
+        # Find which edges represent multiple interactions
+        multiple_edges = social.which_multiple()
+        # These could be merged into single weighted edges
+        len(multiple_edges)
+        # 3
+        ```
+
+        **Undirected Graph: Bidirectional Edges**
+
+        ```python
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="B")  # Duplicate in undirected graph
+            .add_edge(source="B", target="C")
+        )
+
+        multiples = g.which_multiple()
+        len(multiples)
+        # 2
+        ```
+
+        Notes
+        -----
+        - self-loops are not considered multiple edges (use `which_loops()` instead)
+        - in undirected graphs, (u,v) and (v,u) are treated as the same pair
+        - returns all edges involved in duplication, including the first occurrence
+        - useful for data quality checks before analysis
+        """
+        return self._graph.which_multiple()
+
+    def count_multiple(self) -> dict[tuple[int, int], int]:
+        """
+        Count multiple edges grouped by node pair.
+
+        Returns a dictionary showing how many edges exist between each pair of nodes
+        that has multiple edges. Only includes pairs with 2 or more edges.
+
+        For undirected graphs, returns unordered pairs (smaller node ID first).
+
+        Returns
+        -------
+        dict[tuple[int, int], int]
+            Dictionary mapping (source_id, target_id) to edge count.
+            Only includes pairs with count >= 2.
+
+        Examples
+        --------
+        **Data Quality Report**
+
+        ```python
+        g = Graph(directed=True)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="A", target="B")  # Duplicate
+        g.add_edge(source="A", target="B")  # Another duplicate
+        g.add_edge(source="B", target="C")
+        g.add_edge(source="B", target="C")  # Duplicate
+
+        counts = g.count_multiple()
+        # Returns node IDs: {(node_id_a, node_id_b): 3, (node_id_b, node_id_c): 2}
+
+        # Convert to labels if needed
+        counts_by_label = {
+            (g.get_label_from_id(src), g.get_label_from_id(tgt)): count
+            for (src, tgt), count in counts.items()
+        }
+        counts_by_label
+        # {('A', 'B'): 3, ('B', 'C'): 2}
+        ```
+
+        **Communication Network Analysis**
+
+        ```python
+        # Email network with multiple messages
+        email = Graph(directed=True)
+        email.add_node(label="Alice")
+        email.add_node(label="Bob")
+        email.add_node(label="Carol")
+        email.add_edge(source="Alice", target="Bob")    # Email 1
+        email.add_edge(source="Alice", target="Bob")    # Email 2
+        email.add_edge(source="Alice", target="Bob")    # Email 3
+        email.add_edge(source="Bob", target="Carol")    # Email 1
+        email.add_edge(source="Bob", target="Carol")    # Email 2
+
+        multi_count = email.count_multiple()
+        # Returns node IDs: {(alice_id, bob_id): 3, (bob_id, carol_id): 2}
+
+        # Convert to labels for display
+        for (sender_id, receiver_id), count in multi_count.items():
+            sender = email.get_label_from_id(sender_id)
+            receiver = email.get_label_from_id(receiver_id)
+            print(f"{sender} -> {receiver}: {count} emails")
+        # Alice -> Bob: 3 emails
+        # Bob -> Carol: 2 emails
+        ```
+
+        **Network Simplification Planning**
+
+        ```python
+        # Identify which edges need aggregation
+        transport = Graph(directed=False)
+        transport.add_node(label="CityA")
+        transport.add_node(label="CityB")
+        transport.add_node(label="CityC")
+        transport.add_edge(source="CityA", target="CityB", route="highway")
+        transport.add_edge(source="CityA", target="CityB", route="railway")
+        transport.add_edge(source="CityA", target="CityB", route="airline")
+        transport.add_edge(source="CityB", target="CityC", route="highway")
+
+        multi = transport.count_multiple()
+        # Returns node IDs: {(cityA_id, cityB_id): 3}
+
+        # Convert to labels
+        multi_labels = {
+            (transport.get_label_from_id(id1), transport.get_label_from_id(id2)): count
+            for (id1, id2), count in multi.items()
+        }
+        # CityA-CityB has 3 routes to consolidate
+        multi_labels
+        # {('CityA', 'CityB'): 3}
+        ```
+
+        Notes
+        -----
+        - only returns pairs with 2+ edges (single edges are excluded)
+        - for undirected graphs, pairs are normalized (smaller node ID first)
+        - self-loops are counted if there are 2+ self-loop edges for a node
+        - useful for understanding graph complexity before simplification
+        """
+        return self._graph.count_multiple()
+
+    def which_loops(self) -> list[int]:
+        """
+        Find edge IDs of self-loops (edges from a node to itself).
+
+        Returns a list of edge IDs for all edges where the source node equals the target node.
+        Self-loops are common in certain network types like state machines, chemical reactions, or
+        social networks (self-mentions).
+
+        Returns
+        -------
+        list[int]
+            List of edge IDs representing self-loops. Empty if no self-loops exist.
+
+        Examples
+        --------
+        Data cleaning and finding self-references:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=True)
+        g.add_node(label="Alice")
+        g.add_node(label="Bob")
+        g.add_node(label="Carol")
+        g.add_edge(source="Alice", target="Bob")
+        g.add_edge(source="Alice", target="Alice")  # Self-loop
+        g.add_edge(source="Bob", target="Carol")
+        g.add_edge(source="Carol", target="Carol")  # Self-loop
+
+        loops = g.which_loops()
+        print(len(loops))  # 2
+        ```
+
+        State Machine Validation:
+
+        ```python
+        from edgecase import Graph
+
+        # Check for states that transition to themselves
+        fsm = Graph(directed=True)
+        fsm.add_node(label="Idle")
+        fsm.add_node(label="Processing")
+        fsm.add_node(label="Complete")
+        fsm.add_edge(source="Idle", target="Processing")
+        fsm.add_edge(source="Processing", target="Processing")  # Wait state
+        fsm.add_edge(source="Processing", target="Complete")
+        fsm.add_edge(source="Complete", target="Idle")
+
+        self_transitions = fsm.which_loops()
+        print(len(self_transitions))  # 1
+        ```
+
+        **Social Network Analysis**
+
+        ```python
+        from edgecase import Graph
+
+        # Find self-mentions or self-citations
+        social = Graph(directed=True)
+        social.add_node(label="@alice")
+        social.add_node(label="@bob")
+        social.add_node(label="@carol")
+        social.add_edge(source="@alice", target="@bob")
+        social.add_edge(source="@alice", target="@alice")  # Self-mention
+        social.add_edge(source="@bob", target="@carol")
+
+        self_mentions = social.which_loops()
+        # These might be removed for certain analyses
+        len(self_mentions)
+        # 1
+        ```
+
+        **Network Simplification**
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="B", target="B")  # Self-loop
+        g.add_edge(source="C", target="C")  # Self-loop
+
+        # Identify edges to remove for simple graph
+        loops_to_remove = g.which_loops()
+        len(loops_to_remove)
+        # 2
+        ```
+
+        Notes
+        -----
+        - works for both directed and undirected graphs
+        - a node can have multiple self-loops (use `count_loops()` to count per node)
+        - self-loops affect certain graph metrics (degree, centrality, etc.)
+        - common preprocessing step is to remove self-loops for cleaner analysis
+        """
+        return self._graph.which_loops()
+
+    def count_loops(self) -> dict[int, int]:
+        """
+        Count self-loops grouped by node.
+
+        Returns a dictionary mapping node IDs to the count of self-loops for each node.
+        Only includes nodes that have at least one self-loop.
+
+        Returns
+        -------
+        dict[int, int]
+            Dictionary mapping node IDs to self-loop counts.
+            Only includes nodes with count >= 1.
+
+        Examples
+        --------
+        **Data Quality Analysis**
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=True)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_node(label="D")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="A", target="A")  # Self-loop
+        g.add_edge(source="A", target="A")  # Another self-loop
+        g.add_edge(source="B", target="B")  # Self-loop
+        g.add_edge(source="C", target="D")  # No self-loop
+
+        loop_counts = g.count_loops()
+        # Returns node IDs: {a_id: 2, b_id: 1}
+
+        # Convert to labels if needed
+        loop_counts_labels = {g.get_label_from_id(nid): count for nid, count in loop_counts.items()}
+        loop_counts_labels
+        # {'A': 2, 'B': 1}
+        ```
+
+        **State Machine Analysis**
+
+        ```python
+        from edgecase import Graph
+
+        # Identify states with self-transitions
+        fsm = Graph(directed=True)
+        fsm.add_node(label="Loading")
+        fsm.add_node(label="Ready")
+        fsm.add_node(label="Processing")
+        fsm.add_node(label="Complete")
+        fsm.add_edge(source="Loading", target="Loading")  # Retry loop
+        fsm.add_edge(source="Loading", target="Loading")  # Another retry path
+        fsm.add_edge(source="Loading", target="Ready")
+        fsm.add_edge(source="Processing", target="Processing")  # Busy wait
+        fsm.add_edge(source="Processing", target="Complete")
+
+        wait_states = fsm.count_loops()
+        # Returns node IDs with self-transitions: {loading_id: 2, processing_id: 1}
+
+        # Convert to labels
+        wait_states_labels = {fsm.get_label_from_id(nid): count for nid, count in wait_states.items()}
+        wait_states_labels
+        # {'Loading': 2, 'Processing': 1}
+        ```
+
+        **Chemical Reaction Network**
+
+        ```python
+        # Autocatalytic reactions (self-referencing)
+        rxn = Graph(directed=True)
+        rxn.add_node(label="A")
+        rxn.add_node(label="B")
+        rxn.add_node(label="C")
+        rxn.add_edge(source="A", target="B")
+        rxn.add_edge(source="B", target="B")  # B catalyzes itself
+        rxn.add_edge(source="B", target="B")  # Multiple pathways
+        rxn.add_edge(source="C", target="C")  # C is autocatalytic
+
+        autocatalytic = rxn.count_loops()
+        # Returns node IDs: {b_id: 2, c_id: 1}
+
+        # Convert to labels
+        autocatalytic_labels = {rxn.get_label_from_id(nid): count for nid, count in autocatalytic.items()}
+        autocatalytic_labels
+        # {'B': 2, 'C': 1}
+        ```
+
+        **social network: self-interactions**
+
+        ```python
+        social = Graph(directed=True)
+        social.add_node(label="User1")
+        social.add_node(label="User2")
+        social.add_edge(source="User1", target="User1", action="self-like")
+        social.add_edge(source="User2", target="User1", action="like")
+        social.add_edge(source="User2", target="User2", action="self-like")
+        social.add_edge(source="User2", target="User2", action="self-comment")
+
+        self_interactions = social.count_loops()
+        # Returns node IDs: {user1_id: 1, user2_id: 2}
+
+        # Convert to labels
+        self_interactions_labels = {social.get_label_from_id(nid): count for nid, count in self_interactions.items()}
+        self_interactions_labels
+        # {'User1': 1, 'User2': 2}
+        ```
+
+        Notes
+        -----
+        - only returns nodes with at least one self-loop
+        - a node can have multiple self-loops (all counted)
+        - useful for identifying unusual patterns in network data
+        - common in multigraphs where multiple self-edges may exist
+        """
+        return self._graph.count_loops()
+
+    # ==============================================================================
+    # Reciprocity and Mutuality
+    # ==============================================================================
+
+    def which_mutual(self) -> list[tuple[int, int]]:
+        """
+        Find pairs of mutual (reciprocal) edges in directed graph.
+
+        Identifies edge pairs where both A->B and B->A exist, indicating bidirectional
+        connections. Only meaningful for directed graphs. Each pair is returned once
+        with edge IDs in ascending order.
+
+        This is useful for analyzing reciprocity patterns in social networks,
+        communication graphs, and other directed relationships.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            List of (edge_id1, edge_id2) tuples representing mutual edge pairs.
+            Empty list if no mutual edges exist.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph.
+
+        Examples
+        --------
+        Find mutual edges in a social network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Carol")
+            .add_edge("Alice", "Bob")   # Edge 1
+            .add_edge("Bob", "Alice")   # Edge 2: mutual with 1
+            .add_edge("Alice", "Carol") # Edge 3: no reciprocal
+        )
+
+        mutual = graph.which_mutual()
+        print(mutual)  # [(1, 2)]
+        ```
+
+        Analyze communication patterns:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob")
+            .add_node(label="Carol")
+            .add_edge(source="Alice", target="Bob")   # Edge 1
+            .add_edge(source="Bob", target="Alice")   # Edge 2: mutual with 1
+            .add_edge(source="Alice", target="Carol") # Edge 3: no reciprocal
+            .add_edge(source="Bob", target="Carol")   # Edge 4
+            .add_edge(source="Carol", target="Bob")   # Edge 5: mutual with 4
+        )
+
+        # Find bidirectional communication
+        mutual_pairs = graph.which_mutual()
+        print(f"Bidirectional connections: {len(mutual_pairs)}")
+
+        # Get details of mutual relationships
+        for edge1_id, edge2_id in mutual_pairs:
+            e1 = graph.get_node_ids_by_edge_id(edge_id=edge1_id)
+            e2 = graph.get_node_ids_by_edge_id(edge_id=edge2_id)
+            if e1:
+                print(f"Mutual: {e1[0]} ↔ {e1[1]}")
+        ```
+        """
+        return self._graph.which_mutual()
+
+    def get_reciprocity(self, mode: str = "default") -> float:
+        """
+        Calculate reciprocity (fraction of edges with reciprocal counterpart).
+
+        Reciprocity measures the proportion of edges in a directed graph that are bidirectional
+        (mutual). Returns a value between `0.0` (no reciprocal edges) and `1.0` (all edges are
+        reciprocal).
+
+        This metric is fundamental for understanding relationship symmetry in social networks,
+        mutual influence in citation networks, and bidirectional flows in transportation or
+        communication networks.
+
+        Parameters
+        ----------
+        mode
+            Calculation mode for reciprocity:
+
+            - `"default"` or `"ratio"`: (# mutual edges) / (total # edges)
+
+        Returns
+        -------
+        float
+            Reciprocity value between `0.0` and `1.0`, or `0.0` for empty graphs.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph or with invalid mode.
+
+        Examples
+        --------
+        Measure reciprocity in a social network:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Mutual with above
+            .add_edge("A", "C")  # No reciprocal
+        )
+
+        recip = graph.get_reciprocity()
+        print(f"Reciprocity: {recip:.3f}")  # 0.667 (2 mutual out of 3 edges)
+        ```
+
+        Compare different networks:
+
+        ```python
+        from edgecase import Graph
+
+        # Highly reciprocal network (e.g., friendships)
+        friendship = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="A")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="C", target="A")
+        )
+        print(f"Friendship reciprocity: {friendship.get_reciprocity():.2f}")  # 1.00
+
+        # Low reciprocity network (e.g., followers)
+        followers = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="B", target="C")
+            .add_edge(source="D", target="A")
+        )
+        print(f"Follower reciprocity: {followers.get_reciprocity():.2f}")  # 0.00
+        ```
+
+        Analyze communication patterns:
+
+        ```python
+        # Email network with some mutual communication
+        email = Graph(directed=True)
+        # ... add edges ...
+
+        recip = email.get_reciprocity()
+        if recip > 0.5:
+            print("High mutual communication")
+        elif recip > 0.2:
+            print("Moderate mutual communication")
+        else:
+            print("Mostly one-way communication")
+        ```
+        """
+        return self._graph.reciprocity(mode)
+
+    # ==============================================================================
+    # Assortativity Measures
+    # ==============================================================================
+
+    def get_assortativity_degree(self) -> float:
+        """
+        Calculate degree assortativity coefficient.
+
+        Measures the tendency of nodes to connect to other nodes with similar degrees. Returns the
+        Pearson correlation coefficient of node degrees across edges, quantifying whether
+        high-degree nodes preferentially connect to other high-degree nodes (assortative) or to
+        low-degree nodes (disassortative).
+
+        For directed graphs, uses out-degree for source nodes and in-degree for target nodes. For
+        undirected graphs, uses total degree.
+
+        Returns
+        -------
+        float
+            Assortativity coefficient in range [-1, 1]:
+
+            - r > 0: assortative mixing (similar degrees connect)
+            - r < 0: disassortative mixing (different degrees connect)
+            - r ≈ 0: no degree correlation
+
+        Raises
+        ------
+        ValueError
+            If graph has no edges or insufficient degree variance.
+
+        Examples
+        --------
+        **Social Network: Assortative Mixing**
+
+        ```python
+        # High-status users connect to high-status users
+        g = Graph(directed=False)
+        for label in ["Influencer1", "Influencer2", "Influencer3", "User1", "User2", "User3", "User4"]:
+            g.add_node(label=label)
+        g.add_edge(source="Influencer1", target="Influencer2")
+        g.add_edge(source="Influencer1", target="Influencer3")
+        g.add_edge(source="Influencer2", target="Influencer3")
+        g.add_edge(source="User1", target="User2")
+        g.add_edge(source="User3", target="User4")
+
+        r = g.get_assortativity_degree()
+        # r > 0: hubs connect to hubs, periphery to periphery
+        ```
+
+        **Technology Network: Disassortative Mixing**
+
+        ```python
+        # Client-server architecture: high-degree servers connect to low-degree clients
+        g = Graph(directed=False)
+        for label in ["Server1", "Server2", "Client1", "Client2", "Client3", "Client4", "Client5"]:
+            g.add_node(label=label)
+        g.add_edge(source="Server1", target="Client1")
+        g.add_edge(source="Server1", target="Client2")
+        g.add_edge(source="Server1", target="Client3")
+        g.add_edge(source="Server2", target="Client4")
+        g.add_edge(source="Server2", target="Client5")
+
+        r = g.get_assortativity_degree()
+        # r < 0: high-degree nodes connect to low-degree nodes
+        ```
+
+        **Random Network**
+
+        ```python
+        from edgecase import Graph
+        import random
+
+        # Erdős-Rényi random graph typically shows no correlation
+        random.seed(42)
+
+        g = Graph(directed=False)
+        nodes = [f"N{i}" for i in range(20)]
+        for node in nodes:
+            g.add_node(label=node)
+        for i in range(30):
+            u, v = random.sample(nodes, 2)
+            g.add_edge(source=u, target=v)
+
+        r = g.get_assortativity_degree()
+        # r ≈ 0: no systematic degree correlation
+        ```
+
+        Notes
+        -----
+        - uses Newman's formula for assortativity coefficient
+        - most real-world social networks are assortative (r > 0)
+        - many technological/biological networks are disassortative (r < 0)
+        - perfect assortativity (r = 1) means only equal-degree nodes connect
+        - requires at least one edge and variance in node degrees
+
+        References
+        ----------
+        Newman, M.E.J. (2002). "Assortative mixing in networks."
+        Physical Review Letters, 89(20), 208701.
+        """
+        return self._graph.assortativity_degree()
+
+    def get_assortativity_nominal(self, attribute: str) -> float:
+        """
+        Calculate assortativity for categorical (nominal) node attributes.
+
+        Measures the tendency of nodes with the same attribute value to connect, also known as
+        homophily. Uses Newman's formula for categorical mixing patterns.
+
+        Parameters
+        ----------
+        attribute
+            Name of the categorical node attribute to analyze. Must exist on all nodes as a node
+            attribute.
+
+        Returns
+        -------
+        float
+            Assortativity coefficient in range [-1, 1]:
+
+            - r = 1: perfect assortativity (only same-type connections)
+            - r > 0: assortative (same types prefer to connect)
+            - r = 0: random mixing
+            - r < 0: disassortative (different types prefer to connect)
+
+        Raises
+        ------
+        ValueError
+            If attribute doesn't exist on all nodes, graph has no edges, or there are fewer than two
+            different attribute values.
+
+        Examples
+        --------
+        **Homophily in Social Networks**
+
+        ```python
+        # People tend to befriend similar people
+        g = Graph(directed=False)
+        g.add_node("Alice", group="students")
+        g.add_node("Bob", group="students")
+        g.add_node("Carol", group="students")
+        g.add_node("Prof1", group="faculty")
+        g.add_node("Prof2", group="faculty")
+
+        # Mostly within-group friendships
+        g.add_edge("Alice", "Bob")
+        g.add_edge("Bob", "Carol")
+        g.add_edge("Prof1", "Prof2")
+        g.add_edge("Alice", "Prof1")  # One cross-group edge
+
+        r = g.get_assortativity_nominal("group")
+        # r > 0: since students connect to students, faculty to faculty
+        ```
+
+        **Mixing Patterns by Gender**
+
+        ```python
+        # Collaboration network
+        g = Graph(directed=False)
+        g.add_node("Alice", gender="F")
+        g.add_node("Bob", gender="M")
+        g.add_node("Carol", gender="F")
+        g.add_node("Dave", gender="M")
+
+        g.add_edge("Alice", "Bob")
+        g.add_edge("Bob", "Dave")
+        g.add_edge("Carol", "Dave")
+        g.add_edge("Alice", "Carol")
+
+        r = g.get_assortativity_nominal("gender")
+        # Measures gender homophily in collaboration
+        ```
+
+        **Biological Networks: Species Interactions**
+
+        ```python
+        # Predator-prey relationships are disassortative
+        g = Graph(directed=True)
+        g.add_node("Wolf", type="predator")
+        g.add_node("Lion", type="predator")
+        g.add_node("Deer", type="prey")
+        g.add_node("Rabbit", type="prey")
+
+        g.add_edge("Wolf", "Deer")
+        g.add_edge("Wolf", "Rabbit")
+        g.add_edge("Lion", "Deer")
+
+        r = g.get_assortativity_nominal("type")
+        # r < 0: predators connect to prey, not to each other
+        ```
+
+        **Network Segregation Analysis**
+
+        ```python
+        # Measure segregation in communication network
+        g = Graph(directed=False)
+        g.add_node("A", dept="Engineering")
+        g.add_node("B", dept="Engineering")
+        g.add_node("C", dept="Marketing")
+        g.add_node("D", dept="Marketing")
+
+        # All edges within departments
+        g.add_edge("A", "B")
+        g.add_edge("C", "D")
+
+        r = g.get_assortativity_nominal("dept")
+        # r = 1.0: perfect segregation by department
+        ```
+
+        Notes
+        -----
+        - also called "modularity by attribute" or "homophily coefficient"
+        - `r = 1` means complete segregation (no cross-type edges)
+        - common in social networks where "birds of a feather flock together"
+        - can be used to detect and measure community structure by attribute
+        - for undirected graphs, the mixing matrix is symmetric
+
+        References
+        ----------
+        Newman, M.E.J. (2003). "Mixing patterns in networks."
+        Physical Review E, 67(2), 026126.
+        """
+        return self._graph.get_assortativity_nominal(attribute)
+
+    def get_assortativity(self, attribute: str) -> float:
+        """
+        Calculate assortativity for numeric node attributes.
+
+        Measures the tendency of nodes with similar numeric attribute values to
+        connect. Returns the Pearson correlation coefficient of attribute values
+        across edges, indicating whether similar values tend to be connected.
+
+        Parameters
+        ----------
+        attribute
+            Name of the numeric node attribute to analyze.
+            Must exist on all nodes and be convertible to float.
+
+        Returns
+        -------
+        float
+            Assortativity coefficient in range [-1, 1]:
+
+            - r = 1: perfect positive correlation (identical values connect)
+            - r > 0: assortative (similar values prefer to connect)
+            - r = 0: no correlation
+            - r < 0: disassortative (dissimilar values prefer to connect)
+            - r = -1: perfect negative correlation
+
+        Raises
+        ------
+        ValueError
+            If attribute doesn't exist on all nodes, isn't numeric,
+            graph has no edges, or attribute has no variance.
+
+        Examples
+        --------
+        **Age-Based Friendship Networks**
+
+        ```python
+        # People befriend others of similar age
+        g = Graph(directed=False)
+        g.add_node("Alice", age=25)
+        g.add_node("Bob", age=27)
+        g.add_node("Carol", age=26)
+        g.add_node("Dave", age=55)
+        g.add_node("Eve", age=53)
+
+        g.add_edge("Alice", "Bob")  # Similar ages (25-27)
+        g.add_edge("Bob", "Carol")  # Similar ages (27-26)
+        g.add_edge("Dave", "Eve")   # Similar ages (55-53)
+        g.add_edge("Alice", "Carol")  # Similar ages (25-26)
+
+        r = g.get_assortativity("age")
+        # r > 0: people tend to befriend similar-aged people
+        ```
+
+        **Academic Collaboration by Experience**
+
+        ```python
+        # Citation network by publication count
+        g = Graph(directed=False)
+        g.add_node("Junior1", papers=5)
+        g.add_node("Junior2", papers=7)
+        g.add_node("Senior1", papers=50)
+        g.add_node("Senior2", papers=45)
+
+        # Cross-level mentorship
+        g.add_edge("Senior1", "Junior1")
+        g.add_edge("Senior1", "Junior2")
+        g.add_edge("Senior2", "Junior1")
+
+        r = g.get_assortativity("papers")
+        # r < 0: experienced researchers often collaborate with juniors
+        ```
+
+        **Wealth Inequality in Trade Networks**
+
+        ```python
+        # Economic network with GDP
+        g = Graph(directed=False)
+        g.add_node("USA", gdp=21.0)
+        g.add_node("China", gdp=14.7)
+        g.add_node("Germany", gdp=3.8)
+        g.add_node("India", gdp=2.9)
+        g.add_node("Brazil", gdp=1.8)
+
+        g.add_edge("USA", "China")
+        g.add_edge("Germany", "India")
+        g.add_edge("USA", "Germany")
+
+        r = g.get_assortativity("gdp")
+        # Measures if similar-wealth countries trade more
+        ```
+
+        **Protein Interaction Networks**
+
+        ```python
+        # Proteins by molecular weight
+        g = Graph(directed=False)
+        g.add_node("P1", weight=25.5)
+        g.add_node("P2", weight=27.3)
+        g.add_node("P3", weight=52.1)
+        g.add_node("P4", weight=51.8)
+
+        g.add_edge("P1", "P2")  # Similar weights
+        g.add_edge("P3", "P4")  # Similar weights
+
+        r = g.get_assortativity("weight")
+        # r > 0: similar-sized proteins tend to interact
+        ```
+
+        Notes
+        -----
+        - uses Pearson correlation coefficient formula
+        - common in social networks (homophily by age, income, education)
+        - can reveal hierarchical structures when negative
+        - sensitive to outliers: considers data normalization
+        - requires variance in attribute values (all same value will error)
+
+        References
+        ----------
+        Newman, M.E.J. (2002). "Assortative mixing in networks."
+        Physical Review Letters, 89(20), 208701.
+        """
+        return self._graph.assortativity(attribute)
+
+    def get_spectrum(
+        self,
+        which: str = "largest",
+        k: int | None = None,
+    ) -> dict[str, list[float] | list[list[float]] | float | None]:
+        """
+        Compute eigenvalues and eigenvectors of the adjacency matrix.
+
+        Returns the spectrum (eigenvalues and eigenvectors) of the graph's adjacency matrix. The
+        spectrum reveals important structural properties including connectivity, bipartiteness, and
+        graph regularity.
+
+        Parameters
+        ----------
+        which
+            Which eigenvalues to compute:
+
+            - `"all"`: All n eigenvalues (O(n³), recommended for n < 100)
+            - `"largest"`: Largest k eigenvalues (default k=6)
+            - `"smallest"`: Smallest k eigenvalues
+        k
+            Number of eigenvalues to compute for "largest"/"smallest".
+            Default is min(6, n-1) where n is the number of nodes.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys:
+            - `"values"`: List of eigenvalues (sorted descending)
+            - `"vectors"`: List of eigenvectors (each as list of floats)
+            - `"spectral_gap"`: λ₁ - λ₂ (difference between two largest eigenvalues)
+
+        Raises
+        ------
+        ValueError
+            If graph is empty or eigenvalue computation fails.
+
+        Examples
+        --------
+        **Spectral Analysis of Complete Graph**
+
+        ```python
+        # Complete graph K_5
+        g = Graph(directed=False)
+
+        for i in range(5):
+            g.add_node(f"v{i}")
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(f"v{i}", f"v{j}")
+
+        spec = g.get_spectrum(which="all")
+        print(f"Eigenvalues: {spec['values']}")
+
+        # Complete graph: λ₁ = n-1, other λᵢ = -1
+        print(f"Spectral gap: {spec['spectral_gap']}")
+        # K_n has spectral gap = n
+        ```
+
+        **Detecting Bipartite Structure**
+
+        ```python
+        # Bipartite graph has symmetric spectrum
+        g = Graph(directed=False)
+
+        # Left partition: A, B
+        # Right partition: X, Y, Z
+        for node in ["A", "B", "X", "Y", "Z"]:
+            g.add_node(node)
+        g.add_edge("A", "X")
+        g.add_edge("A", "Y")
+        g.add_edge("B", "Y")
+        g.add_edge("B", "Z")
+
+        spec = g.get_spectrum(which="all")
+
+        # Bipartite: λ and -λ appear in pairs
+        # Check if λ_max ≈ -λ_min
+        values = spec['values']
+        is_bipartite = abs(values[0] + values[-1]) < 0.01
+        ```
+
+        **Spectral Clustering Using Leading Eigenvector**
+
+        ```python
+        from edgecase import Graph
+
+        # Use second eigenvector (Fiedler vector) for graph clustering
+        g = Graph(directed=False)
+
+        # Add two communities with a weak bridge
+        # Community 1: nodes 0-4
+        for i in range(5):
+            g.add_node(label=f"n{i}")
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(source=f"n{i}", target=f"n{j}")
+
+        # Community 2: nodes 5-9
+        for i in range(5, 10):
+            g.add_node(label=f"n{i}")
+        for i in range(5, 10):
+            for j in range(i+1, 10):
+                g.add_edge(source=f"n{i}", target=f"n{j}")
+
+        # Bridge
+        g.add_edge(source="n4", target="n5")
+
+        spec = g.get_spectrum(which="largest", k=2)
+        # Use eigenvector to partition graph
+        fiedler_vector = spec['vectors'][1]  # Second eigenvector
+        partition = [1 if v > 0 else 0 for v in fiedler_vector]
+        ```
+
+        **Computing Spectral Radius**
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        for i in range(5):
+            g.add_node(label=f"v{i}")
+        for i in range(5):
+            for j in range(i+1, 5):
+                g.add_edge(source=f"v{i}", target=f"v{j}")
+
+        # Spectral radius = max absolute eigenvalue
+        spec = g.get_spectrum(which="all")
+        spectral_radius = max(abs(v) for v in spec['values'])
+
+        # For regular graphs: spectral radius = degree
+        # Bound: spectral_radius ≤ max_degree
+        ```
+
+        Notes
+        -----
+        **Spectral Properties**:
+
+        - **Spectral radius**: ρ(A) = max|λᵢ|
+          - always equals largest eigenvalue for undirected graphs
+          - bounded by max degree: ρ(A) ≤ Δ(G)
+          - for regular graphs: ρ(A) = degree
+
+        - **Spectral gap**: λ₁ - λ₂
+          - measures connectivity and expansion
+          - large gap -> well-connected graph
+          - small gap -> bottlenecks or clusters
+          - zero gap -> disconnected graph
+
+        - **Trace**: Σλᵢ = 0 (sum of eigenvalues equals zero for undirected)
+
+        - **Number of spanning trees**: Related to Laplacian eigenvalues
+
+        **Special Graph Spectra**:
+
+        - complete graph K_n: {n-1, -1, -1, ..., -1}
+        - cycle C_n: {2cos(2πk/n) | k=0,...,n-1}
+        - path P_n: {2cos(πk/(n+1)) | k=1,...,n}
+        - star S_n: {√(n-1), 0, ..., 0, -√(n-1)}
+
+        **Computational Complexity**:
+
+        - which="all": O(n³) using dense eigendecomposition
+        - which="largest"/"smallest": O(kn²) using iterative methods
+        - Recommended: Use k < 10 for large graphs (n > 1000)
+
+        **Use Cases**:
+
+        - spectral clustering: community detection via eigenvectors
+        - graph embedding: represent nodes using eigenvector coordinates
+        - bipartite detection: check if spectrum is symmetric about 0
+        - random walk analysis: eigenvalues determine mixing time
+        - graph comparison: compare spectral distributions
+
+        References
+        ----------
+        Chung, F. R. K. (1997). "Spectral Graph Theory."
+        American Mathematical Society.
+
+        Von Luxburg, U. (2007). "A tutorial on spectral clustering."
+        Statistics and Computing, 17(4), 395-416.
+        """
+        return self._graph.spectrum(which, k)
+
+    def get_laplacian_spectrum(
+        self,
+        which: str = "smallest",
+        k: int | None = None,
+        normalized: bool = False,
+    ) -> dict[str, list[float] | list[list[float]] | float | None]:
+        """
+        Compute eigenvalues and eigenvectors of the graph Laplacian.
+
+        Returns the spectrum of the Laplacian matrix L = D - A (or normalized variant). The
+        Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
+
+        Parameters
+        ----------
+        which
+            Which eigenvalues to compute:
+
+            - "all": All n eigenvalues (O(n³), recommended for n < 100)
+            - "smallest": Smallest k eigenvalues (default k=6)
+            - "largest": Largest k eigenvalues
+        k
+            Number of eigenvalues to compute for "largest"/"smallest".
+            Default is min(6, n-1) where n is the number of nodes.
+        normalized
+            If True, use normalized Laplacian: L_norm = D^(-1/2) L D^(-1/2).
+            Normalized version has eigenvalues in [0, 2] for undirected graphs.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys:
+
+            - "values": List of eigenvalues (sorted ascending)
+            - "vectors": List of eigenvectors (each as list of floats)
+            - "algebraic_connectivity": λ₂ (second-smallest eigenvalue,
+              measures how well-connected the graph is; 0 if disconnected)
+
+        Raises
+        ------
+        ValueError
+            If graph is empty or eigenvalue computation fails.
+
+        Examples
+        --------
+        **Detecting Disconnected Components**
+
+        ```python
+        from edgecase import Graph
+
+        # Graph with 2 components
+        g = Graph(directed=False)
+        # Component 1
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B")
+        g.add_edge(source="B", target="C")
+        # Component 2
+        g.add_node(label="X")
+        g.add_node(label="Y")
+        g.add_edge(source="X", target="Y")
+
+        spec = g.get_laplacian_spectrum(which="smallest", k=3)
+        zero_eigenvalues = sum(1 for v in spec['values'] if abs(v) < 1e-6)
+        print(f"Number of components: {zero_eigenvalues}")
+        # λ₁ = 0 has multiplicity = number of connected components
+
+        connectivity = spec['algebraic_connectivity']
+        print(f"Algebraic connectivity: {connectivity}")
+        # = 0 means disconnected
+        ```
+
+        **Spectral Clustering with Fiedler Vector**
+
+        ```python
+        # Two-way spectral clustering
+        g = Graph(directed=False)
+        # Create graph with two communities...
+        for i in range(6):
+            g.add_node(label=f"n{i}")
+
+        # Dense intra-community edges
+        g.add_edge(source="n0", target="n1")
+        g.add_edge(source="n1", target="n2")
+        g.add_edge(source="n3", target="n4")
+        g.add_edge(source="n4", target="n5")
+        # Sparse inter-community edge
+        g.add_edge(source="n2", target="n3")
+
+        spec = g.get_laplacian_spectrum(which="smallest", k=3)
+        fiedler_vector = spec['vectors'][1]  # Second eigenvector (λ₂)
+
+        # Partition based on sign of Fiedler vector
+        cluster_1 = [i for i, v in enumerate(fiedler_vector) if v < 0]
+        cluster_2 = [i for i, v in enumerate(fiedler_vector) if v >= 0]
+        ```
+
+        **Measuring Graph Expansion**
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        for i in range(6):
+            g.add_node(label=f"n{i}")
+        g.add_edge(source="n0", target="n1")
+        g.add_edge(source="n1", target="n2")
+        g.add_edge(source="n3", target="n4")
+        g.add_edge(source="n4", target="n5")
+        g.add_edge(source="n2", target="n3")
+
+        # Algebraic connectivity measures expansion
+        spec = g.get_laplacian_spectrum(which="smallest", k=2)
+        algebraic_connectivity = spec['algebraic_connectivity']
+
+        # Cheeger inequality: h²/(2Δ) ≤ λ₂ ≤ 2h
+        # where h = edge expansion, Δ = max degree
+        # Large λ₂ -> expander graph (hard to partition)
+        # Small λ₂ -> bottleneck (easy to cut)
+        ```
+
+        **Normalized Laplacian for Weighted Graphs**
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge(source="A", target="B", weight=1.0)
+        g.add_edge(source="B", target="C", weight=2.0)
+        g.add_edge(source="C", target="A", weight=0.5)
+
+        # Normalized Laplacian accounts for degree variations
+        spec = g.get_laplacian_spectrum(which="all", normalized=True)
+        # Eigenvalues in [0, 2] for undirected graphs
+        # λ = 0 ⟺ connected component
+        # λ = 2 ⟺ bipartite structure
+        ```
+
+        **Random Walk and Diffusion Analysis**
+
+        ```python
+        g = Graph(directed=False)
+        for i in range(6):
+            g.add_node(label=f"n{i}")
+        g.add_edge(source="n0", target="n1")
+        g.add_edge(source="n1", target="n2")
+        g.add_edge(source="n3", target="n4")
+        g.add_edge(source="n4", target="n5")
+        g.add_edge(source="n2", target="n3")
+
+        # Laplacian eigenvalues determine diffusion speed
+        spec = g.get_laplacian_spectrum(which="smallest", k=5)
+
+        # Mixing time ≈ 1 / λ₂ (algebraic connectivity)
+        # Small λ₂ -> slow mixing (long random walks to reach steady state)
+        # Large λ₂ -> fast mixing (rapid convergence)
+        ```
+
+        Notes
+        -----
+        **Laplacian Properties**:
+
+        - **Always has 0 eigenvalue**: Corresponding eigenvector is constant
+        - **Number of 0 eigenvalues**: Equals number of connected components
+        - **Algebraic connectivity** (λ₂, Fiedler value):
+          - λ₂ > 0 ⟺ graph is connected
+          - λ₂ = 0 ⟺ disconnected
+          - measures robustness to edge removal
+          - lower bound on edge/node connectivity
+
+        - **Fiedler vector**: Eigenvector for λ₂
+          - sign pattern reveals natural graph partition
+          - used in spectral bisection algorithms
+          - minimizes cut weight among all bisections
+
+        **Normalized vs Unnormalized**:
+
+        - **Unnormalized L = D - A**:
+          - Eigenvalues: 0 = λ₁ ≤ λ₂ ≤ ... ≤ λₙ
+          - Sensitive to degree distribution
+          - Natural for unweighted graphs
+
+        - **Normalized L_norm = D^(-1/2) L D^(-1/2)**:
+          - Eigenvalues in [0, 2] for undirected
+          - Better for weighted/degree-imbalanced graphs
+          - Used in normalized cut clustering
+
+        **Special Graph Laplacians**:
+
+        - Path P_n: {2 - 2cos(πk/n) | k=1,...,n}, λ₂ = 2(1 - cos(π/n))
+        - Cycle C_n: {2 - 2cos(2πk/n) | k=0,...,n-1}, λ₂ = 2(1 - cos(2π/n))
+        - Complete K_n: {0, n, n, ..., n}, λ₂ = n
+        - Star S_n: {0, 1, 1, ..., 1, n}, λ₂ = 1
+
+        **Computational Complexity**:
+
+        - which="all": O(n³) for dense eigendecomposition
+        - which="smallest": O(kn²) for k smallest eigenvalues
+        - Normalized version: Additional O(n²) for degree computation
+
+        **Use Cases**:
+
+        - spectral clustering: use Fiedler vector for graph partitioning
+        - community detection: k-way clustering using k eigenvectors
+        - graph cuts: min-cut via spectral relaxation
+        - synchronization: analyze coupled oscillators on networks
+        - diffusion processes: heat kernel and random walks
+        - network robustness: algebraic connectivity as connectivity measure
+
+        References
+        ----------
+        Fiedler, M. (1973). "Algebraic connectivity of graphs."
+        Czechoslovak Mathematical Journal, 23(2), 298-305.
+
+        Chung, F. R. K. (1997). "Spectral Graph Theory."
+        American Mathematical Society.
+
+        Shi, J., & Malik, J. (2000). "Normalized cuts and image segmentation."
+        IEEE PAMI, 22(8), 888-905.
+        """
+        return self._graph.get_laplacian_spectrum(which, k, normalized)
 
     # ==============================================================================
     # Network Efficiency
@@ -19245,845 +20138,6 @@ class Graph:
         from edgecase._core import local_efficiency
 
         return local_efficiency(self._graph)
-
-    # ==============================================================================
-    # Community Detection
-    # ==============================================================================
-
-    def cmty_fast_greedy(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, int], "Graph"]:
-        """
-        Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
-
-        This is a greedy modularity optimization algorithm that merges communities
-        to maximize modularity. It's efficient for medium to large graphs and provides
-        good quality communities. Only works with undirected graphs.
-
-        Algorithm:
-
-        1. Start with each node in its own community
-        2. Build a heap of merge candidates ordered by modularity gain (ΔQ)
-        3. Repeatedly merge the pair with highest ΔQ until no improvement
-        4. Return the partition with maximum modularity
-
-        Parameters
-        ----------
-        attr_name
-            Column name to store community assignments in the node DataFrame.
-            If None (default), automatically uses 'cmty_fast_greedy'.
-            Overwrites column if it already exists.
-        return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, int], Graph]
-            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed).
-            If return_dict is False (default): returns self for method chaining.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed (requires undirected graph).
-
-        Examples
-        --------
-        Detect communities in disconnected cliques:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Clique 1
-            .add_edge("D", "E")  # Clique 2
-        )
-
-        communities = graph.cmty_fast_greedy(return_dict=True)
-        print(len(set(communities.values())))  # 2 communities
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Clique 1
-            .add_edge(source="D", target="E")  # Clique 2
-        )
-
-        # (graph
-        #     .cmty_fast_greedy(attr_name="community")
-        #     .colorize_node_attrs(node_attr_from="community", palette="Set1")
-        #     .show())
-        ```
-
-        Notes
-        -----
-        Complexity: O(n log²n) on sparse graphs, O(n + m) space.
-
-        References
-        ----------
-        Clauset, A., Newman, M. E., & Moore, C. (2004).
-        "Finding community structure in very large networks."
-        Physical review E, 70(6), 066111.
-        """
-        communities = self._graph.get_cmty_fast_greedy()
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "cmty_fast_greedy"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
-        # Track computation
-        if not return_dict:
-            self._computations.append(("cmty_fast_greedy", {}, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
-        return self
-
-    def cmty_edge_btwns(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, int], "Graph"]:
-        """
-        Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
-
-        Iteratively removes edges with highest betweenness centrality to reveal
-        community structure. Uses Brandes' algorithm for efficient betweenness
-        calculation. More accurate than Fast Greedy but significantly slower
-        (O(m²n) complexity).
-
-        Best for small to medium graphs (< 5K nodes) with hierarchical community
-        structure and clear "bridge" edges between communities. When accuracy is
-        more important than speed.
-
-        Parameters
-        ----------
-        attr_name
-            Column name to store community assignments in the node DataFrame.
-            If None (default), automatically uses 'cmty_edge_btwns'.
-            Overwrites column if it already exists.
-        return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, int], Graph]
-            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If return_dict is False (default): returns self for method chaining.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed (requires undirected graph).
-
-        Examples
-        --------
-        Detect communities in bridged triangles:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Triangle 1
-            .add_edge("C", "D")  # Bridge edge
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "D")  # Triangle 2
-        )
-
-        communities = graph.cmty_edge_btwns(return_dict=True)
-        # Bridge edge C-D has highest betweenness and is removed first
-        # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Triangle 1
-            .add_edge(source="C", target="D")  # Bridge edge
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")  # Triangle 2
-        )
-
-        # (graph
-        #     .cmty_edge_btwns(attr_name="community")
-        #     .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
-        #     .show())
-        ```
-
-        Notes
-        -----
-        Algorithm steps:
-        1. Compute edge betweenness for all edges using Brandes' algorithm
-        2. Remove edge with highest betweenness
-        3. Recompute betweenness and check if modularity improved
-        4. Repeat until modularity stops improving
-        5. Return partition with maximum modularity
-
-        Complexity: O(m²n) where m = edges, n = nodes. For graphs with > 10K nodes,
-        consider `get_cmty_fast_greedy()` or `cmty_louvain()` instead.
-
-        References
-        ----------
-        Girvan, M., & Newman, M. E. (2002). "Community structure in social
-        and biological networks." PNAS, 99(12), 7821-7826.
-
-        Brandes, U. (2001). "A faster algorithm for betweenness centrality."
-        Journal of Mathematical Sociology, 25(2), 163-177.
-        """
-        communities = self._graph.get_cmty_edge_btwns()
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "cmty_edge_btwns"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
-        # Track computation
-        if not return_dict:
-            self._computations.append(("cmty_edge_btwns", {}, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
-        return self
-
-    def cmty_l_eigenvec(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, int], "Graph"]:
-        """
-        Detect communities using Leading Eigenvector (Newman) algorithm.
-
-        Spectral optimization method using recursive bisection based on the leading
-        eigenvector of the modularity matrix. Splits communities hierarchically when
-        modularity improves. Best for medium-sized graphs (< 20K nodes) with clear
-        2-way divisions and hierarchical structure.
-
-        Parameters
-        ----------
-        attr_name
-            Column name to store community assignments in the node DataFrame.
-            If None (default), automatically uses 'cmty_l_eigenvec'.
-            Overwrites column if it already exists.
-        return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, int], Graph]
-            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If return_dict is False (default): returns self for method chaining.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed (requires undirected graph).
-
-        Examples
-        --------
-        Detect communities in bridged cliques:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-        )
-
-        # Build two complete triangles
-        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
-            graph.add_edge(i, j)
-
-        graph.add_edge("C", "D")  # Bridge
-
-        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
-            graph.add_edge(i, j)
-
-        communities = graph.cmty_l_eigenvec(return_dict=True)
-        # Eigenvector method finds natural split at bridge
-        # Result: {'A': 0, 'B': 0, 'C': 0, 'D': 1, 'E': 1, 'F': 1}
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")
-        )
-
-        # (graph
-        #     .cmty_l_eigenvec(attr_name="community")
-        #     .colorize_node_attrs(node_attr_from="community", palette="Spectral")
-        #     .show())
-        ```
-
-        Notes
-        -----
-        Algorithm steps:
-
-        1. Start with all nodes in one community
-        2. Compute modularity matrix: B_ij = A_ij - (k_i × k_j) / 2m
-        3. Find leading eigenvector using power iteration
-        4. Split by sign: positive -> community 1, negative -> community 2
-        5. Accept split only if modularity improves
-        6. Recursively split each community
-
-        Complexity: O(n²) per split (recursive). For very large graphs (> 50K nodes),
-        consider `get_cmty_fast_greedy()` or `cmty_louvain()` instead.
-
-        The algorithm only splits when modularity improves, so it may return fewer
-        communities than other methods if the structure is not hierarchically organized.
-
-        References
-        ----------
-        Newman, M. E. J. (2006). "Finding community structure in networks using
-        the eigenvectors of matrices." Physical Review E, 74(3), 036104.
-
-        Newman, M. E. J. (2006). "Modularity and community structure in networks."
-        PNAS, 103(23), 8577-8582.
-        """
-        communities = self._graph.get_cmty_l_eigenvec()
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "cmty_l_eigenvec"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
-        # Track computation
-        if not return_dict:
-            self._computations.append(("cmty_l_eigenvec", {}, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
-        return self
-
-    def cmty_louvain(
-        self, resolution: float = 1.0, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, int], "Graph"]:
-        """
-        Detect communities using Louvain multi-level optimization algorithm.
-
-        The Louvain method is a hierarchical algorithm that maximizes modularity
-        through iterative optimization. It's the most widely-used community detection
-        algorithm in practice due to its speed (O(n log n)) and quality on large networks.
-
-        The method produces a dendrogram hierarchy but returns the partition with
-        maximum modularity. Works only with undirected graphs.
-
-        Parameters
-        ----------
-        resolution
-            Resolution parameter controlling community size. Higher values favor
-            smaller communities. Standard modularity uses resolution=1.0.
-        attr_name
-            Column name to store community assignments in the node DataFrame.
-            If None (default), automatically uses 'cmty_louvain'.
-            Overwrites column if it already exists.
-        return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, int], Graph]
-            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If return_dict is False (default): returns self for method chaining.
-
-        Raises
-        ------
-        RuntimeError
-            If called on a directed graph.
-
-        Examples
-        --------
-        Detect communities in bridged triangles:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-        )
-
-        # Build two complete triangles connected by bridge
-        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
-            graph.add_edge(i, j)
-
-        graph.add_edge("C", "D")  # Bridge
-
-        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
-            graph.add_edge(i, j)
-
-        communities = graph.cmty_louvain(return_dict=True)
-        # Nodes in same triangle have same community ID
-        node_a = graph.get_id_from_label("A")
-        node_b = graph.get_id_from_label("B")
-        node_c = graph.get_id_from_label("C")
-        node_d = graph.get_id_from_label("D")
-        assert communities[node_a] == communities[node_b] == communities[node_c]
-        assert communities[node_d] == communities[graph.get_id_from_label("E")]
-
-        # Control community granularity with resolution
-        fine = graph.cmty_louvain(resolution=1.5, return_dict=True)  # Smaller communities
-        coarse = graph.cmty_louvain(resolution=0.5, return_dict=True)  # Larger communities
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")
-        )
-
-        # (graph
-        #     .cmty_louvain(attr_name="community")
-        #     .colorize_node_attrs(node_attr_from="community", palette="viridis")
-        #     .show())
-        ```
-
-        Notes
-        -----
-        Algorithm steps:
-
-        1. Phase 1 (Local optimization): Each node tries joining neighboring
-           communities to maximize modularity gain ΔQ
-        2. Phase 2 (Aggregation): Communities are coarsened into super-nodes,
-           creating a new network where each community becomes a single node
-        3. Repeat until modularity converges (no further improvement)
-
-        The resolution parameter tunes community size:
-
-        - resolution < 1.0: Larger communities
-        - resolution = 1.0: Standard modularity optimization
-        - resolution > 1.0: Smaller communities
-
-        The algorithm is deterministic but may produce different (equivalent)
-        partitions depending on node ordering. Handles disconnected components
-        naturally. Self-loops and multi-edges are currently not supported.
-
-        References
-        ----------
-        Blondel, V. D., Guillaume, J. L., Lambiotte, R., & Lefebvre, E. (2008).
-        "Fast unfolding of communities in large networks." Journal of Statistical
-        Mechanics: Theory and Experiment, 2008(10), P10008.
-
-        Lambiotte, R., Delvenne, J. C., & Barahona, M. (2014). "Random walks,
-        Markov processes and the multiscale modular organization of complex
-        networks." IEEE Transactions on Network Science and Engineering, 1(2), 76-90.
-        """
-        communities = self._graph.get_cmty_louvain(resolution)
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "cmty_louvain"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
-        # Track computation
-        if not return_dict:
-            params = {"resolution": resolution} if resolution != 1.0 else {}
-            self._computations.append(("cmty_louvain", params, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
-        return self
-
-    def cmty_walktrap(
-        self, steps: int = 4, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, int], "Graph"]:
-        """
-        Detect communities using Walktrap random walk algorithm.
-
-        The Walktrap algorithm exploits the property that random walks tend to stay trapped within
-        densely connected communities. It computes distances between nodes based on random walk
-        probabilities, then uses hierarchical clustering to identify community structure.
-
-        Works only with undirected graphs. Time complexity is O(n²log n) for typical
-        networks with small step parameter.
-
-        Parameters
-        ----------
-        steps
-            Number of random walk steps. Higher values capture longer-range
-            structural patterns. Typical values: 2-8.
-
-            - steps=2: Local structure only
-            - steps=4: Good balance (default, recommended)
-            - steps=6+: Longer-range patterns, more computation
-        attr_name
-            Column name to store community assignments in the node DataFrame.
-            If None (default), automatically uses 'cmty_walktrap'.
-            Overwrites column if it already exists.
-        return_dict
-            If True, returns dictionary instead of self.
-            If False (default), stores in NDF and returns self for chaining.
-
-        Returns
-        -------
-        Union[dict[int, int], Graph]
-            If return_dict is True: dictionary mapping node IDs to community IDs (0-indexed, contiguous).
-            If return_dict is False (default): returns self for method chaining.
-
-        Raises
-        ------
-        ValueError
-            If called on a directed graph.
-
-        Examples
-        --------
-        Detect communities with default parameters:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-        )
-
-        # Two cliques connected by a bridge
-        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
-            graph.add_edge(i, j)
-
-        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
-            graph.add_edge(i, j)
-
-        graph.add_edge("C", "D")  # Bridge
-
-        communities = graph.cmty_walktrap(return_dict=True)
-        node_a = graph.get_id_from_label("A")
-        node_b = graph.get_id_from_label("B")
-        node_c = graph.get_id_from_label("C")
-        node_d = graph.get_id_from_label("D")
-        assert communities[node_a] == communities[node_b] == communities[node_c]
-        assert communities[node_d] == communities[graph.get_id_from_label("E")]
-
-        # Try different step lengths for different scales
-        local_cmty = graph.cmty_walktrap(return_dict=True, steps=2)   # More local communities
-        global_cmty = graph.cmty_walktrap(return_dict=True, steps=6)  # More global communities
-        ```
-
-        Store as node attributes and chain:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")
-        )
-
-        # (graph
-        #     .cmty_walktrap(attr_name="community")
-        #     .colorize_node_attrs(node_attr_from="community", palette="tab10")
-        #     .show())
-        ```
-
-        Notes
-        -----
-        Algorithm steps:
-
-        1. Compute transition probability matrix P (P[i][j] = 1/deg(i) if edge exists)
-        2. Compute t-step transition probabilities P^t by matrix exponentiation
-        3. Calculate random walk distance between each pair of nodes:
-           d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
-        4. Apply Ward's hierarchical clustering on the distance matrix
-        5. Cut the dendrogram at the level that maximizes modularity
-
-        The step parameter controls the scale of community detection:
-
-        - Lower steps (2-3): Detect finer, more local communities
-        - Higher steps (5-8): Detect coarser, more global communities
-
-        The algorithm is deterministic (no randomness despite the name). Works well
-        on hierarchical community structures and handles disconnected components
-        automatically. Performance degrades on very large graphs (>10,000 nodes)
-        due to O(n²) distance matrix computation. Self-loops and multi-edges are
-        currently not supported.
-
-        Performance:
-
-        - Small graphs (<1000 nodes): <1 second
-        - Medium graphs (1000-5000 nodes): 1-30 seconds
-        - Large graphs (>5000 nodes): May be slow, consider Louvain instead
-
-        References
-        ----------
-        Pons, P., & Latapy, M. (2005). "Computing communities in large networks
-        using random walks." In Computer and Information Sciences-ISCIS 2005
-        (pp. 284-293). Springer, Berlin, Heidelberg.
-
-        Pons, P., & Latapy, M. (2006). "Computing communities in large networks
-        using random walks (long version)." arXiv preprint physics/0512106.
-        """
-        communities = self._graph.get_cmty_walktrap(steps)
-
-        # Auto-generate attribute name if not provided
-        if attr_name is None:
-            attr_name = "cmty_walktrap"
-
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
-        # Track computation
-        params = {}
-        if steps != 4:
-            params["steps"] = steps
-        if not return_dict:
-            self._computations.append(("cmty_walktrap", params, attr_name))
-
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
-        return self
-
-    # ==============================================================================
-    # Core and Structural Importance
-    # ==============================================================================
-
-    def closeness_vitality(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, float], "Graph"]:
-        """
-        Get closeness vitality centrality for each node.
-
-        Closeness vitality measures a node's importance by computing the change
-        in total graph distances when the node is removed:
-
-        vitality(v) = sum_distances(G) - sum_distances(G - v)
-
-        Higher values indicate more important/central nodes whose removal would
-        significantly increase average path lengths. Uses parallel BFS with Rayon
-        for efficient computation.
-
-        Parameters
-        ----------
-        attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("closeness_vitality").
-        return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
-
-        Returns
-        -------
-        Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to vitality scores.
-            If return_dict is False: returns self for method chaining.
-            Higher scores indicate more structurally important nodes.
-
-        Examples
-        --------
-        Calculate closeness vitality in a star graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
-        )
-
-        vitality = graph.closeness_vitality(return_dict=True)
-        hub_id = graph.get_id_from_label("hub")
-        a_id = graph.get_id_from_label("A")
-
-        # Hub has highest vitality (removal disconnects graph)
-        assert vitality[hub_id] > vitality[a_id]
-
-        # Convert to labels if needed
-        label_vitality = {graph.get_label_from_id(nid): score for nid, score in vitality.items()}
-        ```
-
-        Notes
-        -----
-        Computationally expensive for large graphs (O(V²E / num_cores) complexity).
-        Consider alternative centrality measures (degree, PageRank) for graphs
-        with >1000 nodes unless high accuracy is required.
-        """
-        vitality = self._graph.get_closeness_vitality()
-
-        if return_dict:
-            return vitality
-
-        # Auto-generate attr_name if not provided
-        if attr_name is None:
-            attr_name = "closeness_vitality"
-
-        self.set_node_attrs(attr_name, vitality)
-
-        # Track computation (no non-default params)
-        self._computations.append(("closeness_vitality", {}, attr_name))
-
-        return self
-
-    def coreness(
-        self, attr_name: str | None = None, return_dict: bool = False
-    ) -> Union[dict[int, int], "Graph"]:
-        """
-        Calculate k-core decomposition (coreness for each node).
-
-        The k-core is the maximal subgraph where every node has degree >= k.
-        A node's coreness is the highest k-value for which it belongs to the k-core.
-        Uses iterative pruning: repeatedly removes nodes with degree < k until
-        all remaining nodes have degree >= k.
-
-        Higher coreness indicates nodes in denser, more cohesive parts of the graph.
-        The k-core decomposition is useful for finding the "nucleus" of a network.
-
-        Parameters
-        ----------
-        attr_name
-            Name of the node attribute to store coreness values.
-            If None, uses "coreness" as the attribute name.
-        return_dict
-            If True, returns a dictionary mapping node IDs to coreness values.
-            If False, stores values as node attributes and returns the Graph for chaining.
-
-        Returns
-        -------
-        dict[int, int] or Graph
-            If return_dict is True: Dictionary mapping node IDs to coreness values (non-negative integers).
-            If return_dict is False: Returns self for method chaining.
-
-        Examples
-        --------
-        Calculate and store coreness:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .coreness()  # Stores as 'coreness' attribute
-        )
-        # All nodes in K4 have coreness 3
-        ```
-        """
-        if attr_name is None:
-            attr_name = "coreness"
-
-        coreness_values = self._graph.get_coreness()
-
-        if return_dict:
-            return coreness_values
-
-        # Store as node attributes
-        for node_id, value in coreness_values.items():
-            self._graph.set_node_attr(node_id, attr_name, value)
-
-        # Track computation
-        self._computations.append(("coreness", {}, attr_name))
-
-        return self
 
     def __repr__(self) -> str:
         """
