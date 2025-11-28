@@ -1,0 +1,572 @@
+//! Spanning tree algorithms for graphs
+//!
+//! This module provides algorithms for finding spanning trees:
+//!
+//! - `steiner_tree`: Find an approximate minimum Steiner tree connecting terminal nodes
+//! - `all_spanning_trees`: Generate all spanning trees of a connected graph
+
+use crate::graph::Graph;
+use pyo3::prelude::*;
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+
+/// Entry for priority queue in Dijkstra's algorithm
+#[derive(Clone)]
+struct DijkstraEntry {
+    distance: f64,
+    node: u64,
+}
+
+impl PartialEq for DijkstraEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance == other.distance && self.node == other.node
+    }
+}
+
+impl Eq for DijkstraEntry {}
+
+impl Ord for DijkstraEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Reverse ordering for min-heap (smaller distances have higher priority)
+        other
+            .distance
+            .partial_cmp(&self.distance)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| self.node.cmp(&other.node))
+    }
+}
+
+impl PartialOrd for DijkstraEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Union-Find data structure for cycle detection
+struct UnionFind {
+    parent: FxHashMap<u64, u64>,
+    rank: FxHashMap<u64, usize>,
+}
+
+impl UnionFind {
+    fn new() -> Self {
+        UnionFind {
+            parent: FxHashMap::default(),
+            rank: FxHashMap::default(),
+        }
+    }
+
+    fn find(&mut self, mut x: u64) -> u64 {
+        if !self.parent.contains_key(&x) {
+            self.parent.insert(x, x);
+            self.rank.insert(x, 0);
+            return x;
+        }
+
+        // Path compression
+        while self.parent[&x] != x {
+            let parent = self.parent[&x];
+            let grandparent = *self.parent.get(&parent).unwrap_or(&parent);
+            self.parent.insert(x, grandparent);
+            x = parent;
+        }
+        x
+    }
+
+    fn union(&mut self, a: u64, b: u64) -> bool {
+        let ra = self.find(a);
+        let rb = self.find(b);
+
+        if ra == rb {
+            return false;
+        }
+
+        let rank_a = self.rank[&ra];
+        let rank_b = self.rank[&rb];
+
+        if rank_a < rank_b {
+            self.parent.insert(ra, rb);
+        } else if rank_a > rank_b {
+            self.parent.insert(rb, ra);
+        } else {
+            self.parent.insert(rb, ra);
+            self.rank.insert(ra, rank_a + 1);
+        }
+
+        true
+    }
+}
+
+/// Get edge weight from graph, optionally using custom attribute
+fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> f64 {
+    if let Some(edge) = graph.get_edge(edge_id) {
+        if let Some(attr_name) = weight_attr {
+            // Try to get weight from attributes with GIL
+            Python::with_gil(|py| {
+                if let Some(attrs) = &edge.attributes {
+                    let attrs_bound = attrs.bind(py);
+                    // First try direct access
+                    if let Ok(Some(val)) = attrs_bound.get_item(attr_name) {
+                        if let Ok(f) = val.extract::<f64>() {
+                            return f;
+                        }
+                    }
+                    // Then try nested under "attributes" key (EdgeCase convention)
+                    if let Ok(Some(nested)) = attrs_bound.get_item("attributes") {
+                        // Use downcast_bound to get it as a dict and call get_item on that
+                        if let Ok(nested_dict) = nested.downcast::<pyo3::types::PyDict>() {
+                            if let Ok(Some(val)) = nested_dict.get_item(attr_name) {
+                                if let Ok(f) = val.extract::<f64>() {
+                                    return f;
+                                }
+                            }
+                        }
+                    }
+                }
+                1.0
+            })
+        } else {
+            // Use default weight field
+            edge.weight.unwrap_or(1.0)
+        }
+    } else {
+        1.0
+    }
+}
+
+/// Run Dijkstra's algorithm from a source node to find shortest paths.
+/// Uses the specified weight attribute or default weights.
+fn dijkstra_single_source(
+    graph: &Graph,
+    source: u64,
+    weight_attr: Option<&str>,
+) -> PyResult<(FxHashMap<u64, f64>, FxHashMap<u64, u64>)> {
+    let mut distances: FxHashMap<u64, f64> = FxHashMap::default();
+    let mut predecessors: FxHashMap<u64, u64> = FxHashMap::default();
+    let mut heap = BinaryHeap::new();
+
+    distances.insert(source, 0.0);
+    heap.push(DijkstraEntry {
+        distance: 0.0,
+        node: source,
+    });
+
+    while let Some(DijkstraEntry { distance, node }) = heap.pop() {
+        // Skip if we've found a better path
+        if let Some(&best) = distances.get(&node) {
+            if distance > best {
+                continue;
+            }
+        }
+
+        // Get neighbors using public API
+        let neighbors = graph.neighbors(node)?;
+
+        for neighbor in neighbors {
+            // Find edge between node and neighbor
+            let edge_ids = graph.find_edge_ids(node, neighbor);
+            if edge_ids.is_empty() {
+                continue;
+            }
+
+            let edge_id = edge_ids[0];
+            let edge_weight = get_edge_weight(graph, edge_id, weight_attr);
+
+            let new_dist = distance + edge_weight;
+
+            let current_dist = distances.get(&neighbor).copied().unwrap_or(f64::INFINITY);
+
+            if new_dist < current_dist {
+                distances.insert(neighbor, new_dist);
+                predecessors.insert(neighbor, node);
+                heap.push(DijkstraEntry {
+                    distance: new_dist,
+                    node: neighbor,
+                });
+            }
+        }
+    }
+
+    Ok((distances, predecessors))
+}
+
+/// Reconstruct path from source to target using predecessor map
+fn reconstruct_path(predecessors: &FxHashMap<u64, u64>, source: u64, target: u64) -> Vec<u64> {
+    let mut path = Vec::new();
+    let mut current = target;
+
+    while current != source {
+        path.push(current);
+        if let Some(&prev) = predecessors.get(&current) {
+            current = prev;
+        } else {
+            return Vec::new(); // No path
+        }
+    }
+    path.push(source);
+    path.reverse();
+    path
+}
+
+/// Helper to get label from node ID, with fallback to ID string
+fn get_label_or_id(graph: &Graph, node_id: u64) -> String {
+    graph
+        .label_from_id(node_id)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| node_id.to_string())
+}
+
+/// Find an approximate Steiner tree connecting terminal nodes.
+///
+/// Uses Mehlhorn's 2-approximation algorithm:
+/// 1. Compute shortest paths between all pairs of terminal nodes
+/// 2. Build metric closure (complete graph on terminals with shortest path weights)
+/// 3. Find MST of metric closure
+/// 4. Expand MST edges to actual paths in original graph
+/// 5. Find MST of resulting subgraph to remove redundant edges
+///
+/// # Arguments
+/// * `graph` - The input graph
+/// * `terminal_nodes` - Labels of nodes that must be connected
+/// * `weight_attr` - Optional name of edge attribute to use for weights
+///
+/// # Returns
+/// List of (source_label, target_label, weight) tuples forming the Steiner tree
+///
+/// # Raises
+/// * `PyValueError` if fewer than 2 terminal nodes provided
+/// * `PyValueError` if any terminal node doesn't exist
+/// * `PyValueError` if terminal nodes are not connected
+#[pyfunction]
+#[pyo3(signature = (graph, terminal_nodes, weight_attr=None))]
+pub fn steiner_tree(
+    graph: &Graph,
+    terminal_nodes: Vec<String>,
+    weight_attr: Option<String>,
+) -> PyResult<Vec<(String, String, f64)>> {
+    // Validate inputs
+    if terminal_nodes.len() < 2 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "At least 2 terminal nodes are required",
+        ));
+    }
+
+    // Convert labels to node IDs
+    let mut terminal_ids: Vec<u64> = Vec::new();
+    for label in &terminal_nodes {
+        match graph.id_from_label(label) {
+            Ok(node_id) => terminal_ids.push(node_id),
+            Err(_) => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Terminal node '{}' does not exist in the graph",
+                    label
+                )));
+            }
+        }
+    }
+
+    let weight_attr_ref = weight_attr.as_deref();
+
+    // Special case: if only 2 terminals, just find shortest path
+    if terminal_ids.len() == 2 {
+        let (distances, predecessors) =
+            dijkstra_single_source(graph, terminal_ids[0], weight_attr_ref)?;
+
+        if !distances.contains_key(&terminal_ids[1]) {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Terminal nodes are not connected",
+            ));
+        }
+
+        let path = reconstruct_path(&predecessors, terminal_ids[0], terminal_ids[1]);
+        return path_to_edge_tuples(graph, &path, weight_attr_ref);
+    }
+
+    // Step 1: Compute shortest paths from each terminal to all other nodes
+    let mut terminal_distances: FxHashMap<u64, FxHashMap<u64, f64>> = FxHashMap::default();
+    let mut terminal_predecessors: FxHashMap<u64, FxHashMap<u64, u64>> = FxHashMap::default();
+
+    for &terminal in &terminal_ids {
+        let (distances, predecessors) = dijkstra_single_source(graph, terminal, weight_attr_ref)?;
+        terminal_distances.insert(terminal, distances);
+        terminal_predecessors.insert(terminal, predecessors);
+    }
+
+    // Step 2: Build complete graph on terminals (metric closure)
+    let mut metric_edges: Vec<(f64, u64, u64)> = Vec::new();
+
+    for (i, &t1) in terminal_ids.iter().enumerate() {
+        for &t2 in terminal_ids.iter().skip(i + 1) {
+            if let Some(dist) = terminal_distances.get(&t1).and_then(|d| d.get(&t2)) {
+                metric_edges.push((*dist, t1, t2));
+            } else {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Terminal nodes are not connected",
+                ));
+            }
+        }
+    }
+
+    // Step 3: Find MST of metric closure using Kruskal's algorithm
+    metric_edges.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+
+    let mut uf = UnionFind::new();
+    let mut mst_edges: Vec<(u64, u64)> = Vec::new();
+    let edges_needed = terminal_ids.len() - 1;
+
+    for (_, t1, t2) in metric_edges {
+        if uf.union(t1, t2) {
+            mst_edges.push((t1, t2));
+            if mst_edges.len() == edges_needed {
+                break;
+            }
+        }
+    }
+
+    // Step 4: Expand MST edges to actual paths in original graph
+    let mut steiner_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
+
+    for (t1, t2) in mst_edges {
+        if let Some(predecessors) = terminal_predecessors.get(&t1) {
+            let path = reconstruct_path(predecessors, t1, t2);
+            for window in path.windows(2) {
+                let (a, b) = (window[0], window[1]);
+                let edge = if a < b { (a, b) } else { (b, a) };
+                steiner_edges.insert(edge);
+            }
+        }
+    }
+
+    // Step 5: Build subgraph and find its MST to remove redundant edges
+    let steiner_nodes: FxHashSet<u64> = steiner_edges
+        .iter()
+        .flat_map(|&(a, b)| vec![a, b])
+        .collect();
+
+    // Collect edges with weights for final MST
+    let mut final_edges: Vec<(f64, u64, u64, u64)> = Vec::new(); // (weight, edge_id, source, target)
+
+    for &(a, b) in &steiner_edges {
+        let edge_ids = graph.find_edge_ids(a, b);
+        if let Some(&edge_id) = edge_ids.first() {
+            let weight = get_edge_weight(graph, edge_id, weight_attr_ref);
+            if let Some(edge) = graph.get_edge(edge_id) {
+                final_edges.push((weight, edge_id, edge.source, edge.target));
+            }
+        }
+    }
+
+    // Run Kruskal on the subgraph
+    final_edges.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+
+    let mut final_uf = UnionFind::new();
+    let mut result_edges: Vec<(String, String, f64)> = Vec::new();
+    let final_edges_needed = steiner_nodes.len().saturating_sub(1);
+
+    for (weight, _edge_id, source, target) in final_edges {
+        if final_uf.union(source, target) {
+            let source_label = get_label_or_id(graph, source);
+            let target_label = get_label_or_id(graph, target);
+            result_edges.push((source_label, target_label, weight));
+            if result_edges.len() == final_edges_needed {
+                break;
+            }
+        }
+    }
+
+    Ok(result_edges)
+}
+
+/// Convert a path (sequence of node IDs) to edge tuples with labels
+fn path_to_edge_tuples(
+    graph: &Graph,
+    path: &[u64],
+    weight_attr: Option<&str>,
+) -> PyResult<Vec<(String, String, f64)>> {
+    let mut edges = Vec::new();
+
+    for window in path.windows(2) {
+        let (a, b) = (window[0], window[1]);
+        let source_label = get_label_or_id(graph, a);
+        let target_label = get_label_or_id(graph, b);
+
+        // Find edge and get weight
+        let edge_ids = graph.find_edge_ids(a, b);
+        let weight = if let Some(&edge_id) = edge_ids.first() {
+            get_edge_weight(graph, edge_id, weight_attr)
+        } else {
+            1.0
+        };
+
+        edges.push((source_label, target_label, weight));
+    }
+
+    Ok(edges)
+}
+
+/// Generate all spanning trees of a connected graph.
+///
+/// Uses a recursive enumeration algorithm that systematically generates
+/// all spanning trees by edge selection.
+///
+/// # Arguments
+/// * `graph` - The input graph (must be connected)
+/// * `max_trees` - Maximum number of spanning trees to generate
+/// * `weight_attr` - Optional name of edge attribute to use for weights
+///
+/// # Returns
+/// List of spanning trees, where each tree is a list of (source_label, target_label, weight) tuples
+///
+/// # Raises
+/// * `PyValueError` if graph is not connected
+#[pyfunction]
+#[pyo3(signature = (graph, max_trees, weight_attr=None))]
+pub fn all_spanning_trees(
+    graph: &Graph,
+    max_trees: usize,
+    weight_attr: Option<String>,
+) -> PyResult<Vec<Vec<(String, String, f64)>>> {
+    let num_nodes = graph.num_nodes();
+
+    // Handle edge cases
+    if num_nodes == 0 {
+        return Ok(vec![Vec::new()]);
+    }
+
+    if num_nodes == 1 {
+        return Ok(vec![Vec::new()]);
+    }
+
+    // Check connectivity
+    let node_ids: Vec<u64> = graph.get_node_ids();
+    let start_node = node_ids[0];
+    let mut visited: FxHashSet<u64> = FxHashSet::default();
+    let mut stack = vec![start_node];
+
+    while let Some(node) = stack.pop() {
+        if visited.insert(node) {
+            if let Ok(neighbors) = graph.neighbors(node) {
+                for neighbor in neighbors {
+                    if !visited.contains(&neighbor) {
+                        stack.push(neighbor);
+                    }
+                }
+            }
+        }
+    }
+
+    if visited.len() != num_nodes {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Graph is not connected; no spanning tree exists",
+        ));
+    }
+
+    let weight_attr_ref = weight_attr.as_deref();
+
+    // Get edges using public API
+    let all_edges: Vec<(u64, u64, u64)> = graph.edges();
+
+    // For undirected graphs, remove duplicate edges
+    let is_directed = graph.is_directed();
+    let mut seen_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
+    let mut unique_edges: Vec<(u64, u64, u64)> = Vec::new();
+
+    for (edge_id, source, target) in all_edges {
+        if is_directed {
+            unique_edges.push((edge_id, source, target));
+        } else {
+            let (a, b) = if source < target {
+                (source, target)
+            } else {
+                (target, source)
+            };
+            if seen_edges.insert((a, b)) {
+                unique_edges.push((edge_id, a, b));
+            }
+        }
+    }
+
+    let edges_needed = num_nodes - 1;
+
+    if unique_edges.len() < edges_needed {
+        return Ok(Vec::new());
+    }
+
+    // Use iterative approach to enumerate spanning trees
+    let mut results: Vec<Vec<(String, String, f64)>> = Vec::new();
+
+    // State: (current tree edge indices, index to start from)
+    let mut stack_states: Vec<(Vec<usize>, usize)> = vec![(Vec::new(), 0)];
+
+    while let Some((current_tree, start_idx)) = stack_states.pop() {
+        if results.len() >= max_trees {
+            break;
+        }
+
+        if current_tree.len() == edges_needed {
+            // Found a spanning tree - convert to output format
+            let mut tree_edges: Vec<(String, String, f64)> = Vec::new();
+            for &idx in &current_tree {
+                let (edge_id, source, target) = unique_edges[idx];
+                let source_label = get_label_or_id(graph, source);
+                let target_label = get_label_or_id(graph, target);
+                let weight = get_edge_weight(graph, edge_id, weight_attr_ref);
+                tree_edges.push((source_label, target_label, weight));
+            }
+            results.push(tree_edges);
+            continue;
+        }
+
+        // Try adding each remaining edge
+        for i in start_idx..unique_edges.len() {
+            // Check if adding this edge would create a cycle
+            let mut test_tree = current_tree.clone();
+            test_tree.push(i);
+
+            if !would_create_cycle(&test_tree, &unique_edges) {
+                stack_states.push((test_tree, i + 1));
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+/// Check if adding edges would create a cycle using union-find
+fn would_create_cycle(edge_indices: &[usize], edges: &[(u64, u64, u64)]) -> bool {
+    let mut uf = UnionFind::new();
+
+    for &idx in edge_indices {
+        let (_, a, b) = edges[idx];
+        if !uf.union(a, b) {
+            return true; // Would create cycle
+        }
+    }
+
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_union_find() {
+        let mut uf = UnionFind::new();
+
+        // Initially separate
+        assert!(uf.union(1, 2));
+        assert!(uf.union(3, 4));
+
+        // Same component
+        assert!(!uf.union(1, 2));
+
+        // Connect components
+        assert!(uf.union(2, 3));
+
+        // Now all in same component
+        assert!(!uf.union(1, 4));
+    }
+}

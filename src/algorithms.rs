@@ -16,6 +16,7 @@ pub mod node_vitality;
 pub mod paths;
 pub mod regularity;
 pub mod simd_intersection;
+pub mod spanning_trees;
 pub mod structural;
 pub mod structure;
 
