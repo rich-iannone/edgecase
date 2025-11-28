@@ -13903,6 +13903,876 @@ class Graph:
         return node_vitality(self._graph, node_id)
 
     # ==============================================================================
+    # Connectivity and Flow
+    # ==============================================================================
+
+    def get_all_connected_nodes(self, node: Union[int, str]) -> list[int]:
+        """
+        Get all nodes reachable from the specified node.
+
+        Uses breadth-first search (BFS) to find all nodes in the same connected
+        component. For directed graphs, treats edges as undirected during traversal.
+
+        Parameters
+        ----------
+        node
+            Starting node ID (int) or label (str) for the search.
+
+        Returns
+        -------
+        list[int]
+            List of all reachable node IDs, excluding the starting node itself.
+            Empty list if the node is isolated.
+
+        Raises
+        ------
+        KeyError
+            If `node` does not exist in the graph.
+
+        Examples
+        --------
+        ```python
+        graph = Graph()
+
+        # Create two separate components
+        graph.add_path_graph(3)  # Component 1: nodes 0-1-2
+        graph.add_path_graph(2)  # Component 2: nodes 3-4
+
+        # Find all nodes reachable from node 0
+        node_ids = list(graph.get_node_ids())
+        connected = graph.get_all_connected_nodes(node_ids[0])
+        print(len(connected))  # 2 (nodes 1 and 2)
+
+        # Node 3 is in a separate component
+        connected_3 = graph.get_all_connected_nodes(node_ids[3])
+        print(len(connected_3))  # 1 (node 4)
+        ```
+
+        Component size analysis:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph()
+        # Create two separate components
+        graph.add_path_graph(n=3)  # Component 1: nodes 0-1-2
+        graph.add_path_graph(n=2)  # Component 2: nodes 3-4
+
+        # Find size of each component
+        visited = set()
+        components = []
+
+        for node_id in graph.get_node_ids(limit=None):
+            if node_id not in visited:
+                component = graph.get_all_connected_nodes(node=node_id)
+                component.append(node_id)  # Include starting node
+                components.append(component)
+                visited.update(component)
+
+        print(f"Found {len(components)} components")
+        ```
+        """
+        # Resolve node to integer ID
+        node_id = self._resolve_node_id(node)
+
+        if not self.has_node(node_id):
+            raise KeyError(f"Node '{node}' does not exist")
+
+        visited = set()
+        queue = [node_id]
+        visited.add(node_id)
+
+        while queue:
+            current = queue.pop(0)
+
+            # Get all neighbors (treating directed as undirected)
+            neighbors = self.neighbors(current, mode="all")
+
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        # Remove the starting node from results
+        visited.discard(node_id)
+
+        return sorted(list(visited))
+
+    def get_articulation_points(self) -> list[int]:
+        """
+        Find articulation points (cut nodes) in the graph.
+
+        An articulation point is a node whose removal disconnects the graph or increases the number
+        of connected components. Uses Tarjan's DFS-based algorithm. Only defined for undirected
+        graphs.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs that are articulation points.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+
+        Examples
+        --------
+        Find articulation points in a path graph:
+
+        ```python
+        graph = Graph().add_path_graph(5)
+
+        # In a path: 1-2-3-4-5
+        # Middle nodes 2, 3, 4 are articulation points
+        cut_node_ids = graph.get_articulation_points()
+        print(len(cut_node_ids))  # 3
+
+        # Convert to labels if needed
+        cut_node_labels = [graph.get_label_from_id(nid) for nid in cut_node_ids]
+        ```
+
+        Notes
+        -----
+        Applications:
+
+        - network vulnerability analysis: Critical infrastructure nodes
+        - social networks: Key influencers whose removal fragments communities
+        - communication networks: Single points of failure
+        """
+        return self._graph.get_articulation_points()
+
+    def get_periphery(self) -> list[int]:
+        """
+        Get periphery nodes (nodes with maximum eccentricity).
+
+        Periphery nodes are farthest from the graph's center. These nodes have the maximum
+        eccentricity (longest shortest path to any other node). Returns empty list if graph is
+        disconnected.
+
+        Returns
+        -------
+        list[int]
+            List of node IDs in the periphery, empty if disconnected.
+
+        Examples
+        --------
+        Find periphery nodes in a path graph:
+
+        ```python
+        graph = Graph().add_path_graph(5)
+
+        # In path 1-2-3-4-5, ends (1 and 5) are periphery
+        periphery_ids = graph.get_periphery()
+        print(len(periphery_ids))  # 2
+
+        # Convert to labels if needed
+        periphery_labels = sorted([graph.get_label_from_id(nid) for nid in periphery_ids])
+        ```
+
+        Notes
+        -----
+        Characteristics:
+
+        - opposite of center: peripheral vs central nodes
+        - in trees: always leaf nodes
+        - multiple nodes can have maximum eccentricity
+        """
+        return self._graph.get_periphery()
+
+    def get_node_connectivity(self) -> int:
+        """
+        Compute global node connectivity.
+
+        Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
+        the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
+
+        Uses Menger's theorem: node connectivity equals the maximum number of node-disjoint paths.
+        Implementation transforms the problem to max-flow.
+
+        Time complexity: O(V^4) for complete enumeration of pairs.
+
+        Returns
+        -------
+        int
+            Minimum number of nodes needed to disconnect the graph.
+            Returns 0 if already disconnected.
+            Returns n-1 for complete graph K_n.
+
+        Examples
+        --------
+        Cycle graph has node connectivity 2:
+
+        ```python
+        graph = Graph()
+        n = 6
+        for i in range(1, n + 1):
+            graph.add_node(label=str(i))
+        for i in range(1, n + 1):
+            graph.add_edge(str(i), str((i % n) + 1))
+
+        print(graph.get_node_connectivity())  # 2
+        ```
+
+        Complete graph K_5 has node connectivity 4:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        print(graph.get_node_connectivity())  # 4
+        ```
+        """
+        return self._graph.node_connectivity()
+
+    def get_node_connectivity_between(
+        self, source: Union[int, str], target: Union[int, str]
+    ) -> int:
+        """
+        Compute node connectivity between two nodes.
+
+        Returns the minimum number of nodes that must be removed to disconnect the source from the
+        target. Uses Menger's theorem: this equals the maximum number of node-disjoint paths between
+        the nodes.
+
+        Implementation transforms the graph by splitting each internal node into in-node and
+        out-node with capacity 1, converting node connectivity to edge connectivity, which is
+        computed using max-flow.
+
+        Time complexity: O(V * E^2) using Ford-Fulkerson with BFS.
+
+        Parameters
+        ----------
+        source
+            Source node ID (int) or label (str).
+        target
+            Target node ID (int) or label (str).
+
+        Returns
+        -------
+        int
+            Minimum number of nodes whose removal disconnects source from target.
+
+        Raises
+        ------
+        ValueError
+            If source or target doesn't exist, or if source == target.
+
+        Examples
+        --------
+        Path graph connectivity using labels:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            graph.add_edge(str(i), str(i + 1))
+
+        # Endpoints have connectivity 1 (any middle node disconnects them)
+        print(graph.get_node_connectivity_between("1", "5"))  # 1
+        ```
+
+        Using node IDs:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            graph.add_edge(str(i), str(i + 1))
+
+        # Get node IDs
+        node1_id = graph.get_id_from_label("1")
+        node5_id = graph.get_id_from_label("5")
+
+        # Can use node IDs directly
+        print(graph.get_node_connectivity_between(node1_id, node5_id))  # 1
+        ```
+
+        Complete graph connectivity:
+
+        ```python
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
+        print(graph.get_node_connectivity_between("1", "5"))  # 4
+        ```
+        """
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        return self._graph.node_connectivity_between(source_id, target_id)
+
+    def get_edge_connectivity(self) -> int:
+        """
+        Compute edge connectivity (minimum edge cut).
+
+        Returns the minimum number of edges whose removal disconnects the graph. For undirected
+        graphs, this is computed as the minimum over strategic pairs of nodes. For directed graphs,
+        respects edge directions.
+
+        Edge connectivity provides a measure of graph robustness: higher values indicate more
+        redundant paths and better fault tolerance.
+
+        Time complexity: O(V * E^2) using max-flow computations.
+
+        Returns
+        -------
+        int
+            Minimum number of edges needed to disconnect the graph.
+            Returns 0 if already disconnected or has isolated nodes.
+
+        Examples
+        --------
+        Cycle graph has edge connectivity 2:
+
+        ```python
+        graph = Graph()
+        n = 6
+        for i in range(1, n + 1):
+            graph.add_node(label=str(i))
+        for i in range(1, n + 1):
+            graph.add_edge(str(i), str((i % n) + 1))
+
+        print(graph.get_edge_connectivity())  # 2
+        ```
+
+        Star graph has edge connectivity 1:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="center")
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+            graph.add_edge("center", str(i))
+
+        print(graph.get_edge_connectivity())  # 1
+        ```
+        """
+        return self._graph.edge_connectivity()
+
+    def get_adhesion(self) -> int:
+        """
+        Get adhesion (minimum edge cut size).
+
+        The adhesion is the minimum number of edges whose removal would disconnect the graph. Also
+        called edge connectivity. Only defined for undirected graphs. Returns `0` if already
+        disconnected.
+
+        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
+        computation requires max-flow algorithms.
+
+        Returns
+        -------
+        int
+            Minimum edge cut size.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+
+        Examples
+        --------
+        Calculate adhesion:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+
+        print(graph.get_adhesion())  # 2
+        ```
+        """
+        return self._graph.get_adhesion()
+
+    def get_cohesion(self) -> int:
+        """
+        Get cohesion (minimum node cut size).
+
+        The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
+        called node connectivity. Only defined for undirected graphs. Returns `0` if already
+        disconnected.
+
+        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
+        computation requires sophisticated algorithms.
+
+        Returns
+        -------
+        int
+            Minimum node cut size.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed.
+
+        Examples
+        --------
+        Calculate cohesion:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+
+        print(graph.get_cohesion())  # 2
+        ```
+        """
+        return self._graph.get_cohesion()
+
+    def get_density(self) -> float:
+        """
+        Calculate graph density (ratio of actual to possible edges).
+
+        Density measures how complete a graph is. A complete graph has density `1.0`, while a graph
+        with no edges has density `0.0`.
+
+        For directed graphs: density = E / (N × (N-1))
+        For undirected graphs: density = 2E / (N × (N-1))
+
+        Returns
+        -------
+        float
+            Graph density between 0.0 and 1.0.
+
+        Examples
+        --------
+        Calculate density of a sparse graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
+        print(f"{graph.get_density():.3f}")  # 0.667
+        ```
+
+        Compare sparse vs. dense graphs:
+
+        ```python
+        # Complete graph (all possible edges)
+        complete = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("A", "C")
+        )
+
+        print(f"{complete.get_density():.3f}")  # 1.000
+        ```
+        """
+        return self._graph.density()
+
+    def find_cohesive_blocks(self) -> tuple[list[list[int]], list[int], list[int | None]]:
+        """
+        Find hierarchical cohesive block structure.
+
+        Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal subgraph
+        that requires removal of at least k nodes to disconnect it. Returns a hierarchical structure
+        where child blocks have higher cohesion than their parents.
+
+        Based on Moody & White (2003) "Structural Cohesion and Embeddedness: A Hierarchical Concept
+        of Social Groups".
+
+        Time complexity: O(V^5) due to node connectivity computations.
+
+        Returns
+        -------
+        tuple[list[list[int]], list[int], list[int | None]]
+            A tuple containing:
+
+            - blocks: list of node sets (each as list of node IDs)
+            - cohesion: list of k-values (cohesion of each block)
+            - parent: list of parent block indices (None for root blocks)
+
+        Examples
+        --------
+        Find cohesive blocks in a complete graph:
+
+        ```python
+        # K_5 complete graph has cohesion 4
+        graph = Graph()
+        for i in range(1, 6):
+            graph.add_node(label=str(i))
+        for i in range(1, 6):
+            for j in range(i + 1, 6):
+                graph.add_edge(str(i), str(j))
+
+        blocks, cohesions, parents = graph.find_cohesive_blocks()
+        # Returns: ([[1,2,3,4,5]], [4], [None])
+
+        # Convert to labels if needed
+        blocks_labels = [[graph.get_label_from_id(nid) for nid in block] for block in blocks]
+        ```
+
+        Find hierarchical structure:
+
+        ```python
+        # Graph with nested cohesive structure
+        graph = Graph()
+        # Build K_4 (cohesion 3)
+        for i in range(1, 5):
+            graph.add_node(label=str(i))
+        for i in range(1, 5):
+            for j in range(i + 1, 5):
+                graph.add_edge(str(i), str(j))
+
+        # Add nodes to create larger 2-cohesive block
+        graph.add_node(label="5")
+        graph.add_node(label="6")
+        graph.add_edge("1", "5")
+        graph.add_edge("2", "5")
+        graph.add_edge("5", "6")
+        graph.add_edge("6", "1")
+        graph.add_edge("6", "2")
+
+        blocks, cohesions, parents = graph.find_cohesive_blocks()
+        # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
+        ```
+        """
+        return self._graph.cohesive_blocks()
+
+    def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
+        """
+        Get minimum cut between source and sink nodes.
+
+        Computes the minimum number of edges that must be removed to disconnect the source from the
+        sink. Uses the Ford-Fulkerson algorithm with BFS (Edmonds-Karp) to find maximum flow, which
+        equals the minimum cut by the max-flow min-cut theorem.
+
+        For unweighted graphs, each edge has capacity `1`. For undirected graphs, edges are treated
+        as bidirectional.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        int
+            Size of minimum cut (number of edges to remove).
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Examples
+        --------
+        Find minimum cut:
+
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("B", "C", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+        )
+
+        a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
+        print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.get_min_cut_between(source_id, sink_id)
+
+    def minimum_node_cut(self, source: Union[int, str], sink: Union[int, str]) -> set[int]:
+        """
+        Find minimum node cut between source and sink nodes.
+
+        Returns the set of nodes whose removal disconnects the source from the sink. Uses
+        transformation to an edge connectivity problem where each node is split into in/out copies
+        connected by unit capacity.
+
+        The source and sink themselves are never included in the returned cut set.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        set[int]
+            Set of node IDs forming the minimum node cut.
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Notes
+        -----
+        The node connectivity between two nodes is the minimum number of nodes that
+        must be removed to disconnect them. This is closely related to Menger's theorem.
+
+        Examples
+        --------
+        Find minimum node cut:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("A", "C", auto_create_nodes=True)
+            .add_edge("B", "D", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+            .add_edge("D", "E", auto_create_nodes=True)
+        )
+
+        # Find nodes that separate A from E
+        cut_nodes = graph.minimum_node_cut("A", "E")
+        # Returns {node_id_d} where removing node D disconnects A from E
+        ```
+
+        Here's an example on the topic of network vulnerability. We can identify single points of
+        failure:
+
+        ```python
+        # Communication network
+        graph = (
+            Graph()
+            .add_edge("Client", "Gateway", auto_create_nodes=True)
+            .add_edge("Gateway", "Server1", auto_create_nodes=True)
+            .add_edge("Gateway", "Server2", auto_create_nodes=True)
+            .add_edge("Server1", "Database", auto_create_nodes=True)
+            .add_edge("Server2", "Database", auto_create_nodes=True)
+        )
+
+        critical_nodes = graph.minimum_node_cut("Client", "Database")
+        # Identifies Gateway as single point of failure
+        print(f"Critical nodes: {len(critical_nodes)}")
+        ```
+
+        Social network bottlenecks:
+
+        ```python
+        # Find intermediaries between two people
+        graph = (
+            Graph()
+            .add_edge("Alice", "Bob", auto_create_nodes=True)
+            .add_edge("Bob", "Carol", auto_create_nodes=True)
+            .add_edge("Alice", "Dave", auto_create_nodes=True)
+            .add_edge("Dave", "Carol", auto_create_nodes=True)
+        )
+
+        intermediaries = graph.minimum_node_cut("Alice", "Carol")
+        # Returns {bob_id, dave_id} - both must be removed to disconnect
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.minimum_node_cut(source_id, sink_id)
+
+    def minimum_edge_cut(
+        self, source: Union[int, str], sink: Union[int, str]
+    ) -> set[tuple[int, int]]:
+        """
+        Find minimum edge cut between source and sink nodes.
+
+        Returns the set of edges whose removal disconnects the source from the sink. Uses the
+        max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut.
+
+        For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
+        edges are considered.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+
+        Returns
+        -------
+        set[tuple[int, int]]
+            Set of edge tuples (source_id, target_id) forming the minimum cut.
+
+        Raises
+        ------
+        ValueError
+            If source or sink node doesn't exist, or if they're the same.
+
+        Examples
+        --------
+        Find minimum edge cut in a simple graph:
+
+        ```python
+        graph = (
+            Graph()
+            .add_edge("A", "B", auto_create_nodes=True)
+            .add_edge("B", "C", auto_create_nodes=True)
+            .add_edge("C", "D", auto_create_nodes=True)
+            .add_edge("A", "D", auto_create_nodes=True)
+        )
+
+        # Find edges that separate A from C
+        cut_edges = graph.minimum_edge_cut("A", "C")
+        # Returns set of edge tuples like {(node_id_b, node_id_c), (node_id_d, node_id_c)}
+        ```
+
+        Network vulnerability analysis:
+
+        ```python
+        # Analyze which connections are critical
+        graph = (
+            Graph(directed=True)
+            .add_edge("Server1", "Router1", auto_create_nodes=True)
+            .add_edge("Router1", "Router2", auto_create_nodes=True)
+            .add_edge("Router2", "Server2", auto_create_nodes=True)
+            .add_edge("Router1", "Router3", auto_create_nodes=True)
+            .add_edge("Router3", "Server2", auto_create_nodes=True)
+        )
+
+        critical_links = graph.minimum_edge_cut("Server1", "Server2")
+        print(f"Removing {len(critical_links)} link(s) disconnects the servers")
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return self._graph.minimum_edge_cut(source_id, sink_id)
+
+    # ==============================================================================
+    # Component Counts
+    # ==============================================================================
+
+    def count_weakly_connected_components(self) -> int:
+        """
+        Count weakly connected components in the graph.
+
+        For undirected graphs, counts regular connected components. For directed graphs,
+        treats all edges as undirected (ignoring direction) when finding components.
+
+        A weakly connected component is a maximal set of nodes where every node is
+        reachable from every other node when edge directions are ignored.
+
+        Returns
+        -------
+        int
+            Number of weakly connected components.
+
+        Examples
+        --------
+        Count components in a disconnected graph:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("X", "Y")
+        )
+
+        print(graph.count_weakly_connected_components())  # 2
+        ```
+        """
+        return self._graph.count_weakly_connected_components()
+
+    def count_strongly_connected_components(self) -> int:
+        """
+        Count strongly connected components.
+
+        For directed graphs, a strongly connected component is a maximal set of nodes
+        where every node is reachable from every other node following directed edges.
+        Uses Kosaraju's algorithm for efficient computation.
+
+        For undirected graphs, returns the same result as
+        `count_weakly_connected_components()` since strong connectivity equals regular
+        connectivity when edges are bidirectional. This matches igraph's behavior.
+
+        Returns
+        -------
+        int
+            Number of strongly connected components.
+
+        Examples
+        --------
+        Count strongly connected components in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Cycle: all in same component
+            .add_edge("X", "Y")  # Separate component
+        )
+
+        print(graph.count_strongly_connected_components())  # 2
+        ```
+
+        For undirected graphs, equivalent to connected components:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_edge("A", "B")
+        )
+
+        # Both return the same result for undirected graphs
+        print(graph.count_strongly_connected_components())  # 2
+        print(graph.count_weakly_connected_components())     # 2
+        ```
+        """
+        return self._graph.count_strongly_connected_components()
+
+    # ==============================================================================
     # Similarity
     # ==============================================================================
 
@@ -14730,781 +15600,6 @@ class Graph:
                         similar.append(neighbor_id)
 
         return similar
-
-    # ==============================================================================
-    # Connectivity and Flow
-    # ==============================================================================
-
-    def get_all_connected_nodes(self, node: Union[int, str]) -> list[int]:
-        """
-        Get all nodes reachable from the specified node.
-
-        Uses breadth-first search (BFS) to find all nodes in the same connected
-        component. For directed graphs, treats edges as undirected during traversal.
-
-        Parameters
-        ----------
-        node
-            Starting node ID (int) or label (str) for the search.
-
-        Returns
-        -------
-        list[int]
-            List of all reachable node IDs, excluding the starting node itself.
-            Empty list if the node is isolated.
-
-        Raises
-        ------
-        KeyError
-            If `node` does not exist in the graph.
-
-        Examples
-        --------
-        ```python
-        graph = Graph()
-
-        # Create two separate components
-        graph.add_path_graph(3)  # Component 1: nodes 0-1-2
-        graph.add_path_graph(2)  # Component 2: nodes 3-4
-
-        # Find all nodes reachable from node 0
-        node_ids = list(graph.get_node_ids())
-        connected = graph.get_all_connected_nodes(node_ids[0])
-        print(len(connected))  # 2 (nodes 1 and 2)
-
-        # Node 3 is in a separate component
-        connected_3 = graph.get_all_connected_nodes(node_ids[3])
-        print(len(connected_3))  # 1 (node 4)
-        ```
-
-        Component size analysis:
-
-        ```python
-        from edgecase import Graph
-
-        graph = Graph()
-        # Create two separate components
-        graph.add_path_graph(n=3)  # Component 1: nodes 0-1-2
-        graph.add_path_graph(n=2)  # Component 2: nodes 3-4
-
-        # Find size of each component
-        visited = set()
-        components = []
-
-        for node_id in graph.get_node_ids(limit=None):
-            if node_id not in visited:
-                component = graph.get_all_connected_nodes(node=node_id)
-                component.append(node_id)  # Include starting node
-                components.append(component)
-                visited.update(component)
-
-        print(f"Found {len(components)} components")
-        ```
-        """
-        # Resolve node to integer ID
-        node_id = self._resolve_node_id(node)
-
-        if not self.has_node(node_id):
-            raise KeyError(f"Node '{node}' does not exist")
-
-        visited = set()
-        queue = [node_id]
-        visited.add(node_id)
-
-        while queue:
-            current = queue.pop(0)
-
-            # Get all neighbors (treating directed as undirected)
-            neighbors = self.neighbors(current, mode="all")
-
-            for neighbor in neighbors:
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append(neighbor)
-
-        # Remove the starting node from results
-        visited.discard(node_id)
-
-        return sorted(list(visited))
-
-    def get_articulation_points(self) -> list[int]:
-        """
-        Find articulation points (cut nodes) in the graph.
-
-        An articulation point is a node whose removal disconnects the graph or increases the number
-        of connected components. Uses Tarjan's DFS-based algorithm. Only defined for undirected
-        graphs.
-
-        Returns
-        -------
-        list[int]
-            List of node IDs that are articulation points.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed.
-
-        Examples
-        --------
-        Find articulation points in a path graph:
-
-        ```python
-        graph = Graph().add_path_graph(5)
-
-        # In a path: 1-2-3-4-5
-        # Middle nodes 2, 3, 4 are articulation points
-        cut_node_ids = graph.get_articulation_points()
-        print(len(cut_node_ids))  # 3
-
-        # Convert to labels if needed
-        cut_node_labels = [graph.get_label_from_id(nid) for nid in cut_node_ids]
-        ```
-
-        Notes
-        -----
-        Applications:
-
-        - network vulnerability analysis: Critical infrastructure nodes
-        - social networks: Key influencers whose removal fragments communities
-        - communication networks: Single points of failure
-        """
-        return self._graph.get_articulation_points()
-
-    def get_periphery(self) -> list[int]:
-        """
-        Get periphery nodes (nodes with maximum eccentricity).
-
-        Periphery nodes are farthest from the graph's center. These nodes have the maximum
-        eccentricity (longest shortest path to any other node). Returns empty list if graph is
-        disconnected.
-
-        Returns
-        -------
-        list[int]
-            List of node IDs in the periphery, empty if disconnected.
-
-        Examples
-        --------
-        Find periphery nodes in a path graph:
-
-        ```python
-        graph = Graph().add_path_graph(5)
-
-        # In path 1-2-3-4-5, ends (1 and 5) are periphery
-        periphery_ids = graph.get_periphery()
-        print(len(periphery_ids))  # 2
-
-        # Convert to labels if needed
-        periphery_labels = sorted([graph.get_label_from_id(nid) for nid in periphery_ids])
-        ```
-
-        Notes
-        -----
-        Characteristics:
-
-        - opposite of center: peripheral vs central nodes
-        - in trees: always leaf nodes
-        - multiple nodes can have maximum eccentricity
-        """
-        return self._graph.get_periphery()
-
-    def get_node_connectivity(self) -> int:
-        """
-        Compute global node connectivity.
-
-        Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
-        the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
-
-        Uses Menger's theorem: node connectivity equals the maximum number of node-disjoint paths.
-        Implementation transforms the problem to max-flow.
-
-        Time complexity: O(V^4) for complete enumeration of pairs.
-
-        Returns
-        -------
-        int
-            Minimum number of nodes needed to disconnect the graph.
-            Returns 0 if already disconnected.
-            Returns n-1 for complete graph K_n.
-
-        Examples
-        --------
-        Cycle graph has node connectivity 2:
-
-        ```python
-        graph = Graph()
-        n = 6
-        for i in range(1, n + 1):
-            graph.add_node(label=str(i))
-        for i in range(1, n + 1):
-            graph.add_edge(str(i), str((i % n) + 1))
-
-        print(graph.get_node_connectivity())  # 2
-        ```
-
-        Complete graph K_5 has node connectivity 4:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
-
-        print(graph.get_node_connectivity())  # 4
-        ```
-        """
-        return self._graph.node_connectivity()
-
-    def get_node_connectivity_between(
-        self, source: Union[int, str], target: Union[int, str]
-    ) -> int:
-        """
-        Compute node connectivity between two nodes.
-
-        Returns the minimum number of nodes that must be removed to disconnect the source from the
-        target. Uses Menger's theorem: this equals the maximum number of node-disjoint paths between
-        the nodes.
-
-        Implementation transforms the graph by splitting each internal node into in-node and
-        out-node with capacity 1, converting node connectivity to edge connectivity, which is
-        computed using max-flow.
-
-        Time complexity: O(V * E^2) using Ford-Fulkerson with BFS.
-
-        Parameters
-        ----------
-        source
-            Source node ID (int) or label (str).
-        target
-            Target node ID (int) or label (str).
-
-        Returns
-        -------
-        int
-            Minimum number of nodes whose removal disconnects source from target.
-
-        Raises
-        ------
-        ValueError
-            If source or target doesn't exist, or if source == target.
-
-        Examples
-        --------
-        Path graph connectivity using labels:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            graph.add_edge(str(i), str(i + 1))
-
-        # Endpoints have connectivity 1 (any middle node disconnects them)
-        print(graph.get_node_connectivity_between("1", "5"))  # 1
-        ```
-
-        Using node IDs:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            graph.add_edge(str(i), str(i + 1))
-
-        # Get node IDs
-        node1_id = graph.get_id_from_label("1")
-        node5_id = graph.get_id_from_label("5")
-
-        # Can use node IDs directly
-        print(graph.get_node_connectivity_between(node1_id, node5_id))  # 1
-        ```
-
-        Complete graph connectivity:
-
-        ```python
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
-
-        # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
-        print(graph.get_node_connectivity_between("1", "5"))  # 4
-        ```
-        """
-        source_id = self._resolve_node_id(source)
-        target_id = self._resolve_node_id(target)
-        return self._graph.node_connectivity_between(source_id, target_id)
-
-    def get_edge_connectivity(self) -> int:
-        """
-        Compute edge connectivity (minimum edge cut).
-
-        Returns the minimum number of edges whose removal disconnects the graph. For undirected
-        graphs, this is computed as the minimum over strategic pairs of nodes. For directed graphs,
-        respects edge directions.
-
-        Edge connectivity provides a measure of graph robustness: higher values indicate more
-        redundant paths and better fault tolerance.
-
-        Time complexity: O(V * E^2) using max-flow computations.
-
-        Returns
-        -------
-        int
-            Minimum number of edges needed to disconnect the graph.
-            Returns 0 if already disconnected or has isolated nodes.
-
-        Examples
-        --------
-        Cycle graph has edge connectivity 2:
-
-        ```python
-        graph = Graph()
-        n = 6
-        for i in range(1, n + 1):
-            graph.add_node(label=str(i))
-        for i in range(1, n + 1):
-            graph.add_edge(str(i), str((i % n) + 1))
-
-        print(graph.get_edge_connectivity())  # 2
-        ```
-
-        Star graph has edge connectivity 1:
-
-        ```python
-        graph = Graph()
-        graph.add_node(label="center")
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-            graph.add_edge("center", str(i))
-
-        print(graph.get_edge_connectivity())  # 1
-        ```
-        """
-        return self._graph.edge_connectivity()
-
-    def get_adhesion(self) -> int:
-        """
-        Get adhesion (minimum edge cut size).
-
-        The adhesion is the minimum number of edges whose removal would disconnect the graph. Also
-        called edge connectivity. Only defined for undirected graphs. Returns `0` if already
-        disconnected.
-
-        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
-        computation requires max-flow algorithms.
-
-        Returns
-        -------
-        int
-            Minimum edge cut size.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed.
-
-        Examples
-        --------
-        Calculate adhesion:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
-        )
-
-        print(graph.get_adhesion())  # 2
-        ```
-        """
-        return self._graph.get_adhesion()
-
-    def get_cohesion(self) -> int:
-        """
-        Get cohesion (minimum node cut size).
-
-        The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
-        called node connectivity. Only defined for undirected graphs. Returns `0` if already
-        disconnected.
-
-        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
-        computation requires sophisticated algorithms.
-
-        Returns
-        -------
-        int
-            Minimum node cut size.
-
-        Raises
-        ------
-        ValueError
-            If graph is directed.
-
-        Examples
-        --------
-        Calculate cohesion:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
-        )
-
-        print(graph.get_cohesion())  # 2
-        ```
-        """
-        return self._graph.get_cohesion()
-
-    def get_density(self) -> float:
-        """
-        Calculate graph density (ratio of actual to possible edges).
-
-        Density measures how complete a graph is. A complete graph has density `1.0`, while a graph
-        with no edges has density `0.0`.
-
-        For directed graphs: density = E / (N × (N-1))
-        For undirected graphs: density = 2E / (N × (N-1))
-
-        Returns
-        -------
-        float
-            Graph density between 0.0 and 1.0.
-
-        Examples
-        --------
-        Calculate density of a sparse graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-        )
-
-        # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
-        print(f"{graph.get_density():.3f}")  # 0.667
-        ```
-
-        Compare sparse vs. dense graphs:
-
-        ```python
-        # Complete graph (all possible edges)
-        complete = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("A", "C")
-        )
-
-        print(f"{complete.get_density():.3f}")  # 1.000
-        ```
-        """
-        return self._graph.density()
-
-    def find_cohesive_blocks(self) -> tuple[list[list[int]], list[int], list[int | None]]:
-        """
-        Find hierarchical cohesive block structure.
-
-        Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal subgraph
-        that requires removal of at least k nodes to disconnect it. Returns a hierarchical structure
-        where child blocks have higher cohesion than their parents.
-
-        Based on Moody & White (2003) "Structural Cohesion and Embeddedness: A Hierarchical Concept
-        of Social Groups".
-
-        Time complexity: O(V^5) due to node connectivity computations.
-
-        Returns
-        -------
-        tuple[list[list[int]], list[int], list[int | None]]
-            A tuple containing:
-
-            - blocks: list of node sets (each as list of node IDs)
-            - cohesion: list of k-values (cohesion of each block)
-            - parent: list of parent block indices (None for root blocks)
-
-        Examples
-        --------
-        Find cohesive blocks in a complete graph:
-
-        ```python
-        # K_5 complete graph has cohesion 4
-        graph = Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
-
-        blocks, cohesions, parents = graph.find_cohesive_blocks()
-        # Returns: ([[1,2,3,4,5]], [4], [None])
-
-        # Convert to labels if needed
-        blocks_labels = [[graph.get_label_from_id(nid) for nid in block] for block in blocks]
-        ```
-
-        Find hierarchical structure:
-
-        ```python
-        # Graph with nested cohesive structure
-        graph = Graph()
-        # Build K_4 (cohesion 3)
-        for i in range(1, 5):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            for j in range(i + 1, 5):
-                graph.add_edge(str(i), str(j))
-
-        # Add nodes to create larger 2-cohesive block
-        graph.add_node(label="5")
-        graph.add_node(label="6")
-        graph.add_edge("1", "5")
-        graph.add_edge("2", "5")
-        graph.add_edge("5", "6")
-        graph.add_edge("6", "1")
-        graph.add_edge("6", "2")
-
-        blocks, cohesions, parents = graph.find_cohesive_blocks()
-        # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
-        ```
-        """
-        return self._graph.cohesive_blocks()
-
-    def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
-        """
-        Get minimum cut between source and sink nodes.
-
-        Computes the minimum number of edges that must be removed to disconnect the source from the
-        sink. Uses the Ford-Fulkerson algorithm with BFS (Edmonds-Karp) to find maximum flow, which
-        equals the minimum cut by the max-flow min-cut theorem.
-
-        For unweighted graphs, each edge has capacity `1`. For undirected graphs, edges are treated
-        as bidirectional.
-
-        Parameters
-        ----------
-        source
-            Source node (integer ID or string label).
-        sink
-            Sink node (integer ID or string label).
-
-        Returns
-        -------
-        int
-            Size of minimum cut (number of edges to remove).
-
-        Raises
-        ------
-        ValueError
-            If source or sink node doesn't exist, or if they're the same.
-
-        Examples
-        --------
-        Find minimum cut:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("B", "C", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-        )
-
-        a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
-        print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
-        ```
-        """
-        source_id = self._resolve_node_id(source, auto_create=False)
-        sink_id = self._resolve_node_id(sink, auto_create=False)
-        return self._graph.get_min_cut_between(source_id, sink_id)
-
-    def minimum_node_cut(self, source: Union[int, str], sink: Union[int, str]) -> set[int]:
-        """
-        Find minimum node cut between source and sink nodes.
-
-        Returns the set of nodes whose removal disconnects the source from the sink. Uses
-        transformation to an edge connectivity problem where each node is split into in/out copies
-        connected by unit capacity.
-
-        The source and sink themselves are never included in the returned cut set.
-
-        Parameters
-        ----------
-        source
-            Source node (integer ID or string label).
-        sink
-            Sink node (integer ID or string label).
-
-        Returns
-        -------
-        set[int]
-            Set of node IDs forming the minimum node cut.
-
-        Raises
-        ------
-        ValueError
-            If source or sink node doesn't exist, or if they're the same.
-
-        Notes
-        -----
-        The node connectivity between two nodes is the minimum number of nodes that
-        must be removed to disconnect them. This is closely related to Menger's theorem.
-
-        Examples
-        --------
-        Find minimum node cut:
-
-        ```python
-        graph = (
-            Graph()
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("A", "C", auto_create_nodes=True)
-            .add_edge("B", "D", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-            .add_edge("D", "E", auto_create_nodes=True)
-        )
-
-        # Find nodes that separate A from E
-        cut_nodes = graph.minimum_node_cut("A", "E")
-        # Returns {node_id_d} where removing node D disconnects A from E
-        ```
-
-        Here's an example on the topic of network vulnerability. We can identify single points of
-        failure:
-
-        ```python
-        # Communication network
-        graph = (
-            Graph()
-            .add_edge("Client", "Gateway", auto_create_nodes=True)
-            .add_edge("Gateway", "Server1", auto_create_nodes=True)
-            .add_edge("Gateway", "Server2", auto_create_nodes=True)
-            .add_edge("Server1", "Database", auto_create_nodes=True)
-            .add_edge("Server2", "Database", auto_create_nodes=True)
-        )
-
-        critical_nodes = graph.minimum_node_cut("Client", "Database")
-        # Identifies Gateway as single point of failure
-        print(f"Critical nodes: {len(critical_nodes)}")
-        ```
-
-        Social network bottlenecks:
-
-        ```python
-        # Find intermediaries between two people
-        graph = (
-            Graph()
-            .add_edge("Alice", "Bob", auto_create_nodes=True)
-            .add_edge("Bob", "Carol", auto_create_nodes=True)
-            .add_edge("Alice", "Dave", auto_create_nodes=True)
-            .add_edge("Dave", "Carol", auto_create_nodes=True)
-        )
-
-        intermediaries = graph.minimum_node_cut("Alice", "Carol")
-        # Returns {bob_id, dave_id} - both must be removed to disconnect
-        ```
-        """
-        source_id = self._resolve_node_id(source, auto_create=False)
-        sink_id = self._resolve_node_id(sink, auto_create=False)
-        return self._graph.minimum_node_cut(source_id, sink_id)
-
-    def minimum_edge_cut(
-        self, source: Union[int, str], sink: Union[int, str]
-    ) -> set[tuple[int, int]]:
-        """
-        Find minimum edge cut between source and sink nodes.
-
-        Returns the set of edges whose removal disconnects the source from the sink. Uses the
-        max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut.
-
-        For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
-        edges are considered.
-
-        Parameters
-        ----------
-        source
-            Source node (integer ID or string label).
-        sink
-            Sink node (integer ID or string label).
-
-        Returns
-        -------
-        set[tuple[int, int]]
-            Set of edge tuples (source_id, target_id) forming the minimum cut.
-
-        Raises
-        ------
-        ValueError
-            If source or sink node doesn't exist, or if they're the same.
-
-        Examples
-        --------
-        Find minimum edge cut in a simple graph:
-
-        ```python
-        graph = (
-            Graph()
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("B", "C", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-            .add_edge("A", "D", auto_create_nodes=True)
-        )
-
-        # Find edges that separate A from C
-        cut_edges = graph.minimum_edge_cut("A", "C")
-        # Returns set of edge tuples like {(node_id_b, node_id_c), (node_id_d, node_id_c)}
-        ```
-
-        Network vulnerability analysis:
-
-        ```python
-        # Analyze which connections are critical
-        graph = (
-            Graph(directed=True)
-            .add_edge("Server1", "Router1", auto_create_nodes=True)
-            .add_edge("Router1", "Router2", auto_create_nodes=True)
-            .add_edge("Router2", "Server2", auto_create_nodes=True)
-            .add_edge("Router1", "Router3", auto_create_nodes=True)
-            .add_edge("Router3", "Server2", auto_create_nodes=True)
-        )
-
-        critical_links = graph.minimum_edge_cut("Server1", "Server2")
-        print(f"Removing {len(critical_links)} link(s) disconnects the servers")
-        ```
-        """
-        source_id = self._resolve_node_id(source, auto_create=False)
-        sink_id = self._resolve_node_id(sink, auto_create=False)
-        return self._graph.minimum_edge_cut(source_id, sink_id)
 
     # ==============================================================================
     # Triangle and Transitivity Analysis
@@ -17095,101 +17190,6 @@ class Graph:
         IEEE PAMI, 22(8), 888-905.
         """
         return self._graph.get_laplacian_spectrum(which, k, normalized)
-
-    # ==============================================================================
-    # Component Counts
-    # ==============================================================================
-
-    def count_weakly_connected_components(self) -> int:
-        """
-        Count weakly connected components in the graph.
-
-        For undirected graphs, counts regular connected components. For directed graphs,
-        treats all edges as undirected (ignoring direction) when finding components.
-
-        A weakly connected component is a maximal set of nodes where every node is
-        reachable from every other node when edge directions are ignored.
-
-        Returns
-        -------
-        int
-            Number of weakly connected components.
-
-        Examples
-        --------
-        Count components in a disconnected graph:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("X", "Y")
-        )
-
-        print(graph.count_weakly_connected_components())  # 2
-        ```
-        """
-        return self._graph.count_weakly_connected_components()
-
-    def count_strongly_connected_components(self) -> int:
-        """
-        Count strongly connected components.
-
-        For directed graphs, a strongly connected component is a maximal set of nodes
-        where every node is reachable from every other node following directed edges.
-        Uses Kosaraju's algorithm for efficient computation.
-
-        For undirected graphs, returns the same result as
-        `count_weakly_connected_components()` since strong connectivity equals regular
-        connectivity when edges are bidirectional. This matches igraph's behavior.
-
-        Returns
-        -------
-        int
-            Number of strongly connected components.
-
-        Examples
-        --------
-        Count strongly connected components in a directed graph:
-
-        ```python
-        graph = (
-            Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Cycle: all in same component
-            .add_edge("X", "Y")  # Separate component
-        )
-
-        print(graph.count_strongly_connected_components())  # 2
-        ```
-
-        For undirected graphs, equivalent to connected components:
-
-        ```python
-        graph = (
-            Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_edge("A", "B")
-        )
-
-        # Both return the same result for undirected graphs
-        print(graph.count_strongly_connected_components())  # 2
-        print(graph.count_weakly_connected_components())     # 2
-        ```
-        """
-        return self._graph.count_strongly_connected_components()
 
     # ==============================================================================
     # Path and Topological Analysis
