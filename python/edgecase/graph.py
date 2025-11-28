@@ -10685,7 +10685,7 @@ class Graph:
         Returns
         -------
         bool
-            True if the edges form a valid matching (no shared endpoints), False otherwise.
+            `True` if the edges form a valid matching (no shared endpoints), `False` otherwise.
 
         Examples
         --------
@@ -10748,8 +10748,8 @@ class Graph:
         A maximal matching is a matching (set of edges with no shared endpoints) that cannot be
         extended by adding any other edge. Uses a greedy algorithm.
 
-        Note: A maximal matching is not necessarily a maximum matching (largest possible).
-        For weighted graphs, use `max_weight_matching()`.
+        Note that a maximal matching is not necessarily a maximum matching (largest possible). For
+        weighted graphs, use `max_weight_matching()`.
 
         Returns
         -------
@@ -10804,12 +10804,12 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(E) where E is the number of edges
-        - Space complexity: O(V) for tracking matched nodes
-        - Greedy algorithm: processes edges in arbitrary order
-        - Result may vary between calls due to iteration order
-        - For maximum cardinality matching, use specialized algorithms
-        - For weighted matching, use `max_weight_matching()`
+        - time complexity: `O(E)` where `E` is the number of edges
+        - space complexity: `O(V)` for tracking matched nodes
+        - greedy algorithm: processes edges in arbitrary order
+        - result may vary between calls due to iteration order
+        - for maximum cardinality matching, use specialized algorithms
+        - for weighted matching, use `max_weight_matching()`
         """
         from edgecase._core import maximal_matching
 
@@ -10820,10 +10820,10 @@ class Graph:
         Find a maximum weight matching in the graph.
 
         Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
-        selects edges by weight in descending order. For unweighted graphs, all edges have
-        weight 1.0.
+        selects edges by weight in descending order. For unweighted graphs, all edges have weight
+        `1.0`.
 
-        Note: This is a greedy approximation, not guaranteed to be optimal for general graphs.
+        Note that this is a greedy approximation, not guaranteed to be optimal for general graphs.
         For optimal solutions on bipartite graphs, use specialized bipartite matching algorithms.
 
         Returns
@@ -10921,17 +10921,18 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(E log E) for sorting edges
-        - Space complexity: O(V + E) for tracking matched nodes and edges
-        - Greedy approximation: selects heaviest edges first
-        - Not guaranteed optimal for general graphs
-        - Optimal for trees and forests
-        - For bipartite graphs, consider Hungarian algorithm
-        - For unweighted graphs, equivalent to maximal matching
+        - time complexity: `O(E log E)` for sorting edges
+        - space complexity: `O(V + E)` for tracking matched nodes and edges
+        - greedy approximation: selects heaviest edges first
+        - not guaranteed to be optimal for general graphs
+        - optimal for trees and forests
+        - for bipartite graphs, consider Hungarian algorithm
+        - for unweighted graphs, equivalent to maximal matching
 
         References
         ----------
         For optimal maximum weight matching, see:
+
         - Edmond's Blossom algorithm for general graphs
         - Hungarian algorithm for bipartite graphs
         """
@@ -11111,10 +11112,10 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(V + E) where V is vertices and E is edges
-        - space complexity: O(V) for tracking available nodes
+        - time complexity: `O(V + E)` where `V` is vertices and `E` is edges
+        - space complexity: `O(V)` for tracking available nodes
         - randomized algorithm: results may vary without a seed
-        - maximal ≠ Maximum: this is not guaranteed to find the largest possible set
+        - maximal ≠ maximum: this is not guaranteed to find the largest possible set
         - for the largest independent set, use `maximum_independent_set()`
         """
         from edgecase._core import maximal_independent_set
@@ -11360,25 +11361,25 @@ class Graph:
         """
         Check if the graph has an Eulerian path but not an Eulerian circuit.
 
-        An Eulerian path is a trail that visits every edge exactly once.
-        A graph is semi-Eulerian if it has an Eulerian path but NOT an Eulerian circuit.
+        An Eulerian path is a trail that visits every edge exactly once. A graph is semi-Eulerian if
+        it has an Eulerian path but NOT an Eulerian circuit.
 
         For undirected graphs, this occurs when:
 
-        - The graph is connected
-        - Exactly two vertices have odd degree (start and end of path)
+        - the graph is connected
+        - exactly two vertices have odd degree (start and end of path)
 
         For directed graphs, this occurs when:
 
-        - The graph is weakly connected
-        - Exactly one vertex has out-degree - in-degree = 1 (start)
-        - Exactly one vertex has in-degree - out-degree = 1 (end)
-        - All other vertices have equal in-degree and out-degree
+        - the graph is weakly connected
+        - exactly one vertex has out-degree - in-degree = 1 (start)
+        - exactly one vertex has in-degree - out-degree = 1 (end)
+        - all other vertices have equal in-degree and out-degree
 
         Returns
         -------
         bool
-            True if the graph has an Eulerian path but not circuit, False otherwise.
+            `True` if the graph has an Eulerian path but not circuit, `False` otherwise.
 
         Examples
         --------
@@ -11421,18 +11422,18 @@ class Graph:
         """
         Find an Eulerian circuit in the graph if one exists.
 
-        An Eulerian circuit is a closed trail that visits every edge exactly once,
-        starting and ending at the same node. Uses Hierholzer's algorithm.
+        An Eulerian circuit is a closed trail that visits every edge exactly once, starting and
+        ending at the same node. Uses Hierholzer's algorithm.
 
         Returns
         -------
         Optional[list[int]]
-            List of node IDs forming the Eulerian circuit, or None if no circuit exists.
-            The circuit starts and ends at the same node.
+            List of node IDs forming the Eulerian circuit, or `None` if no circuit exists. The
+            circuit starts and ends at the same node.
 
         Examples
         --------
-        Find circuit in a cycle graph:
+        Find a circuit in a cycle graph:
 
         ```python
         from edgecase import Graph
@@ -11496,12 +11497,12 @@ class Graph:
         """
         Find all bridge edges in the graph.
 
-        A bridge (also called a cut edge) is an edge whose removal increases the number
-        of connected components. Bridges are critical edges that, if removed, would
-        disconnect parts of the network.
+        A bridge (also called a cut edge) is an edge whose removal increases the number of connected
+        components. Bridges are critical edges that, if removed, would disconnect parts of the
+        network.
 
-        Uses Tarjan's algorithm for undirected graphs (O(V+E) time complexity) and
-        strongly connected component analysis for directed graphs.
+        Uses Tarjan's algorithm for undirected graphs (O(V+E) time complexity) and strongly
+        connected component analysis for directed graphs.
 
         Returns
         -------
@@ -11552,10 +11553,10 @@ class Graph:
 
         Notes
         -----
-        - Bridges are critical for network vulnerability analysis
-        - In a tree, all edges are bridges
-        - In a cycle, no edges are bridges
-        - Related to articulation points (vertices whose removal disconnects the graph)
+        - bridges are critical for network vulnerability analysis
+        - in a tree, all edges are bridges
+        - in a cycle, no edges are bridges
+        - related to articulation points (vertices whose removal disconnects the graph)
         """
         from edgecase._core import bridges
 
@@ -11565,14 +11566,14 @@ class Graph:
         """
         Check if the graph contains any bridge edges.
 
-        A bridge (cut edge) is an edge whose removal increases the number of
-        connected components. This method is more efficient than bridges() when
-        you only need to know if bridges exist, not which edges they are.
+        A bridge (cut edge) is an edge whose removal increases the number of connected components.
+        This method is more efficient than `bridges()` when you only need to know if bridges exist,
+        not which edges they are.
 
         Returns
         -------
         bool
-            True if at least one bridge exists, False otherwise.
+            `True` if at least one bridge exists, `False` otherwise.
 
         Examples
         --------
@@ -11613,9 +11614,9 @@ class Graph:
 
         Notes
         -----
-        - More efficient than `len(bridges()) > 0` for large graphs
-        - Useful for quick connectivity analysis
-        - Returns False for complete graphs and cycles
+        - more efficient than `len(bridges()) > 0` for large graphs
+        - useful for quick connectivity analysis
+        - returns False for complete graphs and cycles
         """
         from edgecase._core import has_bridges
 
@@ -11741,22 +11742,19 @@ class Graph:
         Parameters
         ----------
         nodes
-            List of node IDs (integers) or labels (strings) to compute similarities for.
-            Can mix IDs and labels in the same list.
-            If None or empty, computes for all nodes in the graph.
+            List of node IDs (integers) or labels (strings) to compute similarities for. Can mix IDs
+            and labels in the same list. If `None` or empty, computes for all nodes in the graph.
         method
-            Similarity metric to use. Options:
-
-            - `"jaccard"`: Jaccard coefficient (intersection over union)
-            - `"dice"`: Dice coefficient (2× intersection over sum of sizes)
-            - `"invlogweighted"`: Inverse log-weighted (Adamic-Adar index)
-            - `"cosine"`: Cosine similarity
+            Similarity metric to use. Options are: (1) `"jaccard"` for the Jaccard coefficient
+            (intersection over union), (2) `"dice"` for the Dice coefficient (2× intersection over
+            sum of sizes), (3) `"invlogweighted"` as inverse log-weighted (Adamic-Adar index), and
+            (4) `"cosine"` which uses Cosine similarity.
 
         Returns
         -------
         list[list[float]]
-            Similarity matrix where entry (i,j) is the similarity between
-            nodes[i] and nodes[j]. Diagonal entries are always 1.0.
+            Similarity matrix where entry (i,j) is the similarity between nodes[i] and nodes[j].
+            Diagonal entries are always `1.0`.
 
         Raises
         ------
