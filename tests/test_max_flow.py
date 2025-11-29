@@ -24,11 +24,14 @@ class TestMaxFlowBasic:
         g.add_edge("4", "5", capacity=10.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="0", sink="5")
+
         # Verified with NetworkX: max flow is 12.0
         assert flow_value == 12.0
 
         flow_dict = g.max_flow(source="0", sink="5")
+
         assert isinstance(flow_dict, dict)
+
         # All flows should be non-negative
         for edge_id, flow in flow_dict.items():
             assert flow >= 0.0
@@ -41,6 +44,7 @@ class TestMaxFlowBasic:
         g.add_edge("C", "D", capacity=7.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="D")
+
         assert flow_value == 3.0  # Bottleneck is edge B->C
 
     def test_parallel_paths(self):
@@ -52,6 +56,7 @@ class TestMaxFlowBasic:
         g.add_edge("B", "T", capacity=10.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="S", sink="T")
+
         assert flow_value == 15.0
 
 
@@ -74,6 +79,7 @@ class TestMaxFlowEdgeCases:
         g.add_edge("C", "D", capacity=10.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="D")
+
         assert flow_value == 0.0
 
     def test_single_edge(self):
@@ -82,6 +88,7 @@ class TestMaxFlowEdgeCases:
         g.add_edge("S", "T", capacity=5.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="S", sink="T")
+
         assert flow_value == 5.0
 
     def test_zero_capacity_edge(self):
@@ -90,6 +97,7 @@ class TestMaxFlowEdgeCases:
         g.add_edge("S", "T", capacity=0.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="S", sink="T")
+
         assert flow_value == 0.0
 
     def test_nonexistent_source(self):
@@ -119,6 +127,7 @@ class TestMaxFlowUndirected:
         g.add_edge("B", "C", capacity=5.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="C")
+
         assert flow_value == 5.0
 
     def test_undirected_multiple_paths(self):
@@ -130,6 +139,7 @@ class TestMaxFlowUndirected:
         g.add_edge("B", "T", capacity=5.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="S", sink="T")
+
         assert flow_value == 10.0
 
 
@@ -143,6 +153,7 @@ class TestMaxFlowCapacity:
         g.add_edge("B", "C", auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="C")
+
         assert flow_value == 1.0
 
     def test_mixed_capacities(self):
@@ -152,6 +163,7 @@ class TestMaxFlowCapacity:
         g.add_edge("B", "C", auto_create_nodes=True)  # Default capacity 1.0
 
         flow_value = g.max_flow_value(source="A", sink="C")
+
         assert flow_value == 1.0  # Bottleneck is default capacity
 
     def test_large_capacity(self):
@@ -161,6 +173,7 @@ class TestMaxFlowCapacity:
         g.add_edge("B", "C", capacity=1e12, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="C")
+
         assert flow_value == 1e12
 
     def test_fractional_capacity(self):
@@ -170,6 +183,7 @@ class TestMaxFlowCapacity:
         g.add_edge("B", "C", capacity=1.7, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="C")
+
         assert abs(flow_value - 1.7) < 1e-10
 
 
@@ -185,11 +199,14 @@ class TestMaxFlowFlowDict:
         flow_dict = g.max_flow(source="A", sink="C")
 
         assert isinstance(flow_dict, dict)
+
         # Should have exactly 2 entries (both edges carry flow)
         assert len(flow_dict) == 2
+
         # All keys should be integers (edge IDs)
         for edge_id in flow_dict.keys():
             assert isinstance(edge_id, int)
+
         # All values should be floats
         for flow in flow_dict.values():
             assert isinstance(flow, float)
@@ -240,6 +257,7 @@ class TestMaxFlowFlowDict:
         # The sum of flows on edges leaving source should equal flow_value
         # Edge IDs are 1-based: edge 1 is S->A, edge 2 is S->B
         total_from_source = flow_dict.get(1, 0.0) + flow_dict.get(2, 0.0)
+
         assert abs(flow_value - total_from_source) < 1e-10
 
 
@@ -256,6 +274,7 @@ class TestMaxFlowComplexGraphs:
         g.add_edge("A", "B", capacity=1.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="S", sink="T")
+
         assert flow_value == 4.0  # Max possible through the diamond
 
     def test_grid_graph(self):
@@ -281,20 +300,24 @@ class TestMaxFlowComplexGraphs:
             ("n6", "n7"),
             ("n7", "n8"),
         ]
+
         for u, v in edges:
             g.add_edge(u, v, capacity=1.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="n0", sink="n8")
+
         assert flow_value == 2.0  # Two vertex-disjoint paths
 
     def test_bipartite_graph(self):
         """Test on a bipartite graph."""
         g = create_flow_graph()
+
         # Source S, left vertices L1,L2,L3, right vertices R1,R2,R3, sink T
         # Source to left
         g.add_edge("S", "L1", capacity=1.0, auto_create_nodes=True)
         g.add_edge("S", "L2", capacity=1.0, auto_create_nodes=True)
         g.add_edge("S", "L3", capacity=1.0, auto_create_nodes=True)
+
         # Left to right (some connections)
         g.add_edge("L1", "R1", capacity=1.0, auto_create_nodes=True)
         g.add_edge("L1", "R2", capacity=1.0, auto_create_nodes=True)
@@ -302,12 +325,14 @@ class TestMaxFlowComplexGraphs:
         g.add_edge("L2", "R3", capacity=1.0, auto_create_nodes=True)
         g.add_edge("L3", "R2", capacity=1.0, auto_create_nodes=True)
         g.add_edge("L3", "R3", capacity=1.0, auto_create_nodes=True)
+
         # Right to sink
         g.add_edge("R1", "T", capacity=1.0, auto_create_nodes=True)
         g.add_edge("R2", "T", capacity=1.0, auto_create_nodes=True)
         g.add_edge("R3", "T", capacity=1.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="S", sink="T")
+
         assert flow_value == 3.0  # Maximum matching is 3
 
 
@@ -345,6 +370,7 @@ class TestMaxFlowConsistency:
 
         v1 = g.max_flow_value(source="A", sink="C")
         v2 = g.max_flow_value(source="A", sink="C")
+
         assert v1 == v2
 
 
@@ -358,6 +384,7 @@ class TestMaxFlowSpecialCases:
         g.add_edge("A", "B", capacity=5.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="B")
+
         assert flow_value == 5.0
 
     def test_cycle_in_graph(self):
@@ -369,6 +396,7 @@ class TestMaxFlowSpecialCases:
         g.add_edge("B", "D", capacity=5.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="D")
+
         assert flow_value == 5.0
 
     def test_multiple_edges_between_same_nodes(self):
@@ -379,6 +407,7 @@ class TestMaxFlowSpecialCases:
         g.add_edge("B", "C", capacity=10.0, auto_create_nodes=True)
 
         flow_value = g.max_flow_value(source="A", sink="C")
+
         assert flow_value == 7.0  # Both edges can carry flow
 
 
@@ -400,4 +429,5 @@ class TestMaxFlowErrors:
         g.add_node(label="B")
 
         flow_value = g.max_flow_value(source="A", sink="B")
+
         assert flow_value == 0.0
