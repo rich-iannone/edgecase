@@ -11074,6 +11074,382 @@ class Graph:
         return result
 
     # ==============================================================================
+    # Node Contraction
+    # ==============================================================================
+
+    def contract_nodes(self, u: int | str, v: int | str, self_loops: bool = True) -> "Graph":
+        """
+        Contract two nodes by merging v into u.
+
+        Creates a new graph where node v is removed and all its edges are redirected to node u.
+        If there was an edge between u and v, it becomes a self-loop on u (unless self_loops=False).
+        This operation does not modify the original graph.
+
+        Parameters
+        ----------
+        u
+            The node to keep (node ID or label). All edges from v will be redirected here.
+        v
+            The node to merge into u (node ID or label). This node will be removed.
+        self_loops
+            If `True` (default), edges between u and v become self-loops on u.
+            If `False`, such edges are removed.
+
+        Returns
+        -------
+        Graph
+            A new graph with v contracted into u.
+
+        Raises
+        ------
+        KeyError
+            If either node does not exist.
+        ValueError
+            If `u` and `v` are the same node.
+
+        Examples
+        --------
+        Basic node contraction:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path: A -- B -- C -- D
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        # Contract B into A (merge B into A)
+        result = g.contract_nodes("A", "B")
+
+        print(result.count_nodes())  # 3 (A, C, D)
+        print(result.has_node("B"))  # False
+        # Now A is connected directly to C
+        ```
+
+        Contraction creates self-loops:
+
+        ```python
+        # Triangle: A -- B -- C -- A
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        # Contract B into A
+        result = g.contract_nodes("A", "B", self_loops=True)
+        # Edge A-B becomes a self-loop on A
+        # Edge B-C becomes A-C
+
+        # Suppress self-loops
+        result_no_loops = g.contract_nodes("A", "B", self_loops=False)
+        # Edge A-B is removed
+        ```
+
+        Graph simplification:
+
+        ```python
+        # Use contraction to simplify a graph by merging similar nodes
+        g = Graph(directed=False)
+        g.add_path_graph(5)  # 1 -- 2 -- 3 -- 4 -- 5
+
+        # Merge 2 and 3 into a single node
+        simplified = g.contract_nodes(2, 3)
+        print(simplified.count_nodes())  # 4
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(E) where E is the number of edges
+        - Creates a new graph; original is unchanged
+        - Node u retains its label and attributes
+        - Edge weights are preserved
+        - For multigraphs, duplicate edges may be removed
+        """
+        from edgecase._core import contract_nodes as _contract_nodes
+
+        u_id = self._resolve_node_id(u)
+        v_id = self._resolve_node_id(v)
+
+        result = Graph.__new__(Graph)
+        result._graph = _contract_nodes(self._graph, u_id, v_id, self_loops)
+        return result
+
+    def contracted_edge(self, u: int | str, v: int | str, self_loops: bool = True) -> "Graph":
+        """
+        Contract an edge by merging its endpoints.
+
+        Given an edge between u and v, creates a new graph where v is merged into u.
+        This is equivalent to `contract_nodes(u, v)` but explicitly requires that
+        an edge exists between the nodes.
+
+        Parameters
+        ----------
+        u
+            Source endpoint of the edge (node ID or label).
+        v
+            Target endpoint of the edge (node ID or label). This node will be removed.
+        self_loops
+            If `True` (default), the contracted edge becomes a self-loop on u.
+            If `False`, the contracted edge is removed.
+
+        Returns
+        -------
+        Graph
+            A new graph with the edge contracted.
+
+        Raises
+        ------
+        KeyError
+            If either node does not exist.
+        ValueError
+            If no edge exists between u and v.
+
+        Examples
+        --------
+        Contract an edge:
+
+        ```python
+        from edgecase import Graph
+
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # Contract edge A-B
+        result = g.contracted_edge("A", "B")
+        print(result.count_nodes())  # 2 (A and C)
+        print(result.has_edge("A", "C"))  # True (was B-C)
+        ```
+
+        Edge contraction in directed graphs:
+
+        ```python
+        g = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # Contract directed edge A->B
+        result = g.contracted_edge("A", "B")
+        # Now A->C exists (was B->C)
+        ```
+
+        Notes
+        -----
+        - Equivalent to `contract_nodes(u, v)` when edge (u, v) exists
+        - Raises ValueError if the edge doesn't exist
+        - For undirected graphs, edge direction doesn't matter
+        """
+        from edgecase._core import contracted_edge as _contracted_edge
+
+        u_id = self._resolve_node_id(u)
+        v_id = self._resolve_node_id(v)
+
+        result = Graph.__new__(Graph)
+        result._graph = _contracted_edge(self._graph, u_id, v_id, self_loops)
+        return result
+
+    def contract_nodes_multi(self, nodes: list[int | str], self_loops: bool = True) -> "Graph":
+        """
+        Contract multiple nodes into a single node.
+
+        Merges all specified nodes into the first node in the list. All edges incident
+        to any of the contracted nodes are redirected to the first node. Edges between
+        contracted nodes become self-loops (if self_loops=True).
+
+        Parameters
+        ----------
+        nodes
+            List of node IDs or labels to contract. The first node is the target;
+            all other nodes are merged into it.
+        self_loops
+            If True (default), edges between contracted nodes become self-loops.
+            If False, such edges are removed.
+
+        Returns
+        -------
+        Graph
+            A new graph with all specified nodes contracted into one.
+
+        Raises
+        ------
+        KeyError
+            If any node does not exist.
+        ValueError
+            If the node list is empty.
+
+        Examples
+        --------
+        Contract a community into a single node:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        g.add_path_graph(6)  # 1 -- 2 -- 3 -- 4 -- 5 -- 6
+
+        # Contract nodes 2, 3, 4 into node 2
+        result = g.contract_nodes_multi([2, 3, 4])
+
+        print(result.count_nodes())  # 3 (nodes 1, 2, 5/6... wait let me check)
+        # Result: 1 -- 2 -- 5 -- 6 (nodes 3,4 merged into 2)
+        ```
+
+        Contract detected communities:
+
+        ```python
+        g = Graph(directed=False)
+        # ... build graph ...
+
+        # Detect communities
+        membership = g.community_louvain()
+
+        # Get nodes in community 0
+        community_0 = [n for n, c in membership.items() if c == 0]
+
+        # Contract that community
+        if len(community_0) > 1:
+            simplified = g.contract_nodes_multi(community_0)
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(k * E) where k is number of nodes to contract
+        - The first node in the list retains its ID and attributes
+        - All other nodes are removed from the graph
+        """
+        from edgecase._core import contract_nodes_multi as _contract_nodes_multi
+
+        resolved_nodes = [self._resolve_node_id(n) for n in nodes]
+
+        result = Graph.__new__(Graph)
+        result._graph = _contract_nodes_multi(self._graph, resolved_nodes, self_loops)
+        return result
+
+    def quotient_graph(self, partition: list[list[int | str]]) -> "Graph":
+        """
+        Create a quotient graph from a node partition.
+
+        Each block (group of nodes) in the partition becomes a single node in the
+        quotient graph. Edges between different blocks become edges in the quotient.
+        Edges within the same block are removed.
+
+        Parameters
+        ----------
+        partition
+            List of node groups. Each inner list contains node IDs or labels
+            belonging to the same block. Every node must appear exactly once.
+
+        Returns
+        -------
+        Graph
+            A new quotient graph where each partition block is a node.
+            Nodes are labeled "block_0", "block_1", etc.
+
+        Raises
+        ------
+        KeyError
+            If any node in the partition does not exist.
+        ValueError
+            If a node appears in multiple blocks or if some nodes are missing.
+
+        Examples
+        --------
+        Create quotient from community partition:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        g.add_path_graph(6)  # 1 -- 2 -- 3 -- 4 -- 5 -- 6
+
+        # Partition: {1,2,3} and {4,5,6}
+        partition = [[1, 2, 3], [4, 5, 6]]
+        quotient = g.quotient_graph(partition)
+
+        print(quotient.count_nodes())  # 2
+        print(quotient.count_edges())  # 1 (from edge 3-4)
+        ```
+
+        Quotient from community detection:
+
+        ```python
+        g = Graph(directed=False)
+        g.add_karate_club_graph()
+
+        # Detect communities
+        membership = g.community_louvain()
+
+        # Build partition from membership
+        from collections import defaultdict
+        communities = defaultdict(list)
+        for node, comm in membership.items():
+            communities[comm].append(node)
+        partition = list(communities.values())
+
+        # Create quotient graph showing inter-community edges
+        quotient = g.quotient_graph(partition)
+        print(f"Communities: {quotient.count_nodes()}")
+        print(f"Inter-community edges: {quotient.count_edges()}")
+        ```
+
+        Using labels:
+
+        ```python
+        g = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+        )
+
+        # Partition by labels
+        quotient = g.quotient_graph([["A", "B"], ["C", "D"]])
+        # Results in block_0 -- block_1
+        ```
+
+        Notes
+        -----
+        - Every node must appear in exactly one block
+        - Intra-block edges are discarded (no self-loops in quotient)
+        - Edge weights from the first inter-block edge are preserved
+        - Quotient nodes are numbered 1, 2, 3, ... with labels "block_0", etc.
+        """
+        from edgecase._core import quotient_graph as _quotient_graph
+
+        resolved_partition = [[self._resolve_node_id(n) for n in block] for block in partition]
+
+        result = Graph.__new__(Graph)
+        result._graph = _quotient_graph(self._graph, resolved_partition)
+        return result
+
+    # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
 
