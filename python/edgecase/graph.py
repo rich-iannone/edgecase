@@ -7867,6 +7867,370 @@ class Graph:
         return dispersion(self._graph, u_id, v_id, normalized)
 
     # ==============================================================================
+    # Link Prediction
+    # ==============================================================================
+
+    def common_neighbors(
+        self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
+    ) -> list[tuple[int, int, int]]:
+        """
+        Compute the number of common neighbors for node pairs.
+
+        For each pair of nodes (u, v), counts how many nodes are neighbors of both u and v.
+        Common neighbors is a simple but effective link prediction measure.
+
+        Parameters
+        ----------
+        ebunch
+            List of node pairs to compute predictions for. Each pair can use node IDs (integers)
+            or labels (strings). If None, computes for all pairs of nodes that are not already
+            connected.
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            List of (u, v, count) tuples where count is the number of common neighbors.
+            Results are returned with node IDs.
+
+        Examples
+        --------
+        Predict missing links in a social network:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph(directed=False)
+        for name in ["Alice", "Bob", "Carol", "Dave"]:
+            graph.add_node(label=name)
+
+        # Alice and Carol share Bob as a friend
+        graph.add_edge(source="Alice", target="Bob")
+        graph.add_edge(source="Carol", target="Bob")
+        graph.add_edge(source="Carol", target="Dave")
+
+        # Check common neighbors for unconnected pairs
+        predictions = graph.common_neighbors()
+        for u, v, count in predictions:
+            print(f"{u} - {v}: {count} common neighbors")
+        ```
+
+        Check specific pairs:
+
+        ```python
+        pairs = [("Alice", "Carol"), ("Alice", "Dave")]
+        predictions = graph.common_neighbors(pairs)
+        # Alice-Carol have 1 common neighbor (Bob)
+        # Alice-Dave have 0 common neighbors
+        ```
+
+        Notes
+        -----
+        - time complexity: O(k^2) per pair where k is the average degree
+        - works best for social networks with high clustering
+        - simple baseline for link prediction tasks
+        - higher count suggests higher likelihood of future connection
+
+        References
+        ----------
+        Newman, M. E. J. (2001). Clustering and preferential attachment in growing networks.
+        Physical Review E, 64(2), 025102.
+        """
+        from edgecase._core import common_neighbors
+
+        resolved_ebunch = None
+        if ebunch is not None:
+            resolved_ebunch = [
+                (self._resolve_node_id(u), self._resolve_node_id(v)) for u, v in ebunch
+            ]
+
+        return common_neighbors(self._graph, resolved_ebunch)
+
+    def jaccard_coefficient(
+        self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
+    ) -> list[tuple[int, int, float]]:
+        """
+        Compute Jaccard coefficient for node pairs.
+
+        For each pair of nodes (u, v), computes |N(u) ∩ N(v)| / |N(u) ∪ N(v)|,
+        which is the ratio of common neighbors to total distinct neighbors.
+
+        Parameters
+        ----------
+        ebunch
+            List of node pairs to compute predictions for. Each pair can use node IDs (integers)
+            or labels (strings). If None, computes for all pairs of nodes that are not already
+            connected.
+
+        Returns
+        -------
+        list[tuple[int, int, float]]
+            List of (u, v, coefficient) tuples where coefficient is the Jaccard similarity.
+            Results are returned with node IDs. Coefficient is 0.0 if both nodes have no neighbors.
+
+        Examples
+        --------
+        Find similar nodes for link prediction:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph(directed=False)
+        graph.add_path_graph(5)  # 1-2-3-4-5
+
+        # Check similarity between non-adjacent nodes
+        predictions = graph.jaccard_coefficient([(1, 3), (1, 4), (2, 4)])
+        for u, v, coef in predictions:
+            print(f"{u} - {v}: Jaccard = {coef:.3f}")
+        ```
+
+        Notes
+        -----
+        - time complexity: O(k) per pair where k is the average degree
+        - returns value in [0, 1] where 1 means identical neighborhoods
+        - more robust than common neighbors for nodes with different degrees
+        - commonly used as similarity metric in network analysis
+
+        References
+        ----------
+        Liben-Nowell, D., & Kleinberg, J. (2007). The link-prediction problem for social
+        networks. Journal of the American Society for Information Science and Technology,
+        58(7), 1019-1031.
+        """
+        from edgecase._core import jaccard_coefficient
+
+        resolved_ebunch = None
+        if ebunch is not None:
+            resolved_ebunch = [
+                (self._resolve_node_id(u), self._resolve_node_id(v)) for u, v in ebunch
+            ]
+
+        return jaccard_coefficient(self._graph, resolved_ebunch)
+
+    def adamic_adar_index(
+        self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
+    ) -> list[tuple[int, int, float]]:
+        """
+        Compute Adamic-Adar index for node pairs.
+
+        For each pair of nodes (u, v), computes Σ(1 / log(|N(w)|)) for all common
+        neighbors w. This gives more weight to common neighbors that themselves have
+        fewer connections (rarer connections are more significant).
+
+        Parameters
+        ----------
+        ebunch
+            List of node pairs to compute predictions for. Each pair can use node IDs (integers)
+            or labels (strings). If None, computes for all pairs of nodes that are not already
+            connected.
+
+        Returns
+        -------
+        list[tuple[int, int, float]]
+            List of (u, v, index) tuples where index is the Adamic-Adar score.
+            Results are returned with node IDs.
+
+        Examples
+        --------
+        Predict links giving more weight to rare common neighbors:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph(directed=False)
+        # Create a network with a hub (node 1) and peripheral nodes
+        for i in range(2, 10):
+            graph.add_node()
+            graph.add_edge(1, i)  # Hub connected to all
+
+        # Nodes 2 and 3 share hub as common neighbor
+        # But hub has high degree, so contributes less
+        predictions = graph.adamic_adar_index([(2, 3)])
+        print(f"Adamic-Adar: {predictions[0][2]:.3f}")
+        ```
+
+        Compare with common neighbors:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_cycle_graph(6)
+
+        pairs = [(1, 3), (1, 4)]
+        cn = graph.common_neighbors(pairs)
+        aa = graph.adamic_adar_index(pairs)
+
+        for (_, _, count), (u, v, score) in zip(cn, aa):
+            print(f"{u}-{v}: CN={count}, AA={score:.3f}")
+        ```
+
+        Notes
+        -----
+        - time complexity: O(k) per pair where k is the average degree
+        - more accurate than common neighbors for many real networks
+        - handles hub nodes better by downweighting their contribution
+        - score is unbounded (higher is better)
+
+        References
+        ----------
+        Adamic, L. A., & Adar, E. (2003). Friends and neighbors on the Web.
+        Social Networks, 25(3), 211-230.
+        """
+        from edgecase._core import adamic_adar_index
+
+        resolved_ebunch = None
+        if ebunch is not None:
+            resolved_ebunch = [
+                (self._resolve_node_id(u), self._resolve_node_id(v)) for u, v in ebunch
+            ]
+
+        return adamic_adar_index(self._graph, resolved_ebunch)
+
+    def resource_allocation_index(
+        self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
+    ) -> list[tuple[int, int, float]]:
+        """
+        Compute resource allocation index for node pairs.
+
+        For each pair of nodes (u, v), computes Σ(1 / |N(w)|) for all common
+        neighbors w. Similar to Adamic-Adar but uses 1/degree instead of 1/log(degree),
+        penalizing high-degree common neighbors more strongly.
+
+        Parameters
+        ----------
+        ebunch
+            List of node pairs to compute predictions for. Each pair can use node IDs (integers)
+            or labels (strings). If None, computes for all pairs of nodes that are not already
+            connected.
+
+        Returns
+        -------
+        list[tuple[int, int, float]]
+            List of (u, v, index) tuples where index is the resource allocation score.
+            Results are returned with node IDs.
+
+        Examples
+        --------
+        Compare with Adamic-Adar:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph(directed=False)
+        # Star graph: node 1 is hub connected to 2-10
+        for i in range(2, 11):
+            graph.add_node()
+            graph.add_edge(1, i)
+
+        pairs = [(2, 3), (2, 5)]
+        aa = graph.adamic_adar_index(pairs)
+        ra = graph.resource_allocation_index(pairs)
+
+        for (_, _, aa_score), (u, v, ra_score) in zip(aa, ra):
+            print(f"{u}-{v}: AA={aa_score:.3f}, RA={ra_score:.3f}")
+        ```
+
+        Notes
+        -----
+        - time complexity: O(k) per pair where k is the average degree
+        - penalizes high-degree common neighbors more than Adamic-Adar
+        - inspired by resource allocation dynamics on networks
+        - often outperforms Adamic-Adar on social networks
+
+        References
+        ----------
+        Zhou, T., Lü, L., & Zhang, Y. C. (2009). Predicting missing links via local
+        information. The European Physical Journal B, 71(4), 623-630.
+        """
+        from edgecase._core import resource_allocation_index
+
+        resolved_ebunch = None
+        if ebunch is not None:
+            resolved_ebunch = [
+                (self._resolve_node_id(u), self._resolve_node_id(v)) for u, v in ebunch
+            ]
+
+        return resource_allocation_index(self._graph, resolved_ebunch)
+
+    def preferential_attachment(
+        self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
+    ) -> list[tuple[int, int, int]]:
+        """
+        Compute preferential attachment score for node pairs.
+
+        For each pair of nodes (u, v), computes |N(u)| × |N(v)|, the product
+        of their degrees. Based on the "rich get richer" principle where
+        high-degree nodes are more likely to acquire new connections.
+
+        Parameters
+        ----------
+        ebunch
+            List of node pairs to compute predictions for. Each pair can use node IDs (integers)
+            or labels (strings). If None, computes for all pairs of nodes that are not already
+            connected.
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            List of (u, v, score) tuples where score is degree(u) × degree(v).
+            Results are returned with node IDs.
+
+        Examples
+        --------
+        Predict links based on node popularity:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph(directed=False)
+        # Create network with varying degrees
+        graph.add_star_graph(5)  # Hub node 1 with degree 4
+        graph.add_node()  # Node 6, isolated
+
+        pairs = [(2, 3), (2, 6)]
+        predictions = graph.preferential_attachment(pairs)
+
+        for u, v, score in predictions:
+            print(f"{u}-{v}: PA score = {score}")
+        # 2-3 will have higher score (both connected to hub)
+        ```
+
+        Compare different metrics:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(5)  # Complete graph K5
+        graph.remove_edge(graph.get_edge_id(1, 2))  # Remove one edge
+
+        pairs = [(1, 2)]
+        cn = graph.common_neighbors(pairs)
+        pa = graph.preferential_attachment(pairs)
+
+        print(f"Common neighbors: {cn[0][2]}")
+        print(f"Preferential attachment: {pa[0][2]}")
+        ```
+
+        Notes
+        -----
+        - time complexity: O(1) per pair (just degree lookup)
+        - does not use local neighborhood structure
+        - captures "rich get richer" dynamics in scale-free networks
+        - good baseline for networks with power-law degree distribution
+
+        References
+        ----------
+        Barabási, A. L., & Albert, R. (1999). Emergence of scaling in random networks.
+        Science, 286(5439), 509-512.
+        """
+        from edgecase._core import preferential_attachment
+
+        resolved_ebunch = None
+        if ebunch is not None:
+            resolved_ebunch = [
+                (self._resolve_node_id(u), self._resolve_node_id(v)) for u, v in ebunch
+            ]
+
+        return preferential_attachment(self._graph, resolved_ebunch)
+
+    # ==============================================================================
     # Similarity
     # ==============================================================================
 
