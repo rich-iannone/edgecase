@@ -76,6 +76,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::link_prediction::adamic_adar_index, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::link_prediction::resource_allocation_index, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::link_prediction::preferential_attachment, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::contraction::contract_nodes, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::contraction::contracted_edge, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::contraction::contract_nodes_multi, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::contraction::quotient_graph, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;

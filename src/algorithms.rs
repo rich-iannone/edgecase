@@ -5,6 +5,7 @@ pub mod centrality;
 pub mod coloring;
 pub mod community;
 pub mod connectivity;
+pub mod contraction;
 pub mod cycles;
 pub mod dispersion;
 pub mod dominating_set;
