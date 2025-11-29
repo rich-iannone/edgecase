@@ -14,6 +14,7 @@ pub mod eulerian;
 pub mod flow;
 pub mod independent_set;
 pub mod line_graph;
+pub mod link_prediction;
 pub mod matching;
 pub mod node_vitality;
 pub mod paths;

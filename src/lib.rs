@@ -71,6 +71,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::line_graph::line_graph_node_mapping, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::flow::max_flow, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::flow::max_flow_value, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::link_prediction::common_neighbors, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::link_prediction::jaccard_coefficient, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::link_prediction::adamic_adar_index, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::link_prediction::resource_allocation_index, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::link_prediction::preferential_attachment, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
