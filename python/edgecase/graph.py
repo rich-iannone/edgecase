@@ -10542,6 +10542,173 @@ class Graph:
         result._graph = self._graph.complement()
         return result
 
+    def line_graph(self, create_using_directed: bool | None = None) -> "Graph":
+        """
+        Return the line graph of the graph.
+
+        The line graph L(G) of a graph G transforms edges into nodes: each edge in G
+        becomes a node in L(G), and two nodes in L(G) are connected if and only if
+        their corresponding edges in G share an endpoint.
+
+        Parameters
+        ----------
+        create_using_directed
+            Whether the resulting line graph should be directed.
+
+            - If ``None`` (default): inherits directedness from source graph
+            - If ``True``: creates a directed line graph
+            - If ``False``: creates an undirected line graph
+
+            For directed graphs, edge (u,v) connects to edge (v,w) if they share
+            the intermediate node v (i.e., head of first = tail of second).
+
+        Returns
+        -------
+        Graph
+            A new Graph representing the line graph. Each node in the line graph
+            corresponds to an edge in the original graph, with attributes:
+
+            - ``source``: source node label of the original edge
+            - ``target``: target node label of the original edge
+            - ``edge_id``: ID of the original edge
+            - ``weight``: weight of the original edge (if weighted)
+
+        Notes
+        -----
+        **Definition**: For a graph G = (V, E), the line graph L(G) = (E, E'),
+        where nodes in L(G) are edges of G, and edges in L(G) connect adjacent
+        edges in G.
+
+        **Adjacency Rules**:
+
+        - **Undirected graphs**: Edges are adjacent if they share any vertex.
+          Edge {a, b} is adjacent to edge {b, c} because they share vertex b.
+        - **Directed graphs**: Edge (u, v) is adjacent to edge (v, w) only.
+          The head of the first edge must equal the tail of the second.
+
+        **Properties**:
+
+        - |V(L(G))| = |E(G)|  (line graph has as many nodes as G has edges)
+        - For undirected G: |E(L(G))| = (1/2) * Σ deg(v)² - |E(G)|
+        - The line graph of a complete graph Kₙ is a triangular graph
+        - The line graph of a cycle is another cycle of the same length
+
+        **Use Cases**:
+
+        - **Edge clustering**: Cluster edges by treating them as nodes
+        - **Network flow analysis**: Study edge relationships
+        - **Social networks**: Analyze "edge communities"
+        - **Transportation**: Model transfer points between routes
+        - **Dual representations**: Some graph problems are easier on L(G)
+
+        Examples
+        --------
+        Line graph of a simple path:
+
+        ```python
+        from edgecase import Graph
+
+        # Create path: A -- B -- C
+        g = Graph(directed=False)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+
+        lg = g.line_graph()
+        print(lg.count_nodes())  # 2 (one per edge)
+        print(lg.count_edges())  # 1 (edges A-B and B-C share B)
+        ```
+
+        Line graph of a triangle:
+
+        ```python
+        from edgecase import Graph
+
+        # Triangle: A -- B -- C -- A
+        g = Graph(directed=False)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        g.add_edge("C", "A")
+
+        lg = g.line_graph()
+        print(lg.count_nodes())  # 3
+        print(lg.count_edges())  # 3 (also a triangle)
+        ```
+
+        Line graph of a directed graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Chain: A -> B -> C
+        g = Graph(directed=True)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_node(label="C")
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+
+        lg = g.line_graph()
+        print(lg.count_nodes())  # 2
+        print(lg.count_edges())  # 1 (A->B connects to B->C)
+        ```
+
+        Accessing original edge information:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph(directed=False)
+        g.add_node(label="X")
+        g.add_node(label="Y")
+        g.add_node(label="Z")
+        g.add_edge("X", "Y", weight=2.0)
+        g.add_edge("Y", "Z", weight=3.0)
+
+        lg = g.line_graph()
+
+        # Each line graph node stores info about original edge
+        for node_id in lg.get_node_ids():
+            node = lg.get_node(node_id)
+            attrs = node.attributes
+            print(f"LG node {node.label}:")
+            print(f"  Original edge: {attrs['original_source']} -> {attrs['original_target']}")
+            print(f"  Edge ID: {attrs['original_edge_id']}")
+            print(f"  Weight: {attrs['original_weight']}")
+        ```
+
+        Line graph of a star graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Star with center C
+        g = Graph(directed=False)
+        g.add_node(label="C")
+        for i in range(4):
+            g.add_node(label=f"L{i}")
+            g.add_edge("C", f"L{i}")
+
+        lg = g.line_graph()
+        print(lg.count_nodes())  # 4 (one per spoke)
+        print(lg.count_edges())  # 6 (all spokes share center)
+        # The line graph of a star is a complete graph!
+        ```
+
+        References
+        ----------
+        .. [1] F. Harary, "Graph Theory", Addison-Wesley, 1969.
+        .. [2] https://en.wikipedia.org/wiki/Line_graph
+        """
+        result = Graph.__new__(Graph)
+        result._graph = rust.line_graph(self._graph, create_using_directed)
+        return result
+
     # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
