@@ -18053,6 +18053,182 @@ class Graph:
     # ==============================================================================
 
     # ==============================================================================
+    # Graph Coloring
+    # ==============================================================================
+
+    def greedy_color(
+        self,
+        strategy: str = "largest_first",
+        interchange: bool = False,
+    ) -> dict[int, int]:
+        """
+        Color the graph using a greedy algorithm.
+
+        Graph coloring assigns colors (represented as integers) to nodes such that no two
+        adjacent nodes share the same color. The greedy algorithm processes nodes in a
+        specified order and assigns the smallest available color to each node.
+
+        Parameters
+        ----------
+        strategy
+            The strategy for ordering nodes during coloring:
+
+            - ``"largest_first"``: Process high-degree nodes first (default). Often produces
+              good results by handling constrained nodes early.
+            - ``"smallest_last"``: Process nodes in reverse order of removal by minimum degree.
+              Often produces optimal or near-optimal colorings.
+            - ``"saturation_largest_first"`` or ``"dsatur"``: DSATUR algorithm that prioritizes
+              nodes with the most differently-colored neighbors. Often produces excellent results.
+            - ``"independent_set"``: Colors independent sets iteratively.
+            - ``"random"``: Random node ordering.
+            - ``"arbitrary"``: Process in the order nodes appear in the graph.
+
+        interchange
+            Whether to use color interchange optimization (not yet implemented).
+
+        Returns
+        -------
+        dict[int, int]
+            A dictionary mapping node IDs to their assigned color (0-indexed integers).
+            The colors are consecutive integers starting from 0.
+
+        Notes
+        -----
+        - Greedy coloring does not guarantee the minimum number of colors (chromatic number).
+        - The number of colors used is at most ``max_degree + 1``.
+        - Different strategies may produce different numbers of colors.
+        - For bipartite graphs, optimal coloring uses exactly 2 colors.
+        - The ``"smallest_last"`` and ``"dsatur"`` strategies often produce good results.
+
+        Examples
+        --------
+        Color a simple graph:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "A")
+        )
+
+        coloring = graph.greedy_color()
+        print(coloring)  # {1: 0, 2: 1, 3: 0, 4: 1}  (2 colors for a square)
+        ```
+
+        Use DSATUR strategy for potentially better results:
+
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        coloring = graph.greedy_color(strategy="dsatur")
+        num_colors = len(set(coloring.values()))
+        print(f"Used {num_colors} colors")  # 3 colors for a triangle
+        ```
+        """
+        from edgecase._core import greedy_color as rust_greedy_color
+
+        return dict(rust_greedy_color(self._graph, strategy, interchange))
+
+    def is_valid_coloring(self, coloring: dict[int, int]) -> bool:
+        """
+        Check if a coloring is valid (no adjacent nodes share a color).
+
+        Parameters
+        ----------
+        coloring
+            A dictionary mapping node IDs to colors (integers).
+
+        Returns
+        -------
+        bool
+            ``True`` if the coloring is valid, ``False`` otherwise.
+
+        Examples
+        --------
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        node_ids = graph.get_node_ids()
+
+        # Valid coloring (alternating colors)
+        valid = {node_ids[0]: 0, node_ids[1]: 1, node_ids[2]: 0}
+        print(graph.is_valid_coloring(valid))  # True
+
+        # Invalid coloring (adjacent nodes same color)
+        invalid = {node_ids[0]: 0, node_ids[1]: 0, node_ids[2]: 1}
+        print(graph.is_valid_coloring(invalid))  # False
+        ```
+        """
+        from edgecase._core import is_valid_coloring as rust_is_valid_coloring
+
+        return rust_is_valid_coloring(self._graph, coloring)
+
+    def chromatic_number_upper_bound(self, coloring: dict[int, int] | None = None) -> int:
+        """
+        Get an upper bound on the chromatic number from a coloring.
+
+        The chromatic number is the minimum number of colors needed to color a graph.
+        This method returns the number of distinct colors used in a coloring, which
+        provides an upper bound.
+
+        Parameters
+        ----------
+        coloring
+            A dictionary mapping node IDs to colors. If ``None``, computes a greedy
+            coloring first using the ``"largest_first"`` strategy.
+
+        Returns
+        -------
+        int
+            The number of distinct colors used in the coloring.
+
+        Examples
+        --------
+        ```python
+        graph = (
+            Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        # Get upper bound using default coloring
+        bound = graph.chromatic_number_upper_bound()
+        print(f"Chromatic number <= {bound}")  # Chromatic number <= 3
+        ```
+        """
+        if coloring is None:
+            coloring = self.greedy_color()
+
+        from edgecase._core import chromatic_number_upper_bound as rust_bound
+
+        return rust_bound(coloring)
+
+    # ==============================================================================
     # Matching
     # ==============================================================================
 
