@@ -2,6 +2,7 @@
 
 pub mod bridges;
 pub mod centrality;
+pub mod coloring;
 pub mod community;
 pub mod connectivity;
 pub mod cycles;

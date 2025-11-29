@@ -64,6 +64,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::dominating_set::min_weighted_dominating_set, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::spanning_trees::steiner_tree, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::spanning_trees::all_spanning_trees, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::coloring::greedy_color, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::coloring::is_valid_coloring, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::coloring::chromatic_number_upper_bound, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
