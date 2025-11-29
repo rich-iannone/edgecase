@@ -11,6 +11,7 @@ pub mod dominating_set;
 pub mod domirank;
 pub mod efficiency;
 pub mod eulerian;
+pub mod flow;
 pub mod independent_set;
 pub mod line_graph;
 pub mod matching;
