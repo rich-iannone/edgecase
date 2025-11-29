@@ -7917,6 +7917,12 @@ class Graph:
         Check specific pairs:
 
         ```python
+        graph = Graph(directed=False)
+        for name in ["Alice", "Bob", "Carol", "Dave"]:
+            graph.add_node(label=name)
+        graph.add_edge(source="Alice", target="Bob")
+        graph.add_edge(source="Carol", target="Bob")
+
         pairs = [("Alice", "Carol"), ("Alice", "Dave")]
         predictions = graph.common_neighbors(pairs)
         # Alice-Carol have 1 common neighbor (Bob)
@@ -8038,6 +8044,7 @@ class Graph:
 
         graph = Graph(directed=False)
         # Create a network with a hub (node 1) and peripheral nodes
+        graph.add_node()  # Hub node 1
         for i in range(2, 10):
             graph.add_node()
             graph.add_edge(1, i)  # Hub connected to all
@@ -8116,6 +8123,7 @@ class Graph:
 
         graph = Graph(directed=False)
         # Star graph: node 1 is hub connected to 2-10
+        graph.add_node()  # Hub node 1
         for i in range(2, 11):
             graph.add_node()
             graph.add_edge(1, i)
@@ -8198,7 +8206,7 @@ class Graph:
         ```python
         graph = Graph(directed=False)
         graph.add_full_graph(5)  # Complete graph K5
-        graph.remove_edge(graph.get_edge_id(1, 2))  # Remove one edge
+        graph.delete_edge(source=1, target=2)  # Remove one edge
 
         pairs = [(1, 2)]
         cn = graph.common_neighbors(pairs)
@@ -11321,10 +11329,10 @@ class Graph:
 
         ```python
         g = Graph(directed=False)
-        # ... build graph ...
+        g.add_path_graph(10)  # Build a simple graph
 
-        # Detect communities
-        membership = g.community_louvain()
+        # Detect communities (use return_dict=True to get dict)
+        membership = g.cmty_louvain(return_dict=True)
 
         # Get nodes in community 0
         community_0 = [n for n, c in membership.items() if c == 0]
@@ -11397,10 +11405,10 @@ class Graph:
 
         ```python
         g = Graph(directed=False)
-        g.add_karate_club_graph()
+        g.add_path_graph(20)  # Build a simple graph
 
-        # Detect communities
-        membership = g.community_louvain()
+        # Detect communities (use return_dict=True to get dict)
+        membership = g.cmty_louvain(return_dict=True)
 
         # Build partition from membership
         from collections import defaultdict
