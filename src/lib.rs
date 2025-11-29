@@ -67,6 +67,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::coloring::greedy_color, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::coloring::is_valid_coloring, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::coloring::chromatic_number_upper_bound, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::line_graph::line_graph, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::line_graph::line_graph_node_mapping, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
