@@ -18118,6 +18118,167 @@ class Graph:
         sink_id = self._resolve_node_id(sink, auto_create=False)
         return self._graph.minimum_edge_cut(source_id, sink_id)
 
+    def max_flow(
+        self,
+        source: Union[int, str],
+        sink: Union[int, str],
+        capacity: str | None = None,
+    ) -> dict[int, float]:
+        """
+        Compute maximum flow from source to sink.
+
+        Finds the maximum amount of flow that can be sent from the source node to the sink
+        node through the network. Uses the Edmonds-Karp algorithm (Ford-Fulkerson with BFS),
+        which guarantees O(VE²) time complexity.
+
+        For weighted graphs, edge weights are used as capacities by default. For unweighted
+        graphs, each edge has capacity 1. You can also specify a custom capacity attribute.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+        capacity
+            Optional name of edge attribute to use as capacity. If None (default), uses
+            edge weights for weighted graphs, or 1.0 for unweighted graphs.
+
+        Returns
+        -------
+        dict[int, float]
+            Dictionary mapping edge_id -> flow amount for edges with positive flow.
+            Use `max_flow_value()` if you only need the total flow value.
+
+        Raises
+        ------
+        ValueError
+            If source or sink doesn't exist, they're the same node, or any capacity is negative.
+
+        Examples
+        --------
+        Basic max flow with edge weights as capacities:
+
+        ```python
+        # Create a flow network
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="S")  # source
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="T")  # sink
+            .add_edge("S", "A", weight=10.0)
+            .add_edge("S", "B", weight=5.0)
+            .add_edge("A", "B", weight=15.0)
+            .add_edge("A", "T", weight=10.0)
+            .add_edge("B", "T", weight=10.0)
+        )
+
+        flow_dict = graph.max_flow("S", "T")
+        total_flow = sum(flow_dict.values())  # Note: count outgoing from source
+        print(f"Edges with flow: {len(flow_dict)}")
+
+        # See flow on each edge
+        for edge_id, flow in flow_dict.items():
+            edge = graph.get_edge(edge_id)
+            src = graph.get_label_from_id(edge.source)
+            tgt = graph.get_label_from_id(edge.target)
+            print(f"  {src} -> {tgt}: {flow}")
+        ```
+
+        Using custom capacity attribute:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", bandwidth=100)
+            .add_edge("B", "C", bandwidth=50)
+            .add_edge("A", "C", bandwidth=30)
+        )
+
+        flow_dict = graph.max_flow("A", "C", capacity="bandwidth")
+        print(f"Edges carrying flow: {len(flow_dict)}")
+        ```
+
+        Unweighted graph (unit capacities):
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_edge("S", "A", auto_create_nodes=True)
+            .add_edge("S", "B", auto_create_nodes=True)
+            .add_edge("A", "T", auto_create_nodes=True)
+            .add_edge("B", "T", auto_create_nodes=True)
+        )
+
+        flow_dict = graph.max_flow("S", "T")
+        # All 4 edges carry flow of 1.0
+        ```
+
+        Notes
+        -----
+        - For undirected graphs, each edge is treated as two directed edges with equal capacity
+        - Self-loops are ignored in flow computation
+        - The max-flow min-cut theorem states that max_flow equals the minimum cut capacity
+        """
+        from edgecase._core import max_flow as _max_flow
+
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return dict(_max_flow(self._graph, source_id, sink_id, capacity))
+
+    def max_flow_value(
+        self,
+        source: Union[int, str],
+        sink: Union[int, str],
+        capacity: str | None = None,
+    ) -> float:
+        """
+        Compute only the maximum flow value from source to sink.
+
+        This is a faster variant of `max_flow()` when you only need the flow value and not
+        the flow assignment on each edge.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+        capacity
+            Optional name of edge attribute to use as capacity. If None (default), uses
+            edge weights for weighted graphs, or 1.0 for unweighted graphs.
+
+        Returns
+        -------
+        float
+            The maximum flow value.
+
+        Examples
+        --------
+        ```python
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="S")
+            .add_node(label="T")
+            .add_node(label="A")
+            .add_edge("S", "A", weight=10.0)
+            .add_edge("A", "T", weight=5.0)
+        )
+
+        flow = graph.max_flow_value("S", "T")
+        print(f"Maximum flow: {flow}")  # 5.0
+        ```
+        """
+        from edgecase._core import max_flow_value as _max_flow_value
+
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        return _max_flow_value(self._graph, source_id, sink_id, capacity)
+
     # ==============================================================================
     # Component Counts
     # ==============================================================================
