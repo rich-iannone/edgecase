@@ -8164,22 +8164,22 @@ class Graph:
         """
         Compute preferential attachment score for node pairs.
 
-        For each pair of nodes (u, v), computes |N(u)| × |N(v)|, the product
-        of their degrees. Based on the "rich get richer" principle where
-        high-degree nodes are more likely to acquire new connections.
+        For each pair of nodes (u, v), computes |N(u)| × |N(v)|, the product of their degrees. Based
+        on the "rich get richer" principle where high-degree nodes are more likely to acquire new
+        connections.
 
         Parameters
         ----------
         ebunch
-            List of node pairs to compute predictions for. Each pair can use node IDs (integers)
-            or labels (strings). If None, computes for all pairs of nodes that are not already
+            List of node pairs to compute predictions for. Each pair can use node IDs (integers) or
+            labels (strings). If None, computes for all pairs of nodes that are not already
             connected.
 
         Returns
         -------
         list[tuple[int, int, int]]
-            List of (u, v, score) tuples where score is degree(u) × degree(v).
-            Results are returned with node IDs.
+            List of (u, v, score) tuples where score is degree(u) × degree(v). Results are returned
+            with node IDs.
 
         Examples
         --------
@@ -11455,6 +11455,415 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _quotient_graph(self._graph, resolved_partition)
+        return result
+
+    # ==============================================================================
+    # Graph Algebra Operations
+    # ==============================================================================
+
+    def union(self, other: "Graph") -> "Graph":
+        """
+        Compute the union of this graph with another graph.
+
+        Returns a new graph containing all nodes and edges from both graphs.
+        Nodes with the same ID are merged (this graph's attributes take precedence).
+        Duplicate edges are not added.
+
+        Parameters
+        ----------
+        other
+            The graph to union with.
+
+        Returns
+        -------
+        Graph
+            A new graph containing all nodes and edges from both graphs.
+
+        Raises
+        ------
+        ValueError
+            If the graphs have different directedness (one directed, one undirected).
+
+        Examples
+        --------
+        Merge two graphs:
+
+        ```python
+        from edgecase import Graph
+
+        # Create two graphs
+        g1 = Graph(directed=False)
+        g1.add_node(label="A")
+        g1.add_node(label="B")
+        g1.add_edge("A", "B")
+
+        g2 = Graph(directed=False)
+        g2.add_node(label="B")
+        g2.add_node(label="C")
+        g2.add_edge("B", "C")
+
+        # Union combines both
+        result = g1.union(g2)
+        print(f"Nodes: {result.count_nodes()}")  # 3 (A, B, C)
+        print(f"Edges: {result.count_edges()}")  # 2 (A-B, B-C)
+        ```
+
+        Combine network snapshots:
+
+        ```python
+        # Network at time t1
+        t1 = Graph(directed=False)
+        t1.add_path_graph(3)  # 1-2-3
+
+        # Network at time t2 (new connection)
+        t2 = Graph(directed=False)
+        for i in range(1, 4):
+            t2.add_node()
+        t2.add_edge(1, 3)  # Direct connection
+
+        # Combined network
+        combined = t1.union(t2)
+        print(f"Edges: {combined.count_edges()}")  # 3
+        ```
+
+        Notes
+        -----
+        - Both graphs must have the same directedness
+        - Node IDs are preserved; overlapping IDs are merged
+        - This graph's node labels/attributes take precedence
+        - Weighted if either graph is weighted
+        """
+        from edgecase._core import graph_union
+
+        result = Graph.__new__(Graph)
+        result._graph = graph_union(self._graph, other._graph)
+        return result
+
+    def intersection(self, other: "Graph") -> "Graph":
+        """
+        Compute the intersection of this graph with another graph.
+
+        Returns a new graph containing only edges that exist in both graphs.
+        Nodes are included only if they are endpoints of common edges.
+
+        Parameters
+        ----------
+        other
+            The graph to intersect with.
+
+        Returns
+        -------
+        Graph
+            A new graph containing edges present in both graphs.
+
+        Raises
+        ------
+        ValueError
+            If the graphs have different directedness.
+
+        Examples
+        --------
+        Find common structure:
+
+        ```python
+        from edgecase import Graph
+
+        # Triangle
+        g1 = Graph(directed=False)
+        for i in range(1, 4):
+            g1.add_node()
+        g1.add_edge(1, 2)
+        g1.add_edge(2, 3)
+        g1.add_edge(3, 1)
+
+        # Square with diagonal
+        g2 = Graph(directed=False)
+        for i in range(1, 5):
+            g2.add_node()
+        g2.add_edge(1, 2)
+        g2.add_edge(2, 3)
+        g2.add_edge(3, 4)
+        g2.add_edge(4, 1)
+
+        # Common edges: 1-2, 2-3
+        common = g1.intersection(g2)
+        print(f"Common edges: {common.count_edges()}")  # 2
+        ```
+
+        This is useful for finding stable connections that exist at multiple
+        time points or in multiple network versions.
+
+        Notes
+        -----
+        - Both graphs must have the same directedness
+        - Only edges present in both graphs are included
+        - Nodes without edges are excluded
+        - Uses this graph's edge weights/attributes
+        """
+        from edgecase._core import graph_intersection
+
+        result = Graph.__new__(Graph)
+        result._graph = graph_intersection(self._graph, other._graph)
+        return result
+
+    def difference(self, other: "Graph") -> "Graph":
+        """
+        Compute the difference of this graph and another graph.
+
+        Returns a new graph containing edges that are in this graph but not
+        in the other graph. Nodes are included if they are endpoints of
+        remaining edges.
+
+        Parameters
+        ----------
+        other
+            The graph to subtract.
+
+        Returns
+        -------
+        Graph
+            A new graph containing edges in this graph but not in other.
+
+        Raises
+        ------
+        ValueError
+            If the graphs have different directedness.
+
+        Examples
+        --------
+        Find edges unique to one graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Original network
+        g1 = Graph(directed=False)
+        for i in range(1, 5):
+            g1.add_node()
+        g1.add_edge(1, 2)
+        g1.add_edge(2, 3)
+        g1.add_edge(3, 4)
+
+        # Subset network
+        g2 = Graph(directed=False)
+        for i in range(1, 4):
+            g2.add_node()
+        g2.add_edge(1, 2)
+        g2.add_edge(2, 3)
+
+        # Edges in g1 but not g2
+        diff = g1.difference(g2)
+        print(f"Unique edges: {diff.count_edges()}")  # 1 (3-4)
+        ```
+
+        This is useful for detecting network changes: `g_new.difference(g_old)`
+        gives new edges, while `g_old.difference(g_new)` gives removed edges.
+
+        Notes
+        -----
+        - Both graphs must have the same directedness
+        - This is NOT symmetric: g1.difference(g2) != g2.difference(g1)
+        - Nodes without edges are excluded
+        """
+        from edgecase._core import graph_difference
+
+        result = Graph.__new__(Graph)
+        result._graph = graph_difference(self._graph, other._graph)
+        return result
+
+    def symmetric_difference(self, other: "Graph") -> "Graph":
+        """
+        Compute the symmetric difference of this graph and another graph.
+
+        Returns a new graph containing edges that are in exactly one of the
+        two graphs. Equivalent to (G1 - G2) ∪ (G2 - G1).
+
+        Parameters
+        ----------
+        other
+            The graph to compare with.
+
+        Returns
+        -------
+        Graph
+            A new graph containing edges in exactly one of the graphs.
+
+        Raises
+        ------
+        ValueError
+            If the graphs have different directedness.
+
+        Examples
+        --------
+        Find edges unique to either graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Triangle
+        g1 = Graph(directed=False)
+        for i in range(1, 4):
+            g1.add_node()
+        g1.add_edge(1, 2)
+        g1.add_edge(2, 3)
+        g1.add_edge(3, 1)
+
+        # Path
+        g2 = Graph(directed=False)
+        for i in range(1, 4):
+            g2.add_node()
+        g2.add_edge(1, 2)
+        g2.add_edge(2, 3)
+
+        # XOR: edges in one but not both
+        sym_diff = g1.symmetric_difference(g2)
+        print(f"Unique edges: {sym_diff.count_edges()}")  # 1 (3-1)
+        ```
+
+        This is useful for comparing network versions to find all edges that
+        changed (either added or removed) between snapshots.
+
+        Notes
+        -----
+        - Both graphs must have the same directedness
+        - Symmetric: g1.symmetric_difference(g2) == g2.symmetric_difference(g1)
+        - Nodes without edges are excluded
+        """
+        from edgecase._core import graph_symmetric_difference
+
+        result = Graph.__new__(Graph)
+        result._graph = graph_symmetric_difference(self._graph, other._graph)
+        return result
+
+    def compose(self, other: "Graph") -> "Graph":
+        """
+        Compose this graph with another graph.
+
+        Similar to union, but the other graph's node attributes/labels
+        take precedence over this graph's. Useful when you want to merge
+        updates from another graph.
+
+        Parameters
+        ----------
+        other
+            The graph to compose with (its attributes take precedence).
+
+        Returns
+        -------
+        Graph
+            A new composed graph.
+
+        Raises
+        ------
+        ValueError
+            If the graphs have different directedness.
+
+        Examples
+        --------
+        Merge with attribute updates:
+
+        ```python
+        from edgecase import Graph
+
+        # Original graph
+        g1 = Graph(directed=False)
+        g1.add_node(label="Alice")
+        g1.add_node(label="Bob")
+        g1.add_edge("Alice", "Bob")
+
+        # Updates (new label for node 2)
+        g2 = Graph(directed=False)
+        g2.add_node(label="Robert")  # Node 1 with new label
+
+        # Compose: g2's labels override g1's
+        result = g1.compose(g2)
+        # Node 1 now has label "Robert" instead of "Alice"
+        ```
+
+        Notes
+        -----
+        - Similar to union but other graph's attributes take precedence
+        - Useful for applying updates to a base graph
+        """
+        from edgecase._core import graph_compose
+
+        result = Graph.__new__(Graph)
+        result._graph = graph_compose(self._graph, other._graph)
+        return result
+
+    def disjoint_union(self, other: "Graph") -> "Graph":
+        """
+        Compute the disjoint union of this graph with another graph.
+
+        Combines graphs by renumbering the other graph's nodes to avoid
+        conflicts. The resulting graph has all nodes and edges from both,
+        with no overlap.
+
+        Parameters
+        ----------
+        other
+            The graph to combine with (its nodes will be renumbered).
+
+        Returns
+        -------
+        Graph
+            A new graph with both graphs combined disjointly.
+
+        Raises
+        ------
+        ValueError
+            If the graphs have different directedness.
+
+        Examples
+        --------
+        Combine independent networks:
+
+        ```python
+        from edgecase import Graph
+
+        # Two separate triangles
+        t1 = Graph(directed=False)
+        for i in range(1, 4):
+            t1.add_node()
+        t1.add_edge(1, 2)
+        t1.add_edge(2, 3)
+        t1.add_edge(3, 1)
+
+        t2 = Graph(directed=False)
+        for i in range(1, 4):
+            t2.add_node()
+        t2.add_edge(1, 2)
+        t2.add_edge(2, 3)
+        t2.add_edge(3, 1)
+
+        # Disjoint union: two separate triangles
+        combined = t1.disjoint_union(t2)
+        print(f"Nodes: {combined.count_nodes()}")  # 6 (3 + 3)
+        print(f"Edges: {combined.count_edges()}")  # 6 (3 + 3)
+        ```
+
+        Build multi-component graph:
+
+        ```python
+        # Create graph with multiple disconnected components
+        component1 = Graph().add_star_graph(5)
+        component2 = Graph().add_cycle_graph(6)
+        component3 = Graph().add_path_graph(4)
+
+        multi = component1.disjoint_union(component2).disjoint_union(component3)
+        print(f"Components: 3")
+        ```
+
+        Notes
+        -----
+        - The other graph's nodes are renumbered starting after this graph's max ID
+        - Labels are preserved but IDs change
+        - Use regular `union()` if you want to merge overlapping node IDs
+        """
+        from edgecase._core import graph_disjoint_union
+
+        result = Graph.__new__(Graph)
+        result._graph = graph_disjoint_union(self._graph, other._graph)
         return result
 
     # ==============================================================================
