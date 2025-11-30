@@ -13957,6 +13957,305 @@ class Graph:
             return result
         return self
 
+    # -------------------------------------------------------------------------
+    # Percolation Methods
+    # -------------------------------------------------------------------------
+
+    def percolation_centrality(
+        self,
+        states: dict[int, float] | None = None,
+        weight: str | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Compute percolation centrality for all nodes.
+
+        Percolation centrality measures the importance of nodes based on the proportion
+        of 'percolated paths' that pass through them. This is particularly useful for
+        analyzing information or disease spreading in networks.
+
+        When all nodes have percolation state = 1.0, this reduces to standard
+        betweenness centrality.
+
+        Parameters
+        ----------
+        states : dict, optional
+            Dictionary mapping node labels to percolation states (values between 0.0 and 1.0).
+            States represent the probability of a node being in the "percolated" state
+            (e.g., infected, informed). If `None`, all nodes default to state 1.0.
+        weight : str, optional
+            Edge attribute name for weights. Currently not implemented.
+        attr_name : str, optional
+            Name of node attribute to store results. If `None`, uses `percolation_centrality`.
+            Only used when `return_dict=False`.
+        return_dict : bool, default False
+            If `True`, returns dict mapping node labels to percolation centrality.
+            If `False`, stores results as node attributes and returns self.
+
+        Returns
+        -------
+        dict or Graph
+            If `return_dict=True`, returns {node_label: centrality_value}.
+            If `return_dict=False`, returns self with node attributes set.
+
+        Notes
+        -----
+        Algorithm based on:
+        Piraveenan, M., Prokopenko, M., & Hossain, L. (2013). Percolation centrality:
+        Quantifying graph-theoretic impact of nodes during percolation in networks.
+        PloS one, 8(1), e53095.
+
+        Examples
+        --------
+        Basic usage with default states:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_path_graph(5)
+        pc = graph.percolation_centrality(return_dict=True)
+        ```
+
+        With custom percolation states (e.g., infection probabilities):
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_path_graph(5)
+        states = {"1": 1.0, "2": 0.5, "3": 0.8, "4": 0.3, "5": 1.0}
+        pc = graph.percolation_centrality(states=states, return_dict=True)
+        ```
+        """
+        from edgecase._core import percolation_centrality as rust_pc
+
+        # Convert states from labels to IDs if provided
+        states_by_id = None
+        if states is not None:
+            states_by_id = {}
+            for label, state in states.items():
+                node_id = self._graph.id_from_label(str(label))
+                states_by_id[node_id] = state
+
+        result_by_id = rust_pc(self._graph, states_by_id, weight)
+
+        # Convert result from IDs to labels
+        result = {}
+        for node_id, centrality in result_by_id.items():
+            label = self._graph.label_from_id(node_id)
+            if label is not None:
+                result[label] = centrality
+            else:
+                result[node_id] = centrality
+
+        # Store as node attributes if not returning dict
+        if not return_dict:
+            attr = attr_name if attr_name is not None else "percolation_centrality"
+            # Use set_node_attrs with a dict mapping node IDs to values
+            self.set_node_attrs(attr, result_by_id)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(
+                ("percolation_centrality", {"states": states, "weight": weight}, attr_name)
+            )
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result
+        return self
+
+    def node_percolation(
+        self,
+        q: float,
+        seed: int | None = None,
+    ) -> "Graph":
+        """
+        Simulate node percolation by randomly removing nodes.
+
+        Creates a new graph with a fraction of nodes randomly removed, along with
+        all their incident edges. This is useful for analyzing network robustness
+        under random node failures.
+
+        Parameters
+        ----------
+        q : float
+            Fraction of nodes to REMOVE (must be between 0.0 and 1.0).
+            For example, q=0.2 removes 20% of nodes.
+        seed : int, optional
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        Graph
+            A new Graph containing only the surviving nodes and edges.
+
+        Examples
+        --------
+        Remove 30% of nodes randomly:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(10)
+
+        # Remove 30% of nodes randomly
+        percolated = graph.node_percolation(q=0.3, seed=42)
+        print(percolated.count_nodes())  # 7 nodes remain
+        ```
+        """
+        from edgecase._core import node_percolation as rust_np
+
+        result_graph = rust_np(self._graph, q, seed)
+
+        # Wrap the result in a new Graph object
+        new_graph = Graph.__new__(Graph)
+        new_graph._graph = result_graph
+        new_graph._computations = []
+
+        return new_graph
+
+    def edge_percolation(
+        self,
+        q: float,
+        seed: int | None = None,
+    ) -> "Graph":
+        """
+        Simulate edge percolation by randomly removing edges.
+
+        Creates a new graph with a fraction of edges randomly removed. All nodes
+        are preserved. This is useful for analyzing network robustness under
+        random edge failures or communication link failures.
+
+        Parameters
+        ----------
+        q : float
+            Fraction of edges to REMOVE (must be between 0.0 and 1.0).
+            For example, q=0.2 removes 20% of edges.
+        seed : int, optional
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        Graph
+            A new Graph containing all nodes but only surviving edges.
+
+        Examples
+        --------
+        Remove 50% of edges randomly:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(5)  # K5 has 10 edges
+
+        # Remove 50% of edges randomly
+        percolated = graph.edge_percolation(q=0.5, seed=42)
+        print(percolated.count_edges())  # 5 edges remain
+        ```
+        """
+        from edgecase._core import edge_percolation as rust_ep
+
+        result_graph = rust_ep(self._graph, q, seed)
+
+        # Wrap the result in a new Graph object
+        new_graph = Graph.__new__(Graph)
+        new_graph._graph = result_graph
+        new_graph._computations = []
+
+        return new_graph
+
+    def largest_component_size(self) -> int:
+        """
+        Get the size of the largest connected component.
+
+        For undirected graphs, finds the largest connected component.
+        For directed graphs, finds the largest weakly connected component.
+
+        Returns
+        -------
+        int
+            Number of nodes in the largest connected component.
+
+        Examples
+        --------
+        Get the size of the largest component:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(5)
+        print(graph.largest_component_size())  # 5
+        ```
+
+        After removing nodes, the component may fragment:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(5)
+        percolated = graph.node_percolation(q=0.5, seed=42)
+        print(percolated.largest_component_size())  # May be smaller
+        ```
+        """
+        from edgecase._core import largest_component_size as rust_lcs
+
+        return rust_lcs(self._graph)
+
+    def percolation_threshold_analysis(
+        self,
+        steps: int = 20,
+        trials: int = 10,
+        seed: int | None = None,
+    ) -> list[tuple[float, float]]:
+        """
+        Perform percolation threshold analysis.
+
+        Systematically removes nodes at different fractions and measures the
+        relative size of the giant connected component (GCC) at each step.
+        This helps identify the critical percolation threshold where the
+        network fragments.
+
+        Parameters
+        ----------
+        steps : int, default 20
+            Number of removal fractions to test. Results in (steps + 1) data points
+            from q=0.0 to q=1.0.
+        trials : int, default 10
+            Number of random trials per step for averaging. More trials give
+            smoother results but take longer.
+        seed : int, optional
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        list of tuple
+            List of (q, relative_gcc_size) tuples where:
+            - q is the fraction of nodes removed
+            - relative_gcc_size is the average relative size of the giant
+              connected component (GCC size / surviving nodes)
+
+        Notes
+        -----
+        The percolation threshold is typically identified where the relative
+        GCC size drops sharply. For random Erdős-Rényi graphs, this occurs
+        around q_c = 1 - 1/<k> where <k> is the average degree.
+
+        Examples
+        --------
+        Perform percolation threshold analysis:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_full_graph(50)
+
+        results = graph.percolation_threshold_analysis(steps=10, trials=5)
+
+        for q, gcc_size in results:
+            print(f"q={q:.1f}: GCC={gcc_size:.2f}")
+        # q=0.0: GCC=1.00
+        # q=0.1: GCC=1.00
+        # ...
+        ```
+        """
+        from edgecase._core import percolation_threshold_analysis as rust_pta
+
+        return rust_pta(self._graph, steps, trials, seed)
+
     def average_neighbor_degree(
         self,
         source: str = "out",
