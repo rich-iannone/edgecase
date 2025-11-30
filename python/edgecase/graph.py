@@ -15900,14 +15900,6 @@ class Graph:
             - 3+: Shortest cycle length found via BFS
             - None: Graph is acyclic (tree/forest)
 
-        Notes
-        -----
-        For comparison with other libraries:
-
-        - igraph returns infinity for acyclic graphs (EdgeCase returns `None`)
-        - igraph removes self-loops during preprocessing (EdgeCase detects them as `girth=1`)
-        - NetworkX does not have a built-in girth function
-
         Examples
         --------
         Find girth of a cycle graph:
