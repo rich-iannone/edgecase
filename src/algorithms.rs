@@ -3,6 +3,7 @@
 pub mod bridges;
 pub mod centrality;
 pub mod coloring;
+pub mod communicability;
 pub mod community;
 pub mod connectivity;
 pub mod contraction;

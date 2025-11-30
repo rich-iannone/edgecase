@@ -59,7 +59,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
         }
     }
 
-    // Normalization to match NetworkX:
+    // Normalization:
     // - For undirected graphs: multiply by 2.0 / ((n-1)*(n-2))
     // - For directed graphs: multiply by 1.0 / (n-1)*(n-2)
     if n > 2 {
