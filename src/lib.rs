@@ -89,6 +89,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::communicability::communicability, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::communicability::communicability_exp, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::communicability::communicability_betweenness_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::percolation::percolation_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::percolation::node_percolation, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::percolation::edge_percolation, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::percolation::largest_component_size, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::percolation::percolation_threshold_analysis, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;

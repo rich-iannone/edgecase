@@ -21,6 +21,7 @@ pub mod link_prediction;
 pub mod matching;
 pub mod node_vitality;
 pub mod paths;
+pub mod percolation;
 pub mod regularity;
 pub mod simd_intersection;
 pub mod spanning_trees;
