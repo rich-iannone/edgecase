@@ -11,6 +11,7 @@ pub mod dispersion;
 pub mod dominating_set;
 pub mod domirank;
 pub mod efficiency;
+pub mod graph_ops;
 pub mod eulerian;
 pub mod flow;
 pub mod independent_set;

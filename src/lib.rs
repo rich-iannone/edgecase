@@ -80,6 +80,12 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::contraction::contracted_edge, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::contraction::contract_nodes_multi, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::contraction::quotient_graph, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::graph_union, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::graph_intersection, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::graph_difference, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::graph_symmetric_difference, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::graph_compose, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::graph_disjoint_union, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
