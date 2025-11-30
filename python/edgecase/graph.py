@@ -23189,6 +23189,187 @@ class Graph:
 
         return local_efficiency(self._graph)
 
+    # ==============================================================================
+    # Distance Metrics
+    # ==============================================================================
+
+    def wiener_index(self, weight: str | None = None) -> float:
+        """
+        Calculate the Wiener index of the graph.
+
+        The Wiener index is the sum of all pairwise shortest path distances in the graph.
+        It is a fundamental topological descriptor used in chemistry and network analysis
+        to measure graph compactness.
+
+        For undirected graphs: W(G) = Σ_{u < v} d(u, v)
+        For directed graphs: W(G) = Σ_{u ≠ v} d(u, v)
+
+        Parameters
+        ----------
+        weight : str, optional
+            Edge attribute to use as weight. If None, uses unweighted distances
+            (all edges have distance 1).
+
+        Returns
+        -------
+        float
+            The Wiener index. Returns 0.0 for empty graphs or single-node graphs.
+            Returns infinity (float('inf')) for disconnected graphs.
+
+        Examples
+        --------
+        Wiener index of a path graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Path P4: 1-2-3-4
+        # Distances: d(1,2)=1, d(1,3)=2, d(1,4)=3, d(2,3)=1, d(2,4)=2, d(3,4)=1
+        # Wiener index = 1+2+3+1+2+1 = 10
+        graph = Graph()
+        graph.add_path_graph(4)
+        w = graph.wiener_index()
+        print(f"Wiener index: {w}")  # 10.0
+        ```
+
+        Compare different topologies:
+
+        ```python
+        # Complete graph K_n has Wiener index n*(n-1)/2 (all pairs at distance 1)
+        complete = Graph()
+        complete.add_full_graph(5)
+        print(f"K5 Wiener index: {complete.wiener_index()}")  # 10.0
+
+        # Cycle graph
+        cycle = Graph()
+        cycle.add_cycle_graph(6)
+        print(f"C6 Wiener index: {cycle.wiener_index()}")  # 18.0
+
+        # Star graph
+        star = Graph()
+        star.add_star_graph(5)
+        print(f"Star(5) Wiener index: {star.wiener_index()}")  # 16.0
+        ```
+
+        Disconnected graph returns infinity:
+
+        ```python
+        graph = Graph()
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        # No edge between A and B
+        w = graph.wiener_index()
+        print(f"Disconnected: {w}")  # inf
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(V × (V + E)) for unweighted graphs
+        - Time complexity: O(V × (V + E) log V) for weighted graphs
+        - Named after chemist Harry Wiener who introduced it in 1947
+        - Lower Wiener index indicates a more compact graph
+        - For trees: W = Σ_{edges e} n₁(e) × n₂(e) where n₁, n₂ are subtree sizes
+
+        References
+        ----------
+        Wiener, H. (1947). Structural determination of paraffin boiling points.
+        Journal of the American Chemical Society, 69(1), 17-20.
+        """
+        from edgecase._core import wiener_index
+
+        return wiener_index(self._graph, weight)
+
+    def estrada_index(self) -> float:
+        """
+        Calculate the Estrada index of the graph.
+
+        The Estrada index is the sum of exponentials of the eigenvalues of the
+        adjacency matrix:
+
+            EE(G) = Σᵢ exp(λᵢ)
+
+        where λᵢ are the eigenvalues of the adjacency matrix. This index captures
+        the degree of folding or compactness of a network, and is related to
+        subgraph centrality and the number of closed walks.
+
+        Returns
+        -------
+        float
+            The Estrada index. Returns 0.0 for empty graphs, 1.0 for single-node graphs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed (Estrada index is only defined for undirected graphs).
+
+        Examples
+        --------
+        Estrada index of basic graphs:
+
+        ```python
+        from edgecase import Graph
+        import math
+
+        # Single edge (K2): eigenvalues are 1 and -1
+        # EE = exp(1) + exp(-1) ≈ 3.086
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge("A", "B")
+        ee = g.estrada_index()
+        print(f"K2 Estrada index: {ee:.3f}")  # ≈ 3.086
+        ```
+
+        Compare different topologies:
+
+        ```python
+        # Path graph P3: eigenvalues are -√2, 0, √2
+        path = Graph()
+        path.add_path_graph(3)
+        print(f"P3 Estrada: {path.estrada_index():.3f}")
+
+        # Complete graph K3: eigenvalues are 2, -1, -1
+        complete = Graph()
+        complete.add_full_graph(3)
+        print(f"K3 Estrada: {complete.estrada_index():.3f}")
+
+        # Cycle graph C4
+        cycle = Graph()
+        cycle.add_cycle_graph(4)
+        print(f"C4 Estrada: {cycle.estrada_index():.3f}")
+        ```
+
+        Empty graph (no edges) vs isolated nodes:
+
+        ```python
+        # n isolated nodes: all eigenvalues are 0, so EE = n
+        isolated = Graph()
+        for i in range(5):
+            isolated.add_node()
+        print(f"5 isolated nodes: {isolated.estrada_index():.1f}")  # 5.0
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(n³) for eigendecomposition
+        - The Estrada index is always ≥ n for any graph with n nodes
+        - For graphs with no edges: EE = n (all eigenvalues are 0)
+        - Higher Estrada index indicates more closed walks (more "folded" structure)
+        - Related to subgraph centrality: SC(i) = Σⱼ φⱼ(i)² exp(λⱼ)
+        - EE = trace(exp(A)) where A is the adjacency matrix
+
+        References
+        ----------
+        Estrada, E. (2000). Characterization of 3D molecular structure.
+        Chemical Physics Letters, 319(5-6), 713-718.
+
+        Estrada, E., & Rodríguez-Velázquez, J. A. (2005). Subgraph centrality
+        in complex networks. Physical Review E, 71(5), 056103.
+        """
+        from edgecase._core import estrada_index
+
+        return estrada_index(self._graph)
+
 
 # ============================================================================
 # AdaStar Pathfinding Classes
