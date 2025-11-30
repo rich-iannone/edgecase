@@ -13712,6 +13712,251 @@ class Graph:
             return result_ids
         return self
 
+    def communicability(
+        self,
+        return_dict: bool = True,
+    ) -> dict[int, dict[int, float]]:
+        """
+        Compute communicability between all pairs of nodes.
+
+        Communicability measures the "amount of communication" between pairs of nodes
+        based on all walks between them, with shorter walks weighted more heavily.
+        It uses the matrix exponential of the adjacency matrix: exp(A).
+
+        For nodes u and v, the communicability is:
+
+        .. math::
+
+            C(u, v) = \\sum_{j=1}^{n} \\phi_j(u) \\phi_j(v) e^{\\lambda_j}
+
+        where :math:`\\phi_j` are eigenvectors and :math:`\\lambda_j` are eigenvalues
+        of the adjacency matrix.
+
+        Parameters
+        ----------
+        return_dict : bool, default True
+            If `True`, return the communicability as a nested dictionary.
+            Currently only dict return is supported.
+
+        Returns
+        -------
+        dict[int, dict[int, float]]
+            Nested dictionary where `result[u][v]` is the communicability
+            between nodes u and v. Values are always positive.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or has self-loops.
+
+        Notes
+        -----
+        - Only works on undirected graphs without self-loops
+        - Time complexity: O(n³) for eigendecomposition + O(n²) for result
+        - Space complexity: O(n²) for matrices and results
+        - Communicability is symmetric: C(u, v) = C(v, u)
+        - Self-communicability C(u, u) > 0 (related to subgraph centrality)
+        - Higher values indicate more "paths" (walks of all lengths) between nodes
+
+        Examples
+        --------
+        Basic usage on a simple graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path graph: 1 -- 2 -- 3
+        graph = Graph(directed=False)
+        graph.add_node(label="1")
+        graph.add_node(label="2")
+        graph.add_node(label="3")
+        graph.add_edge("1", "2")
+        graph.add_edge("2", "3")
+
+        comm = graph.communicability()
+        id1 = graph.get_id_from_label("1")
+        id2 = graph.get_id_from_label("2")
+        id3 = graph.get_id_from_label("3")
+
+        # Adjacent nodes have higher communicability
+        print(f"C(1,2): {comm[id1][id2]:.3f}")  # Higher (adjacent)
+        print(f"C(1,3): {comm[id1][id3]:.3f}")  # Lower (distance 2)
+        ```
+
+        Analyze information flow in a network:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple network
+        graph = Graph(directed=False)
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_node(label="D")
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+        graph.add_edge("B", "D")
+
+        comm = graph.communicability()
+
+        # Node B is a hub - check its communicability with others
+        b_id = graph.get_id_from_label("B")
+        total_comm = sum(comm[b_id].values())
+        print(f"Total communicability from B: {total_comm:.2f}")
+        ```
+
+        References
+        ----------
+        .. [1] Estrada, E., & Hatano, N. (2008). "Communicability in complex
+           networks". Physical Review E, 77(3), 036111.
+           https://arxiv.org/abs/0707.0756
+        """
+        from edgecase._core import communicability as rust_communicability
+
+        result = rust_communicability(self._graph)
+        return result
+
+    def communicability_betweenness_centrality(
+        self,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Compute communicability betweenness centrality for all nodes.
+
+        This centrality measure quantifies the contribution of each node to the
+        communicability between all other pairs of nodes. A node with high
+        communicability betweenness is important for information flow in the network.
+
+        The communicability betweenness of node r is:
+
+        .. math::
+
+            \\omega_r = \\frac{1}{C} \\sum_{p \\neq q, q \\neq r} \\frac{G_{prq}}{G_{pq}}
+
+        where:
+        - :math:`G_{pq} = \\exp(A)_{pq}` is the communicability between p and q
+        - :math:`G_{prq}` is the decrease in communicability when node r is removed
+        - :math:`C = (n-1)^2 - (n-1)` is a normalization factor
+
+        Parameters
+        ----------
+        attr_name : str, optional
+            Name to store the centrality as a node attribute.
+            If `None`, defaults to `communicability_betweenness`.
+        return_dict : bool, default False
+            If `True`, return centrality as a dictionary.
+            If `False`, store as node attribute and return self for chaining.
+
+        Returns
+        -------
+        dict[int, float] or Graph
+            If `return_dict` is True: Dictionary mapping node IDs to centrality values.
+            If `return_dict` is False: Self (for method chaining).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or has self-loops.
+
+        Notes
+        -----
+        - Values are normalized to be in [0, 1]
+        - Time complexity: O(n × n³) = O(n⁴) due to eigendecomposition for each node
+        - Best suited for small to medium graphs (n < 500)
+        - Unlike standard betweenness, considers ALL walks, not just shortest paths
+
+        Examples
+        --------
+        Basic usage:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a simple network
+        graph = Graph(directed=False)
+        graph.add_node(label="A")
+        graph.add_node(label="B")
+        graph.add_node(label="C")
+        graph.add_node(label="D")
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+        graph.add_edge("C", "D")
+
+        cbc = graph.communicability_betweenness_centrality(return_dict=True)
+        # Middle nodes B and C have higher betweenness
+        for node_id, value in sorted(cbc.items(), key=lambda x: -x[1]):
+            label = graph.get_label_from_id(node_id)
+            print(f"{label}: {value:.3f}")
+        ```
+
+        Store as node attribute:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph(directed=False)
+        graph.add_node(label="1")
+        graph.add_node(label="2")
+        graph.add_node(label="3")
+        graph.add_edge("1", "2")
+        graph.add_edge("2", "3")
+
+        # Store with custom name and chain
+        graph.communicability_betweenness_centrality(attr_name="cbc")
+        # Result is stored in node attributes
+        ```
+
+        Compare with standard betweenness:
+
+        ```python
+        from edgecase import Graph
+
+        # Star graph
+        star = Graph(directed=False)
+        star.add_node(label="center")
+        for i in range(4):
+            star.add_node(label=f"leaf_{i}")
+            star.add_edge("center", f"leaf_{i}")
+
+        cbc = star.communicability_betweenness_centrality(return_dict=True)
+
+        # Center node should have highest communicability betweenness
+        center_id = star.get_id_from_label("center")
+        print(f"Center CBC: {cbc[center_id]:.3f}")  # Close to 1.0
+        ```
+
+        References
+        ----------
+        .. [1] Estrada, E., Higham, D. J., & Hatano, N. (2009).
+           "Communicability betweenness in complex networks".
+           Physica A, 388(5), 764-774.
+           https://arxiv.org/abs/0905.4102
+        """
+        from edgecase._core import communicability_betweenness_centrality as rust_cbc
+
+        result = rust_cbc(self._graph)
+
+        if not result:
+            return {} if return_dict else self
+
+        # Auto-generate attribute name if not provided
+        if attr_name is None:
+            attr_name = "communicability_betweenness"
+
+        # Store in node DataFrame
+        self.set_node_attrs(attr_name, result)
+
+        # Track computation
+        if not return_dict:
+            self._computations.append(("communicability_betweenness_centrality", {}, attr_name))
+
+        # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result
+        return self
+
     def average_neighbor_degree(
         self,
         source: str = "out",
