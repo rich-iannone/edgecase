@@ -431,3 +431,285 @@ class TestUnconnectedParameter:
         # With unconnected=False, should be None
         assert G.get_diameter(unconnected=False) is None
         assert G.get_radius(unconnected=False) is None
+
+
+class TestWienerIndex:
+    """Test Wiener index calculation."""
+
+    def test_wiener_index_path_graph(self):
+        """Test Wiener index on a path graph P_n.
+
+        For a path graph with n nodes: W(P_n) = n(n^2-1)/6
+        """
+        # P_4: 0-1-2-3
+        G = ec.Graph()
+        G.add_path_graph(4)
+
+        # W(P_4) = 4*(16-1)/6 = 4*15/6 = 10
+        # Distances: 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 2→3=1
+        # Sum = 1+2+3+1+2+1 = 10
+        wiener = G.wiener_index()
+        assert wiener == 10.0
+
+    def test_wiener_index_complete_graph(self):
+        """Test Wiener index on a complete graph K_n.
+
+        For a complete graph with n nodes: W(K_n) = n(n-1)/2
+        since all pairs have distance 1.
+        """
+        # K_5
+        G = ec.Graph()
+        G.add_full_graph(5)
+
+        # W(K_5) = 5*4/2 = 10 (all 10 pairs at distance 1)
+        wiener = G.wiener_index()
+        assert wiener == 10.0
+
+    def test_wiener_index_cycle_graph(self):
+        """Test Wiener index on a cycle graph C_n.
+
+        For a cycle graph with n nodes:
+        - If n even: W(C_n) = n^3/8
+        - If n odd: W(C_n) = n(n^2-1)/8
+        """
+        # C_6 (even)
+        G = ec.Graph()
+        G.add_cycle_graph(6)
+
+        # W(C_6) = 6^3/8 = 216/8 = 27
+        wiener = G.wiener_index()
+        assert wiener == 27.0
+
+    def test_wiener_index_star_graph(self):
+        """Test Wiener index on a star graph S_n (hub + n-1 leaves)."""
+        # S_5 (1 hub + 4 leaves = 5 nodes)
+        G = ec.Graph()
+        G.add_star_graph(5)
+
+        # Hub to leaves: 4 paths of distance 1 = 4
+        # Leaf to leaf: 6 pairs of distance 2 = 12
+        # Total = 4 + 12 = 16
+        wiener = G.wiener_index()
+        assert wiener == 16.0
+
+    def test_wiener_index_single_node(self):
+        """Test Wiener index on single node graph."""
+        G = ec.Graph()
+        G.add_node("A")
+
+        # No pairs, sum is 0
+        wiener = G.wiener_index()
+        assert wiener == 0.0
+
+    def test_wiener_index_two_nodes_connected(self):
+        """Test Wiener index on two connected nodes."""
+        G = ec.Graph()
+        G.add_node(label="A")
+        G.add_node(label="B")
+        G.add_edge("A", "B")
+
+        # Single pair at distance 1
+        wiener = G.wiener_index()
+        assert wiener == 1.0
+
+    def test_wiener_index_disconnected_graph(self):
+        """Test Wiener index on disconnected graph returns infinity."""
+        G = ec.Graph()
+        G.add_path_graph(3)  # Component 1
+        G.add_path_graph(3)  # Component 2
+
+        # Disconnected graphs have infinite Wiener index
+        wiener = G.wiener_index()
+        assert wiener == float("inf")
+
+    def test_wiener_index_directed_graph(self):
+        """Test Wiener index on directed graph."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(3)  # 0→1→2
+
+        # 0→1=1, 0→2=2, 1→2=1 (only forward paths exist)
+        # 1→0=inf, 2→0=inf, 2→1=inf
+        wiener = G.wiener_index()
+        assert wiener == float("inf")
+
+    def test_wiener_index_directed_cycle(self):
+        """Test Wiener index on directed cycle."""
+        G = ec.Graph(directed=True)
+        G.add_cycle_graph(4)  # 0→1→2→3→0
+
+        # All pairs reachable: this forms a strongly connected component
+        # 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 1→0=3
+        # 2→3=1, 2→0=2, 2→1=3, 3→0=1, 3→1=2, 3→2=3
+        # Total = (1+2+3)*4 = 24
+        wiener = G.wiener_index()
+        assert wiener == 24.0
+
+    def test_wiener_index_weighted_graph(self):
+        """Test Wiener index respects edge weights when weight parameter is specified."""
+        G = ec.Graph(weighted=True)
+        G.add_node(label="A")
+        G.add_node(label="B")
+        G.add_node(label="C")
+        G.add_edge("A", "B", weight=2.0)
+        G.add_edge("B", "C", weight=3.0)
+
+        # A→B=2, A→C=5, B→C=3
+        # Total = 2 + 5 + 3 = 10
+        wiener = G.wiener_index(weight="weight")
+        assert wiener == 10.0
+
+        # Without weight parameter, uses unweighted (hop count)
+        # A→B=1, A→C=2, B→C=1
+        # Total = 1 + 2 + 1 = 4
+        wiener_unweighted = G.wiener_index()
+        assert wiener_unweighted == 4.0
+
+
+class TestEstradaIndex:
+    """Test Estrada index calculation."""
+
+    def test_estrada_index_single_node(self):
+        """Test Estrada index on single node graph.
+
+        Single node has adjacency matrix [0], eigenvalue = 0
+        EE = exp(0) = 1
+        """
+        G = ec.Graph()
+        G.add_node("A")
+
+        estrada = G.estrada_index()
+        assert abs(estrada - 1.0) < 0.001
+
+    def test_estrada_index_two_connected_nodes(self):
+        """Test Estrada index on K_2.
+
+        Adjacency matrix: [[0,1],[1,0]]
+        Eigenvalues: -1, 1
+        EE = exp(-1) + exp(1) ≈ 0.368 + 2.718 ≈ 3.086
+        """
+        G = ec.Graph()
+        G.add_full_graph(2)
+
+        import math
+
+        expected = math.exp(-1) + math.exp(1)
+        estrada = G.estrada_index()
+        assert abs(estrada - expected) < 0.001
+
+    def test_estrada_index_path_graph(self):
+        """Test Estrada index on path graph P_3.
+
+        Adjacency matrix: [[0,1,0],[1,0,1],[0,1,0]]
+        Eigenvalues: -sqrt(2), 0, sqrt(2)
+        EE = exp(-sqrt(2)) + exp(0) + exp(sqrt(2))
+        """
+        G = ec.Graph()
+        G.add_path_graph(3)
+
+        import math
+
+        sqrt2 = math.sqrt(2)
+        expected = math.exp(-sqrt2) + math.exp(0) + math.exp(sqrt2)
+        estrada = G.estrada_index()
+        assert abs(estrada - expected) < 0.01
+
+    def test_estrada_index_complete_graph(self):
+        """Test Estrada index on complete graph K_4.
+
+        K_n has eigenvalues: (n-1) with multiplicity 1, and -1 with multiplicity (n-1)
+        For K_4: eigenvalues are 3, -1, -1, -1
+        EE = exp(3) + 3*exp(-1)
+        """
+        G = ec.Graph()
+        G.add_full_graph(4)
+
+        import math
+
+        expected = math.exp(3) + 3 * math.exp(-1)
+        estrada = G.estrada_index()
+        assert abs(estrada - expected) < 0.01
+
+    def test_estrada_index_cycle_graph(self):
+        """Test Estrada index on cycle graph C_4.
+
+        C_4 eigenvalues: 2, 0, 0, -2
+        EE = exp(2) + 2*exp(0) + exp(-2)
+        """
+        G = ec.Graph()
+        G.add_cycle_graph(4)
+
+        import math
+
+        expected = math.exp(2) + 2 * math.exp(0) + math.exp(-2)
+        estrada = G.estrada_index()
+        assert abs(estrada - expected) < 0.01
+
+    def test_estrada_index_star_graph(self):
+        """Test Estrada index on star graph S_4 (hub + 3 leaves).
+
+        S_n (hub + n-1 leaves) has eigenvalues: sqrt(n-1), 0 (n-2 times), -sqrt(n-1)
+        For S_4: eigenvalues are sqrt(3), 0, 0, -sqrt(3)
+        EE = exp(sqrt(3)) + 2*exp(0) + exp(-sqrt(3))
+        """
+        G = ec.Graph()
+        G.add_star_graph(4)
+
+        import math
+
+        sqrt3 = math.sqrt(3)
+        expected = math.exp(sqrt3) + 2 * math.exp(0) + math.exp(-sqrt3)
+        estrada = G.estrada_index()
+        assert abs(estrada - expected) < 0.01
+
+    def test_estrada_index_empty_graph(self):
+        """Test Estrada index on empty graph."""
+        G = ec.Graph()
+
+        estrada = G.estrada_index()
+        assert estrada == 0.0
+
+    def test_estrada_index_disconnected_graph(self):
+        """Test Estrada index on disconnected graph.
+
+        Estrada index is well-defined for disconnected graphs.
+        It's just the sum of eigenvalue exponentials of the adjacency matrix.
+        """
+        G = ec.Graph()
+        G.add_full_graph(2)  # Component 1 (2 nodes)
+        G.add_full_graph(2)  # Component 2 (2 nodes)
+
+        import math
+
+        # Each K_2 contributes exp(-1) + exp(1), two components
+        expected = 2 * (math.exp(-1) + math.exp(1))
+        estrada = G.estrada_index()
+        assert abs(estrada - expected) < 0.01
+
+    def test_estrada_index_increases_with_edges(self):
+        """Test that Estrada index increases when edges are added.
+
+        Adding edges generally increases the Estrada index as it
+        increases the number of closed walks.
+        """
+        G1 = ec.Graph()
+        G1.add_path_graph(4)  # 3 edges
+
+        G2 = ec.Graph()
+        G2.add_cycle_graph(4)  # 4 edges (closed cycle)
+
+        assert G2.estrada_index() > G1.estrada_index()
+
+    def test_estrada_index_positive(self):
+        """Test that Estrada index is always positive for non-empty graphs."""
+        for n in [3, 5, 10]:
+            G = ec.Graph()
+            G.add_full_graph(n)
+            assert G.estrada_index() > 0
+
+            G2 = ec.Graph()
+            G2.add_cycle_graph(n)
+            assert G2.estrada_index() > 0
+
+            G3 = ec.Graph()
+            G3.add_path_graph(n)
+            assert G3.estrada_index() > 0
