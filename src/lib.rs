@@ -94,6 +94,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::percolation::edge_percolation, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::percolation::largest_component_size, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::percolation::percolation_threshold_analysis, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::distance_metrics::wiener_index, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::distance_metrics::estrada_index, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;

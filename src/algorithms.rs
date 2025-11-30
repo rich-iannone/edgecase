@@ -9,6 +9,7 @@ pub mod connectivity;
 pub mod contraction;
 pub mod cycles;
 pub mod dispersion;
+pub mod distance_metrics;
 pub mod dominating_set;
 pub mod domirank;
 pub mod efficiency;
