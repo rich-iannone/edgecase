@@ -788,6 +788,158 @@ pub fn transitive_reduction(graph: &Graph) -> PyResult<Graph> {
     Ok(result)
 }
 
+/// Extract an induced subgraph containing the specified nodes.
+///
+/// Returns a new graph containing only the specified nodes and all edges
+/// between them (the induced subgraph). Node labels and edge weights are preserved.
+///
+/// # Arguments
+/// * `graph` - The input graph
+/// * `nodes` - List of node IDs to include in the subgraph
+///
+/// # Returns
+/// A new graph containing only the specified nodes and edges between them.
+///
+/// # Errors
+/// Returns an error if any node ID is not found in the graph.
+#[pyfunction]
+#[pyo3(signature = (graph, nodes))]
+pub fn subgraph(graph: &Graph, nodes: Vec<u64>) -> PyResult<Graph> {
+    // Create a set for efficient lookup
+    let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+
+    // Validate all nodes exist
+    for &node_id in &nodes {
+        if !graph.get_nodes().contains_key(&node_id) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node with ID {} not found in graph",
+                node_id
+            )));
+        }
+    }
+
+    // Create new graph with same directedness and weightedness
+    let mut result = Graph::new_rust(graph.is_directed(), graph.is_weighted());
+
+    // Map old node IDs to new node IDs
+    let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
+
+    // Add nodes to the new graph
+    for &node_id in &nodes {
+        if let Some(node) = graph.get_nodes().get(&node_id) {
+            let new_node = Node {
+                id: 0, // Will be auto-assigned
+                label: node.label.clone(),
+                attributes: None, // Attributes cannot be cloned across PyO3 boundary
+            };
+            let new_id = result.add_node_rust(new_node)?;
+            node_map.insert(node_id, new_id);
+        }
+    }
+
+    // Add edges where both endpoints are in the node set
+    for edge in graph.get_edges_internal() {
+        if node_set.contains(&edge.source) && node_set.contains(&edge.target) {
+            if let (Some(&new_source), Some(&new_target)) =
+                (node_map.get(&edge.source), node_map.get(&edge.target))
+            {
+                let new_edge = Edge {
+                    id: 0,
+                    source: new_source,
+                    target: new_target,
+                    weight: edge.weight,
+                    attributes: None, // Attributes cannot be cloned across PyO3 boundary
+                };
+                result.add_edge_rust(new_edge)?;
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+/// Extract a subgraph containing the specified edges and their endpoint nodes.
+///
+/// Returns a new graph containing only the specified edges and the nodes
+/// that are endpoints of those edges. Node labels and edge weights are preserved.
+///
+/// # Arguments
+/// * `graph` - The input graph
+/// * `edges` - List of edge IDs to include in the subgraph
+///
+/// # Returns
+/// A new graph containing only the specified edges and their endpoint nodes.
+///
+/// # Errors
+/// Returns an error if any edge ID is not found in the graph.
+#[pyfunction]
+#[pyo3(signature = (graph, edges))]
+pub fn edge_subgraph(graph: &Graph, edges: Vec<u64>) -> PyResult<Graph> {
+    // Create a set for efficient lookup
+    let edge_set: FxHashSet<u64> = edges.iter().copied().collect();
+
+    // Collect all nodes that are endpoints of the selected edges
+    let mut node_ids: FxHashSet<u64> = FxHashSet::default();
+
+    // Validate edges and collect endpoint nodes
+    for &edge_id in &edges {
+        let mut found = false;
+        for edge in graph.get_edges_internal() {
+            if edge.id == edge_id {
+                node_ids.insert(edge.source);
+                node_ids.insert(edge.target);
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Edge with ID {} not found in graph",
+                edge_id
+            )));
+        }
+    }
+
+    // Create new graph with same directedness and weightedness
+    let mut result = Graph::new_rust(graph.is_directed(), graph.is_weighted());
+
+    // Map old node IDs to new node IDs
+    let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
+
+    // Add nodes to the new graph
+    for &node_id in &node_ids {
+        if let Some(node) = graph.get_nodes().get(&node_id) {
+            let new_node = Node {
+                id: 0,
+                label: node.label.clone(),
+                attributes: None, // Attributes cannot be cloned across PyO3 boundary
+            };
+            let new_id = result.add_node_rust(new_node)?;
+            node_map.insert(node_id, new_id);
+        }
+    }
+
+    // Add only the selected edges
+    for edge in graph.get_edges_internal() {
+        if edge_set.contains(&edge.id) {
+            if let (Some(&new_source), Some(&new_target)) =
+                (node_map.get(&edge.source), node_map.get(&edge.target))
+            {
+                let new_edge = Edge {
+                    id: 0,
+                    source: new_source,
+                    target: new_target,
+                    weight: edge.weight,
+                    attributes: None, // Attributes cannot be cloned across PyO3 boundary
+                };
+                result.add_edge_rust(new_edge)?;
+            }
+        }
+    }
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
