@@ -448,7 +448,7 @@ class TestWienerIndex:
         # W(P_4) = 4*(16-1)/6 = 4*15/6 = 10
         # Distances: 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 2→3=1
         # Sum = 1+2+3+1+2+1 = 10
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == 10.0
 
     def test_wiener_index_complete_graph(self):
@@ -462,7 +462,7 @@ class TestWienerIndex:
         G.add_full_graph(5)
 
         # W(K_5) = 5*4/2 = 10 (all 10 pairs at distance 1)
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == 10.0
 
     def test_wiener_index_cycle_graph(self):
@@ -477,7 +477,7 @@ class TestWienerIndex:
         G.add_cycle_graph(6)
 
         # W(C_6) = 6^3/8 = 216/8 = 27
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == 27.0
 
     def test_wiener_index_star_graph(self):
@@ -489,7 +489,7 @@ class TestWienerIndex:
         # Hub to leaves: 4 paths of distance 1 = 4
         # Leaf to leaf: 6 pairs of distance 2 = 12
         # Total = 4 + 12 = 16
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == 16.0
 
     def test_wiener_index_single_node(self):
@@ -498,7 +498,7 @@ class TestWienerIndex:
         G.add_node("A")
 
         # No pairs, sum is 0
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == 0.0
 
     def test_wiener_index_two_nodes_connected(self):
@@ -509,7 +509,7 @@ class TestWienerIndex:
         G.add_edge("A", "B")
 
         # Single pair at distance 1
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == 1.0
 
     def test_wiener_index_disconnected_graph(self):
@@ -519,7 +519,7 @@ class TestWienerIndex:
         G.add_path_graph(3)  # Component 2
 
         # Disconnected graphs have infinite Wiener index
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == float("inf")
 
     def test_wiener_index_directed_graph(self):
@@ -529,7 +529,7 @@ class TestWienerIndex:
 
         # 0→1=1, 0→2=2, 1→2=1 (only forward paths exist)
         # 1→0=inf, 2→0=inf, 2→1=inf
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == float("inf")
 
     def test_wiener_index_directed_cycle(self):
@@ -541,7 +541,7 @@ class TestWienerIndex:
         # 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 1→0=3
         # 2→3=1, 2→0=2, 2→1=3, 3→0=1, 3→1=2, 3→2=3
         # Total = (1+2+3)*4 = 24
-        wiener = G.wiener_index()
+        wiener = G.get_wiener_index()
         assert wiener == 24.0
 
     def test_wiener_index_weighted_graph(self):
@@ -555,13 +555,13 @@ class TestWienerIndex:
 
         # A→B=2, A→C=5, B→C=3
         # Total = 2 + 5 + 3 = 10
-        wiener = G.wiener_index(weight="weight")
+        wiener = G.get_wiener_index(weight="weight")
         assert wiener == 10.0
 
         # Without weight parameter, uses unweighted (hop count)
         # A→B=1, A→C=2, B→C=1
         # Total = 1 + 2 + 1 = 4
-        wiener_unweighted = G.wiener_index()
+        wiener_unweighted = G.get_wiener_index()
         assert wiener_unweighted == 4.0
 
 
@@ -577,7 +577,7 @@ class TestEstradaIndex:
         G = ec.Graph()
         G.add_node("A")
 
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert abs(estrada - 1.0) < 0.001
 
     def test_estrada_index_two_connected_nodes(self):
@@ -593,7 +593,7 @@ class TestEstradaIndex:
         import math
 
         expected = math.exp(-1) + math.exp(1)
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert abs(estrada - expected) < 0.001
 
     def test_estrada_index_path_graph(self):
@@ -610,7 +610,7 @@ class TestEstradaIndex:
 
         sqrt2 = math.sqrt(2)
         expected = math.exp(-sqrt2) + math.exp(0) + math.exp(sqrt2)
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_complete_graph(self):
@@ -626,7 +626,7 @@ class TestEstradaIndex:
         import math
 
         expected = math.exp(3) + 3 * math.exp(-1)
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_cycle_graph(self):
@@ -641,7 +641,7 @@ class TestEstradaIndex:
         import math
 
         expected = math.exp(2) + 2 * math.exp(0) + math.exp(-2)
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_star_graph(self):
@@ -658,14 +658,14 @@ class TestEstradaIndex:
 
         sqrt3 = math.sqrt(3)
         expected = math.exp(sqrt3) + 2 * math.exp(0) + math.exp(-sqrt3)
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_empty_graph(self):
         """Test Estrada index on empty graph."""
         G = ec.Graph()
 
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert estrada == 0.0
 
     def test_estrada_index_disconnected_graph(self):
@@ -682,7 +682,7 @@ class TestEstradaIndex:
 
         # Each K_2 contributes exp(-1) + exp(1), two components
         expected = 2 * (math.exp(-1) + math.exp(1))
-        estrada = G.estrada_index()
+        estrada = G.get_estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_increases_with_edges(self):
@@ -697,19 +697,298 @@ class TestEstradaIndex:
         G2 = ec.Graph()
         G2.add_cycle_graph(4)  # 4 edges (closed cycle)
 
-        assert G2.estrada_index() > G1.estrada_index()
+        assert G2.get_estrada_index() > G1.get_estrada_index()
 
     def test_estrada_index_positive(self):
         """Test that Estrada index is always positive for non-empty graphs."""
         for n in [3, 5, 10]:
             G = ec.Graph()
             G.add_full_graph(n)
-            assert G.estrada_index() > 0
+            assert G.get_estrada_index() > 0
 
             G2 = ec.Graph()
             G2.add_cycle_graph(n)
-            assert G2.estrada_index() > 0
+            assert G2.get_estrada_index() > 0
 
             G3 = ec.Graph()
             G3.add_path_graph(n)
-            assert G3.estrada_index() > 0
+            assert G3.get_estrada_index() > 0
+
+
+class TestResistanceDistance:
+    """Test resistance distance calculation."""
+
+    def test_resistance_distance_same_node(self):
+        """Test resistance distance from a node to itself is zero."""
+        G = ec.Graph()
+        G.add_path_graph(3)  # Creates nodes 1-2-3
+        assert G.get_resistance_distance(1, 1) == 0.0
+
+    def test_resistance_distance_adjacent_nodes(self):
+        """Test resistance distance between adjacent nodes equals 1."""
+        G = ec.Graph()
+        G.add_full_graph(2)  # Two nodes with one edge (IDs 1, 2)
+        result = G.get_resistance_distance(1, 2)
+        assert abs(result - 1.0) < 1e-10
+
+    def test_resistance_distance_path_graph(self):
+        """Test resistance distance in a path graph (resistors in series)."""
+        G = ec.Graph()
+        G.add_path_graph(4)  # 1-2-3-4
+
+        # In a path, resistance = number of edges (series)
+        assert abs(G.get_resistance_distance(1, 2) - 1.0) < 1e-10
+        assert abs(G.get_resistance_distance(1, 3) - 2.0) < 1e-10
+        assert abs(G.get_resistance_distance(1, 4) - 3.0) < 1e-10
+        assert abs(G.get_resistance_distance(2, 3) - 1.0) < 1e-10
+        assert abs(G.get_resistance_distance(2, 4) - 2.0) < 1e-10
+
+    def test_resistance_distance_complete_graph(self):
+        """Test resistance distance in complete graph K_n.
+
+        For complete graph Kn: Ω(i,j) = 2/n for all pairs i≠j
+        """
+        # K3
+        G3 = ec.Graph()
+        G3.add_full_graph(3)  # Nodes 1, 2, 3
+        assert abs(G3.get_resistance_distance(1, 2) - 2.0 / 3.0) < 1e-10
+
+        # K4
+        G4 = ec.Graph()
+        G4.add_full_graph(4)  # Nodes 1, 2, 3, 4
+        assert abs(G4.get_resistance_distance(1, 2) - 0.5) < 1e-10
+
+        # K5
+        G5 = ec.Graph()
+        G5.add_full_graph(5)  # Nodes 1, 2, 3, 4, 5
+        assert abs(G5.get_resistance_distance(1, 2) - 0.4) < 1e-10
+
+    def test_resistance_distance_cycle_graph(self):
+        """Test resistance distance in cycle graph (parallel paths).
+
+        For cycle C4: paths of length 1 and 3 in parallel
+        R = 1*3/(1+3) = 0.75
+        """
+        G = ec.Graph()
+        G.add_cycle_graph(4)  # 1-2-3-4-1
+        # Adjacent nodes in C4: parallel paths of 1 and 3
+        assert abs(G.get_resistance_distance(1, 2) - 0.75) < 1e-10
+        # Opposite nodes in C4: two parallel paths of 2
+        assert abs(G.get_resistance_distance(1, 3) - 1.0) < 1e-10
+
+    def test_resistance_distance_star_graph(self):
+        """Test resistance distance in star graph."""
+        G = ec.Graph()
+        G.add_star_graph(5)  # Hub (1) + 4 leaves (2, 3, 4, 5)
+
+        # Hub to leaf: distance 1
+        assert abs(G.get_resistance_distance(1, 2) - 1.0) < 1e-10
+
+        # Leaf to leaf: through hub (two resistors in series)
+        assert abs(G.get_resistance_distance(2, 3) - 2.0) < 1e-10
+
+    def test_resistance_distance_symmetric(self):
+        """Test that resistance distance is symmetric."""
+        G = ec.Graph()
+        G.add_path_graph(4)  # 1-2-3-4
+        assert abs(G.get_resistance_distance(1, 3) - G.get_resistance_distance(3, 1)) < 1e-10
+
+    def test_resistance_distance_triangle_inequality(self):
+        """Test that resistance distance satisfies triangle inequality."""
+        G = ec.Graph()
+        G.add_path_graph(4)  # 1-2-3-4
+
+        r12 = G.get_resistance_distance(1, 2)
+        r23 = G.get_resistance_distance(2, 3)
+        r13 = G.get_resistance_distance(1, 3)
+
+        # r13 <= r12 + r23 (actually equals for path)
+        assert r13 <= r12 + r23 + 1e-10
+
+    def test_resistance_distance_with_labels(self):
+        """Test resistance distance using node labels."""
+        G = ec.Graph()
+        G.add_node(label="A")
+        G.add_node(label="B")
+        G.add_node(label="C")
+        G.add_edge("A", "B")
+        G.add_edge("B", "C")
+
+        # Path A-B-C
+        assert abs(G.get_resistance_distance("A", "B") - 1.0) < 1e-10
+        assert abs(G.get_resistance_distance("A", "C") - 2.0) < 1e-10
+
+    def test_resistance_distance_directed_error(self):
+        """Test that directed graphs raise an error."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(3)
+        with pytest.raises(ValueError, match="undirected"):
+            G.get_resistance_distance(1, 2)
+
+    def test_resistance_distance_node_not_found(self):
+        """Test error when node doesn't exist."""
+        G = ec.Graph()
+        G.add_path_graph(3)  # Nodes 1, 2, 3
+        with pytest.raises(ValueError):
+            G.get_resistance_distance(1, 99)
+
+
+class TestResistanceDistanceMatrix:
+    """Test resistance distance matrix calculation."""
+
+    def test_resistance_distance_matrix_path(self):
+        """Test resistance distance matrix for path graph."""
+        G = ec.Graph()
+        G.add_path_graph(3)  # 1-2-3
+        matrix = G.resistance_distance_matrix()
+
+        # Check diagonal is zero
+        assert matrix[(1, 1)] == 0.0
+        assert matrix[(2, 2)] == 0.0
+        assert matrix[(3, 3)] == 0.0
+
+        # Check off-diagonal values
+        assert abs(matrix[(1, 2)] - 1.0) < 1e-10
+        assert abs(matrix[(1, 3)] - 2.0) < 1e-10
+        assert abs(matrix[(2, 3)] - 1.0) < 1e-10
+
+        # Check symmetry
+        assert matrix[(1, 2)] == matrix[(2, 1)]
+        assert matrix[(1, 3)] == matrix[(3, 1)]
+
+    def test_resistance_distance_matrix_complete(self):
+        """Test resistance distance matrix for complete graph."""
+        G = ec.Graph()
+        G.add_full_graph(3)  # K3 with nodes 1, 2, 3
+        matrix = G.resistance_distance_matrix()
+
+        # All off-diagonal values should be 2/3
+        for i in range(1, 4):
+            for j in range(1, 4):
+                if i == j:
+                    assert matrix[(i, j)] == 0.0
+                else:
+                    assert abs(matrix[(i, j)] - 2.0 / 3.0) < 1e-10
+
+    def test_resistance_distance_matrix_single_node(self):
+        """Test resistance distance matrix for single node."""
+        G = ec.Graph()
+        G.add_node(label="A")
+        matrix = G.resistance_distance_matrix()
+        a_id = G.get_id_from_label("A")
+        assert matrix[(a_id, a_id)] == 0.0
+
+    def test_resistance_distance_matrix_empty(self):
+        """Test resistance distance matrix for empty graph."""
+        G = ec.Graph()
+        matrix = G.resistance_distance_matrix()
+        assert len(matrix) == 0
+
+
+class TestKirchhoffIndex:
+    """Test Kirchhoff index calculation."""
+
+    def test_kirchhoff_index_single_node(self):
+        """Test Kirchhoff index for single node is zero."""
+        G = ec.Graph()
+        G.add_node(label="A")
+        assert G.get_kirchhoff_index() == 0.0
+
+    def test_kirchhoff_index_two_nodes(self):
+        """Test Kirchhoff index for two connected nodes."""
+        G = ec.Graph()
+        G.add_full_graph(2)
+        # Single pair with resistance 1
+        assert abs(G.get_kirchhoff_index() - 1.0) < 1e-10
+
+    def test_kirchhoff_index_path_graph(self):
+        """Test Kirchhoff index for path graph.
+
+        For path Pn: Kf = n(n²-1)/6
+        """
+        # P3: Kf = 3*(9-1)/6 = 24/6 = 4
+        G3 = ec.Graph()
+        G3.add_path_graph(3)
+        assert abs(G3.get_kirchhoff_index() - 4.0) < 1e-10
+
+        # P4: Kf = 4*(16-1)/6 = 60/6 = 10
+        G4 = ec.Graph()
+        G4.add_path_graph(4)
+        assert abs(G4.get_kirchhoff_index() - 10.0) < 1e-10
+
+        # P5: Kf = 5*(25-1)/6 = 120/6 = 20
+        G5 = ec.Graph()
+        G5.add_path_graph(5)
+        assert abs(G5.get_kirchhoff_index() - 20.0) < 1e-10
+
+    def test_kirchhoff_index_complete_graph(self):
+        """Test Kirchhoff index for complete graph.
+
+        For complete Kn: Kf = n-1
+        """
+        # K3: Kf = 2
+        G3 = ec.Graph()
+        G3.add_full_graph(3)
+        assert abs(G3.get_kirchhoff_index() - 2.0) < 1e-10
+
+        # K4: Kf = 3
+        G4 = ec.Graph()
+        G4.add_full_graph(4)
+        assert abs(G4.get_kirchhoff_index() - 3.0) < 1e-10
+
+        # K5: Kf = 4
+        G5 = ec.Graph()
+        G5.add_full_graph(5)
+        assert abs(G5.get_kirchhoff_index() - 4.0) < 1e-10
+
+    def test_kirchhoff_index_cycle_graph(self):
+        """Test Kirchhoff index for cycle graph.
+
+        For cycle Cn: Kf = n(n²-1)/12
+        """
+        # C3: Kf = 3*(9-1)/12 = 24/12 = 2
+        G3 = ec.Graph()
+        G3.add_cycle_graph(3)
+        assert abs(G3.get_kirchhoff_index() - 2.0) < 1e-10
+
+        # C4: Kf = 4*(16-1)/12 = 60/12 = 5
+        G4 = ec.Graph()
+        G4.add_cycle_graph(4)
+        assert abs(G4.get_kirchhoff_index() - 5.0) < 1e-10
+
+        # C6: Kf = 6*(36-1)/12 = 210/12 = 17.5
+        G6 = ec.Graph()
+        G6.add_cycle_graph(6)
+        assert abs(G6.get_kirchhoff_index() - 17.5) < 1e-10
+
+    def test_kirchhoff_index_disconnected(self):
+        """Test Kirchhoff index for disconnected graph returns infinity."""
+        G = ec.Graph()
+        G.add_path_graph(3)
+        G.add_path_graph(3)  # Disconnected second component
+        assert G.get_kirchhoff_index() == float("inf")
+
+    def test_kirchhoff_index_directed_error(self):
+        """Test that directed graphs raise an error."""
+        G = ec.Graph(directed=True)
+        G.add_path_graph(3)
+        with pytest.raises(ValueError, match="undirected"):
+            G.get_kirchhoff_index()
+
+    def test_kirchhoff_index_empty_graph(self):
+        """Test Kirchhoff index for empty graph."""
+        G = ec.Graph()
+        assert G.get_kirchhoff_index() == 0.0
+
+    def test_kirchhoff_vs_sum_resistance(self):
+        """Test that Kirchhoff index equals sum of pairwise resistances."""
+        G = ec.Graph()
+        G.add_path_graph(4)  # Nodes 1, 2, 3, 4
+
+        # Manual sum of resistance distances for i < j
+        total = 0.0
+        for i in range(1, 5):
+            for j in range(i + 1, 5):
+                total += G.get_resistance_distance(i, j)
+
+        assert abs(G.get_kirchhoff_index() - total) < 1e-10
