@@ -1514,6 +1514,125 @@ impl Graph {
         Ok(())
     }
 
+    /// Generate a random geometric graph.
+    ///
+    /// Places n nodes uniformly at random in the unit cube (or unit hypercube for
+    /// higher dimensions), and connects nodes whose Euclidean distance is at most radius.
+    ///
+    /// # Arguments
+    /// * `n` - Number of nodes to create
+    /// * `radius` - Connection threshold distance
+    /// * `dim` - Number of dimensions (default 2)
+    /// * `p_norm` - Minkowski distance parameter (2.0 = Euclidean, default 2.0)
+    /// * `seed` - Optional seed for reproducibility
+    ///
+    /// # Returns
+    /// * `Ok(())` on success
+    /// * `Err` if parameters are invalid
+    #[pyo3(signature = (n, radius, dim=2, p_norm=2.0, seed=None))]
+    fn generate_random_geometric_graph(
+        &mut self,
+        n: usize,
+        radius: f64,
+        dim: usize,
+        p_norm: f64,
+        seed: Option<u64>,
+    ) -> PyResult<()> {
+        if radius < 0.0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "radius must be non-negative",
+            ));
+        }
+        if dim < 1 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "dimension must be at least 1",
+            ));
+        }
+        if p_norm <= 0.0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "p_norm must be positive",
+            ));
+        }
+
+        if n == 0 {
+            return Ok(());
+        }
+
+        // Create RNG with optional seed
+        let mut rng = match seed {
+            Some(s) => ChaCha8Rng::seed_from_u64(s),
+            None => ChaCha8Rng::from_entropy(),
+        };
+
+        // Generate random positions in [0, 1]^dim for each node
+        let mut positions: Vec<Vec<f64>> = Vec::with_capacity(n);
+        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+
+        for _ in 0..n {
+            let node_id = self.next_node_id;
+            self.next_node_id += 1;
+            node_ids.push(node_id);
+
+            // Generate position in unit hypercube
+            let pos: Vec<f64> = (0..dim)
+                .map(|_| rng.gen::<f64>())
+                .collect();
+
+            // Store position as JSON in label for later retrieval
+            let pos_str = format!("[{}]", pos.iter()
+                .map(|x| format!("{:.6}", x))
+                .collect::<Vec<_>>()
+                .join(", "));
+
+            let node = Node::new(node_id, Some(pos_str), None);
+            self.add_node(node)?;
+
+            positions.push(pos);
+        }
+
+        // Pre-compute radius^p for comparison
+        let radius_p = if p_norm == 2.0 {
+            radius * radius  // Compare squared distances for efficiency
+        } else {
+            radius.powf(p_norm)
+        };
+
+        // Connect nodes within radius using Minkowski distance
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let dist_p = if p_norm == 2.0 {
+                    // Squared Euclidean distance (common case, optimized)
+                    positions[i].iter()
+                        .zip(positions[j].iter())
+                        .map(|(a, b)| {
+                            let diff = a - b;
+                            diff * diff
+                        })
+                        .sum::<f64>()
+                } else {
+                    // General Minkowski distance
+                    positions[i].iter()
+                        .zip(positions[j].iter())
+                        .map(|(a, b)| (a - b).abs().powf(p_norm))
+                        .sum::<f64>()
+                };
+
+                if dist_p <= radius_p {
+                    let edge = Edge::new(
+                        0,
+                        node_ids[i],
+                        node_ids[j],
+                        None,
+                        None,
+                    );
+                    self.add_edge(edge)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     // ========== Community Detection ==========
 
     // ========== Structural Properties ==========
