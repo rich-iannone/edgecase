@@ -112,7 +112,7 @@ class TestBonacichDirected:
     """Tests for directed graphs."""
 
     def test_directed_path_P3(self):
-        """Directed path 0→1→2 (NetworkX test_directed_P3)."""
+        """Directed path 0->1->2 (NetworkX test_directed_P3)."""
         g = Graph(directed=True)
         g.add_node("0")
         g.add_node("1")
@@ -154,7 +154,7 @@ class TestBonacichDirected:
             assert abs(result[node] - exp_val) < 1e-6
 
     def test_directed_cycle_C3(self):
-        """Directed cycle 0→1→2→0 (NetworkX test_directed_C3)."""
+        """Directed cycle 0->1->2->0 (NetworkX test_directed_C3)."""
         g = Graph(directed=True)
         g.add_node("0")
         g.add_node("1")
