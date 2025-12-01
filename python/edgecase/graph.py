@@ -1155,13 +1155,6 @@ class Graph:
         - does not remove self-loops (use `remove_selfloops()` or `simplify()` for those).
         - use `which_multiple()` to identify duplicate edges before removal.
         - use `count_multiple()` to count duplicates per node pair before removal.
-
-        See Also
-        --------
-        which_multiple : Find edge IDs of duplicate edges.
-        count_multiple : Count edges grouped by node pair.
-        simplify : Remove both self-loops and duplicate edges.
-        is_simple : Check if graph has no self-loops or multi-edges.
         """
         self._graph.remove_duplicate_edges(keep_distinct_attributes)
         return self
@@ -14966,8 +14959,8 @@ class Graph:
         Returns
         -------
         Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores. If
-            `return_dict` is `False`: returns self for method chaining.
+            If `return_dict=` is `True`: dictionary mapping node IDs to centrality scores. If
+            `return_dict=` is `False`: returns self for method chaining.
 
         Examples
         --------
@@ -15008,7 +15001,8 @@ class Graph:
         # (graph
         #     .alpha_centrality(attr_name="alpha_cent")
         #     .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
-        #     .show())
+        #     .show()
+        # )
         ```
         """
         centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
@@ -15091,12 +15085,10 @@ class Graph:
         Returns
         -------
         Union[dict[int, float], Graph]
-            If `return_dict` is `True`: dictionary mapping node IDs to centrality scores.
-            If `return_dict` is `False`: returns self for method chaining.
-            Interpretation depends on β:
-
-            - β > 0: Higher scores = more powerful due to powerful neighbors
-            - β < 0: Higher scores = more powerful due to weak neighbors
+            If `return_dict=` is `True`: dictionary mapping node IDs to centrality scores. If
+            `return_dict=` is `False`: returns self for method chaining. The interpretation depends
+            on β: (1) when β > 0 higher scores = more powerful due to powerful neighbors, and (2)
+            when β < 0 higher scores = more powerful due to weak neighbors.
 
         Raises
         ------
@@ -15663,30 +15655,29 @@ class Graph:
         """
         Get closeness vitality centrality for each node.
 
-        Closeness vitality measures a node's importance by computing the change
-        in total graph distances when the node is removed:
+        Closeness vitality measures a node's importance by computing the change in total graph
+        distances when the node is removed:
 
         vitality(v) = sum_distances(G) - sum_distances(G - v)
 
-        Higher values indicate more important/central nodes whose removal would
-        significantly increase average path lengths. Uses parallel BFS with Rayon
-        for efficient computation.
+        Higher values indicate more important/central nodes whose removal would significantly
+        increase average path lengths. Uses parallel BFS with Rayon for efficient computation.
 
         Parameters
         ----------
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("closeness_vitality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`closeness_vitality`).
         return_dict
-            If True, returns dictionary of results. If False, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If return_dict is True: dictionary mapping node IDs to vitality scores.
-            If return_dict is False: returns self for method chaining.
-            Higher scores indicate more structurally important nodes.
+            If `return_dict=` is True: dictionary mapping node IDs to vitality scores. If
+            `return_dict=` is False: returns self for method chaining. Higher scores indicate more
+            structurally important nodes.
 
         Examples
         --------
@@ -15717,9 +15708,9 @@ class Graph:
 
         Notes
         -----
-        Computationally expensive for large graphs (O(V²E / num_cores) complexity).
-        Consider alternative centrality measures (degree, PageRank) for graphs
-        with >1000 nodes unless high accuracy is required.
+        Computationally expensive for large graphs (O(V²E / num_cores) complexity). Consider
+        alternative centrality measures (degree, PageRank) for graphs with >1000 nodes unless high
+        accuracy is required.
         """
         vitality = self._graph.get_closeness_vitality()
 
@@ -15743,28 +15734,27 @@ class Graph:
         """
         Calculate k-core decomposition (coreness for each node).
 
-        The k-core is the maximal subgraph where every node has degree >= k.
-        A node's coreness is the highest k-value for which it belongs to the k-core.
-        Uses iterative pruning: repeatedly removes nodes with degree < k until
-        all remaining nodes have degree >= k.
+        The k-core is the maximal subgraph where every node has degree >= k. A node's coreness is
+        the highest k-value for which it belongs to the k-core. Uses iterative pruning: repeatedly
+        removes nodes with degree < k until all remaining nodes have degree >= k.
 
-        Higher coreness indicates nodes in denser, more cohesive parts of the graph.
-        The k-core decomposition is useful for finding the "nucleus" of a network.
+        Higher coreness indicates nodes in denser, more cohesive parts of the graph. The k-core
+        decomposition is useful for finding the 'nucleus' of a network.
 
         Parameters
         ----------
         attr_name
-            Name of the node attribute to store coreness values.
-            If None, uses "coreness" as the attribute name.
+            Name of the node attribute to store coreness values. If `None`, uses `coreness` as the
+            attribute name.
         return_dict
-            If True, returns a dictionary mapping node IDs to coreness values.
-            If False, stores values as node attributes and returns the Graph for chaining.
+            If `True`, returns a dictionary mapping node IDs to coreness values. If `False`, stores
+            values as node attributes and returns the Graph for chaining.
 
         Returns
         -------
         dict[int, int] or Graph
-            If return_dict is True: Dictionary mapping node IDs to coreness values (non-negative integers).
-            If return_dict is False: Returns self for method chaining.
+            If `return_dict=` is `True`: Dictionary mapping node IDs to coreness values
+            (non-negative integers). If `return_dict=` is `False`: Returns self for method chaining.
 
         Examples
         --------
@@ -15892,8 +15882,8 @@ class Graph:
         """
         Extract the k-crust subgraph.
 
-        The k-crust contains all nodes with coreness <= k. This is the complement of nodes with
-        high coreness values.
+        The k-crust contains all nodes with coreness <= k. This is the complement of nodes with high
+        coreness values.
 
         Parameters
         ----------
@@ -15974,6 +15964,86 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = k_truss(self._graph, k)
+        return result
+
+    def k_corona(self, k: int) -> "Graph":
+        """
+        Extract the k-corona subgraph.
+
+        The k-corona is the subgraph induced by nodes that are in the k-core and have exactly k
+        neighbors in the k-core. These are the "boundary" nodes of the k-core that would be removed
+        first when computing the (k+1)-core.
+
+        The k-corona helps identify nodes at the periphery of dense substructures, which is useful
+        for understanding hierarchical organization and vulnerability analysis.
+
+        Parameters
+        ----------
+        k
+            The core number. Nodes in the k-corona have coreness >= k and exactly k neighbors within
+            the k-core.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the k-corona nodes and their connecting edges. May be empty if
+            no nodes satisfy the k-corona criteria.
+
+        Examples
+        --------
+        Find the 2-corona in a simple graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a graph with a dense core and peripheral nodes
+        g = Graph()
+        # Dense core: nodes 1, 2, 3 form a triangle
+        g.add_node(label="1")
+        g.add_node(label="2")
+        g.add_node(label="3")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "1")
+
+        # Add peripheral nodes
+        g.add_node(label="4")
+        g.add_node(label="5")
+        g.add_edge("1", "4")
+        g.add_edge("2", "5")
+
+        # The 2-corona contains nodes in the 2-core with exactly 2 neighbors in 2-core
+        corona_2 = g.k_corona(2)
+        print(f"Nodes in 2-corona: {corona_2.count_nodes()}")
+        ```
+
+        Analyze hierarchical structure:
+
+        ```python
+        from edgecase import Graph
+
+        # Build a graph and examine different corona levels
+        g = Graph()
+        g.add_full_graph(5)  # K5 complete graph
+
+        # In K5, all nodes have degree 4, so they're in the 4-core
+        # Each node has exactly 4 neighbors in the 4-core
+        corona_4 = g.k_corona(4)
+        print(f"4-corona nodes: {corona_4.count_nodes()}")  # All 5 nodes
+        ```
+
+        Notes
+        -----
+        - the k-corona is a subset of the k-shell (nodes with coreness exactly k)
+        - nodes in the k-corona are those that would lose their k-core membership
+          if any of their k-core neighbors were removed
+        - the k-corona can be empty even when the k-core is non-empty
+        - useful for identifying structurally vulnerable nodes in dense subgraphs
+        """
+        from edgecase._core import k_corona
+
+        result = Graph.__new__(Graph)
+        result._graph = k_corona(self._graph, k)
         return result
 
     # ==============================================================================
