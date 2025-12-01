@@ -219,7 +219,7 @@ class TestEigenVsAlphaCentrality:
         eigen = G.eigen_centrality(return_dict=True)
         alpha = G.alpha_centrality(
             return_dict=True, alpha=0.9, max_iter=200
-        )  # High alpha → eigenvector
+        )  # High alpha -> eigenvector
 
         # With high alpha and no exogenous factor dominance,
         # alpha centrality approaches eigenvector centrality pattern
