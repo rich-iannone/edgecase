@@ -10,7 +10,7 @@ class TestMeanDistance:
         G = ec.Graph()
         G.add_path_graph(4)  # 0-1-2-3
 
-        # Distances: 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 2→3=1
+        # Distances: 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 2->3=1
         # Total = 1+2+3+1+2+1 = 10, Count = 6, Mean = 10/6 ≈ 1.667
         mean_dist = G.get_mean_distance()
         assert mean_dist is not None
@@ -84,10 +84,10 @@ class TestMeanDistance:
     def test_mean_distance_directed(self):
         """Test mean distance on directed graph."""
         G = ec.Graph(directed=True)
-        G.add_cycle_graph(4)  # 0→1→2→3→0
+        G.add_cycle_graph(4)  # 0->1->2->3->0
 
         # Each node can reach all others with varying distances
-        # 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 1→0=3, etc.
+        # 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 1->0=3, etc.
         mean_dist = G.get_mean_distance()
         assert mean_dist is not None
         assert mean_dist == 2.0  # Symmetric cycle
@@ -331,7 +331,7 @@ class TestDistanceMetricsEdgeCases:
         # Graph is weakly connected but not strongly connected
         # With unconnected=True (default), computes mean for reachable pairs
         result = G.get_mean_distance()
-        # A→B=1, A→C=2, B→C=1, so mean = (1+2+1)/3 = 1.33...
+        # A->B=1, A->C=2, B->C=1, so mean = (1+2+1)/3 = 1.33...
         assert result is not None
         assert abs(result - 4.0 / 3.0) < 0.001
 
@@ -446,7 +446,7 @@ class TestWienerIndex:
         G.add_path_graph(4)
 
         # W(P_4) = 4*(16-1)/6 = 4*15/6 = 10
-        # Distances: 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 2→3=1
+        # Distances: 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 2->3=1
         # Sum = 1+2+3+1+2+1 = 10
         wiener = G.get_wiener_index()
         assert wiener == 10.0
@@ -525,21 +525,21 @@ class TestWienerIndex:
     def test_wiener_index_directed_graph(self):
         """Test Wiener index on directed graph."""
         G = ec.Graph(directed=True)
-        G.add_path_graph(3)  # 0→1→2
+        G.add_path_graph(3)  # 0->1->2
 
-        # 0→1=1, 0→2=2, 1→2=1 (only forward paths exist)
-        # 1→0=inf, 2→0=inf, 2→1=inf
+        # 0->1=1, 0->2=2, 1->2=1 (only forward paths exist)
+        # 1->0=inf, 2->0=inf, 2->1=inf
         wiener = G.get_wiener_index()
         assert wiener == float("inf")
 
     def test_wiener_index_directed_cycle(self):
         """Test Wiener index on directed cycle."""
         G = ec.Graph(directed=True)
-        G.add_cycle_graph(4)  # 0→1→2→3→0
+        G.add_cycle_graph(4)  # 0->1->2->3->0
 
         # All pairs reachable: this forms a strongly connected component
-        # 0→1=1, 0→2=2, 0→3=3, 1→2=1, 1→3=2, 1→0=3
-        # 2→3=1, 2→0=2, 2→1=3, 3→0=1, 3→1=2, 3→2=3
+        # 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 1->0=3
+        # 2->3=1, 2->0=2, 2->1=3, 3->0=1, 3->1=2, 3->2=3
         # Total = (1+2+3)*4 = 24
         wiener = G.get_wiener_index()
         assert wiener == 24.0
@@ -553,13 +553,13 @@ class TestWienerIndex:
         G.add_edge("A", "B", weight=2.0)
         G.add_edge("B", "C", weight=3.0)
 
-        # A→B=2, A→C=5, B→C=3
+        # A->B=2, A->C=5, B->C=3
         # Total = 2 + 5 + 3 = 10
         wiener = G.get_wiener_index(weight="weight")
         assert wiener == 10.0
 
         # Without weight parameter, uses unweighted (hop count)
-        # A→B=1, A→C=2, B→C=1
+        # A->B=1, A->C=2, B->C=1
         # Total = 1 + 2 + 1 = 4
         wiener_unweighted = G.get_wiener_index()
         assert wiener_unweighted == 4.0
