@@ -15,7 +15,7 @@ class TestCountTrails:
         G.add_edge("B", "C")
         G.add_edge("C", "A")
 
-        # Two trails from A to C: direct (A→C) and via B (A→B→C)
+        # Two trails from A to C: direct (A->C) and via B (A->B->C)
         count = G.count_trails("A", "C")
         assert count == 2
 
@@ -118,7 +118,7 @@ class TestCountTrails:
         G.add_edge("C", "D")
 
         count = G.count_trails("A", "D")
-        assert count == 2  # Two paths: A→B→D and A→C→D
+        assert count == 2  # Two paths: A->B->D and A->C->D
 
     def test_count_trails_nonexistent_node_label(self):
         """Test that nonexistent label raises error."""
