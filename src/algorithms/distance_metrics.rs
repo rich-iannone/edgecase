@@ -3,12 +3,15 @@
 //! This module provides:
 //! - `wiener_index`: Sum of all pairwise shortest path distances
 //! - `estrada_index`: Sum of exponentials of adjacency matrix eigenvalues
+//! - `resistance_distance`: Effective resistance between node pairs
 //!
 //! References:
 //! - Wiener, H. (1947). Structural determination of paraffin boiling points.
 //!   Journal of the American Chemical Society, 69(1), 17-20.
 //! - Estrada, E. (2000). Characterization of 3D molecular structure.
 //!   Chemical Physics Letters, 319(5-6), 713-718.
+//! - Klein, D. J. & Randić, M. (1993). Resistance Distance.
+//!   J. Math. Chem. 12: 81-95.
 
 use crate::graph::Graph;
 use nalgebra::{DMatrix, SymmetricEigen};
@@ -297,6 +300,362 @@ pub fn estrada_index(graph: &Graph) -> PyResult<f64> {
     Ok(estrada)
 }
 
+/// Compute the resistance distance between two nodes in a graph.
+///
+/// The resistance distance (also called effective resistance) is the electrical
+/// resistance between two nodes if each edge is replaced by a 1-ohm resistor.
+/// It is computed using the Moore-Penrose pseudoinverse of a modified Laplacian:
+///
+/// Ω(i,j) = Γ(i,i) + Γ(j,j) - 2*Γ(i,j)
+///
+/// where Γ = (L + (1/n)J)⁺, L is the Laplacian matrix, J is the all-ones matrix,
+/// and ⁺ denotes the Moore-Penrose pseudoinverse.
+///
+/// # Arguments
+/// * `graph` - The graph to analyze (must be undirected and connected)
+/// * `source` - Source node ID
+/// * `target` - Target node ID
+///
+/// # Returns
+/// The resistance distance as a float.
+///
+/// # Errors
+/// Returns an error if:
+/// - The graph is directed
+/// - Either source or target node doesn't exist
+/// - The graph is disconnected (nodes are not in the same component)
+///
+/// # Notes
+/// - For adjacent nodes connected by a single edge: Ω(i,j) ≤ 1
+/// - Resistance distance satisfies the triangle inequality
+/// - The sum of all resistance distances is the Kirchhoff index
+/// - Time complexity: O(n³) for matrix operations
+///
+/// # References
+/// - Klein, D. J. & Randić, M. (1993). Resistance Distance. J. Math. Chem. 12: 81-95.
+#[pyfunction]
+#[pyo3(signature = (graph, source, target))]
+pub fn resistance_distance(graph: &Graph, source: u64, target: u64) -> PyResult<f64> {
+    // Validate graph type
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Resistance distance is only defined for undirected graphs",
+        ));
+    }
+
+    // Validate nodes exist
+    if !graph.has_node_id(source) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Source node {} does not exist in the graph",
+            source
+        )));
+    }
+    if !graph.has_node_id(target) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Target node {} does not exist in the graph",
+            target
+        )));
+    }
+
+    // Same node has zero resistance distance
+    if source == target {
+        return Ok(0.0);
+    }
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n < 2 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Graph must have at least 2 nodes for resistance distance",
+        ));
+    }
+
+    // Create node_id to index mapping
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    let source_idx = *node_to_idx.get(&source).unwrap();
+    let target_idx = *node_to_idx.get(&target).unwrap();
+
+    // Build Laplacian matrix: L = D - A
+    // where D is the degree matrix and A is the adjacency matrix
+    let mut laplacian = DMatrix::<f64>::zeros(n, n);
+
+    for edge in graph.get_edges_internal() {
+        if let (Some(&i), Some(&j)) = (
+            node_to_idx.get(&edge.source),
+            node_to_idx.get(&edge.target),
+        ) {
+            if i != j {
+                // Adjacency: subtract from off-diagonal
+                laplacian[(i, j)] -= 1.0;
+                laplacian[(j, i)] -= 1.0;
+                // Degree: add to diagonal
+                laplacian[(i, i)] += 1.0;
+                laplacian[(j, j)] += 1.0;
+            }
+        }
+    }
+
+    // Add (1/n) * J to make the matrix invertible
+    // This is equivalent to adding 1/n to every entry
+    let inv_n = 1.0 / (n as f64);
+    for i in 0..n {
+        for j in 0..n {
+            laplacian[(i, j)] += inv_n;
+        }
+    }
+
+    // Compute the pseudoinverse using eigendecomposition
+    // For symmetric matrices, the pseudoinverse can be computed as:
+    // A⁺ = V * D⁺ * V^T where D⁺ has 1/λ_i for non-zero eigenvalues
+    let eigen = SymmetricEigen::new(laplacian);
+    let eigenvalues = &eigen.eigenvalues;
+    let eigenvectors = &eigen.eigenvectors;
+
+    // Threshold for considering an eigenvalue as zero
+    let threshold = 1e-10;
+
+    // Build the pseudoinverse: Γ = V * diag(1/λ) * V^T
+    // Only for non-zero eigenvalues
+    let mut gamma = DMatrix::<f64>::zeros(n, n);
+
+    for k in 0..n {
+        let lambda = eigenvalues[k];
+        if lambda.abs() > threshold {
+            let inv_lambda = 1.0 / lambda;
+            // Add contribution from this eigenvector
+            for i in 0..n {
+                for j in 0..n {
+                    gamma[(i, j)] += inv_lambda * eigenvectors[(i, k)] * eigenvectors[(j, k)];
+                }
+            }
+        }
+    }
+
+    // Compute resistance distance: Ω(i,j) = Γ(i,i) + Γ(j,j) - 2*Γ(i,j)
+    let resistance = gamma[(source_idx, source_idx)] + gamma[(target_idx, target_idx)]
+        - 2.0 * gamma[(source_idx, target_idx)];
+
+    // Check for numerical issues that might indicate disconnected graph
+    if resistance < -1e-10 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Negative resistance distance computed - graph may be disconnected",
+        ));
+    }
+
+    Ok(resistance.max(0.0))
+}
+
+/// Compute the resistance distance matrix for all node pairs.
+///
+/// Returns an n×n matrix where entry (i,j) is the resistance distance between
+/// nodes i and j. The matrix is symmetric with zeros on the diagonal.
+///
+/// # Arguments
+/// * `graph` - The graph to analyze (must be undirected)
+///
+/// # Returns
+/// A dictionary mapping (source_id, target_id) tuples to resistance distances.
+///
+/// # Errors
+/// Returns an error if the graph is directed.
+///
+/// # Notes
+/// - Time complexity: O(n³) for matrix operations
+/// - For disconnected graphs, distances between components are infinite
+#[pyfunction]
+#[pyo3(signature = (graph))]
+pub fn resistance_distance_matrix(graph: &Graph) -> PyResult<std::collections::HashMap<(u64, u64), f64>> {
+    // Validate graph type
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Resistance distance is only defined for undirected graphs",
+        ));
+    }
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Ok(std::collections::HashMap::new());
+    }
+
+    if n == 1 {
+        let mut result = std::collections::HashMap::new();
+        result.insert((node_ids[0], node_ids[0]), 0.0);
+        return Ok(result);
+    }
+
+    // Create node_id to index mapping
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    // Build Laplacian matrix
+    let mut laplacian = DMatrix::<f64>::zeros(n, n);
+
+    for edge in graph.get_edges_internal() {
+        if let (Some(&i), Some(&j)) = (
+            node_to_idx.get(&edge.source),
+            node_to_idx.get(&edge.target),
+        ) {
+            if i != j {
+                laplacian[(i, j)] -= 1.0;
+                laplacian[(j, i)] -= 1.0;
+                laplacian[(i, i)] += 1.0;
+                laplacian[(j, j)] += 1.0;
+            }
+        }
+    }
+
+    // Add (1/n) * J
+    let inv_n = 1.0 / (n as f64);
+    for i in 0..n {
+        for j in 0..n {
+            laplacian[(i, j)] += inv_n;
+        }
+    }
+
+    // Compute pseudoinverse via eigendecomposition
+    let eigen = SymmetricEigen::new(laplacian);
+    let eigenvalues = &eigen.eigenvalues;
+    let eigenvectors = &eigen.eigenvectors;
+    let threshold = 1e-10;
+
+    let mut gamma = DMatrix::<f64>::zeros(n, n);
+    for k in 0..n {
+        let lambda = eigenvalues[k];
+        if lambda.abs() > threshold {
+            let inv_lambda = 1.0 / lambda;
+            for i in 0..n {
+                for j in 0..n {
+                    gamma[(i, j)] += inv_lambda * eigenvectors[(i, k)] * eigenvectors[(j, k)];
+                }
+            }
+        }
+    }
+
+    // Build result dictionary
+    let mut result = std::collections::HashMap::new();
+    for (i, &node_i) in node_ids.iter().enumerate() {
+        for (j, &node_j) in node_ids.iter().enumerate() {
+            let resistance = if i == j {
+                0.0
+            } else {
+                (gamma[(i, i)] + gamma[(j, j)] - 2.0 * gamma[(i, j)]).max(0.0)
+            };
+            result.insert((node_i, node_j), resistance);
+        }
+    }
+
+    Ok(result)
+}
+
+/// Compute the Kirchhoff index (total resistance) of a graph.
+///
+/// The Kirchhoff index is the sum of all pairwise resistance distances:
+/// Kf(G) = Σ_{i < j} Ω(i,j)
+///
+/// It can also be computed from the Laplacian eigenvalues:
+/// Kf(G) = n * Σ_{k=1}^{n-1} (1/λ_k)
+///
+/// where λ_k are the non-zero eigenvalues of the Laplacian.
+///
+/// # Arguments
+/// * `graph` - The graph to analyze (must be undirected and connected)
+///
+/// # Returns
+/// The Kirchhoff index as a float. Returns 0.0 for single-node graphs.
+/// Returns infinity for disconnected graphs.
+///
+/// # Errors
+/// Returns an error if the graph is directed.
+///
+/// # Notes
+/// - For a path graph Pn: Kf = n(n²-1)/6
+/// - For a complete graph Kn: Kf = n-1
+/// - For a cycle graph Cn: Kf = n(n²-1)/12
+/// - Time complexity: O(n³) for eigendecomposition
+///
+/// # References
+/// - Gutman, I. & Mohar, B. (1996). The quasi-Wiener and the Kirchhoff indices coincide.
+///   J. Chem. Inf. Comput. Sci. 36(5): 982-985.
+#[pyfunction]
+#[pyo3(signature = (graph))]
+pub fn kirchhoff_index(graph: &Graph) -> PyResult<f64> {
+    // Validate graph type
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Kirchhoff index is only defined for undirected graphs",
+        ));
+    }
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n <= 1 {
+        return Ok(0.0);
+    }
+
+    // Create node_id to index mapping
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    // Build Laplacian matrix
+    let mut laplacian = DMatrix::<f64>::zeros(n, n);
+
+    for edge in graph.get_edges_internal() {
+        if let (Some(&i), Some(&j)) = (
+            node_to_idx.get(&edge.source),
+            node_to_idx.get(&edge.target),
+        ) {
+            if i != j {
+                laplacian[(i, j)] -= 1.0;
+                laplacian[(j, i)] -= 1.0;
+                laplacian[(i, i)] += 1.0;
+                laplacian[(j, j)] += 1.0;
+            }
+        }
+    }
+
+    // Compute eigenvalues of Laplacian
+    let eigen = SymmetricEigen::new(laplacian);
+    let eigenvalues = &eigen.eigenvalues;
+
+    // Threshold for considering an eigenvalue as zero
+    let threshold = 1e-10;
+
+    // Kirchhoff index = n * Σ(1/λ_k) for non-zero eigenvalues
+    let mut sum_inv_eigenvalues = 0.0;
+    let mut zero_eigenvalue_count = 0;
+
+    for &lambda in eigenvalues.iter() {
+        if lambda.abs() < threshold {
+            zero_eigenvalue_count += 1;
+        } else {
+            sum_inv_eigenvalues += 1.0 / lambda;
+        }
+    }
+
+    // For a connected graph, there should be exactly one zero eigenvalue
+    // More than one indicates disconnected components
+    if zero_eigenvalue_count > 1 {
+        return Ok(f64::INFINITY);
+    }
+
+    Ok((n as f64) * sum_inv_eigenvalues)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -546,6 +905,160 @@ mod tests {
     fn test_estrada_index_directed_error() {
         let graph = Graph::new_rust(true, false);
         let result = estrada_index(&graph);
+        assert!(result.is_err());
+    }
+
+    // Resistance distance tests
+
+    #[test]
+    fn test_resistance_distance_same_node() {
+        let graph = create_path_graph(3);
+        let result = resistance_distance(&graph, 0, 0).unwrap();
+        assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_resistance_distance_adjacent_nodes() {
+        // Two adjacent nodes: resistance = 1.0
+        let graph = create_path_graph(2);
+        let result = resistance_distance(&graph, 0, 1).unwrap();
+        assert!((result - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_resistance_distance_path_endpoints() {
+        // Path P3: 0-1-2
+        // Ω(0,2) = 2.0 (two resistors in series)
+        let graph = create_path_graph(3);
+        let result = resistance_distance(&graph, 0, 2).unwrap();
+        assert!((result - 2.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_resistance_distance_complete_graph() {
+        // Complete K4: all pairs have resistance 1/2
+        // (n-1 parallel paths, each with resistance 2)
+        // For Kn: Ω(i,j) = 2/n for all i≠j
+        let graph = create_complete_graph(4);
+        let result = resistance_distance(&graph, 0, 1).unwrap();
+        assert!((result - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_resistance_distance_triangle() {
+        // Triangle K3: Ω(i,j) = 2/3 for all pairs
+        let graph = create_complete_graph(3);
+        let result = resistance_distance(&graph, 0, 1).unwrap();
+        assert!((result - 2.0 / 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_resistance_distance_cycle() {
+        // Cycle C4: 0-1-2-3-0
+        // Ω(0,1) = 1 * 3 / (1 + 3) = 3/4 (parallel paths of length 1 and 3)
+        let graph = create_cycle_graph(4);
+        let result = resistance_distance(&graph, 0, 1).unwrap();
+        assert!((result - 0.75).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_resistance_distance_symmetric() {
+        let graph = create_path_graph(4);
+        let r01 = resistance_distance(&graph, 0, 1).unwrap();
+        let r10 = resistance_distance(&graph, 1, 0).unwrap();
+        assert!((r01 - r10).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_resistance_distance_directed_error() {
+        let graph = Graph::new_rust(true, false);
+        let result = resistance_distance(&graph, 0, 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resistance_distance_node_not_found() {
+        let graph = create_path_graph(3);
+        let result = resistance_distance(&graph, 0, 99);
+        assert!(result.is_err());
+    }
+
+    // Kirchhoff index tests
+
+    #[test]
+    fn test_kirchhoff_index_empty() {
+        let graph = Graph::new_rust(false, false);
+        let result = kirchhoff_index(&graph).unwrap();
+        assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_kirchhoff_index_single_node() {
+        let mut graph = Graph::new_rust(false, false);
+        graph
+            .add_node_rust(Node {
+                id: 1,
+                label: None,
+                attributes: None,
+            })
+            .unwrap();
+        let result = kirchhoff_index(&graph).unwrap();
+        assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_kirchhoff_index_path() {
+        // Path Pn: Kf = n(n²-1)/6
+        // P4: Kf = 4*(16-1)/6 = 60/6 = 10
+        let graph = create_path_graph(4);
+        let result = kirchhoff_index(&graph).unwrap();
+        assert!((result - 10.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_kirchhoff_index_complete() {
+        // Complete Kn: Kf = n-1
+        // K4: Kf = 3
+        let graph = create_complete_graph(4);
+        let result = kirchhoff_index(&graph).unwrap();
+        assert!((result - 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_kirchhoff_index_cycle() {
+        // Cycle Cn: Kf = n(n²-1)/12
+        // C4: Kf = 4*(16-1)/12 = 60/12 = 5
+        let graph = create_cycle_graph(4);
+        let result = kirchhoff_index(&graph).unwrap();
+        assert!((result - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_kirchhoff_index_disconnected() {
+        // Disconnected graph should return infinity
+        let mut graph = Graph::new_rust(false, false);
+        graph
+            .add_node_rust(Node {
+                id: 1,
+                label: None,
+                attributes: None,
+            })
+            .unwrap();
+        graph
+            .add_node_rust(Node {
+                id: 2,
+                label: None,
+                attributes: None,
+            })
+            .unwrap();
+        let result = kirchhoff_index(&graph).unwrap();
+        assert!(result.is_infinite());
+    }
+
+    #[test]
+    fn test_kirchhoff_index_directed_error() {
+        let graph = Graph::new_rust(true, false);
+        let result = kirchhoff_index(&graph);
         assert!(result.is_err());
     }
 }
