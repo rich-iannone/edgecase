@@ -16046,6 +16046,98 @@ class Graph:
         result._graph = k_corona(self._graph, k)
         return result
 
+    def rich_club_coefficient(self) -> dict[int, float]:
+        """
+        Compute the rich-club coefficient for all degree values.
+
+        The rich-club coefficient φ(k) measures the connectivity among high-degree nodes
+        (the 'rich club' of the network). For each degree k, it computes the ratio of
+        actual edges to potential edges among nodes with degree greater than k:
+
+        .. math::
+
+            \\phi(k) = \\frac{2E_k}{N_k(N_k - 1)}
+
+        where:
+        - `N_k` is the number of nodes with degree > k
+        - `E_k` is the number of edges among those nodes
+
+        A rich-club coefficient close to 1 indicates that high-degree nodes tend to be
+        connected to each other, forming a 'rich club'. Values less than expected in
+        random graphs suggest the hubs avoid connecting to each other.
+
+        Returns
+        -------
+        dict[int, float]
+            Dictionary mapping degree k to rich-club coefficient φ(k). Only degrees for
+            which at least 2 nodes have degree > k are included (otherwise the coefficient
+            is undefined).
+
+        Examples
+        --------
+        Analyze hub connectivity in a network:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a network with clear hub structure
+        graph = (
+            Graph()
+            .add_node(label="hub1")
+            .add_node(label="hub2")
+            .add_node(label="hub3")
+            .add_node(label="spoke1")
+            .add_node(label="spoke2")
+            .add_node(label="spoke3")
+            # Connect hubs to each other (rich club)
+            .add_edge("hub1", "hub2")
+            .add_edge("hub2", "hub3")
+            .add_edge("hub3", "hub1")
+            # Connect spokes to hubs
+            .add_edge("hub1", "spoke1")
+            .add_edge("hub2", "spoke2")
+            .add_edge("hub3", "spoke3")
+        )
+
+        rc = graph.rich_club_coefficient()
+        print(f"Rich club coefficients: {rc}")
+        # Higher values at larger k indicate hubs prefer connecting to each other
+        ```
+
+        Compare with random network:
+
+        ```python
+        from edgecase import Graph
+
+        # Scale-free networks often show rich-club phenomenon
+        ba_graph = Graph().add_pa_graph(100, 3)
+        rc = ba_graph.rich_club_coefficient()
+
+        # Check if high-degree nodes are more interconnected than expected
+        for k, phi in sorted(rc.items()):
+            if phi > 0.5:
+                print(f"Degree {k}: φ = {phi:.3f}")
+        ```
+
+        Notes
+        -----
+        - Self-loops are ignored in the edge count
+        - Edge weights are ignored
+        - For directed graphs, total degree (in + out) is used
+        - Returns unnormalized coefficients; for normalized values comparing to
+          random networks, additional computation with degree-preserving random
+          graphs would be needed
+
+        References
+        ----------
+        .. [1] McAuley, J. J., da Fontoura Costa, L., & Caetano, T. S. (2007).
+               "The rich-club phenomenon across complex network hierarchies."
+               Applied Physics Letters, 91(8), 084103.
+        """
+        from edgecase._core import rich_club_coefficient
+
+        return rich_club_coefficient(self._graph)
+
     # ==============================================================================
     # ------------------------------------------------------------------------------
     # PATHS & DISTANCE
