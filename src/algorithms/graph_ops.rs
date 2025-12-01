@@ -8,7 +8,7 @@
 //! - compose: like union but also handles node label/attribute merging
 
 use pyo3::prelude::*;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::graph::{Edge, Graph, Node};
 
@@ -575,6 +575,214 @@ pub fn graph_disjoint_union(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<
             attributes: None,
         };
         result.add_edge_rust(new_edge)?;
+    }
+
+    Ok(result)
+}
+
+/// Compute the transitive closure of a directed graph.
+///
+/// The transitive closure is a graph where there is an edge (u, v) if and only if
+/// there is a path from u to v in the original graph. Uses a BFS-based approach
+/// from each node to find all reachable nodes.
+///
+/// # Arguments
+/// * `graph` - The input directed graph
+///
+/// # Returns
+/// A new directed graph representing the transitive closure.
+///
+/// # Errors
+/// Returns an error if the graph is not directed.
+///
+/// # Time Complexity
+/// O(V * (V + E)) where V is the number of vertices and E is the number of edges.
+#[pyfunction]
+pub fn transitive_closure(graph: &Graph) -> PyResult<Graph> {
+    // Validate directed graph
+    if !graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "transitive_closure() only works on directed graphs",
+        ));
+    }
+
+    let mut result = Graph::new_rust(true, false);
+
+    // Map old node IDs to new node IDs
+    let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
+
+    // Add all nodes
+    for node in graph.get_nodes().values() {
+        let new_node = Node {
+            id: 0, // Auto-assign
+            label: node.label.clone(),
+            attributes: None,
+        };
+        let new_id = result.add_node_rust(new_node)?;
+        node_map.insert(node.id, new_id);
+    }
+
+    let adj_list = graph.get_adjacency_list();
+    let node_ids: Vec<u64> = graph.get_node_ids();
+
+    // For each node, find all reachable nodes using BFS
+    for &source in &node_ids {
+        let mut visited: FxHashSet<u64> = FxHashSet::default();
+        let mut queue = std::collections::VecDeque::new();
+
+        // Start BFS from source's neighbors (not source itself for self-loops handling)
+        if let Some(neighbors) = adj_list.get(&source) {
+            for &neighbor in neighbors {
+                if !visited.contains(&neighbor) {
+                    visited.insert(neighbor);
+                    queue.push_back(neighbor);
+                }
+            }
+        }
+
+        // BFS to find all reachable nodes
+        while let Some(current) = queue.pop_front() {
+            if let Some(neighbors) = adj_list.get(&current) {
+                for &neighbor in neighbors {
+                    if !visited.contains(&neighbor) {
+                        visited.insert(neighbor);
+                        queue.push_back(neighbor);
+                    }
+                }
+            }
+        }
+
+        // Add edges from source to all reachable nodes
+        let new_source = node_map[&source];
+        for &target in &visited {
+            let new_target = node_map[&target];
+            let edge = Edge {
+                id: 0,
+                source: new_source,
+                target: new_target,
+                weight: None,
+                attributes: None,
+            };
+            result.add_edge_rust(edge)?;
+        }
+    }
+
+    Ok(result)
+}
+
+/// Compute the transitive reduction of a directed acyclic graph (DAG).
+///
+/// The transitive reduction is the minimal graph that has the same transitive closure
+/// as the original graph. In other words, it removes redundant edges while preserving
+/// all reachability relationships.
+///
+/// # Arguments
+/// * `graph` - The input directed acyclic graph (DAG)
+///
+/// # Returns
+/// A new directed graph representing the transitive reduction.
+///
+/// # Errors
+/// Returns an error if the graph is not directed or contains cycles.
+///
+/// # Algorithm
+/// Uses topological sort followed by edge analysis. For each edge (u, v), we check if
+/// there's an alternate path from u to v that doesn't use the edge directly. If so,
+/// the edge is redundant and removed.
+///
+/// # Time Complexity
+/// O(V * E) where V is the number of vertices and E is the number of edges.
+#[pyfunction]
+pub fn transitive_reduction(graph: &Graph) -> PyResult<Graph> {
+    // Validate directed graph
+    if !graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "transitive_reduction() only works on directed graphs",
+        ));
+    }
+
+    // Verify it's a DAG by attempting topological sort
+    let topo_order = graph.get_topological_sort_order()?;
+
+    let mut result = Graph::new_rust(true, false);
+
+    // Map old node IDs to new node IDs
+    let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
+
+    // Add all nodes
+    for node in graph.get_nodes().values() {
+        let new_node = Node {
+            id: 0, // Auto-assign
+            label: node.label.clone(),
+            attributes: None,
+        };
+        let new_id = result.add_node_rust(new_node)?;
+        node_map.insert(node.id, new_id);
+    }
+
+    // Build position map from topological order (for efficient path checking)
+    let mut topo_pos: FxHashMap<u64, usize> = FxHashMap::default();
+    for (pos, &node_id) in topo_order.iter().enumerate() {
+        topo_pos.insert(node_id, pos);
+    }
+
+    let adj_list = graph.get_adjacency_list();
+
+    // For each edge (u, v), check if there's an alternate path from u to v
+    // An edge is redundant if v is reachable from u through other edges
+    for edge in graph.get_edges_internal() {
+        let u = edge.source;
+        let v = edge.target;
+
+        // Check if v is reachable from u without using the direct edge
+        // We do a BFS from u's other successors to see if we can reach v
+        let mut reachable_without_direct = false;
+
+        if let Some(u_neighbors) = adj_list.get(&u) {
+            // Get neighbors other than v
+            let other_neighbors: Vec<u64> = u_neighbors.iter()
+                .filter(|&&n| n != v)
+                .copied()
+                .collect();
+
+            if !other_neighbors.is_empty() {
+                // BFS to see if v is reachable
+                let mut visited: FxHashSet<u64> = FxHashSet::default();
+                let mut queue = std::collections::VecDeque::new();
+
+                for &neighbor in &other_neighbors {
+                    visited.insert(neighbor);
+                    queue.push_back(neighbor);
+                }
+
+                while let Some(current) = queue.pop_front() {
+                    if current == v {
+                        reachable_without_direct = true;
+                        break;
+                    }
+                    if let Some(neighbors) = adj_list.get(&current) {
+                        for &neighbor in neighbors {
+                            if !visited.contains(&neighbor) {
+                                visited.insert(neighbor);
+                                queue.push_back(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Keep the edge only if v is NOT reachable without the direct edge
+        if !reachable_without_direct {
+            let new_edge = Edge {
+                id: 0,
+                source: node_map[&u],
+                target: node_map[&v],
+                weight: edge.weight,
+                attributes: None,
+            };
+            result.add_edge_rust(new_edge)?;
+        }
     }
 
     Ok(result)
