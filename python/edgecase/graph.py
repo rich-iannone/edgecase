@@ -20339,6 +20339,225 @@ class Graph:
         """
         return self._graph.count_strongly_connected_components()
 
+    def weakly_connected_components(self) -> list[set[int]]:
+        """
+        Get all weakly connected components as sets of node IDs.
+
+        For undirected graphs, returns regular connected components. For directed graphs,
+        treats all edges as undirected (ignoring direction) when finding components.
+
+        A weakly connected component is a maximal set of nodes where every node is
+        reachable from every other node when edge directions are ignored.
+
+        Returns
+        -------
+        list[set[int]]
+            List of sets, where each set contains the node IDs in a component.
+            Components are returned in no particular order.
+
+        Examples
+        --------
+        Get components in a disconnected graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("X", "Y")
+        )
+
+        components = graph.weakly_connected_components()
+        print(len(components))  # 2
+        for comp in components:
+            print(comp)  # Sets of node IDs
+        ```
+
+        Find the largest component:
+
+        ```python
+        graph = Graph(directed=False)
+        graph.add_path_graph(10)  # Connected chain of 10 nodes
+        graph.add_node(label="isolated")
+
+        components = graph.weakly_connected_components()
+        largest = max(components, key=len)
+        print(f"Largest component has {len(largest)} nodes")
+        ```
+        """
+        # Convert list of lists to list of sets
+        return [set(comp) for comp in self._graph.weakly_connected_components()]
+
+    def strongly_connected_components(self) -> list[set[int]]:
+        """
+        Get all strongly connected components as sets of node IDs.
+
+        For directed graphs, a strongly connected component (SCC) is a maximal set of
+        nodes where every node is reachable from every other node following directed
+        edges. Uses Kosaraju's algorithm for efficient computation.
+
+        For undirected graphs, returns the same result as `weakly_connected_components()`
+        since strong connectivity equals regular connectivity when edges are bidirectional.
+
+        Returns
+        -------
+        list[set[int]]
+            List of sets, where each set contains the node IDs in a strongly connected
+            component. Components are returned in no particular order.
+
+        Examples
+        --------
+        Find SCCs in a directed graph:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Creates cycle -> SCC {A, B, C}
+            .add_edge("C", "D")  # D is reachable but can't reach back
+        )
+
+        sccs = graph.strongly_connected_components()
+        print(len(sccs))  # 2: {A, B, C} and {D}
+        ```
+
+        Analyze web graph structure:
+
+        ```python
+        # In a web graph, SCCs represent "communities" of mutually linked pages
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A").add_node(label="B")
+            .add_node(label="C").add_node(label="D")
+            .add_edge("A", "B").add_edge("B", "C").add_edge("C", "A")  # SCC of 3
+            .add_edge("C", "D")  # D is a separate SCC
+        )
+
+        sccs = graph.strongly_connected_components()
+        largest_scc = max(sccs, key=len)
+        print(f"Largest SCC contains {len(largest_scc)} pages")
+        ```
+
+        Notes
+        -----
+        The algorithm used is Kosaraju's algorithm which runs in O(V + E) time:
+
+        1. Perform DFS on original graph to get finish times
+        2. Transpose the graph (reverse all edges)
+        3. Perform DFS on transposed graph in reverse finish order
+        """
+        # Convert list of lists to list of sets
+        return [set(comp) for comp in self._graph.strongly_connected_components()]
+
+    def is_strongly_connected(self) -> bool:
+        """
+        Check if the graph is strongly connected.
+
+        A directed graph is strongly connected if there is a directed path from every
+        node to every other node. Equivalently, the graph has exactly one strongly
+        connected component containing all nodes.
+
+        For undirected graphs, this is equivalent to checking regular connectivity
+        (same as `is_connected()`).
+
+        Returns
+        -------
+        bool
+            True if the graph is strongly connected, False otherwise.
+            Empty graphs are considered strongly connected (vacuously true).
+
+        Examples
+        --------
+        Check if all nodes can reach each other:
+
+        ```python
+        # Cycle: every node can reach every other
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+        print(graph.is_strongly_connected())  # True
+
+        # Add a node that can't be reached from the cycle
+        graph.add_node(label="D")
+        graph.add_edge("D", "A")  # D can reach A but nothing can reach D
+        print(graph.is_strongly_connected())  # False
+        ```
+
+        Notes
+        -----
+        Time complexity: O(V + E) using Kosaraju's algorithm to count SCCs.
+        """
+        return self._graph.is_strongly_connected()
+
+    def is_weakly_connected(self) -> bool:
+        """
+        Check if the graph is weakly connected.
+
+        A directed graph is weakly connected if the underlying undirected graph
+        (ignoring edge directions) is connected. Equivalently, there is a path
+        between every pair of nodes when edge directions are ignored.
+
+        For undirected graphs, this is equivalent to checking regular connectivity
+        (same as `is_connected()`).
+
+        Returns
+        -------
+        bool
+            True if the graph is weakly connected, False otherwise.
+            Empty graphs are considered weakly connected (vacuously true).
+
+        Examples
+        --------
+        Check weak connectivity:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("C", "B")  # All connected when ignoring direction
+        )
+        print(graph.is_weakly_connected())  # True
+        print(graph.is_strongly_connected())  # False (can't reach C from A)
+        ```
+
+        Disconnected components:
+
+        ```python
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="X")
+            .add_node(label="Y")
+            .add_edge("A", "B")
+            .add_edge("X", "Y")
+        )
+        print(graph.is_weakly_connected())  # False
+        ```
+
+        Notes
+        -----
+        Time complexity: O(V + E) using BFS/DFS traversal.
+        """
+        return self._graph.is_weakly_connected()
+
     # ==============================================================================
     # ------------------------------------------------------------------------------
     # COMBINATORIAL OPTIMIZATION
