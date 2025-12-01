@@ -55,17 +55,19 @@ class TestNumberOfWalksBasic:
 
         # Expected from NetworkX:
         # {0: {0: 1, 1: 0, 2: 1}, 1: {0: 0, 1: 2, 2: 0}, 2: {0: 1, 1: 0, 2: 1}}
-        assert walks[g.get_id_from_label("0")][g.get_id_from_label("0")] == 1  # 0 → 1 → 0
+        assert walks[g.get_id_from_label("0")][g.get_id_from_label("0")] == 1  # 0 -> 1 -> 0
         assert walks[g.get_id_from_label("0")][g.get_id_from_label("1")] == 0
-        assert walks[g.get_id_from_label("0")][g.get_id_from_label("2")] == 1  # 0 → 1 → 2
+        assert walks[g.get_id_from_label("0")][g.get_id_from_label("2")] == 1  # 0 -> 1 -> 2
 
         assert walks[g.get_id_from_label("1")][g.get_id_from_label("0")] == 0
-        assert walks[g.get_id_from_label("1")][g.get_id_from_label("1")] == 2  # 1 → 0 → 1 and 1 → 2 → 1
+        assert (
+            walks[g.get_id_from_label("1")][g.get_id_from_label("1")] == 2
+        )  # 1 -> 0 -> 1 and 1 -> 2 -> 1
         assert walks[g.get_id_from_label("1")][g.get_id_from_label("2")] == 0
 
-        assert walks[g.get_id_from_label("2")][g.get_id_from_label("0")] == 1  # 2 → 1 → 0
+        assert walks[g.get_id_from_label("2")][g.get_id_from_label("0")] == 1  # 2 -> 1 -> 0
         assert walks[g.get_id_from_label("2")][g.get_id_from_label("1")] == 0
-        assert walks[g.get_id_from_label("2")][g.get_id_from_label("2")] == 1  # 2 → 1 → 2
+        assert walks[g.get_id_from_label("2")][g.get_id_from_label("2")] == 1  # 2 -> 1 -> 2
 
     def test_negative_walk_length_raises(self):
         """Negative walk_length should raise ValueError."""
@@ -95,13 +97,15 @@ class TestNumberOfWalksPaths:
 
         # Walks of length 2
         walks2 = g.count_walks(2)
-        assert walks2[g.get_id_from_label("0")][g.get_id_from_label("2")] == 1  # 0 → 1 → 2
-        assert walks2[g.get_id_from_label("0")][g.get_id_from_label("0")] == 1  # 0 → 1 → 0
+        assert walks2[g.get_id_from_label("0")][g.get_id_from_label("2")] == 1  # 0 -> 1 -> 2
+        assert walks2[g.get_id_from_label("0")][g.get_id_from_label("0")] == 1  # 0 -> 1 -> 0
 
         # Walks of length 3
         walks3 = g.count_walks(3)
-        assert walks3[g.get_id_from_label("0")][g.get_id_from_label("3")] == 1  # 0 → 1 → 2 → 3
-        assert walks3[g.get_id_from_label("0")][g.get_id_from_label("1")] == 2  # 0 → 1 → 0 → 1 and 0 → 1 → 2 → 1
+        assert walks3[g.get_id_from_label("0")][g.get_id_from_label("3")] == 1  # 0 -> 1 -> 2 -> 3
+        assert (
+            walks3[g.get_id_from_label("0")][g.get_id_from_label("1")] == 2
+        )  # 0 -> 1 -> 0 -> 1 and 0 -> 1 -> 2 -> 1
 
     def test_long_path_walk_count(self):
         """Verify walk counts grow correctly on longer paths."""
@@ -113,7 +117,9 @@ class TestNumberOfWalksPaths:
 
         # Length 5 walks from 0 to 5
         walks = g.count_walks(5)
-        assert walks[g.get_id_from_label("0")][g.get_id_from_label("5")] == 1  # Only one path of minimum length
+        assert (
+            walks[g.get_id_from_label("0")][g.get_id_from_label("5")] == 1
+        )  # Only one path of minimum length
 
 
 class TestNumberOfWalksCycles:
@@ -132,7 +138,7 @@ class TestNumberOfWalksCycles:
         walks = g.count_walks(3)
 
         # Each node can return to itself in 2 ways:
-        # 0 → 1 → 2 → 0 and 0 → 2 → 1 → 0
+        # 0 -> 1 -> 2 -> 0 and 0 -> 2 -> 1 -> 0
         assert walks[g.get_id_from_label("0")][g.get_id_from_label("0")] == 2
         assert walks[g.get_id_from_label("1")][g.get_id_from_label("1")] == 2
         assert walks[g.get_id_from_label("2")][g.get_id_from_label("2")] == 2
@@ -150,11 +156,15 @@ class TestNumberOfWalksCycles:
         # Walks of length 4 return to start
         # More than just clockwise/counter-clockwise (can go back and forth)
         walks = g.count_walks(4)
-        assert walks[g.get_id_from_label("0")][g.get_id_from_label("0")] == 8  # Multiple paths including back-and-forth
+        assert (
+            walks[g.get_id_from_label("0")][g.get_id_from_label("0")] == 8
+        )  # Multiple paths including back-and-forth
 
         # Walks of length 2 reach opposite node
         walks2 = g.count_walks(2)
-        assert walks2[g.get_id_from_label("0")][g.get_id_from_label("2")] == 2  # 0→1→2 and 0→3→2
+        assert (
+            walks2[g.get_id_from_label("0")][g.get_id_from_label("2")] == 2
+        )  # 0->1->2 and 0->3->2
 
     def test_self_loop(self):
         """Self-loop in undirected graph."""
@@ -165,7 +175,9 @@ class TestNumberOfWalksCycles:
         # In undirected graph, self-loop is counted twice in adjacency matrix
         # (once for each direction)
         walks1 = g.count_walks(1)
-        assert walks1[g.get_id_from_label("A")][g.get_id_from_label("A")] == 2  # Self-loop counted twice
+        assert (
+            walks1[g.get_id_from_label("A")][g.get_id_from_label("A")] == 2
+        )  # Self-loop counted twice
 
         walks2 = g.count_walks(2)
         assert walks2[g.get_id_from_label("A")][g.get_id_from_label("A")] == 4  # 2^2
@@ -178,7 +190,7 @@ class TestNumberOfWalksDirected:
     """Tests on directed graphs."""
 
     def test_directed_path(self):
-        """Directed path: 0 → 1 → 2."""
+        """Directed path: 0 -> 1 -> 2."""
         g = Graph(directed=True)
         g.add_node(label="0")
         g.add_node(label="1")
@@ -196,7 +208,7 @@ class TestNumberOfWalksDirected:
         assert walks[g.get_id_from_label("1")][g.get_id_from_label("0")] == 0
 
     def test_directed_cycle(self):
-        """Directed cycle: 0 → 1 → 2 → 0."""
+        """Directed cycle: 0 -> 1 -> 2 -> 0."""
         g = Graph(directed=True)
         for i in range(3):
             g.add_node(label=str(i))
@@ -223,8 +235,8 @@ class TestNumberOfWalksDirected:
         walks = g.count_walks(2)
 
         # Can go back and forth
-        assert walks[g.get_id_from_label("A")][g.get_id_from_label("A")] == 1  # A → B → A
-        assert walks[g.get_id_from_label("B")][g.get_id_from_label("B")] == 1  # B → A → B
+        assert walks[g.get_id_from_label("A")][g.get_id_from_label("A")] == 1  # A -> B -> A
+        assert walks[g.get_id_from_label("B")][g.get_id_from_label("B")] == 1  # B -> A -> B
 
     def test_directed_self_loop(self):
         """Self-loop in directed graph."""
@@ -249,7 +261,9 @@ class TestNumberOfWalksDirected:
         walks1_mixed = g.count_walks(1)
         assert walks1_mixed[g.get_id_from_label("A")][g.get_id_from_label("A")] == 1  # Self-loop
         assert walks1_mixed[g.get_id_from_label("A")][g.get_id_from_label("B")] == 1  # Regular edge
-        assert walks1_mixed[g.get_id_from_label("B")][g.get_id_from_label("A")] == 0  # No reverse edge
+        assert (
+            walks1_mixed[g.get_id_from_label("B")][g.get_id_from_label("A")] == 0
+        )  # No reverse edge
 
     def test_directed_multiple_self_loops(self):
         """Multiple self-loops in directed graph."""
@@ -260,7 +274,9 @@ class TestNumberOfWalksDirected:
         g.add_edge("A", "A")  # Third self-loop
 
         walks1 = g.count_walks(1)
-        assert walks1[g.get_id_from_label("A")][g.get_id_from_label("A")] == 3  # All 3 self-loops counted
+        assert (
+            walks1[g.get_id_from_label("A")][g.get_id_from_label("A")] == 3
+        )  # All 3 self-loops counted
 
         walks2 = g.count_walks(2)
         assert walks2[g.get_id_from_label("A")][g.get_id_from_label("A")] == 9  # 3^2
@@ -290,9 +306,9 @@ class TestNumberOfWalksComplete:
 
         # Walks of length 2: many options
         walks2 = g.count_walks(2)
-        # From 0 to 0: 0→1→0, 0→2→0
+        # From 0 to 0: 0->1->0, 0->2->0
         assert walks2[g.get_id_from_label("0")][g.get_id_from_label("0")] == 2
-        # From 0 to 1: 0→2→1
+        # From 0 to 1: 0->2->1
         assert walks2[g.get_id_from_label("0")][g.get_id_from_label("1")] == 1
 
     def test_k4_complete_growth(self):
@@ -330,12 +346,18 @@ class TestNumberOfWalksStar:
         # Length 1: direct connections
         walks1 = g.count_walks(1)
         assert walks1[g.get_id_from_label("center")][g.get_id_from_label("leaf0")] == 1
-        assert walks1[g.get_id_from_label("leaf0")][g.get_id_from_label("leaf1")] == 0  # Leaves not connected
+        assert (
+            walks1[g.get_id_from_label("leaf0")][g.get_id_from_label("leaf1")] == 0
+        )  # Leaves not connected
 
         # Length 2: leaves can reach each other via center
         walks2 = g.count_walks(2)
-        assert walks2[g.get_id_from_label("leaf0")][g.get_id_from_label("leaf1")] == 1  # leaf0 → center → leaf1
-        assert walks2[g.get_id_from_label("center")][g.get_id_from_label("center")] == 5  # center → any leaf → center
+        assert (
+            walks2[g.get_id_from_label("leaf0")][g.get_id_from_label("leaf1")] == 1
+        )  # leaf0 -> center -> leaf1
+        assert (
+            walks2[g.get_id_from_label("center")][g.get_id_from_label("center")] == 5
+        )  # center -> any leaf -> center
 
 
 class TestNumberOfWalksSpecial:
@@ -358,8 +380,8 @@ class TestNumberOfWalksSpecial:
         walks = g.count_walks(2)
 
         # Within components: walks exist
-        assert walks[g.get_id_from_label("A")][g.get_id_from_label("A")] == 1  # A → B → A
-        assert walks[g.get_id_from_label("C")][g.get_id_from_label("C")] == 1  # C → D → C
+        assert walks[g.get_id_from_label("A")][g.get_id_from_label("A")] == 1  # A -> B -> A
+        assert walks[g.get_id_from_label("C")][g.get_id_from_label("C")] == 1  # C -> D -> C
 
         # Between components: no walks
         assert walks[g.get_id_from_label("A")][g.get_id_from_label("C")] == 0
@@ -383,9 +405,11 @@ class TestNumberOfWalksSpecial:
 
         # Walks of length 2 from root
         walks = g.count_walks(2)
-        assert walks[g.get_id_from_label("root")][g.get_id_from_label("LL")] == 1  # root → L → LL
-        assert walks[g.get_id_from_label("root")][g.get_id_from_label("LR")] == 1  # root → L → LR
-        assert walks[g.get_id_from_label("root")][g.get_id_from_label("root")] == 2  # root → L → root, root → R → root
+        assert walks[g.get_id_from_label("root")][g.get_id_from_label("LL")] == 1  # root -> L -> LL
+        assert walks[g.get_id_from_label("root")][g.get_id_from_label("LR")] == 1  # root -> L -> LR
+        assert (
+            walks[g.get_id_from_label("root")][g.get_id_from_label("root")] == 2
+        )  # root -> L -> root, root -> R -> root
 
     def test_multigraph(self):
         """Multiple edges between same nodes."""
@@ -404,7 +428,7 @@ class TestNumberOfWalksSpecial:
         assert walks1[g.get_id_from_label("B")][g.get_id_from_label("A")] == 3  # Undirected
 
         walks2 = g.count_walks(2)
-        # A → B → A: 3 choices for first edge × 3 for second = 9
+        # A -> B -> A: 3 choices for first edge × 3 for second = 9
         assert walks2[g.get_id_from_label("A")][g.get_id_from_label("A")] == 9
 
 
@@ -489,8 +513,14 @@ class TestNumberOfWalksConsistency:
         walks = g.count_walks(3)
 
         # In undirected graph, walks[i][j] should equal walks[j][i]
-        assert walks[g.get_id_from_label("A")][g.get_id_from_label("C")] == walks[g.get_id_from_label("C")][g.get_id_from_label("A")]
-        assert walks[g.get_id_from_label("A")][g.get_id_from_label("B")] == walks[g.get_id_from_label("B")][g.get_id_from_label("A")]
+        assert (
+            walks[g.get_id_from_label("A")][g.get_id_from_label("C")]
+            == walks[g.get_id_from_label("C")][g.get_id_from_label("A")]
+        )
+        assert (
+            walks[g.get_id_from_label("A")][g.get_id_from_label("B")]
+            == walks[g.get_id_from_label("B")][g.get_id_from_label("A")]
+        )
 
     def test_total_walks_consistency(self):
         """Total walk count should be consistent."""
