@@ -1653,9 +1653,9 @@ def _generate_graphviz_svg_html(
                         target = edgesData[index][1];
                     }}
 
-                    // Format: Edge: <edge_id> (<source> → <target>) or (<source> — <target>)
-                    // Use → (U+2192) for directed, — (U+2014 em dash) for undirected
-                    const separator = isDirected ? '→' : '—';
+                    // Format: Edge: <edge_id> (<source> -> <target>) or (<source> — <target>)
+                    // Use -> (U+2192) for directed, — (U+2014 em dash) for undirected
+                    const separator = isDirected ? '->' : '—';
                     const edgeLabel = `Edge: ${{edgeId}} (${{source}} ${{separator}} ${{target}})`;
 
                     // Create a wider invisible hit area for easier hovering
@@ -2273,7 +2273,7 @@ def _generate_webgl_html(
                     var edge = edges.get(edgeId);
                     console.log('Edge clicked:', edge);
 
-                    var separator = isDirected ? ' → ' : ' — ';
+                    var separator = isDirected ? ' -> ' : ' — ';
                     var html = '<div class="info-title">Edge: ' + edge.from + separator + edge.to + '</div>';
 
                     // Show edge attributes from the attrs object
