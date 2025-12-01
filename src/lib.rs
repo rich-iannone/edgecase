@@ -41,6 +41,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::structure::k_shell, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_crust, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_truss, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::structure::k_corona, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::matching::is_matching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::matching::maximal_matching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::matching::max_weight_matching, m)?)?;

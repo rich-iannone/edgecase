@@ -282,3 +282,81 @@ pub fn k_truss(graph: &Graph, k: usize) -> PyResult<Graph> {
 
     Ok(truss_graph)
 }
+
+/// Compute the k-corona of the graph.
+///
+/// The k-corona is the subgraph induced by nodes in the k-core that have
+/// exactly k neighbors in the k-core. These are the "boundary" nodes of the
+/// k-core that would be removed if we computed the (k+1)-core.
+///
+/// # Arguments
+/// * `graph` - The input graph
+/// * `k` - The core number
+///
+/// # Returns
+/// A new graph containing only the k-corona nodes and their connecting edges
+#[pyfunction]
+pub fn k_corona(graph: &Graph, k: usize) -> PyResult<Graph> {
+    let coreness = graph.get_coreness();
+
+    // First, identify nodes in the k-core (coreness >= k)
+    let k_core_nodes: FxHashSet<u64> = coreness
+        .iter()
+        .filter(|(_, &core_val)| core_val >= k)
+        .map(|(&node_id, _)| node_id)
+        .collect();
+
+    // Find nodes in k-core with exactly k neighbors in the k-core
+    let mut corona_nodes: FxHashSet<u64> = FxHashSet::default();
+
+    for &node_id in &k_core_nodes {
+        // Count neighbors that are also in the k-core
+        let k_core_neighbor_count = graph
+            .get_adjacency_list()
+            .get(&node_id)
+            .map(|neighbors| {
+                neighbors.iter().filter(|&n| k_core_nodes.contains(n)).count()
+            })
+            .unwrap_or(0);
+
+        // Node is in k-corona if it has exactly k neighbors in the k-core
+        if k_core_neighbor_count == k {
+            corona_nodes.insert(node_id);
+        }
+    }
+
+    // Build the corona subgraph
+    let mut corona_graph = Graph::new_rust(graph.is_directed(), graph.is_weighted());
+    let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
+
+    // Add corona nodes
+    for &node_id in &corona_nodes {
+        if let Some(node) = graph.get_node(node_id) {
+            let new_node = Node {
+                id: 0,
+                label: node.label.clone(),
+                attributes: None,
+            };
+            let new_id = corona_graph.add_node_rust(new_node)?;
+            node_map.insert(node_id, new_id);
+        }
+    }
+
+    // Add edges between corona nodes
+    for edge in graph.get_edges_internal() {
+        if let (Some(&new_source), Some(&new_target)) =
+            (node_map.get(&edge.source), node_map.get(&edge.target))
+        {
+            let new_edge = Edge {
+                id: 0,
+                source: new_source,
+                target: new_target,
+                weight: edge.weight,
+                attributes: None,
+            };
+            corona_graph.add_edge_rust(new_edge)?;
+        }
+    }
+
+    Ok(corona_graph)
+}
