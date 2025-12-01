@@ -388,8 +388,8 @@ class TestRobustnessScenarios:
         # If we remove 50% of nodes, center is very likely to be removed
         # and the graph fragments
         results = []
-        for _ in range(10):
-            percolated = graph.node_percolation(q=0.5)
+        for i in range(10):
+            percolated = graph.node_percolation(q=0.5, seed=42 + i)
             lcs = percolated.largest_component_size()
             remaining = percolated.count_nodes()
             if remaining > 0:
