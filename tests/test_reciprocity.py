@@ -22,7 +22,7 @@ class TestWhichMutual:
         assert len(mutual) == 0
 
     def test_simple_mutual_pair(self):
-        """Two edges A→B and B→A are mutual."""
+        """Two edges A->B and B->A are mutual."""
         g = ec.Graph(directed=True)
         g.add_node(label="A")
         g.add_node(label="B")
@@ -104,10 +104,10 @@ class TestWhichMutual:
         g = ec.Graph(directed=True)
         g.add_node(label="A")
         g.add_node(label="B")
-        # Two edges A→B
+        # Two edges A->B
         g.add_edge("A", "B")
         g.add_edge("A", "B")
-        # One edge B→A
+        # One edge B->A
         g.add_edge("B", "A")
 
         mutual = g.which_mutual()
