@@ -2427,6 +2427,113 @@ class Graph:
         self._graph.generate_johnson_graph(n, k)
         return self
 
+    def add_random_geometric_graph(
+        self,
+        n: int,
+        radius: float,
+        dim: int = 2,
+        p_norm: float = 2.0,
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """
+        Add a random geometric graph.
+
+        Places `n` nodes uniformly at random in the unit hypercube and connects nodes whose
+        distance is at most `radius`. This creates spatial networks where nearby points are more
+        likely to be connected.
+
+        Random geometric graphs are useful for modeling:
+
+        - wireless networks (nodes in radio range)
+        - social networks (geographically close individuals)
+        - biological networks (spatially proximate cells)
+        - ad-hoc networks and sensor networks
+
+        Parameters
+        ----------
+        n
+            Number of nodes to add.
+        radius
+            Maximum distance for edge creation. Nodes within this distance are connected. Must be
+            non-negative.
+        dim
+            Number of dimensions for the unit hypercube (default `2`). Use `2` for planar graphs,
+            `3` for spatial networks.
+        p_norm
+            Minkowski distance parameter (default `2.0` for Euclidean). Common values are `1.0`
+            (Manhattan), `2.0` (Euclidean), `inf` (Chebyshev).
+        seed
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If radius is negative, dim < 1, or p_norm <= 0.
+
+        Properties
+        ----------
+        - **Undirected**: All edges are bidirectional.
+        - **Spatial embedding**: Nodes have positions in [0, 1]^dim.
+        - **Node labels**: Position stored as JSON array, e.g., "[0.234, 0.567]".
+        - **Local clustering**: High clustering due to geometric proximity.
+        - **Threshold behavior**: Graph connectivity exhibits phase transition
+          as radius increases past a critical threshold.
+
+        Complexity
+        ----------
+        - Time: O(n²) for distance comparisons (naive algorithm)
+        - Space: O(n × dim) for positions plus O(edges) for graph
+
+        Examples
+        --------
+        Create a 2D random geometric graph:
+
+        ```python
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False).add_random_geometric_graph(
+            n=100, radius=0.2, seed=42
+        )
+        print(graph.count_nodes())  # 100
+
+        # Nodes have position labels
+        node_id = graph.get_node_ids(limit=1)[0]
+        label = graph.get_label_from_id(node_id)
+        print(label)  # e.g., '[0.374540, 0.950714]'
+        ```
+
+        Create a 3D spatial network:
+
+        ```python
+        spatial_graph = ec.Graph(directed=False).add_random_geometric_graph(
+            n=50, radius=0.3, dim=3, seed=123
+        )
+        print(f"Nodes: {spatial_graph.count_nodes()}")  # 50
+        print(f"Edges: {spatial_graph.count_edges()}")  # varies by random seed
+        ```
+
+        Use Manhattan distance (p_norm=1.0):
+
+        ```python
+        manhattan_graph = ec.Graph(directed=False).add_random_geometric_graph(
+            n=100, radius=0.25, p_norm=1.0, seed=42
+        )
+        # With Manhattan distance, the "ball" of radius r is a rotated square
+        print(f"Edges: {manhattan_graph.count_edges()}")
+        ```
+
+        References
+        ----------
+        Penrose, M. (2003). "Random Geometric Graphs." Oxford University Press.
+        """
+        self._graph.generate_random_geometric_graph(n, radius, dim, p_norm, seed)
+        return self
+
     # ==============================================================================
     # Node and Edge Accessors
     # ==============================================================================
