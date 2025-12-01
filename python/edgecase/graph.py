@@ -12142,6 +12142,129 @@ class Graph:
 
         return subgraph
 
+    def subgraph(self, nodes: list[int]) -> "Graph":
+        """
+        Extract an induced subgraph containing the specified nodes.
+
+        Returns a new graph containing only the specified nodes and all edges between
+        them (the induced subgraph). This is a direct method that doesn't require
+        prior selection, unlike `transform_to_subgraph_ws()`.
+
+        Parameters
+        ----------
+        nodes
+            List of node IDs to include in the subgraph.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the specified nodes and edges between them. Preserves
+            directedness, weightedness, and node labels. Edge weights are preserved.
+
+        Raises
+        ------
+        ValueError
+            If any node ID is not found in the graph.
+
+        Examples
+        --------
+        Extract a subgraph from a path graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a path: 1 -- 2 -- 3 -- 4 -- 5
+        graph = Graph().add_path_graph(5)
+
+        # Get node IDs
+        node_ids = list(graph.get_node_ids())
+
+        # Extract subgraph of nodes at positions 1, 2, 3 (middle nodes)
+        middle_nodes = node_ids[1:4]
+        sub = graph.subgraph(middle_nodes)
+        print(f"Nodes: {sub.count_nodes()}")  # 3
+        print(f"Edges: {sub.count_edges()}")  # 2
+        ```
+
+        Extract a clique from a larger graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph().add_full_graph(5)  # K5
+
+        # Extract K3 subgraph
+        node_ids = list(graph.get_node_ids())[:3]
+        k3 = graph.subgraph(node_ids)
+        print(f"Edges in K3: {k3.count_edges()}")  # 3
+        ```
+        """
+        from edgecase._core import subgraph
+
+        result = Graph.__new__(Graph)
+        result._graph = subgraph(self._graph, nodes)
+        return result
+
+    def edge_subgraph(self, edges: list[int]) -> "Graph":
+        """
+        Extract a subgraph containing the specified edges and their endpoint nodes.
+
+        Returns a new graph containing only the specified edges and the nodes
+        that are endpoints of those edges. This is useful when you want to focus
+        on specific relationships rather than specific nodes.
+
+        Parameters
+        ----------
+        edges
+            List of edge IDs to include in the subgraph.
+
+        Returns
+        -------
+        Graph
+            New graph containing only the specified edges and their endpoint nodes.
+            Preserves directedness, weightedness, and node labels. Edge weights
+            are preserved.
+
+        Raises
+        ------
+        ValueError
+            If any edge ID is not found in the graph.
+
+        Examples
+        --------
+        Extract specific edges from a graph:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a cycle: 1 -- 2 -- 3 -- 4 -- 5 -- 1
+        graph = Graph().add_cycle_graph(5)
+
+        # Get first two edge IDs
+        edge_ids = list(graph.get_edge_ids())[:2]
+        sub = graph.edge_subgraph(edge_ids)
+        print(f"Nodes: {sub.count_nodes()}")  # 3 (endpoints of 2 edges)
+        print(f"Edges: {sub.count_edges()}")  # 2
+        ```
+
+        Extract a path from a complete graph:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph().add_full_graph(4)  # K4 with 6 edges
+
+        # Select specific edges to form a path
+        edge_ids = list(graph.get_edge_ids())[:2]
+        path = graph.edge_subgraph(edge_ids)
+        ```
+        """
+        from edgecase._core import edge_subgraph
+
+        result = Graph.__new__(Graph)
+        result._graph = edge_subgraph(self._graph, edges)
+        return result
+
     def fully_connect_nodes_ws(self, **edge_attributes) -> "Graph":
         """
         Create edges between all pairs of selected nodes (clique).
