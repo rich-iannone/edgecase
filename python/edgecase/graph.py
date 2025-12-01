@@ -14322,9 +14322,9 @@ class Graph:
             g.add_edge(str(i), str(i+1))
 
         and_values = g.average_neighbor_degree(return_dict=True)
-        # Node '0': neighbor '1' has degree 2 → average = 2.0
-        # Node '1': neighbors '0','2' have degrees 1,2 → average = 1.5
-        # Node '2': neighbors '1','3' have degrees 2,2 → average = 2.0
+        # Node '0': neighbor '1' has degree 2 -> average = 2.0
+        # Node '1': neighbors '0','2' have degrees 1,2 -> average = 1.5
+        # Node '2': neighbors '1','3' have degrees 2,2 -> average = 2.0
         ```
 
         **Directed Graph - Different source/target combinations**
@@ -18211,6 +18211,208 @@ class Graph:
         - both have O(V + E) complexity
         """
         return self._graph.get_topological_sort_order()
+
+    def transitive_closure(self) -> "Graph":
+        """
+        Compute the transitive closure of a directed graph.
+
+        The transitive closure is a graph where there is an edge (u, v) if and only if
+        there is a path from u to v in the original graph. This is useful for reachability
+        analysis, determining which nodes can reach which other nodes.
+
+        For example, if there's a path A -> B -> C in the original graph, the transitive
+        closure will have edges A -> B, B -> C, and A -> C.
+
+        This method only works on directed graphs. Undirected graphs should first be
+        converted to directed or analyzed using connectivity methods.
+
+        Time complexity: O(V × (V + E)) where V is nodes and E is edges
+        Space complexity: O(V + E') where E' is edges in the closure
+
+        Returns
+        -------
+        Graph
+            New directed graph representing the transitive closure.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph.
+
+        Examples
+        --------
+        Basic transitive closure:
+
+        ```python
+        # Create a simple chain: A -> B -> C
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        closure = graph.transitive_closure()
+        print(f"Original edges: {graph.count_edges()}")  # 2
+        print(f"Closure edges: {closure.count_edges()}")  # 3 (adds A -> C)
+        ```
+
+        Reachability analysis:
+
+        ```python
+        # Dependency graph
+        graph = (
+            Graph(directed=True)
+            .add_node(label="main")
+            .add_node(label="utils")
+            .add_node(label="config")
+            .add_node(label="base")
+            .add_edge("main", "utils")
+            .add_edge("main", "config")
+            .add_edge("utils", "base")
+            .add_edge("config", "base")
+        )
+
+        closure = graph.transitive_closure()
+        # In the closure, we can see all transitive dependencies
+        # main can reach: utils, config, base
+        print(f"Closure edges: {closure.count_edges()}")
+        ```
+
+        Notes
+        -----
+        Common use cases:
+
+        - determining all reachable nodes from a given node
+        - computing transitive dependencies in build systems
+        - checking if one node can influence another in a network
+        - preprocessing for constant-time reachability queries
+
+        The transitive closure is the inverse operation of transitive reduction:
+        ``transitive_closure(transitive_reduction(G)) == transitive_closure(G)``
+        (for DAGs)
+
+        See Also
+        --------
+        transitive_reduction : Compute the minimal equivalent graph
+        get_topological_sort_order : Sort nodes in topological order
+        is_dag : Check if graph is a DAG
+        """
+        from edgecase._core import transitive_closure
+
+        result = Graph.__new__(Graph)
+        result._graph = transitive_closure(self._graph)
+        return result
+
+    def transitive_reduction(self) -> "Graph":
+        """
+        Compute the transitive reduction of a directed acyclic graph (DAG).
+
+        The transitive reduction is the minimal subgraph that maintains the same reachability as the
+        original graph. It removes redundant edges while preserving all path relationships. If
+        there's a path from A to C via B, the direct edge A -> C (if it exists) is redundant and
+        will be removed.
+
+        This method only works on directed acyclic graphs (DAGs). Cyclic graphs
+        do not have a unique transitive reduction.
+
+        Time complexity: O(V × E) where V is nodes and E is edges
+        Space complexity: O(V + E)
+
+        Returns
+        -------
+        Graph
+            New directed graph representing the transitive reduction.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph or a graph containing cycles.
+
+        Examples
+        --------
+        Remove redundant edges:
+
+        ```python
+        # Graph with redundant edge A -> C (since A -> B -> C exists)
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("A", "C")  # Redundant: A can reach C via B
+        )
+
+        reduction = graph.transitive_reduction()
+        print(f"Original edges: {graph.count_edges()}")  # 3
+        print(f"Reduced edges: {reduction.count_edges()}")  # 2 (A->C removed)
+        ```
+
+        Simplify a dependency graph:
+
+        ```python
+        # Build dependency graph with some direct dependencies that
+        # are implied by transitive dependencies
+        graph = (
+            Graph(directed=True)
+            .add_node(label="app")
+            .add_node(label="lib")
+            .add_node(label="utils")
+            .add_node(label="core")
+            .add_edge("app", "lib")
+            .add_edge("lib", "utils")
+            .add_edge("utils", "core")
+            .add_edge("app", "core")   # Redundant (app -> lib -> utils -> core)
+            .add_edge("lib", "core")   # Redundant (lib -> utils -> core)
+        )
+
+        reduction = graph.transitive_reduction()
+        print(f"Original: {graph.count_edges()} edges")  # 5
+        print(f"Reduced: {reduction.count_edges()} edges")  # 3 (minimal)
+        ```
+
+        Handling cyclic graphs:
+
+        ```python
+        # Cyclic graph
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge("A", "B")
+            .add_edge("B", "A")  # Creates cycle
+        )
+
+        try:
+            reduction = graph.transitive_reduction()
+        except ValueError as e:
+            print(f"Error: {e}")  # Graph contains a cycle
+        ```
+
+        Notes
+        -----
+        Common use cases:
+
+        - simplifying dependency graphs to show only direct dependencies
+        - reducing storage for reachability queries
+        - visualizing the minimal structure of a DAG
+        - cleaning up inferred relationships
+
+        Properties:
+
+        - the transitive reduction of a DAG is unique
+        - transitive_closure(transitive_reduction(G)) == transitive_closure(G)
+        - the reduction preserves all reachability relationships
+        """
+        from edgecase._core import transitive_reduction
+
+        result = Graph.__new__(Graph)
+        result._graph = transitive_reduction(self._graph)
+        return result
 
     def count_walks(self, walk_length: int) -> dict[int, dict[int, int]]:
         """
