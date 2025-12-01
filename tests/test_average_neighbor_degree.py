@@ -15,27 +15,27 @@ class TestAverageNeighborDegreeBasic:
 
         and_values = g.average_neighbor_degree(return_dict=True)
 
-        # Node 0: neighbor 1 has degree 2 → average = 2.0
+        # Node 0: neighbor 1 has degree 2 -> average = 2.0
         node_0 = g.get_id_from_label("0")
 
         assert abs(and_values[node_0] - 2.0) < 1e-6
 
-        # Node 1: neighbors 0,2 have degrees 1,2 → average = 1.5
+        # Node 1: neighbors 0,2 have degrees 1,2 -> average = 1.5
         node_1 = g.get_id_from_label("1")
 
         assert abs(and_values[node_1] - 1.5) < 1e-6
 
-        # Node 2: neighbors 1,3 have degrees 2,2 → average = 2.0
+        # Node 2: neighbors 1,3 have degrees 2,2 -> average = 2.0
         node_2 = g.get_id_from_label("2")
 
         assert abs(and_values[node_2] - 2.0) < 1e-6
 
-        # Node 3: neighbors 2,4 have degrees 2,1 → average = 1.5
+        # Node 3: neighbors 2,4 have degrees 2,1 -> average = 1.5
         node_3 = g.get_id_from_label("3")
 
         assert abs(and_values[node_3] - 1.5) < 1e-6
 
-        # Node 4: neighbor 3 has degree 2 → average = 2.0
+        # Node 4: neighbor 3 has degree 2 -> average = 2.0
         node_4 = g.get_id_from_label("4")
 
         assert abs(and_values[node_4] - 2.0) < 1e-6
@@ -52,10 +52,10 @@ class TestAverageNeighborDegreeBasic:
 
         hub_id = g.get_id_from_label("hub")
 
-        # Hub has 4 neighbors, each with degree 1 → average = 1.0
+        # Hub has 4 neighbors, each with degree 1 -> average = 1.0
         assert abs(and_values[hub_id] - 1.0) < 1e-6
 
-        # Each leaf has 1 neighbor (hub) with degree 4 → average = 4.0
+        # Each leaf has 1 neighbor (hub) with degree 4 -> average = 4.0
         for i in range(4):
             leaf_id = g.get_id_from_label(f"leaf_{i}")
             assert abs(and_values[leaf_id] - 4.0) < 1e-6
