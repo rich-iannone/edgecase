@@ -79,7 +79,7 @@ class TestReciprocity:
     def test_reciprocity_cycle(self):
         """Test reciprocity on directed cycle."""
         G = ec.Graph(directed=True)
-        G.add_cycle_graph(4)  # 0→1→2→3→0
+        G.add_cycle_graph(4)  # 0->1->2->3->0
 
         reciprocity = G.get_reciprocity()
         assert reciprocity == 0.0  # Cycle has no reciprocal edges
@@ -312,7 +312,7 @@ class TestConnectivityFlowEdgeCases:
         G.add_edge("B", "A")
 
         reciprocity = G.get_reciprocity()
-        # 3 total edges: 2 A→B and 1 B→A. Only 2 have reciprocal counterparts
+        # 3 total edges: 2 A->B and 1 B->A. Only 2 have reciprocal counterparts
         assert abs(reciprocity - 2 / 3) < 0.001
 
     def test_min_cut_single_node(self):
