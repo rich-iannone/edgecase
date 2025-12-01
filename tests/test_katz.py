@@ -47,7 +47,7 @@ class TestKatzBasic:
         assert abs(result[g.get_id_from_label("A")] - result[g.get_id_from_label("B")]) < 1e-6
 
     def test_path_graph(self):
-        """Path A→B→C: C has highest Katz."""
+        """Path A->B->C: C has highest Katz."""
         g = Graph(directed=True)
         g.add_node("A")
         g.add_node("B")
@@ -197,11 +197,11 @@ class TestKatzEdgeCases:
     def test_disconnected_graph(self):
         """Disconnected components handled correctly."""
         g = Graph(directed=True)
-        # Component 1: A→B
+        # Component 1: A->B
         g.add_node("A")
         g.add_node("B")
         g.add_edge("A", "B")
-        # Component 2: C→D
+        # Component 2: C->D
         g.add_node("C")
         g.add_node("D")
         g.add_edge("C", "D")
