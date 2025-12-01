@@ -18,7 +18,7 @@ def empty_graph():
 
 @pytest.fixture
 def simple_graph():
-    """Simple 3-node graph: A → B → C"""
+    """Simple 3-node graph: A -> B -> C"""
     G = Graph(directed=True)
     G.add_node("A")
     G.add_node("B")
