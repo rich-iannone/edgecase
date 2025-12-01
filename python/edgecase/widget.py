@@ -97,11 +97,11 @@ class GraphWidget:
     - Static export to PNG/SVG
 
     Aesthetic Mappings:
-    - `color` attribute → node fill color (hex or category)
-    - `size` attribute → node radius
-    - `shape` attribute → node shape (circle, square, triangle)
-    - `label` attribute → tooltip text (defaults to node ID)
-    - `community` attribute → automatic color mapping
+    - `color` attribute -> node fill color (hex or category)
+    - `size` attribute -> node radius
+    - `shape` attribute -> node shape (circle, square, triangle)
+    - `label` attribute -> tooltip text (defaults to node ID)
+    - `community` attribute -> automatic color mapping
 
     Examples
     --------
