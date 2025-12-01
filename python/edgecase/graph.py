@@ -23193,7 +23193,7 @@ class Graph:
     # Distance Metrics
     # ==============================================================================
 
-    def wiener_index(self, weight: str | None = None) -> float:
+    def get_wiener_index(self, weight: str | None = None) -> float:
         """
         Calculate the Wiener index of the graph.
 
@@ -23228,7 +23228,7 @@ class Graph:
         # Wiener index = 1+2+3+1+2+1 = 10
         graph = Graph()
         graph.add_path_graph(4)
-        w = graph.wiener_index()
+        w = graph.get_wiener_index()
         print(f"Wiener index: {w}")  # 10.0
         ```
 
@@ -23238,17 +23238,17 @@ class Graph:
         # Complete graph K_n has Wiener index n*(n-1)/2 (all pairs at distance 1)
         complete = Graph()
         complete.add_full_graph(5)
-        print(f"K5 Wiener index: {complete.wiener_index()}")  # 10.0
+        print(f"K5 Wiener index: {complete.get_wiener_index()}")  # 10.0
 
         # Cycle graph
         cycle = Graph()
         cycle.add_cycle_graph(6)
-        print(f"C6 Wiener index: {cycle.wiener_index()}")  # 18.0
+        print(f"C6 Wiener index: {cycle.get_wiener_index()}")  # 18.0
 
         # Star graph
         star = Graph()
         star.add_star_graph(5)
-        print(f"Star(5) Wiener index: {star.wiener_index()}")  # 16.0
+        print(f"Star(5) Wiener index: {star.get_wiener_index()}")  # 16.0
         ```
 
         Disconnected graph returns infinity:
@@ -23258,7 +23258,7 @@ class Graph:
         graph.add_node(label="A")
         graph.add_node(label="B")
         # No edge between A and B
-        w = graph.wiener_index()
+        w = graph.get_wiener_index()
         print(f"Disconnected: {w}")  # inf
         ```
 
@@ -23279,7 +23279,7 @@ class Graph:
 
         return wiener_index(self._graph, weight)
 
-    def estrada_index(self) -> float:
+    def get_estrada_index(self) -> float:
         """
         Calculate the Estrada index of the graph.
 
@@ -23316,7 +23316,7 @@ class Graph:
         g.add_node(label="A")
         g.add_node(label="B")
         g.add_edge("A", "B")
-        ee = g.estrada_index()
+        ee = g.get_estrada_index()
         print(f"K2 Estrada index: {ee:.3f}")  # ≈ 3.086
         ```
 
@@ -23326,17 +23326,17 @@ class Graph:
         # Path graph P3: eigenvalues are -√2, 0, √2
         path = Graph()
         path.add_path_graph(3)
-        print(f"P3 Estrada: {path.estrada_index():.3f}")
+        print(f"P3 Estrada: {path.get_estrada_index():.3f}")
 
         # Complete graph K3: eigenvalues are 2, -1, -1
         complete = Graph()
         complete.add_full_graph(3)
-        print(f"K3 Estrada: {complete.estrada_index():.3f}")
+        print(f"K3 Estrada: {complete.get_estrada_index():.3f}")
 
         # Cycle graph C4
         cycle = Graph()
         cycle.add_cycle_graph(4)
-        print(f"C4 Estrada: {cycle.estrada_index():.3f}")
+        print(f"C4 Estrada: {cycle.get_estrada_index():.3f}")
         ```
 
         Empty graph (no edges) vs isolated nodes:
@@ -23346,7 +23346,7 @@ class Graph:
         isolated = Graph()
         for i in range(5):
             isolated.add_node()
-        print(f"5 isolated nodes: {isolated.estrada_index():.1f}")  # 5.0
+        print(f"5 isolated nodes: {isolated.get_estrada_index():.1f}")  # 5.0
         ```
 
         Notes
@@ -23369,6 +23369,217 @@ class Graph:
         from edgecase._core import estrada_index
 
         return estrada_index(self._graph)
+
+    def get_resistance_distance(self, source: int | str, target: int | str) -> float:
+        """
+        Calculate the resistance distance between two nodes.
+
+        The resistance distance (also called effective resistance) is the electrical
+        resistance between two nodes if each edge is replaced by a 1-ohm resistor.
+        It is a metric on graphs that satisfies the triangle inequality and provides
+        insight into network connectivity and robustness.
+
+        Parameters
+        ----------
+        source : int | str
+            Source node identifier (ID or label).
+        target : int | str
+            Target node identifier (ID or label).
+
+        Returns
+        -------
+        float
+            The resistance distance between the two nodes.
+            Returns 0.0 if source equals target.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed (resistance distance is only defined for undirected graphs).
+        ValueError
+            If either source or target node doesn't exist in the graph.
+
+        Examples
+        --------
+        Resistance distance between adjacent nodes:
+
+        ```python
+        from edgecase import Graph
+
+        # Two adjacent nodes have resistance distance 1.0
+        g = Graph()
+        g.add_full_graph(2)
+        print(g.get_resistance_distance(1, 2))  # 1.0
+        ```
+
+        Resistance in a path graph:
+
+        ```python
+        # In a path, resistance = number of edges (resistors in series)
+        path = Graph()
+        path.add_path_graph(4)  # 1-2-3-4
+        print(path.get_resistance_distance(1, 2))  # 1.0
+        print(path.get_resistance_distance(1, 3))  # 2.0
+        print(path.get_resistance_distance(1, 4))  # 3.0
+        ```
+
+        Resistance in a complete graph:
+
+        ```python
+        # In Kn, resistance between any two nodes is 2/n
+        complete = Graph()
+        complete.add_full_graph(4)
+        print(f"K4 resistance: {complete.get_resistance_distance(1, 2):.3f}")  # 0.5
+        ```
+
+        Resistance in a cycle (parallel paths):
+
+        ```python
+        # In a cycle, resistance is reduced by parallel paths
+        cycle = Graph()
+        cycle.add_cycle_graph(4)  # 1-2-3-4-1
+        # From 1 to 2: path of length 1 || path of length 3
+        # R = 1*3/(1+3) = 0.75
+        print(f"C4 resistance: {cycle.get_resistance_distance(1, 2):.3f}")  # 0.75
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(n³) for matrix operations
+        - For adjacent nodes: Ω(u,v) ≤ 1 (equality for bridges)
+        - Resistance distance satisfies the triangle inequality
+        - Related to random walk commute time: C(u,v) = 2m × Ω(u,v)
+        - The sum of all resistance distances is the Kirchhoff index
+
+        References
+        ----------
+        Klein, D. J. & Randić, M. (1993). Resistance Distance.
+        J. Math. Chem. 12: 81-95.
+        """
+        from edgecase._core import resistance_distance
+
+        source_id = self._resolve_node_id(source)
+        target_id = self._resolve_node_id(target)
+        return resistance_distance(self._graph, source_id, target_id)
+
+    def resistance_distance_matrix(self) -> dict[tuple[int, int], float]:
+        """
+        Calculate the resistance distance matrix for all node pairs.
+
+        Returns a dictionary mapping (source_id, target_id) tuples to their
+        resistance distances. The matrix is symmetric with zeros on the diagonal.
+
+        Returns
+        -------
+        dict[tuple[int, int], float]
+            Dictionary mapping node ID pairs to resistance distances.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Examples
+        --------
+        Get all pairwise resistance distances:
+
+        ```python
+        from edgecase import Graph
+
+        g = Graph()
+        g.add_path_graph(3)
+        matrix = g.resistance_distance_matrix()
+
+        # Access specific pair
+        print(matrix[(1, 3)])  # 2.0
+
+        # The matrix is symmetric
+        print(matrix[(1, 2)] == matrix[(2, 1)])  # True
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(n³) for matrix operations
+        - Returns all n² pairs (including both (i,j) and (j,i))
+        """
+        from edgecase._core import resistance_distance_matrix
+
+        return resistance_distance_matrix(self._graph)
+
+    def get_kirchhoff_index(self) -> float:
+        """
+        Calculate the Kirchhoff index (total resistance) of the graph.
+
+        The Kirchhoff index is the sum of all pairwise resistance distances:
+
+            Kf(G) = Σᵢ<ⱼ Ω(i,j)
+
+        It can also be computed from the Laplacian eigenvalues:
+
+            Kf(G) = n × Σₖ (1/λₖ)
+
+        where λₖ are the non-zero eigenvalues of the Laplacian matrix.
+
+        Returns
+        -------
+        float
+            The Kirchhoff index. Returns 0.0 for single-node graphs.
+            Returns infinity for disconnected graphs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Examples
+        --------
+        Kirchhoff index of common graphs:
+
+        ```python
+        from edgecase import Graph
+
+        # Path graph Pn: Kf = n(n²-1)/6
+        path = Graph()
+        path.add_path_graph(4)
+        print(f"P4 Kirchhoff: {path.get_kirchhoff_index():.1f}")  # 10.0
+
+        # Complete graph Kn: Kf = n-1
+        complete = Graph()
+        complete.add_full_graph(4)
+        print(f"K4 Kirchhoff: {complete.get_kirchhoff_index():.1f}")  # 3.0
+
+        # Cycle graph Cn: Kf = n(n²-1)/12
+        cycle = Graph()
+        cycle.add_cycle_graph(4)
+        print(f"C4 Kirchhoff: {cycle.get_kirchhoff_index():.1f}")  # 5.0
+        ```
+
+        Disconnected graph returns infinity:
+
+        ```python
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        # No edge between A and B
+        print(g.get_kirchhoff_index())  # inf
+        ```
+
+        Notes
+        -----
+        - Time complexity: O(n³) for eigendecomposition
+        - The Kirchhoff index equals the quasi-Wiener index (Wiener index using
+          resistance distance instead of shortest path distance)
+        - Lower Kirchhoff index indicates better overall connectivity
+        - For connected graphs: Kf ≥ n-1 with equality only for complete graphs
+
+        References
+        ----------
+        Gutman, I. & Mohar, B. (1996). The quasi-Wiener and the Kirchhoff indices coincide.
+        J. Chem. Inf. Comput. Sci. 36(5): 982-985.
+        """
+        from edgecase._core import kirchhoff_index
+
+        return kirchhoff_index(self._graph)
 
 
 # ============================================================================
