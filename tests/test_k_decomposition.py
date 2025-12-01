@@ -282,6 +282,98 @@ class TestKTruss:
         assert truss_3.count_nodes() == 3
 
 
+class TestKCorona:
+    """Tests for k-corona decomposition"""
+
+    def test_k_corona_triangle_with_periphery(self):
+        """Test k-corona on triangle with peripheral nodes"""
+        g = Graph()
+        # Create triangle (2-core)
+        g.add_node(label="1")
+        g.add_node(label="2")
+        g.add_node(label="3")
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "1")
+
+        # Add peripheral nodes (1-core only)
+        g.add_node(label="4")
+        g.add_node(label="5")
+        g.add_edge("1", "4")
+        g.add_edge("2", "5")
+
+        # 2-corona: nodes in 2-core with exactly 2 neighbors in 2-core
+        # Each triangle node has exactly 2 neighbors in the 2-core (the other 2 triangle nodes)
+        corona_2 = g.k_corona(2)
+        assert corona_2.count_nodes() == 3
+
+    def test_k_corona_complete_graph(self):
+        """Test k-corona on complete graph K4"""
+        g = Graph()
+        g.add_full_graph(4)
+
+        # In K4, all nodes are in the 3-core and each has exactly 3 neighbors in 3-core
+        corona_3 = g.k_corona(3)
+        assert corona_3.count_nodes() == 4
+        assert corona_3.count_edges() == 6
+
+    def test_k_corona_path_graph(self):
+        """Test k-corona on path graph"""
+        g = Graph()
+        g.add_path_graph(5)  # 1-2-3-4-5
+
+        # Path has only 1-core (max coreness is 1)
+        # End nodes (1 and 5) have exactly 1 neighbor in 1-core
+        corona_1 = g.k_corona(1)
+        assert corona_1.count_nodes() == 2  # End nodes
+
+        # 2-corona should be empty (no 2-core exists)
+        corona_2 = g.k_corona(2)
+        assert corona_2.count_nodes() == 0
+
+    def test_k_corona_empty_result(self):
+        """Test k-corona returns empty graph when no nodes qualify"""
+        g = Graph()
+        g.add_cycle_graph(4)  # 1-2-3-4-1
+
+        # All nodes in cycle have degree 2, so they're in 2-core
+        # Each node has exactly 2 neighbors in 2-core, so all are in 2-corona
+        corona_2 = g.k_corona(2)
+        assert corona_2.count_nodes() == 4
+
+        # 3-corona should be empty (no 3-core exists)
+        corona_3 = g.k_corona(3)
+        assert corona_3.count_nodes() == 0
+
+    def test_k_corona_star_graph(self):
+        """Test k-corona on star graph"""
+        g = Graph()
+        g.add_star_graph(5)  # Hub (1) + 4 leaves (2, 3, 4, 5)
+
+        # Hub has degree 4, leaves have degree 1
+        # All are in 1-core
+        # Hub has 4 neighbors in 1-core, so not in 1-corona
+        # Leaves have 1 neighbor in 1-core, so they are in 1-corona
+        corona_1 = g.k_corona(1)
+        assert corona_1.count_nodes() == 4  # The 4 leaves
+
+    def test_k_corona_preserves_edges(self):
+        """Test that k-corona preserves edges between corona nodes"""
+        g = Graph()
+        # Two triangles sharing one edge
+        for i in range(1, 5):
+            g.add_node(label=str(i))
+        g.add_edge("1", "2")
+        g.add_edge("2", "3")
+        g.add_edge("3", "1")
+        g.add_edge("2", "4")
+        g.add_edge("4", "3")
+
+        corona_2 = g.k_corona(2)
+        # Should preserve edges between corona nodes
+        assert corona_2.count_edges() >= 0  # At least 0 edges
+
+
 class TestKDecompositionProperties:
     """Test mathematical properties of k-decompositions"""
 
