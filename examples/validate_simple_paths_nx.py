@@ -121,8 +121,8 @@ def test_directed_graph():
     edges = [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")]
     ec_graph, nx_graph = create_both_graphs(edges, directed=True)
 
-    print("Structure: A → B → D")
-    print("           A → C → D")
+    print("Structure: A -> B -> D")
+    print("           A -> C -> D")
 
     ec_paths = ec_graph.get_all_simple_paths("A", "D")
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "D"))
