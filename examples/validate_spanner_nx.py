@@ -39,8 +39,8 @@ def test_comparison_1():
     ec_g = networkx_to_edgecase(nx_g)
     ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=42)
 
-    print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
+    print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
 
     # Verify properties
     check_spanner_properties(ec_g, ec_spanner, 2.0)
@@ -60,8 +60,8 @@ def test_comparison_2():
     ec_g = networkx_to_edgecase(nx_g)
     ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=42)
 
-    print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
+    print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
 
     check_spanner_properties(ec_g, ec_spanner, 3.0)
     print("✓ Spanner properties verified")
@@ -80,8 +80,8 @@ def test_comparison_3():
     ec_g = networkx_to_edgecase(nx_g)
     ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=42)
 
-    print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
+    print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
 
     # Both should significantly reduce edges
     assert ec_spanner.count_edges() < ec_g.count_edges() / 2, (
@@ -105,8 +105,8 @@ def test_comparison_4():
     ec_g = networkx_to_edgecase(nx_g)
     ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=42)
 
-    print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
+    print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
 
     check_spanner_properties(ec_g, ec_spanner, 3.0)
     print("✓ Spanner properties verified")
@@ -137,8 +137,8 @@ def test_comparison_5():
 
     ec_spanner = ec_g.transform_with_spanner(stretch=3.0, weight="weight", seed=42)
 
-    print(f"NetworkX: {len(nx_g.edges())} edges → {len(nx_spanner.edges())} spanner edges")
-    print(f"EdgeCase:  {ec_g.count_edges()} edges → {ec_spanner.count_edges()} spanner edges")
+    print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
+    print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
 
     check_spanner_properties(ec_g, ec_spanner, 3.0)
     print("✓ Spanner properties verified")
@@ -184,7 +184,7 @@ Baswana-Sen randomized algorithm. Both are correct spanner algorithms
 but may produce different edge sets.
 
 Key differences:
-1. Different algorithms → different edge selections
+1. Different algorithms -> different edge selections
 2. Both guarantee stretch bound for all node pairs
 3. Edge counts may differ but both should be O(n^(1+1/k))
 4. Both preserve connectivity and distance approximations
