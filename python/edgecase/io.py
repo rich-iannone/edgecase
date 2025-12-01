@@ -18,8 +18,8 @@ def from_matrix_market(
     Matrix Market is a standard format for representing sparse matrices and networks.
     This function reads coordinate format files (.mtx) and automatically detects
     graph properties from the header line:
-    - Symmetry: 'symmetric' → undirected, 'general' → directed
-    - Data type: 'pattern' → unweighted, 'real'/'integer' → weighted
+    - Symmetry: 'symmetric' -> undirected, 'general' -> directed
+    - Data type: 'pattern' -> unweighted, 'real'/'integer' -> weighted
 
     The function automatically converts 1-indexed node IDs (Matrix Market standard)
     to 0-indexed node IDs used internally.
@@ -30,10 +30,10 @@ def from_matrix_market(
         Path to the Matrix Market (.mtx) file
     directed : bool, optional
         Whether to create a directed graph. If None (default), automatically
-        detected from file header ('symmetric' → False, 'general' → True)
+        detected from file header ('symmetric' -> False, 'general' -> True)
     weighted : bool, optional
         Whether the graph is weighted. If None (default), automatically detected
-        from file header ('pattern' → False, 'real'/'integer' → True)
+        from file header ('pattern' -> False, 'real'/'integer' -> True)
     graph_name : str, optional
         Name for the graph
 
@@ -71,8 +71,8 @@ def from_matrix_market(
       to 0-based indexing
     - Only coordinate format (sparse) is supported
     - Header format: %%MatrixMarket matrix coordinate <type> <symmetry>
-      * Symmetry: 'symmetric' → undirected, 'general' → directed
-      * Type: 'pattern' → unweighted, 'real'/'integer' → weighted
+      * Symmetry: 'symmetric' -> undirected, 'general' -> directed
+      * Type: 'pattern' -> unweighted, 'real'/'integer' -> weighted
     - Parameters `directed` and `weighted` override auto-detection when provided
 
     References
