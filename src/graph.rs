@@ -5740,6 +5740,36 @@ impl Graph {
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
     }
 
+    /// Get all weakly connected components as sets of node IDs.
+    /// For undirected graphs, this is the same as regular connected components.
+    /// For directed graphs, ignores edge direction (treats as undirected).
+    pub fn weakly_connected_components(&self) -> Vec<Vec<u64>> {
+        crate::algorithms::connectivity::weakly_connected_components(self)
+    }
+
+    /// Get all strongly connected components as sets of node IDs.
+    /// For directed graphs: maximal sets where every node is reachable from every other.
+    /// For undirected graphs: equivalent to connected components (same as weakly connected).
+    pub fn strongly_connected_components(&self) -> PyResult<Vec<Vec<u64>>> {
+        crate::algorithms::connectivity::strongly_connected_components(self)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+    }
+
+    /// Check if a directed graph is strongly connected.
+    /// A directed graph is strongly connected if there is a path from every vertex
+    /// to every other vertex following directed edges.
+    pub fn is_strongly_connected(&self) -> PyResult<bool> {
+        crate::algorithms::connectivity::is_strongly_connected(self)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+    }
+
+    /// Check if a directed graph is weakly connected.
+    /// A directed graph is weakly connected if the underlying undirected graph
+    /// (ignoring edge directions) is connected.
+    pub fn is_weakly_connected(&self) -> bool {
+        crate::algorithms::connectivity::is_weakly_connected(self)
+    }
+
     // ========== Trail Enumeration ==========
 
     /// Count all trails (walks with distinct edges) from source to target
