@@ -47,7 +47,7 @@ for node_id in graph.get_node_ids(limit=None):
 
 print("\nVisualization settings applied:")
 print("  - Node size: scaled by centrality (0.5 to 1.5)")
-print("  - Node color: RdBu ColorBrewer palette (blue → white → red)")
+print("  - Node color: RdBu ColorBrewer palette (blue -> white -> red)")
 print("  - Method chaining: no manual loops or normalization!")
 
 # Show the graph (will display in browser or notebook)
