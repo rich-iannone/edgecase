@@ -159,3 +159,14 @@ line-ending = "auto"
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402"]
 "tests/*" = ["F401", "E402"]
+
+# Great Docs configuration
+[tool.great-docs]
+
+[[tool.great-docs.authors]]
+name = "Rich Iannone"
+role = "Maintainer"
+affiliation = "Posit, PBC"
+email = "riannone@me.com"
+github = "rich-iannone"
+orcid = "0000-0003-3925-190X"
