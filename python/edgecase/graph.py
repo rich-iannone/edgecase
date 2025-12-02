@@ -833,10 +833,9 @@ class Graph:
         """
         Delete an edge from the graph by its ID.
 
-        Removes an edge directly using its unique edge identifier. This is more
-        efficient than deleting by source and target nodes when the edge ID is known,
-        and is particularly useful for multigraphs where multiple edges may exist
-        between the same pair of nodes.
+        Removes an edge directly using its unique edge identifier. This is more efficient than
+        deleting by source and target nodes when the edge ID is known, and is particularly useful
+        for multigraphs where multiple edges may exist between the same pair of nodes.
 
         Parameters
         ----------
@@ -1019,7 +1018,7 @@ class Graph:
 
         A self-loop is an edge where the source and target nodes are the same. This method removes
         all such edges from the graph, which is a common preprocessing step for many graph
-        lgorithms that assume simple graphs.
+        algorithms that assume simple graphs.
 
         Returns
         -------
@@ -1146,15 +1145,15 @@ class Graph:
         Notes
         -----
         - by default, **edge attributes are ignored**: edges are considered duplicates based
-          solely on their source and target nodes.
+          solely on their source and target nodes
         - use `keep_distinct_attributes=True` to preserve edges that have different weights,
-          `rel` values, or other attributes.
-        - the first edge (lowest edge ID) in each group of true duplicates is retained.
-        - for directed graphs, edges (u, v) and (v, u) are considered different pairs.
-        - for undirected graphs, edges (u, v) and (v, u) are considered the same pair.
-        - does not remove self-loops (use `remove_selfloops()` or `simplify()` for those).
-        - use `which_multiple()` to identify duplicate edges before removal.
-        - use `count_multiple()` to count duplicates per node pair before removal.
+          `rel` values, or other attributes
+        - the first edge (lowest edge ID) in each group of true duplicates is retained
+        - for directed graphs, edges (u, v) and (v, u) are considered different pairs
+        - for undirected graphs, edges (u, v) and (v, u) are considered the same pair
+        - does not remove self-loops (use `remove_selfloops()` or `simplify()` for those)
+        - use `which_multiple()` to identify duplicate edges before removal
+        - use `count_multiple()` to count duplicates per node pair before removal
         """
         self._graph.remove_duplicate_edges(keep_distinct_attributes)
         return self
@@ -1232,15 +1231,14 @@ class Graph:
         """
         Print a comprehensive description of the graph.
 
-        Displays key graph properties including node/edge counts, connectivity,
-        degree statistics, and optional custom properties via a hook function.
+        Displays key graph properties including node/edge counts, connectivity, degree statistics,
+        and optional custom properties via a hook function.
 
         Parameters
         ----------
         describe_hook
-            A function that takes a Graph as input and returns a dictionary
-            of additional properties to include. Keys are property names,
-            values are the corresponding values to display.
+            A function that takes a Graph as input and returns a dictionary of additional properties
+            to include. Keys are property names, values are the corresponding values to display.
 
         Examples
         --------
@@ -1303,8 +1301,8 @@ class Graph:
 
         Notes
         -----
-        The describe_hook allows you to compute expensive metrics only when needed.
-        For large graphs, computing properties like diameter or clustering can be slow.
+        The `describe_hook=` parameter allows you to compute expensive metrics only when needed. For
+        large graphs, computing properties like diameter or clustering can be slow.
         """
         info_dict = self._create_describe_info_dict()
 
@@ -1488,8 +1486,8 @@ class Graph:
         Parameters
         ----------
         target
-            Where to show the graph: "auto", "notebook", or "browser".
-            If "auto", infers whether to display inline (notebook) or open browser.
+            Where to show the graph: `"auto"`, `"notebook"`, or `"browser"`. If `"auto"`, infers
+            whether to display inline (notebook) or open browser.
         width
             Canvas width in pixels
         height
@@ -1641,8 +1639,8 @@ class Graph:
         """
         Add a cycle graph (closed loop) to the current graph.
 
-        Creates n nodes in a circular pattern where the last connects back to first.
-        Each node has exactly degree 2.
+        Creates n nodes in a circular pattern where the last connects back to first. Each node has
+        exactly degree `2`.
 
         Parameters
         ----------
@@ -1651,7 +1649,7 @@ class Graph:
         type
             Optional node type/category for all nodes.
         label
-            If True, label nodes with their IDs.
+            If `True`, label nodes with their IDs.
         rel
             Optional relationship label for all edges.
 
@@ -1697,8 +1695,8 @@ class Graph:
         """
         Add a star graph (hub-and-spoke) to the current graph.
 
-        Creates a central hub node connected to n-1 peripheral nodes.
-        All edges connect the hub to spokes; no edges between spokes.
+        Creates a central hub node connected to `n - 1` peripheral nodes. All edges connect the hub
+        to spokes; no edges between spokes.
 
         Parameters
         ----------
@@ -1762,8 +1760,8 @@ class Graph:
         """
         Add a complete graph (clique) to the current graph.
 
-        Creates n nodes where every node is connected to every other node.
-        In a complete graph with n nodes, there are n(n-1)/2 edges (without self-loops).
+        Creates n nodes where every node is connected to every other node. In a complete graph with
+        `n` nodes, there are `n(n - 1) / 2` edges (without self-loops).
 
         Parameters
         ----------
@@ -2036,8 +2034,8 @@ class Graph:
         """
         Add a prism graph to the current graph.
 
-        Creates two parallel n-cycles connected by n vertical edges, forming
-        a 3D prism structure when visualized.
+        Creates two parallel n-cycles connected by n vertical edges, forming a 3D prism structure
+        when visualized.
 
         Parameters
         ----------
@@ -20566,6 +20564,169 @@ class Graph:
         sink_id = self._resolve_node_id(sink, auto_create=False)
         return _max_flow_value(self._graph, source_id, sink_id, capacity)
 
+    def min_cost_flow(
+        self,
+        source: Union[int, str],
+        sink: Union[int, str],
+        demand: float | None = None,
+        capacity: str | None = None,
+        cost: str | None = None,
+    ) -> tuple[float, float, dict[int, float]]:
+        """
+        Compute minimum cost flow from source to sink.
+
+        Finds the flow that minimizes total cost. Can either send a specified amount of flow
+        (demand) or find the maximum flow at minimum cost.
+
+        Uses the Successive Shortest Path algorithm with Bellman-Ford, which handles negative edge
+        costs correctly.
+
+        Parameters
+        ----------
+        source
+            Source node (integer ID or string label).
+        sink
+            Sink node (integer ID or string label).
+        demand
+            Required flow amount. If `None` (default), finds maximum flow at minimum cost. If
+            specified, the algorithm attempts to send exactly this much flow.
+        capacity
+            Optional name of edge attribute to use as capacity. If `None` (default), uses edge
+            weights for weighted graphs, or `1.0` for unweighted graphs.
+        cost
+            Optional name of edge attribute to use as cost per unit flow. If `None` (default), looks
+            for a `"cost"` attribute; otherwise uses `1.0`.
+
+        Returns
+        -------
+        tuple[float, float, dict[int, float]]
+            A tuple containing:
+
+            - **total_flow** (`float`): The total amount of flow sent.
+            - **total_cost** (`float`): The total cost of the flow.
+            - **flow_dict** (`dict[int, float]`): Dictionary mapping edge_id to flow amount
+              for edges with positive flow.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, source/sink doesn't exist, they're the same node,
+            demand is negative, or demand cannot be satisfied.
+
+        Examples
+        --------
+        Basic minimum cost flow with maximum flow:
+
+        ```python
+        from edgecase import Graph
+
+        # Create a flow network with costs
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="S")
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="T")
+            .add_edge("S", "A", weight=10.0, cost=1.0)   # capacity 10, cost 1
+            .add_edge("S", "B", weight=10.0, cost=2.0)   # capacity 10, cost 2
+            .add_edge("A", "T", weight=10.0, cost=1.0)   # capacity 10, cost 1
+            .add_edge("B", "T", weight=10.0, cost=1.0)   # capacity 10, cost 1
+        )
+
+        total_flow, total_cost, flow_dict = graph.min_cost_flow("S", "T")
+        print(f"Flow: {total_flow}, Cost: {total_cost}")
+        # Prefers S->A->T path (cost 2) over S->B->T (cost 3)
+        ```
+
+        Sending a specific amount of flow:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="S")
+            .add_node(label="A")
+            .add_node(label="T")
+            .add_edge("S", "A", weight=20.0, cost=5.0)
+            .add_edge("A", "T", weight=20.0, cost=3.0)
+        )
+
+        # Send exactly 10 units of flow
+        total_flow, total_cost, flow_dict = graph.min_cost_flow("S", "T", demand=10.0)
+        print(f"Sent {total_flow} units at cost {total_cost}")  # Flow: 10, Cost: 80
+        ```
+
+        Using custom capacity and cost attributes:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B", bandwidth=100, price=5)
+            .add_edge("B", "C", bandwidth=50, price=3)
+            .add_edge("A", "C", bandwidth=30, price=10)
+        )
+
+        total_flow, total_cost, flow_dict = graph.min_cost_flow(
+            "A", "C", capacity="bandwidth", cost="price"
+        )
+        print(f"Maximum flow: {total_flow}")
+        print(f"Minimum cost: {total_cost}")
+        ```
+
+        Transportation problem example:
+
+        ```python
+        from edgecase import Graph
+
+        # Warehouses to stores with shipping costs
+        graph = (
+            Graph(directed=True, weighted=True)
+            .add_node(label="Source")
+            .add_node(label="W1")  # Warehouse 1
+            .add_node(label="W2")  # Warehouse 2
+            .add_node(label="S1")  # Store 1
+            .add_node(label="S2")  # Store 2
+            .add_node(label="Sink")
+            # Source to warehouses (supply)
+            .add_edge("Source", "W1", weight=50.0, cost=0.0)
+            .add_edge("Source", "W2", weight=60.0, cost=0.0)
+            # Warehouses to stores (shipping costs)
+            .add_edge("W1", "S1", weight=100.0, cost=8.0)
+            .add_edge("W1", "S2", weight=100.0, cost=5.0)
+            .add_edge("W2", "S1", weight=100.0, cost=4.0)
+            .add_edge("W2", "S2", weight=100.0, cost=7.0)
+            # Stores to sink (demand)
+            .add_edge("S1", "Sink", weight=40.0, cost=0.0)
+            .add_edge("S2", "Sink", weight=50.0, cost=0.0)
+        )
+
+        flow, cost, assignment = graph.min_cost_flow("Source", "Sink", demand=90.0)
+        print(f"Total shipping cost: {cost}")
+        ```
+
+        Notes
+        -----
+        - graph must be directed (use `.to_directed()` to convert if needed)
+        - self-loops are ignored in flow computation
+        - negative costs are allowed (the algorithm handles them correctly)
+        - the algorithm uses Successive Shortest Path with Bellman-Ford, with time complexity
+        `O(V * E * F)` where `F` is the total flow
+        - for very large graphs or high flow values, consider using specialized libraries like
+        OR-Tools
+        """
+        from edgecase._core import min_cost_flow as _min_cost_flow
+
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        result = _min_cost_flow(self._graph, source_id, sink_id, demand, capacity, cost)
+        return (result[0], result[1], dict(result[2]))
+
     # ==============================================================================
     # Component Counts
     # ==============================================================================
@@ -20609,13 +20770,12 @@ class Graph:
         """
         Count strongly connected components.
 
-        For directed graphs, a strongly connected component is a maximal set of nodes
-        where every node is reachable from every other node following directed edges.
-        Uses Kosaraju's algorithm for efficient computation.
+        For directed graphs, a strongly connected component is a maximal set of nodes where every
+        node is reachable from every other node following directed edges. Uses Kosaraju's algorithm
+        for efficient computation.
 
-        For undirected graphs, returns the same result as
-        `count_weakly_connected_components()` since strong connectivity equals regular
-        connectivity when edges are bidirectional. This matches igraph's behavior.
+        For undirected graphs, returns the same result as `count_weakly_connected_components()`
+        since strong connectivity equals regular connectivity when edges are bidirectional.
 
         Returns
         -------
@@ -20665,11 +20825,11 @@ class Graph:
         """
         Get all weakly connected components as sets of node IDs.
 
-        For undirected graphs, returns regular connected components. For directed graphs,
-        treats all edges as undirected (ignoring direction) when finding components.
+        For undirected graphs, returns regular connected components. For directed graphs, treats all
+        edges as undirected (ignoring direction) when finding components.
 
-        A weakly connected component is a maximal set of nodes where every node is
-        reachable from every other node when edge directions are ignored.
+        A weakly connected component is a maximal set of nodes where every node is reachable from
+        every other node when edge directions are ignored.
 
         Returns
         -------
@@ -20770,11 +20930,11 @@ class Graph:
 
         Notes
         -----
-        The algorithm used is Kosaraju's algorithm which runs in O(V + E) time:
+        The algorithm used is Kosaraju's algorithm which runs in `O(V + E)` time:
 
-        1. Perform DFS on original graph to get finish times
-        2. Transpose the graph (reverse all edges)
-        3. Perform DFS on transposed graph in reverse finish order
+        1. perform DFS on original graph to get finish times
+        2. transpose the graph (reverse all edges)
+        3. perform DFS on transposed graph in reverse finish order
         """
         # Convert list of lists to list of sets
         return [set(comp) for comp in self._graph.strongly_connected_components()]
