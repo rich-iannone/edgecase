@@ -374,7 +374,7 @@ class TestLargerGraphs:
 
     def test_large_random_graph(self):
         """Test with a larger random graph."""
-        g = ec.Graph().add_gnp_graph(50, 0.3, seed=42)
+        g = ec.Graph().add_gnp_graph(50, 0.3, seed=23)
 
         matrix, node_ids = to_adjacency_matrix(g)
 
