@@ -183,7 +183,7 @@ class TestMaximalIndependentSet:
     def test_result_is_independent(self):
         """Result is always an independent set."""
         graph = Graph()
-        graph.add_gnm_graph(n=20, m=40, seed=42)
+        graph.add_gnm_graph(n=20, m=40, seed=23)
 
         mis = graph.maximal_independent_set(seed=123)
 
@@ -194,7 +194,7 @@ class TestMaximalIndependentSet:
         graph = Graph()
         graph.add_path_graph(10)
 
-        mis = graph.maximal_independent_set(seed=42)
+        mis = graph.maximal_independent_set(seed=23)
         mis_set = set(mis)
 
         # Every node not in MIS should be adjacent to at least one node in MIS
@@ -206,7 +206,7 @@ class TestMaximalIndependentSet:
     def test_seed_reproducibility(self):
         """Same seed produces same result."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         mis1 = graph.maximal_independent_set(seed=123)
         mis2 = graph.maximal_independent_set(seed=123)
@@ -216,7 +216,7 @@ class TestMaximalIndependentSet:
     def test_different_seeds_may_differ(self):
         """Different seeds may produce different results."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         results = set()
         for seed in range(20):
@@ -233,7 +233,7 @@ class TestMaximalIndependentSet:
         node_ids = list(graph.get_node_ids())
 
         start_node = node_ids[0]
-        mis = graph.maximal_independent_set(nodes=[start_node], seed=42)
+        mis = graph.maximal_independent_set(nodes=[start_node], seed=23)
 
         assert start_node in mis
         assert graph.is_independent_set(mis)
@@ -249,7 +249,7 @@ class TestMaximalIndependentSet:
 
         # Start with non-adjacent nodes (0, 2, 4)
         start_nodes = [graph.get_id_from_label(str(i)) for i in [0, 2, 4]]
-        mis = graph.maximal_independent_set(nodes=start_nodes, seed=42)
+        mis = graph.maximal_independent_set(nodes=start_nodes, seed=23)
 
         for node in start_nodes:
             assert node in mis
@@ -283,7 +283,7 @@ class TestMaximalIndependentSet:
         graph = Graph()
         graph.add_full_graph(10)
 
-        mis = graph.maximal_independent_set(seed=42)
+        mis = graph.maximal_independent_set(seed=23)
 
         # In complete graph, max independent set has size 1
         assert len(mis) == 1
@@ -294,7 +294,7 @@ class TestMaximalIndependentSet:
         graph = Graph()
         graph.add_path_graph(10)  # Can have MIS of size 5
 
-        mis = graph.maximal_independent_set(seed=42)
+        mis = graph.maximal_independent_set(seed=23)
 
         # Path of n nodes has MIS of size at least ceil(n/3) for maximal
         # and at most ceil(n/2) for maximum
@@ -308,7 +308,7 @@ class TestMaximalIndependentSet:
         graph = Graph()
         graph.add_star_graph(6)  # 1 hub + 5 leaves
 
-        mis = graph.maximal_independent_set(seed=42)
+        mis = graph.maximal_independent_set(seed=23)
 
         # Either hub alone or all leaves (5 nodes)
         assert len(mis) == 1 or len(mis) == 5
@@ -338,7 +338,7 @@ class TestMaximumIndependentSet:
     def test_result_is_independent(self):
         """Result is always an independent set."""
         graph = Graph()
-        graph.add_gnm_graph(n=20, m=40, seed=42)
+        graph.add_gnm_graph(n=20, m=40, seed=23)
 
         mis = graph.maximum_independent_set()
 
@@ -390,7 +390,7 @@ class TestMaximumIndependentSet:
     def test_deterministic(self):
         """Result is deterministic (greedy, no randomness)."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         mis1 = graph.maximum_independent_set()
         mis2 = graph.maximum_independent_set()
@@ -400,7 +400,7 @@ class TestMaximumIndependentSet:
     def test_at_least_as_good_as_maximal(self):
         """Maximum IS should be a good heuristic."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         maximum = graph.maximum_independent_set()
 
@@ -473,7 +473,7 @@ class TestFindMaximalIndependentSets:
         graph = Graph()
         graph.add_cycle_graph(10)
 
-        sets = graph.find_maximal_independent_sets(count=5, seed=42)
+        sets = graph.find_maximal_independent_sets(count=5, seed=23)
 
         # Should get close to requested count
         assert len(sets) >= 1
@@ -482,7 +482,7 @@ class TestFindMaximalIndependentSets:
     def test_all_sets_are_valid(self):
         """All returned sets are valid maximal independent sets."""
         graph = Graph()
-        graph.add_gnm_graph(n=20, m=40, seed=42)
+        graph.add_gnm_graph(n=20, m=40, seed=23)
 
         sets = graph.find_maximal_independent_sets(count=10, seed=123)
 
@@ -493,7 +493,7 @@ class TestFindMaximalIndependentSets:
     def test_sets_are_unique(self):
         """Returned sets are unique."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         sets = graph.find_maximal_independent_sets(count=10, seed=123)
 
@@ -505,7 +505,7 @@ class TestFindMaximalIndependentSets:
     def test_seed_reproducibility(self):
         """Same seed produces same results."""
         graph = Graph()
-        graph.add_gnm_graph(n=20, m=40, seed=42)
+        graph.add_gnm_graph(n=20, m=40, seed=23)
 
         sets1 = graph.find_maximal_independent_sets(count=5, seed=123)
         sets2 = graph.find_maximal_independent_sets(count=5, seed=123)
@@ -515,7 +515,7 @@ class TestFindMaximalIndependentSets:
     def test_different_sizes_found(self):
         """May find sets of different sizes."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         sets = graph.find_maximal_independent_sets(count=20, seed=0)
 
@@ -529,7 +529,7 @@ class TestFindMaximalIndependentSets:
         graph = Graph()
         graph.add_full_graph(5)
 
-        sets = graph.find_maximal_independent_sets(count=10, seed=42)
+        sets = graph.find_maximal_independent_sets(count=10, seed=23)
 
         # All sets should have size 1
         assert all(len(s) == 1 for s in sets)
@@ -584,7 +584,7 @@ class TestIndependentSetEdgeCases:
     def test_large_graph_performance(self):
         """Algorithm completes in reasonable time for larger graphs."""
         graph = Graph()
-        graph.add_gnm_graph(n=500, m=2000, seed=42)
+        graph.add_gnm_graph(n=500, m=2000, seed=23)
 
         # Should complete without timeout
         mis = graph.maximal_independent_set(seed=123)
