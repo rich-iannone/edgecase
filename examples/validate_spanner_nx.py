@@ -33,11 +33,11 @@ def test_comparison_1():
 
     # NetworkX
     nx_g = nx.path_graph(10)
-    nx_spanner = nx.spanner(nx_g, stretch=2, seed=42)
+    nx_spanner = nx.spanner(nx_g, stretch=2, seed=23)
 
     # EdgeCase
     ec_g = networkx_to_edgecase(nx_g)
-    ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=42)
+    ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=23)
 
     print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
     print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
@@ -54,11 +54,11 @@ def test_comparison_2():
 
     # NetworkX
     nx_g = nx.cycle_graph(12)
-    nx_spanner = nx.spanner(nx_g, stretch=3, seed=42)
+    nx_spanner = nx.spanner(nx_g, stretch=3, seed=23)
 
     # EdgeCase
     ec_g = networkx_to_edgecase(nx_g)
-    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=42)
+    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=23)
 
     print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
     print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
@@ -74,11 +74,11 @@ def test_comparison_3():
 
     # NetworkX
     nx_g = nx.complete_graph(8)
-    nx_spanner = nx.spanner(nx_g, stretch=2, seed=42)
+    nx_spanner = nx.spanner(nx_g, stretch=2, seed=23)
 
     # EdgeCase
     ec_g = networkx_to_edgecase(nx_g)
-    ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=42)
+    ec_spanner = ec_g.transform_with_spanner(stretch=2.0, seed=23)
 
     print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
     print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
@@ -98,12 +98,12 @@ def test_comparison_4():
     print("-" * 40)
 
     # NetworkX
-    nx_g = nx.erdos_renyi_graph(20, 0.2, seed=42)
-    nx_spanner = nx.spanner(nx_g, stretch=3, seed=42)
+    nx_g = nx.erdos_renyi_graph(20, 0.2, seed=23)
+    nx_spanner = nx.spanner(nx_g, stretch=3, seed=23)
 
     # EdgeCase
     ec_g = networkx_to_edgecase(nx_g)
-    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=42)
+    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, seed=23)
 
     print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
     print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
@@ -124,7 +124,7 @@ def test_comparison_5():
     nx_g.add_edge(2, 3, weight=1.0)
     nx_g.add_edge(0, 3, weight=5.0)
 
-    nx_spanner = nx.spanner(nx_g, stretch=3, weight="weight", seed=42)
+    nx_spanner = nx.spanner(nx_g, stretch=3, weight="weight", seed=23)
 
     # EdgeCase
     ec_g = Graph()
@@ -135,7 +135,7 @@ def test_comparison_5():
     ec_g.add_edge("2", "3", weight=1.0)
     ec_g.add_edge("0", "3", weight=5.0)
 
-    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, weight="weight", seed=42)
+    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, weight="weight", seed=23)
 
     print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
     print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
