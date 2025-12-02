@@ -89,22 +89,22 @@ def create_test_graphs():
 
     # 7. Random sparse graph
     g = ec.Graph()
-    g.add_gnp_graph(n=30, p=0.1, seed=42)
+    g.add_gnp_graph(n=30, p=0.1, seed=23)
     graphs.append(("random_sparse_30", g))
 
     # 8. Random dense graph
     g = ec.Graph()
-    g.add_gnp_graph(n=20, p=0.4, seed=42)
+    g.add_gnp_graph(n=20, p=0.4, seed=23)
     graphs.append(("random_dense_20", g))
 
     # 9. Small world
     g = ec.Graph()
-    g.add_smallworld_graph(n=25, k=4, p=0.2, seed=42)
+    g.add_smallworld_graph(n=25, k=4, p=0.2, seed=23)
     graphs.append(("smallworld_25", g))
 
     # 10. Scale-free
     g = ec.Graph()
-    g.add_pa_graph(n=30, m=2, seed=42)
+    g.add_pa_graph(n=30, m=2, seed=23)
     graphs.append(("scalefree_30", g))
 
     return graphs
