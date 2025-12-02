@@ -307,7 +307,7 @@ class TestRichClubCoefficientLargeGraph:
 
     def test_gnp_graph(self):
         """G(n,p) random graph should have reasonable rich club values."""
-        g = Graph().add_gnp_graph(50, 0.2, seed=42)
+        g = Graph().add_gnp_graph(50, 0.2, seed=23)
         rc = g.rich_club_coefficient()
 
         # Should have some coefficients
@@ -319,7 +319,7 @@ class TestRichClubCoefficientLargeGraph:
 
     def test_pa_graph(self):
         """Preferential attachment graph should show rich-club phenomenon."""
-        g = Graph().add_pa_graph(50, 2, seed=42)
+        g = Graph().add_pa_graph(50, 2, seed=23)
         rc = g.rich_club_coefficient()
 
         # Should have coefficients
