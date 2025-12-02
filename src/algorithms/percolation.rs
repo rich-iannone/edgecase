@@ -306,7 +306,7 @@ fn compute_percolation_from_source(
 /// # Example
 /// Removing 30% of nodes randomly:
 /// ```python
-/// result = node_percolation(G, q=0.3, seed=42)
+/// result = node_percolation(G, q=0.3, seed=23)
 /// ```
 #[pyfunction]
 #[pyo3(signature = (graph, q, seed=None))]
@@ -390,7 +390,7 @@ pub fn node_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Gr
 /// # Example
 /// Removing 30% of edges randomly:
 /// ```python
-/// result = edge_percolation(G, q=0.3, seed=42)
+/// result = edge_percolation(G, q=0.3, seed=23)
 /// ```
 #[pyfunction]
 #[pyo3(signature = (graph, q, seed=None))]
