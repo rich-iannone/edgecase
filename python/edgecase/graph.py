@@ -2497,7 +2497,7 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False).add_random_geometric_graph(
-            n=100, radius=0.2, seed=42
+            n=100, radius=0.2, seed=23
         )
         print(graph.count_nodes())  # 100
 
@@ -2521,7 +2521,7 @@ class Graph:
 
         ```python
         manhattan_graph = ec.Graph(directed=False).add_random_geometric_graph(
-            n=100, radius=0.25, p_norm=1.0, seed=42
+            n=100, radius=0.25, p_norm=1.0, seed=23
         )
         # With Manhattan distance, the "ball" of radius r is a rotated square
         print(f"Edges: {manhattan_graph.count_edges()}")
@@ -12085,7 +12085,7 @@ class Graph:
         from edgecase import Graph
 
         # Create a random graph
-        nx_g = nx.erdos_renyi_graph(50, 0.1, seed=42)
+        nx_g = nx.erdos_renyi_graph(50, 0.1, seed=23)
         g = Graph()
         for node in nx_g.nodes():
             g.add_node(label=str(node))
@@ -12093,8 +12093,8 @@ class Graph:
             g.add_edge(source=str(u), target=str(v))
 
         original_edges = g.count_edges()
-        spanner2 = g.transform_with_spanner(stretch=2.0, seed=42)
-        spanner3 = g.transform_with_spanner(stretch=3.0, seed=42)
+        spanner2 = g.transform_with_spanner(stretch=2.0, seed=23)
+        spanner3 = g.transform_with_spanner(stretch=3.0, seed=23)
 
         # Higher stretch -> fewer edges
         result = spanner3.count_edges() < spanner2.count_edges() < original_edges
@@ -14320,7 +14320,7 @@ class Graph:
         graph.add_full_graph(10)
 
         # Remove 30% of nodes randomly
-        percolated = graph.node_percolation(q=0.3, seed=42)
+        percolated = graph.node_percolation(q=0.3, seed=23)
         print(percolated.count_nodes())  # 7 nodes remain
         ```
         """
@@ -14369,7 +14369,7 @@ class Graph:
         graph.add_full_graph(5)  # K5 has 10 edges
 
         # Remove 50% of edges randomly
-        percolated = graph.edge_percolation(q=0.5, seed=42)
+        percolated = graph.edge_percolation(q=0.5, seed=23)
         print(percolated.count_edges())  # 5 edges remain
         ```
         """
@@ -14411,7 +14411,7 @@ class Graph:
         ```python
         graph = Graph(directed=False)
         graph.add_full_graph(5)
-        percolated = graph.node_percolation(q=0.5, seed=42)
+        percolated = graph.node_percolation(q=0.5, seed=23)
         print(percolated.largest_component_size())  # May be smaller
         ```
         """
@@ -18099,7 +18099,7 @@ class Graph:
             graph.add_edge(str(i), str((i % 6) + 1))
 
         # Take a 10-step walk, returns node IDs
-        path = graph.random_walk(1, steps=10, seed=42, return_list=True)
+        path = graph.random_walk(1, steps=10, seed=23, return_list=True)
         print(len(path))  # 11 (including start)
         print(path[0])    # 1 (starting node ID)
         ```
@@ -18110,7 +18110,7 @@ class Graph:
         graph = (
             Graph()
             .add_cycle_graph(20)
-            .random_walk(1, steps=100, return_list=False, seed=42)
+            .random_walk(1, steps=100, return_list=False, seed=23)
             .colorize_node_attrs(
                 node_attr_from="random_walk_order",
                 palette="viridis"
@@ -18137,10 +18137,10 @@ class Graph:
         a_id = graph.get_id_from_label("A")
 
         # Follow edge directions
-        path = graph.random_walk(a_id, steps=10, mode="out", seed=42, return_list=True)
+        path = graph.random_walk(a_id, steps=10, mode="out", seed=23, return_list=True)
 
         # Reverse directions
-        path_reverse = graph.random_walk(a_id, steps=10, mode="in", seed=42, return_list=True)
+        path_reverse = graph.random_walk(a_id, steps=10, mode="in", seed=23, return_list=True)
         ```
 
         Handle stuck situations:
@@ -18280,7 +18280,7 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        edges = graph.random_edge_walk("A", steps=5, seed=42, return_list=True)
+        edges = graph.random_edge_walk("A", steps=5, seed=23, return_list=True)
 
         # Each edge is (edge_id, source_id, target_id)
         for edge_id, source_id, target_id in edges:
@@ -18303,7 +18303,7 @@ class Graph:
         )
 
         # Store traversal order, returns Graph for chaining
-        graph.random_edge_walk("A", steps=100, seed=42)
+        graph.random_edge_walk("A", steps=100, seed=23)
 
         # Access traversal order from edge attributes
         orders = graph.get_edge_attrs_by_id("random_edge_walk_order")
@@ -18317,7 +18317,7 @@ class Graph:
         graph = (
             Graph()
             .add_cycle_graph(6)
-            .random_edge_walk(1, steps=50, seed=42, attr_name="walk1")
+            .random_edge_walk(1, steps=50, seed=23, attr_name="walk1")
             .random_edge_walk(1, steps=50, seed=123, attr_name="walk2")
         )
 
@@ -18346,7 +18346,7 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        edges = graph.random_edge_walk(start="A", steps=1000, seed=42, return_list=True)
+        edges = graph.random_edge_walk(start="A", steps=1000, seed=23, return_list=True)
 
         # Count edge usage (by source and target IDs)
         edge_counts = Counter((src_id, tgt_id) for _, src_id, tgt_id in edges)
@@ -21453,7 +21453,7 @@ class Graph:
         graph = Graph()
         graph.add_path_graph(5)
 
-        mis = graph.maximal_independent_set(seed=42)
+        mis = graph.maximal_independent_set(seed=23)
         print(f"Independent set size: {len(mis)}")  # 2 or 3
 
         # Verify validity
@@ -21468,7 +21468,7 @@ class Graph:
 
         # Start with a specific node
         first_node = graph.get_node_ids()[0]
-        mis = graph.maximal_independent_set(nodes=[first_node], seed=42)
+        mis = graph.maximal_independent_set(nodes=[first_node], seed=23)
 
         assert first_node in mis
         ```
@@ -21559,7 +21559,7 @@ class Graph:
         graph = Graph()
         graph.add_star_graph(10)  # Hub with 10 leaves
 
-        maximal = graph.maximal_independent_set(seed=42)
+        maximal = graph.maximal_independent_set(seed=23)
         maximum = graph.maximum_independent_set()
 
         print(f"Maximal size: {len(maximal)}")
@@ -21656,7 +21656,7 @@ class Graph:
         graph = Graph()
         graph.add_cycle_graph(8)
 
-        sets = graph.find_maximal_independent_sets(count=5, seed=42)
+        sets = graph.find_maximal_independent_sets(count=5, seed=23)
         for i, s in enumerate(sets):
             print(f"Set {i}: size={len(s)}, nodes={s}")
         ```
@@ -21665,7 +21665,7 @@ class Graph:
 
         ```python
         graph = Graph()
-        graph.add_gnm_graph(n=50, m=100, seed=42)
+        graph.add_gnm_graph(n=50, m=100, seed=23)
 
         sets = graph.find_maximal_independent_sets(count=20, seed=0)
         best = max(sets, key=len)
@@ -21748,7 +21748,7 @@ class Graph:
 
         ```python
         graph = Graph()
-        graph.add_gnm_graph(n=50, m=100, seed=42)
+        graph.add_gnm_graph(n=50, m=100, seed=23)
 
         dom = graph.dominating_set()
         assert graph.is_dominating_set(dom)  # Always True
@@ -21796,7 +21796,7 @@ class Graph:
         from edgecase import Graph
 
         graph = Graph()
-        graph.add_gnm_graph(n=100, m=200, seed=42)
+        graph.add_gnm_graph(n=100, m=200, seed=23)
 
         dom = graph.dominating_set()
         print(f"Dominating set size: {len(dom)}")
@@ -21823,7 +21823,7 @@ class Graph:
         graph.add_cycle_graph(8)
 
         dom = graph.dominating_set()
-        ind = graph.maximal_independent_set(seed=42)
+        ind = graph.maximal_independent_set(seed=23)
 
         print(f"Dominating set: {len(dom)}")
         print(f"Independent set: {len(ind)}")
