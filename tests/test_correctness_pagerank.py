@@ -40,19 +40,19 @@ def create_test_graphs():
     graphs.append(("cycle_15", nx_g, False))
 
     # 4. Random sparse graph
-    nx_g = nx.erdos_renyi_graph(50, 0.05, seed=42, directed=False)
+    nx_g = nx.erdos_renyi_graph(50, 0.05, seed=23, directed=False)
     graphs.append(("random_sparse_50", nx_g, False))
 
     # 5. Random dense graph
-    nx_g = nx.erdos_renyi_graph(30, 0.3, seed=42, directed=False)
+    nx_g = nx.erdos_renyi_graph(30, 0.3, seed=23, directed=False)
     graphs.append(("random_dense_30", nx_g, False))
 
     # 6. Scale-free (Barabási-Albert)
-    nx_g = nx.barabasi_albert_graph(50, 3, seed=42)
+    nx_g = nx.barabasi_albert_graph(50, 3, seed=23)
     graphs.append(("scale_free_50", nx_g, False))
 
     # 7. Watts-Strogatz (small-world)
-    nx_g = nx.watts_strogatz_graph(40, 4, 0.3, seed=42)
+    nx_g = nx.watts_strogatz_graph(40, 4, 0.3, seed=23)
     graphs.append(("small_world_40", nx_g, False))
 
     # 8. Path graph
