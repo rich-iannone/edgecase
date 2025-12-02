@@ -72,6 +72,9 @@ except ImportError:
     to_igraph = None
     from_igraph = None
 
+# Matrix utilities (always available)
+from edgecase.matrix_utils import from_adjacency_matrix, to_adjacency_matrix
+
 __all__ = [
     # Version
     "__version__",
@@ -84,6 +87,8 @@ __all__ = [
     "from_networkx",
     "to_igraph",
     "from_igraph",
+    "to_adjacency_matrix",
+    "from_adjacency_matrix",
     # Visualization
     # "plot_graph",
     # "GraphWidget",
