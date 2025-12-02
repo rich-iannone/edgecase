@@ -9,6 +9,7 @@ class TestSpannerBasic:
         """Empty graph returns empty spanner."""
         g = Graph()
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 0
         assert spanner.count_edges() == 0
 
@@ -17,6 +18,7 @@ class TestSpannerBasic:
         g = Graph()
         g.add_node(label="A")
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 1
         assert spanner.count_edges() == 0
 
@@ -28,25 +30,30 @@ class TestSpannerBasic:
         g.add_edge("A", "B")
 
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 2
         assert spanner.count_edges() == 1
 
     def test_path_graph(self):
         """Path graph spanner."""
         g = Graph()
+
         for i in range(5):
             g.add_node(label=str(i))
+
         for i in range(4):
             g.add_edge(str(i), str(i + 1))
 
         # Path graph spanner should include most/all edges
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 5
         assert spanner.count_edges() >= 3  # Need at least 3 edges to connect 5 nodes with stretch 2
 
     def test_complete_graph(self):
         """Complete graph can be significantly reduced."""
         g = Graph()
+
         for i in range(6):
             g.add_node(label=str(i))
 
@@ -58,7 +65,8 @@ class TestSpannerBasic:
         assert g.count_edges() == 15  # K6 has 15 edges
 
         # 3-spanner should have fewer edges
-        spanner = g.transform_with_spanner(stretch=3.0, seed=42)
+        spanner = g.transform_with_spanner(stretch=3.0, seed=23)
+
         assert spanner.count_nodes() == 6
         assert spanner.count_edges() < 15  # Should be sparser
 
@@ -74,6 +82,7 @@ class TestSpannerBasic:
 
         # 2-spanner of triangle should have at least 2 edges
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 3
         assert spanner.count_edges() >= 2
 
@@ -84,33 +93,38 @@ class TestSpannerStretch:
     def test_stretch_1(self):
         """Stretch 1.0 should preserve all edges."""
         g = Graph()
+
         for i in range(4):
             g.add_node(label=str(i))
+
         g.add_edge("0", "1")
         g.add_edge("1", "2")
         g.add_edge("2", "3")
 
         spanner = g.transform_with_spanner(stretch=1.0)
+
         # Stretch 1.0 means exact distances, so should keep all edges
         assert spanner.count_edges() == g.count_edges()
 
     def test_higher_stretch_fewer_edges(self):
         """Higher stretch values should generally produce fewer edges."""
         g = Graph()
+
         for i in range(8):
             g.add_node(label=str(i))
 
         # Create a grid-like structure
         for i in range(7):
             g.add_edge(str(i), str(i + 1))
+
         g.add_edge("0", "4")
         g.add_edge("1", "5")
         g.add_edge("2", "6")
         g.add_edge("3", "7")
 
-        spanner2 = g.transform_with_spanner(stretch=2.0, seed=42)
-        spanner3 = g.transform_with_spanner(stretch=3.0, seed=42)
-        spanner5 = g.transform_with_spanner(stretch=5.0, seed=42)
+        spanner2 = g.transform_with_spanner(stretch=2.0, seed=23)
+        spanner3 = g.transform_with_spanner(stretch=3.0, seed=23)
+        spanner5 = g.transform_with_spanner(stretch=5.0, seed=23)
 
         # Generally, higher stretch should allow fewer edges
         # (though this isn't strictly guaranteed for all graphs)
@@ -133,20 +147,25 @@ class TestSpannerWeighted:
         # 3-spanner should be able to skip the heavy edge
         # since distance A-C via B is 2, which is < 3 * 10
         spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
+
         assert spanner.count_nodes() == 3
+
         # Should have 2 or 3 edges depending on algorithm decisions
         assert spanner.count_edges() >= 2
 
     def test_weighted_path(self):
         """Weighted path graph."""
         g = Graph()
+
         for i in range(4):
             g.add_node(label=str(i))
+
         g.add_edge("0", "1", weight=1.0)
         g.add_edge("1", "2", weight=1.0)
         g.add_edge("2", "3", weight=1.0)
 
         spanner = g.transform_with_spanner(stretch=2.0, weight="weight")
+
         assert spanner.count_nodes() == 4
         assert spanner.count_edges() >= 2  # Need at least 2 edges to maintain connectivity
 
@@ -157,17 +176,21 @@ class TestSpannerProperties:
     def test_preserves_nodes(self):
         """Spanner preserves all nodes."""
         g = Graph()
+
         for i in range(10):
             g.add_node(label=str(i))
+
         for i in range(9):
             g.add_edge(str(i), str(i + 1))
 
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == g.count_nodes()
 
     def test_subset_of_edges(self):
         """Spanner edges are subset of original edges."""
         g = Graph()
+
         for i in range(5):
             g.add_node(label=str(i))
 
@@ -176,6 +199,7 @@ class TestSpannerProperties:
             g.add_edge(str(i), str((i + 1) % 5))
 
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_edges() <= g.count_edges()
 
     def test_spanner_is_undirected(self):
@@ -186,18 +210,21 @@ class TestSpannerProperties:
         g.add_edge("A", "B")
 
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert not spanner.is_directed()
 
     def test_reproducibility(self):
         """Same seed produces same spanner."""
         g = Graph()
+
         for i in range(6):
             g.add_node(label=str(i))
+
         for i in range(6):
             g.add_edge(str(i), str((i + 1) % 6))
 
-        spanner1 = g.transform_with_spanner(stretch=2.0, seed=42)
-        spanner2 = g.transform_with_spanner(stretch=2.0, seed=42)
+        spanner1 = g.transform_with_spanner(stretch=2.0, seed=23)
+        spanner2 = g.transform_with_spanner(stretch=2.0, seed=23)
 
         assert spanner1.count_edges() == spanner2.count_edges()
 
@@ -246,6 +273,7 @@ class TestSpannerConnectivity:
     def test_connected_graph_stays_connected(self):
         """Spanner of connected graph should remain connected."""
         g = Graph()
+
         for i in range(6):
             g.add_node(label=str(i))
 
@@ -258,6 +286,7 @@ class TestSpannerConnectivity:
         # Check connectivity via BFS
         visited = set()
         queue = ["0"]
+
         while queue:
             node = queue.pop(0)
             if node in visited:
@@ -275,6 +304,7 @@ class TestSpannerConnectivity:
     def test_disconnected_components(self):
         """Spanner preserves disconnected components."""
         g = Graph()
+
         # Component 1
         g.add_node(label="0")
         g.add_node(label="1")
@@ -286,6 +316,7 @@ class TestSpannerConnectivity:
         g.add_edge("2", "3")
 
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 4
         assert spanner.count_edges() == 2  # One edge per component
 
@@ -297,21 +328,25 @@ class TestSpannerSpecialCases:
         """Star graph spanner."""
         g = Graph()
         g.add_node(label="center")
+
         for i in range(5):
             g.add_node(label=str(i))
             g.add_edge("center", str(i))
 
         # Star graph is already optimal - all edges needed
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 6
         assert spanner.count_edges() == 5  # All edges preserved
 
     def test_bipartite_graph(self):
         """Complete bipartite graph."""
         g = Graph()
+
         # Set A
         for i in range(3):
             g.add_node(label=f"A{i}")
+
         # Set B
         for i in range(3):
             g.add_node(label=f"B{i}")
@@ -324,7 +359,8 @@ class TestSpannerSpecialCases:
         assert g.count_edges() == 9
 
         # 3-spanner should reduce edges
-        spanner = g.transform_with_spanner(stretch=3.0, seed=42)
+        spanner = g.transform_with_spanner(stretch=3.0, seed=23)
+
         assert spanner.count_nodes() == 6
         assert spanner.count_edges() < 9
 
@@ -337,6 +373,7 @@ class TestSpannerSpecialCases:
         g.add_edge("A", "B")
 
         spanner = g.transform_with_spanner(stretch=2.0)
+
         assert spanner.count_nodes() == 2
 
 
@@ -364,7 +401,7 @@ class TestSpannerLarge:
                     g.add_edge(str(i), str(j))
 
         original_edges = g.count_edges()
-        spanner = g.transform_with_spanner(stretch=3.0, seed=42)
+        spanner = g.transform_with_spanner(stretch=3.0, seed=23)
 
         assert spanner.count_nodes() == n
         assert 0 < spanner.count_edges() <= original_edges
@@ -388,10 +425,12 @@ class TestSpannerLarge:
 
         assert g.count_edges() == 24  # 4x3 + 3x4
 
-        spanner = g.transform_with_spanner(stretch=2.0, seed=42)
+        spanner = g.transform_with_spanner(stretch=2.0, seed=23)
+
         assert spanner.count_nodes() == 16
         assert spanner.count_edges() <= 24  # Should have at most same number of edges
 
         # Try with higher stretch to see reduction
-        spanner3 = g.transform_with_spanner(stretch=4.0, seed=42)
+        spanner3 = g.transform_with_spanner(stretch=4.0, seed=23)
+
         assert spanner3.count_edges() <= spanner.count_edges()
