@@ -208,7 +208,7 @@ class TestDominatingSet:
     def test_random_graph(self):
         """Random graph: result is valid."""
         graph = Graph()
-        graph.add_gnm_graph(n=50, m=100, seed=42)
+        graph.add_gnm_graph(n=50, m=100, seed=23)
 
         dom = graph.dominating_set()
 
@@ -217,7 +217,7 @@ class TestDominatingSet:
     def test_sorted_output(self):
         """Output should be sorted for determinism."""
         graph = Graph()
-        graph.add_gnm_graph(n=20, m=40, seed=42)
+        graph.add_gnm_graph(n=20, m=40, seed=23)
 
         dom = graph.dominating_set()
 
@@ -236,7 +236,7 @@ class TestMinWeightedDominatingSet:
     def test_unweighted_is_valid(self):
         """Without weights, still produces valid dominating set."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         dom = graph.min_weighted_dominating_set()
 
@@ -245,7 +245,7 @@ class TestMinWeightedDominatingSet:
     def test_with_weights(self):
         """With weights, produces valid dominating set."""
         graph = Graph()
-        graph.add_gnm_graph(n=30, m=60, seed=42)
+        graph.add_gnm_graph(n=30, m=60, seed=23)
 
         # Add weights to nodes using correct API: set_node_attrs(attr_name, values_dict)
         node_ids = graph.get_node_ids()
@@ -307,7 +307,7 @@ class TestMinWeightedDominatingSet:
     def test_sorted_output(self):
         """Output should be sorted for determinism."""
         graph = Graph()
-        graph.add_gnm_graph(n=20, m=40, seed=42)
+        graph.add_gnm_graph(n=20, m=40, seed=23)
 
         dom = graph.min_weighted_dominating_set()
 
@@ -321,9 +321,9 @@ class TestDominatingSetRelationships:
         """Every maximal independent set is a dominating set."""
         for _ in range(5):
             graph = Graph()
-            graph.add_gnm_graph(n=30, m=60, seed=42)
+            graph.add_gnm_graph(n=30, m=60, seed=23)
 
-            mis = graph.maximal_independent_set(seed=42)
+            mis = graph.maximal_independent_set(seed=23)
 
             # A maximal independent set is always dominating
             # (can't add more nodes means all others are adjacent)
@@ -345,7 +345,7 @@ class TestDominatingSetRelationships:
     def test_whole_graph_is_dominating(self):
         """The entire vertex set is always a dominating set."""
         graph = Graph()
-        graph.add_gnm_graph(n=20, m=40, seed=42)
+        graph.add_gnm_graph(n=20, m=40, seed=23)
 
         all_nodes = graph.get_node_ids()
 
@@ -460,7 +460,7 @@ class TestDominatingSetDocstringExamples:
     def test_dominating_set_random_example(self):
         """Test dominating_set with random graph."""
         graph = Graph()
-        graph.add_gnm_graph(n=100, m=200, seed=42)
+        graph.add_gnm_graph(n=100, m=200, seed=23)
 
         dom = graph.dominating_set()
 
