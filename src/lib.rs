@@ -91,6 +91,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::graph_ops::transitive_reduction, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::graph_ops::subgraph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::graph_ops::edge_subgraph, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::to_adjacency_matrix, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::graph_ops::from_adjacency_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::communicability::communicability, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::communicability::communicability_exp, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::communicability::communicability_betweenness_centrality, m)?)?;

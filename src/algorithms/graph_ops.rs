@@ -940,6 +940,184 @@ pub fn edge_subgraph(graph: &Graph, edges: Vec<u64>) -> PyResult<Graph> {
     Ok(result)
 }
 
+/// Convert a graph to an adjacency matrix representation.
+///
+/// Returns a tuple of (matrix, node_ids) where:
+/// - matrix is a 2D Vec of f64 values
+/// - node_ids is the list of node IDs in the order they appear in the matrix
+///
+/// For unweighted graphs, entries are 1.0 (edge) or 0.0 (no edge).
+/// For weighted graphs, entries are the edge weights (0.0 for no edge).
+///
+/// # Arguments
+/// * `graph` - The graph to convert
+/// * `weight` - Optional weight attribute to use (None = use default weight or 1.0)
+/// * `nonedge` - Value to use for non-edges (default 0.0)
+///
+/// # Returns
+/// A tuple of (Vec<Vec<f64>>, Vec<u64>) representing (matrix, node_order)
+#[pyfunction]
+#[pyo3(signature = (graph, weight=None, nonedge=0.0))]
+pub fn to_adjacency_matrix(
+    graph: &Graph,
+    weight: Option<String>,
+    nonedge: f64,
+) -> PyResult<(Vec<Vec<f64>>, Vec<u64>)> {
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    // Create node_id to index mapping
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
+
+    // Initialize matrix with nonedge value
+    let mut matrix: Vec<Vec<f64>> = vec![vec![nonedge; n]; n];
+
+    // Fill in edge values
+    for edge in graph.get_edges_internal() {
+        if let (Some(&i), Some(&j)) = (
+            node_to_idx.get(&edge.source),
+            node_to_idx.get(&edge.target),
+        ) {
+            // Determine edge value
+            let value = if weight.is_some() || graph.is_weighted() {
+                edge.weight.unwrap_or(1.0)
+            } else {
+                1.0
+            };
+
+            matrix[i][j] = value;
+
+            // For undirected graphs, also set the symmetric entry
+            if !graph.is_directed() && i != j {
+                matrix[j][i] = value;
+            }
+        }
+    }
+
+    Ok((matrix, node_ids))
+}
+
+/// Create a graph from an adjacency matrix.
+///
+/// The matrix should be a 2D list where matrix[i][j] represents the edge
+/// from node i to node j. Non-zero values create edges.
+///
+/// # Arguments
+/// * `matrix` - 2D adjacency matrix as Vec<Vec<f64>>
+/// * `node_labels` - Optional list of labels for nodes (same length as matrix dimension)
+/// * `directed` - Whether to create a directed graph (default: False)
+/// * `weighted` - Whether to use matrix values as edge weights (default: True if any value != 0 or 1)
+///
+/// # Returns
+/// A new Graph created from the matrix.
+///
+/// # Errors
+/// Returns an error if the matrix is not square or if node_labels length doesn't match.
+#[pyfunction]
+#[pyo3(signature = (matrix, node_labels=None, directed=false, weighted=None))]
+pub fn from_adjacency_matrix(
+    matrix: Vec<Vec<f64>>,
+    node_labels: Option<Vec<String>>,
+    directed: bool,
+    weighted: Option<bool>,
+) -> PyResult<Graph> {
+    let n = matrix.len();
+
+    // Handle empty matrix
+    if n == 0 {
+        return Ok(Graph::new_rust(directed, weighted.unwrap_or(false)));
+    }
+
+    // Validate square matrix
+    for (i, row) in matrix.iter().enumerate() {
+        if row.len() != n {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Matrix is not square: row {} has {} elements, expected {}",
+                i,
+                row.len(),
+                n
+            )));
+        }
+    }
+
+    // Validate node_labels length if provided
+    if let Some(ref labels) = node_labels {
+        if labels.len() != n {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "node_labels length ({}) must match matrix dimension ({})",
+                labels.len(),
+                n
+            )));
+        }
+    }
+
+    // Determine if graph should be weighted
+    // If not explicitly specified, check if any value is not 0 or 1
+    let is_weighted = weighted.unwrap_or_else(|| {
+        matrix.iter().any(|row| {
+            row.iter()
+                .any(|&val| val != 0.0 && val != 1.0 && val != -0.0)
+        })
+    });
+
+    // Create the graph
+    let mut graph = Graph::new_rust(directed, is_weighted);
+
+    // Add nodes
+    let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+    for i in 0..n {
+        let label = node_labels.as_ref().map(|labels| labels[i].clone());
+        let node = Node {
+            id: 0,
+            label,
+            attributes: None,
+        };
+        let node_id = graph.add_node_rust(node)?;
+        node_ids.push(node_id);
+    }
+
+    // Add edges
+    // For undirected graphs, only process upper triangle to avoid duplicates
+    for i in 0..n {
+        let j_start = if directed { 0 } else { i };
+        for j in j_start..n {
+            let value = matrix[i][j];
+
+            // Skip zero values (no edge)
+            if value == 0.0 || value == -0.0 {
+                continue;
+            }
+
+            // For undirected graphs, check if we need to handle symmetric entry
+            if !directed && i != j {
+                // Use the value from the upper triangle
+                // (in case of asymmetric input, this is the canonical choice)
+            }
+
+            let weight = if is_weighted { Some(value) } else { None };
+
+            let edge = Edge {
+                id: 0,
+                source: node_ids[i],
+                target: node_ids[j],
+                weight,
+                attributes: None,
+            };
+            graph.add_edge_rust(edge)?;
+        }
+    }
+
+    Ok(graph)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
