@@ -107,7 +107,7 @@ class TestNodePercolation:
         """q=0 means no removal."""
         graph = Graph(directed=False)
         graph.add_full_graph(10)
-        result = graph.node_percolation(q=0.0, seed=42)
+        result = graph.node_percolation(q=0.0, seed=23)
 
         assert result.count_nodes() == 10
 
@@ -115,7 +115,7 @@ class TestNodePercolation:
         """q=1 means all nodes removed."""
         graph = Graph(directed=False)
         graph.add_full_graph(10)
-        result = graph.node_percolation(q=1.0, seed=42)
+        result = graph.node_percolation(q=1.0, seed=23)
 
         assert result.count_nodes() == 0
 
@@ -123,7 +123,7 @@ class TestNodePercolation:
         """Partial removal should reduce node count."""
         graph = Graph(directed=False)
         graph.add_full_graph(10)
-        result = graph.node_percolation(q=0.3, seed=42)
+        result = graph.node_percolation(q=0.3, seed=23)
 
         # Should have approximately 7 nodes (10 - 3)
         assert result.count_nodes() == 7
@@ -160,17 +160,17 @@ class TestNodePercolation:
         graph.add_full_graph(5)
 
         with pytest.raises(ValueError):
-            graph.node_percolation(q=1.5, seed=42)
+            graph.node_percolation(q=1.5, seed=23)
 
         with pytest.raises(ValueError):
-            graph.node_percolation(q=-0.1, seed=42)
+            graph.node_percolation(q=-0.1, seed=23)
 
     def test_edges_removed_with_nodes(self):
         """Edges incident to removed nodes should be removed."""
         graph = Graph(directed=False)
         graph.add_full_graph(4)  # K4 has 6 edges
 
-        result = graph.node_percolation(q=0.5, seed=42)
+        result = graph.node_percolation(q=0.5, seed=23)
 
         # With 2 nodes remaining, should have at most 1 edge (if connected)
         remaining_nodes = result.count_nodes()
@@ -185,7 +185,7 @@ class TestEdgePercolation:
         """q=0 means no edge removal."""
         graph = Graph(directed=False)
         graph.add_full_graph(5)  # K5 has 10 edges
-        result = graph.edge_percolation(q=0.0, seed=42)
+        result = graph.edge_percolation(q=0.0, seed=23)
 
         assert result.count_edges() == 10
 
@@ -193,7 +193,7 @@ class TestEdgePercolation:
         """q=1 means all edges removed."""
         graph = Graph(directed=False)
         graph.add_full_graph(5)
-        result = graph.edge_percolation(q=1.0, seed=42)
+        result = graph.edge_percolation(q=1.0, seed=23)
 
         assert result.count_edges() == 0
         # But all nodes should remain
@@ -203,7 +203,7 @@ class TestEdgePercolation:
         """Partial removal should reduce edge count."""
         graph = Graph(directed=False)
         graph.add_full_graph(5)  # 10 edges
-        result = graph.edge_percolation(q=0.5, seed=42)
+        result = graph.edge_percolation(q=0.5, seed=23)
 
         # Should have approximately 5 edges
         assert result.count_edges() == 5
@@ -212,7 +212,7 @@ class TestEdgePercolation:
         """All nodes should be preserved in edge percolation."""
         graph = Graph(directed=False)
         graph.add_full_graph(10)
-        result = graph.edge_percolation(q=0.8, seed=42)
+        result = graph.edge_percolation(q=0.8, seed=23)
 
         # All 10 nodes should remain
         assert result.count_nodes() == 10
@@ -233,10 +233,10 @@ class TestEdgePercolation:
         graph.add_full_graph(5)
 
         with pytest.raises(ValueError):
-            graph.edge_percolation(q=1.5, seed=42)
+            graph.edge_percolation(q=1.5, seed=23)
 
         with pytest.raises(ValueError):
-            graph.edge_percolation(q=-0.1, seed=42)
+            graph.edge_percolation(q=-0.1, seed=23)
 
 
 class TestLargestComponentSize:
@@ -277,7 +277,7 @@ class TestLargestComponentSize:
         graph = Graph(directed=False)
         graph.add_full_graph(10)
 
-        percolated = graph.node_percolation(q=0.5, seed=42)
+        percolated = graph.node_percolation(q=0.5, seed=23)
         lcs = percolated.largest_component_size()
 
         # Component size should be at most the number of remaining nodes
@@ -293,7 +293,7 @@ class TestPercolationThresholdAnalysis:
         graph = Graph(directed=False)
         graph.add_full_graph(20)
 
-        results = graph.percolation_threshold_analysis(steps=10, trials=3, seed=42)
+        results = graph.percolation_threshold_analysis(steps=10, trials=3, seed=23)
 
         # Should have 11 data points (0%, 10%, ..., 100%)
         assert len(results) == 11
@@ -303,7 +303,7 @@ class TestPercolationThresholdAnalysis:
         graph = Graph(directed=False)
         graph.add_full_graph(20)
 
-        results = graph.percolation_threshold_analysis(steps=5, trials=3, seed=42)
+        results = graph.percolation_threshold_analysis(steps=5, trials=3, seed=23)
 
         # First point: q=0, should have GCC relative size = 1.0
         q, gcc_size = results[0]
@@ -315,7 +315,7 @@ class TestPercolationThresholdAnalysis:
         graph = Graph(directed=False)
         graph.add_full_graph(20)
 
-        results = graph.percolation_threshold_analysis(steps=5, trials=3, seed=42)
+        results = graph.percolation_threshold_analysis(steps=5, trials=3, seed=23)
 
         # Last point: q=1, no nodes, GCC should be 0
         q, gcc_size = results[-1]
@@ -327,7 +327,7 @@ class TestPercolationThresholdAnalysis:
         graph = Graph(directed=False)
         graph.add_full_graph(50)
 
-        results = graph.percolation_threshold_analysis(steps=10, trials=10, seed=42)
+        results = graph.percolation_threshold_analysis(steps=10, trials=10, seed=23)
 
         # With enough trials, should show general decrease
         # (may not be strictly monotonic due to randomness)
@@ -355,7 +355,7 @@ class TestDirectedGraphPercolation:
         """Node percolation should work on directed graphs."""
         graph = Graph(directed=True)
         graph.add_path_graph(10)
-        result = graph.node_percolation(q=0.3, seed=42)
+        result = graph.node_percolation(q=0.3, seed=23)
 
         assert result.count_nodes() == 7
 
@@ -363,7 +363,7 @@ class TestDirectedGraphPercolation:
         """Edge percolation should work on directed graphs."""
         graph = Graph(directed=True)
         graph.add_path_graph(10)  # 9 directed edges
-        result = graph.edge_percolation(q=0.5, seed=42)
+        result = graph.edge_percolation(q=0.5, seed=23)
 
         # Should have approximately half the edges (4-5 for 9 edges)
         assert 3 <= result.count_edges() <= 6
@@ -389,7 +389,7 @@ class TestRobustnessScenarios:
         # and the graph fragments
         results = []
         for i in range(10):
-            percolated = graph.node_percolation(q=0.5, seed=42 + i)
+            percolated = graph.node_percolation(q=0.5, seed=23 + i)
             lcs = percolated.largest_component_size()
             remaining = percolated.count_nodes()
             if remaining > 0:
@@ -404,7 +404,7 @@ class TestRobustnessScenarios:
         graph = Graph(directed=False)
         graph.add_full_graph(10)
 
-        results = graph.percolation_threshold_analysis(steps=10, trials=5, seed=42)
+        results = graph.percolation_threshold_analysis(steps=10, trials=5, seed=23)
 
         # Should maintain high connectivity until high q
         # At q=0.3, should still have nearly full connectivity
