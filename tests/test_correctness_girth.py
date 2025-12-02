@@ -75,7 +75,7 @@ def create_test_graphs():
     graphs.append(("karate_club", nx_g, False, 3))
 
     # 13. Random sparse graph (likely has triangles)
-    nx_g = nx.erdos_renyi_graph(30, 0.1, seed=42, directed=False)
+    nx_g = nx.erdos_renyi_graph(30, 0.1, seed=23, directed=False)
     graphs.append(("random_sparse_30", nx_g, False, None))  # Unknown girth
 
     # 14. Bipartite graph (girth = 4 if has cycle, else None)
