@@ -1,12 +1,47 @@
 ---
 title: ""
+toc: false
 ---
 
-# EdgeCase
+<style>
+section.level1:first-of-type > h1:first-child,
+section.level2:first-of-type > h2:first-child,
+.column-body-outset-right > section.level1:first-of-type > h1,
+#quarto-document-content > section:first-of-type > h1 {
+  margin-top: 4px !important;
+}
+</style>
+
+::: {.column-margin}
+#### Links
+
+[View on PyPI](https://pypi.org/project/edgecase/)<br>
+[Browse source code](https://github.com/rich-iannone/edgecase)<br>
+[Issues](https://github.com/rich-iannone/edgecase/issues)<br>
+
+#### License
+
+[Full license](license.qmd)<br>
+
+#### Community
+
+[Contributing guide](contributing.qmd)<br>
+
+#### Developers
+
+<p>**Rich Iannone** <br><small>Maintainer</small> <br><small style="margin-top: -0.15em; display: block;">Posit, PBC</small> <span style="margin-top: -0.15em; display: block;"><a href="mailto:riannone@me.com" title="Email"><i class="bi bi-envelope-fill"></i></a> <a href="https://github.com/rich-iannone" title="GitHub"><i class="bi bi-github"></i></a> <a href="https://orcid.org/0000-0003-3925-190X" title="ORCID"><i class="fa-brands fa-orcid"></i></a></span></p>
+
+#### Meta
+
+**Requires:** Python `>=3.9`<br>
+**Provides-Extra:** `dev`, `bio`, `networkx`, `docs`, `all`
+:::
+
+## EdgeCase
 
 EdgeCase is a Python library for working with graphs and networks. It provides a comprehensive set of tools for graph creation, analysis, and visualization, with a strong emphasis on delivering an exceptional visualization experience. Built for performance and ease of use, EdgeCase makes complex network analysis accessible through intuitive, interactive visualizations.
 
-## Features
+### Features
 
 EdgeCase offers a wide range of graph operations and algorithms:
 
@@ -60,13 +95,13 @@ EdgeCase offers a wide range of graph operations and algorithms:
 - **Efficient rendering** for large graphs with thousands of nodes
 - **Export-ready visualizations** for reports and presentations
 
-## Quick Start
+### Quick Start
 
 ```python
 import polars as pl
 from edgecase import Graph
 
-# Create node and edge DataFrames
+## Create node and edge DataFrames
 nodes_df = pl.DataFrame({
     "id": [1, 2, 3],
     "label": ["Alice", "Bob", "Charlie"],
@@ -80,33 +115,33 @@ edges_df = pl.DataFrame({
     "weight": [1.0, 2.0, 1.5]
 })
 
-# Create graph from DataFrames
+## Create graph from DataFrames
 graph = Graph(nodes_df=nodes_df, edges_df=edges_df, directed=False, weighted=True)
 
-# Calculate centrality and automatically store as node attributes (returns self for chaining)
+## Calculate centrality and automatically store as node attributes (returns self for chaining)
 graph.get_eigen_centrality(attr_name="centrality").show()
 
-# Or capture values while storing
+## Or capture values while storing
 centrality = graph.get_eigen_centrality()  # Returns dict
 graph.set_node_attrs("centrality", centrality)
 
-# Find paths
+## Find paths
 paths = graph.get_all_simple_paths("Alice", "Charlie")
 ```
 
-### Streamlined Community Detection Visualization
+#### Streamlined Community Detection Visualization
 
 EdgeCase is great at combining powerful analysis with beautiful, intuitive visualizations. Here's how simple it is to go from raw data to publication-ready network visualization:
 
 ```python
 import edgecase as ec
 
-# Streamlined community detection visualization workflow:
-# 1. Load Zachary's Karate Club, a classic social network dataset
-# 2. Detect communities using Louvain algorithm -> store as attribute
-# 3. Calculate eigenvector centrality -> store as attribute
-# 4. Scale nodes by the eigenvector centrality values
-# 5. Color nodes by community (categorical palette)
+## Streamlined community detection visualization workflow:
+## 1. Load Zachary's Karate Club, a classic social network dataset
+## 2. Detect communities using Louvain algorithm -> store as attribute
+## 3. Calculate eigenvector centrality -> store as attribute
+## 4. Scale nodes by the eigenvector centrality values
+## 5. Color nodes by community (categorical palette)
 karate_graph = (
     ec.karate_club()
     .cmty_louvain()
@@ -164,7 +199,7 @@ Node aesthetics:
 
 The fluent API design means you can build complex visual analytics pipelines with minimal code, making it easy to explore your data and communicate insights effectively.
 
-## Integration with Polars
+### Integration with Polars
 
 EdgeCase is designed to work seamlessly with Polars DataFrames. Use a pair of them to define the nodes (NDF) and the edges (EDF) of a graph:
 
@@ -172,7 +207,7 @@ EdgeCase is designed to work seamlessly with Polars DataFrames. Use a pair of th
 import polars as pl
 from edgecase import Graph
 
-# Node DataFrame (NDF) with attributes
+## Node DataFrame (NDF) with attributes
 nodes_df = pl.DataFrame({
     "id": [1, 2, 3],
     "label": ["Alice", "Bob", "Charlie"],
@@ -180,7 +215,7 @@ nodes_df = pl.DataFrame({
     "active": [True, True, False]
 })
 
-# Edge DataFrame (EDF) with relationships
+## Edge DataFrame (EDF) with relationships
 edges_df = pl.DataFrame({
     "from": [1, 2],
     "to": [2, 3],
@@ -188,12 +223,12 @@ edges_df = pl.DataFrame({
     "weight": [1.0, 0.8]
 })
 
-# Create graph directly from DataFrames
+## Create graph directly from DataFrames
 graph = Graph(nodes_df=nodes_df, edges_df=edges_df, directed=True, weighted=True)
 ```
 
 ```python
-# Visualize your network with a single method call
+## Visualize your network with a single method call
 graph.show()
 ```
 
@@ -201,11 +236,11 @@ graph.show()
 
 The visualization system automatically handles layout, rendering, and interactivity, allowing you to focus on understanding your network structure and relationships.
 
-## Documentation
+### Documentation
 
 For detailed documentation, examples, and API reference, visit the [documentation site](https://rich-iannone.github.io/edgecase/).
 
-## License
+### License
 
 EdgeCase is licensed under the MIT License. See the LICENSE file for details.
 
