@@ -5,8 +5,15 @@ format:
   html:
     theme: flatly
     css:
-    - great-theme.css
+    - great-docs.css
+    toc: true
+    toc-depth: 2
+    toc-title: On this page
+    shift-heading-level-by: -1
+    include-in-header:
+    - text: <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 website:
+  page-navigation: true
   title: Edgecase
   navbar:
     left:
@@ -14,6 +21,343 @@ website:
       href: index.qmd
     - text: API Reference
       href: reference/index.qmd
+    right:
+    - icon: github
+      href: https://github.com/rich-iannone/edgecase
+  sidebar:
+  - id: reference
+    contents:
+    - section: Classes
+      contents:
+      - reference/Graph.qmd
+      - reference/GraphWidget.qmd
+    - section: Graph Methods
+      contents:
+      - reference/Graph.ada_star_search.qmd
+      - reference/Graph.adamic_adar_index.qmd
+      - reference/Graph.add_balanced_tree.qmd
+      - reference/Graph.add_cycle_graph.qmd
+      - reference/Graph.add_edge.qmd
+      - reference/Graph.add_full_graph.qmd
+      - reference/Graph.add_gnm_graph.qmd
+      - reference/Graph.add_gnp_graph.qmd
+      - reference/Graph.add_grid_2d.qmd
+      - reference/Graph.add_johnson_graph.qmd
+      - reference/Graph.add_node.qmd
+      - reference/Graph.add_pa_graph.qmd
+      - reference/Graph.add_path_graph.qmd
+      - reference/Graph.add_prism_graph.qmd
+      - reference/Graph.add_random_geometric_graph.qmd
+      - reference/Graph.add_reverse_edges_ws.qmd
+      - reference/Graph.add_smallworld_graph.qmd
+      - reference/Graph.add_star_graph.qmd
+      - reference/Graph.all_pairs_shortest_path.qmd
+      - reference/Graph.all_pairs_shortest_path_length.qmd
+      - reference/Graph.all_spanning_trees.qmd
+      - reference/Graph.alpha_centrality.qmd
+      - reference/Graph.authority_centrality.qmd
+      - reference/Graph.average_neighbor_degree.qmd
+      - reference/Graph.bellman_ford_shortest_path.qmd
+      - reference/Graph.betweenness_centrality.qmd
+      - reference/Graph.bfs.qmd
+      - reference/Graph.bonacich_power_centrality.qmd
+      - reference/Graph.bridges.qmd
+      - reference/Graph.chromatic_number_upper_bound.qmd
+      - reference/Graph.clear_selection.qmd
+      - reference/Graph.clique_number.qmd
+      - reference/Graph.closeness_vitality.qmd
+      - reference/Graph.clustering_coefficient.qmd
+      - reference/Graph.cmty_edge_btwns.qmd
+      - reference/Graph.cmty_fast_greedy.qmd
+      - reference/Graph.cmty_l_eigenvec.qmd
+      - reference/Graph.cmty_louvain.qmd
+      - reference/Graph.cmty_walktrap.qmd
+      - reference/Graph.colorize_node_attrs.qmd
+      - reference/Graph.common_neighbors.qmd
+      - reference/Graph.communicability.qmd
+      - reference/Graph.communicability_betweenness_centrality.qmd
+      - reference/Graph.complement.qmd
+      - reference/Graph.compose.qmd
+      - reference/Graph.constraint.qmd
+      - reference/Graph.contract_nodes.qmd
+      - reference/Graph.contract_nodes_multi.qmd
+      - reference/Graph.contracted_edge.qmd
+      - reference/Graph.coreness.qmd
+      - reference/Graph.count_all_loops.qmd
+      - reference/Graph.count_asymmetric_node_pairs.qmd
+      - reference/Graph.count_edges.qmd
+      - reference/Graph.count_loops.qmd
+      - reference/Graph.count_multi_edges.qmd
+      - reference/Graph.count_multiple.qmd
+      - reference/Graph.count_mutual_node_pairs.qmd
+      - reference/Graph.count_nodes.qmd
+      - reference/Graph.count_selected_edges.qmd
+      - reference/Graph.count_selected_nodes.qmd
+      - reference/Graph.count_strongly_connected_components.qmd
+      - reference/Graph.count_trails.qmd
+      - reference/Graph.count_triangles.qmd
+      - reference/Graph.count_walks.qmd
+      - reference/Graph.count_weakly_connected_components.qmd
+      - reference/Graph.cycle_basis.qmd
+      - reference/Graph.degrees.qmd
+      - reference/Graph.delete_edge.qmd
+      - reference/Graph.delete_edge_by_id.qmd
+      - reference/Graph.delete_edges_ws.qmd
+      - reference/Graph.delete_node.qmd
+      - reference/Graph.delete_nodes_ws.qmd
+      - reference/Graph.describe.qmd
+      - reference/Graph.deselect_edges.qmd
+      - reference/Graph.deselect_nodes.qmd
+      - reference/Graph.dfs.qmd
+      - reference/Graph.difference.qmd
+      - reference/Graph.disjoint_union.qmd
+      - reference/Graph.dispersion.qmd
+      - reference/Graph.dominating_set.qmd
+      - reference/Graph.domirank_centrality.qmd
+      - reference/Graph.eccentricity.qmd
+      - reference/Graph.edge_percolation.qmd
+      - reference/Graph.edge_subgraph.qmd
+      - reference/Graph.eigen_centrality.qmd
+      - reference/Graph.enumerate_trails.qmd
+      - reference/Graph.eulerian_circuit.qmd
+      - reference/Graph.find_cliques.qmd
+      - reference/Graph.find_cohesive_blocks.qmd
+      - reference/Graph.find_edge_ids.qmd
+      - reference/Graph.find_maximal_independent_sets.qmd
+      - reference/Graph.fully_connect_nodes_ws.qmd
+      - reference/Graph.get_adhesion.qmd
+      - reference/Graph.get_agg_degree_in.qmd
+      - reference/Graph.get_agg_degree_out.qmd
+      - reference/Graph.get_agg_degree_total.qmd
+      - reference/Graph.get_all_connected_nodes.qmd
+      - reference/Graph.get_all_simple_paths.qmd
+      - reference/Graph.get_articulation_points.qmd
+      - reference/Graph.get_assortativity.qmd
+      - reference/Graph.get_assortativity_degree.qmd
+      - reference/Graph.get_assortativity_nominal.qmd
+      - reference/Graph.get_average_degree.qmd
+      - reference/Graph.get_avg_clustering_coefficient.qmd
+      - reference/Graph.get_cohesion.qmd
+      - reference/Graph.get_common_neighbors.qmd
+      - reference/Graph.get_cosine_similarity.qmd
+      - reference/Graph.get_cycles.qmd
+      - reference/Graph.get_degree.qmd
+      - reference/Graph.get_degree_distribution.qmd
+      - reference/Graph.get_density.qmd
+      - reference/Graph.get_diameter.qmd
+      - reference/Graph.get_dice_similarity.qmd
+      - reference/Graph.get_edge.qmd
+      - reference/Graph.get_edge_attrs.qmd
+      - reference/Graph.get_edge_attrs_by_id.qmd
+      - reference/Graph.get_edge_clustering_coefficient.qmd
+      - reference/Graph.get_edge_connectivity.qmd
+      - reference/Graph.get_edge_creation_order.qmd
+      - reference/Graph.get_edge_df.qmd
+      - reference/Graph.get_edge_df_ws.qmd
+      - reference/Graph.get_edge_ids.qmd
+      - reference/Graph.get_edges_as_tuples.qmd
+      - reference/Graph.get_edges_str_repr.qmd
+      - reference/Graph.get_estrada_index.qmd
+      - reference/Graph.get_girth.qmd
+      - reference/Graph.get_graph_name.qmd
+      - reference/Graph.get_id_from_label.qmd
+      - reference/Graph.get_in_degree.qmd
+      - reference/Graph.get_jaccard_similarity.qmd
+      - reference/Graph.get_kirchhoff_index.qmd
+      - reference/Graph.get_label_from_id.qmd
+      - reference/Graph.get_laplacian_spectrum.qmd
+      - reference/Graph.get_max_eccentricity.qmd
+      - reference/Graph.get_mean_distance.qmd
+      - reference/Graph.get_min_cut_between.qmd
+      - reference/Graph.get_min_eccentricity.qmd
+      - reference/Graph.get_node.qmd
+      - reference/Graph.get_node_attrs.qmd
+      - reference/Graph.get_node_connectivity.qmd
+      - reference/Graph.get_node_connectivity_between.qmd
+      - reference/Graph.get_node_creation_order.qmd
+      - reference/Graph.get_node_df.qmd
+      - reference/Graph.get_node_df_ws.qmd
+      - reference/Graph.get_node_ids.qmd
+      - reference/Graph.get_node_ids_by_edge_id.qmd
+      - reference/Graph.get_node_vitality.qmd
+      - reference/Graph.get_non_neighbors.qmd
+      - reference/Graph.get_out_degree.qmd
+      - reference/Graph.get_overlap_similarity.qmd
+      - reference/Graph.get_pairwise_similarity.qmd
+      - reference/Graph.get_periphery.qmd
+      - reference/Graph.get_predecessors.qmd
+      - reference/Graph.get_radius.qmd
+      - reference/Graph.get_reciprocity.qmd
+      - reference/Graph.get_resistance_distance.qmd
+      - reference/Graph.get_selected_edge_ids.qmd
+      - reference/Graph.get_selected_node_ids.qmd
+      - reference/Graph.get_similar_neighbors.qmd
+      - reference/Graph.get_spectrum.qmd
+      - reference/Graph.get_successors.qmd
+      - reference/Graph.get_topological_sort_order.qmd
+      - reference/Graph.get_transitivity.qmd
+      - reference/Graph.get_wiener_index.qmd
+      - reference/Graph.global_efficiency.qmd
+      - reference/Graph.greedy_color.qmd
+      - reference/Graph.harmonic_centrality.qmd
+      - reference/Graph.has_bridges.qmd
+      - reference/Graph.has_cycles.qmd
+      - reference/Graph.has_edge.qmd
+      - reference/Graph.has_edge_id.qmd
+      - reference/Graph.has_node.qmd
+      - reference/Graph.hub_centrality.qmd
+      - reference/Graph.intersection.qmd
+      - reference/Graph.invert_edge_selection.qmd
+      - reference/Graph.invert_node_selection.qmd
+      - reference/Graph.is_arborescence.qmd
+      - reference/Graph.is_bipartite.qmd
+      - reference/Graph.is_connected.qmd
+      - reference/Graph.is_dag.qmd
+      - reference/Graph.is_directed.qmd
+      - reference/Graph.is_dominating_set.qmd
+      - reference/Graph.is_eulerian.qmd
+      - reference/Graph.is_forest.qmd
+      - reference/Graph.is_independent_set.qmd
+      - reference/Graph.is_isomorphic.qmd
+      - reference/Graph.is_k_regular.qmd
+      - reference/Graph.is_matching.qmd
+      - reference/Graph.is_planar.qmd
+      - reference/Graph.is_regular.qmd
+      - reference/Graph.is_semieulerian.qmd
+      - reference/Graph.is_simple.qmd
+      - reference/Graph.is_simple_path.qmd
+      - reference/Graph.is_strongly_connected.qmd
+      - reference/Graph.is_tree.qmd
+      - reference/Graph.is_valid_coloring.qmd
+      - reference/Graph.is_weakly_connected.qmd
+      - reference/Graph.is_weighted.qmd
+      - reference/Graph.jaccard_coefficient.qmd
+      - reference/Graph.k_core.qmd
+      - reference/Graph.k_corona.qmd
+      - reference/Graph.k_crust.qmd
+      - reference/Graph.k_shell.qmd
+      - reference/Graph.k_shortest_paths.qmd
+      - reference/Graph.k_truss.qmd
+      - reference/Graph.katz_centrality.qmd
+      - reference/Graph.largest_component_size.qmd
+      - reference/Graph.leverage_centrality.qmd
+      - reference/Graph.line_graph.qmd
+      - reference/Graph.list_triangles.qmd
+      - reference/Graph.load_centrality.qmd
+      - reference/Graph.local_clustering_coefficient.qmd
+      - reference/Graph.local_efficiency.qmd
+      - reference/Graph.max_clique.qmd
+      - reference/Graph.max_flow.qmd
+      - reference/Graph.max_flow_value.qmd
+      - reference/Graph.max_weight_matching.qmd
+      - reference/Graph.maximal_independent_set.qmd
+      - reference/Graph.maximal_matching.qmd
+      - reference/Graph.maximum_independent_set.qmd
+      - reference/Graph.maximum_spanning_tree.qmd
+      - reference/Graph.min_cost_flow.qmd
+      - reference/Graph.min_weighted_dominating_set.qmd
+      - reference/Graph.minimum_cycle_basis.qmd
+      - reference/Graph.minimum_edge_cut.qmd
+      - reference/Graph.minimum_node_cut.qmd
+      - reference/Graph.minimum_spanning_tree.qmd
+      - reference/Graph.mutate_edge_attrs_ws.qmd
+      - reference/Graph.mutate_node_attrs_ws.qmd
+      - reference/Graph.neighbors.qmd
+      - reference/Graph.node_percolation.qmd
+      - reference/Graph.pagerank.qmd
+      - reference/Graph.percolation_centrality.qmd
+      - reference/Graph.percolation_threshold_analysis.qmd
+      - reference/Graph.preferential_attachment.qmd
+      - reference/Graph.quotient_graph.qmd
+      - reference/Graph.radiality.qmd
+      - reference/Graph.random_edge_walk.qmd
+      - reference/Graph.random_walk.qmd
+      - reference/Graph.remove_duplicate_edges.qmd
+      - reference/Graph.remove_selfloops.qmd
+      - reference/Graph.rescale_node_attrs.qmd
+      - reference/Graph.resistance_distance_matrix.qmd
+      - reference/Graph.resource_allocation_index.qmd
+      - reference/Graph.rev_edge_dir_ws.qmd
+      - reference/Graph.reverse.qmd
+      - reference/Graph.rich_club_coefficient.qmd
+      - reference/Graph.second_order_centrality.qmd
+      - reference/Graph.select_edges.qmd
+      - reference/Graph.select_edges_by_id.qmd
+      - reference/Graph.select_edges_by_node.qmd
+      - reference/Graph.select_last_edges_created.qmd
+      - reference/Graph.select_last_nodes_created.qmd
+      - reference/Graph.select_nodes.qmd
+      - reference/Graph.select_nodes_by_centrality.qmd
+      - reference/Graph.select_nodes_by_degree.qmd
+      - reference/Graph.select_nodes_by_id.qmd
+      - reference/Graph.select_nodes_in_neighborhood.qmd
+      - reference/Graph.set_edge_attrs.qmd
+      - reference/Graph.set_edge_attrs_ws.qmd
+      - reference/Graph.set_node_attr_to_display.qmd
+      - reference/Graph.set_node_attrs.qmd
+      - reference/Graph.set_node_attrs_ws.qmd
+      - reference/Graph.shortest_path.qmd
+      - reference/Graph.show.qmd
+      - reference/Graph.simple_cycles.qmd
+      - reference/Graph.simplify.qmd
+      - reference/Graph.steiner_tree.qmd
+      - reference/Graph.strongly_connected_components.qmd
+      - reference/Graph.subgraph.qmd
+      - reference/Graph.symmetric_difference.qmd
+      - reference/Graph.to_directed.qmd
+      - reference/Graph.to_undirected.qmd
+      - reference/Graph.transform_to_subgraph_ws.qmd
+      - reference/Graph.transform_with_spanner.qmd
+      - reference/Graph.transitive_closure.qmd
+      - reference/Graph.transitive_reduction.qmd
+      - reference/Graph.trav_both.qmd
+      - reference/Graph.trav_in.qmd
+      - reference/Graph.trav_in_edge.qmd
+      - reference/Graph.trav_in_until.qmd
+      - reference/Graph.trav_out.qmd
+      - reference/Graph.trav_out_edge.qmd
+      - reference/Graph.trav_out_until.qmd
+      - reference/Graph.trav_reverse_edge.qmd
+      - reference/Graph.union.qmd
+      - reference/Graph.weakly_connected_components.qmd
+      - reference/Graph.which_loops.qmd
+      - reference/Graph.which_multiple.qmd
+      - reference/Graph.which_mutual.qmd
+    - section: Functions
+      contents:
+      - reference/list_palettes.qmd
+      - reference/ca_grqc.qmd
+      - reference/celegans.qmd
+      - reference/condmat.qmd
+      - reference/dolphins.qmd
+      - reference/enron.qmd
+      - reference/football.qmd
+      - reference/get_dataset_info.qmd
+      - reference/gnutella.qmd
+      - reference/internet.qmd
+      - reference/jazz.qmd
+      - reference/karate_club.qmd
+      - reference/list_available_datasets.qmd
+      - reference/list_registered_datasets.qmd
+      - reference/load_dataset.qmd
+      - reference/pgp.qmd
+      - reference/physics.qmd
+      - reference/polbooks.qmd
+      - reference/power_grid.qmd
+      - reference/soc_livejournal.qmd
+      - reference/web_google.qmd
+      - reference/wiki_vote.qmd
+      - reference/from_matrix_market.qmd
+      - reference/tbl_centrality.qmd
+      - reference/tbl_network_summary.qmd
+      - reference/plot_graph.qmd
+      - reference/graph_widget.qmd
+      - reference/from_networkx.qmd
+      - reference/to_networkx.qmd
+      - reference/from_igraph.qmd
+      - reference/to_igraph.qmd
+      - reference/from_adjacency_matrix.qmd
+      - reference/to_adjacency_matrix.qmd
 quartodoc:
   package: edgecase
   dir: reference
@@ -29,10 +373,12 @@ quartodoc:
     contents:
     - name: Graph
       members: []
+    - GraphWidget
   - title: Graph Methods
     desc: Methods for the Graph class
     contents:
     - Graph.ada_star_search
+    - Graph.adamic_adar_index
     - Graph.add_balanced_tree
     - Graph.add_cycle_graph
     - Graph.add_edge
@@ -45,15 +391,22 @@ quartodoc:
     - Graph.add_pa_graph
     - Graph.add_path_graph
     - Graph.add_prism_graph
+    - Graph.add_random_geometric_graph
     - Graph.add_reverse_edges_ws
     - Graph.add_smallworld_graph
     - Graph.add_star_graph
+    - Graph.all_pairs_shortest_path
+    - Graph.all_pairs_shortest_path_length
+    - Graph.all_spanning_trees
     - Graph.alpha_centrality
     - Graph.authority_centrality
+    - Graph.average_neighbor_degree
     - Graph.bellman_ford_shortest_path
     - Graph.betweenness_centrality
     - Graph.bfs
     - Graph.bonacich_power_centrality
+    - Graph.bridges
+    - Graph.chromatic_number_upper_bound
     - Graph.clear_selection
     - Graph.clique_number
     - Graph.closeness_vitality
@@ -64,8 +417,15 @@ quartodoc:
     - Graph.cmty_louvain
     - Graph.cmty_walktrap
     - Graph.colorize_node_attrs
+    - Graph.common_neighbors
+    - Graph.communicability
+    - Graph.communicability_betweenness_centrality
     - Graph.complement
+    - Graph.compose
     - Graph.constraint
+    - Graph.contract_nodes
+    - Graph.contract_nodes_multi
+    - Graph.contracted_edge
     - Graph.coreness
     - Graph.count_all_loops
     - Graph.count_asymmetric_node_pairs
@@ -82,6 +442,7 @@ quartodoc:
     - Graph.count_triangles
     - Graph.count_walks
     - Graph.count_weakly_connected_components
+    - Graph.cycle_basis
     - Graph.degrees
     - Graph.delete_edge
     - Graph.delete_edge_by_id
@@ -92,13 +453,21 @@ quartodoc:
     - Graph.deselect_edges
     - Graph.deselect_nodes
     - Graph.dfs
+    - Graph.difference
+    - Graph.disjoint_union
+    - Graph.dispersion
+    - Graph.dominating_set
     - Graph.domirank_centrality
     - Graph.eccentricity
+    - Graph.edge_percolation
+    - Graph.edge_subgraph
     - Graph.eigen_centrality
     - Graph.enumerate_trails
+    - Graph.eulerian_circuit
     - Graph.find_cliques
     - Graph.find_cohesive_blocks
     - Graph.find_edge_ids
+    - Graph.find_maximal_independent_sets
     - Graph.fully_connect_nodes_ws
     - Graph.get_adhesion
     - Graph.get_agg_degree_in
@@ -132,11 +501,13 @@ quartodoc:
     - Graph.get_edge_ids
     - Graph.get_edges_as_tuples
     - Graph.get_edges_str_repr
+    - Graph.get_estrada_index
     - Graph.get_girth
     - Graph.get_graph_name
     - Graph.get_id_from_label
     - Graph.get_in_degree
     - Graph.get_jaccard_similarity
+    - Graph.get_kirchhoff_index
     - Graph.get_label_from_id
     - Graph.get_laplacian_spectrum
     - Graph.get_max_eccentricity
@@ -152,6 +523,7 @@ quartodoc:
     - Graph.get_node_df_ws
     - Graph.get_node_ids
     - Graph.get_node_ids_by_edge_id
+    - Graph.get_node_vitality
     - Graph.get_non_neighbors
     - Graph.get_out_degree
     - Graph.get_overlap_similarity
@@ -160,6 +532,7 @@ quartodoc:
     - Graph.get_predecessors
     - Graph.get_radius
     - Graph.get_reciprocity
+    - Graph.get_resistance_distance
     - Graph.get_selected_edge_ids
     - Graph.get_selected_node_ids
     - Graph.get_similar_neighbors
@@ -167,11 +540,17 @@ quartodoc:
     - Graph.get_successors
     - Graph.get_topological_sort_order
     - Graph.get_transitivity
+    - Graph.get_wiener_index
+    - Graph.global_efficiency
+    - Graph.greedy_color
+    - Graph.harmonic_centrality
+    - Graph.has_bridges
     - Graph.has_cycles
     - Graph.has_edge
     - Graph.has_edge_id
     - Graph.has_node
     - Graph.hub_centrality
+    - Graph.intersection
     - Graph.invert_edge_selection
     - Graph.invert_node_selection
     - Graph.is_arborescence
@@ -179,30 +558,73 @@ quartodoc:
     - Graph.is_connected
     - Graph.is_dag
     - Graph.is_directed
+    - Graph.is_dominating_set
+    - Graph.is_eulerian
     - Graph.is_forest
+    - Graph.is_independent_set
     - Graph.is_isomorphic
+    - Graph.is_k_regular
+    - Graph.is_matching
     - Graph.is_planar
+    - Graph.is_regular
+    - Graph.is_semieulerian
     - Graph.is_simple
     - Graph.is_simple_path
+    - Graph.is_strongly_connected
     - Graph.is_tree
+    - Graph.is_valid_coloring
+    - Graph.is_weakly_connected
     - Graph.is_weighted
+    - Graph.jaccard_coefficient
+    - Graph.k_core
+    - Graph.k_corona
+    - Graph.k_crust
+    - Graph.k_shell
+    - Graph.k_shortest_paths
+    - Graph.k_truss
     - Graph.katz_centrality
+    - Graph.largest_component_size
     - Graph.leverage_centrality
+    - Graph.line_graph
     - Graph.list_triangles
+    - Graph.load_centrality
     - Graph.local_clustering_coefficient
+    - Graph.local_efficiency
     - Graph.max_clique
+    - Graph.max_flow
+    - Graph.max_flow_value
+    - Graph.max_weight_matching
+    - Graph.maximal_independent_set
+    - Graph.maximal_matching
+    - Graph.maximum_independent_set
     - Graph.maximum_spanning_tree
+    - Graph.min_cost_flow
+    - Graph.min_weighted_dominating_set
+    - Graph.minimum_cycle_basis
+    - Graph.minimum_edge_cut
+    - Graph.minimum_node_cut
     - Graph.minimum_spanning_tree
     - Graph.mutate_edge_attrs_ws
     - Graph.mutate_node_attrs_ws
     - Graph.neighbors
+    - Graph.node_percolation
     - Graph.pagerank
+    - Graph.percolation_centrality
+    - Graph.percolation_threshold_analysis
+    - Graph.preferential_attachment
+    - Graph.quotient_graph
     - Graph.radiality
     - Graph.random_edge_walk
     - Graph.random_walk
+    - Graph.remove_duplicate_edges
+    - Graph.remove_selfloops
     - Graph.rescale_node_attrs
+    - Graph.resistance_distance_matrix
+    - Graph.resource_allocation_index
     - Graph.rev_edge_dir_ws
     - Graph.reverse
+    - Graph.rich_club_coefficient
+    - Graph.second_order_centrality
     - Graph.select_edges
     - Graph.select_edges_by_id
     - Graph.select_edges_by_node
@@ -220,10 +642,18 @@ quartodoc:
     - Graph.set_node_attrs_ws
     - Graph.shortest_path
     - Graph.show
+    - Graph.simple_cycles
+    - Graph.simplify
+    - Graph.steiner_tree
+    - Graph.strongly_connected_components
+    - Graph.subgraph
+    - Graph.symmetric_difference
     - Graph.to_directed
     - Graph.to_undirected
     - Graph.transform_to_subgraph_ws
     - Graph.transform_with_spanner
+    - Graph.transitive_closure
+    - Graph.transitive_reduction
     - Graph.trav_both
     - Graph.trav_in
     - Graph.trav_in_edge
@@ -232,24 +662,15 @@ quartodoc:
     - Graph.trav_out_edge
     - Graph.trav_out_until
     - Graph.trav_reverse_edge
+    - Graph.union
+    - Graph.weakly_connected_components
     - Graph.which_loops
     - Graph.which_multiple
     - Graph.which_mutual
   - title: Functions
     desc: Public functions
     contents:
-    - to_networkx
-    - from_networkx
-    - to_igraph
-    - from_igraph
-    - tbl_centrality
-    - tbl_network_summary
-    - from_matrix_market
-    - load_dataset
-    - list_available_datasets
-    - karate_club
-    - web_google
-    - soc_livejournal
+    - list_palettes
     - ca_grqc
     - celegans
     - condmat
@@ -260,8 +681,25 @@ quartodoc:
     - gnutella
     - internet
     - jazz
+    - karate_club
+    - list_available_datasets
+    - list_registered_datasets
+    - load_dataset
     - pgp
     - physics
     - polbooks
     - power_grid
+    - soc_livejournal
+    - web_google
     - wiki_vote
+    - from_matrix_market
+    - tbl_centrality
+    - tbl_network_summary
+    - plot_graph
+    - graph_widget
+    - from_networkx
+    - to_networkx
+    - from_igraph
+    - to_igraph
+    - from_adjacency_matrix
+    - to_adjacency_matrix
