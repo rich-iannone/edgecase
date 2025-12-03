@@ -15,9 +15,9 @@ section.level2:first-of-type > h2:first-child,
 ::: {.column-margin}
 #### Links
 
-[View on PyPI](https://pypi.org/project/edgecase/)<br>
 [Browse source code](https://github.com/rich-iannone/edgecase)<br>
 [Issues](https://github.com/rich-iannone/edgecase/issues)<br>
+[llms.txt](llms.txt)<br>
 
 #### License
 
