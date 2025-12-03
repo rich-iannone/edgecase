@@ -496,19 +496,21 @@ def karate_club() -> Graph:
     """
     Zachary's Karate Club network.
 
-    A social network of friendships between 34 members of a karate club at a
-    US university in the 1970s. The network became famous when the club split
-    into two factions due to a dispute between the administrator ("John A.") and
-    instructor ("Mr. Hi"), and the split could be predicted by network analysis.
+    A social network of friendships between 34 members of a karate club at a US university in the
+    1970s. The network became famous when the club split into two factions due to a dispute between
+    the administrator ("John A.") and instructor ("Mr. Hi"), and the split could be predicted by
+    network analysis.
 
-    **Network Properties:**
+    Network Properties:
+
     - 34 nodes (club members)
     - 78 edges (friendships)
     - Undirected, unweighted
     - Density: 0.139
     - 2 communities (corresponding to the actual club split)
 
-    **Network Metrics** (from networkrepository.com):
+    Network Metrics:
+
     - Degree: max=17, min=1, avg=4.588
     - Assortativity: -0.476 (not yet implemented)
     - Triangles: 135 total, 3.97 avg per node, 18 max (not yet implemented)
@@ -516,7 +518,8 @@ def karate_club() -> Graph:
     - Transitivity (fraction of closed triangles): 0.256 (not yet implemented)
     - Maximum k-core: 5 (currently reports 4)
 
-    **Node Attributes:**
+    Node Attributes:
+
     - `faction`: Which faction the member joined (1 = Mr. Hi, 2 = John A.)
     - `role`: Club role ("Administrator", "Instructor", or "Member")
 
@@ -573,15 +576,9 @@ def karate_club() -> Graph:
 
     Notes
     -----
-    This is one of the most well-studied networks in social network analysis.
-    The network split prediction problem has been validated multiple times,
-    and the dataset serves as a standard benchmark for community detection
-    algorithms.
-
-    References
-    ----------
-    Zachary, W. W. (1977). An information flow model for conflict and fission in
-    small groups. Journal of Anthropological Research, 33(4), 452-473.
+    This is one of the most well-studied networks in social network analysis. The network split
+    prediction problem has been validated multiple times, and the dataset serves as a standard
+    benchmark for community detection algorithms.
     """
 
     # Node data with factions (1 = Mr. Hi's faction, 2 = John A.'s faction)
@@ -723,10 +720,6 @@ def karate_club() -> Graph:
     return graph
 
 
-# Example large dataset loaders - add your own here!
-# These will work once you place the corresponding .mtx files in the data/ directory
-
-
 def web_google() -> Graph:
     """
     Google web graph (released 2002).
@@ -736,7 +729,8 @@ def web_google() -> Graph:
 
     **Expected file**: `data/web_google.mtx`
 
-    **Network Properties** (from SNAP):
+    Network Properties:
+
     - Nodes: 875,713
     - Edges: 5,105,039
     - Directed: Yes
@@ -747,12 +741,6 @@ def web_google() -> Graph:
     -------
     Graph
         Google web graph
-
-    References
-    ----------
-    J. Leskovec, K. Lang, A. Dasgupta, M. Mahoney.
-    Community Structure in Large Networks: Natural Cluster Sizes and the Absence of Large Well-Defined Clusters.
-    Internet Mathematics 6(1) 29--123, 2009.
     """
     return _load_dataset_from_file(
         "web_google.mtx", directed=True, weighted=False, graph_name="Google Web Graph"
@@ -768,7 +756,8 @@ def soc_livejournal() -> Graph:
 
     **Expected file**: `data/soc_livejournal.mtx`
 
-    **Network Properties** (from SNAP):
+    Network Properties:
+
     - Nodes: 4,847,571
     - Edges: 68,993,773
     - Directed: Yes
@@ -796,10 +785,11 @@ def dolphins() -> Graph:
     """
     Dolphin social network.
 
-    Social network of frequent associations between 62 bottlenose dolphins
-    in a community living off Doubtful Sound, New Zealand.
+    Social network of frequent associations between 62 bottlenose dolphins in a community living off
+    Doubtful Sound, New Zealand.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 62
     - Edges: 159
     - Directed: No
@@ -815,12 +805,6 @@ def dolphins() -> Graph:
     -----
     This network is often used for community detection benchmarks.
     The network has been observed to split into two communities.
-
-    References
-    ----------
-    D. Lusseau et al. The bottlenose dolphin community of Doubtful Sound
-    features a large proportion of long-lasting associations.
-    Behavioral Ecology and Sociobiology 54, 396-405 (2003).
     """
     return _load_dataset_from_file(
         "dolphins.mtx",
@@ -834,10 +818,11 @@ def football() -> Graph:
     """
     American college football network.
 
-    Network of American football games between Division IA colleges during
-    regular season Fall 2000. Nodes represent teams, edges represent games.
+    Network of American football games between Division IA colleges during regular season Fall 2000.
+    Nodes represent teams, edges represent games.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 115
     - Edges: 613
     - Directed: No
@@ -853,11 +838,6 @@ def football() -> Graph:
     -----
     Teams are divided into conferences, providing natural community structure.
     Excellent dataset for testing community detection algorithms.
-
-    References
-    ----------
-    M. Girvan and M. E. J. Newman, Community structure in social and
-    biological networks, Proc. Natl. Acad. Sci. USA 99, 7821-7826 (2002).
     """
     return _load_dataset_from_file(
         "football.mtx",
@@ -871,11 +851,11 @@ def polbooks() -> Graph:
     """
     Political books network.
 
-    Network of books about US politics published around the time of the
-    2004 presidential election and sold by Amazon. Edges represent frequent
-    co-purchasing of books by the same buyers.
+    Network of books about US politics published around the time of the 2004 presidential election
+    and sold by Amazon. Edges represent frequent co-purchasing of books by the same buyers.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 105
     - Edges: 441
     - Directed: No
@@ -891,10 +871,6 @@ def polbooks() -> Graph:
     -----
     Books have been classified as liberal, neutral, or conservative.
     The network shows clear community structure along political lines.
-
-    References
-    ----------
-    V. Krebs, unpublished, http://www.orgnet.com/
     """
     return _load_dataset_from_file(
         "polbooks.mtx",
@@ -910,7 +886,8 @@ def jazz() -> Graph:
 
     Network of jazz musicians where edges represent collaboration on albums.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 198
     - Edges: 2,742
     - Directed: No
@@ -926,10 +903,6 @@ def jazz() -> Graph:
     -----
     This is a highly clustered network with small-world properties.
     Good for testing clustering algorithms and visualization.
-
-    References
-    ----------
-    P. Gleiser and L. Danon, Adv. Complex Syst. 6, 565 (2003).
     """
     return _load_dataset_from_file(
         "jazz.mtx",
@@ -943,10 +916,11 @@ def celegans() -> Graph:
     """
     C. Elegans metabolic network.
 
-    Metabolic network of the nematode worm Caenorhabditis elegans.
-    Nodes represent metabolites, edges represent metabolic reactions.
+    Metabolic network of the nematode worm Caenorhabditis elegans. Nodes represent metabolites,
+    edges represent metabolic reactions.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 453
     - Edges: 2,041
     - Directed: No
@@ -962,10 +936,6 @@ def celegans() -> Graph:
     -----
     This metabolic network shows the biochemical pathways in C. elegans.
     Different from the neural network version.
-
-    References
-    ----------
-    NetworkRepository datasets collection.
     """
     return _load_dataset_from_file(
         "celegans.mtx",
@@ -979,10 +949,11 @@ def power_grid() -> Graph:
     """
     US Power Grid network.
 
-    Topology of the Western States Power Grid of the United States.
-    An undirected, unweighted network representing high-voltage transmission lines.
+    Topology of the Western States Power Grid of the United States. An undirected, unweighted
+    network representing high-voltage transmission lines.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 4,941
     - Edges: 6,594
     - Directed: No
@@ -998,10 +969,6 @@ def power_grid() -> Graph:
     -----
     Classic example of a sparse infrastructure network with small-world properties.
     Used to study robustness and cascading failures.
-
-    References
-    ----------
-    D. J. Watts and S. H. Strogatz, Nature 393, 440-442 (1998).
     """
     return _load_dataset_from_file(
         "power_grid.mtx",
@@ -1015,10 +982,11 @@ def pgp() -> Graph:
     """
     PGP web of trust network.
 
-    Pretty-Good-Privacy (PGP) encryption software users and their trust relationships.
-    Directed edges represent trust/certification relationships between users.
+    Pretty-Good-Privacy (PGP) encryption software users and their trust relationships. Directed
+    edges represent trust/certification relationships between users.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 10,680
     - Edges: 24,316
     - Directed: Yes
@@ -1034,10 +1002,6 @@ def pgp() -> Graph:
     -----
     Real-world trust network from cryptographic key signing.
     Exhibits power-law degree distribution and strong clustering.
-
-    References
-    ----------
-    NetworkRepository datasets collection.
     """
     return _load_dataset_from_file(
         "pgp.mtx",
@@ -1051,10 +1015,11 @@ def internet() -> Graph:
     """
     Internet Autonomous Systems network.
 
-    Graph of autonomous systems (AS) that comprise the Internet.
-    Nodes represent autonomous systems, edges represent BGP connections.
+    Graph of autonomous systems (AS) that comprise the Internet. Nodes represent autonomous systems,
+    edges represent BGP connections.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 6,474
     - Edges: 13,895
     - Directed: No
@@ -1069,12 +1034,6 @@ def internet() -> Graph:
     Notes
     -----
     Snapshot from January 2, 2000 from University of Oregon Route Views Project.
-
-    References
-    ----------
-    J. Leskovec, J. Kleinberg and C. Faloutsos.
-    Graphs over Time: Densification Laws, Shrinking Diameters and Possible Explanations.
-    ACM SIGKDD International Conference on Knowledge Discovery and Data Mining (KDD), 2005.
     """
     return _load_dataset_from_file(
         "internet.mtx",
@@ -1088,12 +1047,13 @@ def ca_grqc() -> Graph:
     """
     Arxiv GR-QC (General Relativity and Quantum Cosmology) collaboration network.
 
-    A scientific collaboration network from e-print arXiv. Nodes are authors,
-    edges represent co-authorship.
+    A scientific collaboration network from e-print arXiv. Nodes are authors, edges represent
+    co-authorship.
 
     **Expected file**: `data/ca_grqc.mtx`
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 5,242
     - Edges: 28,980
     - Directed: No
@@ -1104,12 +1064,6 @@ def ca_grqc() -> Graph:
     -------
     Graph
         Arxiv collaboration network
-
-    References
-    ----------
-    J. Leskovec, J. Kleinberg and C. Faloutsos.
-    Graph Evolution: Densification and Shrinking Diameters.
-    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
     """
     return _load_dataset_from_file(
         "ca_grqc.mtx",
@@ -1123,10 +1077,11 @@ def physics() -> Graph:
     """
     High Energy Physics - Phenomenology collaboration network.
 
-    A scientific collaboration network from e-print arXiv. Nodes are authors,
-    edges represent co-authorship on papers in the High Energy Physics - Phenomenology category.
+    A scientific collaboration network from e-print arXiv. Nodes are authors, edges represent
+    co-authorship on papers in the High Energy Physics - Phenomenology category.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 12,008
     - Edges: 237,010
     - Directed: No
@@ -1137,12 +1092,6 @@ def physics() -> Graph:
     -------
     Graph
         High Energy Physics collaboration network
-
-    References
-    ----------
-    J. Leskovec, J. Kleinberg and C. Faloutsos.
-    Graph Evolution: Densification and Shrinking Diameters.
-    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
     """
     return _load_dataset_from_file(
         "physics.mtx",
@@ -1156,10 +1105,11 @@ def wiki_vote() -> Graph:
     """
     Wikipedia adminship voting network.
 
-    A directed network of votes for Wikipedia adminship elections.
-    Nodes represent Wikipedia users and edges represent votes from one user to another.
+    A directed network of votes for Wikipedia adminship elections. Nodes represent Wikipedia users
+    and edges represent votes from one user to another.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 7,115
     - Edges: 103,689
     - Directed: Yes
@@ -1174,10 +1124,6 @@ def wiki_vote() -> Graph:
     Notes
     -----
     Includes all Wikipedia voting data from inception to January 2008.
-
-    References
-    ----------
-    J. Leskovec, D. Huttenlocher, J. Kleinberg. Signed Networks in Social Media. CHI 2010.
     """
     return _load_dataset_from_file(
         "wiki_vote.mtx",
@@ -1191,10 +1137,11 @@ def condmat() -> Graph:
     """
     Condensed Matter Physics collaboration network.
 
-    A scientific collaboration network from e-print arXiv. Nodes are authors,
-    edges represent co-authorship on papers in the Condensed Matter category.
+    A scientific collaboration network from e-print arXiv. Nodes are authors, edges represent
+    co-authorship on papers in the Condensed Matter category.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 23,133
     - Edges: 186,936
     - Directed: No
@@ -1205,12 +1152,6 @@ def condmat() -> Graph:
     -------
     Graph
         Condensed Matter collaboration network
-
-    References
-    ----------
-    J. Leskovec, J. Kleinberg and C. Faloutsos.
-    Graph Evolution: Densification and Shrinking Diameters.
-    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
     """
     return _load_dataset_from_file(
         "condmat.mtx",
@@ -1224,10 +1165,11 @@ def enron() -> Graph:
     """
     Enron email communication network.
 
-    A directed network of email communications within the Enron corporation.
-    Nodes are email addresses, edges represent emails sent from one address to another.
+    A directed network of email communications within the Enron corporation. Nodes are email
+    addresses, edges represent emails sent from one address to another.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 36,692
     - Edges: 367,662
     - Directed: Yes
@@ -1242,12 +1184,6 @@ def enron() -> Graph:
     Notes
     -----
     Data from the Enron email corpus made public during the FERC investigation.
-
-    References
-    ----------
-    J. Leskovec, K. Lang, A. Dasgupta, M. Mahoney.
-    Community Structure in Large Networks: Natural Cluster Sizes and the Absence of Large Well-Defined Clusters.
-    Internet Mathematics 6(1) 29-123, 2009.
     """
     return _load_dataset_from_file(
         "enron.mtx",
@@ -1261,10 +1197,11 @@ def gnutella() -> Graph:
     """
     Gnutella peer-to-peer network snapshot.
 
-    A directed graph of the Gnutella P2P file sharing network from August 8, 2002.
-    Nodes represent hosts, edges represent connections between hosts.
+    A directed graph of the Gnutella P2P file sharing network from August 8, 2002. Nodes represent
+    hosts, edges represent connections between hosts.
 
-    **Network Properties**:
+    Network Properties:
+
     - Nodes: 6,301
     - Edges: 20,777
     - Directed: Yes
@@ -1275,12 +1212,6 @@ def gnutella() -> Graph:
     -------
     Graph
         Gnutella P2P network
-
-    References
-    ----------
-    J. Leskovec, J. Kleinberg and C. Faloutsos.
-    Graph Evolution: Densification and Shrinking Diameters.
-    ACM Transactions on Knowledge Discovery from Data (ACM TKDD), 1(1), 2007.
     """
     return _load_dataset_from_file(
         "gnutella.mtx",
