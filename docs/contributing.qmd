@@ -1,0 +1,222 @@
+---
+title: "Contributing"
+---
+
+Thank you for your interest in contributing to EdgeCase! We welcome contributions from the community.
+
+## Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/rich-iannone/edgecase.git
+   cd edgecase
+   ```
+
+2. **Install Rust** (if not already installed)
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+3. **Set up Python environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -e ".[dev]"
+   ```
+
+4. **Build the Rust extension**
+   ```bash
+   maturin develop
+   ```
+
+## Testing Requirements
+
+EdgeCase maintains high test coverage standards. All contributions must include comprehensive tests.
+
+### Running Tests
+
+**Python tests:**
+```bash
+# All tests
+pytest tests/python -v
+
+# With coverage
+pytest tests/python --cov=edgecase --cov-report=html
+
+# Specific test file
+pytest tests/python/test_graph.py -v
+
+# Property-based tests
+pytest tests/python -m property --hypothesis-show-statistics
+```
+
+**Rust tests:**
+```bash
+# All tests
+cargo test --all-features
+
+# Specific module
+cargo test graph::
+
+# With output
+cargo test -- --nocapture
+```
+
+### Test Coverage Standards
+
+- **Minimum coverage**: 80% for both Python and Rust code
+- **New features**: Must achieve >90% coverage
+- **Algorithm implementations**: Require property-based tests
+- **Bug fixes**: Must include regression tests
+
+### Writing Tests
+
+**Python tests** should use pytest and follow this structure:
+
+```python
+class TestFeature:
+    """Test suite for Feature."""
+
+    def test_basic_case(self) -> None:
+        """Test basic functionality."""
+        # Arrange
+        graph = create_test_graph()
+        
+        # Act
+        result = feature(graph)
+        
+        # Assert
+        assert result == expected_value
+
+    def test_edge_case(self) -> None:
+        """Test edge case."""
+        # Test implementation
+```
+
+**Property-based tests** using Hypothesis:
+
+```python
+from hypothesis import given, strategies as st
+
+@given(st.integers(min_value=1, max_value=100))
+def test_property(n: int) -> None:
+    """Test that property holds for all valid inputs."""
+    graph = create_graph_with_n_nodes(n)
+    assert invariant_holds(graph)
+```
+
+**Rust tests:**
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_feature() {
+        let graph = Graph::new(false, false);
+        // Test implementation
+        assert_eq!(result, expected);
+    }
+}
+```
+
+## Code Quality
+
+### Python
+
+**Formatting and linting:**
+```bash
+# Format code
+black python/edgecase tests/python
+
+# Check style
+ruff check python/edgecase tests/python
+```
+
+**Style guidelines:**
+- Follow PEP 8
+- Use type hints for all functions
+- Write descriptive docstrings (Google style)
+- Keep functions focused and small (<50 lines)
+
+### Rust
+
+**Formatting and linting:**
+```bash
+# Format code
+cargo fmt
+
+# Lint
+cargo clippy -- -D warnings
+```
+
+**Style guidelines:**
+- Follow Rust API guidelines
+- Document public APIs with doc comments
+- Use `#[must_use]` for Result types
+- Prefer iterators over explicit loops
+
+## Submitting Changes
+
+1. **Create a branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make your changes**
+   - Write code
+   - Add tests
+   - Update documentation
+
+3. **Ensure all tests pass**
+   ```bash
+   cargo test --all-features
+   pytest tests/python -v --cov=edgecase
+   ```
+
+4. **Commit your changes**
+   ```bash
+   git add .
+   git commit -m "feat: add new feature"
+   ```
+
+   Use conventional commits:
+   - `feat:` - New feature
+   - `fix:` - Bug fix
+   - `docs:` - Documentation only
+   - `test:` - Adding tests
+   - `refactor:` - Code refactoring
+   - `perf:` - Performance improvement
+
+5. **Push and create a PR**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+## Documentation
+
+- Update docstrings for new functions
+- Add examples for new features
+- Update README.md if adding major features
+- Add entries to CHANGELOG.md
+
+## Benchmarking
+
+For performance-critical changes:
+
+```bash
+# Rust benchmarks
+cargo bench
+
+# Python benchmarks
+pytest tests/python -m benchmark --benchmark-only
+```
+
+## Questions?
+
+- Open a [GitHub Discussion](https://github.com/rich-iannone/edgecase/discussions)
+- Check existing [Issues](https://github.com/rich-iannone/edgecase/issues)
+
+Thank you for contributing to EdgeCase! 🎉
+
