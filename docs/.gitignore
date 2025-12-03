@@ -1,1 +1,17 @@
+# Quarto build output
+_site/
+
+# Quartodoc generated files
+reference/
+objects.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS files
+.DS_Store
+Thumbs.db
+
 /.quarto/
