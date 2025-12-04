@@ -218,6 +218,48 @@ a.sidebar-item-text.sidebar-link.text-start > span {
     color: rgb(48, 48, 48);
 }
 
+/* Source link styling */
+.source-link {
+    font-size: 12px;
+    font-weight: 600;
+    color: steelblue !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1.5px;
+    letter-spacing: 0.5px;
+    transition: color 0.2s ease;
+}
+
+.source-link:hover {
+    color: #2a5f8a !important;
+    text-decoration-thickness: 2px;
+}
+
+/* Usage/Source row container */
+.usage-source-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: -14px;
+}
+
+/* Fix copy button positioning when usage-source-row is inside code-copy-outer-scaffold */
+.code-copy-outer-scaffold > .usage-source-row {
+    position: relative;
+    z-index: 1;
+}
+
+.code-copy-outer-scaffold {
+    position: relative;
+}
+
+.code-copy-outer-scaffold > .code-copy-button {
+    position: absolute;
+    top: auto;
+    bottom: 0.5em;
+    right: 0.5em;
+}
+
 /* Adjust mobile secondary nav positioning */
 @media (max-width: 991.98px) {
     #quarto-header .container-fluid.d-flex {
@@ -227,5 +269,45 @@ a.sidebar-item-text.sidebar-link.text-start > span {
 
     .quarto-secondary-nav-title {
         padding-top: 7px;
+    }
+
+    /* Move margin/sidebar content below main content on mobile (like pkgdown) */
+    #quarto-document-content {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* The column-margin content should appear after main content */
+    .column-margin {
+        order: 2;
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+    }
+
+    /* Main content comes first */
+    #quarto-document-content > *:not(.column-margin) {
+        order: 1;
+    }
+
+    /* Style adjustments for the collapsed sidebar content */
+    .column-margin h4 {
+        font-size: 0.9rem;
+        color: #495057;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .column-margin h4:first-child {
+        margin-top: 0;
+    }
+
+    /* Add horizontal padding to main content on mobile */
+    #quarto-content {
+        padding-left: 12px;
+        padding-right: 12px;
     }
 }
