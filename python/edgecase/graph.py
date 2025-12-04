@@ -118,9 +118,9 @@ class Graph:
     """
     A high-performance graph data structure with optional direction and weights.
 
-    The `Graph` class provides a Python interface to a Rust-based graph implementation,
-    offering both performance and ease of use. Nodes are identified by 64-bit unsigned
-    integers (u64 IDs) and can optionally have string labels for human-readable access.
+    The `Graph` class provides a Python interface to a Rust-based graph implementation, offering
+    both performance and ease of use. Nodes are identified by 64-bit unsigned integers (u64 IDs) and
+    can optionally have string labels for human-readable access.
 
     Parameters
     ----------
@@ -3227,7 +3227,7 @@ class Graph:
         Returns
         -------
         bool
-            True if an edge with this ID exists, False otherwise.
+            `True` if an edge with this ID exists, `False` otherwise.
 
         Examples
         --------
@@ -3463,7 +3463,7 @@ class Graph:
         Returns
         -------
         bool
-            True if the graph is directed, False if undirected.
+            `True` if the graph is directed, `False` if undirected.
 
         Examples
         --------
@@ -4057,7 +4057,7 @@ class Graph:
         Returns
         -------
         bool
-            True if graphs satisfy isomorphism conditions, False otherwise.
+            `True` if graphs satisfy isomorphism conditions, `False` otherwise.
 
         Notes
         -----
@@ -7009,10 +7009,10 @@ class Graph:
         Notes
         -----
         - the 'id', 'label', and 'type' columns are always present (first three columns)
-        - if a node has no label, the label column will contain None
-        - if a node has no type attribute, the type column will contain None
+        - if a node has no label, the label column will contain `None`
+        - if a node has no type attribute, the type column will contain `None`
         - rows are sorted by id in ascending order
-        - other attributes not present on a node will have None values
+        - other attributes not present on a node will have `None` values
         - the 'degree' column is always last
         """
         import polars as pl
@@ -7948,7 +7948,7 @@ class Graph:
         ----------
         ebunch
             List of node pairs to compute predictions for. Each pair can use node IDs (integers)
-            or labels (strings). If None, computes for all pairs of nodes that are not already
+            or labels (strings). If `None`, computes for all pairs of nodes that are not already
             connected.
 
         Returns
@@ -8786,7 +8786,7 @@ class Graph:
         ----------
         length_bound
             Optional maximum cycle length. If specified, only cycles with at most this many nodes
-            are returned. If None (default), all cycles are returned regardless of length.
+            are returned. If `None` (default), all cycles are returned regardless of length.
 
         Returns
         -------
@@ -8878,8 +8878,8 @@ class Graph:
         Parameters
         ----------
         root
-            Optional root node ID to start BFS from. If None, uses an arbitrary node. Different root
-            nodes may produce different (but equally valid) cycle bases.
+            Optional root node ID to start BFS from. If `None`, uses an arbitrary node. Different
+            root nodes may produce different (but equally valid) cycle bases.
 
         Returns
         -------
@@ -9777,9 +9777,10 @@ class Graph:
         Parameters
         ----------
         edge_ids
-            List of edge IDs (integers) to compute coefficient for. If None, computes for all edges.
+            List of edge IDs (integers) to compute coefficient for. If `None`, computes for all
+            edges.
         k
-            Cycle size to use. Must be 3 (triangles) or 4 (4-cycles).
+            Cycle size to use. Must be `3` (triangles) or `4` (4-cycles).
         normalize
             Whether to normalize by maximum possible cycles given endpoint degrees. If `False`,
             returns raw cycle count.
@@ -10432,8 +10433,8 @@ class Graph:
         densely connected communities. It computes distances between nodes based on random walk
         probabilities, then uses hierarchical clustering to identify community structure.
 
-        Works only with undirected graphs. Time complexity is O(n²log n) for typical
-        networks with small step parameter.
+        Works only with undirected graphs. Time complexity is `O(n²log n)` for typical networks with
+        small step parameter.
 
         Parameters
         ----------
@@ -13995,31 +13996,24 @@ class Graph:
 
         Parameters
         ----------
-        states : dict, optional
-            Dictionary mapping node labels to percolation states (values between 0.0 and 1.0).
-            States represent the probability of a node being in the "percolated" state
-            (e.g., infected, informed). If `None`, all nodes default to state 1.0.
-        weight : str, optional
+        states
+            Dictionary mapping node labels to percolation states (values between `0.0` and `1.0`).
+            States represent the probability of a node being in the "percolated" state (e.g.,
+            infected, informed). If `None`, all nodes default to state `1.0`.
+        weight
             Edge attribute name for weights. Currently not implemented.
-        attr_name : str, optional
-            Name of node attribute to store results. If `None`, uses `percolation_centrality`.
-            Only used when `return_dict=False`.
-        return_dict : bool, default False
-            If `True`, returns dict mapping node labels to percolation centrality.
-            If `False`, stores results as node attributes and returns self.
+        attr_name
+            Name of node attribute to store results. If `None`, uses `percolation_centrality`. Only
+            used when `return_dict=False`.
+        return_dict
+            If `True`, returns dict mapping node labels to percolation centrality. If `False`,
+            stores results as node attributes and returns self.
 
         Returns
         -------
         dict or Graph
-            If `return_dict=True`, returns `{node_label: centrality_value}`.
-            If `return_dict=False`, returns self with node attributes set.
-
-        Notes
-        -----
-        Algorithm based on:
-        Piraveenan, M., Prokopenko, M., & Hossain, L. (2013). Percolation centrality:
-        Quantifying graph-theoretic impact of nodes during percolation in networks.
-        PloS one, 8(1), e53095.
+            If `return_dict=True`, returns `{node_label: centrality_value}`. If `return_dict=False`,
+            returns self with node attributes set.
 
         Examples
         --------
@@ -14444,10 +14438,10 @@ class Graph:
         for disconnected graphs.
 
         The formula is: `H(v) = Σ 1 / d(v,u)` for all `u ≠ v`, where `d(v,u)` is the shortest path
-        distance from v to u.
+        distance from `v` to `u`.
 
-        When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse distance,
-        which is bounded between `0` and `1`.
+        When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse
+        distance, which is bounded between `0` and `1`.
 
         Parameters
         ----------
@@ -15059,57 +15053,59 @@ class Graph:
         where `A` is the adjacency matrix, `α` is a scaling parameter (set automatically), `β`
         controls the nature of relations, and `1` is a vector of ones.
 
-        β > 0: Cooperative relations: being connected to powerful nodes makes you powerful
-               (e.g., collaboration networks, social influence, information diffusion)
+        `β > 0`: cooperative relations: being connected to powerful nodes makes you powerful (e.g.,
+        collaboration networks, social influence, information diffusion)
 
-        β < 0: Competitive relations: being connected to weak nodes makes you powerful
-               (e.g., exchange networks, competitive markets, bargaining power)
+        `β < 0`: competitive relations: being connected to weak nodes makes you powerful (e.g.,
+        exchange networks, competitive markets, bargaining power)
 
-        β = 1/λ_max: Equivalent to eigenvector centrality
+        `β = 1/λ_max`: equivalent to eigenvector centrality
 
-        The magnitude of |β| controls how far influence propagates through the network.
-        Larger |β| means distant nodes have more influence; smaller |β| localizes influence.
+        The magnitude of `|β|` controls how far influence propagates through the network. Larger
+        `|β|` values mean distant nodes have more influence; a smaller `|β|` localizes influence.
 
         Parameters
         ----------
         beta
-            The decay/attenuation parameter. Controls the nature and reach of influence:
-
-            - β > 0: Cooperative (powerful neighbors -> more power)
-            - β < 0: Competitive (weak neighbors -> more power)
-            - Must satisfy |β| < 1/λ_max to avoid singularity
-            - Typical range: -0.5 to 0.5
-            - β = 0: Reduces to simple degree centrality
+            The decay/attenuation parameter. Controls the nature and reach of influence. See the
+            *Details on the beta Parameter* section for more information on settings.
         normalized
-            Normalization method:
-
-            - False: L2 normalization where sum(c^2) = n, making c=1 the "middle" value
-                     (Bonacich 1987 original formulation)
-            - True: Sum normalization where sum(c) = 1 (probability distribution)
+            The normalization method. With `False`, we get L2 normalization where `sum(c^2) = n`,
+            making `c=1` the 'middle' value. Using `True` results in a sum normalization where
+            `sum(c) = 1` (probability distribution).
         attr_name
-            Name for the node attribute to store results. If not provided,
-            auto-generates name from method name ("bonacich_power_centrality").
+            Name for the node attribute to store results. If not provided, auto-generates name from
+            method name (`bonacich_power_centrality`).
         return_dict
-            If `True`, returns dictionary of results. If `False`, stores results
-            as node attributes and returns self for method chaining.
+            If `True`, returns dictionary of results. If `False`, stores results as node attributes
+            and returns self for method chaining.
 
         Returns
         -------
         Union[dict[int, float], Graph]
             If `return_dict=` is `True`: dictionary mapping node IDs to centrality scores. If
             `return_dict=` is `False`: returns self for method chaining. The interpretation depends
-            on β: (1) when β > 0 higher scores = more powerful due to powerful neighbors, and (2)
-            when β < 0 higher scores = more powerful due to weak neighbors.
+            on `β`: (1) when `β > 0` higher scores = more powerful due to powerful neighbors, and
+            (2) when `β < 0` higher scores = more powerful due to weak neighbors.
 
         Raises
         ------
         RuntimeError
-            If (I - βA) is singular. This happens when β is too close to 1/λ_max. Try reducing |β|
-            or choosing a different value.
+            If `(I - βA)` is singular. This happens when `β` is too close to `1/λ_max`. Try reducing
+            `|β|` or choosing a different value.
+
+        Details on the beta Parameter
+        -----------------------------
+        The `beta=` should usually be given a value between `-0.5` to `0.5`. Here's a breakdown on
+        the effect of the `β` value:
+
+        - `β > 0`: Cooperative (powerful neighbors -> more power)
+        - `β < 0`: Competitive (weak neighbors -> more power)
+        - `β = 0`: Reduces to simple degree centrality
 
         Examples
         --------
-        Cooperative network (β > 0) star graph:
+        Cooperative network (`β > 0`) star graph:
 
         ```python
         import edgecase as ec
@@ -15131,7 +15127,7 @@ class Graph:
         # center will have highest centrality (connected to many)
         ```
 
-        Competitive network (β < 0) exchange network:
+        Competitive network (`β < 0`) exchange network:
 
         ```python
         import edgecase as ec
@@ -15176,17 +15172,17 @@ class Graph:
 
         Notes
         -----
-        - **Algorithm**: Uses matrix inversion via LU decomposition to solve (I - βA)x = A1
-        - **Time complexity**: O(n³) for dense graphs due to matrix operations
-        - **Space complexity**: O(n²) to store the adjacency matrix
-        - **Numerical stability**: The algorithm may fail if β is too close to 1/λ_max,
-          where λ_max is the largest eigenvalue of A. Choose |β| < 0.9/λ_max for safety.
-        - **β selection**: There's no universal "correct" β value - it should be chosen
-          based on theory and the specific application. See Rodan (2011) for guidance.
-        - **Negative β instability**: Centrality can be more sensitive to β changes when
-          β < 0 compared to β > 0. Test multiple values.
-        - **Directed graphs**: Works for both directed and undirected graphs. In directed
-          graphs, the interpretation relates to in-degree influence patterns.
+        - **Algorithm**: uses matrix inversion via LU decomposition to solve `(I - βA)x = A1`
+        - **Time complexity**: `O(n³)` for dense graphs due to matrix operations
+        - **Space complexity**: `O(n²)` to store the adjacency matrix
+        - **Numerical stability**: the algorithm may fail if `β` is too close to `1/λ_max`, where
+        `λ_max` is the largest eigenvalue of `A`. Choose `|β| < 0.9/λ_max` for safety.
+        - **β selection**: there's no universal "correct" `β` value; it should be chosen based on
+        theory and the specific application.
+        - **Negative β instability**: centrality can be more sensitive to `β` changes when `β < 0`
+        compared to `β > 0`. Test multiple values.
+        - **Directed graphs**: works for both directed and undirected graphs. In directed graphs,
+        the interpretation relates to in-degree influence patterns.
         """
         result = self._graph.get_bonacich_power_centrality(beta, normalized)
         # Empty result indicates singular matrix error
@@ -15479,7 +15475,7 @@ class Graph:
             Competition parameter. If `None` (default), automatically computed from smallest
             eigenvalue and alpha. Higher values increase global competition for dominance.
         alpha
-            Alpha parameter for auto-computing sigma (sigma = alpha / |λ_min|). Only used if sigma
+            Alpha parameter for auto-computing sigma (`sigma = alpha / |λ_min|`). Only used if sigma
             is `None`. Must be positive.
         method
             Solution method. Currently only "iterative" is implemented. (Analytical method may be
@@ -16410,15 +16406,15 @@ class Graph:
             Name of the node attribute to store eccentricity values. If `None`, uses `eccentricity`
             as the attribute name.
         return_dict
-            If `True`, returns a dictionary mapping node IDs to eccentricity values.
-            If `False`, stores values as node attributes and returns the Graph for chaining.
+            If `True`, returns a dictionary mapping node IDs to eccentricity values. If `False`,
+            stores values as node attributes and returns the Graph for chaining.
 
         Returns
         -------
         dict[int, int | None] or Graph
-            If `return_dict=` is `True`: Dictionary mapping node IDs to eccentricity values.
-            Values are None for nodes in disconnected components.
-            If `return_dict=` is `False`: Returns self for method chaining.
+            If `return_dict=` is `True`: Dictionary mapping node IDs to eccentricity values. Values
+            are `None` for nodes in disconnected components. If `return_dict=` is `False`: Returns
+            self for method chaining.
 
         Examples
         --------
@@ -16486,8 +16482,8 @@ class Graph:
         -------
         dict[int, float | None] or Graph
             If `return_dict=` is `True`: Dictionary mapping node IDs to radiality scores (`0.0` to
-            `1.0`). Values are None for nodes in disconnected components. If `return_dict=` is
-            `False`: Returns self for method chaining.
+            `1.0`). Values are `None` for nodes in disconnected components. If `return_dict=` is
+            `False` returns self for method chaining.
 
         Examples
         --------
@@ -16654,8 +16650,8 @@ class Graph:
         -----
         **Algorithm complexity:**
 
-        - time: O(V × E) where V is vertices, E is edges
-        - space: O(V) for distance and predecessor arrays
+        - time: `O(V × E)` where `V` is vertices, `E` is edges
+        - space: `O(V)` for distance and predecessor arrays
         - slower than Dijkstra but handles negative weights
 
         **When to use:**
@@ -16722,20 +16718,18 @@ class Graph:
         target
             Target node (integer ID or string label).
         attr_name
-            Name of the node attribute to store path position.
-            If `None`, uses `shortest_path_order` as the attribute name.
-            Position is 0-indexed (source = 0, next node = 1, ..., target = n-1).
-            Only nodes on the path get this attribute set.
+            Name of the node attribute to store path position. If `None`, uses `shortest_path_order`
+            as the attribute name. Only nodes on the path get this attribute set.
         return_list
-            If `True`, returns list of node IDs in the path.
-            If `False`, stores positions as node attributes and returns self for chaining.
+            If `True`, returns list of node IDs in the path. If `False`, stores positions as node
+            attributes and returns self for chaining.
 
         Returns
         -------
         Union[list[int], Graph, None]
-            If `return_list=` is `True`: list of node IDs from source to target (inclusive),
-            or `None` if no path exists.
-            If `return_list=` is `False`: returns self for method chaining, or None if no path exists.
+            If `return_list=` is `True`: list of node IDs from source to target (inclusive), or
+            `None` if no path exists. If `return_list=` is `False` it returns self for method
+            chaining, or `None` if no path exists.
 
         Examples
         --------
@@ -16855,9 +16849,9 @@ class Graph:
         weight_attr
             Edge attribute to use as weight. Falls back to `edge.weight` if attribute not found.
         heuristic
-            Custom heuristic function h(node, target) -> float that estimates cost from any node to
-            target. Parameters can be node IDs (int) or labels (str). Must be admissible (never
-            overestimate). If None, uses zero heuristic (equivalent to Dijkstra's algorithm).
+            Custom heuristic function `h(node, target) -> float` that estimates cost from any node
+            to target. Parameters can be node IDs (int) or labels (str). Must be admissible (never
+            overestimate). If `None`, uses zero heuristic (equivalent to Dijkstra's algorithm).
         reuse_planner
             If `True`, reuses planner state from previous call with same source/target. Enables
             iterative refinement by calling with decreasing epsilon values. If `False`, creates
@@ -17493,7 +17487,7 @@ class Graph:
         target
             Target node (integer ID or string label).
         cutoff
-            Maximum path length (number of edges) to consider. If None, no limit is applied.
+            Maximum path length (number of edges) to consider. If `None`, no limit is applied.
             Useful for preventing excessive computation in large graphs.
 
         Returns
@@ -18902,7 +18896,7 @@ class Graph:
         Returns
         -------
         bool
-            True if the graph has an Eulerian circuit, False otherwise.
+            `True` if the graph has an Eulerian circuit, `False` otherwise.
 
         Examples
         --------
@@ -19204,7 +19198,7 @@ class Graph:
         -----
         - more efficient than `len(bridges()) > 0` for large graphs
         - useful for quick connectivity analysis
-        - returns False for complete graphs and cycles
+        - returns `False` for complete graphs and cycles
         """
         from edgecase._core import has_bridges
 
@@ -19820,14 +19814,14 @@ class Graph:
         Based on Moody & White (2003) "Structural Cohesion and Embeddedness: A Hierarchical Concept
         of Social Groups".
 
-        Time complexity: O(V^5) due to node connectivity computations.
+        Time complexity: `O(V^5)` due to node connectivity computations.
 
         Returns
         -------
         tuple[list[list[int]], list[int], list[int | None]]
             A tuple containing: (1) blocks, a list of node sets (each as list of node IDs), (2)
             cohesion, a list of k-values (cohesion of each block), and (3) parent, a list of parent
-            block indices (None for root blocks).
+            block indices (`None` for root blocks).
 
         Examples
         --------
@@ -21469,7 +21463,7 @@ class Graph:
         Parameters
         ----------
         count
-            Number of maximal independent sets to find. Default is 10.
+            Number of maximal independent sets to find. Default is `10`.
         seed
             Optional base seed for reproducibility. Each iteration uses seed + iteration_number.
 
@@ -21789,8 +21783,8 @@ class Graph:
         Parameters
         ----------
         weight_attr
-            Name of edge attribute to use for weights. If None (default), uses the edge's weight
-            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
+            Name of edge attribute to use for weights. If `None` (the default), uses the edge's
+            weight field. If the attribute doesn't exist on an edge, defaults to `1.0`.
         return_subgraph
             If `True`, returns a new Graph containing only the MST edges. If `False`, returns a list
             of edge IDs as strings.
@@ -21798,8 +21792,8 @@ class Graph:
         Returns
         -------
         Graph or list[str]
-            Either a new Graph with MST edges or a list of edge ID strings, depending on
-            the `return_subgraph=` parameter.
+            Either a new Graph with MST edges or a list of edge ID strings, depending on the
+            `return_subgraph=` parameter.
 
         Examples
         --------
@@ -21965,7 +21959,8 @@ class Graph:
 
         A Steiner tree is a minimum weight tree that connects a specified set of terminal nodes. It
         may include additional non-terminal nodes (called Steiner nodes) if they help reduce the
-        total weight. This implementation uses Mehlhorn's algorithm which provides a 2-approximation.
+        total weight. This implementation uses Mehlhorn's algorithm which provides a
+        2-approximation.
 
         Parameters
         ----------
@@ -22106,8 +22101,8 @@ class Graph:
             Name of edge attribute to use for weights in the returned edges. If `None` (default),
             uses the edge's weight field. If the attribute doesn't exist, defaults to `1.0`.
         return_subgraphs
-            If `True`, returns a list of Graph objects, each representing a spanning tree.
-            If `False`, returns a list of edge lists (each edge is a (source, target, weight) tuple).
+            If `True`, returns a list of Graph objects, each representing a spanning tree. If
+            `False`, returns a list of edge lists (each edge is a (source, target, weight) tuple).
 
         Returns
         -------
@@ -23376,33 +23371,31 @@ class Graph:
         """
         Compute eigenvalues and eigenvectors of the graph Laplacian.
 
-        Returns the spectrum of the Laplacian matrix L = D - A (or normalized variant). The
+        Returns the spectrum of the Laplacian matrix `L = D - A` (or normalized variant). The
         Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
 
         Parameters
         ----------
         which
-            Which eigenvalues to compute:
-
-            - "all": All n eigenvalues (O(n³), recommended for n < 100)
-            - "smallest": Smallest k eigenvalues (default k=6)
-            - "largest": Largest k eigenvalues
+            Which eigenvalues to compute. With `"all"`, this is all `n` eigenvalues (`O(n³)`,
+            recommended for `n < 100`). Using `"smallest"` works with the smallest `k` eigenvalues
+            (default `k=6`). The `"largest"` options works with the largest `k` eigenvalues.
         k
-            Number of eigenvalues to compute for "largest"/"smallest".
-            Default is min(6, n-1) where n is the number of nodes.
+            Number of eigenvalues to compute for `"largest"`/`"smallest"`. Default is `min(6, n-1)`
+            where `n` is the number of nodes.
         normalized
-            If True, use normalized Laplacian: L_norm = D^(-1/2) L D^(-1/2).
-            Normalized version has eigenvalues in [0, 2] for undirected graphs.
+            If `True`, use normalized Laplacian: `L_norm = D^(-1/2) L D^(-1/2)`. Normalized version
+            has eigenvalues in `[0, 2]` for undirected graphs.
 
         Returns
         -------
         dict
             Dictionary with keys:
 
-            - "values": List of eigenvalues (sorted ascending)
-            - "vectors": List of eigenvectors (each as list of floats)
-            - "algebraic_connectivity": λ₂ (second-smallest eigenvalue,
-              measures how well-connected the graph is; 0 if disconnected)
+            - `"values"`: list of eigenvalues (sorted ascending)
+            - `"vectors"`: list of eigenvectors (each as list of floats)
+            - `"algebraic_connectivity"`: `λ₂` (second-smallest eigenvalue, measures how
+            well-connected the graph is; `0` if disconnected)
 
         Raises
         ------
@@ -23772,20 +23765,20 @@ class Graph:
         It is a fundamental topological descriptor used in chemistry and network analysis
         to measure graph compactness.
 
-        For undirected graphs: W(G) = Σ_{u < v} d(u, v)
-        For directed graphs: W(G) = Σ_{u ≠ v} d(u, v)
+        For undirected graphs: `W(G) = Σ_{u < v} d(u, v)`. For directed graphs:
+        `W(G) = Σ_{u ≠ v} d(u, v)`.
 
         Parameters
         ----------
         weight : str, optional
-            Edge attribute to use as weight. If None, uses unweighted distances
-            (all edges have distance 1).
+            Edge attribute to use as weight. If `None`, uses unweighted distances (all edges have
+            distance `1`).
 
         Returns
         -------
         float
-            The Wiener index. Returns 0.0 for empty graphs or single-node graphs.
-            Returns infinity (float('inf')) for disconnected graphs.
+            The Wiener index. Returns 0.0 for empty graphs or single-node graphs. Returns infinity
+            (`float('inf')`) for disconnected graphs.
 
         Examples
         --------
@@ -24166,9 +24159,9 @@ class AdaStar:
         Initial epsilon value for suboptimality bound (default: 1000.0). Lower values give better
         paths but take longer. Using `epsilon = 1.0` is optimal (equivalent to A*).
     heuristic
-        Heuristic function h(u, v) that estimates distance from u to v. Should be admissible (never
-        overestimate). If None, uses h=0 (Dijkstra). Function should accept two node IDs (integers)
-        and return float.
+        Heuristic function `h(u, v)` that estimates distance from u to v. Should be admissible
+        (never overestimate). If `None`, uses `h=0` (Dijkstra). Function should accept two node IDs
+        (integers) and return float.
 
     Attributes
     ----------
@@ -24316,12 +24309,12 @@ class AdaStar:
         target
             Target node ID (int) or label (str).
         weight
-            Edge attribute name for weights (default: "weight").
+            Edge attribute name for weights (default: `"weight"`).
         initial_epsilon
-            Initial epsilon for suboptimality bound (default: 1000.0).
+            Initial epsilon for suboptimality bound (default: `1000.0`).
         heuristic
-            Heuristic function h(u, v) -> float where u and v can be node IDs or labels.
-            If None, uses h=0.
+            Heuristic function `h(u, v) -> float` where `u` and `v` can be node IDs or labels. If
+            `None`, uses `h=0`.
         """
         from ._core import AdaStar as RustAdaStar
 
