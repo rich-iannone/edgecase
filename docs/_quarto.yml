@@ -358,6 +358,8 @@ website:
       - reference/to_igraph.qmd
       - reference/from_adjacency_matrix.qmd
       - reference/to_adjacency_matrix.qmd
+  page-footer:
+    left: '&copy; 2025 Rich Iannone'
 quartodoc:
   package: edgecase
   dir: reference
