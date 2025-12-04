@@ -66,8 +66,8 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/rich-iannone/edgecase"
-Documentation = "https://edgecase.readthedocs.io"
 Repository = "https://github.com/rich-iannone/edgecase"
+Documentation = "https://github.com/rich-iannone/edgecase"
 Issues = "https://github.com/rich-iannone/edgecase/issues"
 
 [tool.maturin]
