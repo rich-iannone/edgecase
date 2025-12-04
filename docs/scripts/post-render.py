@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import re
 
@@ -12,6 +13,143 @@ print("Files in working directory:", files)
 site_files = os.listdir("_site")
 print("Files in '_site' directory:", site_files)
 
+# Load source links if available
+source_links = {}
+source_links_path = "_source_links.json"
+if os.path.exists(source_links_path):
+    print(f"Loading source links from {source_links_path}")
+    with open(source_links_path, "r") as f:
+        source_links = json.load(f)
+    print(f"Loaded {len(source_links)} source links")
+else:
+    print("No source links file found, skipping source link injection")
+
+
+def get_source_link_html(item_name):
+    """Generate HTML for a source link given an item name."""
+    if item_name in source_links:
+        url = source_links[item_name]["url"]
+        return f'<a href="{url}" class="source-link" target="_blank" rel="noopener">SOURCE</a>'
+    return ""
+
+
+def format_signature_multiline(html_content):
+    """
+    Format function/method signatures with multiple arguments onto separate lines.
+
+    If a signature has more than one argument, format it as:
+        FunctionName(
+            arg1=default1,
+            arg2=default2,
+        )
+
+    Signatures that are already multiline (from quartodoc) are skipped.
+    """
+    # Pattern to match the content inside signature spans
+    # The signature is inside <span id="cbN-1">...(args)</span>
+    # We need to handle HTML tags within the arguments
+
+    def reformat_signature(match):
+        full_match = match.group(0)
+        span_start = match.group(1)
+        anchor = match.group(2) or ""
+        content = match.group(3)
+        span_end = match.group(4)
+
+        # Skip if signature is already multiline (quartodoc formatted it)
+        # This is detected by checking if content ends with just "(" or has a newline
+        if content.strip().endswith("(") or "\n" in content:
+            return full_match
+
+        # Find the opening paren position
+        paren_pos = content.find("(")
+        if paren_pos == -1:
+            return full_match
+
+        func_name = content[: paren_pos + 1]  # Include the (
+
+        # Find the closing paren - it's the last ) in the content
+        close_paren_pos = content.rfind(")")
+        if close_paren_pos == -1:
+            return full_match
+
+        args_content = content[paren_pos + 1 : close_paren_pos]
+
+        # Count arguments by looking for commas not inside HTML tags or nested parens
+        # We need to track both HTML tag depth and paren depth
+        arg_count = 1 if args_content.strip() else 0
+        html_depth = 0
+        paren_depth = 0
+        i = 0
+        while i < len(args_content):
+            if args_content[i : i + 1] == "<":
+                html_depth += 1
+            elif args_content[i : i + 1] == ">":
+                html_depth -= 1
+            elif html_depth == 0:
+                if args_content[i] in "([{":
+                    paren_depth += 1
+                elif args_content[i] in ")]}":
+                    paren_depth -= 1
+                elif args_content[i] == "," and paren_depth == 0:
+                    arg_count += 1
+            i += 1
+
+        # Only reformat if more than 1 argument
+        if arg_count <= 1:
+            return full_match
+
+        # Split arguments while preserving HTML
+        args = []
+        current_arg = ""
+        html_depth = 0
+        paren_depth = 0
+        i = 0
+        while i < len(args_content):
+            char = args_content[i]
+            if char == "<":
+                html_depth += 1
+                current_arg += char
+            elif char == ">":
+                html_depth -= 1
+                current_arg += char
+            elif html_depth == 0:
+                if char in "([{":
+                    paren_depth += 1
+                    current_arg += char
+                elif char in ")]}":
+                    paren_depth -= 1
+                    current_arg += char
+                elif char == "," and paren_depth == 0:
+                    args.append(current_arg.strip())
+                    current_arg = ""
+                else:
+                    current_arg += char
+            else:
+                current_arg += char
+            i += 1
+        if current_arg.strip():
+            args.append(current_arg.strip())
+
+        # Build multi-line signature
+        formatted_args = ",\n    ".join(args)
+        new_content = f"{func_name}\n    {formatted_args},\n)"
+
+        return f"{span_start}{anchor}{new_content}{span_end}"
+
+    # Only match the FIRST code block (cb1) which is always the main signature
+    # Other code blocks (cb2, cb3, etc.) are method signatures or examples
+    signature_pattern = re.compile(
+        r'(<span id="cb1-1"[^>]*>)'
+        r"(<a[^>]*></a>)?"
+        r"(.*?\))"
+        r"(</span>)",
+        re.DOTALL,
+    )
+
+    return signature_pattern.sub(reformat_signature, html_content)
+
+
 # Process all HTML files in the `_site/reference/` directory (except `index.html`)
 # and apply the specified transformations
 html_files = [f for f in glob.glob("_site/reference/*.html") if not f.endswith("index.html")]
@@ -21,8 +159,17 @@ print(f"Found {len(html_files)} HTML files to process")
 for html_file in html_files:
     print(f"Processing: {html_file}")
 
+    # Extract the item name from the filename (e.g., "GreatDocs.html" -> "GreatDocs")
+    item_name_from_file = os.path.basename(html_file).replace(".html", "")
+
     with open(html_file, "r") as file:
-        content = file.readlines()
+        content = file.read()
+
+    # Format signatures with multiple arguments onto separate lines
+    content = format_signature_multiline(content)
+
+    # Convert back to lines for line-by-line processing
+    content = content.splitlines(keepends=True)
 
     # Determine the classification of each h1 tag based on its content
     classification_info = {}
@@ -179,7 +326,7 @@ for html_file in html_files:
         if "style=" not in first_p_content:
             styled_p = first_p_content.replace(
                 "<p>",
-                '<p style="font-size: 1rem; font-style: italic; margin-top: -10px; line-height: 1;">',
+                '<p class="doc-description" style="font-size: 1rem; font-style: italic; margin-top: 0.25rem; line-height: 1.3;">',
             )
         else:
             styled_p = first_p_content
@@ -202,9 +349,14 @@ for html_file in html_files:
         # Adjust sourcecode_line since we added lines before it
         sourcecode_line += 3
 
-        # Add "USAGE" label before the sourceCode div
-        usage_label = '<p style="font-size: 12px; color: rgb(170, 170, 170); margin-bottom: -14px;">USAGE</p>\n'
-        content.insert(sourcecode_line, usage_label)
+        # Add "USAGE" label and "SOURCE" link before the sourceCode div
+        # The SOURCE link will be on the right side, USAGE on the left
+        source_link = get_source_link_html(item_name_from_file)
+        if source_link:
+            usage_row = f'<div class="usage-source-row" style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: -14px;"><span style="font-size: 12px; color: rgb(170, 170, 170);">USAGE</span>{source_link}</div>\n'
+        else:
+            usage_row = '<p style="font-size: 12px; color: rgb(170, 170, 170); margin-bottom: -14px;">USAGE</p>\n'
+        content.insert(sourcecode_line, usage_row)
 
     # Fix return value formatting in individual function pages, removing the `:` before the
     # return value and adjusting the style of the parameter annotation separator
