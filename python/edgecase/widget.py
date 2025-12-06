@@ -164,6 +164,8 @@ class GraphWidget:
     widget = GraphWidget(G)
     # widget.show()
     ```
+
+    %nodoc
     """
 
     def __init__(
