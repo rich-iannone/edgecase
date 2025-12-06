@@ -163,6 +163,242 @@ line-ending = "auto"
 # Great Docs configuration
 [tool.great-docs]
 
+# Family ordering and descriptions
+[tool.great-docs.families.graph-construction]
+title = "Graph Construction"
+desc = "Methods for adding and removing nodes and edges"
+order = 1
+
+[tool.great-docs.families.graph-generators]
+title = "Graph Generators"
+desc = "Methods for generating common graph structures"
+order = 2
+
+[tool.great-docs.families.graph-information]
+title = "Graph Information"
+desc = "Methods for getting information about the graph"
+order = 3
+
+[tool.great-docs.families.graph-rendering]
+title = "Graph Rendering"
+desc = "Methods for displaying and visualizing the graph"
+order = 4
+
+[tool.great-docs.families.graph-inspection]
+title = "Graph Inspection"
+desc = "Methods for inspecting nodes, edges, and structure"
+order = 5
+
+[tool.great-docs.families.graph-properties]
+title = "Graph Properties"
+desc = "Methods for checking graph properties and characteristics"
+order = 6
+
+[tool.great-docs.families.node-and-edge-accessors]
+title = "Node and Edge Accessors"
+desc = "Methods for accessing individual nodes and edges"
+order = 7
+
+[tool.great-docs.families.simple-counts]
+title = "Simple Counts"
+desc = "Methods for counting graph elements"
+order = 8
+
+[tool.great-docs.families.neighbors-and-connectivity]
+title = "Neighbors and Connectivity"
+desc = "Methods for finding neighbors and connectivity"
+order = 9
+
+[tool.great-docs.families.graph-selection]
+title = "Graph Selection"
+desc = "Methods for selecting subsets of nodes and edges"
+order = 10
+
+[tool.great-docs.families.graph-traversal]
+title = "Graph Traversal"
+desc = "Methods for traversing the graph"
+order = 11
+
+[tool.great-docs.families.node-edge-data-frames]
+title = "Node/Edge Data Frames"
+desc = "Methods for working with node and edge attributes"
+order = 12
+
+[tool.great-docs.families.degree]
+title = "Degree"
+desc = "Methods for computing node degrees"
+order = 13
+
+[tool.great-docs.families.centrality]
+title = "Centrality"
+desc = "Methods for computing centrality measures"
+order = 14
+
+[tool.great-docs.families.core-decomposition]
+title = "Core Decomposition"
+desc = "Methods for k-core, k-shell, and related decompositions"
+order = 15
+
+[tool.great-docs.families.distance-and-paths]
+title = "Distance and Paths"
+desc = "Methods for shortest paths and distance calculations"
+order = 16
+
+[tool.great-docs.families.path-analysis]
+title = "Path Analysis"
+desc = "Methods for analyzing paths and walks"
+order = 17
+
+[tool.great-docs.families.eulerian-paths]
+title = "Eulerian Paths"
+desc = "Methods for Eulerian path and circuit detection"
+order = 18
+
+[tool.great-docs.families.cycle-detection]
+title = "Cycle Detection"
+desc = "Methods for finding cycles in graphs"
+order = 19
+
+[tool.great-docs.families.clustering]
+title = "Clustering"
+desc = "Methods for computing clustering coefficients"
+order = 20
+
+[tool.great-docs.families.triangle-and-transitivity]
+title = "Triangle and Transitivity"
+desc = "Methods for triangle counting and transitivity"
+order = 21
+
+[tool.great-docs.families.clique-operations]
+title = "Clique Operations"
+desc = "Methods for finding cliques"
+order = 22
+
+[tool.great-docs.families.community-detection]
+title = "Community Detection"
+desc = "Methods for detecting communities"
+order = 23
+
+[tool.great-docs.families.link-analysis]
+title = "Link Analysis"
+desc = "Methods for analyzing links and connections"
+order = 24
+
+[tool.great-docs.families.link-prediction]
+title = "Link Prediction"
+desc = "Methods for predicting new links"
+order = 25
+
+[tool.great-docs.families.similarity]
+title = "Similarity"
+desc = "Methods for computing node similarity"
+order = 26
+
+[tool.great-docs.families.bridges-and-connectivity]
+title = "Bridges and Connectivity"
+desc = "Methods for finding bridges and articulation points"
+order = 27
+
+[tool.great-docs.families.connectivity-and-flow]
+title = "Connectivity and Flow"
+desc = "Methods for connectivity and network flow"
+order = 28
+
+[tool.great-docs.families.connected-components]
+title = "Connected Components"
+desc = "Methods for finding connected components"
+order = 29
+
+[tool.great-docs.families.graph-type-conversions]
+title = "Graph Type Conversions"
+desc = "Methods for converting between graph types"
+order = 30
+
+[tool.great-docs.families.node-contraction]
+title = "Node Contraction"
+desc = "Methods for contracting nodes"
+order = 31
+
+[tool.great-docs.families.graph-algebra]
+title = "Graph Algebra"
+desc = "Methods for graph algebraic operations"
+order = 32
+
+[tool.great-docs.families.graph-coloring]
+title = "Graph Coloring"
+desc = "Methods for graph coloring"
+order = 33
+
+[tool.great-docs.families.matching]
+title = "Matching"
+desc = "Methods for finding matchings"
+order = 34
+
+[tool.great-docs.families.independent-sets]
+title = "Independent Sets"
+desc = "Methods for finding independent sets"
+order = 35
+
+[tool.great-docs.families.dominating-sets]
+title = "Dominating Sets"
+desc = "Methods for finding dominating sets"
+order = 36
+
+[tool.great-docs.families.spanning-trees]
+title = "Spanning Trees"
+desc = "Methods for finding spanning trees"
+order = 37
+
+[tool.great-docs.families.edge-analysis]
+title = "Edge Analysis"
+desc = "Methods for analyzing edge types"
+order = 38
+
+[tool.great-docs.families.reciprocity]
+title = "Reciprocity"
+desc = "Methods for measuring reciprocity"
+order = 39
+
+[tool.great-docs.families.assortativity]
+title = "Assortativity"
+desc = "Methods for measuring assortativity"
+order = 40
+
+[tool.great-docs.families.spectral-analysis]
+title = "Spectral Analysis"
+desc = "Methods for spectral graph analysis"
+order = 41
+
+[tool.great-docs.families.network-efficiency]
+title = "Network Efficiency"
+desc = "Methods for measuring network efficiency"
+order = 42
+
+[tool.great-docs.families.distance-metrics]
+title = "Distance Metrics"
+desc = "Methods for computing distance-based metrics"
+order = 43
+
+[tool.great-docs.families.datasets]
+title = "Datasets"
+desc = "Functions for loading graph datasets"
+order = 44
+
+[tool.great-docs.families.tables]
+title = "Tables"
+desc = "Functions for creating summary tables"
+order = 45
+
+[tool.great-docs.families.interoperability]
+title = "Interoperability"
+desc = "Functions for converting between graph libraries"
+order = 46
+
+[tool.great-docs.families.i-o]
+title = "I/O"
+desc = "Functions for reading and writing graphs"
+order = 47
+
 [[tool.great-docs.authors]]
 name = "Rich Iannone"
 role = "Maintainer"
