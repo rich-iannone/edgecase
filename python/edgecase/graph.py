@@ -192,6 +192,8 @@ class Graph:
         .add_edge(source="Alice", target="Bob", weight=0.8)
     )
     ```
+
+    %family Graph
     """
 
     def __init__(
