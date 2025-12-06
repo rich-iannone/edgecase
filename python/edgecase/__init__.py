@@ -1,11 +1,13 @@
 try:
-    from importlib.metadata import PackageNotFoundError, version
+    from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
+    from importlib.metadata import version as _version
 except ImportError:  # pragma: no cover
-    from importlib_metadata import PackageNotFoundError, version
+    from importlib_metadata import PackageNotFoundError as _PackageNotFoundError
+    from importlib_metadata import version as _version
 
 try:  # pragma: no cover
-    __version__ = version("edgecase")
-except PackageNotFoundError:  # pragma: no cover
+    __version__ = _version("edgecase")
+except _PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
 # Import Rust core with Python wrapper for API compatibility
