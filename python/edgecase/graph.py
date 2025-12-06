@@ -389,9 +389,6 @@ class Graph:
         unsigned integers managed automatically by EdgeCase, while labels provide human-readable
         identifiers.
 
-
-        %family Graph Construction
-
         Parameters
         ----------
         label
@@ -457,6 +454,8 @@ class Graph:
             .add_node(label="Bob", age=25, role="designer")
         )
         ```
+
+        %family Graph Construction
         """
         # Handle direct Rust Node object (for backward compatibility)
         if isinstance(label, rust.Node):
@@ -500,9 +499,6 @@ class Graph:
         Edges connect existing nodes and can optionally carry weights and attributes. Both source
         and target nodes must already exist in the graph. You can reference nodes by their integer
         IDs or string labels (if labels are unique).
-
-
-        %family Graph Construction
 
         Parameters
         ----------
@@ -599,6 +595,8 @@ class Graph:
             .add_edge(source="Alice", target="Bob", rel="friend", since=2020)
         )
         ```
+
+        %family Graph Construction
         """
         # Handle direct Rust Edge objects (internal/advanced use only)
         if isinstance(source, rust.Edge):
@@ -690,9 +688,6 @@ class Graph:
         Removes a node and all its incident edges from the graph. The node can be specified by its
         ID or label.
 
-
-        %family Graph Construction
-
         Parameters
         ----------
         node
@@ -735,6 +730,8 @@ class Graph:
         graph.delete_node(node=node_id)
         print(graph.has_node(node=node_id))  # False
         ```
+
+        %family Graph Construction
         """
         try:
             node_id = self._resolve_node_id(node, auto_create=False)
@@ -757,9 +754,6 @@ class Graph:
 
         Remove edges by specifying either the source and target nodes, or the edge ID directly. For
         multigraphs with source/target, only the first matching edge is deleted.
-
-
-        %family Graph Construction
 
         Parameters
         ----------
@@ -814,6 +808,8 @@ class Graph:
         graph.delete_edge(id=edge_id)
         print(graph.has_edge(source="A", target="B"))  # False
         ```
+
+        %family Graph Construction
         """
         if id is not None:
             # Delete by edge ID
@@ -840,9 +836,6 @@ class Graph:
         Removes an edge directly using its unique edge identifier. This is more efficient than
         deleting by source and target nodes when the edge ID is known, and is particularly useful
         for multigraphs where multiple edges may exist between the same pair of nodes.
-
-
-        %family Graph Construction
 
         Parameters
         ----------
@@ -895,6 +888,8 @@ class Graph:
         graph.delete_edge_by_id(edge_id=edge_ids[0])
         print(graph.has_edge(source="A", target="B"))  # True (second edge remains)
         ```
+
+        %family Graph Construction
         """
         self._graph.delete_edge_by_id(edge_id)
 
@@ -905,9 +900,6 @@ class Graph:
         Removes nodes in the current selection from the graph, along with all edges connected to
         those nodes. Updates selection state and removes the selected nodes from the graph
         structure.
-
-
-        %family Graph Construction
 
         Returns
         -------
@@ -949,6 +941,8 @@ class Graph:
 
         print(graph.count_nodes())  # 1 (only A remains)
         ```
+
+        %family Graph Construction
         """
         selected = self.get_selected_node_ids()
 
@@ -967,9 +961,6 @@ class Graph:
 
         Removes edges in the current selection from the graph. Node connectivity may be affected,
         but nodes themselves remain in the graph. Updates selection state automatically.
-
-
-        %family Graph Construction
 
         Returns
         -------
@@ -1015,6 +1006,8 @@ class Graph:
 
         print(graph.count_edges())  # 2 (edges with weight >= 2.0 remain)
         ```
+
+        %family Graph Construction
         """
         selected = self.get_selected_edge_ids()
 
@@ -1032,9 +1025,6 @@ class Graph:
         A self-loop is an edge where the source and target nodes are the same. This method removes
         all such edges from the graph, which is a common preprocessing step for many graph
         algorithms that assume simple graphs.
-
-
-        %family Graph Construction
 
         Returns
         -------
@@ -1083,6 +1073,8 @@ class Graph:
         - does not affect multi-edges (use `remove_duplicate_edges()` or `simplify()` for those).
         - use `which_loops()` to identify self-loops before removal.
         - use `count_loops()` to count self-loops per node before removal.
+
+        %family Graph Construction
         """
         self._graph.remove_selfloops()
         return self
@@ -1094,9 +1086,6 @@ class Graph:
         For each pair of nodes with multiple edges between them, keeps only the first edge (by edge
         ID order) and removes all others. This converts a multigraph into a simple graph with
         respect to multi-edges, but does not remove self-loops.
-
-
-        %family Graph Construction
 
         Parameters
         ----------
@@ -1173,6 +1162,8 @@ class Graph:
         - does not remove self-loops (use `remove_selfloops()` or `simplify()` for those)
         - use `which_multiple()` to identify duplicate edges before removal
         - use `count_multiple()` to count duplicates per node pair before removal
+
+        %family Graph Construction
         """
         self._graph.remove_duplicate_edges(keep_distinct_attributes)
         return self
@@ -1184,9 +1175,6 @@ class Graph:
         A simple graph has no self-loops (edges from a node to itself) and no multi-edges (multiple
         edges between the same pair of nodes). This method removes both types, which is a common
         preprocessing step for algorithms that require simple graphs.
-
-
-        %family Graph Construction
 
         Returns
         -------
@@ -1241,6 +1229,8 @@ class Graph:
         - for directed graphs, edges `(u, v)` and `(v, u)` are considered different pairs
         - for undirected graphs, edges `(u, v)` and `(v, u)` are considered the same pair
         - after simplification, `is_simple()` will return `True`
+
+        %family Graph Construction
         """
         self._graph.simplify()
         return self
@@ -1255,9 +1245,6 @@ class Graph:
 
         Displays key graph properties including node/edge counts, connectivity, degree statistics,
         and optional custom properties via a hook function.
-
-
-        %family Graph Information
 
         Parameters
         ----------
@@ -1328,6 +1315,8 @@ class Graph:
         -----
         The `describe_hook=` parameter allows you to compute expensive metrics only when needed. For
         large graphs, computing properties like diameter or clustering can be slow.
+
+        %family Graph Information
         """
         info_dict = self._create_describe_info_dict()
 
@@ -1508,9 +1497,6 @@ class Graph:
         """
         Display the graph visualization in a notebook or web browser.
 
-
-        %family Graph Rendering
-
         Parameters
         ----------
         target
@@ -1542,6 +1528,8 @@ class Graph:
         # G.show(target="browser")  # Force browser
         # G.show(target="notebook")  # Force notebook display
         ```
+
+        %family Graph Rendering
         """
         from edgecase.viz import plot_graph
 
@@ -1605,9 +1593,6 @@ class Graph:
         Creates a sequence of `n` nodes connected linearly: `1 -> 2 -> 3 -> ... -> n`. End nodes
         have degree `1`, internal nodes have degree 2.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         n
@@ -1634,6 +1619,8 @@ class Graph:
         print(graph.count_nodes())  # 5
         print(graph.count_edges())  # 4
         ```
+
+        %family Graph Generators
         """
         if n < 1:
             raise ValueError("Path must have at least 1 node")
@@ -1673,9 +1660,6 @@ class Graph:
         Creates n nodes in a circular pattern where the last connects back to first. Each node has
         exactly degree `2`.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         n
@@ -1702,6 +1686,8 @@ class Graph:
         print(graph.count_nodes())  # 4
         print(graph.count_edges())  # 4
         ```
+
+        %family Graph Generators
         """
         if n < 3:
             raise ValueError("Cycle must have at least 3 nodes")
@@ -1732,9 +1718,6 @@ class Graph:
         Creates a central hub node connected to `n - 1` peripheral nodes. All edges connect the hub
         to spokes; no edges between spokes.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         n
@@ -1761,6 +1744,8 @@ class Graph:
         print(graph.count_nodes())  # 5
         print(graph.count_edges())  # 4
         ```
+
+        %family Graph Generators
         """
         if n < 2:
             raise ValueError("Star must have at least 2 nodes")
@@ -1800,9 +1785,6 @@ class Graph:
         Creates `n` nodes where every node is connected to every other node. In a complete graph
         with `n` nodes, there are `n(n - 1) / 2` edges (without self-loops).
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         n
@@ -1831,6 +1813,8 @@ class Graph:
         print(graph.count_nodes())  # 4
         print(graph.count_edges())  # 6
         ```
+
+        %family Graph Generators
         """
         if n < 1:
             raise ValueError("Complete graph must have at least 1 node")
@@ -1880,9 +1864,6 @@ class Graph:
         Creates a tree where each internal node has exactly `k` children, with height `h`. The total
         number of nodes will be equal to `(k^(h+1) - 1) / (k - 1)`.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         k
@@ -1913,6 +1894,8 @@ class Graph:
 
         print(graph.count_nodes())  # 15 (1 + 2 + 4 + 8)
         ```
+
+        %family Graph Generators
         """
         if k < 1:
             raise ValueError("Branching factor k must be at least 1")
@@ -1987,9 +1970,6 @@ class Graph:
         Creates a rectangular grid where each interior node is connected to its four neighbors
         (up, down, left, right). Edge nodes have fewer connections.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         rows
@@ -2017,6 +1997,8 @@ class Graph:
         print(graph.count_nodes())  # 12
         print(graph.count_edges())  # 17 (edges: 3*3 + 2*4)
         ```
+
+        %family Graph Generators
         """
         if rows < 1 or cols < 1:
             raise ValueError("Grid must have at least 1 row and 1 column")
@@ -2083,9 +2065,6 @@ class Graph:
         Creates two parallel n-cycles connected by n vertical edges, forming a 3D prism structure
         when visualized.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         n
@@ -2111,6 +2090,8 @@ class Graph:
         print(graph.count_nodes())  # 10 (2 cycles of 5)
         print(graph.count_edges())  # 15 (5+5 cycle edges + 5 vertical)
         ```
+
+        %family Graph Generators
         """
         if n < 3:
             raise ValueError("Prism must have at least 3 nodes per cycle")
@@ -2189,9 +2170,6 @@ class Graph:
         Each possible edge is included independently with probability `p`. This model is useful for
         generating random graphs with a specific edge density.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         n
@@ -2220,6 +2198,8 @@ class Graph:
         print(graph.count_nodes())  # 50
         # Expected ~245 edges (50*49/2 * 0.1)
         ```
+
+        %family Graph Generators
         """
         if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
@@ -2248,9 +2228,6 @@ class Graph:
 
         Creates a graph with `n` nodes and exactly m randomly placed edges. This model is useful for
         generating random graphs with a fixed number of edges.
-
-
-        %family Graph Generators
 
         Parameters
         ----------
@@ -2282,6 +2259,8 @@ class Graph:
         print(graph.count_nodes())  # 50
         print(graph.count_edges())  # 100
         ```
+
+        %family Graph Generators
         """
         if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
@@ -2311,9 +2290,6 @@ class Graph:
         nodes with probability proportional to degree. This creates scale-free networks with
         power-law degree distributions.
 
-
-        %family Graph Generators
-
         Parameters
         ----------
         n
@@ -2341,6 +2317,8 @@ class Graph:
         print(graph.count_nodes())  # 100
         print(graph.count_edges())  # (100-m)*m = 294
         ```
+
+        %family Graph Generators
         """
         self._graph.generate_pa_graph(n, m, seed)
         return self
@@ -2357,9 +2335,6 @@ class Graph:
 
         Creates a ring lattice with rewiring probability `p`, producing graphs with high clustering
         and short path lengths. Small-world networks model many real-world phenomena.
-
-
-        %family Graph Generators
 
         Parameters
         ----------
@@ -2389,6 +2364,8 @@ class Graph:
 
         print(graph.count_nodes())  # 100
         ```
+
+        %family Graph Generators
         """
         self._graph.generate_smallworld_graph(n, k, p, seed)
         return self
@@ -2404,9 +2381,6 @@ class Graph:
         Johnson graphs are distance-regular and `k(n-k)`-regular. They generalize to the family
         `J(n,k,s)` where `s` is the intersection size; this method implements the standard case
         where `s = k - 1`. When `k = 0` or `k = n`, the graph is trivial (single node, no edges).
-
-
-        %family Graph Generators
 
         Parameters
         ----------
@@ -2479,6 +2453,8 @@ class Graph:
         # not Johnson J(5,2). J(5,2) has 10 nodes and is 6-regular,
         # while Petersen has 10 nodes but is 3-regular.
         ```
+
+        %family Graph Generators
         """
         self._graph.generate_johnson_graph(n, k)
         return self
@@ -2504,9 +2480,6 @@ class Graph:
         - social networks (geographically close individuals)
         - biological networks (spatially proximate cells)
         - ad-hoc networks and sensor networks
-
-
-        %family Graph Generators
 
         Parameters
         ----------
@@ -2585,6 +2558,8 @@ class Graph:
         # With Manhattan distance, the "ball" of radius r is a rotated square
         print(f"Edges: {manhattan_graph.count_edges()}")
         ```
+
+        %family Graph Generators
         """
         self._graph.generate_random_geometric_graph(n, radius, dim, p_norm, seed)
         return self
@@ -2599,9 +2574,6 @@ class Graph:
 
         Retrieves the `Node` object for the specified node. The `Node` object contains `id`,
         `label`, and attributes properties. Returns `None` if node doesn't exist.
-
-
-        %family Node and Edge Accessors
 
         Parameters
         ----------
@@ -2624,6 +2596,8 @@ class Graph:
         print(node.id)  # 'A'
         print(node.attributes)  # {'color': 'red', 'size': 10}
         ```
+
+        %family Node and Edge Accessors
         """
         node_id = self._resolve_node_id(node, auto_create=False)
         return self._graph.get_node(node_id)
@@ -2634,9 +2608,6 @@ class Graph:
 
         Retrieves the `Edge` object for the specified edge ID. The `Edge` object contains id, source,
         target, weight, and attributes properties. Returns `None` if edge doesn't exist.
-
-
-        %family Node and Edge Accessors
 
         Parameters
         ----------
@@ -2663,6 +2634,8 @@ class Graph:
         print(edge.weight)  # 1.5
         print(edge.attributes)  # {'type': 'friend'}
         ```
+
+        %family Node and Edge Accessors
         """
         return self._graph.get_edge(edge_id)
 
@@ -2677,9 +2650,6 @@ class Graph:
         Returns node IDs in the graph up to the specified limit. Node IDs are unique integers
         (`u64`) assigned to each node, useful for iterating over nodes or performing operations on
         specific nodes.
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -2732,6 +2702,8 @@ class Graph:
         all_ids = graph.get_node_ids(limit=None)
         print(f"Total nodes: {len(all_ids)}")
         ```
+
+        %family Graph Inspection
         """
         ids = self._graph.get_node_ids()
         return ids if limit is None else ids[:limit]
@@ -2742,9 +2714,6 @@ class Graph:
 
         Returns edge IDs in the graph up to the specified limit. Edge IDs are unique integers
         assigned to each edge, useful for direct edge access and manipulation.
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -2809,6 +2778,8 @@ class Graph:
         all_ids = graph.get_edge_ids(limit=None)
         print(f"Total edges: {len(all_ids)}")
         ```
+
+        %family Graph Inspection
         """
         ids = self._graph.edge_ids()
         return ids if limit is None else ids[:limit]
@@ -2819,9 +2790,6 @@ class Graph:
 
         Retrieves the source and target node IDs for a specific edge using its edge ID. Returns
         `None` if the edge ID doesn't exist.
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -2858,6 +2826,8 @@ class Graph:
         result = graph.get_node_ids_by_edge_id(edge_id=9999)
         print(result)  # None
         ```
+
+        %family Graph Inspection
         """
         return self._graph.get_edge_by_id(edge_id)
 
@@ -2867,9 +2837,6 @@ class Graph:
 
         Translates a human-readable string label to the internal `u64` node ID. Useful when you need
         the ID for operations that require integer identifiers.
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -2898,6 +2865,8 @@ class Graph:
         unknown_id = graph.get_id_from_label("Unknown")
         print(unknown_id)  # None
         ```
+
+        %family Graph Inspection
         """
         try:
             return self._graph.id_from_label(label)
@@ -2910,9 +2879,6 @@ class Graph:
 
         Translates an internal `u64` node ID to its human-readable string label. Returns `None` if
         the node doesn't exist or has no label assigned.
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -2942,6 +2908,8 @@ class Graph:
         no_label = graph.get_label_from_id(999)
         print(no_label)  # None
         ```
+
+        %family Graph Inspection
         """
         try:
             return self._graph.label_from_id(node_id)
@@ -2955,9 +2923,6 @@ class Graph:
         Returns node IDs ordered by when they were added to the graph. The first node created
         appears first, the most recently created node appears last. Useful for temporal analysis or
         recreating graph construction history.
-
-
-        %family Graph Inspection
 
         Returns
         -------
@@ -2992,6 +2957,8 @@ class Graph:
         recent = graph.get_node_creation_order()[-5:]
         graph.select_nodes_by_id(recent)
         ```
+
+        %family Graph Inspection
         """
         return self._graph.get_node_creation_order()
 
@@ -3002,9 +2969,6 @@ class Graph:
         Returns edge IDs ordered by when they were added to the graph. The first edge created
         appears first, the most recently created edge appears last. Useful for temporal analysis or
         understanding edge addition patterns.
-
-
-        %family Graph Inspection
 
         Returns
         -------
@@ -3049,6 +3013,8 @@ class Graph:
         order = graph.get_edge_creation_order()
         weights = [graph.get_edge(eid).weight for eid in order]
         ```
+
+        %family Graph Inspection
         """
         return self._graph.get_edge_creation_order()
 
@@ -3058,9 +3024,6 @@ class Graph:
 
         Returns all edges in the graph as tuples containing the edge ID and the source and target
         node IDs. Useful for iterating over all edges or analyzing edge structure.
-
-
-        %family Graph Inspection
 
         Returns
         -------
@@ -3086,6 +3049,8 @@ class Graph:
         for edge_id, source, target in graph.get_edges_as_tuples():
             print(f"Edge {edge_id}: {source} -> {target}")
         ```
+
+        %family Graph Inspection
         """
         return self._graph.edges()
 
@@ -3100,9 +3065,6 @@ class Graph:
 
         - directed graphs: "source->target"
         - undirected graphs: "source--target"
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -3203,6 +3165,8 @@ class Graph:
         all_edges = graph.get_edges_str_repr(limit=None, use_labels=True)
         print(f"Total edges: {len(all_edges)}")
         ```
+
+        %family Graph Inspection
         """
         if use_labels:
             # Build edge strings using labels when available
@@ -3233,9 +3197,6 @@ class Graph:
         Verifies whether a node (specified by ID or label) exists in the graph. Returns `False` for
         invalid inputs or missing nodes.
 
-
-        %family Graph Inspection
-
         Parameters
         ----------
         node
@@ -3262,6 +3223,8 @@ class Graph:
         print(graph.has_node("Charlie")) # False
         print(graph.has_node(999))       # False
         ```
+
+        %family Graph Inspection
         """
         try:
             node_id = self._resolve_node_id(node, auto_create=False)
@@ -3275,9 +3238,6 @@ class Graph:
 
         For undirected graphs, the order of source and target doesn't matter. For directed graphs,
         checks specifically for an edge from source to target.
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -3320,6 +3280,8 @@ class Graph:
         print(graph.has_edge(source="A", target="B"))  # True
         print(graph.has_edge(source="B", target="A"))  # True (undirected)
         ```
+
+        %family Graph Inspection
         """
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
@@ -3332,9 +3294,6 @@ class Graph:
 
         Verifies whether a specific edge ID is present in the graph. Useful for validating edge IDs
         before performing operations.
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -3364,6 +3323,8 @@ class Graph:
         print(graph.has_edge_id(edge_id=edge_id))  # True
         print(graph.has_edge_id(edge_id=9999))     # False
         ```
+
+        %family Graph Inspection
         """
         return self._graph.has_edge_id(edge_id)
 
@@ -3374,9 +3335,6 @@ class Graph:
         Returns a list of all edge IDs connecting the source and target nodes. For undirected
         graphs, edges are found regardless of direction. Supports multi-edges (multiple edges
         between the same pair of nodes).
-
-
-        %family Graph Inspection
 
         Parameters
         ----------
@@ -3404,6 +3362,8 @@ class Graph:
         edge_ids = graph.find_edge_ids(source="A", target="B")
         print(len(edge_ids))  # 2
         ```
+
+        %family Graph Inspection
         """
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
@@ -3415,9 +3375,6 @@ class Graph:
 
         Returns the current number of nodes (vertices) in the graph. This count includes all nodes
         that have been added and not deleted.
-
-
-        %family Graph Inspection
 
         Returns
         -------
@@ -3450,6 +3407,8 @@ class Graph:
         )
         print(graph.count_nodes())  # 2
         ```
+
+        %family Graph Inspection
         """
         return self._graph.num_nodes()
 
@@ -3460,9 +3419,6 @@ class Graph:
         Returns the current number of edges (links/connections) in the graph. For undirected graphs,
         each edge is counted once. For directed graphs, each directed edge is counted separately
         (`A->B` is different from `B->A`).
-
-
-        %family Graph Inspection
 
         Returns
         -------
@@ -3522,6 +3478,8 @@ class Graph:
         )
         print(graph.count_edges())  # 1
         ```
+
+        %family Graph Inspection
         """
         return self._graph.num_edges()
 
@@ -3532,9 +3490,6 @@ class Graph:
         Returns the human-readable name assigned to this graph, if any. The name is an optional
         identifier that can be set when creating the graph or updated later. It's useful for
         distinguishing between multiple graphs in analysis or visualization contexts.
-
-
-        %family Graph Inspection
 
         Returns
         -------
@@ -3562,6 +3517,8 @@ class Graph:
         else:
             print("Analyzing unnamed graph")
         ```
+
+        %family Graph Inspection
         """
         return self._graph_name
 
@@ -3588,9 +3545,6 @@ class Graph:
         - edge `A--B` is the same as `B--A`
         - adding `A--B` automatically adds `B--A`
         - useful for modeling symmetric relationships (friendship, proximity, etc.)
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -3622,6 +3576,8 @@ class Graph:
             # Single edge suffices for undirected
             graph.add_edge(source="A", target="B")
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_directed
 
@@ -3644,9 +3600,6 @@ class Graph:
         - all edges are treated equally (implicit weight of `1`)
         - weights are ignored or unavailable
         - algorithms use hop count instead of weight sum
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -3675,6 +3628,8 @@ class Graph:
         else:
             graph.add_edge(source="A", target="B")
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_weighted
 
@@ -3685,9 +3640,6 @@ class Graph:
         A simple graph contains no self-loops (edges from a node to itself) and no multi-edges
         (multiple edges between the same pair of nodes). This is a fundamental graph property used
         in many theoretical results.
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -3726,6 +3678,8 @@ class Graph:
 
         print(graph.is_simple())  # False
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_simple()
 
@@ -3736,9 +3690,6 @@ class Graph:
         A DAG is a directed graph with no cycles. You cannot follow directed edges and return to a
         starting node. DAGs are fundamental for dependency resolution, scheduling, and topological
         sorting.
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -3770,6 +3721,8 @@ class Graph:
         graph.add_edge("C", "A")  # Creates cycle A->B->C->A
         print(graph.is_dag())  # False
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_dag()
 
@@ -3779,9 +3732,6 @@ class Graph:
 
         A graph is connected if there is a path between every pair of nodes. For directed graphs,
         checks weak connectivity (treating edges as undirected).
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -3809,6 +3759,9 @@ class Graph:
         graph.add_node(label="D")  # Isolated node
         print(graph.is_connected())  # False
         ```
+
+        %family Graph Properties
+        %seealso is_weakly_connected, is_strongly_connected, count_weakly_connected_components
         """
         return self._graph.is_connected()
 
@@ -3821,9 +3774,6 @@ class Graph:
         colors such that no adjacent nodes share a color.
 
         All trees and forests are bipartite. Graphs with odd-length cycles are not.
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -3862,6 +3812,8 @@ class Graph:
 
         print(triangle.is_bipartite())  # False
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_bipartite()
 
@@ -3876,9 +3828,6 @@ class Graph:
         - must be connected (single component)
         - must have exactly *n - 1* edges
         - must be acyclic
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -3945,6 +3894,8 @@ class Graph:
         star.add_star_graph(n=5)
         print(star.is_tree())  # True
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_tree()
 
@@ -3958,9 +3909,6 @@ class Graph:
         - must be undirected
         - must have exactly *n - k* edges
         - must be acyclic
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -4027,6 +3975,8 @@ class Graph:
         empty = Graph(directed=False)
         print(empty.is_forest())  # True
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_forest()
 
@@ -4044,9 +3994,6 @@ class Graph:
 
         This represents a tree structure with a clear parent-child hierarchy flowing from a single
         root.
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -4115,6 +4062,8 @@ class Graph:
         tree.add_balanced_tree(k=2, h=3)
         print(tree.is_arborescence())  # True
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_arborescence()
 
@@ -4126,9 +4075,6 @@ class Graph:
         Euler's formula and necessary conditions to test planarity. For simple planar graphs with
         `n ≥ 3` nodes, the number of edges *e* must satisfy `e ≤ 3n - 6`. For graphs without
         triangles, the stricter bound *e* ≤ *2n - 4* applies.
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -4190,6 +4136,8 @@ class Graph:
         grid.add_grid_2d(rows=5, cols=5)
         print(grid.is_planar())  # True
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_planar()
 
@@ -4207,9 +4155,6 @@ class Graph:
         - same number of edges
         - same degree sequence
         - same directedness
-
-
-        %family Graph Properties
 
         Parameters
         ----------
@@ -4289,6 +4234,8 @@ class Graph:
 
         print(g3.is_isomorphic(g4))  # False (different sizes)
         ```
+
+        %family Graph Properties
         """
         return self._graph.is_isomorphic(other._graph)
 
@@ -4299,9 +4246,6 @@ class Graph:
         A graph is regular if every node has the same degree. For directed graphs, this means all
         nodes have the same in-degree and the same out-degree (though in-degree and out-degree don't
         need to equal each other).
-
-
-        %family Graph Properties
 
         Returns
         -------
@@ -4350,8 +4294,10 @@ class Graph:
         -----
         - empty graphs and single-node graphs are considered regular
         - cycles are 2-regular
-        - complete graphs K_n are (n-1)-regular
+        - complete graphs `K_n` are `(n-1)`-regular
         - for directed graphs, checks both in-degree and out-degree regularity
+
+        %family Graph Properties
         """
         from edgecase._core import is_regular
 
@@ -4363,9 +4309,6 @@ class Graph:
 
         A graph is k-regular if every node has degree exactly `k`. For directed graphs, this means
         all nodes have in-degree `k` and out-degree `k`.
-
-
-        %family Graph Properties
 
         Parameters
         ----------
@@ -4429,6 +4372,8 @@ class Graph:
         - complete graphs `K_n` are *(n-1)*-regular
         - path graphs are *not* regular (end nodes have degree `1`, middle nodes have degree `2`)
         - for directed graphs, checks both in-degree and out-degree equal `k`
+
+        %family Graph Properties
         """
         from edgecase._core import is_k_regular
 
@@ -4448,9 +4393,6 @@ class Graph:
 
         Self-loops are common in state machines, reflexive relationships, and chemical reaction
         networks.
-
-
-        %family Simple Counts
 
         Returns
         -------
@@ -4484,6 +4426,8 @@ class Graph:
 
         print(graph.count_all_loops())  # 2
         ```
+
+        %family Simple Counts
         """
         return self._graph.count_all_loops()
 
@@ -4494,9 +4438,6 @@ class Graph:
         Only counts edges beyond the first one for each node pair. For example, if there are 3 edges
         from `A` to `B`, this counts 2 of them. Multi-edges are useful for modeling scenarios like
         multiple flights between cities or repeated transactions.
-
-
-        %family Simple Counts
 
         Returns
         -------
@@ -4520,6 +4461,8 @@ class Graph:
 
         print(graph.count_multi_edges())  # 2
         ```
+
+        %family Simple Counts
         """
         return self._graph.count_multi_edges()
 
@@ -4530,9 +4473,6 @@ class Graph:
         Returns the number of node pairs `(a,b)` where both edges `a->b` and `b->a` exist. Only
         works for directed graphs. Self-loops are excluded. This metric is useful for analyzing
         reciprocity in directed networks like social graphs.
-
-
-        %family Simple Counts
 
         Returns
         -------
@@ -4561,6 +4501,8 @@ class Graph:
 
         print(graph.count_mutual_node_pairs())  # 1
         ```
+
+        %family Simple Counts
         """
         return self._graph.count_mutual_node_pairs()
 
@@ -4571,9 +4513,6 @@ class Graph:
         Returns the number of node pairs `(a,b)` where edge `a->b` exists but not `b->a`. Only works
         for directed graphs. Self-loops are excluded. This metric helps analyze directional flow or
         hierarchy in directed networks.
-
-
-        %family Simple Counts
 
         Returns
         -------
@@ -4602,6 +4541,8 @@ class Graph:
 
         print(graph.count_asymmetric_node_pairs())  # 1
         ```
+
+        %family Simple Counts
         """
         return self._graph.count_asymmetric_node_pairs()
 
@@ -4624,9 +4565,6 @@ class Graph:
 
         For directed graphs, the default mode is `"out"` (outgoing neighbors only). For undirected
         graphs, mode doesn't affect the result since all edges are bidirectional.
-
-
-        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4680,6 +4618,8 @@ class Graph:
         neighbor_labels = [graph.get_label_from_id(nid) for nid in out_neighbors]
         print(neighbor_labels)  # ['B']
         ```
+
+        %family Neighbors and Connectivity
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
@@ -4713,9 +4653,6 @@ class Graph:
 
         Returns nodes that have outgoing edges to the specified node. Only available for directed
         graphs.
-
-
-        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4752,6 +4689,8 @@ class Graph:
         labels = [graph.get_label_from_id(nid) for nid in predecessors]
         print(labels)  # ['A', 'B']
         ```
+
+        %family Neighbors and Connectivity
         """
         if not self._graph.is_directed:
             raise ValueError("get_predecessors only available for directed graphs")
@@ -4763,9 +4702,6 @@ class Graph:
 
         Returns nodes that are targets of outgoing edges from the specified node. Only available for
         directed graphs.
-
-
-        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4804,6 +4740,8 @@ class Graph:
 
         print(labels)  # ['B', 'C']
         ```
+
+        %family Neighbors and Connectivity
         """
         if not self._graph.is_directed:
             raise ValueError("get_successors only available for directed graphs")
@@ -4815,9 +4753,6 @@ class Graph:
 
         Returns all nodes in the graph except the specified node itself and its neighbors. Useful
         for finding potential new connections or disconnected nodes.
-
-
-        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4865,6 +4800,8 @@ class Graph:
             for candidate in candidates
         ]
         ```
+
+        %family Neighbors and Connectivity
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
@@ -4883,9 +4820,6 @@ class Graph:
 
         Returns the intersection of neighbor sets for two nodes, useful for finding shared
         connections or potential triangles in the graph.
-
-
-        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4950,6 +4884,8 @@ class Graph:
                 third_label = graph.get_label_from_id(node_id=third_id)
                 print(f"Triangle: A - {neighbor_label} - {third_label}")
         ```
+
+        %family Neighbors and Connectivity
         """
         neighbors1 = set(self.neighbors(node_1, mode="all"))
         neighbors2 = set(self.neighbors(node_2, mode="all"))
@@ -4967,9 +4903,6 @@ class Graph:
 
         Returns neighbors whose numeric attribute values fall within a specified tolerance range of
         the starting node's value. Useful for finding connected nodes with comparable properties.
-
-
-        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -5037,6 +4970,8 @@ class Graph:
         - if neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
         - neighbors without the specified attribute are excluded from results.
         - non-numeric attribute values raise a `ValueError`.
+
+        %family Neighbors and Connectivity
         """
         # Get starting node's attribute value
         start_node = self.get_node(node)
@@ -5091,9 +5026,6 @@ class Graph:
         returns `True`. The predicate receives a `Node` object with properties: `id`, `label`, and
         attributes.
 
-
-        %family Graph Selection
-
         Parameters
         ----------
         predicate
@@ -5124,6 +5056,8 @@ class Graph:
         # Select nodes by ID pattern (if using integer IDs)
         # graph.select_nodes(lambda n: n.id > 100)
         ```
+
+        %family Graph Selection
         """
         self._graph.select_nodes(predicate)
         return self
@@ -5135,9 +5069,6 @@ class Graph:
         Applies a custom filter function to all edges, selecting those for which the predicate
         returns `True`. The predicate receives an Edge object with properties: `id`, `source`,
         `target`, `weight`, and other attributes.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5175,6 +5106,8 @@ class Graph:
         #     lambda e: e.attributes and e.attributes.get("rel") == "friend"
         # )
         ```
+
+        %family Graph Selection
         """
         self._graph.select_edges(predicate)
         return self
@@ -5185,9 +5118,6 @@ class Graph:
 
         Marks specified nodes as selected for subsequent operations like building subgraphs or
         filtering. Selection is cumulative unless cleared first.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5226,6 +5156,8 @@ class Graph:
         selected = graph.get_selected_node_ids()
         print(selected)  # ['A', 'B']
         ```
+
+        %family Graph Selection
         """
         self._graph.select_nodes_by_id(node_ids)
         return self
@@ -5236,9 +5168,6 @@ class Graph:
 
         Marks specified edges as selected for subsequent operations. Edge IDs are internal integer
         identifiers assigned when edges are created. Selection is cumulative unless cleared first.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5278,6 +5207,8 @@ class Graph:
         selected_count = graph.count_selected_edges()
         print(selected_count)  # 2
         ```
+
+        %family Graph Selection
         """
         self._graph.select_edges_by_id(edge_ids)
         return self
@@ -5289,9 +5220,6 @@ class Graph:
         Selects all edges where at least one endpoint is in the provided node list. For directed
         graphs, includes both incoming and outgoing edges. Useful for selecting the local
         connectivity around specific nodes.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5343,6 +5271,8 @@ class Graph:
 
         graph.select_edges_by_node(["B"])
         ```
+
+        %family Graph Selection
         """
         # Resolve labels to IDs
         resolved_ids = [self._resolve_node_id(nid) for nid in nodes]
@@ -5355,9 +5285,6 @@ class Graph:
 
         Selects nodes in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added nodes.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5387,6 +5314,8 @@ class Graph:
         selected = graph.get_selected_node_ids()
         print(selected)  # ['C', 'D']
         ```
+
+        %family Graph Selection
         """
         self._graph.select_last_nodes_created(n)
         return self
@@ -5397,9 +5326,6 @@ class Graph:
 
         Selects edges in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added edges.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5436,6 +5362,8 @@ class Graph:
         count = graph.count_selected_edges()
         print(count)  # 2
         ```
+
+        %family Graph Selection
         """
         self._graph.select_last_edges_created(n)
         return self
@@ -5450,14 +5378,11 @@ class Graph:
         not include the seed nodes themselves in the selection. Useful for extracting local
         neighborhoods.
 
-
-        %family Graph Selection
-
         Parameters
         ----------
         nodes
-            Seed node(s) to start from. Can be a single node ID (int), a single label (str),
-            or a list of node IDs/labels.
+            Seed node(s) to start from. Can be a single node ID (int), a single label (str), or a
+            list of node IDs/labels.
         k
             Maximum number of hops/distance to traverse.
         mode
@@ -5525,6 +5450,8 @@ class Graph:
         graph.select_nodes_in_neighborhood(nodes=["A", "B"], k=1, mode="all")
         # Selects neighbors of both A and B (not A and B themselves)
         ```
+
+        %family Graph Selection
         """
         # Convert single value to list
         if isinstance(nodes, (str, int)):
@@ -5548,9 +5475,6 @@ class Graph:
         Filters nodes based on their degree (number of connections). Useful for finding hubs (high
         degree) or peripheral nodes (low degree). Can filter by in-degree, out-degree, or total
         degree.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5594,6 +5518,8 @@ class Graph:
 
         # Selects nodes with 1-2 outgoing edges
         ```
+
+        %family Graph Selection
         """
         self._graph.select_nodes_by_degree(
             min_degree=min_degree, max_degree=max_degree, degree_type=degree_type
@@ -5608,9 +5534,6 @@ class Graph:
 
         Computes centrality scores for all nodes and selects the k highest-scoring nodes. Useful for
         identifying the most important or influential nodes by various centrality metrics.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5655,6 +5578,8 @@ class Graph:
             .select_nodes_by_centrality("pagerank", k=5, damping=0.85)
         )
         ```
+
+        %family Graph Selection
         """
         # Compute scores based on measure
         if measure == "degree":
@@ -5693,9 +5618,6 @@ class Graph:
 
         Unmarks specified nodes, removing them from the current selection set. Has no effect on
         nodes that aren't currently selected.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5755,6 +5677,8 @@ class Graph:
         # Deselect first and last nodes using labels
         graph.deselect_nodes(["0", "4"])
         ```
+
+        %family Graph Selection
         """
         # Resolve labels to IDs
         resolved_ids = [self._resolve_node_id(nid) for nid in node_ids]
@@ -5767,9 +5691,6 @@ class Graph:
 
         Unmarks specified edges, removing them from the current selection set. Has no effect on
         edges that aren't currently selected.
-
-
-        %family Graph Selection
 
         Parameters
         ----------
@@ -5797,6 +5718,8 @@ class Graph:
         count = graph.count_selected_edges()
         print(count)  # 4
         ```
+
+        %family Graph Selection
         """
         self._graph.deselect_edges(edge_ids)
         return self
@@ -5807,9 +5730,6 @@ class Graph:
 
         Resets the selection state, unmarking all previously selected nodes and edges. Useful for
         starting fresh with a new selection workflow.
-
-
-        %family Graph Selection
 
         Returns
         -------
@@ -5832,6 +5752,8 @@ class Graph:
         count = graph.count_selected_nodes()
         print(count)  # 0
         ```
+
+        %family Graph Selection
         """
         self._graph.clear_selection()
         return self
@@ -5842,9 +5764,6 @@ class Graph:
 
         Toggles the selection state of all nodes: currently selected nodes become unselected, and
         unselected nodes become selected. Useful for getting the complement of a selection.
-
-
-        %family Graph Selection
 
         Returns
         -------
@@ -5867,6 +5786,8 @@ class Graph:
         count = graph.count_selected_nodes()
         print(count)  # 8
         ```
+
+        %family Graph Selection
         """
         self._graph.invert_node_selection()
         return self
@@ -5877,9 +5798,6 @@ class Graph:
 
         Toggles the selection state of all edges: currently selected edges become unselected, and
         unselected edges become selected. Useful for getting the complement of an edge selection.
-
-
-        %family Graph Selection
 
         Returns
         -------
@@ -5900,6 +5818,8 @@ class Graph:
         count = graph.count_selected_edges()
         print(count)  # 4 (all except first)
         ```
+
+        %family Graph Selection
         """
         self._graph.invert_edge_selection()
         return self
@@ -5909,9 +5829,6 @@ class Graph:
         Get currently selected node IDs.
 
         Returns the list of node IDs that are currently marked as selected. Order is not guaranteed.
-
-
-        %family Graph Selection
 
         Returns
         -------
@@ -5932,6 +5849,8 @@ class Graph:
         selected = graph.get_selected_node_ids()
         print(len(selected))  # 1 (the center node)
         ```
+
+        %family Graph Selection
         """
         return self._graph.get_selected_node_ids()
 
@@ -5940,9 +5859,6 @@ class Graph:
         Get currently selected edge IDs.
 
         Returns the list of edge IDs that are currently marked as selected. Order is not guaranteed.
-
-
-        %family Graph Selection
 
         Returns
         -------
@@ -5963,6 +5879,8 @@ class Graph:
         selected = graph.get_selected_edge_ids()
         print(len(selected))
         ```
+
+        %family Graph Selection
         """
         return self._graph.get_selected_edge_ids()
 
@@ -5972,9 +5890,6 @@ class Graph:
 
         Returns the number of nodes currently marked as selected. More efficient than
         `len(get_selected_nodes())` when you only need the count.
-
-
-        %family Graph Selection
 
         Returns
         -------
@@ -5995,6 +5910,8 @@ class Graph:
         count = graph.count_selected_nodes()
         print(f"{count} high-degree nodes")
         ```
+
+        %family Graph Selection
         """
         return self._graph.count_selected_nodes()
 
@@ -6004,9 +5921,6 @@ class Graph:
 
         Returns the number of edges currently marked as selected. More efficient than
         `len(get_selected_edges())` when you only need the count.
-
-
-        %family Graph Selection
 
         Returns
         -------
@@ -6029,6 +5943,8 @@ class Graph:
         count = graph.count_selected_edges()
         print(f"{count} high-weight edges")
         ```
+
+        %family Graph Selection
         """
         return self._graph.count_selected_edges()
 
@@ -6046,9 +5962,6 @@ class Graph:
 
         For directed graphs, follows edges in the forward direction. For undirected graphs, follows
         edges in all directions (equivalent to `trav_both()`).
-
-
-        %family Graph Traversal
 
         Returns
         -------
@@ -6070,6 +5983,8 @@ class Graph:
         selected = graph.get_selected_node_ids()
         # Returns [node_id_for_B]
         ```
+
+        %family Graph Traversal
         """
         self._graph.trav_out()
         return self
@@ -6084,9 +5999,6 @@ class Graph:
 
         For directed graphs, follows edges in the reverse direction. For undirected graphs, follows
         edges in all directions (equivalent to `trav_both()`).
-
-
-        %family Graph Traversal
 
         Returns
         -------
@@ -6108,6 +6020,8 @@ class Graph:
         selected = graph.get_selected_node_ids()
         # Returns [node_id_for_B]
         ```
+
+        %family Graph Traversal
         """
         self._graph.trav_in()
         return self
@@ -6120,9 +6034,6 @@ class Graph:
         outward and inward edges). The current node selection is replaced with the traversed nodes.
 
         Works the same for directed and undirected graphs.
-
-
-        %family Graph Traversal
 
         Returns
         -------
@@ -6148,6 +6059,8 @@ class Graph:
         labels = [graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids()]
         # Returns ['A', 'C'] (or ['C', 'A'] where the order may vary)
         ```
+
+        %family Graph Traversal
         """
         self._graph.trav_both()
         return self
@@ -6161,9 +6074,6 @@ class Graph:
 
         For directed graphs, selects edges where from=selected_node. For undirected graphs, selects
         all edges incident to selected nodes.
-
-
-        %family Graph Traversal
 
         Returns
         -------
@@ -6187,6 +6097,8 @@ class Graph:
 
         print(len(graph.get_selected_edge_ids()))  # 2
         ```
+
+        %family Graph Traversal
         """
         self._graph.trav_out_edge()
         return self
@@ -6200,9 +6112,6 @@ class Graph:
 
         For directed graphs, selects edges where to=selected_node. For undirected graphs, selects
         all edges incident to selected nodes.
-
-
-        %family Graph Traversal
 
         Returns
         -------
@@ -6226,6 +6135,8 @@ class Graph:
 
         print(len(graph.get_selected_edge_ids()))  # 2
         ```
+
+        %family Graph Traversal
         """
         self._graph.trav_in_edge()
         return self
@@ -6236,9 +6147,6 @@ class Graph:
 
         From the currently selected edges, finds the reverse edges. For each selected edge `A->B`,
         looks for the corresponding edge `B->A`. Only works with directed graphs.
-
-
-        %family Graph Traversal
 
         Parameters
         ----------
@@ -6293,6 +6201,8 @@ class Graph:
         )
         # Selection now includes both A->B and B->A
         ```
+
+        %family Graph Traversal
         """
         self._graph.trav_reverse_edge(add_to_selection)
         return self
@@ -6310,9 +6220,6 @@ class Graph:
         From the currently selected nodes, moves along outward edges to connected nodes, continuing
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
         traversal proceeds in a breadth-first manner.
-
-
-        %family Graph Traversal
 
         Parameters
         ----------
@@ -6376,6 +6283,8 @@ class Graph:
         )
         # Returns first nodes ≥ 5 from each starting point
         ```
+
+        %family Graph Traversal
         """
         selected = self.get_selected_node_ids()
         if not selected:
@@ -6468,9 +6377,6 @@ class Graph:
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
         traversal proceeds in a breadth-first manner.
 
-
-        %family Graph Traversal
-
         Parameters
         ----------
         conditions
@@ -6532,6 +6438,8 @@ class Graph:
         )
         # Returns nodes with value in [1, 2, 10]
         ```
+
+        %family Graph Traversal
         """
         selected = self.get_selected_node_ids()
         if not selected:
@@ -6627,9 +6535,6 @@ class Graph:
         different values via a list or dictionary. Creates the attribute if it doesn't exist,
         overwrites if it does.
 
-
-        %family Node/Edge Data Frames
-
         Parameters
         ----------
         node_attr
@@ -6722,6 +6627,8 @@ class Graph:
                   graph.get_id_from_label("C"): "primary"}
         graph.set_node_attrs("category", id_map)
         ```
+
+        %family Node/Edge Data Frames
         """
         if nodes is None:
             nodes = self.get_node_ids(limit=None)
@@ -6761,9 +6668,6 @@ class Graph:
 
         Updates or adds attributes to nodes in the current selection. Existing attributes are
         preserved unless explicitly overwritten. Requires an active node selection.
-
-
-        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -6810,6 +6714,8 @@ class Graph:
             .set_node_attrs_ws(category='high')
         )
         ```
+
+        %family Node/Edge Data Frames
         """
         selected = self.get_selected_node_ids()
 
@@ -6835,9 +6741,6 @@ class Graph:
         Updates a specific attribute on edges. Can target edges by edge IDs, explicit (source,
         target) pairs, by filtering via source/target node lists, or apply to all edges. Supports
         various value input formats.
-
-
-        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -6909,6 +6812,8 @@ class Graph:
         # Set using (source, target) tuples
         graph.set_edge_attrs("weight", 2.5, edges=[("A", "B")])
         ```
+
+        %family Node/Edge Data Frames
         """
         # Determine which edges to update
         target_edge_ids = []
@@ -6974,9 +6879,6 @@ class Graph:
         receives special handling as it's a first-class edge property. Requires an active edge
         selection.
 
-
-        %family Node/Edge Data Frames
-
         Parameters
         ----------
         **attributes
@@ -7017,6 +6919,8 @@ class Graph:
             .set_edge_attrs_ws(weight=1.0)
         )
         ```
+
+        %family Node/Edge Data Frames
         """
         selected = self.get_selected_edge_ids()
 
@@ -7035,9 +6939,6 @@ class Graph:
 
         Extracts a specific attribute from one or more nodes. Only returns entries for nodes that
         have the specified attribute set. Useful for collecting properties across the graph.
-
-
-        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -7099,6 +7000,8 @@ class Graph:
         user_scores = graph.get_node_attrs("score", nodes=["A", "C"])
         print(user_scores)  # {1: 95, 3: 92}
         ```
+
+        %family Node/Edge Data Frames
         """
 
         if nodes is None:
@@ -7127,9 +7030,6 @@ class Graph:
 
         Extracts a specific attribute from edges. Can optionally filter by source and/or target
         nodes. Returns a dictionary keyed by edge IDs.
-
-
-        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -7168,6 +7068,8 @@ class Graph:
         types = graph.get_edge_attrs("type")
         # Returns dict mapping edge IDs to types
         ```
+
+        %family Node/Edge Data Frames
         """
         result = {}
 
@@ -7211,9 +7113,6 @@ class Graph:
         Similar to `get_edge_attrs()` but uses internal edge IDs instead of node pairs. Returns a
         dictionary keyed by integer edge IDs. Useful when working directly with edge ID references.
 
-
-        %family Node/Edge Data Frames
-
         Parameters
         ----------
         edge_attr
@@ -7249,6 +7148,8 @@ class Graph:
         all_types = graph.get_edge_attrs_by_id("type")
         # Maps each edge ID to its type value
         ```
+
+        %family Node/Edge Data Frames
         """
         if edges is None:
             edges = self.get_edge_ids()
@@ -7274,9 +7175,6 @@ class Graph:
         represents a node, with columns for the node ID and any attributes set on nodes. The
         DataFrame always includes 'id', 'label', and 'type' as the first three columns, sorted by
         `id` in ascending order.
-
-
-        %family Node/Edge Data Frames
 
         Returns
         -------
@@ -7317,6 +7215,8 @@ class Graph:
         - rows are sorted by id in ascending order
         - other attributes not present on a node will have `None` values
         - the 'degree' column is always last
+
+        %family Node/Edge Data Frames
         """
         import polars as pl
 
@@ -7364,9 +7264,6 @@ class Graph:
         Similar to get_node_df but only exports currently selected nodes. Useful for analyzing
         subsets of nodes after filtering with selection methods. The DataFrame always includes 'id',
         'label', and 'type' as the first three columns, sorted by 'id' in ascending order.
-
-
-        %family Node/Edge Data Frames
 
         Returns
         -------
@@ -7420,7 +7317,9 @@ class Graph:
         - if a node has no type attribute, the type column will contain None
         - rows are sorted by id in ascending order
         - use selection methods before calling this
-        - same structure as get_node_df but filtered to selection
+        - same structure as `get_node_df()` but filtered to selection
+
+        %family Node/Edge Data Frames
         """
         import polars as pl
 
@@ -7479,9 +7378,6 @@ class Graph:
 
         The DataFrame is always sorted by edge ID in ascending order.
 
-
-        %family Node/Edge Data Frames
-
         Returns
         -------
         pl.DataFrame
@@ -7526,6 +7422,8 @@ class Graph:
         - other attributes are sorted alphabetically
         - DataFrame sorted by `id` ascending
         - `weight` treated as a special attribute column
+
+        %family Node/Edge Data Frames
         """
         import polars as pl
 
@@ -7581,10 +7479,7 @@ class Graph:
         Get selected edges as a Polars DataFrame with standardized structure.
 
         Similar to `get_edge_df()` but only exports currently selected edges. Uses the same
-        consistent column structure with id, source, target, and rel as first 4 columns.
-
-
-        %family Node/Edge Data Frames
+        consistent column structure with `id`, `source`, `target`, and `rel` as first 4 columns.
 
         Returns
         -------
@@ -7638,6 +7533,8 @@ class Graph:
         - missing rel values appear as `None`
         - DataFrame sorted by `id` ascending
         - same structure as `get_edge_df()` but filtered to selection
+
+        %family Node/Edge Data Frames
         """
         import polars as pl
 
@@ -7696,9 +7593,6 @@ class Graph:
         function receives each node's current attribute value and returns the new value. Requires an
         active node selection.
 
-
-        %family Node/Edge Data Frames
-
         Parameters
         ----------
         node_attr
@@ -7753,6 +7647,8 @@ class Graph:
         Notes
         -----
         Nodes without the specified attribute are skipped.
+
+        %family Node/Edge Data Frames
         """
         selected = self.get_selected_node_ids()
 
@@ -7772,9 +7668,6 @@ class Graph:
 
         Applies a transformation function to the specified attribute for all selected edges.
         Supports transforming the `weight` field directly. Requires an active edge selection.
-
-
-        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -7838,6 +7731,8 @@ class Graph:
         Notes
         -----
         Edges without the specified attribute are skipped.
+
+        %family Node/Edge Data Frames
         """
         selected = self.get_selected_edge_ids()
 
@@ -7869,9 +7764,6 @@ class Graph:
         Sets a color attribute on nodes based on categorical or continuous values. For categorical
         data, assigns distinct colors from a palette. For continuous data, interpolates between
         colors.
-
-
-        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -7946,6 +7838,8 @@ class Graph:
             palette=["#ff0000", "#00ff00"]
         )
         ```
+
+        %family Node/Edge Data Frames
         """
         from edgecase.colors import COLOR_PALETTES
 
@@ -8010,9 +7904,6 @@ class Graph:
         Normalizes numeric values to a specified range, useful for sizing nodes by centrality,
         degree, or other continuous metrics.
 
-
-        %family Node/Edge Data Frames
-
         Parameters
         ----------
         node_attr_from
@@ -8075,6 +7966,8 @@ class Graph:
             range=[1, 10]
         )
         ```
+
+        %family Node/Edge Data Frames
         """
         # Default range
         if range is None:
@@ -8131,9 +8024,6 @@ class Graph:
         """
         Set which node attribute to display in tooltips/labels.
 
-
-        %family Node/Edge Data Frames
-
         Parameters
         ----------
         attr
@@ -8155,6 +8045,8 @@ class Graph:
         G.set_node_attr_to_display(attr="label")
         G.set_node_attr_to_display(attr=None)  # Reset to node IDs
         ```
+
+        %family Node/Edge Data Frames
         """
         self._display_attr = attr
         return self
@@ -8170,9 +8062,6 @@ class Graph:
         Dispersion measures the embeddedness of a link in the network. A link between two nodes
         (`u` and `v`) has high dispersion when their mutual neighbors (friends in common) are not
         well connected to each other. This can indicate structural diversity in the network.
-
-
-        %family Link Analysis
 
         Parameters
         ----------
@@ -8252,7 +8141,8 @@ class Graph:
         - higher dispersion indicates the link spans different network regions
         - low dispersion means the link is embedded in a dense cluster
         - useful for identifying bridges between communities
-        - based on the algorithm by Backstrom & Kleinberg (2013)
+
+        %family Link Analysis
         """
         from edgecase._core import dispersion
 
@@ -8273,9 +8163,6 @@ class Graph:
 
         For each pair of nodes `(u, v)`, counts how many nodes are neighbors of both `u` and `v`.
         Common neighbors is a simple but effective link prediction measure.
-
-
-        %family Link Prediction
 
         Parameters
         ----------
@@ -8333,6 +8220,8 @@ class Graph:
         - works best for social networks with high clustering
         - simple baseline for link prediction tasks
         - higher count suggests higher likelihood of future connection
+
+        %family Link Prediction
         """
         from edgecase._core import common_neighbors
 
@@ -8352,9 +8241,6 @@ class Graph:
 
         For each pair of nodes `(u, v)`, computes `|N(u) ∩ N(v)| / |N(u) ∪ N(v)|`, which is the
         ratio of common neighbors to total distinct neighbors.
-
-
-        %family Link Prediction
 
         Parameters
         ----------
@@ -8392,6 +8278,8 @@ class Graph:
         - returns value in `[0, 1]` where `1` means identical neighborhoods
         - more robust than common neighbors for nodes with different degrees
         - commonly used as similarity metric in network analysis
+
+        %family Link Prediction
         """
         from edgecase._core import jaccard_coefficient
 
@@ -8412,9 +8300,6 @@ class Graph:
         For each pair of nodes `(u, v)`, computes `Σ(1 / log(|N(w)|))` for all common neighbors `w`.
         This gives more weight to common neighbors that themselves have fewer connections (rarer
         connections are more significant).
-
-
-        %family Link Prediction
 
         Parameters
         ----------
@@ -8469,6 +8354,8 @@ class Graph:
         - more accurate than common neighbors for many real networks
         - handles hub nodes better by downweighting their contribution
         - score is unbounded (higher is better)
+
+        %family Link Prediction
         """
         from edgecase._core import adamic_adar_index
 
@@ -8489,9 +8376,6 @@ class Graph:
         For each pair of nodes `(u, v)`, computes `Σ(1 / |N(w)|)` for all common neighbors `w`.
         Similar to Adamic-Adar but uses `1/degree` instead of `1/log(degree)`, penalizing
         high-degree common neighbors more strongly.
-
-
-        %family Link Prediction
 
         Parameters
         ----------
@@ -8534,6 +8418,8 @@ class Graph:
         - penalizes high-degree common neighbors more than Adamic-Adar
         - inspired by resource allocation dynamics on networks
         - often outperforms Adamic-Adar on social networks
+
+        %family Link Prediction
         """
         from edgecase._core import resource_allocation_index
 
@@ -8554,9 +8440,6 @@ class Graph:
         For each pair of nodes `(u, v)`, computes `|N(u)| × |N(v)|`, the product of their degrees.
         Based on the "rich get richer" principle where high-degree nodes are more likely to acquire
         new connections.
-
-
-        %family Link Prediction
 
         Parameters
         ----------
@@ -8612,6 +8495,8 @@ class Graph:
         - does not use local neighborhood structure
         - captures "rich get richer" dynamics in scale-free networks
         - good baseline for networks with power-law degree distribution
+
+        %family Link Prediction
         """
         from edgecase._core import preferential_attachment
 
@@ -8636,9 +8521,6 @@ class Graph:
         Computes structural similarity using various metrics that compare the neighborhoods
         (adjacent nodes) of node pairs. Returns a similarity matrix where higher values indicate
         more similar neighborhood structures.
-
-
-        %family Similarity
 
         Parameters
         ----------
@@ -8778,6 +8660,8 @@ class Graph:
         - recommendations: find similar users/items
         - community detection: group similar nodes
         - network embedding: similarity-based features
+
+        %family Similarity
         """
         if nodes is None:
             nodes = []
@@ -8794,9 +8678,6 @@ class Graph:
 
         Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods
         (or same node). Self-similarity is always `1.0`.
-
-
-        %family Similarity
 
         Returns
         -------
@@ -8836,6 +8717,8 @@ class Graph:
         - link prediction (similar nodes likely to connect)
         - community detection (nodes with similar neighborhoods)
         - recommendation systems (find similar users/items)
+
+        %family Similarity
         """
         return self._graph.get_dice_similarity()
 
@@ -8850,9 +8733,6 @@ class Graph:
         Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods
         (or same node). More conservative than Dice coefficient (always ≤ Dice score).
         Self-similarity is always `1.0`.
-
-
-        %family Similarity
 
         Returns
         -------
@@ -8892,6 +8772,8 @@ class Graph:
         - document similarity (bag-of-words)
         - user similarity (common items/friends)
         - biological networks (protein interactions)
+
+        %family Similarity
         """
         return self._graph.get_jaccard_similarity()
 
@@ -8906,9 +8788,6 @@ class Graph:
         Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods.
         Geometric interpretation: cosine of angle between neighbor vectors. Self-similarity is
         always `1.0`.
-
-
-        %family Similarity
 
         Returns
         -------
@@ -8947,6 +8826,8 @@ class Graph:
         - scales well with high-degree nodes
         - balances degree differences
         - standard in text mining and recommendation systems
+
+        %family Similarity
         """
         return self._graph.get_cosine_similarity()
 
@@ -8961,9 +8842,6 @@ class Graph:
         Range: `[0, 1]` where `0` means no common neighbors and `1` means one neighborhood is a
         subset of the other. Asymmetric measure useful for hierarchical patterns. Self-similarity is
         always `1.0`.
-
-
-        %family Similarity
 
         Returns
         -------
@@ -9003,6 +8881,8 @@ class Graph:
         - detecting specialization/generalization
         - finding hubs whose neighbors are subsets of others
         - hierarchical community structure
+
+        %family Similarity
         """
         return self._graph.get_overlap_similarity()
 
@@ -9022,9 +8902,6 @@ class Graph:
 
         Uses depth-first search to detect cycles. For directed graphs, looks for back edges. For
         undirected graphs, checks for cycles excluding trivial two-node back-and-forth paths.
-
-
-        %family Cycle Detection
 
         Returns
         -------
@@ -9051,6 +8928,8 @@ class Graph:
         graph.add_edge("C", "A")
         print(graph.has_cycles())  # True
         ```
+
+        %family Cycle Detection
         """
         return self._graph.has_cycles()
 
@@ -9064,9 +8943,6 @@ class Graph:
 
         This method only works on directed graphs. For undirected graphs, convert to directed first
         or consider that every edge forms a 2-cycle.
-
-
-        %family Cycle Detection
 
         Parameters
         ----------
@@ -9128,6 +9004,8 @@ class Graph:
         - space complexity: O(V + E)
         - the algorithm uses backtracking with a blocking mechanism to avoid redundant search
         - for large dense graphs, the number of cycles can be exponential
+
+        %family Cycle Detection
         """
         if not self.is_directed():
             raise ValueError("get_cycles() requires a directed graph")
@@ -9147,9 +9025,6 @@ class Graph:
 
         For undirected graphs, uses a backtracking DFS approach that finds all elementary cycles by
         starting from each node and exploring all paths that return to the starting node.
-
-
-        %family Cycle Detection
 
         Parameters
         ----------
@@ -9227,6 +9102,8 @@ class Graph:
         - unlike `get_cycles()`, this method works for both directed and undirected graphs
         - cycles are represented as sequences of node IDs without repeating the start node
         - for undirected graphs, each cycle is returned only once (canonicalized)
+
+        %family Cycle Detection
         """
         from edgecase._core import simple_cycles as rust_simple_cycles
 
@@ -9243,9 +9120,6 @@ class Graph:
 
         The algorithm builds a spanning tree using BFS from a root node, then for each non-tree edge
         (back edge), finds the fundamental cycle it creates with the tree.
-
-
-        %family Cycle Detection
 
         Parameters
         ----------
@@ -9314,6 +9188,8 @@ class Graph:
         - The cycle basis is not unique, different spanning trees yield different bases.
         - Works on disconnected graphs (finds cycles in each component).
         - For weighted graphs needing minimum total weight, use `minimum_cycle_basis()`.
+
+        %family Cycle Detection
         """
         from edgecase._core import cycle_basis as rust_cycle_basis
 
@@ -9331,9 +9207,6 @@ class Graph:
         1. for each edge `(u,v)`, find the shortest path from `u` to `v` not using `(u,v)`
         2. this gives a candidate cycle for each edge
         3. sort candidates by weight and greedily select linearly independent cycles
-
-
-        %family Cycle Detection
 
         Parameters
         ----------
@@ -9400,6 +9273,8 @@ class Graph:
         bases with the same minimum weight).
         - works on disconnected graphs (finds minimum basis for each component).
         - for simple (unweighted) cycle basis, use `cycle_basis()` which is faster.
+
+        %family Cycle Detection
         """
         from edgecase._core import minimum_cycle_basis as rust_minimum_cycle_basis
 
@@ -9419,9 +9294,6 @@ class Graph:
 
         Note that this finds *maximal* cliques (cannot be extended), not necessarily *maximum*
         cliques (largest possible). Use `max_clique()` to find a maximum clique.
-
-
-        %family Clique Operations
 
         Returns
         -------
@@ -9489,6 +9361,9 @@ class Graph:
         print(len(cliques))  # 1 (entire graph is a clique)
         print(len(cliques[0]))  # 5 (all nodes)
         ```
+
+        %family Clique Operations
+        %seealso max_clique, clique_number, maximum_independent_set
         """
         return self._graph.find_cliques()
 
@@ -9499,9 +9374,6 @@ class Graph:
         A maximum clique is a largest possible clique in the graph. If multiple maximum cliques
         exist with the same size, returns one of them (arbitrary choice). Uses the Bron-Kerbosch
         algorithm to enumerate all maximal cliques and selects the largest.
-
-
-        %family Clique Operations
 
         Returns
         -------
@@ -9576,6 +9448,9 @@ class Graph:
         max_clique = graph.max_clique()
         print(len(max_clique))  # 6 (all nodes)
         ```
+
+        %family Clique Operations
+        %seealso find_cliques, clique_number, maximum_independent_set
         """
         return self._graph.max_clique()
 
@@ -9585,9 +9460,6 @@ class Graph:
 
         The clique number `ω(G)` is the size of the largest clique in the graph. This is a
         fundamental graph invariant used in graph theory and combinatorial optimization.
-
-
-        %family Clique Operations
 
         Returns
         -------
@@ -9672,6 +9544,9 @@ class Graph:
 
         print(graph.clique_number())  # 2 (bipartite K_2,2)
         ```
+
+        %family Clique Operations
+        %seealso find_cliques, max_clique, chromatic_number_upper_bound
         """
         return self._graph.clique_number()
 
@@ -9691,9 +9566,6 @@ class Graph:
         non-trivial cycle and a fundamental measure of local clustering in networks.
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
-
-
-        %family Triangle and Transitivity
 
         Returns
         -------
@@ -9748,6 +9620,8 @@ class Graph:
             label = graph.get_label_from_id(node_id)
             print(f"{label}: {count} triangles")
         ```
+
+        %family Triangle and Transitivity
         """
         return self._graph.count_triangles()
 
@@ -9760,9 +9634,6 @@ class Graph:
         directed graphs, lists directed triangles.
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
-
-
-        %family Triangle and Transitivity
 
         Returns
         -------
@@ -9821,6 +9692,8 @@ class Graph:
             labels = tuple(graph.get_label_from_id(nid) for nid in tri)
             print(f"Triangle: {labels}")
         ```
+
+        %family Triangle and Transitivity
         """
         return self._graph.list_triangles()
 
@@ -9908,6 +9781,8 @@ class Graph:
         trans = social_network.get_transitivity()
         print(f"Clustering: {trans:.3f}")
         ```
+
+        %family Triangle and Transitivity
         """
         return self._graph.transitivity()
 
@@ -9932,9 +9807,6 @@ class Graph:
         Nodes with fewer than 2 neighbors return `None` (clustering undefined).
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
-
-
-        %family Clustering
 
         Parameters
         ----------
@@ -10033,6 +9905,8 @@ class Graph:
         }
         print(f"Highly clustered node IDs: {hubs}")
         ```
+
+        %family Clustering
         """
         if attr_name is None:
             attr_name = "local_clustering_coefficient"
@@ -10069,9 +9943,6 @@ class Graph:
 
         - `0` = neighbors are not connected at all
         - `1` = neighbors form a complete graph (clique)
-
-
-        %family Clustering
 
         Parameters
         ----------
@@ -10130,6 +10001,8 @@ class Graph:
         High clustering coefficients indicate nodes in tightly-knit groups. The clustering
         coefficient is a key measure of network transitivity and is used to identify small-world
         networks.
+
+        %family Clustering
         """
         if attr_name is None:
             attr_name = "clustering_coefficient"
@@ -10172,9 +10045,6 @@ class Graph:
         - counts 4-cycles containing the edge
         - maximum possible: `(d_i - 1)(d_j - 1)`
         - measures "squareness" of edge neighborhood
-
-
-        %family Clustering
 
         Parameters
         ----------
@@ -10273,6 +10143,8 @@ class Graph:
         The original Radicchi et al. definition uses `normalize=True` and `offset=True`. Setting
         `offset=False` allows the normalized metric to reach exactly `1.0` for edges in complete
         subgraphs.
+
+        %family Clustering
         """
         # Use edge_ids directly (they are already integers)
         edge_id_list = edge_ids if edge_ids is not None else []
@@ -10289,9 +10161,6 @@ class Graph:
 
         Returns the mean of all node clustering coefficients. This is a global measure of how
         clustered the graph is overall.
-
-
-        %family Clustering
 
         Returns
         -------
@@ -10338,6 +10207,8 @@ class Graph:
 
         Small-world networks typically have high clustering coefficients combined with low average
         path lengths.
+
+        %family Clustering
         """
         return self._graph.get_avg_clustering_coefficient()
 
@@ -10361,9 +10232,6 @@ class Graph:
         2. build a heap of merge candidates ordered by modularity gain (ΔQ)
         3. repeatedly merge the pair with highest ΔQ until no improvement
         4. return the partition with maximum modularity
-
-
-        %family Community Detection
 
         Parameters
         ----------
@@ -10434,6 +10302,9 @@ class Graph:
         Notes
         -----
         Complexity: O(n log²n) on sparse graphs, O(n + m) space.
+
+        %family Community Detection
+        %seealso cmty_louvain, cmty_edge_btwns, cmty_l_eigenvec, cmty_walktrap
         """
         communities = self._graph.get_cmty_fast_greedy()
 
@@ -10465,9 +10336,6 @@ class Graph:
 
         Best for small to medium graphs (< 5K nodes) with hierarchical community structure and clear
         "bridge" edges between communities. When accuracy is more important than speed.
-
-
-        %family Community Detection
 
         Parameters
         ----------
@@ -10556,6 +10424,9 @@ class Graph:
 
         Complexity: `O(m²n)` where `m` is edges, `n` is nodes. For graphs with > 10K nodes, consider
         `cmty_fast_greedy()` or `cmty_louvain()` instead.
+
+        %family Community Detection
+        %seealso cmty_louvain, cmty_fast_greedy, betweenness_centrality, bridges
         """
         communities = self._graph.get_cmty_edge_btwns()
 
@@ -10584,9 +10455,6 @@ class Graph:
         Spectral optimization method using recursive bisection based on the leading eigenvector of
         the modularity matrix. Splits communities hierarchically when modularity improves. Best for
         medium-sized graphs (< 20K nodes) with clear 2-way divisions and hierarchical structure.
-
-
-        %family Community Detection
 
         Parameters
         ----------
@@ -10679,6 +10547,9 @@ class Graph:
 
         The algorithm only splits when modularity improves, so it may return fewer communities than
         other methods if the structure is not hierarchically organized.
+
+        %family Community Detection
+        %seealso cmty_louvain, cmty_fast_greedy, eigen_centrality
         """
         communities = self._graph.get_cmty_l_eigenvec()
 
@@ -10710,9 +10581,6 @@ class Graph:
 
         The method produces a dendrogram hierarchy but returns the partition with maximum
         modularity. Works only with undirected graphs.
-
-
-        %family Community Detection
 
         Parameters
         ----------
@@ -10820,6 +10688,9 @@ class Graph:
         The algorithm is deterministic but may produce different (equivalent) partitions depending
         on node ordering. Handles disconnected components naturally. Self-loops and multi-edges are
         currently not supported.
+
+        %family Community Detection
+        %seealso cmty_fast_greedy, cmty_walktrap, cmty_edge_btwns, cmty_l_eigenvec
         """
         communities = self._graph.get_cmty_louvain(resolution)
 
@@ -10852,9 +10723,6 @@ class Graph:
 
         Works only with undirected graphs. Time complexity is `O(n²log n)` for typical networks with
         small step parameter.
-
-
-        %family Community Detection
 
         Parameters
         ----------
@@ -10966,6 +10834,9 @@ class Graph:
         community structures and handles disconnected components automatically. Performance degrades
         on very large graphs (>10,000 nodes) due to `O(n²)` distance matrix computation. Self-loops
         and multi-edges are currently not supported.
+
+        %family Community Detection
+        %seealso cmty_louvain, cmty_fast_greedy, random_walk
         """
         communities = self._graph.get_cmty_walktrap(steps)
 
@@ -11005,9 +10876,6 @@ class Graph:
         Creates a new graph with the same nodes and edges, but without edge direction. If the graph
         is already undirected, returns a new copy. For directed graphs, converts directed edges to
         undirected edges, removing duplicate pairs.
-
-
-        %family Graph Type Conversions
 
         Returns
         -------
@@ -11050,6 +10918,8 @@ class Graph:
         # Undirected: mutual connections
         connections = followers.to_undirected()
         ```
+
+        %family Graph Type Conversions
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.to_undirected()
@@ -11062,9 +10932,6 @@ class Graph:
         Creates a new graph with the same nodes but directed edges. If the graph is already
         directed, returns a new copy. For undirected graphs, creates both directions (u->v and v->u)
         for each edge.
-
-
-        %family Graph Type Conversions
 
         Returns
         -------
@@ -11119,6 +10986,8 @@ class Graph:
         # Convert for topological sort or cycle detection
         g_dir = g.to_directed()
         cycles = g_dir.get_cycles()
+
+        %family Graph Type Conversions
         ```
         """
         result = Graph.__new__(Graph)
@@ -11129,12 +10998,9 @@ class Graph:
         """
         Reverse the direction of all edges in the graph.
 
-        Creates a new graph with the same nodes but all edge directions reversed (u->v becomes
-        v->u). For undirected graphs, returns a new copy (no structural change). Preserves all node
-        and edge attributes.
-
-
-        %family Graph Type Conversions
+        Creates a new graph with the same nodes but all edge directions reversed (`u->v` becomes
+        `v->u`). For undirected graphs, returns a new copy (no structural change). Preserves all
+        node and edge attributes.
 
         Returns
         -------
@@ -11195,6 +11061,8 @@ class Graph:
         # (some algorithms use both G and G^T)
         g_transpose = g.reverse()
         ```
+
+        %family Graph Type Conversions
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.reverse()
@@ -11210,9 +11078,6 @@ class Graph:
 
         For directed graphs, complements directed edges independently in each direction. For
         undirected graphs, complements undirected edges.
-
-
-        %family Graph Type Conversions
 
         Returns
         -------
@@ -11289,6 +11154,8 @@ class Graph:
         comp = g.complement()
         # `comp` has directed edges: A->C, B->A, B->C, C->A, C->B
         # (all edges except A->B)
+
+        %family Graph Type Conversions
         ```
         """
         result = Graph.__new__(Graph)
@@ -11302,9 +11169,6 @@ class Graph:
         The line graph `L(G)` of a graph `G` transforms edges into nodes: each edge in `G` becomes a
         node in `L(G)`, and two nodes in `L(G)` are connected if and only if their corresponding
         edges in `G` share an endpoint.
-
-
-        %family Graph Type Conversions
 
         Parameters
         ----------
@@ -11454,6 +11318,8 @@ class Graph:
         print(lg.count_edges())  # 6 (all spokes share center)
         # The line graph of a star is a complete graph!
         ```
+
+        %family Graph Type Conversions
         """
         result = Graph.__new__(Graph)
         result._graph = rust.line_graph(self._graph, create_using_directed)
@@ -11470,9 +11336,6 @@ class Graph:
         Creates a new graph where node `v` is removed and all its edges are redirected to node `u`.
         If there was an edge between `u` and `v`, it becomes a self-loop on `u` (unless
         `self_loops=False`). This operation does not modify the original graph.
-
-
-        %family Node Contraction
 
         Parameters
         ----------
@@ -11566,6 +11429,8 @@ class Graph:
         - node `u` retains its label and attributes
         - edge weights are preserved
         - for multigraphs, duplicate edges may be removed
+
+        %family Node Contraction
         """
         from edgecase._core import contract_nodes as _contract_nodes
 
@@ -11583,9 +11448,6 @@ class Graph:
         Given an edge between `u` and `v`, creates a new graph where `v` is merged into `u`. This is
         equivalent to `contract_nodes(u, v)` but explicitly requires that an edge exists between the
         nodes.
-
-
-        %family Node Contraction
 
         Parameters
         ----------
@@ -11653,6 +11515,8 @@ class Graph:
         - equivalent to `contract_nodes(u, v)` when edge `(u, v)` exists
         - raises ValueError if the edge doesn't exist
         - for undirected graphs, edge direction doesn't matter
+
+        %family Node Contraction
         """
         from edgecase._core import contracted_edge as _contracted_edge
 
@@ -11669,10 +11533,7 @@ class Graph:
 
         Merges all specified nodes into the first node in the list. All edges incident to any of the
         contracted nodes are redirected to the first node. Edges between contracted nodes become
-        self-loops (if self_loops=True).
-
-
-        %family Node Contraction
+        self-loops (if `self_loops=True`).
 
         Parameters
         ----------
@@ -11734,6 +11595,8 @@ class Graph:
         - time complexity: `O(k * E)` where `k` is number of nodes to contract
         - the first node in the list retains its ID and attributes
         - all other nodes are removed from the graph
+
+        %family Node Contraction
         """
         from edgecase._core import contract_nodes_multi as _contract_nodes_multi
 
@@ -11750,9 +11613,6 @@ class Graph:
         Each block (group of nodes) in the partition becomes a single node in the quotient graph.
         Edges between different blocks become edges in the quotient. Edges within the same block are
         removed.
-
-
-        %family Node Contraction
 
         Parameters
         ----------
@@ -11838,6 +11698,8 @@ class Graph:
         - intra-block edges are discarded (no self-loops in quotient)
         - edge weights from the first inter-block edge are preserved
         - quotient nodes are numbered `1, 2, 3, ...` with labels `"block_0"`, etc.
+
+        %family Node Contraction
         """
         from edgecase._core import quotient_graph as _quotient_graph
 
@@ -11857,9 +11719,6 @@ class Graph:
 
         Returns a new graph containing all nodes and edges from both graphs. Nodes with the same ID
         are merged (this graph's attributes take precedence). Duplicate edges are not added.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -11924,6 +11783,8 @@ class Graph:
         - Node IDs are preserved; overlapping IDs are merged
         - This graph's node labels/attributes take precedence
         - Weighted if either graph is weighted
+
+        %family Graph Algebra
         """
         from edgecase._core import graph_union
 
@@ -11937,9 +11798,6 @@ class Graph:
 
         Returns a new graph containing only edges that exist in both graphs. Nodes are included only
         if they are endpoints of common edges.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -11994,6 +11852,8 @@ class Graph:
         - Only edges present in both graphs are included
         - Nodes without edges are excluded
         - Uses this graph's edge weights/attributes
+
+        %family Graph Algebra
         """
         from edgecase._core import graph_intersection
 
@@ -12007,9 +11867,6 @@ class Graph:
 
         Returns a new graph containing edges that are in this graph but not in the other graph.
         Nodes are included if they are endpoints of remaining edges.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12059,8 +11916,10 @@ class Graph:
         Notes
         -----
         - Both graphs must have the same directedness
-        - This is NOT symmetric: g1.difference(g2) != g2.difference(g1)
+        - This is NOT symmetric: `g1.difference(g2) != g2.difference(g1)`
         - Nodes without edges are excluded
+
+        %family Graph Algebra
         """
         from edgecase._core import graph_difference
 
@@ -12074,9 +11933,6 @@ class Graph:
 
         Returns a new graph containing edges that are in exactly one of the two graphs. Equivalent
         to `(G1 - G2) ∪ (G2 - G1)`.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12126,8 +11982,10 @@ class Graph:
         Notes
         -----
         - Both graphs must have the same directedness
-        - Symmetric: g1.symmetric_difference(g2) == g2.symmetric_difference(g1)
+        - Symmetric: `g1.symmetric_difference(g2) == g2.symmetric_difference(g1)`
         - Nodes without edges are excluded
+
+        %family Graph Algebra
         """
         from edgecase._core import graph_symmetric_difference
 
@@ -12141,9 +11999,6 @@ class Graph:
 
         Similar to union, but the other graph's node attributes/labels take precedence over this
         graph's. Useful when you want to merge updates from another graph.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12186,6 +12041,8 @@ class Graph:
         -----
         - Similar to union but other graph's attributes take precedence
         - Useful for applying updates to a base graph
+
+        %family Graph Algebra
         """
         from edgecase._core import graph_compose
 
@@ -12199,9 +12056,6 @@ class Graph:
 
         Combines graphs by renumbering the other graph's nodes to avoid conflicts. The resulting
         graph has all nodes and edges from both, with no overlap.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12263,6 +12117,8 @@ class Graph:
         - The other graph's nodes are renumbered starting after this graph's max ID
         - Labels are preserved but IDs change
         - Use regular `union()` if you want to merge overlapping node IDs
+
+        %family Graph Algebra
         """
         from edgecase._core import graph_disjoint_union
 
@@ -12288,9 +12144,6 @@ class Graph:
 
         The resulting spanner preserves approximate distances while using fewer edges, making it
         useful for graph compression, network backbone extraction, and approximate distance queries.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12415,6 +12268,8 @@ class Graph:
         backbone = g.transform_with_spanner(stretch=2.0)
         # Now visualize backbone instead of full graph
         ```
+
+        %family Graph Algebra
         """
         if stretch < 1.0:
             raise ValueError("stretch must be at least 1.0")
@@ -12439,9 +12294,6 @@ class Graph:
         - both selected: uses node selection (ignores edge selection)
 
         All node and edge attributes are preserved in the subgraph.
-
-
-        %family Graph Algebra
 
         Returns
         -------
@@ -12478,6 +12330,8 @@ class Graph:
         subgraph = graph.transform_to_subgraph_ws()
         # Contains only selected edges and their endpoints
         ```
+
+        %family Graph Algebra
         """
         selected_nodes = self.get_selected_node_ids()
         selected_edges = self.get_selected_edge_ids()
@@ -12559,9 +12413,6 @@ class Graph:
         induced subgraph). This is a direct method that doesn't require prior selection, unlike
         `transform_to_subgraph_ws()`.
 
-
-        %family Graph Algebra
-
         Parameters
         ----------
         nodes
@@ -12610,6 +12461,8 @@ class Graph:
         k3 = graph.subgraph(node_ids)
         print(f"Edges in K3: {k3.count_edges()}")  # 3
         ```
+
+        %family Graph Algebra
         """
         from edgecase._core import subgraph
 
@@ -12624,9 +12477,6 @@ class Graph:
         Returns a new graph containing only the specified edges and the nodes that are endpoints of
         those edges. This is useful when you want to focus on specific relationships rather than
         specific nodes.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12672,6 +12522,8 @@ class Graph:
         edge_ids = list(graph.get_edge_ids())[:2]
         path = graph.edge_subgraph(edge_ids)
         ```
+
+        %family Graph Algebra
         """
         from edgecase._core import edge_subgraph
 
@@ -12685,9 +12537,6 @@ class Graph:
 
         Adds edges to form a complete graph (clique) among all selected nodes. For directed graphs,
         creates edges in both directions. Skips edges that already exist.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12743,6 +12592,8 @@ class Graph:
         - for `n` selected nodes in an undirected graph, creates up to `n(n-1)/2` edges.
         - for `n` selected nodes in a directed graph, creates up to `n(n-1)` edges.
         - existing edges are not modified or duplicated.
+
+        %family Graph Algebra
         """
         selected = list(self.get_selected_node_ids())
 
@@ -12775,9 +12626,6 @@ class Graph:
 
         For each selected edge (A->B), adds the reverse edge (B->A) if it doesn't already exist.
         Useful for making directed graphs bidirectional or adding reciprocal relationships.
-
-
-        %family Graph Algebra
 
         Parameters
         ----------
@@ -12834,6 +12682,8 @@ class Graph:
             .add_reverse_edges_ws()
         )
         ```
+
+        %family Graph Algebra
         """
         if not self.is_directed():
             raise ValueError("add_reverse_edges_ws() only works on directed graphs")
@@ -12864,9 +12714,6 @@ class Graph:
 
         For each selected edge (A->B), changes it to (B->A). Edge IDs and all attributes (including
         weights) are preserved during reversal. Only the direction is changed.
-
-
-        %family Graph Algebra
 
         Returns
         -------
@@ -12923,6 +12770,8 @@ class Graph:
         - only works on directed graphs
         - edge attributes and IDs remain unchanged
         - selection state is preserved after reversal
+
+        %family Graph Algebra
         """
         if not self.is_directed():
             raise ValueError("rev_edge_dir_ws() only works on directed graphs")
@@ -12956,9 +12805,6 @@ class Graph:
 
         This batch method is more efficient than calling get_degree() for each node individually and
         automatically stores results in the node DataFrame.
-
-
-        %family Degree
 
         Parameters
         ----------
@@ -13009,6 +12855,8 @@ class Graph:
             .show()
         )
         ```
+
+        %family Degree
         """
         # Compute degrees for all nodes
         node_ids = self.get_node_ids(limit=None)
@@ -13036,9 +12884,6 @@ class Graph:
 
         For directed graphs, returns total degree (in-degree + out-degree). For undirected graphs,
         returns the number of neighbors.
-
-
-        %family Degree
 
         Parameters
         ----------
@@ -13082,6 +12927,8 @@ class Graph:
 
         print(graph.get_degree("A"))  # 2 (1 in + 1 out)
         ```
+
+        %family Degree
         """
         node_id = self._resolve_node_id(node)
         neighbors = self._graph.neighbors(node_id)
@@ -13100,9 +12947,6 @@ class Graph:
 
         In-degree is the number of edges pointing into the node. Only meaningful for directed
         graphs.
-
-
-        %family Degree
 
         Parameters
         ----------
@@ -13136,6 +12980,8 @@ class Graph:
         print(graph.get_in_degree("B"))  # 2
         print(graph.get_in_degree("A"))  # 0
         ```
+
+        %family Degree
         """
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
@@ -13149,9 +12995,6 @@ class Graph:
 
         Out-degree is the number of edges pointing out from the node. Only meaningful for directed
         graphs.
-
-
-        %family Degree
 
         Parameters
         ----------
@@ -13185,6 +13028,8 @@ class Graph:
         print(graph.get_out_degree("A"))  # 2
         print(graph.get_out_degree("B"))  # 0
         ```
+
+        %family Degree
         """
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
@@ -13197,9 +13042,6 @@ class Graph:
 
         Returns a histogram of node degrees, showing how many nodes have each degree value. Useful
         for analyzing network topology and identifying hub nodes or scale-free properties.
-
-
-        %family Degree
 
         Returns
         -------
@@ -13227,6 +13069,8 @@ class Graph:
         dist = graph.get_degree_distribution()
         print(dist)  # {1: 4, 4: 1}; 4 nodes with degree 1, 1 node with degree 4
         ```
+
+        %family Degree
         """
         return self._graph.degree_distribution()
 
@@ -13236,9 +13080,6 @@ class Graph:
 
         For directed graphs, this returns the average of (in-degree + out-degree). For undirected
         graphs, each edge contributes to the degree of both endpoints.
-
-
-        %family Degree
 
         Returns
         -------
@@ -13264,6 +13105,8 @@ class Graph:
 
         print(graph.get_average_degree())  # 2.0 (cycle graph)
         ```
+
+        %family Degree
         """
         return self._graph.average_degree()
 
@@ -13273,9 +13116,6 @@ class Graph:
 
         Computes a single aggregate statistic from the indegree values of all nodes in a directed
         graph. Useful for summarizing the indegree distribution or analyzing filtered node subsets.
-
-
-        %family Degree
 
         Parameters
         ----------
@@ -13324,6 +13164,8 @@ class Graph:
             conditions=lambda n: graph.get_degree(node=n.id) > 3
         )
         ```
+
+        %family Degree
         """
         if not self._graph.is_directed:
             raise ValueError("get_agg_degree_in() only works with directed graphs")
@@ -13364,9 +13206,6 @@ class Graph:
 
         Computes a single aggregate statistic from the outdegree values of all nodes in a directed
         graph. Useful for summarizing the outdegree distribution or analyzing filtered node subsets.
-
-
-        %family Degree
 
         Parameters
         ----------
@@ -13418,6 +13257,8 @@ class Graph:
             conditions=lambda n: n.attributes and 'type' in n.attributes
         )
         ```
+
+        %family Degree
         """
         if not self._graph.is_directed:
             raise ValueError("get_agg_degree_out() only works with directed graphs")
@@ -13459,9 +13300,6 @@ class Graph:
         Computes a single aggregate statistic from the total degree values of all nodes. Works with
         both directed and undirected graphs. For directed graphs, total degree = indegree +
         outdegree.
-
-
-        %family Degree
 
         Parameters
         ----------
@@ -13511,6 +13349,8 @@ class Graph:
         mean_deg = graph_undirected.get_agg_degree_total('mean')
         print(mean_deg)  # 2.0
         ```
+
+        %family Degree
         """
         valid_agg = {"sum", "min", "max", "mean", "median"}
         if agg not in valid_agg:
@@ -13564,10 +13404,6 @@ class Graph:
         The algorithm iteratively distributes "rank" from each node to its neighbors, with a damping
         factor to model random jumps. Nodes with many incoming edges from high-ranking nodes receive
         higher scores.
-
-
-        %family Centrality
-        %seealso betweenness_centrality, load_centrality, constraint
 
         Parameters
         ----------
@@ -13661,6 +13497,9 @@ class Graph:
             label = graph.get_label_from_id(node_id=node_id)
             print(f"{label} (ID {node_id}): {score:.4f}")
         ```
+
+        %family Centrality
+        %seealso betweenness_centrality, load_centrality, constraint
         """
         result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
 
@@ -13710,9 +13549,6 @@ class Graph:
 
         Time complexity: `O(V × D²)` where `D` is average degree
         Space complexity: `O(V)`
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -13830,7 +13666,9 @@ class Graph:
         - organizational networks: identifying key boundary spanners
         - entrepreneurship: access to diverse resources and information
 
-        **Undefined values**: Isolated nodes have no ego network and return None.
+        **Undefined values**: Isolated nodes have no ego network and return `None`.
+
+        %family Centrality
         """
         if attr_name is None:
             attr_name = "constraint"
@@ -13870,10 +13708,6 @@ class Graph:
 
         The algorithm computes shortest paths between all pairs of nodes and counts how many times
         each node appears on these paths.
-
-
-        %family Centrality
-        %seealso pagerank, load_centrality, constraint
 
         Parameters
         ----------
@@ -13941,6 +13775,9 @@ class Graph:
             label = graph.get_label_from_id(node_id)
             print(f"{label} (ID {node_id}): {score:.4f}")
         ```
+
+        %family Centrality
+        %seealso pagerank, load_centrality, constraint
         """
         result_ids = rust.betweenness_centrality(self._graph)
 
@@ -13982,10 +13819,6 @@ class Graph:
         Both metrics identify important bridge nodes, but load centrality can produce slightly
         different rankings that may be more intuitive for certain applications like network traffic
         analysis or identifying bottlenecks in routing systems.
-
-
-        %family Centrality
-        %seealso betweenness_centrality, pagerank, constraint
 
         Parameters
         ----------
@@ -14077,6 +13910,9 @@ class Graph:
         any_comp = any("load" in str(c) for c in graph._computations)
         print(f"Load centrality computed: {any_comp}")
         ```
+
+        %family Centrality
+        %seealso betweenness_centrality, pagerank, constraint
         """
         # Call Rust implementation
         result_ids = rust.load_centrality(self._graph, normalized=normalized, cutoff=cutoff)
@@ -14113,9 +13949,6 @@ class Graph:
 
         This metric is particularly useful for identifying nodes that are consistently reached in
         random walks, indicating their importance in network flow and connectivity patterns.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -14247,6 +14080,8 @@ class Graph:
         has_soc = any('soc' in str(c) for c in graph._computations)
         print(f"Second order centrality computed: {has_soc}")
         ```
+
+        %family Centrality
         """
         if self.is_directed():
             raise ValueError(
@@ -14293,9 +14128,6 @@ class Graph:
 
         where :math:`\\phi_j` are eigenvectors and :math:`\\lambda_j` are eigenvalues of the
         adjacency matrix.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -14370,6 +14202,8 @@ class Graph:
         total_comm = sum(comm[b_id].values())
         print(f"Total communicability from B: {total_comm:.2f}")
         ```
+
+        %family Centrality
         """
         from edgecase._core import communicability as rust_communicability
 
@@ -14396,9 +14230,6 @@ class Graph:
         - `G_{pq} = \\exp(A)_{pq}` is the communicability between p and q
         - `G_{prq}` is the decrease in communicability when node r is removed
         - `C = (n-1)^2 - (n-1)` is a normalization factor
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -14486,6 +14317,8 @@ class Graph:
         center_id = star.get_id_from_label("center")
         print(f"Center CBC: {cbc[center_id]:.3f}")  # Close to 1.0
         ```
+
+        %family Centrality
         """
         from edgecase._core import communicability_betweenness_centrality as rust_cbc
 
@@ -14531,9 +14364,6 @@ class Graph:
         When all nodes have percolation state = `1.0`, this reduces to standard betweenness
         centrality.
 
-
-        %family Centrality
-
         Parameters
         ----------
         states
@@ -14573,6 +14403,8 @@ class Graph:
         states = {"1": 1.0, "2": 0.5, "3": 0.8, "4": 0.3, "5": 1.0}
         pc = graph.percolation_centrality(states=states, return_dict=True)
         ```
+
+        %family Centrality
         """
         from edgecase._core import percolation_centrality as rust_pc
 
@@ -14623,15 +14455,12 @@ class Graph:
         Creates a new graph with a fraction of nodes randomly removed, along with all their incident
         edges. This is useful for analyzing network robustness under random node failures.
 
-
-        %family Centrality
-
         Parameters
         ----------
-        q : float
+        q
             Fraction of nodes to remove (must be between `0.0` and `1.0`). For example, `q=0.2`
             removes 20% of nodes.
-        seed : int, optional
+        seed
             Random seed for reproducibility.
 
         Returns
@@ -14651,6 +14480,8 @@ class Graph:
         percolated = graph.node_percolation(q=0.3, seed=23)
         print(percolated.count_nodes())  # 7 nodes remain
         ```
+
+        %family Centrality
         """
         from edgecase._core import node_percolation as rust_np
 
@@ -14675,15 +14506,12 @@ class Graph:
         This is useful for analyzing network robustness under random edge failures or communication
         link failures.
 
-
-        %family Centrality
-
         Parameters
         ----------
-        q : float
+        q
             Fraction of edges to remove (must be between `0.0` and `1.0`). For example, `q=0.2`
             removes 20% of edges.
-        seed : int, optional
+        seed
             Random seed for reproducibility.
 
         Returns
@@ -14703,6 +14531,8 @@ class Graph:
         percolated = graph.edge_percolation(q=0.5, seed=23)
         print(percolated.count_edges())  # 5 edges remain
         ```
+
+        %family Centrality
         """
         from edgecase._core import edge_percolation as rust_ep
 
@@ -14721,9 +14551,6 @@ class Graph:
 
         For undirected graphs, finds the largest connected component. For directed graphs, finds the
         largest weakly connected component.
-
-
-        %family Centrality
 
         Returns
         -------
@@ -14748,6 +14575,8 @@ class Graph:
         percolated = graph.node_percolation(q=0.5, seed=23)
         print(percolated.largest_component_size())  # May be smaller
         ```
+
+        %family Centrality
         """
         from edgecase._core import largest_component_size as rust_lcs
 
@@ -14765,9 +14594,6 @@ class Graph:
         Systematically removes nodes at different fractions and measures the relative size of the
         giant connected component (GCC) at each step. This helps identify the critical percolation
         threshold where the network fragments.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -14811,6 +14637,8 @@ class Graph:
         # q=0.1: GCC=1.00
         # ...
         ```
+
+        %family Centrality
         """
         from edgecase._core import percolation_threshold_analysis as rust_pta
 
@@ -14835,9 +14663,6 @@ class Graph:
         For undirected graphs, computes the average degree of all neighbors. For directed graphs,
         the `source` parameter controls which neighbors to consider, and the `target` parameter
         controls how to measure their degrees.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -14939,6 +14764,8 @@ class Graph:
         - for undirected graphs, ignores `source` and `target` parameters
         - nodes with no neighbors have average neighbor degree of `0`
         - weighted version not yet implemented
+
+        %family Centrality
         """
         from edgecase import _core as rust
 
@@ -14997,9 +14824,6 @@ class Graph:
 
         When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse
         distance, which is bounded between `0` and `1`.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15139,6 +14963,9 @@ class Graph:
         # In-coming paths
         in_scores = graph.harmonic_centrality(mode="in", return_dict=True)
         ```
+
+        %family Centrality
+        %seealso closeness_vitality, betweenness_centrality, radiality
         """
         result_ids = rust.harmonic_centrality(
             self._graph,
@@ -15190,9 +15017,6 @@ class Graph:
 
         Uses power iteration until convergence. Good authorities are nodes that are pointed to by
         many high-quality hubs. Requires a directed graph.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15256,6 +15080,8 @@ class Graph:
         #     .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
         #     .show())
         ```
+
+        %family Centrality
         """
         centrality = self._graph.get_authority_centrality(max_iter, tol)
 
@@ -15295,9 +15121,6 @@ class Graph:
 
         Uses power iteration until convergence. Good hubs are nodes that point to many high-quality
         authorities. Requires a directed graph.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15361,6 +15184,8 @@ class Graph:
         #     .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
         #     .show())
         ```
+
+        %family Centrality
         """
         centrality = self._graph.get_hub_centrality(max_iter, tol)
 
@@ -15401,9 +15226,6 @@ class Graph:
         A node has high eigenvector centrality if it's connected to other nodes that themselves have
         high centrality. Unlike degree centrality, it accounts for the quality (not just quantity)
         of connections.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15467,6 +15289,9 @@ class Graph:
         #     .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", range=[0.5, 2.0])
         #     .show())
         ```
+
+        %family Centrality
+        %seealso katz_centrality, alpha_centrality, pagerank, hub_centrality, authority_centrality
         """
         centrality = self._graph.get_eigen_centrality(max_iter, tol)
 
@@ -15510,9 +15335,6 @@ class Graph:
         where `α` is the attenuation factor, `A` is the adjacency matrix, and `e` is the exogenous
         factor (set to `1` for all nodes). Lower `α` emphasizes local neighborhood structure, while
         higher `α` considers more global structure.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15578,6 +15400,8 @@ class Graph:
         #     .show()
         # )
         ```
+
+        %family Centrality
         """
         centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
 
@@ -15633,9 +15457,6 @@ class Graph:
 
         The magnitude of `|β|` controls how far influence propagates through the network. Larger
         `|β|` values mean distant nodes have more influence; a smaller `|β|` localizes influence.
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15756,6 +15577,8 @@ class Graph:
         compared to `β > 0`. Test multiple values.
         - **Directed graphs**: works for both directed and undirected graphs. In directed graphs,
         the interpretation relates to in-degree influence patterns.
+
+        %family Centrality
         """
         result = self._graph.get_bonacich_power_centrality(beta, normalized)
         # Empty result indicates singular matrix error
@@ -15811,9 +15634,6 @@ class Graph:
         - Eigenvector: only considers infinite-length walks (principal eigenvector)
         - Alpha centrality: uses `A` instead of `Aᵀ` (outgoing vs incoming)
         - Katz: weights walks by path length, considers all finite walks
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15891,6 +15711,9 @@ class Graph:
         - alpha should be < 1/λ_max to ensure convergence (typically α < 0.2)
         - beta = 1.0 treats all nodes equally; adjust to bias certain nodes
         - normalizes final scores to sum to 1.0 for interpretability
+
+        %family Centrality
+        %seealso eigen_centrality, alpha_centrality, pagerank, bonacich_power_centrality
         """
         scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
 
@@ -15934,9 +15757,6 @@ class Graph:
         - positive values: node has more connections than its neighbors (influential)
         - negative values: node has fewer connections than its neighbors (peripheral)
         - zero: node has similar connectivity to its neighbors
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -15995,6 +15815,8 @@ class Graph:
         #     .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
         #     .show())
         ```
+
+        %family Centrality
         """
         centrality = self._graph.get_leverage_centrality()
 
@@ -16047,9 +15869,6 @@ class Graph:
 
         For `σ -> 0`: Converges to degree centrality (only local information)
         For large `σ`: Identifies globally dominant nodes
-
-
-        %family Centrality
 
         Parameters
         ----------
@@ -16154,6 +15973,8 @@ class Graph:
         - uses Newton iteration with adaptive convergence detection
         - automatically finds optimal sigma via smallest eigenvalue
         - detects divergence via monotonic increase in updates
+
+        %family Centrality
         """
         if method != "iterative":
             raise ValueError("Only method='iterative' is currently supported")
@@ -16231,9 +16052,6 @@ class Graph:
         Higher values indicate more important/central nodes whose removal would significantly
         increase average path lengths. Uses parallel BFS with Rayon for efficient computation.
 
-
-        %family Core Decomposition
-
         Parameters
         ----------
         attr_name
@@ -16282,6 +16100,9 @@ class Graph:
         Computationally expensive for large graphs (O(V²E / num_cores) complexity). Consider
         alternative centrality measures (degree, PageRank) for graphs with >1000 nodes unless high
         accuracy is required.
+
+        %family Core Decomposition
+        %seealso harmonic_centrality, get_node_vitality, betweenness_centrality
         """
         vitality = self._graph.get_closeness_vitality()
 
@@ -16311,9 +16132,6 @@ class Graph:
 
         Higher coreness indicates nodes in denser, more cohesive parts of the graph. The k-core
         decomposition is useful for finding the 'nucleus' of a network.
-
-
-        %family Core Decomposition
 
         Parameters
         ----------
@@ -16351,6 +16169,9 @@ class Graph:
         )
         # All nodes in K4 have coreness 3
         ```
+
+        %family Core Decomposition
+        %seealso k_core, k_shell, k_crust, k_truss, k_corona
         """
         if attr_name is None:
             attr_name = "coreness"
@@ -16375,9 +16196,6 @@ class Graph:
 
         The k-core is the maximal subgraph where all nodes have degree >= k. Iteratively removes
         nodes with degree < k until all remaining nodes satisfy the condition.
-
-
-        %family Core Decomposition
 
         Parameters
         ----------
@@ -16407,6 +16225,9 @@ class Graph:
         core_2 = g.k_core(2)
         print(f"Nodes in 2-core: {core_2.count_nodes()}")
         ```
+
+        %family Core Decomposition
+        %seealso coreness, k_shell, k_crust, k_corona
         """
         from edgecase._core import k_core
 
@@ -16418,11 +16239,8 @@ class Graph:
         """
         Extract the k-shell subgraph.
 
-        The k-shell contains nodes with coreness exactly equal to k. The coreness of a node is the
-        highest k for which the node is part of the k-core.
-
-
-        %family Core Decomposition
+        The k-shell contains nodes with coreness exactly equal to `k`. The coreness of a node is the
+        highest `k` for which the node is part of the k-core.
 
         Parameters
         ----------
@@ -16450,6 +16268,9 @@ class Graph:
         # Get shell of nodes with coreness exactly 1
         shell_1 = g.k_shell(1)
         print(f"Nodes in 1-shell: {shell_1.count_nodes()}")
+
+        %family Core Decomposition
+        %seealso coreness, k_core, k_crust, k_corona
         ```
         """
         from edgecase._core import k_shell
@@ -16462,11 +16283,8 @@ class Graph:
         """
         Extract the k-crust subgraph.
 
-        The k-crust contains all nodes with coreness <= k. This is the complement of nodes with high
-        coreness values.
-
-
-        %family Core Decomposition
+        The k-crust contains all nodes with coreness <= `k`. This is the complement of nodes with
+        high coreness values.
 
         Parameters
         ----------
@@ -16495,6 +16313,9 @@ class Graph:
         crust_2 = g.k_crust(2)
         print(f"Nodes in 2-crust: {crust_2.count_nodes()}")
         ```
+
+        %family Core Decomposition
+        %seealso coreness, k_core, k_shell, k_corona
         """
         from edgecase._core import k_crust
 
@@ -16506,11 +16327,8 @@ class Graph:
         """
         Extract the k-truss subgraph.
 
-        The k-truss is the maximal subgraph where every edge is part of at least (k-2) triangles.
+        The k-truss is the maximal subgraph where every edge is part of at least `(k-2)` triangles.
         Iteratively removes edges with insufficient triangle support.
-
-
-        %family Core Decomposition
 
         Parameters
         ----------
@@ -16545,6 +16363,9 @@ class Graph:
         truss_4 = g.k_truss(4)
         print(f"Edges in 4-truss: {truss_4.count_edges()}")
         ```
+
+        %family Core Decomposition
+        %seealso coreness, k_core, count_triangles, list_triangles
         """
         from edgecase._core import k_truss
 
@@ -16556,21 +16377,18 @@ class Graph:
         """
         Extract the k-corona subgraph.
 
-        The k-corona is the subgraph induced by nodes that are in the k-core and have exactly k
+        The k-corona is the subgraph induced by nodes that are in the k-core and have exactly `k`
         neighbors in the k-core. These are the "boundary" nodes of the k-core that would be removed
-        first when computing the (k+1)-core.
+        first when computing the `(k+1)`-core.
 
         The k-corona helps identify nodes at the periphery of dense substructures, which is useful
         for understanding hierarchical organization and vulnerability analysis.
 
-
-        %family Core Decomposition
-
         Parameters
         ----------
         k
-            The core number. Nodes in the k-corona have coreness >= k and exactly k neighbors within
-            the k-core.
+            The core number. Nodes in the k-corona have coreness >= `k` and exactly `k` neighbors
+            within the k-core.
 
         Returns
         -------
@@ -16628,6 +16446,9 @@ class Graph:
           if any of their k-core neighbors were removed
         - the k-corona can be empty even when the k-core is non-empty
         - useful for identifying structurally vulnerable nodes in dense subgraphs
+
+        %family Core Decomposition
+        %seealso coreness, k_core, k_shell, k_crust
         """
         from edgecase._core import k_corona
 
@@ -16652,9 +16473,6 @@ class Graph:
         A rich-club coefficient close to `1` indicates that high-degree nodes tend to be connected
         to each other, forming a 'rich club'. Values less than expected in random graphs suggest the
         hubs avoid connecting to each other.
-
-
-        %family Core Decomposition
 
         Returns
         -------
@@ -16716,6 +16534,8 @@ class Graph:
         - for directed graphs, total degree (in + out) is used
         - returns unnormalized coefficients; for normalized values comparing to random networks,
         additional computation with degree-preserving random graphs would be needed
+
+        %family Core Decomposition
         """
         from edgecase._core import rich_club_coefficient
 
@@ -16738,9 +16558,6 @@ class Graph:
         Computes average shortest path length between all reachable node pairs. Also known as
         average path length or characteristic path length.
 
-
-        %family Distance and Paths
-
         Parameters
         ----------
         unconnected
@@ -16749,8 +16566,9 @@ class Graph:
 
         Returns
         -------
-        float | None
-            Average shortest path length, or `None` if graph is disconnected (when unconnected=False).
+        float
+            Average shortest path length, or `None` if graph is disconnected (when
+            `unconnected=False`).
 
         Examples
         --------
@@ -16781,6 +16599,8 @@ class Graph:
         - small-world networks: low mean distance despite high clustering
         - scale-free networks: mean distance grows logarithmically with size
         - used in epidemiology: average infection spread time
+
+        %family Distance and Paths
         """
         return self._graph.get_mean_distance_with_unconnected(unconnected)
 
@@ -16790,9 +16610,6 @@ class Graph:
 
         Alias for `get_radius()`. The minimum eccentricity is the smallest maximum distance from any
         node to all other nodes.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -16815,6 +16632,8 @@ class Graph:
         radius = graph.get_min_eccentricity()
         print(radius)  # 1 (center reaches all nodes in 1 step)
         ```
+
+        %family Distance and Paths
         """
         return self.get_radius(unconnected)
 
@@ -16824,9 +16643,6 @@ class Graph:
 
         Alias for `get_diameter()`. The maximum eccentricity is the longest shortest path between
         any two nodes.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -16849,6 +16665,8 @@ class Graph:
         diameter = graph.get_max_eccentricity()
         print(diameter)  # 4 (end-to-end distance)
         ```
+
+        %family Distance and Paths
         """
         return self.get_diameter(unconnected)
 
@@ -16859,9 +16677,6 @@ class Graph:
         The diameter is the longest shortest path between any two nodes. This metric is useful for
         understanding the "width" of a network.
 
-
-        %family Distance and Paths
-
         Parameters
         ----------
         unconnected
@@ -16870,7 +16685,7 @@ class Graph:
 
         Returns
         -------
-        int | None
+        int
             Maximum distance between any two nodes, or `None` if disconnected (when
             `unconnected=False`).
 
@@ -16892,6 +16707,8 @@ class Graph:
 
         print(graph.get_diameter())  # 3 (A to D)
         ```
+
+        %family Distance and Paths
         """
         return self._graph.get_diameter_with_unconnected(unconnected)
 
@@ -16901,9 +16718,6 @@ class Graph:
 
         The radius is the minimum of all node eccentricities. Nodes with eccentricity equal to the
         radius form the center of the graph.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -16934,6 +16748,8 @@ class Graph:
 
         print(graph.get_radius())  # 1 (hub is center)
         ```
+
+        %family Distance and Paths
         """
         return self._graph.get_radius_with_unconnected(unconnected)
 
@@ -16949,9 +16765,6 @@ class Graph:
         - returns `1` for graphs with self-loops
         - returns `2` for undirected graphs with multi-edges
         - returns `3` or more for cycles found via BFS
-
-
-        %family Distance and Paths
 
         Returns
         -------
@@ -17011,6 +16824,8 @@ class Graph:
         tree = Graph(directed=True).add_balanced_tree(k=2, h=3)
         print(tree.get_girth())  # None
         ```
+
+        %family Distance and Paths
         """
         return self._graph.get_girth()
 
@@ -17023,9 +16838,6 @@ class Graph:
         Eccentricity of a node is the maximum distance from that node to any other reachable node in
         the graph. It measures how far a node is from the most distant node it can reach. Returns
         `None` for nodes in disconnected graphs where some nodes are unreachable.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -17064,6 +16876,8 @@ class Graph:
         # End nodes have max eccentricity (4)
         # Middle node C has min eccentricity (2)
         ```
+
+        %family Distance and Paths
         """
         if attr_name is None:
             attr_name = "eccentricity"
@@ -17095,9 +16909,6 @@ class Graph:
 
         where `n` is the number of nodes. Higher radiality indicates a more central position in the
         network. Returns `None` for nodes in disconnected graphs.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -17134,6 +16945,8 @@ class Graph:
         # Hub has highest radiality (most central)
         # Leaves have lower radiality (peripheral)
         ```
+
+        %family Distance and Paths
         """
         if attr_name is None:
             attr_name = "radiality"
@@ -17175,9 +16988,6 @@ class Graph:
         - the graph has negative edge weights
         - the graph is sparse, with few edges
         - you need to detect negative cycles
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -17299,6 +17109,9 @@ class Graph:
         - network routing with cost penalties
         - game theory (negative payoffs)
         - resource allocation with penalties
+
+        %family Distance and Paths
+        %seealso shortest_path, all_pairs_shortest_path, k_shortest_paths
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
@@ -17343,9 +17156,6 @@ class Graph:
         visualization.
 
         For weighted shortest paths, use Dijkstra's algorithm instead.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -17431,6 +17241,9 @@ class Graph:
         )
         # Store multiple paths as different attributes
         ```
+
+        %family Distance and Paths
+        %seealso bellman_ford_shortest_path, all_pairs_shortest_path, k_shortest_paths, bfs
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
@@ -17472,9 +17285,6 @@ class Graph:
         ADA* is an anytime optimal pathfinding algorithm that can return suboptimal paths quickly
         and iteratively improve them. The epsilon parameter controls the trade-off between solution
         quality and speed.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -17630,6 +17440,8 @@ class Graph:
         - set `reuse_planner=True` for iterative refinement with decreasing epsilon
         - planner state is stored in `graph._ada_star_planner` attribute
         - different source/target pairs automatically create separate planners
+
+        %family Distance and Paths
         """
         # Check if we should reuse existing planner
         planner_key = (source, target, weight_attr)
@@ -17662,9 +17474,6 @@ class Graph:
 
         Uses Dijkstra's algorithm from each source node to find the shortest path distance to all
         other reachable nodes. For unweighted graphs, all edges are treated as having weight `1.0`.
-
-
-        %family Distance and Paths
 
         Returns
         -------
@@ -17725,6 +17534,8 @@ class Graph:
 
         For dense graphs or when you need all pairs, this is more efficient than calling
         `shortest_path()` repeatedly. For sparse queries, use `shortest_path()` instead.
+
+        %family Distance and Paths
         """
         from edgecase._core import all_pairs_shortest_path_length
 
@@ -17736,9 +17547,6 @@ class Graph:
 
         Uses Dijkstra's algorithm from each source node to find the shortest path to all other
         reachable nodes. Returns the full path as a list of node IDs.
-
-
-        %family Distance and Paths
 
         Returns
         -------
@@ -17809,6 +17617,8 @@ class Graph:
 
         This method stores full paths, which can be memory intensive for large graphs. If you only
         need distances, use `all_pairs_shortest_path_length()` instead.
+
+        %family Distance and Paths
         """
         from edgecase._core import all_pairs_shortest_path
 
@@ -17825,9 +17635,6 @@ class Graph:
 
         Finds multiple alternative paths ranked by total path weight/length. Useful for finding
         backup routes, route diversity analysis, or identifying critical edges.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -17925,6 +17732,8 @@ class Graph:
 
         Paths are simple (no repeated nodes) and loop-free. For graphs with negative weights,
         consider using `bellman_ford_shortest_path()` for single shortest path instead.
+
+        %family Distance and Paths
         """
         from edgecase._core import k_shortest_paths
 
@@ -17946,9 +17755,6 @@ class Graph:
         their neighbors. Can return the visit order as a list, or store the position of each node in
         the traversal as a node attribute for visualization.
 
-
-        %family Distance and Paths
-
         Parameters
         ----------
         start
@@ -17956,11 +17762,10 @@ class Graph:
         attr_name
             Name of the node attribute to store traversal position. If `None`, uses `bfs_order` as
             the attribute name. Position is 0-indexed (start node = `0`, first neighbor = `1`,
-            etc.).
-            Nodes not visited get no attribute set.
+            etc.). Nodes not visited get no attribute set.
         return_list
-            If `True`, returns list of node IDs in visit order.
-            If `False`, stores positions as node attributes and returns self for chaining.
+            If `True`, returns list of node IDs in visit order. If `False`, stores positions as node
+            attributes and returns self for chaining.
 
         Returns
         -------
@@ -18005,6 +17810,9 @@ class Graph:
         # Start from top-left corner
         visited = graph.bfs(start=1)
         # Visits neighbors layer by layer from start
+
+        %family Distance and Paths
+        %seealso dfs, shortest_path, random_walk
         ```
         """
         start_id = self._resolve_node_id(start, auto_create=False)
@@ -18039,9 +17847,6 @@ class Graph:
         DFS explores as far as possible along each branch before backtracking. Can return the visit
         order as a list, or store the position of each node in the traversal as a node attribute for
         visualization.
-
-
-        %family Distance and Paths
 
         Parameters
         ----------
@@ -18097,6 +17902,9 @@ class Graph:
         visited = graph.dfs(start=1)
         print(visited)  # [1, 2, 3, 4, 5]
         ```
+
+        %family Distance and Paths
+        %seealso bfs, get_topological_sort_order, random_walk
         """
         start_id = self._resolve_node_id(start, auto_create=False)
         visited_order = self._graph.dfs(start_id)
@@ -18133,9 +17941,6 @@ class Graph:
 
         A simple path is a path with no repeated nodes. This method uses depth-first search with
         backtracking to enumerate all possible simple paths from source to target.
-
-
-        %family Path Analysis
 
         Parameters
         ----------
@@ -18249,6 +18054,8 @@ class Graph:
         - use the `cutoff` parameter to limit search depth and prevent excessive computation
         - for weighted graphs needing k-shortest paths, consider implementing Yen's algorithm
         - this method returns ALL paths, which can be memory-intensive for dense graphs
+
+        %family Path Analysis
         """
         # Resolve node labels to internal IDs
         source_label = self.get_label_from_id(self._resolve_node_id(source, auto_create=False))
@@ -18271,9 +18078,6 @@ class Graph:
 
         This is a fast `O(n)` validation method useful for checking user input, validating computed
         paths, or testing path properties.
-
-
-        %family Path Analysis
 
         Parameters
         ----------
@@ -18393,6 +18197,8 @@ class Graph:
         - for directed graphs, edges must exist in the specified direction
         - empty path and single-node paths are considered valid simple paths
         - compatible with both integer node IDs and string labels
+
+        %family Path Analysis
         """
         # Convert node IDs to labels for Rust
         node_labels = []
@@ -18438,9 +18244,6 @@ class Graph:
         the `stuck=` parameter.
 
         Time complexity: `O(steps)`, plus `O(degree)` per step for neighbor lookup.
-
-
-        %family Path Analysis
 
         Parameters
         ----------
@@ -18568,6 +18371,8 @@ class Graph:
         - Node2Vec and DeepWalk embeddings
         - community detection (Walktrap)
         - graph sampling and exploration
+
+        %family Path Analysis
         """
         start_id = self._resolve_node_id(start, auto_create=False)
 
@@ -18612,9 +18417,6 @@ class Graph:
         edges as a list, or store the traversal order as an edge attribute for visualization.
 
         Time complexity: `O(steps)`, plus `O(degree)` per step for edge lookup.
-
-
-        %family Path Analysis
 
         Parameters
         ----------
@@ -18748,6 +18550,8 @@ class Graph:
         - transition probability estimation
         - graph sketching and sampling
         - visualizing edge usage patterns
+
+        %family Path Analysis
         """
         # Convert start to string for Rust (handles both int and str)
         start_str = str(start)
@@ -18789,9 +18593,6 @@ class Graph:
         Uses Kahn's algorithm (BFS-based) which has `O(V + E)` time complexity. The algorithm
         processes nodes with zero in-degree first, then removes them and updates in-degrees of
         neighbors.
-
-
-        %family Path Analysis
 
         Returns
         -------
@@ -18904,6 +18705,8 @@ class Graph:
         - maintains in-degree count for each node
         - processes nodes with in-degree 0 first
         - detects cycles by checking if all nodes are processed
+
+        %family Path Analysis
         """
         return self._graph.get_topological_sort_order()
 
@@ -18921,11 +18724,8 @@ class Graph:
         This method only works on directed graphs. Undirected graphs should first be converted to
         directed or analyzed using connectivity methods.
 
-        Time complexity: O(V × (V + E)) where V is nodes and E is edges
-        Space complexity: O(V + E') where E' is edges in the closure
-
-
-        %family Path Analysis
+        Time complexity: `O(V × (V + E))` where `V` is nodes and `E` is edges
+        Space complexity: `O(V + E')` where `E'` is edges in the closure
 
         Returns
         -------
@@ -18991,6 +18791,8 @@ class Graph:
         The transitive closure is the inverse operation of transitive reduction:
         ``transitive_closure(transitive_reduction(G)) == transitive_closure(G)``
         (for DAGs)
+
+        %family Path Analysis
         """
         from edgecase._core import transitive_closure
 
@@ -19010,11 +18812,8 @@ class Graph:
         This method only works on directed acyclic graphs (DAGs). Cyclic graphs do not have a unique
         transitive reduction.
 
-        Time complexity: O(V × E) where V is nodes and E is edges
-        Space complexity: O(V + E)
-
-
-        %family Path Analysis
+        Time complexity: `O(V × E)` where `V` is nodes and `E` is edges
+        Space complexity: `O(V + E)`
 
         Returns
         -------
@@ -19101,6 +18900,8 @@ class Graph:
 
         - the transitive reduction of a DAG is unique
         - the reduction preserves all reachability relationships
+
+        %family Path Analysis
         """
         from edgecase._core import transitive_reduction
 
@@ -19119,11 +18920,8 @@ class Graph:
         This method computes the *k*-th power of the adjacency matrix using fast matrix
         exponentiation, which is efficient even for large k values.
 
-        Time complexity: O(V³ × log k) where V is the number of nodes
-        Space complexity: O(V²)
-
-
-        %family Path Analysis
+        Time complexity: `O(V³ × log k)` where `V` is the number of nodes
+        Space complexity: `O(V²)`
 
         Parameters
         ----------
@@ -19251,6 +19049,8 @@ class Graph:
 
         This method computes `A^k` where `A` is the adjacency matrix. The trace of `A^k` (sum of
         diagonal elements) counts closed walks (cycles) of length `k`.
+
+        %family Path Analysis
         """
         if walk_length < 0:
             raise ValueError("walk_length must be non-negative")
@@ -19274,10 +19074,7 @@ class Graph:
         - *walk*: nodes and edges may repeat freely (least restrictive)
 
         Uses iterative depth-first search with edge tracking. Can grow exponentially for dense
-        graphs, so use `max_trails` parameter to limit computation.
-
-
-        %family Path Analysis
+        graphs, so use `max_trails=` parameter to limit computation.
 
         Parameters
         ----------
@@ -19398,6 +19195,8 @@ class Graph:
         - uses iterative DFS with explicit stack (avoids recursion limits)
         - tracks visited edges (not nodes) to allow node revisiting
         - for undirected graphs, edges are bidirectional
+
+        %family Path Analysis
         """
         # Convert string node IDs to internal IDs
         source_id = self._resolve_node_id(source)
@@ -19414,134 +19213,133 @@ class Graph:
         max_trails: int | None = 1000,
     ) -> list[list[str]]:
         """
-        Enumerate all trails (walks with distinct edges) from source to target.
+          Enumerate all trails (walks with distinct edges) from source to target.
 
-        Returns the actual sequences of nodes for each trail. A trail is a walk where all edges are
-        distinct, though nodes may repeat.
+          Returns the actual sequences of nodes for each trail. A trail is a walk where all edges are
+          distinct, though nodes may repeat.
 
+          Parameters
+          ----------
+          source
+              Source node ID (int) or label (str).
+          target
+              Target node ID (int) or label (str).
+          max_trails
+              Maximum number of trails to return. Default is `1000`. If `None`, returns all trails
+              (dangerous for large graphs). If limit exceeded, returns partial list.
+
+          Returns
+          -------
+          list[list[str]]
+              List of trails, where each trail is a sequence of node IDs. If `max_trails=` exceeded,
+              returns first `max_trails=` trails found.
+
+          Raises
+          ------
+          ValueError
+              If source or target node not found in graph.
+
+          Examples
+          --------
+          Enumerate trails using labels:
+
+          ```python
+          graph = (
+              Graph()
+              .add_node(label="A")
+              .add_node(label="B")
+              .add_node(label="C")
+              .add_edge("A", "B")
+              .add_edge("B", "C")
+              .add_edge("C", "A")
+          )
+
+          trails = graph.enumerate_trails("A", "C")
+          for i, trail in enumerate(trails, 1):
+              print(f"Trail {i}: {' -> '.join(trail)}")
+          # Trail 1: A -> C
+          # Trail 2: A -> B -> C
+          ```
+
+          Enumerate using node IDs:
+
+          ```python
+          graph = Graph()
+          graph.add_node(label="start")
+          graph.add_node(label="end")
+          graph.add_edge("start", "end")
+
+          # Get node IDs
+          start_id = graph.get_id_from_label("start")
+          end_id = graph.get_id_from_label("end")
+
+          # Use IDs directly
+          trails = graph.enumerate_trails(start_id, end_id)
+          print(f"Found {len(trails)} trails")
+          ```
+
+          Enumerate with limit:
+
+          ```python
+          from edgecase import Graph
+
+          graph = (
+              Graph()
+              .add_node(label="start")
+              .add_node(label="middle")
+              .add_node(label="end")
+              .add_edge(source="start", target="middle")
+              .add_edge(source="middle", target="end")
+              .add_edge(source="start", target="end")
+          )
+
+          # Get first 100 trails only
+          trails = graph.enumerate_trails(source="start", target="end", max_trails=100)
+          print(f"Found {len(trails)} trails (may be more)")
+          ```
+
+          Analyze trail lengths:
+
+          ```python
+          from edgecase import karate_club
+
+          G = karate_club()
+
+          # Karate club has nodes 0-33, get any two node IDs
+          node_ids = list(G.get_node_ids(limit=None))
+          if len(node_ids) >= 2:
+              source_id = node_ids[0]
+              target_id = node_ids[-1]
+              source_label = G.get_label_from_id(node_id=source_id) or str(source_id)
+              target_label = G.get_label_from_id(node_id=target_id) or str(target_id)
+
+              # Get sample of trails
+              trails = G.enumerate_trails(source=source_label, target=target_label, max_trails=100)
+
+              if trails:
+                  # Analyze lengths
+                  lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
+                  print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
+                  print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
+          ```
+
+          Notes
+          -----
+          **Memory Warning**:
+
+          - Each trail stores full node sequence
+          - 1000 trails × 50 nodes each = ~50KB minimum
+          - Can quickly consume many GBs of memory for large graphs
+          - Always set max_trails to reasonable value
+
+          **Use Cases**:
+
+          - Analyzing alternative routes in networks
+          - Finding redundant paths for reliability
+          - Network vulnerability analysis
+          - Understanding connectivity patterns
 
         %family Path Analysis
-
-        Parameters
-        ----------
-        source
-            Source node ID (int) or label (str).
-        target
-            Target node ID (int) or label (str).
-        max_trails
-            Maximum number of trails to return. Default is `1000`. If `None`, returns all trails
-            (dangerous for large graphs). If limit exceeded, returns partial list.
-
-        Returns
-        -------
-        list[list[str]]
-            List of trails, where each trail is a sequence of node IDs. If `max_trails=` exceeded,
-            returns first `max_trails=` trails found.
-
-        Raises
-        ------
-        ValueError
-            If source or target node not found in graph.
-
-        Examples
-        --------
-        Enumerate trails using labels:
-
-        ```python
-        graph = (
-            Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-
-        trails = graph.enumerate_trails("A", "C")
-        for i, trail in enumerate(trails, 1):
-            print(f"Trail {i}: {' -> '.join(trail)}")
-        # Trail 1: A -> C
-        # Trail 2: A -> B -> C
-        ```
-
-        Enumerate using node IDs:
-
-        ```python
-        graph = Graph()
-        graph.add_node(label="start")
-        graph.add_node(label="end")
-        graph.add_edge("start", "end")
-
-        # Get node IDs
-        start_id = graph.get_id_from_label("start")
-        end_id = graph.get_id_from_label("end")
-
-        # Use IDs directly
-        trails = graph.enumerate_trails(start_id, end_id)
-        print(f"Found {len(trails)} trails")
-        ```
-
-        Enumerate with limit:
-
-        ```python
-        from edgecase import Graph
-
-        graph = (
-            Graph()
-            .add_node(label="start")
-            .add_node(label="middle")
-            .add_node(label="end")
-            .add_edge(source="start", target="middle")
-            .add_edge(source="middle", target="end")
-            .add_edge(source="start", target="end")
-        )
-
-        # Get first 100 trails only
-        trails = graph.enumerate_trails(source="start", target="end", max_trails=100)
-        print(f"Found {len(trails)} trails (may be more)")
-        ```
-
-        Analyze trail lengths:
-
-        ```python
-        from edgecase import karate_club
-
-        G = karate_club()
-
-        # Karate club has nodes 0-33, get any two node IDs
-        node_ids = list(G.get_node_ids(limit=None))
-        if len(node_ids) >= 2:
-            source_id = node_ids[0]
-            target_id = node_ids[-1]
-            source_label = G.get_label_from_id(node_id=source_id) or str(source_id)
-            target_label = G.get_label_from_id(node_id=target_id) or str(target_id)
-
-            # Get sample of trails
-            trails = G.enumerate_trails(source=source_label, target=target_label, max_trails=100)
-
-            if trails:
-                # Analyze lengths
-                lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
-                print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
-                print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
-        ```
-
-        Notes
-        -----
-        **Memory Warning**:
-
-        - Each trail stores full node sequence
-        - 1000 trails × 50 nodes each = ~50KB minimum
-        - Can quickly consume many GBs of memory for large graphs
-        - Always set max_trails to reasonable value
-
-        **Use Cases**:
-
-        - Analyzing alternative routes in networks
-        - Finding redundant paths for reliability
-        - Network vulnerability analysis
-        - Understanding connectivity patterns
         """
         # Convert string node IDs to internal IDs
         source_id = self._resolve_node_id(source)
@@ -19576,9 +19374,6 @@ class Graph:
 
         - the graph is weakly connected
         - every vertex has equal in-degree and out-degree
-
-
-        %family Eulerian Paths
 
         Returns
         -------
@@ -19615,6 +19410,8 @@ class Graph:
 
         print(graph.is_eulerian())  # True (in-degree = out-degree for all)
         ```
+
+        %family Eulerian Paths
         """
         from edgecase._core import is_eulerian
 
@@ -19638,9 +19435,6 @@ class Graph:
         - exactly one vertex has out-degree - in-degree = 1 (start)
         - exactly one vertex has in-degree - out-degree = 1 (end)
         - all other vertices have equal in-degree and out-degree
-
-
-        %family Eulerian Paths
 
         Returns
         -------
@@ -19679,6 +19473,8 @@ class Graph:
 
         print(graph.is_semieulerian())  # True (one source, one sink)
         ```
+
+        %family Eulerian Paths
         """
         from edgecase._core import is_semieulerian
 
@@ -19690,9 +19486,6 @@ class Graph:
 
         An Eulerian circuit is a closed trail that visits every edge exactly once, starting and
         ending at the same node. Uses Hierholzer's algorithm.
-
-
-        %family Eulerian Paths
 
         Returns
         -------
@@ -19753,6 +19546,8 @@ class Graph:
         - Only returns a circuit if one exists (use is_eulerian() to check first)
         - For semi-Eulerian graphs (path but no circuit), use a pathfinding approach
         - The returned circuit is one of potentially many valid circuits
+
+        %family Eulerian Paths
         """
         from edgecase._core import eulerian_circuit
 
@@ -19776,11 +19571,8 @@ class Graph:
         components. Bridges are critical edges that, if removed, would disconnect parts of the
         network.
 
-        Uses Tarjan's algorithm for undirected graphs (O(V+E) time complexity) and strongly
+        Uses Tarjan's algorithm for undirected graphs (`O(V + E)` time complexity) and strongly
         connected component analysis for directed graphs.
-
-
-        %family Bridges and Connectivity
 
         Returns
         -------
@@ -19835,6 +19627,8 @@ class Graph:
         - in a tree, all edges are bridges
         - in a cycle, no edges are bridges
         - related to articulation points (vertices whose removal disconnects the graph)
+
+        %family Bridges and Connectivity
         """
         from edgecase._core import bridges
 
@@ -19847,9 +19641,6 @@ class Graph:
         A bridge (cut edge) is an edge whose removal increases the number of connected components.
         This method is more efficient than `bridges()` when you only need to know if bridges exist,
         not which edges they are.
-
-
-        %family Bridges and Connectivity
 
         Returns
         -------
@@ -19898,6 +19689,8 @@ class Graph:
         - more efficient than `len(bridges()) > 0` for large graphs
         - useful for quick connectivity analysis
         - returns `False` for complete graphs and cycles
+
+        %family Bridges and Connectivity
         """
         from edgecase._core import has_bridges
 
@@ -19915,9 +19708,6 @@ class Graph:
         Higher values indicate more important nodes whose removal would significantly increase
         average path lengths or disconnect the graph. Infinite values indicate the node's removal
         disconnects the graph.
-
-
-        %family Bridges and Connectivity
 
         Parameters
         ----------
@@ -19996,6 +19786,8 @@ class Graph:
         - related to `closeness_vitality()` which computes for all nodes
         - useful for identifying critical nodes in network vulnerability analysis
         - for all nodes, consider using `closeness_vitality()` instead
+
+        %family Bridges and Connectivity
         """
         from edgecase._core import node_vitality
 
@@ -20019,9 +19811,6 @@ class Graph:
 
         Uses breadth-first search (BFS) to find all nodes in the same connected component. For
         directed graphs, treats edges as undirected during traversal.
-
-
-        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20081,6 +19870,8 @@ class Graph:
 
         print(f"Found {len(components)} components")
         ```
+
+        %family Connectivity and Flow
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
@@ -20116,9 +19907,6 @@ class Graph:
         of connected components. Uses Tarjan's DFS-based algorithm. Only defined for undirected
         graphs.
 
-
-        %family Connectivity and Flow
-
         Returns
         -------
         list[int]
@@ -20152,6 +19940,8 @@ class Graph:
         - network vulnerability analysis: Critical infrastructure nodes
         - social networks: Key influencers whose removal fragments communities
         - communication networks: Single points of failure
+
+        %family Connectivity and Flow
         """
         return self._graph.get_articulation_points()
 
@@ -20162,9 +19952,6 @@ class Graph:
         Periphery nodes are farthest from the graph's center. These nodes have the maximum
         eccentricity (longest shortest path to any other node). Returns empty list if graph is
         disconnected.
-
-
-        %family Connectivity and Flow
 
         Returns
         -------
@@ -20193,6 +19980,8 @@ class Graph:
         - opposite of center: peripheral vs central nodes
         - in trees: always leaf nodes
         - multiple nodes can have maximum eccentricity
+
+        %family Connectivity and Flow
         """
         return self._graph.get_periphery()
 
@@ -20206,17 +19995,13 @@ class Graph:
         Uses Menger's theorem: node connectivity equals the maximum number of node-disjoint paths.
         Implementation transforms the problem to max-flow.
 
-        Time complexity: O(V^4) for complete enumeration of pairs.
-
-
-        %family Connectivity and Flow
+        Time complexity: `O(V^4)` for complete enumeration of pairs.
 
         Returns
         -------
         int
-            Minimum number of nodes needed to disconnect the graph.
-            Returns 0 if already disconnected.
-            Returns n-1 for complete graph K_n.
+            Minimum number of nodes needed to disconnect the graph. Returns `0` if already
+            disconnected. Returns `n-1` for complete graph `K_n`.
 
         Examples
         --------
@@ -20245,6 +20030,8 @@ class Graph:
 
         print(graph.get_node_connectivity())  # 4
         ```
+
+        %family Connectivity and Flow
         """
         return self._graph.node_connectivity()
 
@@ -20262,10 +20049,7 @@ class Graph:
         out-node with capacity 1, converting node connectivity to edge connectivity, which is
         computed using max-flow.
 
-        Time complexity: O(V * E^2) using Ford-Fulkerson with BFS.
-
-
-        %family Connectivity and Flow
+        Time complexity: `O(V * E^2)` using Ford-Fulkerson with BFS.
 
         Parameters
         ----------
@@ -20329,6 +20113,8 @@ class Graph:
         # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
         print(graph.get_node_connectivity_between("1", "5"))  # 4
         ```
+
+        %family Connectivity and Flow
         """
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
@@ -20345,10 +20131,7 @@ class Graph:
         Edge connectivity provides a measure of graph robustness: higher values indicate more
         redundant paths and better fault tolerance.
 
-        Time complexity: O(V * E^2) using max-flow computations.
-
-
-        %family Connectivity and Flow
+        Time complexity: `O(V * E^2)` using max-flow computations.
 
         Returns
         -------
@@ -20382,6 +20165,8 @@ class Graph:
 
         print(graph.get_edge_connectivity())  # 1
         ```
+
+        %family Connectivity and Flow
         """
         return self._graph.edge_connectivity()
 
@@ -20395,9 +20180,6 @@ class Graph:
 
         Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
         computation requires max-flow algorithms.
-
-
-        %family Connectivity and Flow
 
         Returns
         -------
@@ -20428,6 +20210,8 @@ class Graph:
 
         print(graph.get_adhesion())  # 2
         ```
+
+        %family Connectivity and Flow
         """
         return self._graph.get_adhesion()
 
@@ -20441,9 +20225,6 @@ class Graph:
 
         Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
         computation requires sophisticated algorithms.
-
-
-        %family Connectivity and Flow
 
         Returns
         -------
@@ -20474,6 +20255,8 @@ class Graph:
 
         print(graph.get_cohesion())  # 2
         ```
+
+        %family Connectivity and Flow
         """
         return self._graph.get_cohesion()
 
@@ -20486,9 +20269,6 @@ class Graph:
 
         For directed graphs: `density = E / (N × (N-1))`
         For undirected graphs: `density = 2E / (N × (N-1))`
-
-
-        %family Connectivity and Flow
 
         Returns
         -------
@@ -20529,6 +20309,8 @@ class Graph:
 
         print(f"{complete.get_density():.3f}")  # 1.000
         ```
+
+        %family Connectivity and Flow
         """
         return self._graph.density()
 
@@ -20537,16 +20319,10 @@ class Graph:
         Find hierarchical cohesive block structure.
 
         Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal subgraph
-        that requires removal of at least k nodes to disconnect it. Returns a hierarchical structure
-        where child blocks have higher cohesion than their parents.
-
-        Based on Moody & White (2003) "Structural Cohesion and Embeddedness: A Hierarchical Concept
-        of Social Groups".
+        that requires removal of at least `k` nodes to disconnect it. Returns a hierarchical
+        structure where child blocks have higher cohesion than their parents.
 
         Time complexity: `O(V^5)` due to node connectivity computations.
-
-
-        %family Connectivity and Flow
 
         Returns
         -------
@@ -20599,6 +20375,8 @@ class Graph:
         blocks, cohesions, parents = graph.find_cohesive_blocks()
         # Returns hierarchical structure with root block and K_4 sub-block (as node IDs)
         ```
+
+        %family Connectivity and Flow
         """
         return self._graph.cohesive_blocks()
 
@@ -20612,9 +20390,6 @@ class Graph:
 
         For unweighted graphs, each edge has capacity `1`. For undirected graphs, edges are treated
         as bidirectional.
-
-
-        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20652,6 +20427,8 @@ class Graph:
         a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
         print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
         ```
+
+        %family Connectivity and Flow
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(sink, auto_create=False)
@@ -20666,9 +20443,6 @@ class Graph:
         connected by unit capacity.
 
         The source and sink themselves are never included in the returned cut set.
-
-
-        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20745,6 +20519,8 @@ class Graph:
         intermediaries = graph.minimum_node_cut("Alice", "Carol")
         # Returns {bob_id, dave_id} - both must be removed to disconnect
         ```
+
+        %family Connectivity and Flow
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(sink, auto_create=False)
@@ -20761,9 +20537,6 @@ class Graph:
 
         For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
         edges are considered.
-
-
-        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20816,6 +20589,8 @@ class Graph:
         critical_links = graph.minimum_edge_cut("Server1", "Server2")
         print(f"Removing {len(critical_links)} link(s) disconnects the servers")
         ```
+
+        %family Connectivity and Flow
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(sink, auto_create=False)
@@ -20836,9 +20611,6 @@ class Graph:
 
         For weighted graphs, edge weights are used as capacities by default. For unweighted graphs,
         each edge has capacity `1`. You can also specify a custom capacity attribute.
-
-
-        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20929,6 +20701,8 @@ class Graph:
         - for undirected graphs, each edge is treated as two directed edges with equal capacity
         - self-loops are ignored in flow computation
         - the max-flow min-cut theorem states that max_flow equals the minimum cut capacity
+
+        %family Connectivity and Flow
         """
         from edgecase._core import max_flow as _max_flow
 
@@ -20947,9 +20721,6 @@ class Graph:
 
         This is a faster variant of `max_flow()` when you only need the flow value and not the flow
         assignment on each edge.
-
-
-        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20981,6 +20752,8 @@ class Graph:
         flow = graph.max_flow_value("S", "T")
         print(f"Maximum flow: {flow}")  # 5.0
         ```
+
+        %family Connectivity and Flow
         """
         from edgecase._core import max_flow_value as _max_flow_value
 
@@ -21004,9 +20777,6 @@ class Graph:
 
         Uses the Successive Shortest Path algorithm with Bellman-Ford, which handles negative edge
         costs correctly.
-
-
-        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -21141,8 +20911,8 @@ class Graph:
         - negative costs are allowed (the algorithm handles them correctly)
         - the algorithm uses Successive Shortest Path with Bellman-Ford, with time complexity
         `O(V * E * F)` where `F` is the total flow
-        - for very large graphs or high flow values, consider using specialized libraries like
-        OR-Tools
+
+        %family Connectivity and Flow
         """
         from edgecase._core import min_cost_flow as _min_cost_flow
 
@@ -21164,9 +20934,6 @@ class Graph:
 
         A weakly connected component is a maximal set of nodes where every node is reachable from
         every other node when edge directions are ignored.
-
-
-        %family Connected Components
 
         Returns
         -------
@@ -21190,6 +20957,9 @@ class Graph:
 
         print(graph.count_weakly_connected_components())  # 2
         ```
+
+        %family Connected Components
+        %seealso weakly_connected_components, count_strongly_connected_components, is_weakly_connected
         """
         return self._graph.count_weakly_connected_components()
 
@@ -21203,9 +20973,6 @@ class Graph:
 
         For undirected graphs, returns the same result as `count_weakly_connected_components()`
         since strong connectivity equals regular connectivity when edges are bidirectional.
-
-
-        %family Connected Components
 
         Returns
         -------
@@ -21248,6 +21015,9 @@ class Graph:
         print(graph.count_strongly_connected_components())  # 2
         print(graph.count_weakly_connected_components())     # 2
         ```
+
+        %family Connected Components
+        %seealso strongly_connected_components, count_weakly_connected_components, is_strongly_connected
         """
         return self._graph.count_strongly_connected_components()
 
@@ -21260,9 +21030,6 @@ class Graph:
 
         A weakly connected component is a maximal set of nodes where every node is reachable from
         every other node when edge directions are ignored.
-
-
-        %family Connected Components
 
         Returns
         -------
@@ -21302,6 +21069,9 @@ class Graph:
         largest = max(components, key=len)
         print(f"Largest component has {len(largest)} nodes")
         ```
+
+        %family Connected Components
+        %seealso count_weakly_connected_components, strongly_connected_components, is_weakly_connected
         """
         # Convert list of lists to list of sets
         return [set(comp) for comp in self._graph.weakly_connected_components()]
@@ -21316,9 +21086,6 @@ class Graph:
 
         For undirected graphs, returns the same result as `weakly_connected_components()` since
         strong connectivity equals regular connectivity when edges are bidirectional.
-
-
-        %family Connected Components
 
         Returns
         -------
@@ -21371,6 +21138,9 @@ class Graph:
         1. perform DFS on original graph to get finish times
         2. transpose the graph (reverse all edges)
         3. perform DFS on transposed graph in reverse finish order
+
+        %family Connected Components
+        %seealso count_strongly_connected_components, weakly_connected_components, is_strongly_connected
         """
         # Convert list of lists to list of sets
         return [set(comp) for comp in self._graph.strongly_connected_components()]
@@ -21385,9 +21155,6 @@ class Graph:
 
         For undirected graphs, this is equivalent to checking regular connectivity (same as
         `is_connected()`).
-
-
-        %family Connected Components
 
         Returns
         -------
@@ -21420,7 +21187,10 @@ class Graph:
 
         Notes
         -----
-        Time complexity: O(V + E) using Kosaraju's algorithm to count SCCs.
+        Time complexity: `O(V + E)` using Kosaraju's algorithm to count SCCs.
+
+        %family Connected Components
+        %seealso is_weakly_connected, is_connected, strongly_connected_components
         """
         return self._graph.is_strongly_connected()
 
@@ -21434,9 +21204,6 @@ class Graph:
 
         For undirected graphs, this is equivalent to checking regular connectivity (same as
         `is_connected()`).
-
-
-        %family Connected Components
 
         Returns
         -------
@@ -21478,7 +21245,10 @@ class Graph:
 
         Notes
         -----
-        Time complexity: O(V + E) using BFS/DFS traversal.
+        Time complexity: `O(V + E)` using BFS/DFS traversal.
+
+        %family Connected Components
+        %seealso is_strongly_connected, is_connected, weakly_connected_components
         """
         return self._graph.is_weakly_connected()
 
@@ -21503,9 +21273,6 @@ class Graph:
         Graph coloring assigns colors (represented as integers) to nodes such that no two adjacent
         nodes share the same color. The greedy algorithm processes nodes in a specified order and
         assigns the smallest available color to each node.
-
-
-        %family Graph Coloring
 
         Parameters
         ----------
@@ -21583,6 +21350,8 @@ class Graph:
         num_colors = len(set(coloring.values()))
         print(f"Used {num_colors} colors")  # 3 colors for a triangle
         ```
+
+        %family Graph Coloring
         """
         from edgecase._core import greedy_color as rust_greedy_color
 
@@ -21591,9 +21360,6 @@ class Graph:
     def is_valid_coloring(self, coloring: dict[int, int]) -> bool:
         """
         Check if a coloring is valid (no adjacent nodes share a color).
-
-
-        %family Graph Coloring
 
         Parameters
         ----------
@@ -21627,6 +21393,8 @@ class Graph:
         invalid = {node_ids[0]: 0, node_ids[1]: 0, node_ids[2]: 1}
         print(graph.is_valid_coloring(invalid))  # False
         ```
+
+        %family Graph Coloring
         """
         from edgecase._core import is_valid_coloring as rust_is_valid_coloring
 
@@ -21638,9 +21406,6 @@ class Graph:
 
         The chromatic number is the minimum number of colors needed to color a graph. This method
         returns the number of distinct colors used in a coloring, which provides an upper bound.
-
-
-        %family Graph Coloring
 
         Parameters
         ----------
@@ -21670,6 +21435,8 @@ class Graph:
         bound = graph.chromatic_number_upper_bound()
         print(f"Chromatic number <= {bound}")  # Chromatic number <= 3
         ```
+
+        %family Graph Coloring
         """
         if coloring is None:
             coloring = self.greedy_color()
@@ -21688,9 +21455,6 @@ class Graph:
 
         A matching is a set of edges where no two edges share a common endpoint (node). This is
         useful for validating matchings or checking matching constraints.
-
-
-        %family Matching
 
         Parameters
         ----------
@@ -21750,6 +21514,8 @@ class Graph:
         matching = graph.maximal_matching()
         assert graph.is_matching(matching)  # Always True for maximal_matching result
         ```
+
+        %family Matching
         """
         from edgecase._core import is_matching
 
@@ -21765,9 +21531,6 @@ class Graph:
 
         Note that a maximal matching is not necessarily a maximum matching (largest possible). For
         weighted graphs, use `max_weight_matching()`.
-
-
-        %family Matching
 
         Returns
         -------
@@ -21828,6 +21591,8 @@ class Graph:
         - result may vary between calls due to iteration order
         - for maximum cardinality matching, use specialized algorithms
         - for weighted matching, use `max_weight_matching()`
+
+        %family Matching
         """
         from edgecase._core import maximal_matching
 
@@ -21843,9 +21608,6 @@ class Graph:
 
         Note that this is a greedy approximation, not guaranteed to be optimal for general graphs.
         For optimal solutions on bipartite graphs, use specialized bipartite matching algorithms.
-
-
-        %family Matching
 
         Returns
         -------
@@ -21949,6 +21711,8 @@ class Graph:
         - optimal for trees and forests
         - for bipartite graphs, consider Hungarian algorithm
         - for unweighted graphs, equivalent to maximal matching
+
+        %family Matching
         """
         from edgecase._core import max_weight_matching
 
@@ -21964,9 +21728,6 @@ class Graph:
 
         An independent set (also called a stable set) is a set of vertices in a graph where no two
         vertices are adjacent. This method validates whether the given nodes satisfy this property.
-
-
-        %family Independent Sets
 
         Parameters
         ----------
@@ -22023,6 +21784,8 @@ class Graph:
         - time complexity: `O(V + E)` where `V` is nodes in the set and `E` is edges
         - empty set is trivially an independent set
         - single node is trivially an independent set
+
+        %family Independent Sets
         """
         from edgecase._core import is_independent_set
 
@@ -22042,9 +21805,6 @@ class Graph:
 
         This uses a randomized greedy algorithm that picks nodes randomly and adds them if they
         don't conflict with already-chosen nodes.
-
-
-        %family Independent Sets
 
         Parameters
         ----------
@@ -22137,6 +21897,9 @@ class Graph:
         - randomized algorithm: results may vary without a seed
         - maximal ≠ maximum: this is not guaranteed to find the largest possible set
         - for the largest independent set, use `maximum_independent_set()`
+
+        %family Independent Sets
+        %seealso maximum_independent_set, find_maximal_independent_sets, is_independent_set, find_cliques
         """
         from edgecase._core import maximal_independent_set
 
@@ -22153,9 +21916,6 @@ class Graph:
         The algorithm works by iteratively selecting the node with the minimum number of neighbors
         (among remaining candidates), adding it to the set, and removing it and its neighbors from
         further consideration.
-
-
-        %family Independent Sets
 
         Returns
         -------
@@ -22238,6 +21998,9 @@ class Graph:
         - this is a greedy approximation, not an exact algorithm
         - for exact solutions on small graphs, exhaustive search is needed
         - the complement of a maximum independent set is a minimum vertex cover
+
+        %family Independent Sets
+        %seealso maximal_independent_set, find_maximal_independent_sets, is_independent_set, max_clique
         """
         from edgecase._core import maximum_independent_set
 
@@ -22254,9 +22017,6 @@ class Graph:
         Runs the maximal independent set algorithm multiple times with different random seeds to
         discover diverse solutions. This is useful for exploring the space of possible independent
         sets or for ensemble methods.
-
-
-        %family Independent Sets
 
         Parameters
         ----------
@@ -22310,10 +22070,13 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(count × (V + E))
+        - Time complexity: `O(count × (V + E))`
         - Attempts to find unique sets; may return fewer than requested
         - With a seed, results are reproducible
         - Without a seed, each call may produce different sets
+
+        %family Independent Sets
+        %seealso maximal_independent_set, maximum_independent_set, is_independent_set
         """
         from edgecase._core import find_maximal_independent_sets
 
@@ -22330,9 +22093,6 @@ class Graph:
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
         `D` is adjacent to at least one member of `D`. In other words, every node is either in `D`
         or has a neighbor in `D`.
-
-
-        %family Dominating Sets
 
         Parameters
         ----------
@@ -22388,6 +22148,8 @@ class Graph:
         - empty set is NOT a dominating set (unless graph is empty)
         - the entire node set is always a dominating set
         - a single node dominates only itself and its neighbors
+
+        %family Dominating Sets
         """
         from edgecase._core import is_dominating_set
 
@@ -22400,9 +22162,6 @@ class Graph:
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
         `D` is adjacent to at least one member of `D`. This method uses a greedy algorithm that
         finds some dominating set, but not necessarily the minimum one.
-
-
-        %family Dominating Sets
 
         Parameters
         ----------
@@ -22468,6 +22227,8 @@ class Graph:
         - not guaranteed to find the minimum dominating set (NP-hard problem)
         - every maximal independent set is a dominating set
         - related to but different from `domirank_centrality()`
+
+        %family Dominating Sets
         """
         from edgecase._core import dominating_set
 
@@ -22480,9 +22241,6 @@ class Graph:
         Uses a greedy algorithm that iteratively adds the most cost-effective node (lowest weight
         per number of newly dominated nodes) to the dominating set. This provides an `O(log n)`
         approximation to the optimal solution.
-
-
-        %family Dominating Sets
 
         Parameters
         ----------
@@ -22545,9 +22303,11 @@ class Graph:
         Notes
         -----
         - time complexity: `O(V × E)` for the greedy algorithm
-        - approximation guarantee: O(log(sum of weights)) × optimal
-        - for unweighted case (all weights = 1), equivalent to `dominating_set()`
+        - approximation guarantee: `O(log(sum of weights)) × optimal`
+        - for unweighted case (all weights = `1`), equivalent to `dominating_set()`
         - NP-hard to find the exact minimum; this is a greedy approximation
+
+        %family Dominating Sets
         """
         from edgecase._core import min_weighted_dominating_set
 
@@ -22586,9 +22346,6 @@ class Graph:
         A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
         total edge weight. Uses the optimized union-find data structure with path-halving for
         efficient cycle detection.
-
-
-        %family Spanning Trees
 
         Parameters
         ----------
@@ -22636,6 +22393,8 @@ class Graph:
         - space complexity: `O(V)` for union-find structure
         - for disconnected graphs, finds a minimum spanning forest
         - if graph has < 2 nodes, returns empty graph or list
+
+        %family Spanning Trees
         """
         edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
 
@@ -22682,9 +22441,6 @@ class Graph:
         A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
         edge weight. Essentially finds the MST of the negated edge weights.
 
-
-        %family Spanning Trees
-
         Parameters
         ----------
         weight_attr
@@ -22726,6 +22482,8 @@ class Graph:
         - time complexity: `O(E log E)` for sorting edges
         - space complexity: `O(V)` for union-find structure
         - useful for finding most important connections in a network
+
+        %family Spanning Trees
         """
         edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
 
@@ -22774,9 +22532,6 @@ class Graph:
         may include additional non-terminal nodes (called Steiner nodes) if they help reduce the
         total weight. This implementation uses Mehlhorn's algorithm which provides a
         2-approximation.
-
-
-        %family Spanning Trees
 
         Parameters
         ----------
@@ -22861,6 +22616,8 @@ class Graph:
         - uses Mehlhorn's 2-approximation algorithm
         - the approximation factor of 2 means the result is at most twice the optimal weight
         - for graphs with only 2 terminal nodes, returns the shortest path between them
+
+        %family Spanning Trees
         """
         from edgecase._core import steiner_tree as _steiner_tree
 
@@ -22907,9 +22664,6 @@ class Graph:
         A spanning tree is a subgraph that connects all vertices with the minimum number of edges
         (`V-1` edges for `V` vertices) and contains no cycles. This method enumerates all possible
         spanning trees, which is useful for reliability analysis and network design.
-
-
-        %family Spanning Trees
 
         Parameters
         ----------
@@ -23019,6 +22773,8 @@ class Graph:
         --------
         The number of spanning trees can be extremely large. For a complete graph `Kn`, there are
         `n^(n-2)` spanning trees (Cayley's formula). Use `max_trees=` to limit results.
+
+        %family Spanning Trees
         """
         from edgecase._core import all_spanning_trees as _all_spanning_trees
 
@@ -23075,11 +22831,8 @@ class Graph:
         same source and target nodes as another edge in the graph. This is useful for detecting and
         cleaning multigraphs.
 
-        For undirected graphs, edges (u,v) and (v,u) are considered the same pair. When multiple
+        For undirected graphs, edges `(u,v)` and `(v,u)` are considered the same pair. When multiple
         edges exist between a pair, all edge IDs (including the first) are returned.
-
-
-        %family Edge Analysis
 
         Returns
         -------
@@ -23172,6 +22925,8 @@ class Graph:
         - in undirected graphs, (u,v) and (v,u) are treated as the same pair
         - returns all edges involved in duplication, including the first occurrence
         - useful for data quality checks before analysis
+
+        %family Edge Analysis
         """
         return self._graph.which_multiple()
 
@@ -23183,9 +22938,6 @@ class Graph:
         that has multiple edges. Only includes pairs with 2 or more edges.
 
         For undirected graphs, returns unordered pairs (smaller node ID first).
-
-
-        %family Edge Analysis
 
         Returns
         -------
@@ -23278,6 +23030,8 @@ class Graph:
         - for undirected graphs, pairs are normalized (smaller node ID first)
         - self-loops are counted if there are 2+ self-loop edges for a node
         - useful for understanding graph complexity before simplification
+
+        %family Edge Analysis
         """
         return self._graph.count_multiple()
 
@@ -23288,9 +23042,6 @@ class Graph:
         Returns a list of edge IDs for all edges where the source node equals the target node.
         Self-loops are common in certain network types like state machines, chemical reactions, or
         social networks (self-mentions).
-
-
-        %family Edge Analysis
 
         Returns
         -------
@@ -23381,6 +23132,8 @@ class Graph:
         - a node can have multiple self-loops (use `count_loops()` to count per node)
         - self-loops affect certain graph metrics (degree, centrality, etc.)
         - common preprocessing step is to remove self-loops for cleaner analysis
+
+        %family Edge Analysis
         """
         return self._graph.which_loops()
 
@@ -23390,9 +23143,6 @@ class Graph:
 
         Returns a dictionary mapping node IDs to the count of self-loops for each node.
         Only includes nodes that have at least one self-loop.
-
-
-        %family Edge Analysis
 
         Returns
         -------
@@ -23501,6 +23251,8 @@ class Graph:
         - a node can have multiple self-loops (all counted)
         - useful for identifying unusual patterns in network data
         - common in multigraphs where multiple self-edges may exist
+
+        %family Edge Analysis
         """
         return self._graph.count_loops()
 
@@ -23518,9 +23270,6 @@ class Graph:
 
         This is useful for analyzing reciprocity patterns in social networks,
         communication graphs, and other directed relationships.
-
-
-        %family Reciprocity
 
         Returns
         -------
@@ -23580,6 +23329,8 @@ class Graph:
             if e1:
                 print(f"Mutual: {e1[0]} ↔ {e1[1]}")
         ```
+
+        %family Reciprocity
         """
         return self._graph.which_mutual()
 
@@ -23594,9 +23345,6 @@ class Graph:
         This metric is fundamental for understanding relationship symmetry in social networks,
         mutual influence in citation networks, and bidirectional flows in transportation or
         communication networks.
-
-
-        %family Reciprocity
 
         Parameters
         ----------
@@ -23684,6 +23432,8 @@ class Graph:
         else:
             print("Mostly one-way communication")
         ```
+
+        %family Reciprocity
         """
         return self._graph.reciprocity(mode)
 
@@ -23702,9 +23452,6 @@ class Graph:
 
         For directed graphs, uses out-degree for source nodes and in-degree for target nodes. For
         undirected graphs, uses total degree.
-
-
-        %family Assortativity
 
         Returns
         -------
@@ -23780,10 +23527,12 @@ class Graph:
         Notes
         -----
         - uses Newman's formula for assortativity coefficient
-        - most real-world social networks are assortative (r > 0)
-        - many technological/biological networks are disassortative (r < 0)
-        - perfect assortativity (r = 1) means only equal-degree nodes connect
+        - most real-world social networks are assortative (`r > 0`)
+        - many technological/biological networks are disassortative (`r < 0`)
+        - perfect assortativity (`r = 1`) means only equal-degree nodes connect
         - requires at least one edge and variance in node degrees
+
+        %family Assortativity
         """
         return self._graph.assortativity_degree()
 
@@ -23794,9 +23543,6 @@ class Graph:
         Measures the tendency of nodes with the same attribute value to connect, also known as
         homophily. Uses Newman's formula for categorical mixing patterns.
 
-
-        %family Assortativity
-
         Parameters
         ----------
         attribute
@@ -23806,12 +23552,12 @@ class Graph:
         Returns
         -------
         float
-            Assortativity coefficient in range [-1, 1]:
+            Assortativity coefficient in range `[-1, 1]`:
 
-            - r = 1: perfect assortativity (only same-type connections)
-            - r > 0: assortative (same types prefer to connect)
-            - r = 0: random mixing
-            - r < 0: disassortative (different types prefer to connect)
+            - `r = 1`: perfect assortativity (only same-type connections)
+            - `r > 0`: assortative (same types prefer to connect)
+            - `r = 0`: random mixing
+            - `r < 0`: disassortative (different types prefer to connect)
 
         Raises
         ------
@@ -23904,6 +23650,8 @@ class Graph:
         - common in social networks where "birds of a feather flock together"
         - can be used to detect and measure community structure by attribute
         - for undirected graphs, the mixing matrix is symmetric
+
+        %family Assortativity
         """
         return self._graph.get_assortativity_nominal(attribute)
 
@@ -23911,35 +23659,32 @@ class Graph:
         """
         Calculate assortativity for numeric node attributes.
 
-        Measures the tendency of nodes with similar numeric attribute values to
-        connect. Returns the Pearson correlation coefficient of attribute values
-        across edges, indicating whether similar values tend to be connected.
-
-
-        %family Assortativity
+        Measures the tendency of nodes with similar numeric attribute values to connect. Returns the
+        Pearson correlation coefficient of attribute values across edges, indicating whether similar
+        values tend to be connected.
 
         Parameters
         ----------
         attribute
-            Name of the numeric node attribute to analyze.
-            Must exist on all nodes and be convertible to float.
+            Name of the numeric node attribute to analyze. Must exist on all nodes and be
+            convertible to float.
 
         Returns
         -------
         float
-            Assortativity coefficient in range [-1, 1]:
+            Assortativity coefficient in range `[-1, 1]`:
 
-            - r = 1: perfect positive correlation (identical values connect)
-            - r > 0: assortative (similar values prefer to connect)
-            - r = 0: no correlation
-            - r < 0: disassortative (dissimilar values prefer to connect)
-            - r = -1: perfect negative correlation
+            - `r = 1`: perfect positive correlation (identical values connect)
+            - `r > 0`: assortative (similar values prefer to connect)
+            - `r = 0`: no correlation
+            - `r < 0`: disassortative (dissimilar values prefer to connect)
+            - `r = -1`: perfect negative correlation
 
         Raises
         ------
         ValueError
-            If attribute doesn't exist on all nodes, isn't numeric,
-            graph has no edges, or attribute has no variance.
+            If attribute doesn't exist on all nodes, isn't numeric, graph has no edges, or attribute
+            has no variance.
 
         Examples
         --------
@@ -24025,6 +23770,8 @@ class Graph:
         - can reveal hierarchical structures when negative
         - sensitive to outliers: considers data normalization
         - requires variance in attribute values (all same value will error)
+
+        %family Assortativity
         """
         return self._graph.assortativity(attribute)
 
@@ -24044,20 +23791,17 @@ class Graph:
         spectrum reveals important structural properties including connectivity, bipartiteness, and
         graph regularity.
 
-
-        %family Spectral Analysis
-
         Parameters
         ----------
         which
             Which eigenvalues to compute:
 
-            - `"all"`: All n eigenvalues (O(n³), recommended for n < 100)
-            - `"largest"`: Largest k eigenvalues (default k=6)
+            - `"all"`: All `n` eigenvalues (`O(n³)`, recommended for `n < 100`)
+            - `"largest"`: Largest k eigenvalues (default `k=6`)
             - `"smallest"`: Smallest k eigenvalues
         k
             Number of eigenvalues to compute for "largest"/"smallest".
-            Default is min(6, n-1) where n is the number of nodes.
+            Default is `min(6, n-1)` where `n` is the number of nodes.
 
         Returns
         -------
@@ -24173,18 +23917,18 @@ class Graph:
         -----
         **Spectral Properties**:
 
-        - **Spectral radius**: ρ(A) = max|λᵢ|
+        - **Spectral radius**: `ρ(A) = max|λᵢ|`
           - always equals largest eigenvalue for undirected graphs
-          - bounded by max degree: ρ(A) ≤ Δ(G)
-          - for regular graphs: ρ(A) = degree
+          - bounded by max degree: `ρ(A) ≤ Δ(G)`
+          - for regular graphs: `ρ(A) = degree`
 
-        - **Spectral gap**: λ₁ - λ₂
+        - **Spectral gap**: `λ₁ - λ₂`
           - measures connectivity and expansion
           - large gap -> well-connected graph
           - small gap -> bottlenecks or clusters
           - zero gap -> disconnected graph
 
-        - **Trace**: Σλᵢ = 0 (sum of eigenvalues equals zero for undirected)
+        - **Trace**: `Σλᵢ = 0` (sum of eigenvalues equals zero for undirected)
 
         - **Number of spanning trees**: Related to Laplacian eigenvalues
 
@@ -24197,17 +23941,19 @@ class Graph:
 
         **Computational Complexity**:
 
-        - which="all": O(n³) using dense eigendecomposition
-        - which="largest"/"smallest": O(kn²) using iterative methods
-        - Recommended: Use k < 10 for large graphs (n > 1000)
+        - `which="all"`: `O(n³)` using dense eigendecomposition
+        - `which="largest"/"smallest"`: `O(kn²)` using iterative methods
+        - Recommended: Use `k < 10` for large graphs (`n > 1000`)
 
         **Use Cases**:
 
         - spectral clustering: community detection via eigenvectors
         - graph embedding: represent nodes using eigenvector coordinates
-        - bipartite detection: check if spectrum is symmetric about 0
+        - bipartite detection: check if spectrum is symmetric about `0`
         - random walk analysis: eigenvalues determine mixing time
         - graph comparison: compare spectral distributions
+
+        %family Spectral Analysis
         """
         return self._graph.spectrum(which, k)
 
@@ -24222,9 +23968,6 @@ class Graph:
 
         Returns the spectrum of the Laplacian matrix `L = D - A` (or normalized variant). The
         Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
-
-
-        %family Spectral Analysis
 
         Parameters
         ----------
@@ -24423,6 +24166,8 @@ class Graph:
         - synchronization: analyze coupled oscillators on networks
         - diffusion processes: heat kernel and random walks
         - network robustness: algebraic connectivity as connectivity measure
+
+        %family Spectral Analysis
         """
         return self._graph.get_laplacian_spectrum(which, k, normalized)
 
@@ -24434,21 +24179,18 @@ class Graph:
         """
         Calculate the global efficiency of the graph.
 
-        Global efficiency is the average efficiency over all pairs of nodes, where efficiency
-        is the multiplicative inverse of the shortest path distance. It measures how efficiently
+        Global efficiency is the average efficiency over all pairs of nodes, where efficiency is the
+        multiplicative inverse of the shortest path distance. It measures how efficiently
         information flows through the network.
-
-
-        %family Network Efficiency
 
         Returns
         -------
         float
-            The global efficiency (between 0 and 1).
+            The global efficiency (between `0` and `1`).
 
         Examples
         --------
-        Complete graph has efficiency 1:
+        Complete graph has efficiency `1`:
 
         ```python
         from edgecase import Graph
@@ -24511,11 +24253,13 @@ class Graph:
 
         Notes
         -----
-        - returns `0` for graphs with 0 or 1 nodes
+        - returns `0` for graphs with `0` or `1` nodes
         - returns `1` for complete graphs
         - unweighted shortest paths are used (all edge weights = 1)
         - for disconnected node pairs, efficiency is `0`
         - related to the average inverse distance
+
+        %family Network Efficiency
         """
         from edgecase._core import global_efficiency
 
@@ -24528,9 +24272,6 @@ class Graph:
         Local efficiency is the average global efficiency of each node's neighborhood subgraph.
         It measures how efficiently the neighbors of a node can communicate when that node
         is removed. High local efficiency indicates good redundancy and fault tolerance.
-
-
-        %family Network Efficiency
 
         Returns
         -------
@@ -24602,10 +24343,12 @@ class Graph:
         Notes
         -----
         - returns `0` for empty graphs
-        - nodes with fewer than 2 neighbors contribute 0 to the average
+        - nodes with fewer than 2 neighbors contribute `0` to the average
         - useful for measuring network resilience
         - related to clustering but considers path lengths
         - unweighted shortest paths are used
+
+        %family Network Efficiency
         """
         from edgecase._core import local_efficiency
 
@@ -24619,15 +24362,12 @@ class Graph:
         """
         Calculate the Wiener index of the graph.
 
-        The Wiener index is the sum of all pairwise shortest path distances in the graph.
-        It is a fundamental topological descriptor used in chemistry and network analysis
-        to measure graph compactness.
+        The Wiener index is the sum of all pairwise shortest path distances in the graph. It is a
+        fundamental topological descriptor used in chemistry and network analysis to measure graph
+        compactness.
 
         For undirected graphs: `W(G) = Σ_{u < v} d(u, v)`. For directed graphs:
         `W(G) = Σ_{u ≠ v} d(u, v)`.
-
-
-        %family Distance Metrics
 
         Parameters
         ----------
@@ -24689,10 +24429,12 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(V × (V + E)) for unweighted graphs
-        - time complexity: O(V × (V + E) log V) for weighted graphs
+        - time complexity: `O(V × (V + E))` for unweighted graphs
+        - time complexity: `O(V × (V + E) log V)` for weighted graphs
         - a lower Wiener index indicates a more compact graph
-        - for trees: W = Σ_{edges e} n₁(e) × n₂(e) where n₁, n₂ are subtree sizes
+        - for trees: `W = Σ_{edges e} n₁(e) × n₂(e)` where `n₁`, `n₂` are subtree sizes
+
+        %family Distance Metrics
         """
         from edgecase._core import wiener_index
 
@@ -24702,17 +24444,13 @@ class Graph:
         """
         Calculate the Estrada index of the graph.
 
-        The Estrada index is the sum of exponentials of the eigenvalues of the
-        adjacency matrix:
+        The Estrada index is the sum of exponentials of the eigenvalues of the adjacency matrix:
 
-            EE(G) = Σᵢ exp(λᵢ)
+        `EE(G) = Σᵢ exp(λᵢ)`
 
-        where λᵢ are the eigenvalues of the adjacency matrix. This index captures
-        the degree of folding or compactness of a network, and is related to
-        subgraph centrality and the number of closed walks.
-
-
-        %family Distance Metrics
+        where `λᵢ` are the eigenvalues of the adjacency matrix. This index captures the degree of
+        folding or compactness of a network, and is related to subgraph centrality and the number of
+        closed walks.
 
         Returns
         -------
@@ -24773,12 +24511,14 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(n³) for eigendecomposition
-        - the Estrada index is always ≥ n for any graph with n nodes
-        - for graphs with no edges: EE = n (all eigenvalues are 0)
+        - time complexity: `O(n³)` for eigendecomposition
+        - the Estrada index is always `≥ n` for any graph with `n` nodes
+        - for graphs with no edges: `EE = n` (all eigenvalues are `0`)
         - higher Estrada index indicates more closed walks (more "folded" structure)
-        - related to subgraph centrality: SC(i) = Σⱼ φⱼ(i)² exp(λⱼ)
+        - related to subgraph centrality: `SC(i) = Σⱼ φⱼ(i)² exp(λⱼ)`
         - EE = trace(exp(A)) where A is the adjacency matrix
+
+        %family Distance Metrics
         """
         from edgecase._core import estrada_index
 
@@ -24788,26 +24528,22 @@ class Graph:
         """
         Calculate the resistance distance between two nodes.
 
-        The resistance distance (also called effective resistance) is the electrical
-        resistance between two nodes if each edge is replaced by a 1-ohm resistor.
-        It is a metric on graphs that satisfies the triangle inequality and provides
-        insight into network connectivity and robustness.
-
-
-        %family Distance Metrics
+        The resistance distance (also called effective resistance) is the electrical resistance
+        between two nodes if each edge is replaced by a 1-ohm resistor. It is a metric on graphs
+        that satisfies the triangle inequality and provides insight into network connectivity and
+        robustness.
 
         Parameters
         ----------
-        source : int | str
+        source
             Source node identifier (ID or label).
-        target : int | str
+        target
             Target node identifier (ID or label).
 
         Returns
         -------
         float
-            The resistance distance between the two nodes.
-            Returns 0.0 if source equals target.
+            The resistance distance between the two nodes. Returns `0.0` if source equals target.
 
         Raises
         ------
@@ -24862,11 +24598,13 @@ class Graph:
 
         Notes
         -----
-        - time complexity: O(n³) for matrix operations
-        - for adjacent nodes: Ω(u,v) ≤ 1 (equality for bridges)
+        - time complexity: `O(n³)` for matrix operations
+        - for adjacent nodes: `Ω(u,v) ≤ 1` (equality for bridges)
         - resistance distance satisfies the triangle inequality
-        - related to random walk commute time: C(u,v) = 2m × Ω(u,v)
+        - related to random walk commute time: `C(u,v) = 2m × Ω(u,v)`
         - the sum of all resistance distances is the Kirchhoff index
+
+        %family Distance Metrics
         """
         from edgecase._core import resistance_distance
 
@@ -24878,11 +24616,8 @@ class Graph:
         """
         Calculate the resistance distance matrix for all node pairs.
 
-        Returns a dictionary mapping (source_id, target_id) tuples to their
-        resistance distances. The matrix is symmetric with zeros on the diagonal.
-
-
-        %family Distance Metrics
+        Returns a dictionary mapping (source_id, target_id) tuples to their resistance distances.
+        The matrix is symmetric with zeros on the diagonal.
 
         Returns
         -------
@@ -24914,8 +24649,10 @@ class Graph:
 
         Notes
         -----
-        - Time complexity: O(n³) for matrix operations
-        - Returns all n² pairs (including both (i,j) and (j,i))
+        - Time complexity: `O(n³)` for matrix operations
+        - Returns all `n²` pairs (including both `(i,j)` and `(j,i)`)
+
+        %family Distance Metrics
         """
         from edgecase._core import resistance_distance_matrix
 
@@ -24927,22 +24664,19 @@ class Graph:
 
         The Kirchhoff index is the sum of all pairwise resistance distances:
 
-            Kf(G) = Σᵢ<ⱼ Ω(i,j)
+        `Kf(G) = Σᵢ<ⱼ Ω(i,j)`
 
         It can also be computed from the Laplacian eigenvalues:
 
-            Kf(G) = n × Σₖ (1/λₖ)
+        `Kf(G) = n × Σₖ (1/λₖ)`
 
-        where λₖ are the non-zero eigenvalues of the Laplacian matrix.
-
-
-        %family Distance Metrics
+        where `λₖ` are the non-zero eigenvalues of the Laplacian matrix.
 
         Returns
         -------
         float
-            The Kirchhoff index. Returns 0.0 for single-node graphs.
-            Returns infinity for disconnected graphs.
+            The Kirchhoff index. Returns `0.0` for single-node graphs. Returns infinity for
+            disconnected graphs.
 
         Raises
         ------
@@ -24989,6 +24723,8 @@ class Graph:
           resistance distance instead of shortest path distance)
         - lower Kirchhoff index indicates better overall connectivity
         - for connected graphs: Kf ≥ n-1 with equality only for complete graphs
+
+        %family Distance Metrics
         """
         from edgecase._core import kirchhoff_index
 
