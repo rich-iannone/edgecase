@@ -150,6 +150,102 @@ def format_signature_multiline(html_content):
     return signature_pattern.sub(reformat_signature, html_content)
 
 
+def strip_directives_from_html(html_content):
+    """
+    Remove Great Docs %directive lines from rendered HTML.
+
+    Directives like %family, %order, %seealso, and %nodoc are used for
+    organizing documentation but should not appear in the final rendered output.
+    This function removes them as a safety net after quartodoc rendering.
+    """
+    # Match directives wrapped in <p> tags
+    # e.g., <p>%family Something</p>
+    p_directive_pattern = re.compile(
+        r"<p>\s*%(?:family|order|seealso|nodoc)(?:\s+[^<]*)?\s*</p>\s*\n?",
+        re.IGNORECASE,
+    )
+
+    # Match standalone directive lines (plain text)
+    # e.g., %family Something
+    standalone_directive_pattern = re.compile(
+        r"^\s*%(?:family|order|seealso|nodoc)(?:\s+.*)?\s*$\n?",
+        re.MULTILINE | re.IGNORECASE,
+    )
+
+    # Match directives that might be inline within text
+    inline_directive_pattern = re.compile(
+        r"%(?:family|order|seealso|nodoc)(?:\s+[^\n<]*)?",
+        re.IGNORECASE,
+    )
+
+    # Apply patterns in order of specificity
+    cleaned = p_directive_pattern.sub("", html_content)
+    cleaned = standalone_directive_pattern.sub("", cleaned)
+    cleaned = inline_directive_pattern.sub("", cleaned)
+
+    # Clean up any resulting empty paragraphs
+    cleaned = re.sub(r"<p>\s*</p>\s*\n?", "", cleaned)
+
+    return cleaned
+
+
+def extract_seealso_from_html(html_content):
+    """
+    Extract %seealso values from HTML content before stripping.
+
+    Returns a list of referenced item names, or empty list if none found.
+    """
+    # Match %seealso in <p> tags (most common after markdown rendering)
+    # This handles both standalone %seealso and when it follows other directives
+    p_pattern = re.compile(
+        r"<p>[^<]*%seealso\s+([^<%]+?)(?:%|</p>)",
+        re.IGNORECASE,
+    )
+
+    # Match standalone %seealso lines (not in HTML tags)
+    standalone_pattern = re.compile(
+        r"%seealso\s+([^\n%<]+)",
+        re.IGNORECASE,
+    )
+
+    # Try <p> pattern first
+    match = p_pattern.search(html_content)
+    if not match:
+        match = standalone_pattern.search(html_content)
+
+    if match:
+        # Parse comma-separated list
+        items_str = match.group(1).strip()
+        items = [item.strip() for item in items_str.split(",")]
+        return [item for item in items if item]
+
+    return []
+
+
+def generate_seealso_html(seealso_items):
+    """
+    Generate HTML for a "See Also" section with links to other reference pages.
+    """
+    if not seealso_items:
+        return ""
+
+    links = []
+    for item in seealso_items:
+        # Generate link to the reference page
+        # Item could be "Graph.add_edge" or just "add_edge"
+        html_filename = f"{item}.html"
+        links.append(f'<a href="{html_filename}">{item}</a>')
+
+    links_html = ", ".join(links)
+
+    return f"""
+<div class="see-also" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #dee2e6;">
+<h3 style="font-size: 0.9rem; font-weight: 600; color: #6c757d; margin-bottom: 0.5rem;">See Also</h3>
+<p style="margin: 0;">{links_html}</p>
+</div>
+"""
+
+
 # Process all HTML files in the `_site/reference/` directory (except `index.html`)
 # and apply the specified transformations
 html_files = [f for f in glob.glob("_site/reference/*.html") if not f.endswith("index.html")]
@@ -164,6 +260,12 @@ for html_file in html_files:
 
     with open(html_file, "r") as file:
         content = file.read()
+
+    # Extract %seealso before stripping directives
+    seealso_items = extract_seealso_from_html(content)
+
+    # Strip %directive lines from rendered HTML (safety net for docstring directives)
+    content = strip_directives_from_html(content)
 
     # Format signatures with multiple arguments onto separate lines
     content = format_signature_multiline(content)
@@ -378,8 +480,14 @@ for html_file in html_files:
     # Turn all h2 tags into h3 tags
     content = [line.replace("<h2", "<h3").replace("</h2>", "</h3>") for line in content]
 
-    # Place a horizontal rule at the end of each reference page
+    # Inject "See Also" section if %seealso was found
     content_str = "".join(content)
+    if seealso_items:
+        seealso_html = generate_seealso_html(seealso_items)
+        # Insert before </main>
+        content_str = content_str.replace("</main>", f"{seealso_html}</main>")
+
+    # Place a horizontal rule at the end of each reference page
     main_end_pattern = r"</main>"
     main_end_replacement = '</main>\n<hr style="padding: 0; margin: 0;">\n'
     content_str = re.sub(main_end_pattern, main_end_replacement, content_str)
