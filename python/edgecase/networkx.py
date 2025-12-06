@@ -49,9 +49,7 @@ def to_networkx(graph, multigraph: bool = False):
     print(len(nx_multi["A"]["B"]))  # 2 edges
     ```
 
-    See Also
-    --------
-    from_networkx : Convert NetworkX graph to EdgeCase
+    %family Interoperability
     """
     try:
         import networkx as nx
@@ -183,9 +181,7 @@ def from_networkx(nx_graph, weighted: Optional[bool] = None):
     print(graph.count_edges())  # 2
     ```
 
-    See Also
-    --------
-    to_networkx : Convert EdgeCase Graph to NetworkX
+    %family Interoperability
     """
     try:
         import networkx as nx

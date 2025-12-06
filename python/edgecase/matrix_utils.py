@@ -64,6 +64,8 @@ def to_adjacency_matrix(graph, nonedge: float = 0.0) -> tuple[list[list[float]],
     - for directed graphs, matrix[i][j] represents edge from i to j
     - self-loops appear on the diagonal
     - the node ordering is determined by the internal node ID order
+
+    %family Interoperability
     """
     matrix, node_ids = _ec.to_adjacency_matrix(graph._graph, None, nonedge)
     return matrix, node_ids
@@ -146,6 +148,8 @@ def from_adjacency_matrix(
     - zero values are treated as non-edges
     - the diagonal represents self-loops
     - works with numpy arrays (they are converted to lists internally)
+
+    %family Interoperability
     """
     from edgecase import Graph
 

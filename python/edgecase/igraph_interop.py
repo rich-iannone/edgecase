@@ -40,9 +40,7 @@ def to_igraph(graph):
     print(ig_graph.es["weight"])  # [1.5]
     ```
 
-    See Also
-    --------
-    from_igraph : Convert igraph graph to EdgeCase
+    %family Interoperability
     """
     try:
         import igraph as ig
@@ -191,9 +189,7 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     print(node.attributes["color"])  # 'red'
     ```
 
-    See Also
-    --------
-    to_igraph : Convert EdgeCase Graph to igraph
+    %family Interoperability
     """
     try:
         import igraph  # noqa: F401

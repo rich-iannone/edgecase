@@ -40,6 +40,8 @@ def tbl_network_summary(
 
     summary = ec.tbl_network_summary(G)
     print(summary)
+
+    %family Tables
     ```
     """
     stats = {
@@ -91,6 +93,8 @@ def tbl_centrality(
 
     centrality_df = ec.tbl_centrality(G, measures=['pagerank', 'degree'])
     print(centrality_df)
+
+    %family Tables
     ```
     """
     if measures is None:

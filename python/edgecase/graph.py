@@ -389,6 +389,9 @@ class Graph:
         unsigned integers managed automatically by EdgeCase, while labels provide human-readable
         identifiers.
 
+
+        %family Graph Construction
+
         Parameters
         ----------
         label
@@ -497,6 +500,9 @@ class Graph:
         Edges connect existing nodes and can optionally carry weights and attributes. Both source
         and target nodes must already exist in the graph. You can reference nodes by their integer
         IDs or string labels (if labels are unique).
+
+
+        %family Graph Construction
 
         Parameters
         ----------
@@ -684,6 +690,9 @@ class Graph:
         Removes a node and all its incident edges from the graph. The node can be specified by its
         ID or label.
 
+
+        %family Graph Construction
+
         Parameters
         ----------
         node
@@ -748,6 +757,9 @@ class Graph:
 
         Remove edges by specifying either the source and target nodes, or the edge ID directly. For
         multigraphs with source/target, only the first matching edge is deleted.
+
+
+        %family Graph Construction
 
         Parameters
         ----------
@@ -829,6 +841,9 @@ class Graph:
         deleting by source and target nodes when the edge ID is known, and is particularly useful
         for multigraphs where multiple edges may exist between the same pair of nodes.
 
+
+        %family Graph Construction
+
         Parameters
         ----------
         edge_id
@@ -891,6 +906,9 @@ class Graph:
         those nodes. Updates selection state and removes the selected nodes from the graph
         structure.
 
+
+        %family Graph Construction
+
         Returns
         -------
         Graph
@@ -949,6 +967,9 @@ class Graph:
 
         Removes edges in the current selection from the graph. Node connectivity may be affected,
         but nodes themselves remain in the graph. Updates selection state automatically.
+
+
+        %family Graph Construction
 
         Returns
         -------
@@ -1012,6 +1033,9 @@ class Graph:
         all such edges from the graph, which is a common preprocessing step for many graph
         algorithms that assume simple graphs.
 
+
+        %family Graph Construction
+
         Returns
         -------
         Graph
@@ -1070,6 +1094,9 @@ class Graph:
         For each pair of nodes with multiple edges between them, keeps only the first edge (by edge
         ID order) and removes all others. This converts a multigraph into a simple graph with
         respect to multi-edges, but does not remove self-loops.
+
+
+        %family Graph Construction
 
         Parameters
         ----------
@@ -1158,6 +1185,9 @@ class Graph:
         edges between the same pair of nodes). This method removes both types, which is a common
         preprocessing step for algorithms that require simple graphs.
 
+
+        %family Graph Construction
+
         Returns
         -------
         Graph
@@ -1225,6 +1255,9 @@ class Graph:
 
         Displays key graph properties including node/edge counts, connectivity, degree statistics,
         and optional custom properties via a hook function.
+
+
+        %family Graph Information
 
         Parameters
         ----------
@@ -1475,6 +1508,9 @@ class Graph:
         """
         Display the graph visualization in a notebook or web browser.
 
+
+        %family Graph Rendering
+
         Parameters
         ----------
         target
@@ -1569,6 +1605,9 @@ class Graph:
         Creates a sequence of `n` nodes connected linearly: `1 -> 2 -> 3 -> ... -> n`. End nodes
         have degree `1`, internal nodes have degree 2.
 
+
+        %family Graph Generators
+
         Parameters
         ----------
         n
@@ -1634,6 +1673,9 @@ class Graph:
         Creates n nodes in a circular pattern where the last connects back to first. Each node has
         exactly degree `2`.
 
+
+        %family Graph Generators
+
         Parameters
         ----------
         n
@@ -1689,6 +1731,9 @@ class Graph:
 
         Creates a central hub node connected to `n - 1` peripheral nodes. All edges connect the hub
         to spokes; no edges between spokes.
+
+
+        %family Graph Generators
 
         Parameters
         ----------
@@ -1754,6 +1799,9 @@ class Graph:
 
         Creates `n` nodes where every node is connected to every other node. In a complete graph
         with `n` nodes, there are `n(n - 1) / 2` edges (without self-loops).
+
+
+        %family Graph Generators
 
         Parameters
         ----------
@@ -1831,6 +1879,9 @@ class Graph:
 
         Creates a tree where each internal node has exactly `k` children, with height `h`. The total
         number of nodes will be equal to `(k^(h+1) - 1) / (k - 1)`.
+
+
+        %family Graph Generators
 
         Parameters
         ----------
@@ -1936,6 +1987,9 @@ class Graph:
         Creates a rectangular grid where each interior node is connected to its four neighbors
         (up, down, left, right). Edge nodes have fewer connections.
 
+
+        %family Graph Generators
+
         Parameters
         ----------
         rows
@@ -2028,6 +2082,9 @@ class Graph:
 
         Creates two parallel n-cycles connected by n vertical edges, forming a 3D prism structure
         when visualized.
+
+
+        %family Graph Generators
 
         Parameters
         ----------
@@ -2132,6 +2189,9 @@ class Graph:
         Each possible edge is included independently with probability `p`. This model is useful for
         generating random graphs with a specific edge density.
 
+
+        %family Graph Generators
+
         Parameters
         ----------
         n
@@ -2188,6 +2248,9 @@ class Graph:
 
         Creates a graph with `n` nodes and exactly m randomly placed edges. This model is useful for
         generating random graphs with a fixed number of edges.
+
+
+        %family Graph Generators
 
         Parameters
         ----------
@@ -2248,6 +2311,9 @@ class Graph:
         nodes with probability proportional to degree. This creates scale-free networks with
         power-law degree distributions.
 
+
+        %family Graph Generators
+
         Parameters
         ----------
         n
@@ -2292,6 +2358,9 @@ class Graph:
         Creates a ring lattice with rewiring probability `p`, producing graphs with high clustering
         and short path lengths. Small-world networks model many real-world phenomena.
 
+
+        %family Graph Generators
+
         Parameters
         ----------
         n
@@ -2335,6 +2404,9 @@ class Graph:
         Johnson graphs are distance-regular and `k(n-k)`-regular. They generalize to the family
         `J(n,k,s)` where `s` is the intersection size; this method implements the standard case
         where `s = k - 1`. When `k = 0` or `k = n`, the graph is trivial (single node, no edges).
+
+
+        %family Graph Generators
 
         Parameters
         ----------
@@ -2433,6 +2505,9 @@ class Graph:
         - biological networks (spatially proximate cells)
         - ad-hoc networks and sensor networks
 
+
+        %family Graph Generators
+
         Parameters
         ----------
         n
@@ -2525,6 +2600,9 @@ class Graph:
         Retrieves the `Node` object for the specified node. The `Node` object contains `id`,
         `label`, and attributes properties. Returns `None` if node doesn't exist.
 
+
+        %family Node and Edge Accessors
+
         Parameters
         ----------
         node
@@ -2556,6 +2634,9 @@ class Graph:
 
         Retrieves the `Edge` object for the specified edge ID. The `Edge` object contains id, source,
         target, weight, and attributes properties. Returns `None` if edge doesn't exist.
+
+
+        %family Node and Edge Accessors
 
         Parameters
         ----------
@@ -2596,6 +2677,9 @@ class Graph:
         Returns node IDs in the graph up to the specified limit. Node IDs are unique integers
         (`u64`) assigned to each node, useful for iterating over nodes or performing operations on
         specific nodes.
+
+
+        %family Graph Inspection
 
         Parameters
         ----------
@@ -2658,6 +2742,9 @@ class Graph:
 
         Returns edge IDs in the graph up to the specified limit. Edge IDs are unique integers
         assigned to each edge, useful for direct edge access and manipulation.
+
+
+        %family Graph Inspection
 
         Parameters
         ----------
@@ -2733,6 +2820,9 @@ class Graph:
         Retrieves the source and target node IDs for a specific edge using its edge ID. Returns
         `None` if the edge ID doesn't exist.
 
+
+        %family Graph Inspection
+
         Parameters
         ----------
         edge_id
@@ -2778,6 +2868,9 @@ class Graph:
         Translates a human-readable string label to the internal `u64` node ID. Useful when you need
         the ID for operations that require integer identifiers.
 
+
+        %family Graph Inspection
+
         Parameters
         ----------
         label
@@ -2817,6 +2910,9 @@ class Graph:
 
         Translates an internal `u64` node ID to its human-readable string label. Returns `None` if
         the node doesn't exist or has no label assigned.
+
+
+        %family Graph Inspection
 
         Parameters
         ----------
@@ -2859,6 +2955,9 @@ class Graph:
         Returns node IDs ordered by when they were added to the graph. The first node created
         appears first, the most recently created node appears last. Useful for temporal analysis or
         recreating graph construction history.
+
+
+        %family Graph Inspection
 
         Returns
         -------
@@ -2903,6 +3002,9 @@ class Graph:
         Returns edge IDs ordered by when they were added to the graph. The first edge created
         appears first, the most recently created edge appears last. Useful for temporal analysis or
         understanding edge addition patterns.
+
+
+        %family Graph Inspection
 
         Returns
         -------
@@ -2957,6 +3059,9 @@ class Graph:
         Returns all edges in the graph as tuples containing the edge ID and the source and target
         node IDs. Useful for iterating over all edges or analyzing edge structure.
 
+
+        %family Graph Inspection
+
         Returns
         -------
         list[tuple[int, int, int]]
@@ -2995,6 +3100,9 @@ class Graph:
 
         - directed graphs: "source->target"
         - undirected graphs: "source--target"
+
+
+        %family Graph Inspection
 
         Parameters
         ----------
@@ -3125,6 +3233,9 @@ class Graph:
         Verifies whether a node (specified by ID or label) exists in the graph. Returns `False` for
         invalid inputs or missing nodes.
 
+
+        %family Graph Inspection
+
         Parameters
         ----------
         node
@@ -3164,6 +3275,9 @@ class Graph:
 
         For undirected graphs, the order of source and target doesn't matter. For directed graphs,
         checks specifically for an edge from source to target.
+
+
+        %family Graph Inspection
 
         Parameters
         ----------
@@ -3219,6 +3333,9 @@ class Graph:
         Verifies whether a specific edge ID is present in the graph. Useful for validating edge IDs
         before performing operations.
 
+
+        %family Graph Inspection
+
         Parameters
         ----------
         edge_id
@@ -3258,6 +3375,9 @@ class Graph:
         graphs, edges are found regardless of direction. Supports multi-edges (multiple edges
         between the same pair of nodes).
 
+
+        %family Graph Inspection
+
         Parameters
         ----------
         source
@@ -3295,6 +3415,9 @@ class Graph:
 
         Returns the current number of nodes (vertices) in the graph. This count includes all nodes
         that have been added and not deleted.
+
+
+        %family Graph Inspection
 
         Returns
         -------
@@ -3337,6 +3460,9 @@ class Graph:
         Returns the current number of edges (links/connections) in the graph. For undirected graphs,
         each edge is counted once. For directed graphs, each directed edge is counted separately
         (`A->B` is different from `B->A`).
+
+
+        %family Graph Inspection
 
         Returns
         -------
@@ -3407,6 +3533,9 @@ class Graph:
         identifier that can be set when creating the graph or updated later. It's useful for
         distinguishing between multiple graphs in analysis or visualization contexts.
 
+
+        %family Graph Inspection
+
         Returns
         -------
         str | None
@@ -3459,6 +3588,9 @@ class Graph:
         - edge `A--B` is the same as `B--A`
         - adding `A--B` automatically adds `B--A`
         - useful for modeling symmetric relationships (friendship, proximity, etc.)
+
+
+        %family Graph Properties
 
         Returns
         -------
@@ -3513,6 +3645,9 @@ class Graph:
         - weights are ignored or unavailable
         - algorithms use hop count instead of weight sum
 
+
+        %family Graph Properties
+
         Returns
         -------
         bool
@@ -3550,6 +3685,9 @@ class Graph:
         A simple graph contains no self-loops (edges from a node to itself) and no multi-edges
         (multiple edges between the same pair of nodes). This is a fundamental graph property used
         in many theoretical results.
+
+
+        %family Graph Properties
 
         Returns
         -------
@@ -3599,6 +3737,9 @@ class Graph:
         starting node. DAGs are fundamental for dependency resolution, scheduling, and topological
         sorting.
 
+
+        %family Graph Properties
+
         Returns
         -------
         bool
@@ -3639,6 +3780,9 @@ class Graph:
         A graph is connected if there is a path between every pair of nodes. For directed graphs,
         checks weak connectivity (treating edges as undirected).
 
+
+        %family Graph Properties
+
         Returns
         -------
         bool
@@ -3677,6 +3821,9 @@ class Graph:
         colors such that no adjacent nodes share a color.
 
         All trees and forests are bipartite. Graphs with odd-length cycles are not.
+
+
+        %family Graph Properties
 
         Returns
         -------
@@ -3729,6 +3876,9 @@ class Graph:
         - must be connected (single component)
         - must have exactly *n - 1* edges
         - must be acyclic
+
+
+        %family Graph Properties
 
         Returns
         -------
@@ -3808,6 +3958,9 @@ class Graph:
         - must be undirected
         - must have exactly *n - k* edges
         - must be acyclic
+
+
+        %family Graph Properties
 
         Returns
         -------
@@ -3892,6 +4045,9 @@ class Graph:
         This represents a tree structure with a clear parent-child hierarchy flowing from a single
         root.
 
+
+        %family Graph Properties
+
         Returns
         -------
         bool
@@ -3971,6 +4127,9 @@ class Graph:
         `n ≥ 3` nodes, the number of edges *e* must satisfy `e ≤ 3n - 6`. For graphs without
         triangles, the stricter bound *e* ≤ *2n - 4* applies.
 
+
+        %family Graph Properties
+
         Returns
         -------
         bool
@@ -4048,6 +4207,9 @@ class Graph:
         - same number of edges
         - same degree sequence
         - same directedness
+
+
+        %family Graph Properties
 
         Parameters
         ----------
@@ -4138,6 +4300,9 @@ class Graph:
         nodes have the same in-degree and the same out-degree (though in-degree and out-degree don't
         need to equal each other).
 
+
+        %family Graph Properties
+
         Returns
         -------
         bool
@@ -4198,6 +4363,9 @@ class Graph:
 
         A graph is k-regular if every node has degree exactly `k`. For directed graphs, this means
         all nodes have in-degree `k` and out-degree `k`.
+
+
+        %family Graph Properties
 
         Parameters
         ----------
@@ -4281,6 +4449,9 @@ class Graph:
         Self-loops are common in state machines, reflexive relationships, and chemical reaction
         networks.
 
+
+        %family Simple Counts
+
         Returns
         -------
         int
@@ -4324,6 +4495,9 @@ class Graph:
         from `A` to `B`, this counts 2 of them. Multi-edges are useful for modeling scenarios like
         multiple flights between cities or repeated transactions.
 
+
+        %family Simple Counts
+
         Returns
         -------
         int
@@ -4356,6 +4530,9 @@ class Graph:
         Returns the number of node pairs `(a,b)` where both edges `a->b` and `b->a` exist. Only
         works for directed graphs. Self-loops are excluded. This metric is useful for analyzing
         reciprocity in directed networks like social graphs.
+
+
+        %family Simple Counts
 
         Returns
         -------
@@ -4394,6 +4571,9 @@ class Graph:
         Returns the number of node pairs `(a,b)` where edge `a->b` exists but not `b->a`. Only works
         for directed graphs. Self-loops are excluded. This metric helps analyze directional flow or
         hierarchy in directed networks.
+
+
+        %family Simple Counts
 
         Returns
         -------
@@ -4444,6 +4624,9 @@ class Graph:
 
         For directed graphs, the default mode is `"out"` (outgoing neighbors only). For undirected
         graphs, mode doesn't affect the result since all edges are bidirectional.
+
+
+        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4531,6 +4714,9 @@ class Graph:
         Returns nodes that have outgoing edges to the specified node. Only available for directed
         graphs.
 
+
+        %family Neighbors and Connectivity
+
         Parameters
         ----------
         node
@@ -4577,6 +4763,9 @@ class Graph:
 
         Returns nodes that are targets of outgoing edges from the specified node. Only available for
         directed graphs.
+
+
+        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4626,6 +4815,9 @@ class Graph:
 
         Returns all nodes in the graph except the specified node itself and its neighbors. Useful
         for finding potential new connections or disconnected nodes.
+
+
+        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4691,6 +4883,9 @@ class Graph:
 
         Returns the intersection of neighbor sets for two nodes, useful for finding shared
         connections or potential triangles in the graph.
+
+
+        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4772,6 +4967,9 @@ class Graph:
 
         Returns neighbors whose numeric attribute values fall within a specified tolerance range of
         the starting node's value. Useful for finding connected nodes with comparable properties.
+
+
+        %family Neighbors and Connectivity
 
         Parameters
         ----------
@@ -4893,6 +5091,9 @@ class Graph:
         returns `True`. The predicate receives a `Node` object with properties: `id`, `label`, and
         attributes.
 
+
+        %family Graph Selection
+
         Parameters
         ----------
         predicate
@@ -4934,6 +5135,9 @@ class Graph:
         Applies a custom filter function to all edges, selecting those for which the predicate
         returns `True`. The predicate receives an Edge object with properties: `id`, `source`,
         `target`, `weight`, and other attributes.
+
+
+        %family Graph Selection
 
         Parameters
         ----------
@@ -4982,6 +5186,9 @@ class Graph:
         Marks specified nodes as selected for subsequent operations like building subgraphs or
         filtering. Selection is cumulative unless cleared first.
 
+
+        %family Graph Selection
+
         Parameters
         ----------
         node_ids
@@ -5029,6 +5236,9 @@ class Graph:
 
         Marks specified edges as selected for subsequent operations. Edge IDs are internal integer
         identifiers assigned when edges are created. Selection is cumulative unless cleared first.
+
+
+        %family Graph Selection
 
         Parameters
         ----------
@@ -5079,6 +5289,9 @@ class Graph:
         Selects all edges where at least one endpoint is in the provided node list. For directed
         graphs, includes both incoming and outgoing edges. Useful for selecting the local
         connectivity around specific nodes.
+
+
+        %family Graph Selection
 
         Parameters
         ----------
@@ -5143,6 +5356,9 @@ class Graph:
         Selects nodes in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added nodes.
 
+
+        %family Graph Selection
+
         Parameters
         ----------
         n
@@ -5181,6 +5397,9 @@ class Graph:
 
         Selects edges in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added edges.
+
+
+        %family Graph Selection
 
         Parameters
         ----------
@@ -5230,6 +5449,9 @@ class Graph:
         Uses breadth-first search to find neighbors at distance up to k from the seed nodes. Does
         not include the seed nodes themselves in the selection. Useful for extracting local
         neighborhoods.
+
+
+        %family Graph Selection
 
         Parameters
         ----------
@@ -5327,6 +5549,9 @@ class Graph:
         degree) or peripheral nodes (low degree). Can filter by in-degree, out-degree, or total
         degree.
 
+
+        %family Graph Selection
+
         Parameters
         ----------
         min_degree
@@ -5383,6 +5608,9 @@ class Graph:
 
         Computes centrality scores for all nodes and selects the k highest-scoring nodes. Useful for
         identifying the most important or influential nodes by various centrality metrics.
+
+
+        %family Graph Selection
 
         Parameters
         ----------
@@ -5466,6 +5694,9 @@ class Graph:
         Unmarks specified nodes, removing them from the current selection set. Has no effect on
         nodes that aren't currently selected.
 
+
+        %family Graph Selection
+
         Parameters
         ----------
         node_ids
@@ -5537,6 +5768,9 @@ class Graph:
         Unmarks specified edges, removing them from the current selection set. Has no effect on
         edges that aren't currently selected.
 
+
+        %family Graph Selection
+
         Parameters
         ----------
         edge_ids
@@ -5574,6 +5808,9 @@ class Graph:
         Resets the selection state, unmarking all previously selected nodes and edges. Useful for
         starting fresh with a new selection workflow.
 
+
+        %family Graph Selection
+
         Returns
         -------
         Graph
@@ -5605,6 +5842,9 @@ class Graph:
 
         Toggles the selection state of all nodes: currently selected nodes become unselected, and
         unselected nodes become selected. Useful for getting the complement of a selection.
+
+
+        %family Graph Selection
 
         Returns
         -------
@@ -5638,6 +5878,9 @@ class Graph:
         Toggles the selection state of all edges: currently selected edges become unselected, and
         unselected edges become selected. Useful for getting the complement of an edge selection.
 
+
+        %family Graph Selection
+
         Returns
         -------
         Graph
@@ -5667,6 +5910,9 @@ class Graph:
 
         Returns the list of node IDs that are currently marked as selected. Order is not guaranteed.
 
+
+        %family Graph Selection
+
         Returns
         -------
         list[int]
@@ -5694,6 +5940,9 @@ class Graph:
         Get currently selected edge IDs.
 
         Returns the list of edge IDs that are currently marked as selected. Order is not guaranteed.
+
+
+        %family Graph Selection
 
         Returns
         -------
@@ -5724,6 +5973,9 @@ class Graph:
         Returns the number of nodes currently marked as selected. More efficient than
         `len(get_selected_nodes())` when you only need the count.
 
+
+        %family Graph Selection
+
         Returns
         -------
         int
@@ -5752,6 +6004,9 @@ class Graph:
 
         Returns the number of edges currently marked as selected. More efficient than
         `len(get_selected_edges())` when you only need the count.
+
+
+        %family Graph Selection
 
         Returns
         -------
@@ -5792,6 +6047,9 @@ class Graph:
         For directed graphs, follows edges in the forward direction. For undirected graphs, follows
         edges in all directions (equivalent to `trav_both()`).
 
+
+        %family Graph Traversal
+
         Returns
         -------
         Graph
@@ -5827,6 +6085,9 @@ class Graph:
         For directed graphs, follows edges in the reverse direction. For undirected graphs, follows
         edges in all directions (equivalent to `trav_both()`).
 
+
+        %family Graph Traversal
+
         Returns
         -------
         Graph
@@ -5859,6 +6120,9 @@ class Graph:
         outward and inward edges). The current node selection is replaced with the traversed nodes.
 
         Works the same for directed and undirected graphs.
+
+
+        %family Graph Traversal
 
         Returns
         -------
@@ -5898,6 +6162,9 @@ class Graph:
         For directed graphs, selects edges where from=selected_node. For undirected graphs, selects
         all edges incident to selected nodes.
 
+
+        %family Graph Traversal
+
         Returns
         -------
         Graph
@@ -5934,6 +6201,9 @@ class Graph:
         For directed graphs, selects edges where to=selected_node. For undirected graphs, selects
         all edges incident to selected nodes.
 
+
+        %family Graph Traversal
+
         Returns
         -------
         Graph
@@ -5966,6 +6236,9 @@ class Graph:
 
         From the currently selected edges, finds the reverse edges. For each selected edge `A->B`,
         looks for the corresponding edge `B->A`. Only works with directed graphs.
+
+
+        %family Graph Traversal
 
         Parameters
         ----------
@@ -6037,6 +6310,9 @@ class Graph:
         From the currently selected nodes, moves along outward edges to connected nodes, continuing
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
         traversal proceeds in a breadth-first manner.
+
+
+        %family Graph Traversal
 
         Parameters
         ----------
@@ -6191,6 +6467,9 @@ class Graph:
         From the currently selected nodes, moves along inward edges to connected nodes, continuing
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
         traversal proceeds in a breadth-first manner.
+
+
+        %family Graph Traversal
 
         Parameters
         ----------
@@ -6348,6 +6627,9 @@ class Graph:
         different values via a list or dictionary. Creates the attribute if it doesn't exist,
         overwrites if it does.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         node_attr
@@ -6480,6 +6762,9 @@ class Graph:
         Updates or adds attributes to nodes in the current selection. Existing attributes are
         preserved unless explicitly overwritten. Requires an active node selection.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         **attributes
@@ -6550,6 +6835,9 @@ class Graph:
         Updates a specific attribute on edges. Can target edges by edge IDs, explicit (source,
         target) pairs, by filtering via source/target node lists, or apply to all edges. Supports
         various value input formats.
+
+
+        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -6686,6 +6974,9 @@ class Graph:
         receives special handling as it's a first-class edge property. Requires an active edge
         selection.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         **attributes
@@ -6744,6 +7035,9 @@ class Graph:
 
         Extracts a specific attribute from one or more nodes. Only returns entries for nodes that
         have the specified attribute set. Useful for collecting properties across the graph.
+
+
+        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -6834,6 +7128,9 @@ class Graph:
         Extracts a specific attribute from edges. Can optionally filter by source and/or target
         nodes. Returns a dictionary keyed by edge IDs.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         edge_attr
@@ -6914,6 +7211,9 @@ class Graph:
         Similar to `get_edge_attrs()` but uses internal edge IDs instead of node pairs. Returns a
         dictionary keyed by integer edge IDs. Useful when working directly with edge ID references.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         edge_attr
@@ -6974,6 +7274,9 @@ class Graph:
         represents a node, with columns for the node ID and any attributes set on nodes. The
         DataFrame always includes 'id', 'label', and 'type' as the first three columns, sorted by
         `id` in ascending order.
+
+
+        %family Node/Edge Data Frames
 
         Returns
         -------
@@ -7061,6 +7364,9 @@ class Graph:
         Similar to get_node_df but only exports currently selected nodes. Useful for analyzing
         subsets of nodes after filtering with selection methods. The DataFrame always includes 'id',
         'label', and 'type' as the first three columns, sorted by 'id' in ascending order.
+
+
+        %family Node/Edge Data Frames
 
         Returns
         -------
@@ -7173,6 +7479,9 @@ class Graph:
 
         The DataFrame is always sorted by edge ID in ascending order.
 
+
+        %family Node/Edge Data Frames
+
         Returns
         -------
         pl.DataFrame
@@ -7273,6 +7582,9 @@ class Graph:
 
         Similar to `get_edge_df()` but only exports currently selected edges. Uses the same
         consistent column structure with id, source, target, and rel as first 4 columns.
+
+
+        %family Node/Edge Data Frames
 
         Returns
         -------
@@ -7384,6 +7696,9 @@ class Graph:
         function receives each node's current attribute value and returns the new value. Requires an
         active node selection.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         node_attr
@@ -7457,6 +7772,9 @@ class Graph:
 
         Applies a transformation function to the specified attribute for all selected edges.
         Supports transforming the `weight` field directly. Requires an active edge selection.
+
+
+        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -7551,6 +7869,9 @@ class Graph:
         Sets a color attribute on nodes based on categorical or continuous values. For categorical
         data, assigns distinct colors from a palette. For continuous data, interpolates between
         colors.
+
+
+        %family Node/Edge Data Frames
 
         Parameters
         ----------
@@ -7689,6 +8010,9 @@ class Graph:
         Normalizes numeric values to a specified range, useful for sizing nodes by centrality,
         degree, or other continuous metrics.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         node_attr_from
@@ -7807,6 +8131,9 @@ class Graph:
         """
         Set which node attribute to display in tooltips/labels.
 
+
+        %family Node/Edge Data Frames
+
         Parameters
         ----------
         attr
@@ -7843,6 +8170,9 @@ class Graph:
         Dispersion measures the embeddedness of a link in the network. A link between two nodes
         (`u` and `v`) has high dispersion when their mutual neighbors (friends in common) are not
         well connected to each other. This can indicate structural diversity in the network.
+
+
+        %family Link Analysis
 
         Parameters
         ----------
@@ -7944,6 +8274,9 @@ class Graph:
         For each pair of nodes `(u, v)`, counts how many nodes are neighbors of both `u` and `v`.
         Common neighbors is a simple but effective link prediction measure.
 
+
+        %family Link Prediction
+
         Parameters
         ----------
         ebunch
@@ -8020,6 +8353,9 @@ class Graph:
         For each pair of nodes `(u, v)`, computes `|N(u) ∩ N(v)| / |N(u) ∪ N(v)|`, which is the
         ratio of common neighbors to total distinct neighbors.
 
+
+        %family Link Prediction
+
         Parameters
         ----------
         ebunch
@@ -8076,6 +8412,9 @@ class Graph:
         For each pair of nodes `(u, v)`, computes `Σ(1 / log(|N(w)|))` for all common neighbors `w`.
         This gives more weight to common neighbors that themselves have fewer connections (rarer
         connections are more significant).
+
+
+        %family Link Prediction
 
         Parameters
         ----------
@@ -8151,6 +8490,9 @@ class Graph:
         Similar to Adamic-Adar but uses `1/degree` instead of `1/log(degree)`, penalizing
         high-degree common neighbors more strongly.
 
+
+        %family Link Prediction
+
         Parameters
         ----------
         ebunch
@@ -8212,6 +8554,9 @@ class Graph:
         For each pair of nodes `(u, v)`, computes `|N(u)| × |N(v)|`, the product of their degrees.
         Based on the "rich get richer" principle where high-degree nodes are more likely to acquire
         new connections.
+
+
+        %family Link Prediction
 
         Parameters
         ----------
@@ -8291,6 +8636,9 @@ class Graph:
         Computes structural similarity using various metrics that compare the neighborhoods
         (adjacent nodes) of node pairs. Returns a similarity matrix where higher values indicate
         more similar neighborhood structures.
+
+
+        %family Similarity
 
         Parameters
         ----------
@@ -8447,6 +8795,9 @@ class Graph:
         Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods
         (or same node). Self-similarity is always `1.0`.
 
+
+        %family Similarity
+
         Returns
         -------
         dict[int, dict[int, float]]
@@ -8499,6 +8850,9 @@ class Graph:
         Range: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods
         (or same node). More conservative than Dice coefficient (always ≤ Dice score).
         Self-similarity is always `1.0`.
+
+
+        %family Similarity
 
         Returns
         -------
@@ -8553,6 +8907,9 @@ class Graph:
         Geometric interpretation: cosine of angle between neighbor vectors. Self-similarity is
         always `1.0`.
 
+
+        %family Similarity
+
         Returns
         -------
         dict[int, dict[int, float]]
@@ -8604,6 +8961,9 @@ class Graph:
         Range: `[0, 1]` where `0` means no common neighbors and `1` means one neighborhood is a
         subset of the other. Asymmetric measure useful for hierarchical patterns. Self-similarity is
         always `1.0`.
+
+
+        %family Similarity
 
         Returns
         -------
@@ -8663,6 +9023,9 @@ class Graph:
         Uses depth-first search to detect cycles. For directed graphs, looks for back edges. For
         undirected graphs, checks for cycles excluding trivial two-node back-and-forth paths.
 
+
+        %family Cycle Detection
+
         Returns
         -------
         bool
@@ -8701,6 +9064,9 @@ class Graph:
 
         This method only works on directed graphs. For undirected graphs, convert to directed first
         or consider that every edge forms a 2-cycle.
+
+
+        %family Cycle Detection
 
         Parameters
         ----------
@@ -8781,6 +9147,9 @@ class Graph:
 
         For undirected graphs, uses a backtracking DFS approach that finds all elementary cycles by
         starting from each node and exploring all paths that return to the starting node.
+
+
+        %family Cycle Detection
 
         Parameters
         ----------
@@ -8875,6 +9244,9 @@ class Graph:
         The algorithm builds a spanning tree using BFS from a root node, then for each non-tree edge
         (back edge), finds the fundamental cycle it creates with the tree.
 
+
+        %family Cycle Detection
+
         Parameters
         ----------
         root
@@ -8959,6 +9331,9 @@ class Graph:
         1. for each edge `(u,v)`, find the shortest path from `u` to `v` not using `(u,v)`
         2. this gives a candidate cycle for each edge
         3. sort candidates by weight and greedily select linearly independent cycles
+
+
+        %family Cycle Detection
 
         Parameters
         ----------
@@ -9045,6 +9420,9 @@ class Graph:
         Note that this finds *maximal* cliques (cannot be extended), not necessarily *maximum*
         cliques (largest possible). Use `max_clique()` to find a maximum clique.
 
+
+        %family Clique Operations
+
         Returns
         -------
         list[list[int]]
@@ -9121,6 +9499,9 @@ class Graph:
         A maximum clique is a largest possible clique in the graph. If multiple maximum cliques
         exist with the same size, returns one of them (arbitrary choice). Uses the Bron-Kerbosch
         algorithm to enumerate all maximal cliques and selects the largest.
+
+
+        %family Clique Operations
 
         Returns
         -------
@@ -9204,6 +9585,9 @@ class Graph:
 
         The clique number `ω(G)` is the size of the largest clique in the graph. This is a
         fundamental graph invariant used in graph theory and combinatorial optimization.
+
+
+        %family Clique Operations
 
         Returns
         -------
@@ -9308,6 +9692,9 @@ class Graph:
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
 
+
+        %family Triangle and Transitivity
+
         Returns
         -------
         dict[int, int]
@@ -9373,6 +9760,9 @@ class Graph:
         directed graphs, lists directed triangles.
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
+
+
+        %family Triangle and Transitivity
 
         Returns
         -------
@@ -9449,6 +9839,9 @@ class Graph:
         Returns `None` if there are no connected triples in the graph.
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
+
+
+        %family Triangle and Transitivity
 
         Returns
         -------
@@ -9539,6 +9932,9 @@ class Graph:
         Nodes with fewer than 2 neighbors return `None` (clustering undefined).
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
+
+
+        %family Clustering
 
         Parameters
         ----------
@@ -9674,6 +10070,9 @@ class Graph:
         - `0` = neighbors are not connected at all
         - `1` = neighbors form a complete graph (clique)
 
+
+        %family Clustering
+
         Parameters
         ----------
         attr_name
@@ -9773,6 +10172,9 @@ class Graph:
         - counts 4-cycles containing the edge
         - maximum possible: `(d_i - 1)(d_j - 1)`
         - measures "squareness" of edge neighborhood
+
+
+        %family Clustering
 
         Parameters
         ----------
@@ -9888,6 +10290,9 @@ class Graph:
         Returns the mean of all node clustering coefficients. This is a global measure of how
         clustered the graph is overall.
 
+
+        %family Clustering
+
         Returns
         -------
         float
@@ -9956,6 +10361,9 @@ class Graph:
         2. build a heap of merge candidates ordered by modularity gain (ΔQ)
         3. repeatedly merge the pair with highest ΔQ until no improvement
         4. return the partition with maximum modularity
+
+
+        %family Community Detection
 
         Parameters
         ----------
@@ -10057,6 +10465,9 @@ class Graph:
 
         Best for small to medium graphs (< 5K nodes) with hierarchical community structure and clear
         "bridge" edges between communities. When accuracy is more important than speed.
+
+
+        %family Community Detection
 
         Parameters
         ----------
@@ -10173,6 +10584,9 @@ class Graph:
         Spectral optimization method using recursive bisection based on the leading eigenvector of
         the modularity matrix. Splits communities hierarchically when modularity improves. Best for
         medium-sized graphs (< 20K nodes) with clear 2-way divisions and hierarchical structure.
+
+
+        %family Community Detection
 
         Parameters
         ----------
@@ -10296,6 +10710,9 @@ class Graph:
 
         The method produces a dendrogram hierarchy but returns the partition with maximum
         modularity. Works only with undirected graphs.
+
+
+        %family Community Detection
 
         Parameters
         ----------
@@ -10435,6 +10852,9 @@ class Graph:
 
         Works only with undirected graphs. Time complexity is `O(n²log n)` for typical networks with
         small step parameter.
+
+
+        %family Community Detection
 
         Parameters
         ----------
@@ -10586,6 +11006,9 @@ class Graph:
         is already undirected, returns a new copy. For directed graphs, converts directed edges to
         undirected edges, removing duplicate pairs.
 
+
+        %family Graph Type Conversions
+
         Returns
         -------
         Graph
@@ -10639,6 +11062,9 @@ class Graph:
         Creates a new graph with the same nodes but directed edges. If the graph is already
         directed, returns a new copy. For undirected graphs, creates both directions (u->v and v->u)
         for each edge.
+
+
+        %family Graph Type Conversions
 
         Returns
         -------
@@ -10706,6 +11132,9 @@ class Graph:
         Creates a new graph with the same nodes but all edge directions reversed (u->v becomes
         v->u). For undirected graphs, returns a new copy (no structural change). Preserves all node
         and edge attributes.
+
+
+        %family Graph Type Conversions
 
         Returns
         -------
@@ -10781,6 +11210,9 @@ class Graph:
 
         For directed graphs, complements directed edges independently in each direction. For
         undirected graphs, complements undirected edges.
+
+
+        %family Graph Type Conversions
 
         Returns
         -------
@@ -10870,6 +11302,9 @@ class Graph:
         The line graph `L(G)` of a graph `G` transforms edges into nodes: each edge in `G` becomes a
         node in `L(G)`, and two nodes in `L(G)` are connected if and only if their corresponding
         edges in `G` share an endpoint.
+
+
+        %family Graph Type Conversions
 
         Parameters
         ----------
@@ -11036,6 +11471,9 @@ class Graph:
         If there was an edge between `u` and `v`, it becomes a self-loop on `u` (unless
         `self_loops=False`). This operation does not modify the original graph.
 
+
+        %family Node Contraction
+
         Parameters
         ----------
         u
@@ -11146,6 +11584,9 @@ class Graph:
         equivalent to `contract_nodes(u, v)` but explicitly requires that an edge exists between the
         nodes.
 
+
+        %family Node Contraction
+
         Parameters
         ----------
         u
@@ -11230,6 +11671,9 @@ class Graph:
         contracted nodes are redirected to the first node. Edges between contracted nodes become
         self-loops (if self_loops=True).
 
+
+        %family Node Contraction
+
         Parameters
         ----------
         nodes
@@ -11306,6 +11750,9 @@ class Graph:
         Each block (group of nodes) in the partition becomes a single node in the quotient graph.
         Edges between different blocks become edges in the quotient. Edges within the same block are
         removed.
+
+
+        %family Node Contraction
 
         Parameters
         ----------
@@ -11411,6 +11858,9 @@ class Graph:
         Returns a new graph containing all nodes and edges from both graphs. Nodes with the same ID
         are merged (this graph's attributes take precedence). Duplicate edges are not added.
 
+
+        %family Graph Algebra
+
         Parameters
         ----------
         other
@@ -11488,6 +11938,9 @@ class Graph:
         Returns a new graph containing only edges that exist in both graphs. Nodes are included only
         if they are endpoints of common edges.
 
+
+        %family Graph Algebra
+
         Parameters
         ----------
         other
@@ -11555,6 +12008,9 @@ class Graph:
         Returns a new graph containing edges that are in this graph but not in the other graph.
         Nodes are included if they are endpoints of remaining edges.
 
+
+        %family Graph Algebra
+
         Parameters
         ----------
         other
@@ -11618,6 +12074,9 @@ class Graph:
 
         Returns a new graph containing edges that are in exactly one of the two graphs. Equivalent
         to `(G1 - G2) ∪ (G2 - G1)`.
+
+
+        %family Graph Algebra
 
         Parameters
         ----------
@@ -11683,6 +12142,9 @@ class Graph:
         Similar to union, but the other graph's node attributes/labels take precedence over this
         graph's. Useful when you want to merge updates from another graph.
 
+
+        %family Graph Algebra
+
         Parameters
         ----------
         other
@@ -11737,6 +12199,9 @@ class Graph:
 
         Combines graphs by renumbering the other graph's nodes to avoid conflicts. The resulting
         graph has all nodes and edges from both, with no overlap.
+
+
+        %family Graph Algebra
 
         Parameters
         ----------
@@ -11823,6 +12288,9 @@ class Graph:
 
         The resulting spanner preserves approximate distances while using fewer edges, making it
         useful for graph compression, network backbone extraction, and approximate distance queries.
+
+
+        %family Graph Algebra
 
         Parameters
         ----------
@@ -11972,6 +12440,9 @@ class Graph:
 
         All node and edge attributes are preserved in the subgraph.
 
+
+        %family Graph Algebra
+
         Returns
         -------
         Graph
@@ -12088,6 +12559,9 @@ class Graph:
         induced subgraph). This is a direct method that doesn't require prior selection, unlike
         `transform_to_subgraph_ws()`.
 
+
+        %family Graph Algebra
+
         Parameters
         ----------
         nodes
@@ -12151,6 +12625,9 @@ class Graph:
         those edges. This is useful when you want to focus on specific relationships rather than
         specific nodes.
 
+
+        %family Graph Algebra
+
         Parameters
         ----------
         edges
@@ -12208,6 +12685,9 @@ class Graph:
 
         Adds edges to form a complete graph (clique) among all selected nodes. For directed graphs,
         creates edges in both directions. Skips edges that already exist.
+
+
+        %family Graph Algebra
 
         Parameters
         ----------
@@ -12296,6 +12776,9 @@ class Graph:
         For each selected edge (A->B), adds the reverse edge (B->A) if it doesn't already exist.
         Useful for making directed graphs bidirectional or adding reciprocal relationships.
 
+
+        %family Graph Algebra
+
         Parameters
         ----------
         **edge_attributes
@@ -12381,6 +12864,9 @@ class Graph:
 
         For each selected edge (A->B), changes it to (B->A). Edge IDs and all attributes (including
         weights) are preserved during reversal. Only the direction is changed.
+
+
+        %family Graph Algebra
 
         Returns
         -------
@@ -12471,6 +12957,9 @@ class Graph:
         This batch method is more efficient than calling get_degree() for each node individually and
         automatically stores results in the node DataFrame.
 
+
+        %family Degree
+
         Parameters
         ----------
         attr_name
@@ -12548,6 +13037,9 @@ class Graph:
         For directed graphs, returns total degree (in-degree + out-degree). For undirected graphs,
         returns the number of neighbors.
 
+
+        %family Degree
+
         Parameters
         ----------
         node
@@ -12609,6 +13101,9 @@ class Graph:
         In-degree is the number of edges pointing into the node. Only meaningful for directed
         graphs.
 
+
+        %family Degree
+
         Parameters
         ----------
         node
@@ -12655,6 +13150,9 @@ class Graph:
         Out-degree is the number of edges pointing out from the node. Only meaningful for directed
         graphs.
 
+
+        %family Degree
+
         Parameters
         ----------
         node
@@ -12700,6 +13198,9 @@ class Graph:
         Returns a histogram of node degrees, showing how many nodes have each degree value. Useful
         for analyzing network topology and identifying hub nodes or scale-free properties.
 
+
+        %family Degree
+
         Returns
         -------
         dict[int, int]
@@ -12736,6 +13237,9 @@ class Graph:
         For directed graphs, this returns the average of (in-degree + out-degree). For undirected
         graphs, each edge contributes to the degree of both endpoints.
 
+
+        %family Degree
+
         Returns
         -------
         float
@@ -12769,6 +13273,9 @@ class Graph:
 
         Computes a single aggregate statistic from the indegree values of all nodes in a directed
         graph. Useful for summarizing the indegree distribution or analyzing filtered node subsets.
+
+
+        %family Degree
 
         Parameters
         ----------
@@ -12857,6 +13364,9 @@ class Graph:
 
         Computes a single aggregate statistic from the outdegree values of all nodes in a directed
         graph. Useful for summarizing the outdegree distribution or analyzing filtered node subsets.
+
+
+        %family Degree
 
         Parameters
         ----------
@@ -12949,6 +13459,9 @@ class Graph:
         Computes a single aggregate statistic from the total degree values of all nodes. Works with
         both directed and undirected graphs. For directed graphs, total degree = indegree +
         outdegree.
+
+
+        %family Degree
 
         Parameters
         ----------
@@ -13051,6 +13564,10 @@ class Graph:
         The algorithm iteratively distributes "rank" from each node to its neighbors, with a damping
         factor to model random jumps. Nodes with many incoming edges from high-ranking nodes receive
         higher scores.
+
+
+        %family Centrality
+        %seealso betweenness_centrality, load_centrality, constraint
 
         Parameters
         ----------
@@ -13193,6 +13710,9 @@ class Graph:
 
         Time complexity: `O(V × D²)` where `D` is average degree
         Space complexity: `O(V)`
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -13351,6 +13871,10 @@ class Graph:
         The algorithm computes shortest paths between all pairs of nodes and counts how many times
         each node appears on these paths.
 
+
+        %family Centrality
+        %seealso pagerank, load_centrality, constraint
+
         Parameters
         ----------
         attr_name
@@ -13458,6 +13982,10 @@ class Graph:
         Both metrics identify important bridge nodes, but load centrality can produce slightly
         different rankings that may be more intuitive for certain applications like network traffic
         analysis or identifying bottlenecks in routing systems.
+
+
+        %family Centrality
+        %seealso betweenness_centrality, pagerank, constraint
 
         Parameters
         ----------
@@ -13585,6 +14113,9 @@ class Graph:
 
         This metric is particularly useful for identifying nodes that are consistently reached in
         random walks, indicating their importance in network flow and connectivity patterns.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -13763,6 +14294,9 @@ class Graph:
         where :math:`\\phi_j` are eigenvectors and :math:`\\lambda_j` are eigenvalues of the
         adjacency matrix.
 
+
+        %family Centrality
+
         Parameters
         ----------
         return_dict
@@ -13862,6 +14396,9 @@ class Graph:
         - `G_{pq} = \\exp(A)_{pq}` is the communicability between p and q
         - `G_{prq}` is the decrease in communicability when node r is removed
         - `C = (n-1)^2 - (n-1)` is a normalization factor
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -13994,6 +14531,9 @@ class Graph:
         When all nodes have percolation state = `1.0`, this reduces to standard betweenness
         centrality.
 
+
+        %family Centrality
+
         Parameters
         ----------
         states
@@ -14083,6 +14623,9 @@ class Graph:
         Creates a new graph with a fraction of nodes randomly removed, along with all their incident
         edges. This is useful for analyzing network robustness under random node failures.
 
+
+        %family Centrality
+
         Parameters
         ----------
         q : float
@@ -14132,6 +14675,9 @@ class Graph:
         This is useful for analyzing network robustness under random edge failures or communication
         link failures.
 
+
+        %family Centrality
+
         Parameters
         ----------
         q : float
@@ -14176,6 +14722,9 @@ class Graph:
         For undirected graphs, finds the largest connected component. For directed graphs, finds the
         largest weakly connected component.
 
+
+        %family Centrality
+
         Returns
         -------
         int
@@ -14216,6 +14765,9 @@ class Graph:
         Systematically removes nodes at different fractions and measures the relative size of the
         giant connected component (GCC) at each step. This helps identify the critical percolation
         threshold where the network fragments.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -14283,6 +14835,9 @@ class Graph:
         For undirected graphs, computes the average degree of all neighbors. For directed graphs,
         the `source` parameter controls which neighbors to consider, and the `target` parameter
         controls how to measure their degrees.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -14442,6 +14997,9 @@ class Graph:
 
         When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse
         distance, which is bounded between `0` and `1`.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -14633,6 +15191,9 @@ class Graph:
         Uses power iteration until convergence. Good authorities are nodes that are pointed to by
         many high-quality hubs. Requires a directed graph.
 
+
+        %family Centrality
+
         Parameters
         ----------
         max_iter
@@ -14734,6 +15295,9 @@ class Graph:
 
         Uses power iteration until convergence. Good hubs are nodes that point to many high-quality
         authorities. Requires a directed graph.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -14837,6 +15401,9 @@ class Graph:
         A node has high eigenvector centrality if it's connected to other nodes that themselves have
         high centrality. Unlike degree centrality, it accounts for the quality (not just quantity)
         of connections.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -14943,6 +15510,9 @@ class Graph:
         where `α` is the attenuation factor, `A` is the adjacency matrix, and `e` is the exogenous
         factor (set to `1` for all nodes). Lower `α` emphasizes local neighborhood structure, while
         higher `α` considers more global structure.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -15063,6 +15633,9 @@ class Graph:
 
         The magnitude of `|β|` controls how far influence propagates through the network. Larger
         `|β|` values mean distant nodes have more influence; a smaller `|β|` localizes influence.
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -15239,6 +15812,9 @@ class Graph:
         - Alpha centrality: uses `A` instead of `Aᵀ` (outgoing vs incoming)
         - Katz: weights walks by path length, considers all finite walks
 
+
+        %family Centrality
+
         Parameters
         ----------
         alpha
@@ -15359,6 +15935,9 @@ class Graph:
         - negative values: node has fewer connections than its neighbors (peripheral)
         - zero: node has similar connectivity to its neighbors
 
+
+        %family Centrality
+
         Parameters
         ----------
         attr_name
@@ -15468,6 +16047,9 @@ class Graph:
 
         For `σ -> 0`: Converges to degree centrality (only local information)
         For large `σ`: Identifies globally dominant nodes
+
+
+        %family Centrality
 
         Parameters
         ----------
@@ -15649,6 +16231,9 @@ class Graph:
         Higher values indicate more important/central nodes whose removal would significantly
         increase average path lengths. Uses parallel BFS with Rayon for efficient computation.
 
+
+        %family Core Decomposition
+
         Parameters
         ----------
         attr_name
@@ -15727,6 +16312,9 @@ class Graph:
         Higher coreness indicates nodes in denser, more cohesive parts of the graph. The k-core
         decomposition is useful for finding the 'nucleus' of a network.
 
+
+        %family Core Decomposition
+
         Parameters
         ----------
         attr_name
@@ -15788,6 +16376,9 @@ class Graph:
         The k-core is the maximal subgraph where all nodes have degree >= k. Iteratively removes
         nodes with degree < k until all remaining nodes satisfy the condition.
 
+
+        %family Core Decomposition
+
         Parameters
         ----------
         k
@@ -15830,6 +16421,9 @@ class Graph:
         The k-shell contains nodes with coreness exactly equal to k. The coreness of a node is the
         highest k for which the node is part of the k-core.
 
+
+        %family Core Decomposition
+
         Parameters
         ----------
         k
@@ -15871,6 +16465,9 @@ class Graph:
         The k-crust contains all nodes with coreness <= k. This is the complement of nodes with high
         coreness values.
 
+
+        %family Core Decomposition
+
         Parameters
         ----------
         k
@@ -15911,6 +16508,9 @@ class Graph:
 
         The k-truss is the maximal subgraph where every edge is part of at least (k-2) triangles.
         Iteratively removes edges with insufficient triangle support.
+
+
+        %family Core Decomposition
 
         Parameters
         ----------
@@ -15962,6 +16562,9 @@ class Graph:
 
         The k-corona helps identify nodes at the periphery of dense substructures, which is useful
         for understanding hierarchical organization and vulnerability analysis.
+
+
+        %family Core Decomposition
 
         Parameters
         ----------
@@ -16050,6 +16653,9 @@ class Graph:
         to each other, forming a 'rich club'. Values less than expected in random graphs suggest the
         hubs avoid connecting to each other.
 
+
+        %family Core Decomposition
+
         Returns
         -------
         dict[int, float]
@@ -16132,6 +16738,9 @@ class Graph:
         Computes average shortest path length between all reachable node pairs. Also known as
         average path length or characteristic path length.
 
+
+        %family Distance and Paths
+
         Parameters
         ----------
         unconnected
@@ -16182,6 +16791,9 @@ class Graph:
         Alias for `get_radius()`. The minimum eccentricity is the smallest maximum distance from any
         node to all other nodes.
 
+
+        %family Distance and Paths
+
         Parameters
         ----------
         unconnected
@@ -16213,6 +16825,9 @@ class Graph:
         Alias for `get_diameter()`. The maximum eccentricity is the longest shortest path between
         any two nodes.
 
+
+        %family Distance and Paths
+
         Parameters
         ----------
         unconnected
@@ -16243,6 +16858,9 @@ class Graph:
 
         The diameter is the longest shortest path between any two nodes. This metric is useful for
         understanding the "width" of a network.
+
+
+        %family Distance and Paths
 
         Parameters
         ----------
@@ -16283,6 +16901,9 @@ class Graph:
 
         The radius is the minimum of all node eccentricities. Nodes with eccentricity equal to the
         radius form the center of the graph.
+
+
+        %family Distance and Paths
 
         Parameters
         ----------
@@ -16328,6 +16949,9 @@ class Graph:
         - returns `1` for graphs with self-loops
         - returns `2` for undirected graphs with multi-edges
         - returns `3` or more for cycles found via BFS
+
+
+        %family Distance and Paths
 
         Returns
         -------
@@ -16400,6 +17024,9 @@ class Graph:
         the graph. It measures how far a node is from the most distant node it can reach. Returns
         `None` for nodes in disconnected graphs where some nodes are unreachable.
 
+
+        %family Distance and Paths
+
         Parameters
         ----------
         attr_name
@@ -16468,6 +17095,9 @@ class Graph:
 
         where `n` is the number of nodes. Higher radiality indicates a more central position in the
         network. Returns `None` for nodes in disconnected graphs.
+
+
+        %family Distance and Paths
 
         Parameters
         ----------
@@ -16545,6 +17175,9 @@ class Graph:
         - the graph has negative edge weights
         - the graph is sparse, with few edges
         - you need to detect negative cycles
+
+
+        %family Distance and Paths
 
         Parameters
         ----------
@@ -16711,6 +17344,9 @@ class Graph:
 
         For weighted shortest paths, use Dijkstra's algorithm instead.
 
+
+        %family Distance and Paths
+
         Parameters
         ----------
         source
@@ -16836,6 +17472,9 @@ class Graph:
         ADA* is an anytime optimal pathfinding algorithm that can return suboptimal paths quickly
         and iteratively improve them. The epsilon parameter controls the trade-off between solution
         quality and speed.
+
+
+        %family Distance and Paths
 
         Parameters
         ----------
@@ -17024,6 +17663,9 @@ class Graph:
         Uses Dijkstra's algorithm from each source node to find the shortest path distance to all
         other reachable nodes. For unweighted graphs, all edges are treated as having weight `1.0`.
 
+
+        %family Distance and Paths
+
         Returns
         -------
         dict[int, dict[int, float]]
@@ -17094,6 +17736,9 @@ class Graph:
 
         Uses Dijkstra's algorithm from each source node to find the shortest path to all other
         reachable nodes. Returns the full path as a list of node IDs.
+
+
+        %family Distance and Paths
 
         Returns
         -------
@@ -17180,6 +17825,9 @@ class Graph:
 
         Finds multiple alternative paths ranked by total path weight/length. Useful for finding
         backup routes, route diversity analysis, or identifying critical edges.
+
+
+        %family Distance and Paths
 
         Parameters
         ----------
@@ -17298,6 +17946,9 @@ class Graph:
         their neighbors. Can return the visit order as a list, or store the position of each node in
         the traversal as a node attribute for visualization.
 
+
+        %family Distance and Paths
+
         Parameters
         ----------
         start
@@ -17389,6 +18040,9 @@ class Graph:
         order as a list, or store the position of each node in the traversal as a node attribute for
         visualization.
 
+
+        %family Distance and Paths
+
         Parameters
         ----------
         start
@@ -17479,6 +18133,9 @@ class Graph:
 
         A simple path is a path with no repeated nodes. This method uses depth-first search with
         backtracking to enumerate all possible simple paths from source to target.
+
+
+        %family Path Analysis
 
         Parameters
         ----------
@@ -17614,6 +18271,9 @@ class Graph:
 
         This is a fast `O(n)` validation method useful for checking user input, validating computed
         paths, or testing path properties.
+
+
+        %family Path Analysis
 
         Parameters
         ----------
@@ -17778,6 +18438,9 @@ class Graph:
         the `stuck=` parameter.
 
         Time complexity: `O(steps)`, plus `O(degree)` per step for neighbor lookup.
+
+
+        %family Path Analysis
 
         Parameters
         ----------
@@ -17949,6 +18612,9 @@ class Graph:
         edges as a list, or store the traversal order as an edge attribute for visualization.
 
         Time complexity: `O(steps)`, plus `O(degree)` per step for edge lookup.
+
+
+        %family Path Analysis
 
         Parameters
         ----------
@@ -18124,6 +18790,9 @@ class Graph:
         processes nodes with zero in-degree first, then removes them and updates in-degrees of
         neighbors.
 
+
+        %family Path Analysis
+
         Returns
         -------
         list[int]
@@ -18255,6 +18924,9 @@ class Graph:
         Time complexity: O(V × (V + E)) where V is nodes and E is edges
         Space complexity: O(V + E') where E' is edges in the closure
 
+
+        %family Path Analysis
+
         Returns
         -------
         Graph
@@ -18340,6 +19012,9 @@ class Graph:
 
         Time complexity: O(V × E) where V is nodes and E is edges
         Space complexity: O(V + E)
+
+
+        %family Path Analysis
 
         Returns
         -------
@@ -18446,6 +19121,9 @@ class Graph:
 
         Time complexity: O(V³ × log k) where V is the number of nodes
         Space complexity: O(V²)
+
+
+        %family Path Analysis
 
         Parameters
         ----------
@@ -18598,6 +19276,9 @@ class Graph:
         Uses iterative depth-first search with edge tracking. Can grow exponentially for dense
         graphs, so use `max_trails` parameter to limit computation.
 
+
+        %family Path Analysis
+
         Parameters
         ----------
         source
@@ -18737,6 +19418,9 @@ class Graph:
 
         Returns the actual sequences of nodes for each trail. A trail is a walk where all edges are
         distinct, though nodes may repeat.
+
+
+        %family Path Analysis
 
         Parameters
         ----------
@@ -18893,6 +19577,9 @@ class Graph:
         - the graph is weakly connected
         - every vertex has equal in-degree and out-degree
 
+
+        %family Eulerian Paths
+
         Returns
         -------
         bool
@@ -18952,6 +19639,9 @@ class Graph:
         - exactly one vertex has in-degree - out-degree = 1 (end)
         - all other vertices have equal in-degree and out-degree
 
+
+        %family Eulerian Paths
+
         Returns
         -------
         bool
@@ -19000,6 +19690,9 @@ class Graph:
 
         An Eulerian circuit is a closed trail that visits every edge exactly once, starting and
         ending at the same node. Uses Hierholzer's algorithm.
+
+
+        %family Eulerian Paths
 
         Returns
         -------
@@ -19086,6 +19779,9 @@ class Graph:
         Uses Tarjan's algorithm for undirected graphs (O(V+E) time complexity) and strongly
         connected component analysis for directed graphs.
 
+
+        %family Bridges and Connectivity
+
         Returns
         -------
         list[int]
@@ -19152,6 +19848,9 @@ class Graph:
         This method is more efficient than `bridges()` when you only need to know if bridges exist,
         not which edges they are.
 
+
+        %family Bridges and Connectivity
+
         Returns
         -------
         bool
@@ -19216,6 +19915,9 @@ class Graph:
         Higher values indicate more important nodes whose removal would significantly increase
         average path lengths or disconnect the graph. Infinite values indicate the node's removal
         disconnects the graph.
+
+
+        %family Bridges and Connectivity
 
         Parameters
         ----------
@@ -19318,6 +20020,9 @@ class Graph:
         Uses breadth-first search (BFS) to find all nodes in the same connected component. For
         directed graphs, treats edges as undirected during traversal.
 
+
+        %family Connectivity and Flow
+
         Parameters
         ----------
         node
@@ -19411,6 +20116,9 @@ class Graph:
         of connected components. Uses Tarjan's DFS-based algorithm. Only defined for undirected
         graphs.
 
+
+        %family Connectivity and Flow
+
         Returns
         -------
         list[int]
@@ -19455,6 +20163,9 @@ class Graph:
         eccentricity (longest shortest path to any other node). Returns empty list if graph is
         disconnected.
 
+
+        %family Connectivity and Flow
+
         Returns
         -------
         list[int]
@@ -19496,6 +20207,9 @@ class Graph:
         Implementation transforms the problem to max-flow.
 
         Time complexity: O(V^4) for complete enumeration of pairs.
+
+
+        %family Connectivity and Flow
 
         Returns
         -------
@@ -19549,6 +20263,9 @@ class Graph:
         computed using max-flow.
 
         Time complexity: O(V * E^2) using Ford-Fulkerson with BFS.
+
+
+        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -19630,6 +20347,9 @@ class Graph:
 
         Time complexity: O(V * E^2) using max-flow computations.
 
+
+        %family Connectivity and Flow
+
         Returns
         -------
         int
@@ -19676,6 +20396,9 @@ class Graph:
         Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
         computation requires max-flow algorithms.
 
+
+        %family Connectivity and Flow
+
         Returns
         -------
         int
@@ -19719,6 +20442,9 @@ class Graph:
         Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
         computation requires sophisticated algorithms.
 
+
+        %family Connectivity and Flow
+
         Returns
         -------
         int
@@ -19760,6 +20486,9 @@ class Graph:
 
         For directed graphs: `density = E / (N × (N-1))`
         For undirected graphs: `density = 2E / (N × (N-1))`
+
+
+        %family Connectivity and Flow
 
         Returns
         -------
@@ -19815,6 +20544,9 @@ class Graph:
         of Social Groups".
 
         Time complexity: `O(V^5)` due to node connectivity computations.
+
+
+        %family Connectivity and Flow
 
         Returns
         -------
@@ -19881,6 +20613,9 @@ class Graph:
         For unweighted graphs, each edge has capacity `1`. For undirected graphs, edges are treated
         as bidirectional.
 
+
+        %family Connectivity and Flow
+
         Parameters
         ----------
         source
@@ -19931,6 +20666,9 @@ class Graph:
         connected by unit capacity.
 
         The source and sink themselves are never included in the returned cut set.
+
+
+        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20024,6 +20762,9 @@ class Graph:
         For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
         edges are considered.
 
+
+        %family Connectivity and Flow
+
         Parameters
         ----------
         source
@@ -20095,6 +20836,9 @@ class Graph:
 
         For weighted graphs, edge weights are used as capacities by default. For unweighted graphs,
         each edge has capacity `1`. You can also specify a custom capacity attribute.
+
+
+        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20204,6 +20948,9 @@ class Graph:
         This is a faster variant of `max_flow()` when you only need the flow value and not the flow
         assignment on each edge.
 
+
+        %family Connectivity and Flow
+
         Parameters
         ----------
         source
@@ -20257,6 +21004,9 @@ class Graph:
 
         Uses the Successive Shortest Path algorithm with Bellman-Ford, which handles negative edge
         costs correctly.
+
+
+        %family Connectivity and Flow
 
         Parameters
         ----------
@@ -20415,6 +21165,9 @@ class Graph:
         A weakly connected component is a maximal set of nodes where every node is reachable from
         every other node when edge directions are ignored.
 
+
+        %family Connected Components
+
         Returns
         -------
         int
@@ -20450,6 +21203,9 @@ class Graph:
 
         For undirected graphs, returns the same result as `count_weakly_connected_components()`
         since strong connectivity equals regular connectivity when edges are bidirectional.
+
+
+        %family Connected Components
 
         Returns
         -------
@@ -20505,6 +21261,9 @@ class Graph:
         A weakly connected component is a maximal set of nodes where every node is reachable from
         every other node when edge directions are ignored.
 
+
+        %family Connected Components
+
         Returns
         -------
         list[set[int]]
@@ -20557,6 +21316,9 @@ class Graph:
 
         For undirected graphs, returns the same result as `weakly_connected_components()` since
         strong connectivity equals regular connectivity when edges are bidirectional.
+
+
+        %family Connected Components
 
         Returns
         -------
@@ -20624,6 +21386,9 @@ class Graph:
         For undirected graphs, this is equivalent to checking regular connectivity (same as
         `is_connected()`).
 
+
+        %family Connected Components
+
         Returns
         -------
         bool
@@ -20669,6 +21434,9 @@ class Graph:
 
         For undirected graphs, this is equivalent to checking regular connectivity (same as
         `is_connected()`).
+
+
+        %family Connected Components
 
         Returns
         -------
@@ -20735,6 +21503,9 @@ class Graph:
         Graph coloring assigns colors (represented as integers) to nodes such that no two adjacent
         nodes share the same color. The greedy algorithm processes nodes in a specified order and
         assigns the smallest available color to each node.
+
+
+        %family Graph Coloring
 
         Parameters
         ----------
@@ -20821,6 +21592,9 @@ class Graph:
         """
         Check if a coloring is valid (no adjacent nodes share a color).
 
+
+        %family Graph Coloring
+
         Parameters
         ----------
         coloring
@@ -20864,6 +21638,9 @@ class Graph:
 
         The chromatic number is the minimum number of colors needed to color a graph. This method
         returns the number of distinct colors used in a coloring, which provides an upper bound.
+
+
+        %family Graph Coloring
 
         Parameters
         ----------
@@ -20911,6 +21688,9 @@ class Graph:
 
         A matching is a set of edges where no two edges share a common endpoint (node). This is
         useful for validating matchings or checking matching constraints.
+
+
+        %family Matching
 
         Parameters
         ----------
@@ -20986,6 +21766,9 @@ class Graph:
         Note that a maximal matching is not necessarily a maximum matching (largest possible). For
         weighted graphs, use `max_weight_matching()`.
 
+
+        %family Matching
+
         Returns
         -------
         list[int]
@@ -21060,6 +21843,9 @@ class Graph:
 
         Note that this is a greedy approximation, not guaranteed to be optimal for general graphs.
         For optimal solutions on bipartite graphs, use specialized bipartite matching algorithms.
+
+
+        %family Matching
 
         Returns
         -------
@@ -21179,6 +21965,9 @@ class Graph:
         An independent set (also called a stable set) is a set of vertices in a graph where no two
         vertices are adjacent. This method validates whether the given nodes satisfy this property.
 
+
+        %family Independent Sets
+
         Parameters
         ----------
         nodes
@@ -21253,6 +22042,9 @@ class Graph:
 
         This uses a randomized greedy algorithm that picks nodes randomly and adds them if they
         don't conflict with already-chosen nodes.
+
+
+        %family Independent Sets
 
         Parameters
         ----------
@@ -21362,6 +22154,9 @@ class Graph:
         (among remaining candidates), adding it to the set, and removing it and its neighbors from
         further consideration.
 
+
+        %family Independent Sets
+
         Returns
         -------
         list[int]
@@ -21460,6 +22255,9 @@ class Graph:
         discover diverse solutions. This is useful for exploring the space of possible independent
         sets or for ensemble methods.
 
+
+        %family Independent Sets
+
         Parameters
         ----------
         count
@@ -21533,6 +22331,9 @@ class Graph:
         `D` is adjacent to at least one member of `D`. In other words, every node is either in `D`
         or has a neighbor in `D`.
 
+
+        %family Dominating Sets
+
         Parameters
         ----------
         nodes
@@ -21599,6 +22400,9 @@ class Graph:
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
         `D` is adjacent to at least one member of `D`. This method uses a greedy algorithm that
         finds some dominating set, but not necessarily the minimum one.
+
+
+        %family Dominating Sets
 
         Parameters
         ----------
@@ -21676,6 +22480,9 @@ class Graph:
         Uses a greedy algorithm that iteratively adds the most cost-effective node (lowest weight
         per number of newly dominated nodes) to the dominating set. This provides an `O(log n)`
         approximation to the optimal solution.
+
+
+        %family Dominating Sets
 
         Parameters
         ----------
@@ -21780,6 +22587,9 @@ class Graph:
         total edge weight. Uses the optimized union-find data structure with path-halving for
         efficient cycle detection.
 
+
+        %family Spanning Trees
+
         Parameters
         ----------
         weight_attr
@@ -21872,6 +22682,9 @@ class Graph:
         A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
         edge weight. Essentially finds the MST of the negated edge weights.
 
+
+        %family Spanning Trees
+
         Parameters
         ----------
         weight_attr
@@ -21961,6 +22774,9 @@ class Graph:
         may include additional non-terminal nodes (called Steiner nodes) if they help reduce the
         total weight. This implementation uses Mehlhorn's algorithm which provides a
         2-approximation.
+
+
+        %family Spanning Trees
 
         Parameters
         ----------
@@ -22091,6 +22907,9 @@ class Graph:
         A spanning tree is a subgraph that connects all vertices with the minimum number of edges
         (`V-1` edges for `V` vertices) and contains no cycles. This method enumerates all possible
         spanning trees, which is useful for reliability analysis and network design.
+
+
+        %family Spanning Trees
 
         Parameters
         ----------
@@ -22259,6 +23078,9 @@ class Graph:
         For undirected graphs, edges (u,v) and (v,u) are considered the same pair. When multiple
         edges exist between a pair, all edge IDs (including the first) are returned.
 
+
+        %family Edge Analysis
+
         Returns
         -------
         list[int]
@@ -22362,6 +23184,9 @@ class Graph:
 
         For undirected graphs, returns unordered pairs (smaller node ID first).
 
+
+        %family Edge Analysis
+
         Returns
         -------
         dict[tuple[int, int], int]
@@ -22464,6 +23289,9 @@ class Graph:
         Self-loops are common in certain network types like state machines, chemical reactions, or
         social networks (self-mentions).
 
+
+        %family Edge Analysis
+
         Returns
         -------
         list[int]
@@ -22562,6 +23390,9 @@ class Graph:
 
         Returns a dictionary mapping node IDs to the count of self-loops for each node.
         Only includes nodes that have at least one self-loop.
+
+
+        %family Edge Analysis
 
         Returns
         -------
@@ -22688,6 +23519,9 @@ class Graph:
         This is useful for analyzing reciprocity patterns in social networks,
         communication graphs, and other directed relationships.
 
+
+        %family Reciprocity
+
         Returns
         -------
         list[tuple[int, int]]
@@ -22760,6 +23594,9 @@ class Graph:
         This metric is fundamental for understanding relationship symmetry in social networks,
         mutual influence in citation networks, and bidirectional flows in transportation or
         communication networks.
+
+
+        %family Reciprocity
 
         Parameters
         ----------
@@ -22866,6 +23703,9 @@ class Graph:
         For directed graphs, uses out-degree for source nodes and in-degree for target nodes. For
         undirected graphs, uses total degree.
 
+
+        %family Assortativity
+
         Returns
         -------
         float
@@ -22953,6 +23793,9 @@ class Graph:
 
         Measures the tendency of nodes with the same attribute value to connect, also known as
         homophily. Uses Newman's formula for categorical mixing patterns.
+
+
+        %family Assortativity
 
         Parameters
         ----------
@@ -23071,6 +23914,9 @@ class Graph:
         Measures the tendency of nodes with similar numeric attribute values to
         connect. Returns the Pearson correlation coefficient of attribute values
         across edges, indicating whether similar values tend to be connected.
+
+
+        %family Assortativity
 
         Parameters
         ----------
@@ -23197,6 +24043,9 @@ class Graph:
         Returns the spectrum (eigenvalues and eigenvectors) of the graph's adjacency matrix. The
         spectrum reveals important structural properties including connectivity, bipartiteness, and
         graph regularity.
+
+
+        %family Spectral Analysis
 
         Parameters
         ----------
@@ -23373,6 +24222,9 @@ class Graph:
 
         Returns the spectrum of the Laplacian matrix `L = D - A` (or normalized variant). The
         Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
+
+
+        %family Spectral Analysis
 
         Parameters
         ----------
@@ -23586,6 +24438,9 @@ class Graph:
         is the multiplicative inverse of the shortest path distance. It measures how efficiently
         information flows through the network.
 
+
+        %family Network Efficiency
+
         Returns
         -------
         float
@@ -23673,6 +24528,9 @@ class Graph:
         Local efficiency is the average global efficiency of each node's neighborhood subgraph.
         It measures how efficiently the neighbors of a node can communicate when that node
         is removed. High local efficiency indicates good redundancy and fault tolerance.
+
+
+        %family Network Efficiency
 
         Returns
         -------
@@ -23768,6 +24626,9 @@ class Graph:
         For undirected graphs: `W(G) = Σ_{u < v} d(u, v)`. For directed graphs:
         `W(G) = Σ_{u ≠ v} d(u, v)`.
 
+
+        %family Distance Metrics
+
         Parameters
         ----------
         weight : str, optional
@@ -23850,6 +24711,9 @@ class Graph:
         the degree of folding or compactness of a network, and is related to
         subgraph centrality and the number of closed walks.
 
+
+        %family Distance Metrics
+
         Returns
         -------
         float
@@ -23928,6 +24792,9 @@ class Graph:
         resistance between two nodes if each edge is replaced by a 1-ohm resistor.
         It is a metric on graphs that satisfies the triangle inequality and provides
         insight into network connectivity and robustness.
+
+
+        %family Distance Metrics
 
         Parameters
         ----------
@@ -24014,6 +24881,9 @@ class Graph:
         Returns a dictionary mapping (source_id, target_id) tuples to their
         resistance distances. The matrix is symmetric with zeros on the diagonal.
 
+
+        %family Distance Metrics
+
         Returns
         -------
         dict[tuple[int, int], float]
@@ -24064,6 +24934,9 @@ class Graph:
             Kf(G) = n × Σₖ (1/λₖ)
 
         where λₖ are the non-zero eigenvalues of the Laplacian matrix.
+
+
+        %family Distance Metrics
 
         Returns
         -------

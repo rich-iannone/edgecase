@@ -75,10 +75,7 @@ def from_matrix_market(
       * Type: 'pattern' -> unweighted, 'real'/'integer' -> weighted
     - Parameters `directed` and `weighted` override auto-detection when provided
 
-    References
-    ----------
-    Matrix Market format specification:
-    https://math.nist.gov/MatrixMarket/formats.html
+    %family I/O
     """
     filepath = Path(filepath)
 
