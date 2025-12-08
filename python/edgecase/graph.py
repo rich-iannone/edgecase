@@ -13964,34 +13964,32 @@ class Graph:
         Returns
         -------
         dict or Graph
-            If r`eturn_dict=True`: dictionary mapping node ID to centrality value. If
+            If `return_dict=True`: dictionary mapping node ID to centrality value. If
             `return_dict=False`: self (for method chaining).
 
         Raises
         ------
         ValueError
-            - if graph is directed (algorithm only works for undirected graphs)
-            - if graph is empty
-            - if graph is not connected
+            If either: (1) the graph is directed (algorithm only works for undirected graphs), (2)
+            the graph is empty, or (3) the graph is not connected.
 
         Notes
         -----
         **Algorithm Overview:**
 
-        The algorithm implements the analytical solution from Kermarrec et al. (2011)
-        based on Metropolis-Hastings random walks:
+        The algorithm implements the analytical solution from Kermarrec et al. (2011) based on
+        Metropolis-Hastings random walks:
 
         1. Balance the graph by adding self-loops to equalize in-degrees
-        2. Create transition probability matrix P
-        3. For each node i, solve the linear system: (I - Q_i) * M[:, i] = 1
-           where Q_i is P with column i zeroed
-        4. Compute centrality as: sqrt(2 * sum(M[:, i]) - n * (n + 1))
+        2. Create transition probability matrix `P`
+        3. For each node `i`, solve the linear system: `(I - Q_i) * M[:, i] = 1`
+           where `Q_i` is `P` with column `i` zeroed
+        4. Compute centrality as: `sqrt(2 * sum(M[:, i]) - n * (n + 1))`
 
         **Complexity:**
 
-        - Time: O(n³) due to solving n linear systems of size n×n
-        - Space: O(n²) for storing matrices
-        - **Viable only for small to medium graphs (< 1,000 nodes)**
+        - Time: `O(n³)` due to solving `n` linear systems of size `n×n`
+        - Space: `O(n²)` for storing matrices
 
         **Interpretation:**
 
@@ -14121,10 +14119,10 @@ class Graph:
         Compute communicability between all pairs of nodes.
 
         Communicability measures the "amount of communication" between pairs of nodes based on all
-        walks between them, with shorter walks weighted more heavily. It uses the matrix
-        exponential of the adjacency matrix: exp(A).
+        walks between them, with shorter walks weighted more heavily. It uses the matrix exponential
+        of the adjacency matrix: `exp(A)`.
 
-        For nodes u and v, the communicability is:
+        For nodes `u` and `v`, the communicability is:
 
         `C(u, v) = \\sum_{j=1}^{n} \\phi_j(u) \\phi_j(v) e^{\\lambda_j}`
 
@@ -14134,7 +14132,7 @@ class Graph:
         Parameters
         ----------
         return_dict
-            If `True`, return the communicability as a nested dictionary. Currently only dict
+            If `True`, return the communicability as a nested dictionary. Currently only dictionary
             return is supported.
 
         Returns
@@ -14151,10 +14149,10 @@ class Graph:
         Notes
         -----
         - only works on undirected graphs without self-loops
-        - time complexity: O(n³) for eigendecomposition + O(n²) for result
-        - space complexity: O(n²) for matrices and results
-        - communicability is symmetric: C(u, v) = C(v, u)
-        - self-communicability C(u, u) > 0 (related to subgraph centrality)
+        - time complexity: `O(n³)` for eigendecomposition + `O(n²)` for result
+        - space complexity: `O(n²)` for matrices and results
+        - communicability is symmetric: `C(u, v) = C(v, u)`
+        - self-communicability `C(u, u) > 0` (related to subgraph centrality)
         - higher values indicate more "paths" (walks of all lengths) between nodes
 
         Examples
@@ -14224,7 +14222,7 @@ class Graph:
         between all other pairs of nodes. A node with high communicability betweenness is important
         for information flow in the network.
 
-        The communicability betweenness of node r is:
+        The communicability betweenness of node `r` is:
 
         `\\omega_r = \\frac{1}{C} \\sum_{p \\neq q, q \\neq r} \\frac{G_{prq}}{G_{pq}}`
 
