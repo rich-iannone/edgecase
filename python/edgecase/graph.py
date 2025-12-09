@@ -14227,7 +14227,7 @@ class Graph:
         `\\omega_r = \\frac{1}{C} \\sum_{p \\neq q, q \\neq r} \\frac{G_{prq}}{G_{pq}}`
 
         where:
-        - `G_{pq} = \\exp(A)_{pq}` is the communicability between p and q
+        - `G_{pq} = exp(A)_{pq}` is the communicability between p and q
         - `G_{prq}` is the decrease in communicability when node r is removed
         - `C = (n-1)^2 - (n-1)` is a normalization factor
 
