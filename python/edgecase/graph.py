@@ -14233,18 +14233,18 @@ class Graph:
 
         Parameters
         ----------
-        attr_name : str, optional
+        attr_name
             Name to store the centrality as a node attribute. If `None`, defaults to
             `communicability_betweenness`.
-        return_dict : bool, default False
+        return_dict
             If `True`, return centrality as a dictionary. If `False`, store as node attribute and
             return self for chaining.
 
         Returns
         -------
         dict[int, float] or Graph
-            If `return_dict=` is `True`: Dictionary mapping node IDs to centrality values.
-            If `return_dict=` is `False`: Self (for method chaining).
+            If `return_dict=` is `True`: Dictionary mapping node IDs to centrality values. If
+            `return_dict=` is `False`: Self (for method chaining).
 
         Raises
         ------
@@ -14598,8 +14598,8 @@ class Graph:
         Parameters
         ----------
         steps
-            Number of removal fractions to test. Results in (steps + 1) data points
-            from q=0.0 to q=1.0.
+            Number of removal fractions to test. Results in `(steps + 1)` data points
+            from `q=0.0` to `q=1.0`.
         trials
             Number of random trials per step for averaging. More trials give
             smoother results but take longer.
@@ -18925,9 +18925,9 @@ class Graph:
 
         Parameters
         ----------
-        walk_length : int
-            Non-negative integer representing the number of edges in the walk. A walk of length 0
-            means staying at the same node (identity matrix). A walk of length 1 counts direct
+        walk_length
+            Non-negative integer representing the number of edges in the walk. A walk of length `0`
+            means staying at the same node (identity matrix). A walk of length `1` counts direct
             edges.
 
         Returns
@@ -19213,131 +19213,131 @@ class Graph:
         max_trails: int | None = 1000,
     ) -> list[list[str]]:
         """
-          Enumerate all trails (walks with distinct edges) from source to target.
+        Enumerate all trails (walks with distinct edges) from source to target.
 
-          Returns the actual sequences of nodes for each trail. A trail is a walk where all edges are
-          distinct, though nodes may repeat.
+        Returns the actual sequences of nodes for each trail. A trail is a walk where all edges are
+        distinct, though nodes may repeat.
 
-          Parameters
-          ----------
-          source
-              Source node ID (int) or label (str).
-          target
-              Target node ID (int) or label (str).
-          max_trails
-              Maximum number of trails to return. Default is `1000`. If `None`, returns all trails
-              (dangerous for large graphs). If limit exceeded, returns partial list.
+        Parameters
+        ----------
+        source
+            Source node ID (int) or label (str).
+        target
+            Target node ID (int) or label (str).
+        max_trails
+            Maximum number of trails to return. Default is `1000`. If `None`, returns all trails
+            (dangerous for large graphs). If limit exceeded, returns partial list.
 
-          Returns
-          -------
-          list[list[str]]
-              List of trails, where each trail is a sequence of node IDs. If `max_trails=` exceeded,
-              returns first `max_trails=` trails found.
+        Returns
+        -------
+        list[list[str]]
+            List of trails, where each trail is a sequence of node IDs. If `max_trails=` exceeded,
+            returns first `max_trails=` trails found.
 
-          Raises
-          ------
-          ValueError
-              If source or target node not found in graph.
+        Raises
+        ------
+        ValueError
+            If source or target node not found in graph.
 
-          Examples
-          --------
-          Enumerate trails using labels:
+        Examples
+        --------
+        Enumerate trails using labels:
 
-          ```python
-          graph = (
-              Graph()
-              .add_node(label="A")
-              .add_node(label="B")
-              .add_node(label="C")
-              .add_edge("A", "B")
-              .add_edge("B", "C")
-              .add_edge("C", "A")
-          )
+        ```python
+        graph = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
 
-          trails = graph.enumerate_trails("A", "C")
-          for i, trail in enumerate(trails, 1):
-              print(f"Trail {i}: {' -> '.join(trail)}")
-          # Trail 1: A -> C
-          # Trail 2: A -> B -> C
-          ```
+        trails = graph.enumerate_trails("A", "C")
+        for i, trail in enumerate(trails, 1):
+            print(f"Trail {i}: {' -> '.join(trail)}")
+        # Trail 1: A -> C
+        # Trail 2: A -> B -> C
+        ```
 
-          Enumerate using node IDs:
+        Enumerate using node IDs:
 
-          ```python
-          graph = Graph()
-          graph.add_node(label="start")
-          graph.add_node(label="end")
-          graph.add_edge("start", "end")
+        ```python
+        graph = Graph()
+        graph.add_node(label="start")
+        graph.add_node(label="end")
+        graph.add_edge("start", "end")
 
-          # Get node IDs
-          start_id = graph.get_id_from_label("start")
-          end_id = graph.get_id_from_label("end")
+        # Get node IDs
+        start_id = graph.get_id_from_label("start")
+        end_id = graph.get_id_from_label("end")
 
-          # Use IDs directly
-          trails = graph.enumerate_trails(start_id, end_id)
-          print(f"Found {len(trails)} trails")
-          ```
+        # Use IDs directly
+        trails = graph.enumerate_trails(start_id, end_id)
+        print(f"Found {len(trails)} trails")
+        ```
 
-          Enumerate with limit:
+        Enumerate with limit:
 
-          ```python
-          from edgecase import Graph
+        ```python
+        from edgecase import Graph
 
-          graph = (
-              Graph()
-              .add_node(label="start")
-              .add_node(label="middle")
-              .add_node(label="end")
-              .add_edge(source="start", target="middle")
-              .add_edge(source="middle", target="end")
-              .add_edge(source="start", target="end")
-          )
+        graph = (
+            Graph()
+            .add_node(label="start")
+            .add_node(label="middle")
+            .add_node(label="end")
+            .add_edge(source="start", target="middle")
+            .add_edge(source="middle", target="end")
+            .add_edge(source="start", target="end")
+        )
 
-          # Get first 100 trails only
-          trails = graph.enumerate_trails(source="start", target="end", max_trails=100)
-          print(f"Found {len(trails)} trails (may be more)")
-          ```
+        # Get first 100 trails only
+        trails = graph.enumerate_trails(source="start", target="end", max_trails=100)
+        print(f"Found {len(trails)} trails (may be more)")
+        ```
 
-          Analyze trail lengths:
+        Analyze trail lengths:
 
-          ```python
-          from edgecase import karate_club
+        ```python
+        from edgecase import karate_club
 
-          G = karate_club()
+        G = karate_club()
 
-          # Karate club has nodes 0-33, get any two node IDs
-          node_ids = list(G.get_node_ids(limit=None))
-          if len(node_ids) >= 2:
-              source_id = node_ids[0]
-              target_id = node_ids[-1]
-              source_label = G.get_label_from_id(node_id=source_id) or str(source_id)
-              target_label = G.get_label_from_id(node_id=target_id) or str(target_id)
+        # Karate club has nodes 0-33, get any two node IDs
+        node_ids = list(G.get_node_ids(limit=None))
+        if len(node_ids) >= 2:
+            source_id = node_ids[0]
+            target_id = node_ids[-1]
+            source_label = G.get_label_from_id(node_id=source_id) or str(source_id)
+            target_label = G.get_label_from_id(node_id=target_id) or str(target_id)
 
-              # Get sample of trails
-              trails = G.enumerate_trails(source=source_label, target=target_label, max_trails=100)
+            # Get sample of trails
+            trails = G.enumerate_trails(source=source_label, target=target_label, max_trails=100)
 
-              if trails:
-                  # Analyze lengths
-                  lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
-                  print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
-                  print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
-          ```
+            if trails:
+                # Analyze lengths
+                lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
+                print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
+                print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
+        ```
 
-          Notes
-          -----
-          **Memory Warning**:
+        Notes
+        -----
+        **Memory Warning**:
 
-          - Each trail stores full node sequence
-          - 1000 trails × 50 nodes each = ~50KB minimum
-          - Can quickly consume many GBs of memory for large graphs
-          - Always set max_trails to reasonable value
+        - Each trail stores full node sequence
+        - 1000 trails × 50 nodes each = ~50KB minimum
+        - Can quickly consume many GBs of memory for large graphs
+        - Always set max_trails to reasonable value
 
-          **Use Cases**:
+        **Use Cases**:
 
-          - Analyzing alternative routes in networks
-          - Finding redundant paths for reliability
-          - Network vulnerability analysis
-          - Understanding connectivity patterns
+        - Analyzing alternative routes in networks
+        - Finding redundant paths for reliability
+        - Network vulnerability analysis
+        - Understanding connectivity patterns
 
         %family Path Analysis
         """
@@ -23349,9 +23349,8 @@ class Graph:
         Parameters
         ----------
         mode
-            Calculation mode for reciprocity:
-
-            - `"default"` or `"ratio"`: (# mutual edges) / (total # edges)
+            Calculation mode for reciprocity. Can either be `"default"` or `"ratio"`, where the
+            latter is `(# mutual edges) / (total # edges)`.
 
         Returns
         -------
@@ -24371,14 +24370,14 @@ class Graph:
 
         Parameters
         ----------
-        weight : str, optional
+        weight
             Edge attribute to use as weight. If `None`, uses unweighted distances (all edges have
             distance `1`).
 
         Returns
         -------
         float
-            The Wiener index. Returns 0.0 for empty graphs or single-node graphs. Returns infinity
+            The Wiener index. Returns `0.0` for empty graphs or single-node graphs. Returns infinity
             (`float('inf')`) for disconnected graphs.
 
         Examples
@@ -24765,10 +24764,10 @@ class AdaStar:
     weight
         Name of the edge attribute to use as weight (default: "weight").
     initial_epsilon
-        Initial epsilon value for suboptimality bound (default: 1000.0). Lower values give better
-        paths but take longer. Using `epsilon = 1.0` is optimal (equivalent to A*).
+        Initial epsilon value for suboptimality bound (default: `1000.0`). Lower values give better
+        paths but take longer. Using `epsilon = 1.0` is optimal (equivalent to `A*`).
     heuristic
-        Heuristic function `h(u, v)` that estimates distance from u to v. Should be admissible
+        Heuristic function `h(u, v)` that estimates distance from `u` to `v`. Should be admissible
         (never overestimate). If `None`, uses `h=0` (Dijkstra). Function should accept two node IDs
         (integers) and return float.
 
@@ -24959,11 +24958,9 @@ class AdaStar:
         Parameters
         ----------
         epsilon
-            Suboptimality bound (default: `1.0`).
-
-            - epsilon = 1.0: optimal path (A*)
-            - epsilon > 1.0: path cost ≤ epsilon × optimal cost
-            Higher epsilon = faster but less optimal
+            Suboptimality bound (default: `1.0`). Using `epsilon = 1.0` leads to an optimal path
+            (`A*`) whereas for `epsilon > 1.0` the relation of `path cost ≤ epsilon × optimal cost`
+            holds. A higher epsilon is faster but less optimal.
 
         Returns
         -------
@@ -25006,8 +25003,8 @@ class AdaStar:
         Parameters
         ----------
         changes
-            List of edge weight changes as (source_id, target_id, new_weight).
-            Use `graph.get_node_id(label)` to convert labels to IDs.
+            List of edge weight changes as `(source_id, target_id, new_weight)`. Use
+            `graph.get_node_id(label)` to convert labels to IDs.
 
         Examples
         --------
