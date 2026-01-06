@@ -75,7 +75,6 @@ def from_matrix_market(
       * Type: 'pattern' -> unweighted, 'real'/'integer' -> weighted
     - Parameters `directed` and `weighted` override auto-detection when provided
 
-    %family I/O
     """
     filepath = Path(filepath)
 

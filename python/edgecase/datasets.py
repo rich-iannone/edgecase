@@ -278,7 +278,6 @@ def get_dataset_info(name: str) -> dict:
     print(f"{info['name']}: {info['nodes']:,} nodes, {info['edges']:,} edges")
     ```
 
-    %family Datasets
     %seealso list_registered_datasets, list_available_datasets, load_dataset
     """
     # Remove .mtx extension if present
@@ -323,7 +322,6 @@ def list_registered_datasets() -> list[str]:
         print(f"{name}: {info['description']}")
     ```
 
-    %family Datasets
     %seealso get_dataset_info, list_available_datasets, load_dataset
     """
     return list(DATASET_REGISTRY.keys())
@@ -492,7 +490,6 @@ def list_available_datasets() -> list[str]:
     list[str]
         List of dataset filenames
 
-    %family Datasets
     %seealso list_registered_datasets, get_dataset_info, load_dataset
     """
     if not DATA_DIR.exists():
@@ -589,7 +586,6 @@ def karate_club() -> Graph:
     prediction problem has been validated multiple times, and the dataset serves as a standard
     benchmark for community detection algorithms.
 
-    %family Datasets
     %seealso dolphins, football, polbooks, jazz
     """
 
@@ -754,7 +750,6 @@ def web_google() -> Graph:
     Graph
         Google web graph
 
-    %family Datasets
     %seealso soc_livejournal, wiki_vote, internet
     """
     return _load_dataset_from_file(
@@ -788,7 +783,6 @@ def soc_livejournal() -> Graph:
     -----
     This is a very large graph. Requires significant RAM (~10-15GB).
 
-    %family Datasets
     %seealso web_google, enron, wiki_vote
     """
     return _load_dataset_from_file(
@@ -824,7 +818,6 @@ def dolphins() -> Graph:
     This network is often used for community detection benchmarks.
     The network has been observed to split into two communities.
 
-    %family Datasets
     %seealso karate_club, football, polbooks, jazz
     """
     return _load_dataset_from_file(
@@ -860,7 +853,6 @@ def football() -> Graph:
     Teams are divided into conferences, providing natural community structure.
     Excellent dataset for testing community detection algorithms.
 
-    %family Datasets
     %seealso karate_club, dolphins, polbooks
     """
     return _load_dataset_from_file(
@@ -896,7 +888,6 @@ def polbooks() -> Graph:
     Books have been classified as liberal, neutral, or conservative.
     The network shows clear community structure along political lines.
 
-    %family Datasets
     %seealso karate_club, dolphins, football
     """
     return _load_dataset_from_file(
@@ -931,7 +922,6 @@ def jazz() -> Graph:
     This is a highly clustered network with small-world properties.
     Good for testing clustering algorithms and visualization.
 
-    %family Datasets
     %seealso karate_club, dolphins, ca_grqc, physics, condmat
     """
     return _load_dataset_from_file(
@@ -967,7 +957,6 @@ def celegans() -> Graph:
     This metabolic network shows the biochemical pathways in C. elegans.
     Different from the neural network version.
 
-    %family Datasets
     %seealso power_grid, internet
     """
     return _load_dataset_from_file(
@@ -1003,7 +992,6 @@ def power_grid() -> Graph:
     Classic example of a sparse infrastructure network with small-world properties.
     Used to study robustness and cascading failures.
 
-    %family Datasets
     %seealso internet, celegans
     """
     return _load_dataset_from_file(
@@ -1039,7 +1027,6 @@ def pgp() -> Graph:
     Real-world trust network from cryptographic key signing.
     Exhibits power-law degree distribution and strong clustering.
 
-    %family Datasets
     %seealso wiki_vote, enron, gnutella, web_google
     """
     return _load_dataset_from_file(
@@ -1074,7 +1061,6 @@ def internet() -> Graph:
     -----
     Snapshot from January 2, 2000 from University of Oregon Route Views Project.
 
-    %family Datasets
     %seealso power_grid, gnutella, web_google
     """
     return _load_dataset_from_file(
@@ -1107,7 +1093,6 @@ def ca_grqc() -> Graph:
     Graph
         Arxiv collaboration network
 
-    %family Datasets
     %seealso physics, condmat, jazz
     """
     return _load_dataset_from_file(
@@ -1138,7 +1123,6 @@ def physics() -> Graph:
     Graph
         High Energy Physics collaboration network
 
-    %family Datasets
     %seealso ca_grqc, condmat, jazz
     """
     return _load_dataset_from_file(
@@ -1173,7 +1157,6 @@ def wiki_vote() -> Graph:
     -----
     Includes all Wikipedia voting data from inception to January 2008.
 
-    %family Datasets
     %seealso enron, pgp, web_google, soc_livejournal
     """
     return _load_dataset_from_file(
@@ -1204,7 +1187,6 @@ def condmat() -> Graph:
     Graph
         Condensed Matter collaboration network
 
-    %family Datasets
     %seealso ca_grqc, physics, jazz
     """
     return _load_dataset_from_file(
@@ -1239,7 +1221,6 @@ def enron() -> Graph:
     -----
     Data from the Enron email corpus made public during the FERC investigation.
 
-    %family Datasets
     %seealso wiki_vote, pgp, soc_livejournal
     """
     return _load_dataset_from_file(
@@ -1270,7 +1251,6 @@ def gnutella() -> Graph:
     Graph
         Gnutella P2P network
 
-    %family Datasets
     %seealso internet, web_google, pgp
     """
     return _load_dataset_from_file(
@@ -1315,7 +1295,6 @@ def load_dataset(name: str, directed: bool = None, weighted: bool = False) -> Gr
     at ~/.cache/edgecase/datasets/. Set EDGECASE_NO_DOWNLOAD=1 to disable
     auto-download.
 
-    %family Datasets
     %seealso list_registered_datasets, get_dataset_info, list_available_datasets
     """
     # Remove .mtx extension if present to check registry

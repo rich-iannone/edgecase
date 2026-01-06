@@ -40,7 +40,6 @@ def to_igraph(graph):
     print(ig_graph.es["weight"])  # [1.5]
     ```
 
-    %family Interoperability
     """
     try:
         import igraph as ig
@@ -189,7 +188,6 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     print(node.attributes["color"])  # 'red'
     ```
 
-    %family Interoperability
     """
     try:
         import igraph  # noqa: F401
