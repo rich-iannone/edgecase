@@ -717,7 +717,9 @@ class Graph:
         )
 
         graph.delete_node(node="B")
-        print(graph.has_node(node="B"))  # False
+
+        # Node B no longer exists
+        graph.has_node(node="B")
         ```
 
         Delete node by ID:
@@ -727,7 +729,9 @@ class Graph:
         node_id = graph.get_id_from_label(label="Alice")
 
         graph.delete_node(node=node_id)
-        print(graph.has_node(node=node_id))  # False
+
+        # Node no longer exists
+        graph.has_node(node=node_id)
         ```
 
         """
@@ -789,7 +793,8 @@ class Graph:
             .delete_edge(source="A", target="B")
         )
 
-        print(graph.has_edge(source="A", target="B"))  # False
+        # Edge no longer exists
+        graph.has_edge(source="A", target="B")
         ```
 
         Delete edge by ID:
@@ -804,7 +809,9 @@ class Graph:
         edge_id = graph.get_edge_ids()[0]
 
         graph.delete_edge(id=edge_id)
-        print(graph.has_edge(source="A", target="B"))  # False
+
+        # Edge no longer exists
+        graph.has_edge(source="A", target="B")
         ```
 
         """
@@ -861,12 +868,12 @@ class Graph:
             .add_edge(source="A", target="B")
         )
 
-        # Get the edge ID
+        # Get and delete the edge
         edge_id = graph.get_edge_ids()[0]
-
-        # Delete the edge
         graph.delete_edge_by_id(edge_id=edge_id)
-        print(graph.has_edge(source="A", target="B"))  # False
+
+        # Edge no longer exists
+        graph.has_edge(source="A", target="B")
         ```
 
         Delete specific edges in a multigraph:
@@ -880,10 +887,12 @@ class Graph:
             .add_edge(source="A", target="B", weight=2.0)
         )
 
-        # Get edge IDs and delete the first one
+        # Delete only the first edge
         edge_ids = graph.get_edge_ids()
         graph.delete_edge_by_id(edge_id=edge_ids[0])
-        print(graph.has_edge(source="A", target="B"))  # True (second edge remains)
+
+        # Second edge still remains
+        graph.has_edge(source="A", target="B")
         ```
 
         """
@@ -904,38 +913,56 @@ class Graph:
 
         Examples
         --------
-        Delete specific nodes from a path:
+        Delete middle nodes from a path:
 
         ```python
-        import edgecase as ec
+        from edgecase import Graph
 
-        graph = ec.Graph()
-        graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
+        graph = Graph().add_path_graph(5)  # Creates path: 0-1-2-3-4
 
         # Select and delete middle nodes
         node_ids = list(graph.get_node_ids())
         graph.select_nodes_by_id([node_ids[2], node_ids[3]])
         graph.delete_nodes_ws()
 
-        print(graph.count_nodes())  # 3 (nodes 0, 1, 4 remain)
-        print(graph.count_edges())  # 1 (only edge 0-1 remains)
+        # 3 nodes remain (0, 1, 4)
+        graph.count_nodes()
         ```
 
-        Delete nodes by filtering:
+        Check remaining edges after deletion:
 
         ```python
-        graph = ec.Graph()
-        graph.add_node("A", value=10)
-        graph.add_node("B", value=25)
-        graph.add_node("C", value=30)
-        graph.add_edge("A", "B")
-        graph.add_edge("B", "C")
+        from edgecase import Graph
 
-        # Delete high-value nodes
+        graph = Graph().add_path_graph(5)
+        node_ids = list(graph.get_node_ids())
+        graph.select_nodes_by_id([node_ids[2], node_ids[3]])
+        graph.delete_nodes_ws()
+
+        # Only edge 0-1 remains
+        graph.count_edges()
+        ```
+
+        Delete nodes by filtering on attributes:
+
+        ```python
+        from edgecase import Graph
+
+        graph = (
+            Graph()
+            .add_node("A", value=10)
+            .add_node("B", value=25)
+            .add_node("C", value=30)
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+        )
+
+        # Select and delete high-value nodes
         graph.select_nodes(lambda n: n.attributes.get("value", 0) > 20)
         graph.delete_nodes_ws()
 
-        print(graph.count_nodes())  # 1 (only A remains)
+        # Only node A remains
+        graph.count_nodes()
         ```
 
         """
@@ -967,25 +994,40 @@ class Graph:
         Delete specific edges from a path:
 
         ```python
-        import edgecase as ec
+        from edgecase import Graph
 
-        graph = ec.Graph()
-        graph.add_path_graph(5)  # Creates path: 0-1-2-3-4
+        graph = Graph().add_path_graph(5)  # Creates path: 0-1-2-3-4
 
         # Select and delete middle edges
         edge_ids = graph.get_edge_ids()[1:3]  # Get edges 1 and 2
         graph.select_edges_by_id(edge_ids)
         graph.delete_edges_ws()
 
-        print(graph.count_nodes())  # 5 (all nodes remain)
-        print(graph.count_edges())  # 2 (only first and last edges remain)
+        # All nodes remain
+        graph.count_nodes()
+        ```
+
+        Check remaining edges:
+
+        ```python
+        from edgecase import Graph
+
+        graph = Graph().add_path_graph(5)
+        edge_ids = graph.get_edge_ids()[1:3]
+        graph.select_edges_by_id(edge_ids)
+        graph.delete_edges_ws()
+
+        # Only first and last edges remain
+        graph.count_edges()
         ```
 
         Delete edges by filtering:
 
         ```python
+        from edgecase import Graph
+
         graph = (
-            ec.Graph()
+            Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -999,7 +1041,8 @@ class Graph:
         graph.select_edges(lambda e: e.weight and e.weight < 2.0)
         graph.delete_edges_ws()
 
-        print(graph.count_edges())  # 2 (edges with weight >= 2.0 remain)
+        # Edges with weight >= 2.0 remain
+        graph.count_edges()
         ```
 
         """
@@ -1032,21 +1075,43 @@ class Graph:
         ```python
         from edgecase import Graph
 
-        g = Graph()
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="A", target="A")  # Self-loop
-        g.add_edge(source="B", target="B")  # Self-loop
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="A")  # Self-loop
+            .add_edge(source="B", target="B")  # Self-loop
+        )
 
-        print(g.count_edges())  # 3
-        g.remove_selfloops()
-        print(g.count_edges())  # 1
+        # Before: 3 edges
+        g.count_edges()
+        ```
+
+        After removal:
+
+        ```python
+        from edgecase import Graph
+
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="A")
+            .add_edge(source="B", target="B")
+            .remove_selfloops()
+        )
+
+        # Only A-B edge remains
+        g.count_edges()
         ```
 
         Use in preprocessing pipeline:
 
         ```python
+        from edgecase import Graph
+
         g = (
             Graph()
             .add_node(label="X")
@@ -1058,7 +1123,8 @@ class Graph:
             .remove_selfloops()
         )
 
-        print(g.is_simple())  # True (if no multi-edges)
+        # Graph is now simple (assuming no multi-edges)
+        g.is_simple()
         ```
 
         Notes
@@ -1095,41 +1161,67 @@ class Graph:
 
         Examples
         --------
-        Remove duplicate edges from a multigraph (default behavior):
+        Remove duplicate edges (default behavior):
 
         ```python
         from edgecase import Graph
 
-        g = Graph()
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_edge(source="A", target="B", weight=1.0)
-        g.add_edge(source="A", target="B", weight=2.0)  # Duplicate
-        g.add_edge(source="A", target="B", weight=3.0)  # Duplicate
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="B", weight=2.0)  # Duplicate
+            .add_edge(source="A", target="B", weight=3.0)  # Duplicate
+        )
 
-        print(g.count_edges())  # 3
-        g.remove_duplicate_edges()
-        print(g.count_edges())  # 1
+        # Before: 3 edges
+        g.count_edges()
+        ```
+
+        After removal:
+
+        ```python
+        from edgecase import Graph
+
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="B", weight=2.0)
+            .add_edge(source="A", target="B", weight=3.0)
+            .remove_duplicate_edges()
+        )
+
+        # Only first edge kept
+        g.count_edges()
         ```
 
         Keep edges with different attributes:
 
         ```python
-        g = Graph()
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_edge(source="A", target="B", rel="friend")
-        g.add_edge(source="A", target="B", rel="colleague")
-        g.add_edge(source="A", target="B", rel="friend")  # True duplicate
+        from edgecase import Graph
 
-        print(g.count_edges())  # 3
-        g.remove_duplicate_edges(keep_distinct_attributes=True)
-        print(g.count_edges())  # 2 (friend and colleague kept)
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B", rel="friend")
+            .add_edge(source="A", target="B", rel="colleague")
+            .add_edge(source="A", target="B", rel="friend")  # True duplicate
+            .remove_duplicate_edges(keep_distinct_attributes=True)
+        )
+
+        # friend and colleague kept
+        g.count_edges()
         ```
 
         Use in preprocessing pipeline:
 
         ```python
+        from edgecase import Graph
+
         g = (
             Graph()
             .add_node(label="X")
@@ -1140,7 +1232,8 @@ class Graph:
             .remove_duplicate_edges()
         )
 
-        print(g.count_edges())  # 1 (first edge kept)
+        # First edge kept
+        g.count_edges()
         ```
 
         Notes
@@ -1180,25 +1273,45 @@ class Graph:
         ```python
         from edgecase import Graph
 
-        g = Graph()
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_edge(source="A", target="B", weight=1.0)
-        g.add_edge(source="A", target="B", weight=2.0)  # Duplicate
-        g.add_edge(source="A", target="A")  # Self-loop
-        g.add_edge(source="B", target="B")  # Self-loop
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="B", weight=2.0)  # Duplicate
+            .add_edge(source="A", target="A")  # Self-loop
+            .add_edge(source="B", target="B")  # Self-loop
+        )
 
-        print(g.count_edges())  # 4
-        print(g.is_simple())  # False
+        # Before: 4 edges, not simple
+        (g.count_edges(), g.is_simple())
+        ```
 
-        g.simplify()
-        print(g.count_edges())  # 1
-        print(g.is_simple())  # True
+        After simplify:
+
+        ```python
+        from edgecase import Graph
+
+        g = (
+            Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_edge(source="A", target="B", weight=1.0)
+            .add_edge(source="A", target="B", weight=2.0)
+            .add_edge(source="A", target="A")
+            .add_edge(source="B", target="B")
+            .simplify()
+        )
+
+        # Now: 1 edge, is simple
+        (g.count_edges(), g.is_simple())
         ```
 
         Use in preprocessing pipeline:
 
         ```python
+        from edgecase import Graph
+
         g = (
             Graph()
             .add_node(label="X")
@@ -1211,7 +1324,7 @@ class Graph:
             .simplify()
         )
 
-        print(g.is_simple())  # True
+        g.is_simple()
         ```
 
         Notes
@@ -1518,6 +1631,7 @@ class Graph:
         G.add_node(label="C")
         G.add_edge(source="A", target="B")
         G.add_edge(source="B", target="C")
+
         # G.show()  # Auto-detects notebook vs browser
         # G.show(target="browser")  # Force browser
         # G.show(target="notebook")  # Force notebook display
@@ -1613,8 +1727,13 @@ class Graph:
         ```python
         graph = Graph().add_path_graph(n=5)
 
-        print(graph.count_nodes())  # 5
-        print(graph.count_edges())  # 4
+        # Returns node count
+        graph.count_nodes()
+        ```
+
+        ```python
+        # Returns edge count
+        graph.count_edges()
         ```
 
         """
@@ -1679,8 +1798,13 @@ class Graph:
         ```python
         graph = Graph().add_cycle_graph(n=4)
 
-        print(graph.count_nodes())  # 4
-        print(graph.count_edges())  # 4
+        # Returns node count
+        graph.count_nodes()
+        ```
+
+        ```python
+        # Returns edge count
+        graph.count_edges()
         ```
 
         """
@@ -1736,8 +1860,13 @@ class Graph:
         ```python
         graph = Graph().add_star_graph(n=5)  # 1 hub + 4 spokes
 
-        print(graph.count_nodes())  # 5
-        print(graph.count_edges())  # 4
+        # Returns node count
+        graph.count_nodes()
+        ```
+
+        ```python
+        # Returns edge count
+        graph.count_edges()
         ```
 
         """
@@ -1804,8 +1933,13 @@ class Graph:
         ```python
         graph = Graph().add_full_graph(n=4)
 
-        print(graph.count_nodes())  # 4
-        print(graph.count_edges())  # 6
+        # Returns node count
+        graph.count_nodes()
+        ```
+
+        ```python
+        # Returns edge count
+        graph.count_edges()
         ```
 
         """
@@ -1885,9 +2019,9 @@ class Graph:
             .add_balanced_tree(k=2, h=3)
         )
 
-        print(graph.count_nodes())  # 15 (1 + 2 + 4 + 8)
+        # Returns node count: 15 (1 + 2 + 4 + 8)
+        graph.count_nodes()
         ```
-
         """
         if k < 1:
             raise ValueError("Branching factor k must be at least 1")
@@ -1986,10 +2120,14 @@ class Graph:
         graph = Graph()
         graph.add_grid_2d(3, 4)  # 3×4 grid
 
-        print(graph.count_nodes())  # 12
-        print(graph.count_edges())  # 17 (edges: 3*3 + 2*4)
+        # Returns node count
+        graph.count_nodes()
         ```
 
+        ```python
+        # Returns edge count: 17 (edges: 3*3 + 2*4)
+        graph.count_edges()
+        ```
         """
         if rows < 1 or cols < 1:
             raise ValueError("Grid must have at least 1 row and 1 column")
@@ -2078,10 +2216,14 @@ class Graph:
         graph = Graph()
         graph.add_prism_graph(5)
 
-        print(graph.count_nodes())  # 10 (2 cycles of 5)
-        print(graph.count_edges())  # 15 (5+5 cycle edges + 5 vertical)
+        # Returns node count: 10 (2 cycles of 5)
+        graph.count_nodes()
         ```
 
+        ```python
+        # Returns edge count: 15 (5+5 cycle edges + 5 vertical)
+        graph.count_edges()
+        ```
         """
         if n < 3:
             raise ValueError("Prism must have at least 3 nodes per cycle")
@@ -2185,10 +2327,9 @@ class Graph:
         graph = Graph()
         graph.add_gnp_graph(n=50, p=0.1, seed=23)
 
-        print(graph.count_nodes())  # 50
-        # Expected ~245 edges (50*49/2 * 0.1)
+        # Returns 50 (expected ~245 edges: 50*49/2 * 0.1)
+        graph.count_nodes()
         ```
-
         """
         if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
@@ -2245,10 +2386,14 @@ class Graph:
             .add_gnm_graph(n=50, m=100, seed=23)
         )
 
-        print(graph.count_nodes())  # 50
-        print(graph.count_edges())  # 100
+        # Returns 50
+        graph.count_nodes()
         ```
 
+        ```python
+        # Returns 100
+        graph.count_edges()
+        ```
         """
         if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
@@ -2302,10 +2447,14 @@ class Graph:
             .add_pa_graph(n=100, m=3, seed=23)
         )
 
-        print(graph.count_nodes())  # 100
-        print(graph.count_edges())  # (100-m)*m = 294
+        # Returns 100
+        graph.count_nodes()
         ```
 
+        ```python
+        # Returns 294 ((100-m)*m)
+        graph.count_edges()
+        ```
         """
         self._graph.generate_pa_graph(n, m, seed)
         return self
@@ -2349,7 +2498,8 @@ class Graph:
             .add_smallworld_graph(n=100, k=6, p=0.1, seed=23)
         )
 
-        print(graph.count_nodes())  # 100
+        # Returns 100
+        graph.count_nodes()
         ```
 
         """
@@ -2412,33 +2562,56 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False).add_johnson_graph(n=4, k=2)
-        print(graph.count_nodes())  # 6 (C(4,2) = 6)
-        print(graph.count_edges())  # 12
 
+        # Returns 6 (C(4,2) = 6)
+        graph.count_nodes()
+        ```
+
+        ```python
+        # Returns 12 edges
+        graph.count_edges()
+        ```
+
+        ```python
         # Each node is a 2-subset
         nodes = [graph.get_label_from_id(nid) for nid in graph.get_node_ids(limit=None)]
-        print(nodes)  # ['0,1', '0,2', '0,3', '1,2', '1,3', '2,3']
 
+        # Returns ['0,1', '0,2', '0,3', '1,2', '1,3', '2,3']
+        nodes
+        ```
+
+        ```python
         # Verify regularity: each node has degree k(n-k) = 2*2 = 4
         degrees = [graph.get_degree(nid) for nid in graph.get_node_ids(limit=None)]
-        print(set(degrees))  # {4}
+
+        # Returns {4}
+        set(degrees)
         ```
 
         Create the Petersen graph J(5,2):
 
         ```python
         johnson_5_2 = ec.Graph(directed=False).add_johnson_graph(n=5, k=2)
-        print(johnson_5_2.count_nodes())  # 10 (C(5,2) = 10)
-        print(johnson_5_2.count_edges())  # 30
 
+        # Returns 10 (C(5,2) = 10)
+        johnson_5_2.count_nodes()
+        ```
+
+        ```python
+        # Returns 30 edges
+        johnson_5_2.count_edges()
+        ```
+
+        ```python
         # Verify regularity: degree = k(n-k) = 2*(5-2) = 6
         degrees = [johnson_5_2.get_degree(nid) for nid in johnson_5_2.get_node_ids(limit=None)]
-        print(f"Degree: {degrees[0]}")  # 6
 
-        # Note: The Petersen graph is actually the Kneser graph K(5,2),
-        # not Johnson J(5,2). J(5,2) has 10 nodes and is 6-regular,
-        # while Petersen has 10 nodes but is 3-regular.
+        # Returns 6
+        degrees[0]
         ```
+
+        Note: The Petersen graph is actually the Kneser graph K(5,2), not Johnson J(5,2).
+        J(5,2) has 10 nodes and is 6-regular, while Petersen has 10 nodes but is 3-regular.
 
         """
         self._graph.generate_johnson_graph(n, k)
@@ -2494,11 +2667,11 @@ class Graph:
 
         Properties
         ----------
-        - **Undirected**: All edges are bidirectional.
-        - **Spatial embedding**: Nodes have positions in `[0, 1]^dim`.
-        - **Node labels**: Position stored as JSON array, e.g., `"[0.234, 0.567]"`.
-        - **Local clustering**: High clustering due to geometric proximity.
-        - **Threshold behavior**: Graph connectivity exhibits phase transition as radius increases
+        - **Undirected**: all edges are bidirectional.
+        - **Spatial embedding**: nodes have positions in `[0, 1]^dim`.
+        - **Node labels**: position stored as JSON array, e.g., `"[0.234, 0.567]"`.
+        - **Local clustering**: high clustering due to geometric proximity.
+        - **Threshold behavior**: graph connectivity exhibits phase transition as radius increases
         past a critical threshold.
 
         Complexity
@@ -2516,12 +2689,18 @@ class Graph:
         graph = ec.Graph(directed=False).add_random_geometric_graph(
             n=100, radius=0.2, seed=23
         )
-        print(graph.count_nodes())  # 100
 
+        # Returns 100
+        graph.count_nodes()
+        ```
+
+        ```python
         # Nodes have position labels
         node_id = graph.get_node_ids(limit=1)[0]
         label = graph.get_label_from_id(node_id)
-        print(label)  # e.g., '[0.374540, 0.950714]'
+
+        # Returns e.g., '[0.374540, 0.950714]'
+        label
         ```
 
         Create a 3D spatial network:
@@ -2530,8 +2709,14 @@ class Graph:
         spatial_graph = ec.Graph(directed=False).add_random_geometric_graph(
             n=50, radius=0.3, dim=3, seed=123
         )
-        print(f"Nodes: {spatial_graph.count_nodes()}")  # 50
-        print(f"Edges: {spatial_graph.count_edges()}")  # varies by random seed
+
+        # Returns 50
+        spatial_graph.count_nodes()
+        ```
+
+        ```python
+        # Varies by random seed
+        spatial_graph.count_edges()
         ```
 
         Use Manhattan distance (p_norm=1.0):
@@ -2540,8 +2725,9 @@ class Graph:
         manhattan_graph = ec.Graph(directed=False).add_random_geometric_graph(
             n=100, radius=0.25, p_norm=1.0, seed=23
         )
+
         # With Manhattan distance, the "ball" of radius r is a rotated square
-        print(f"Edges: {manhattan_graph.count_edges()}")
+        manhattan_graph.count_edges()
         ```
 
         """
@@ -2577,8 +2763,14 @@ class Graph:
         graph = Graph().add_node(label="A", color="red", size=10)
 
         node = graph.get_node("A")
-        print(node.id)  # 'A'
-        print(node.attributes)  # {'color': 'red', 'size': 10}
+
+        # Returns 'A'
+        node.id
+        ```
+
+        ```python
+        # Returns {'color': 'red', 'size': 10}
+        node.attributes
         ```
 
         """
@@ -2612,10 +2804,23 @@ class Graph:
         edge_ids = graph.get_edge_ids()
         edge = graph.get_edge(edge_ids[0])
 
-        print(edge.source)  # Node ID for 'A'
-        print(edge.target)  # Node ID for 'B'
-        print(edge.weight)  # 1.5
-        print(edge.attributes)  # {'type': 'friend'}
+        # Returns Node ID for 'A'
+        edge.source
+        ```
+
+        ```python
+        # Returns Node ID for 'B'
+        edge.target
+        ```
+
+        ```python
+        # Returns 1.5
+        edge.weight
+        ```
+
+        ```python
+        # Returns {'type': 'friend'}
+        edge.attributes
         ```
 
         """
@@ -2658,7 +2863,9 @@ class Graph:
         )
 
         ids = graph.get_node_ids()  # Returns up to 1000 node IDs
-        print(f"Showing {len(ids)} node IDs: {ids}")
+
+        # Returns 3 node IDs
+        len(ids), ids
         ```
 
         Get a smaller sample:
@@ -2670,7 +2877,9 @@ class Graph:
 
         # Get only first 10 node IDs for preview
         sample_ids = graph.get_node_ids(limit=10)
-        print(f"Sample: {sample_ids}")
+
+        # Returns first 10 node IDs
+        sample_ids
         ```
 
         Get all node IDs regardless of size:
@@ -2682,7 +2891,9 @@ class Graph:
 
         # Use None to get all nodes (may be slow for large graphs!)
         all_ids = graph.get_node_ids(limit=None)
-        print(f"Total nodes: {len(all_ids)}")
+
+        # Returns 5
+        len(all_ids)
         ```
 
         """
@@ -2725,7 +2936,9 @@ class Graph:
         )
 
         ids = graph.get_edge_ids()  # Returns up to 1000 edge IDs
-        print(f"Showing {len(ids)} edge IDs: {ids}")
+
+        # Returns 2 edge IDs
+        len(ids), ids
         ```
 
         Get a smaller sample:
@@ -2741,7 +2954,9 @@ class Graph:
 
         # Get only first 10 edge IDs for preview
         sample_ids = graph.get_edge_ids(limit=10)
-        print(f"Sample: {sample_ids}")
+
+        # Returns first 10 edge IDs
+        sample_ids
         ```
 
         Get all edge IDs regardless of size:
@@ -2757,7 +2972,9 @@ class Graph:
 
         # Use None to get all edges (may be slow for large graphs!)
         all_ids = graph.get_edge_ids(limit=None)
-        print(f"Total edges: {len(all_ids)}")
+
+        # Returns 4
+        len(all_ids)
         ```
 
         """
@@ -2800,11 +3017,17 @@ class Graph:
 
         # Look up the edge
         source, target = graph.get_node_ids_by_edge_id(edge_id=edge_id)
-        print(f"Edge {edge_id} goes from {source} to {target}")
 
+        # Returns the source and target node IDs
+        (source, target)
+        ```
+
+        ```python
         # Non-existent edge returns None
         result = graph.get_node_ids_by_edge_id(edge_id=9999)
-        print(result)  # None
+
+        # Returns None
+        result
         ```
 
         """
@@ -2839,10 +3062,16 @@ class Graph:
         )
 
         alice_id = graph.get_id_from_label("Alice")
-        print(alice_id)  # 1
 
+        # Returns 1
+        alice_id
+        ```
+
+        ```python
         unknown_id = graph.get_id_from_label("Unknown")
-        print(unknown_id)  # None
+
+        # Returns None
+        unknown_id
         ```
 
         """
@@ -2881,10 +3110,16 @@ class Graph:
         )
 
         label = graph.get_label_from_id(1)
-        print(label)  # "Alice"
 
+        # Returns "Alice"
+        label
+        ```
+
+        ```python
         no_label = graph.get_label_from_id(999)
-        print(no_label)  # None
+
+        # Returns None
+        no_label
         ```
 
         """
@@ -2919,11 +3154,17 @@ class Graph:
         graph.add_node(label="C")
 
         creation_order = graph.get_node_creation_order()
-        print(creation_order)  # [<id_A>, <id_B>, <id_C>]
 
+        # Returns [<id_A>, <id_B>, <id_C>]
+        creation_order
+        ```
+
+        ```python
         # Get labels in creation order
         labels = [graph.get_node(nid).label for nid in creation_order]
-        print(labels)  # ['A', 'B', 'C']
+
+        # Returns ['A', 'B', 'C']
+        labels
         ```
 
         Select recently created nodes:
@@ -2969,12 +3210,16 @@ class Graph:
         )
 
         creation_order = graph.get_edge_creation_order()
-        print(len(creation_order))  # 3
 
-        # Get endpoints in creation order
+        # Returns 3
+        len(creation_order)
+        ```
+
+        ```python
+        # Get endpoints in creation order - iteration example
         for eid in creation_order:
             source, target = graph.get_node_ids_by_edge_id(eid)
-            print(f"Edge {eid}: {source} -> {target}")
+            # Each iteration shows: Edge <id>: <source> -> <target>
         ```
 
         Analyze edge addition patterns:
@@ -3021,8 +3266,9 @@ class Graph:
             .add_edge("B", "C")
         )
 
+        # Iteration over edges - each tuple is (edge_id, source, target)
         for edge_id, source, target in graph.get_edges_as_tuples():
-            print(f"Edge {edge_id}: {source} -> {target}")
+            pass  # Process each edge
         ```
 
         """
@@ -3072,7 +3318,8 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.get_edges_str_repr())  # ['1->2', '2->3']
+        # Returns ['1->2', '2->3']
+        graph.get_edges_str_repr()
         ```
 
         Get formatted edges with labels:
@@ -3089,7 +3336,8 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.get_edges_str_repr(use_labels=True))  # ['A->B', 'B->C']
+        # Returns ['A->B', 'B->C']
+        graph.get_edges_str_repr(use_labels=True)
         ```
 
         Undirected graphs use double dashes:
@@ -3102,8 +3350,13 @@ class Graph:
             .add_edge(source="X", target="Y")
         )
 
-        print(graph.get_edges_str_repr())  # ['1--2']
-        print(graph.get_edges_str_repr(use_labels=True))  # ['X--Y']
+        # Returns ['1--2']
+        graph.get_edges_str_repr()
+        ```
+
+        ```python
+        # Returns ['X--Y']
+        graph.get_edges_str_repr(use_labels=True)
         ```
 
         Mixed labels (some nodes have labels, others don't):
@@ -3120,8 +3373,8 @@ class Graph:
         bob_id = graph.get_id_from_label(label="Bob")
         graph.add_edge(source=alice_id, target=bob_id)
 
-        # Use labels in string representation
-        print(graph.get_edges_str_repr(use_labels=True))  # ['Alice--Bob']
+        # Returns ['Alice--Bob']
+        graph.get_edges_str_repr(use_labels=True)
         ```
 
         Get all edges regardless of size:
@@ -3137,7 +3390,9 @@ class Graph:
 
         # Use None to get all edges (may be slow for large graphs!)
         all_edges = graph.get_edges_str_repr(limit=None, use_labels=True)
-        print(f"Total edges: {len(all_edges)}")
+
+        # Returns 4
+        len(all_edges)
         ```
 
         """
@@ -3191,10 +3446,10 @@ class Graph:
             .add_node(label="Bob")
         )
 
-        print(graph.has_node("Alice"))   # True
-        print(graph.has_node(1))         # True
-        print(graph.has_node("Charlie")) # False
-        print(graph.has_node(999))       # False
+        graph.has_node("Alice")    # Returns True
+        graph.has_node(1)          # Returns True
+        graph.has_node("Charlie")  # Returns False
+        graph.has_node(999)        # Returns False
         ```
 
         """
@@ -3235,8 +3490,8 @@ class Graph:
             .add_edge(source="A", target="B")
         )
 
-        print(graph.has_edge(source="A", target="B"))  # True
-        print(graph.has_edge(source="B", target="A"))  # False (directed)
+        graph.has_edge(source="A", target="B")  # Returns True
+        graph.has_edge(source="B", target="A")  # Returns False (directed)
         ```
 
         For undirected graphs, order doesn't matter:
@@ -3249,8 +3504,8 @@ class Graph:
             .add_edge(source="A", target="B")
         )
 
-        print(graph.has_edge(source="A", target="B"))  # True
-        print(graph.has_edge(source="B", target="A"))  # True (undirected)
+        graph.has_edge(source="A", target="B")  # Returns True
+        graph.has_edge(source="B", target="A")  # Returns True (undirected)
         ```
 
         """
@@ -3291,8 +3546,8 @@ class Graph:
         )
 
         edge_id = graph.get_edge_ids()[0]
-        print(graph.has_edge_id(edge_id=edge_id))  # True
-        print(graph.has_edge_id(edge_id=9999))     # False
+        graph.has_edge_id(edge_id=edge_id)  # Returns True
+        graph.has_edge_id(edge_id=9999)     # Returns False
         ```
 
         """
@@ -3330,7 +3585,9 @@ class Graph:
         graph.add_edge(source="A", target="B")  # Multi-edge
 
         edge_ids = graph.find_edge_ids(source="A", target="B")
-        print(len(edge_ids))  # 2
+
+        # Returns 2
+        len(edge_ids)
         ```
 
         """
@@ -3361,7 +3618,9 @@ class Graph:
             .add_node(label="B")
             .add_node(label="C")
         )
-        print(graph.count_nodes())  # 3
+
+        # Returns 3
+        graph.count_nodes()
         ```
 
         Track nodes after deletion:
@@ -3374,7 +3633,9 @@ class Graph:
             .add_node(label="C")
             .delete_node("B")
         )
-        print(graph.count_nodes())  # 2
+
+        # Returns 2
+        graph.count_nodes()
         ```
 
         """
@@ -3406,7 +3667,9 @@ class Graph:
             .add_edge(source="A", target="B")
             .add_edge(source="B", target="C")
         )
-        print(graph.count_edges())  # 2
+
+        # Returns 2
+        graph.count_edges()
         ```
 
         Directed vs undirected edge counting:
@@ -3420,8 +3683,12 @@ class Graph:
             .add_edge(source="A", target="B")
             .add_edge(source="B", target="A")
         )
-        print(directed.count_edges())  # 2 (A->B and B->A are separate)
 
+        # Returns 2 (A->B and B->A are separate)
+        directed.count_edges()
+        ```
+
+        ```python
         # Undirected graph
         undirected = (
             Graph(directed=False)
@@ -3429,7 +3696,9 @@ class Graph:
             .add_node(label="B")
             .add_edge(source="A", target="B")
         )
-        print(undirected.count_edges())  # 1
+
+        # Returns 1
+        undirected.count_edges()
         ```
 
         Track edges after deletion:
@@ -3444,7 +3713,9 @@ class Graph:
             .add_edge(source="B", target="C")
             .delete_edge(source="A", target="B")
         )
-        print(graph.count_edges())  # 1
+
+        # Returns 1
+        graph.count_edges()
         ```
 
         """
@@ -3469,7 +3740,9 @@ class Graph:
 
         ```python
         graph = Graph(graph_name="Social Network")
-        print(graph.get_graph_name())  # "Social Network"
+
+        # Returns "Social Network"
+        graph.get_graph_name()
         ```
 
         Handle graphs without names:
@@ -3477,12 +3750,9 @@ class Graph:
         ```python
         graph = Graph()
         name = graph.get_graph_name()
-        print(name)  # None
 
-        if name:
-            print(f"Analyzing {name}")
-        else:
-            print("Analyzing unnamed graph")
+        # Returns None
+        name
         ```
 
         """
@@ -3523,10 +3793,16 @@ class Graph:
 
         ```python
         directed_graph = Graph(directed=True)
-        print(directed_graph.is_directed())  # True
 
+        # Returns True
+        directed_graph.is_directed()
+        ```
+
+        ```python
         undirected_graph = Graph(directed=False)
-        print(undirected_graph.is_directed())  # False
+
+        # Returns False
+        undirected_graph.is_directed()
         ```
 
         Use directionality to customize behavior:
@@ -3577,10 +3853,16 @@ class Graph:
 
         ```python
         weighted_graph = Graph(weighted=True)
-        print(weighted_graph.is_weighted())  # True
 
+        # Returns True
+        weighted_graph.is_weighted()
+        ```
+
+        ```python
         unweighted_graph = Graph()
-        print(unweighted_graph.is_weighted())  # False
+
+        # Returns False
+        unweighted_graph.is_weighted()
         ```
 
         Add weighted edges only if supported:
@@ -3622,11 +3904,16 @@ class Graph:
             .add_edge("A", "B")
         )
 
-        print(graph.is_simple())  # True
+        # Returns True
+        graph.is_simple()
+        ```
 
+        ```python
         # Add a self-loop
         graph.add_edge("A", "A")
-        print(graph.is_simple())  # False
+
+        # Returns False
+        graph.is_simple()
         ```
 
         Multi-edges also make a graph non-simple:
@@ -3640,7 +3927,8 @@ class Graph:
             .add_edge("A", "B")  # Duplicate edge (auto-assigned different IDs)
         )
 
-        print(graph.is_simple())  # False
+        # Returns False
+        graph.is_simple()
         ```
 
         """
@@ -3678,11 +3966,16 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.is_dag())  # True
+        # Returns True
+        graph.is_dag()
+        ```
 
+        ```python
         # Adding a cycle makes it not a DAG
         graph.add_edge("C", "A")  # Creates cycle A->B->C->A
-        print(graph.is_dag())  # False
+
+        # Returns False
+        graph.is_dag()
         ```
 
         """
@@ -3715,11 +4008,16 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.is_connected())  # True
+        # Returns True
+        graph.is_connected()
+        ```
 
+        ```python
         # Adding isolated nodes breaks connectivity
         graph.add_node(label="D")  # Isolated node
-        print(graph.is_connected())  # False
+
+        # Returns False
+        graph.is_connected()
         ```
 
         %seealso is_weakly_connected, is_strongly_connected, count_weakly_connected_components
@@ -3755,7 +4053,8 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.is_bipartite())  # True
+        # Returns True
+        graph.is_bipartite()
         ```
 
         Triangles are not bipartite (odd cycle):
@@ -3771,7 +4070,8 @@ class Graph:
             .add_edge("C", "A")  # Creates odd-length cycle
         )
 
-        print(triangle.is_bipartite())  # False
+        # Returns False
+        triangle.is_bipartite()
         ```
 
         """
@@ -3813,7 +4113,8 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(tree.is_tree())  # True
+        # Returns True
+        tree.is_tree()
         ```
 
         Graph with cycle is not a tree:
@@ -3829,7 +4130,8 @@ class Graph:
             .add_edge("C", "A")
         )
 
-        print(cycle.is_tree())  # False (has cycle)
+        # Returns False (has cycle)
+        cycle.is_tree()
         ```
 
         Disconnected graph is not a tree:
@@ -3844,7 +4146,8 @@ class Graph:
             # C is isolated
         )
 
-        print(disconnected.is_tree())  # False (not connected)
+        # Returns False (not connected)
+        disconnected.is_tree()
         ```
 
         Star graph is a tree:
@@ -3852,7 +4155,9 @@ class Graph:
         ```python
         star = Graph(directed=False)
         star.add_star_graph(n=5)
-        print(star.is_tree())  # True
+
+        # Returns True
+        star.is_tree()
         ```
 
         """
@@ -3892,7 +4197,8 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(tree.is_forest())  # True
+        # Returns True
+        tree.is_forest()
         ```
 
         Multiple disjoint trees form a forest:
@@ -3908,8 +4214,8 @@ class Graph:
             .add_edge("C", "D")  # Tree 2
         )
 
-        print(forest.is_forest())  # True
-        print(forest.is_tree())    # False (not connected)
+        forest.is_forest()  # Returns True
+        forest.is_tree()    # Returns False (not connected)
         ```
 
         Graph with cycle is not a forest:
@@ -3925,14 +4231,17 @@ class Graph:
             .add_edge("C", "A")
         )
 
-        print(cycle.is_forest())  # False (has cycle)
+        # Returns False (has cycle)
+        cycle.is_forest()
         ```
 
         Empty graph is a forest:
 
         ```python
         empty = Graph(directed=False)
-        print(empty.is_forest())  # True
+
+        # Returns True
+        empty.is_forest()
         ```
 
         """
@@ -3979,7 +4288,8 @@ class Graph:
             .add_edge("A", "C")
         )
 
-        print(arb.is_arborescence())  # True
+        # Returns True
+        arb.is_arborescence()
         ```
 
         Multiple roots is not an arborescence:
@@ -3994,7 +4304,8 @@ class Graph:
             .add_edge("root2", "A")
         )
 
-        print(multi_root.is_arborescence())  # False (A has in-degree 2)
+        # Returns False (A has in-degree 2)
+        multi_root.is_arborescence()
         ```
 
         Directed cycle is not an arborescence:
@@ -4010,7 +4321,8 @@ class Graph:
             .add_edge("C", "A")
         )
 
-        print(cycle.is_arborescence())  # False (no root, all in-degree 1)
+        # Returns False (no root, all in-degree 1)
+        cycle.is_arborescence()
         ```
 
         Balanced tree is an arborescence:
@@ -4018,7 +4330,9 @@ class Graph:
         ```python
         tree = Graph(directed=True)
         tree.add_balanced_tree(k=2, h=3)
-        print(tree.is_arborescence())  # True
+
+        # Returns True
+        tree.is_arborescence()
         ```
 
         """
@@ -4059,7 +4373,8 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.is_planar())  # True
+        # Returns True
+        graph.is_planar()
         ```
 
         The complete graph K_4 is planar:
@@ -4067,7 +4382,9 @@ class Graph:
         ```python
         graph = Graph(directed=False)
         graph.add_full_graph(n=4)
-        print(graph.is_planar())  # True (4 nodes, 6 edges: 6 ≤ 3 * 4 - 6 = 6)
+
+        # Returns True (4 nodes, 6 edges: 6 ≤ 3 * 4 - 6 = 6)
+        graph.is_planar()
         ```
 
         Complete graph K_5 is not planar:
@@ -4075,7 +4392,9 @@ class Graph:
         ```python
         graph = Graph(directed=False)
         graph.add_full_graph(n=5)
-        print(graph.is_planar())  # False (5 nodes, 10 edges: 10 > 3 * 5 - 6 = 9)
+
+        # Returns False (5 nodes, 10 edges: 10 > 3 * 5 - 6 = 9)
+        graph.is_planar()
         ```
 
         Trees are always planar:
@@ -4083,7 +4402,9 @@ class Graph:
         ```python
         tree = Graph(directed=False)
         tree.add_balanced_tree(k=3, h=4)
-        print(tree.is_planar())  # True (trees have `e = n - 1`)
+
+        # Returns True (trees have `e = n - 1`)
+        tree.is_planar()
         ```
 
         Grid graphs are planar:
@@ -4091,7 +4412,9 @@ class Graph:
         ```python
         grid = Graph(directed=False)
         grid.add_grid_2d(rows=5, cols=5)
-        print(grid.is_planar())  # True
+
+        # Returns True
+        grid.is_planar()
         ```
 
         """
@@ -4152,7 +4475,8 @@ class Graph:
             .add_edge("Y", "Z")
         )
 
-        print(g1.is_isomorphic(g2))  # True (both are paths of length 2)
+        # Returns True (both are paths of length 2)
+        g1.is_isomorphic(g2)
         ```
 
         Different structures are not isomorphic:
@@ -4161,7 +4485,8 @@ class Graph:
         path = Graph(directed=False).add_path_graph(n=4)
         star = Graph(directed=False).add_star_graph(n=4)
 
-        print(path.is_isomorphic(star))  # False (different degree sequences)
+        # Returns False (different degree sequences)
+        path.is_isomorphic(star)
         ```
 
         Directed vs undirected are not isomorphic:
@@ -4170,7 +4495,8 @@ class Graph:
         directed = Graph(directed=True).add_path_graph(n=3)
         undirected = Graph(directed=False).add_path_graph(n=3)
 
-        print(directed.is_isomorphic(undirected))  # False (different directedness)
+        # Returns False (different directedness)
+        directed.is_isomorphic(undirected)
         ```
 
         Complete graphs of same size:
@@ -4179,7 +4505,8 @@ class Graph:
         k4_a = Graph(directed=False).add_full_graph(n=4)
         k4_b = Graph(directed=False).add_full_graph(n=4)
 
-        print(k4_a.is_isomorphic(k4_b))  # True (same structure)
+        # Returns True (same structure)
+        k4_a.is_isomorphic(k4_b)
         ```
 
         Different sized graphs:
@@ -4188,7 +4515,8 @@ class Graph:
         g3 = Graph(directed=False).add_cycle_graph(n=3)
         g4 = Graph(directed=False).add_cycle_graph(n=4)
 
-        print(g3.is_isomorphic(g4))  # False (different sizes)
+        # Returns False (different sizes)
+        g3.is_isomorphic(g4)
         ```
 
         """
@@ -4217,7 +4545,8 @@ class Graph:
         graph = Graph()
         graph.add_cycle_graph(5)
 
-        print(graph.is_regular())  # True (all nodes have degree 2)
+        # Returns True (all nodes have degree 2)
+        graph.is_regular()
         ```
 
         Check if a star graph is regular:
@@ -4226,7 +4555,8 @@ class Graph:
         graph = Graph()
         graph.add_star_graph(4)
 
-        print(graph.is_regular())  # False (hub has different degree than leaves)
+        # Returns False (hub has different degree than leaves)
+        graph.is_regular()
         ```
 
         Check a complete graph:
@@ -4242,7 +4572,8 @@ class Graph:
             for j in range(i + 1, n):
                 graph.add_edge(nodes[i], nodes[j])
 
-        print(graph.is_regular())  # True (all nodes have degree n-1)
+        # Returns True (all nodes have degree n-1)
+        graph.is_regular()
         ```
 
         Notes
@@ -4284,8 +4615,13 @@ class Graph:
         graph = Graph()
         graph.add_cycle_graph(6)
 
-        print(graph.is_k_regular(2))  # True (cycles are 2-regular)
-        print(graph.is_k_regular(3))  # False
+        # Returns True (cycles are 2-regular)
+        graph.is_k_regular(2)
+        ```
+
+        ```python
+        # Returns False
+        graph.is_k_regular(3)
         ```
 
         Check complete graph regularity:
@@ -4301,9 +4637,13 @@ class Graph:
             for j in range(i + 1, n):
                 graph.add_edge(nodes[i], nodes[j])
 
-        # Complete graph K_n is (n-1)-regular
-        print(graph.is_k_regular(n - 1))  # True
-        print(graph.is_k_regular(n))      # False
+        # Complete graph K_n is (n-1)-regular; returns True
+        graph.is_k_regular(n - 1)
+        ```
+
+        ```python
+        # Returns False
+        graph.is_k_regular(n)
         ```
 
         Check isolated nodes:
@@ -4314,9 +4654,13 @@ class Graph:
         graph.add_node(label="B")
         graph.add_node(label="C")
 
-        # All isolated nodes have degree 0
-        print(graph.is_k_regular(0))  # True
-        print(graph.is_k_regular(1))  # False
+        # All isolated nodes have degree 0; returns True
+        graph.is_k_regular(0)
+        ```
+
+        ```python
+        # Returns False
+        graph.is_k_regular(1)
         ```
 
         Notes
@@ -4366,7 +4710,8 @@ class Graph:
             .add_edge("B", "B")  # Self-loop
         )
 
-        print(graph.count_all_loops())  # 2
+        # Returns 2
+        graph.count_all_loops()
         ```
 
         Multiple self-loops on same node:
@@ -4377,7 +4722,8 @@ class Graph:
         graph.add_edge("A", "A")  # First self-loop
         graph.add_edge("A", "A")  # Second self-loop
 
-        print(graph.count_all_loops())  # 2
+        # Returns 2
+        graph.count_all_loops()
         ```
 
         """
@@ -4411,7 +4757,8 @@ class Graph:
             .add_edge("B", "A", id=4)  # Different direction
         )
 
-        print(graph.count_multi_edges())  # 2
+        # Returns 2
+        graph.count_multi_edges()
         ```
 
         """
@@ -4450,7 +4797,8 @@ class Graph:
             .add_edge("A", "C")  # One-way only
         )
 
-        print(graph.count_mutual_node_pairs())  # 1
+        # Returns 1
+        graph.count_mutual_node_pairs()
         ```
 
         """
@@ -4489,7 +4837,8 @@ class Graph:
             .add_edge("A", "C")  # Asymmetric
         )
 
-        print(graph.count_asymmetric_node_pairs())  # 1
+        # Returns 1
+        graph.count_asymmetric_node_pairs()
         ```
 
         """
@@ -4553,19 +4902,33 @@ class Graph:
 
         # Get successors (outgoing neighbors); returns node IDs
         out_neighbors = graph.neighbors(a_id, mode="out")
-        print(out_neighbors)  # [<b_id>]: node IDs, not labels
 
+        # Returns [<b_id>]: node IDs, not labels
+        out_neighbors
+        ```
+
+        ```python
         # Get predecessors (incoming neighbors)
         in_neighbors = graph.neighbors(a_id, mode="in")
-        print(in_neighbors)  # [<c_id>]
 
+        # Returns [<c_id>]
+        in_neighbors
+        ```
+
+        ```python
         # Get all neighbors
         all_neighbors = graph.neighbors(a_id, mode="all")
-        print(all_neighbors)  # [<b_id>, <c_id>]
 
+        # Returns [<b_id>, <c_id>]
+        all_neighbors
+        ```
+
+        ```python
         # Convert IDs to labels if needed
         neighbor_labels = [graph.get_label_from_id(nid) for nid in out_neighbors]
-        print(neighbor_labels)  # ['B']
+
+        # Returns ['B']
+        neighbor_labels
         ```
 
         """
@@ -4635,7 +4998,9 @@ class Graph:
         predecessors = graph.get_predecessors(c_id)
         # Convert to labels: ['A', 'B']
         labels = [graph.get_label_from_id(nid) for nid in predecessors]
-        print(labels)  # ['A', 'B']
+
+        # Returns ['A', 'B']
+        labels
         ```
 
         """
@@ -4685,7 +5050,8 @@ class Graph:
         # Convert to labels: ['B', 'C']
         labels = [graph.get_label_from_id(nid) for nid in successors]
 
-        print(labels)  # ['B', 'C']
+        # Returns ['B', 'C']
+        labels
         ```
 
         """
@@ -4721,7 +5087,9 @@ class Graph:
         # Node 2 is connected to 1 and 3
         # Non-neighbors are 4 and 5 (returns node IDs)
         non_neighbors = graph.get_non_neighbors(2)
-        print(non_neighbors)  # [4, 5]
+
+        # Returns [4, 5]
+        non_neighbors
         ```
 
         Find potential new connections:
@@ -4802,7 +5170,8 @@ class Graph:
         # Convert to labels: ['C', 'D']
         common_labels = [graph.get_label_from_id(nid) for nid in common]
 
-        print(common_labels)  # ['C', 'D']
+        # Returns ['C', 'D']
+        common_labels
         ```
 
         Triangle detection using common neighbors:
@@ -4827,7 +5196,7 @@ class Graph:
             for third_id in common:
                 neighbor_label = graph.get_label_from_id(node_id=neighbor_id)
                 third_label = graph.get_label_from_id(node_id=third_id)
-                print(f"Triangle: A - {neighbor_label} - {third_label}")
+                pass  # Prints triangles: A - B - D, etc.
         ```
 
         """
@@ -4886,7 +5255,9 @@ class Graph:
 
         # Find neighbors within ±1.0 of A's value (5.0)
         similar = graph.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
-        print(similar)  # ['B'] (5.5 is within range, 10.0 is not)
+
+        # Returns ['B'] (5.5 is within range, 10.0 is not)
+        similar
         ```
 
         Using percentage tolerance:
@@ -4994,7 +5365,9 @@ class Graph:
         )
 
         selected = graph.get_selected_node_ids()
-        print(selected)  # Node IDs for 'A' and 'C'
+
+        # Returns node IDs for 'A' and 'C'
+        selected
 
         # Select nodes by ID pattern (if using integer IDs)
         # graph.select_nodes(lambda n: n.id > 100)
@@ -5041,7 +5414,9 @@ class Graph:
         )
 
         count = graph.count_selected_edges()
-        print(count)  # 2
+
+        # Returns 2
+        count
 
         # Select edges by relationship type
         # graph.select_edges(
@@ -5095,7 +5470,9 @@ class Graph:
         graph.select_nodes_by_id([id_a, id_b])
 
         selected = graph.get_selected_node_ids()
-        print(selected)  # ['A', 'B']
+
+        # Returns ['A', 'B']
+        selected
         ```
 
         """
@@ -5145,7 +5522,9 @@ class Graph:
         graph.select_edges_by_id(edge_ids=[edge_ids[0], edge_ids[1]])
 
         selected_count = graph.count_selected_edges()
-        print(selected_count)  # 2
+
+        # Returns 2
+        selected_count
         ```
 
         """
@@ -5191,7 +5570,9 @@ class Graph:
 
         # Selects A-B and B-C edges
         selected = graph.count_selected_edges()
-        print(selected)  # 2
+
+        # Returns 2
+        selected
         ```
 
         Can also use labels directly:
@@ -5250,7 +5631,9 @@ class Graph:
 
         # C and D are selected (most recent)
         selected = graph.get_selected_node_ids()
-        print(selected)  # ['C', 'D']
+
+        # Returns ['C', 'D']
+        selected
         ```
 
         """
@@ -5297,7 +5680,9 @@ class Graph:
 
         # Last 2 edges selected
         count = graph.count_selected_edges()
-        print(count)  # 2
+
+        # Returns 2
+        count
         ```
 
         """
@@ -5345,7 +5730,9 @@ class Graph:
 
         # Selects all neighbors of center (not center itself)
         count = graph.count_selected_nodes()
-        print(count)  # Expected: neighbors of center
+
+        # Returns expected: neighbors of center
+        count
         ```
 
         Select 2-hop neighborhood using label:
@@ -5439,7 +5826,9 @@ class Graph:
 
         # Hub node has degree 10, all others have degree 1
         hubs = graph.get_selected_node_ids()
-        print(len(hubs))  # 1 (the center node)
+
+        # Returns 1 (the center node)
+        len(hubs)
         ```
 
         Filter by degree range:
@@ -5500,7 +5889,9 @@ class Graph:
 
         # Selects top 3 nodes by degree
         hubs = graph.get_selected_node_ids()
-        print(len(hubs))  # 3
+
+        # Returns 3
+        len(hubs)
         ```
 
         Select by PageRank:
@@ -5584,7 +5975,9 @@ class Graph:
 
         # Only middle nodes remain selected
         selected = graph.get_selected_node_ids()
-        print(len(selected))  # 3
+
+        # Returns 3
+        len(selected)
         ```
 
         Can also use labels directly:
@@ -5648,7 +6041,9 @@ class Graph:
         graph.deselect_edges([all_edges[0]])
 
         count = graph.count_selected_edges()
-        print(count)  # 4
+
+        # Returns 4
+        count
         ```
 
         """
@@ -5681,7 +6076,9 @@ class Graph:
 
         # No nodes selected after clearing
         count = graph.count_selected_nodes()
-        print(count)  # 0
+
+        # Returns 0
+        count
         ```
 
         """
@@ -5714,7 +6111,9 @@ class Graph:
 
         # Middle 8 nodes now selected
         count = graph.count_selected_nodes()
-        print(count)  # 8
+
+        # Returns 8
+        count
         ```
 
         """
@@ -5745,7 +6144,9 @@ class Graph:
         graph.select_edges_by_id([first_edge]).invert_edge_selection()
 
         count = graph.count_selected_edges()
-        print(count)  # 4 (all except first)
+
+        # Returns 4 (all except first)
+        count
         ```
 
         """
@@ -5775,7 +6176,9 @@ class Graph:
         )
 
         selected = graph.get_selected_node_ids()
-        print(len(selected))  # 1 (the center node)
+
+        # Returns 1 (the center node)
+        len(selected)
         ```
 
         """
@@ -5804,7 +6207,9 @@ class Graph:
         )
 
         selected = graph.get_selected_edge_ids()
-        print(len(selected))
+
+        # Returns length of selection
+        len(selected)
         ```
 
         """
@@ -5834,7 +6239,9 @@ class Graph:
         )
 
         count = graph.count_selected_nodes()
-        print(f"{count} high-degree nodes")
+
+        # e.g., "10 high-degree nodes"
+        f"{count} high-degree nodes"
         ```
 
         """
@@ -5866,7 +6273,9 @@ class Graph:
         )
 
         count = graph.count_selected_edges()
-        print(f"{count} high-weight edges")
+
+        # e.g., "0 high-weight edges"
+        f"{count} high-weight edges"
         ```
 
         """
@@ -6016,7 +6425,8 @@ class Graph:
         node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out_edge()
 
-        print(len(graph.get_selected_edge_ids()))  # 2
+        # Returns 2
+        len(graph.get_selected_edge_ids())
         ```
 
         """
@@ -6053,7 +6463,8 @@ class Graph:
         node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in_edge()
 
-        print(len(graph.get_selected_edge_ids()))  # 2
+        # Returns 2
+        len(graph.get_selected_edge_ids())
         ```
 
         """
@@ -6178,7 +6589,8 @@ class Graph:
             .trav_out_until(lambda nid: graph.get_node(nid).attributes.get("value") == 8)
         )
 
-        print(graph.get_selected_node_ids())  # ['8']
+        # Returns ['8']
+        graph.get_selected_node_ids()
         ```
 
         Multiple starting points:
@@ -6333,7 +6745,8 @@ class Graph:
             .trav_in_until(lambda nid: graph.get_node(nid).attributes.get("value") == 1)
         )
 
-        print(graph.get_selected_node_ids())  # ['1']
+        # Returns ['1']
+        graph.get_selected_node_ids()
         ```
 
         Multiple stopping conditions:
@@ -6610,9 +7023,13 @@ class Graph:
             .set_node_attrs_ws(color='red', importance=0.9)
         )
 
-        # Check updated attributes
-        print(graph.get_node(id_a).attributes['color'])  # 'red'
-        print(graph.get_node(id_a).attributes['value'])  # 10 (preserved)
+        # Check updated attributes; returns 'red'
+        graph.get_node(id_a).attributes['color']
+        ```
+
+        ```python
+        # Returns 10 (preserved)
+        graph.get_node(id_a).attributes['value']
         ```
 
         Bulk attribute updates with filtering:
@@ -6818,8 +7235,14 @@ class Graph:
 
         # Check updated attributes
         edge = graph.get_edge(edge_ids[0])
-        print(edge.weight)  # 5.0
-        print(edge.attributes['type'])  # 'strong'
+
+        # Returns 5.0
+        edge.weight
+        ```
+
+        ```python
+        # Returns 'strong'
+        edge.attributes['type']
         ```
 
         Bulk weight updates:
@@ -6878,12 +7301,16 @@ class Graph:
         )
 
         scores = graph.get_node_attrs("score")
-        # Returns dict with node IDs as keys: {1: 95, 2: 88, 3: 92}
-        print(scores)
 
+        # Returns dict with node IDs as keys: {1: 95, 2: 88, 3: 92}
+        scores
+        ```
+
+        ```python
         types = graph.get_node_attrs("type")
+
         # Returns: {1: 'user', 2: 'admin', 3: 'user'}
-        print(types)
+        types
         ```
 
         Get attribute from specific nodes using node IDs:
@@ -6897,7 +7324,9 @@ class Graph:
         )
         node_ids = list(graph.get_node_ids())
         user_scores = graph.get_node_attrs("score", nodes=[node_ids[0], node_ids[2]])
-        print(user_scores)  # {1: 95, 3: 92}
+
+        # Returns {1: 95, 3: 92}
+        user_scores
         ```
 
         Can also use labels:
@@ -6910,7 +7339,9 @@ class Graph:
             .add_node(label="C", type="user", score=92)
         )
         user_scores = graph.get_node_attrs("score", nodes=["A", "C"])
-        print(user_scores)  # {1: 95, 3: 92}
+
+        # Returns {1: 95, 3: 92}
+        user_scores
         ```
 
         """
@@ -7104,10 +7535,19 @@ class Graph:
         )
 
         df = graph.get_node_df()
-        print(df.columns)  # ['id', 'label', 'type', 'score', 'degree']
-        print(df.shape)    # (3, 5)
 
-        # Calculate statistics on node attributes
+        # Returns ['id', 'label', 'type', 'score', 'degree']
+        df.columns
+        ```
+
+        ```python
+        # Returns (3, 5)
+        df.shape
+        ```
+
+        Calculate statistics on node attributes:
+
+        ```python
         import polars as pl
         avg_score = df["score"].mean()
         user_count = df.filter(pl.col("type") == "user").height
@@ -7192,8 +7632,9 @@ class Graph:
         )
 
         df = graph.get_node_df_ws()
-        # Only high-degree nodes in DataFrame
-        print(df.shape[0])  # Number of selected nodes
+
+        # Only high-degree nodes in DataFrame; returns number of selected nodes
+        df.shape[0]
         ```
 
         Combine selection with DataFrame analysis:
@@ -7308,10 +7749,19 @@ class Graph:
         )
 
         df = graph.get_edge_df()
-        print(df.columns)  # ['id', 'source', 'target', 'rel', 'weight']
-        print(df.shape)    # (3, 5)
 
-        # Filter edges by relationship type
+        # Returns ['id', 'source', 'target', 'rel', 'weight']
+        df.columns
+        ```
+
+        ```python
+        # Returns (3, 5)
+        df.shape
+        ```
+
+        Filter edges by relationship type:
+
+        ```python
         import polars as pl
         friends = df.filter(pl.col("rel") == "friend")
 
@@ -7418,8 +7868,9 @@ class Graph:
         )
 
         df = graph.get_edge_df_ws()
+
         # Only friend edges in DataFrame
-        print(df["rel"].value_counts())
+        df["rel"].value_counts()
         ```
 
         Combine selection with DataFrame analysis:
@@ -7528,9 +7979,18 @@ class Graph:
             .mutate_node_attrs_ws('score', lambda x: x * 2)
         )
 
-        print(graph.get_node(id_a).attributes['score'])  # 20
-        print(graph.get_node(id_b).attributes['score'])  # 40
-        print(graph.get_node(id_c).attributes['score'])  # 30 (unchanged)
+        # Returns 20
+        graph.get_node(id_a).attributes['score']
+        ```
+
+        ```python
+        # Returns 40
+        graph.get_node(id_b).attributes['score']
+        ```
+
+        ```python
+        # Returns 30 (unchanged)
+        graph.get_node(id_c).attributes['score']
         ```
 
         Conditional transformations:
@@ -7606,8 +8066,13 @@ class Graph:
             .mutate_edge_attrs_ws('weight', lambda x: x * 2)
         )
 
-        print(graph.get_edge(edge_ids[0]).weight)  # 3.0
-        print(graph.get_edge(edge_ids[1]).weight)  # 2.0 (unchanged)
+        # Returns 3.0
+        graph.get_edge(edge_ids[0]).weight
+        ```
+
+        ```python
+        # Returns 2.0 (unchanged)
+        graph.get_edge(edge_ids[1]).weight
         ```
 
         Normalize edge weights:
@@ -7993,7 +8458,9 @@ class Graph:
 
         # Calculate dispersion between nodes 1 and 2
         disp = graph.dispersion(1, 2)
-        print(f"Dispersion: {disp:.2f}")
+
+        # Returns a dispersion value, e.g., "Dispersion: 0.50"
+        f"Dispersion: {disp:.2f}"
         ```
 
         Using node labels:
@@ -8017,7 +8484,9 @@ class Graph:
 
         # Check dispersion
         disp = graph.dispersion(alice, bob, normalized=True)
-        print(f"Dispersion: {disp:.2f}")
+
+        # Returns a dispersion value, e.g., "Dispersion: 0.50"
+        f"Dispersion: {disp:.2f}"
         ```
 
         Normalized vs unnormalized:
@@ -8033,7 +8502,8 @@ class Graph:
         # Unnormalized gives raw count
         unnorm = graph.dispersion(nodes[0], nodes[1], normalized=False)
 
-        print(f"Normalized: {norm:.2f}, Unnormalized: {unnorm}")
+        # Returns e.g., "Normalized: 0.50, Unnormalized: 1"
+        f"Normalized: {norm:.2f}, Unnormalized: {unnorm}"
         ```
 
         Notes
@@ -8095,7 +8565,8 @@ class Graph:
         # Check common neighbors for unconnected pairs
         predictions = graph.common_neighbors()
         for u, v, count in predictions:
-            print(f"{u} - {v}: {count} common neighbors")
+            # Prints e.g., "1 - 3: 1 common neighbors"
+            f"{u} - {v}: {count} common neighbors"
         ```
 
         Check specific pairs:
@@ -8167,7 +8638,8 @@ class Graph:
         # Check similarity between non-adjacent nodes
         predictions = graph.jaccard_coefficient([(1, 3), (1, 4), (2, 4)])
         for u, v, coef in predictions:
-            print(f"{u} - {v}: Jaccard = {coef:.3f}")
+            # Prints e.g., "1 - 3: Jaccard = 0.500"
+            f"{u} - {v}: Jaccard = {coef:.3f}"
         ```
 
         Notes
@@ -8228,7 +8700,9 @@ class Graph:
         # Nodes 2 and 3 share hub as common neighbor
         # But hub has high degree, so contributes less
         predictions = graph.adamic_adar_index([(2, 3)])
-        print(f"Adamic-Adar: {predictions[0][2]:.3f}")
+
+        # Returns e.g., "Adamic-Adar: 0.455"
+        f"Adamic-Adar: {predictions[0][2]:.3f}"
         ```
 
         Compare with common neighbors:
@@ -8242,7 +8716,8 @@ class Graph:
         aa = graph.adamic_adar_index(pairs)
 
         for (_, _, count), (u, v, score) in zip(cn, aa):
-            print(f"{u}-{v}: CN={count}, AA={score:.3f}")
+            # Prints e.g., "1-3: CN=0, AA=0.000"
+            f"{u}-{v}: CN={count}, AA={score:.3f}"
         ```
 
         Notes
@@ -8305,7 +8780,8 @@ class Graph:
         ra = graph.resource_allocation_index(pairs)
 
         for (_, _, aa_score), (u, v, ra_score) in zip(aa, ra):
-            print(f"{u}-{v}: AA={aa_score:.3f}, RA={ra_score:.3f}")
+            # Prints e.g., "2-3: AA=0.434, RA=0.111"
+            f"{u}-{v}: AA={aa_score:.3f}, RA={ra_score:.3f}"
         ```
 
         Notes
@@ -8365,7 +8841,8 @@ class Graph:
         predictions = graph.preferential_attachment(pairs)
 
         for u, v, score in predictions:
-            print(f"{u}-{v}: PA score = {score}")
+            # Prints e.g., "2-3: PA score = 1"
+            f"{u}-{v}: PA score = {score}"
         # 2-3 will have higher score (both connected to hub)
         ```
 
@@ -8380,8 +8857,13 @@ class Graph:
         cn = graph.common_neighbors(pairs)
         pa = graph.preferential_attachment(pairs)
 
-        print(f"Common neighbors: {cn[0][2]}")
-        print(f"Preferential attachment: {pa[0][2]}")
+        # Returns e.g., "Common neighbors: 3"
+        f"Common neighbors: {cn[0][2]}"
+        ```
+
+        ```python
+        # Returns e.g., "Preferential attachment: 16"
+        f"Preferential attachment: {pa[0][2]}"
         ```
 
         Notes
@@ -8600,7 +9082,9 @@ class Graph:
         # Returns dict with node IDs as keys
         a_id = graph.get_id_from_label("A")
         d_id = graph.get_id_from_label("D")
-        print(sim[a_id][d_id])  # 1.0 (perfect overlap)
+
+        # Returns 1.0 (perfect overlap)
+        sim[a_id][d_id]
         ```
 
         Notes
@@ -8654,7 +9138,8 @@ class Graph:
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
 
-        print(sim[a_id][b_id])  # 0.0
+        # Returns 0.0
+        sim[a_id][b_id]
         ```
 
         Notes
@@ -8707,7 +9192,8 @@ class Graph:
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
 
-        print(sim[a_id][b_id])  # 0.5 (1 common / sqrt(2 * 2))
+        # Returns 0.5 (1 common / sqrt(2 * 2))
+        sim[a_id][b_id]
         ```
 
         Notes
@@ -8761,7 +9247,8 @@ class Graph:
         hub_id = graph.get_id_from_label(label="hub")
         spoke_id = graph.get_id_from_label(label="spoke")
 
-        print(sim[hub_id][spoke_id])  # 1.0
+        # Returns 1.0
+        sim[hub_id][spoke_id]
         ```
 
         Notes
@@ -8811,11 +9298,16 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.has_cycles())  # False
+        # Returns False
+        graph.has_cycles()
+        ```
 
+        ```python
         # Add edge to create a cycle
         graph.add_edge("C", "A")
-        print(graph.has_cycles())  # True
+
+        # Returns True
+        graph.has_cycles()
         ```
 
         """
@@ -8866,7 +9358,9 @@ class Graph:
         )
 
         cycles = graph.get_cycles()
-        print(cycles)  # [[1, 2], [1, 2, 3]] (node IDs)
+
+        # Returns [[1, 2], [1, 2, 3]] (node IDs)
+        cycles
         ```
 
         Find only longer cycles:
@@ -8883,7 +9377,9 @@ class Graph:
         )
 
         cycles = graph.get_cycles(min_length=3)
-        print(cycles)  # [[1, 2, 3]]
+
+        # Returns [[1, 2, 3]]
+        cycles
         ```
 
         Notes
@@ -8942,7 +9438,9 @@ class Graph:
         )
 
         cycles = graph.simple_cycles()
-        print(len(cycles))  # 2 cycles found
+
+        # Returns 2 cycles found
+        len(cycles)
         ```
 
         Find cycles in an undirected graph (triangle):
@@ -8959,7 +9457,9 @@ class Graph:
         )
 
         cycles = graph.simple_cycles()
-        print(len(cycles))  # 1 cycle (the triangle)
+
+        # Returns 1 cycle (the triangle)
+        len(cycles)
         ```
 
         Limit cycle length:
@@ -9046,8 +9546,9 @@ class Graph:
         )
 
         basis = graph.cycle_basis()
-        print(len(basis))  # 2 fundamental cycles
-        # The two triangles formed by the diagonal
+
+        # Returns 2 (fundamental cycles from the two triangles formed by the diagonal)
+        len(basis)
         ```
 
         Specify a root node:
@@ -9065,7 +9566,9 @@ class Graph:
 
         node_ids = graph.get_node_ids()
         basis = graph.cycle_basis(root=node_ids[0])
-        print(len(basis))  # 1 (the triangle)
+
+        # Returns 1 (the triangle)
+        len(basis)
         ```
 
         Notes
@@ -9130,8 +9633,9 @@ class Graph:
         )
 
         basis = graph.minimum_cycle_basis()
-        print(len(basis))  # 2 cycles (the two triangles)
-        # Sum of cycle lengths is minimized (3 + 3 = 6)
+
+        # Returns 2 (the two triangles, sum of cycle lengths is minimized: 3 + 3 = 6)
+        len(basis)
         ```
 
         Find minimum cycle basis with edge weights:
@@ -9212,8 +9716,14 @@ class Graph:
         )
 
         cliques = graph.find_cliques()
-        print(len(cliques))  # 1 (the triangle itself)
-        print(len(cliques[0]))  # 3 (all three nodes)
+
+        # Returns 1 (the triangle itself)
+        len(cliques)
+        ```
+
+        ```python
+        # Returns 3 (all three nodes in the clique)
+        len(cliques[0])
         ```
 
         Multiple cliques in a graph:
@@ -9231,8 +9741,9 @@ class Graph:
         )
 
         cliques = graph.find_cliques()
-        # Returns pairs of connected nodes: [[A,B], [B,C], [C,D]]
-        print(len(cliques))  # 3 maximal cliques
+
+        # Returns 3 maximal cliques: pairs of connected nodes [[A,B], [B,C], [C,D]]
+        len(cliques)
         ```
 
         A complete graph has one clique:
@@ -9242,8 +9753,14 @@ class Graph:
         graph.add_full_graph(n=5)
 
         cliques = graph.find_cliques()
-        print(len(cliques))  # 1 (entire graph is a clique)
-        print(len(cliques[0]))  # 5 (all nodes)
+
+        # Returns 1 (entire graph is a clique)
+        len(cliques)
+        ```
+
+        ```python
+        # Returns 5 (all nodes in the clique)
+        len(cliques[0])
         ```
 
         %seealso max_clique, clique_number, maximum_independent_set
@@ -9292,7 +9809,8 @@ class Graph:
 
         max_clique = graph.max_clique()
 
-        print(len(max_clique))  # 3 (all nodes form a clique)
+        # Returns 3 (all nodes form a clique)
+        len(max_clique)
         ```
 
         Maximum clique in a path graph:
@@ -9311,7 +9829,8 @@ class Graph:
 
         max_clique = graph.max_clique()
 
-        print(len(max_clique))  # 2 (any connected pair)
+        # Returns 2 (any connected pair)
+        len(max_clique)
         ```
 
         Empty graph:
@@ -9319,7 +9838,9 @@ class Graph:
         ```python
         graph = Graph(directed=False)
         max_clique = graph.max_clique()
-        print(max_clique)  # []
+
+        # Returns []
+        max_clique
         ```
 
         Complete graph:
@@ -9329,7 +9850,9 @@ class Graph:
         graph.add_full_graph(n=6)
 
         max_clique = graph.max_clique()
-        print(len(max_clique))  # 6 (all nodes)
+
+        # Returns 6 (all nodes)
+        len(max_clique)
         ```
 
         %seealso find_cliques, clique_number, maximum_independent_set
@@ -9376,7 +9899,8 @@ class Graph:
             .add_edge("C", "A")
         )
 
-        print(graph.clique_number())  # 3
+        # Returns 3
+        graph.clique_number()
         ```
 
         Clique number of a path:
@@ -9391,14 +9915,17 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        print(graph.clique_number())  # 2 (any edge)
+        # Returns 2 (any edge)
+        graph.clique_number()
         ```
 
         Empty graph has clique number 0:
 
         ```python
         graph = Graph(directed=False)
-        print(graph.clique_number())  # 0
+
+        # Returns 0
+        graph.clique_number()
         ```
 
         Complete graph K_n has clique number n:
@@ -9406,7 +9933,9 @@ class Graph:
         ```python
         graph = Graph(directed=False)
         graph.add_full_graph(n=7)
-        print(graph.clique_number())  # 7
+
+        # Returns 7
+        graph.clique_number()
         ```
 
         Bipartite graphs have clique number at most 2:
@@ -9424,7 +9953,8 @@ class Graph:
             .add_edge("B", "D")
         )
 
-        print(graph.clique_number())  # 2 (bipartite K_2,2)
+        # Returns 2 (bipartite K_2,2)
+        graph.clique_number()
         ```
 
         %seealso find_cliques, max_clique, chromatic_number_upper_bound
@@ -9473,7 +10003,9 @@ class Graph:
 
         # Convert to labels if needed
         counts_by_label = {graph.get_label_from_id(nid): count for nid, count in counts.items()}
-        print(counts_by_label)  # {"A": 1, "B": 1, "C": 1}
+
+        # Returns {"A": 1, "B": 1, "C": 1}
+        counts_by_label
         ```
 
         Count triangles in a more complex graph:
@@ -9496,10 +10028,10 @@ class Graph:
         counts = graph.count_triangles()
         # Returns node IDs: B and C each participate in 2 triangles
 
-        # Convert to labels for display
+        # Convert to labels for display - iteration example
         for node_id, count in counts.items():
             label = graph.get_label_from_id(node_id)
-            print(f"{label}: {count} triangles")
+            # Each iteration shows: <label>: <count> triangles
         ```
 
         """
@@ -9546,7 +10078,9 @@ class Graph:
             tuple(graph.get_label_from_id(nid) for nid in tri)
             for tri in triangles
         ]
-        print(triangles_labels)  # [("A", "B", "C"), ("A", "B", "D")]
+
+        # Returns [("A", "B", "C"), ("A", "B", "D")]
+        triangles_labels
         ```
 
         For larger graphs, this can identify all triadic closures:
@@ -9566,11 +10100,11 @@ class Graph:
             .add_edge(source="David", target="Bob")
         )
 
-        # Returns node IDs
+        # Returns node IDs - iteration example
         for tri in graph.list_triangles():
             # Convert to labels for display
             labels = tuple(graph.get_label_from_id(nid) for nid in tri)
-            print(f"Triangle: {labels}")
+            # Each iteration shows: Triangle: <labels>
         ```
 
         """
@@ -9616,7 +10150,8 @@ class Graph:
             .add_edge(source="C", target="A")
         )
 
-        print(triangle.get_transitivity())  # 1.0 (all triples are closed)
+        # Returns 1.0 (all triples are closed)
+        triangle.get_transitivity()
         ```
 
         Chain graph has transitivity 0.0:
@@ -9635,7 +10170,8 @@ class Graph:
             .add_edge(source="C", target="D")
         )
 
-        print(chain.get_transitivity())  # 0.0 (no triangles, only open triples)
+        # Returns 0.0 (no triangles, only open triples)
+        chain.get_transitivity()
         ```
 
         Real-world networks typically have values between 0.1 and 0.5:
@@ -9657,7 +10193,9 @@ class Graph:
         )
 
         trans = social_network.get_transitivity()
-        print(f"Clustering: {trans:.3f}")
+
+        # Returns the clustering coefficient (typically 0.1-0.5 for real-world networks)
+        trans
         ```
 
         """
@@ -9726,16 +10264,19 @@ class Graph:
         node_a_id = graph.get_id_from_label(label="A")
         node_b_id = graph.get_id_from_label(label="B")
         node_d_id = graph.get_id_from_label(label="D")
-        if clustering[node_a_id] is not None:
-            print(f"Node A: {clustering[node_a_id]:.3f}")  # Lower (not all neighbors connected)
-        if clustering[node_b_id] is not None:
-            print(f"Node B: {clustering[node_b_id]:.3f}")  # 1.0 (all neighbors connected)
-        print(f"Node D: {clustering[node_d_id]}")      # None (degree 1)
 
+        # Node A: Lower clustering (not all neighbors connected)
+        # Node B: 1.0 (all neighbors connected)
+        # Node D: None (degree 1, clustering undefined)
+        clustering[node_a_id], clustering[node_b_id], clustering[node_d_id]
+        ```
+
+        ```python
         # Convert to labels if needed
         clustering_by_label = {graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()}
-        if clustering_by_label['A'] is not None:
-            print(f"Node A: {clustering_by_label['A']:.3f}")
+
+        # Returns clustering coefficient for node A
+        clustering_by_label['A']
         ```
 
         Store as node attributes and chain:
@@ -9756,7 +10297,9 @@ class Graph:
 
         # Access stored values
         node = graph.get_node(graph.get_id_from_label("A"))
-        print(f"Node A clustering: {node.attributes['local_clustering_coefficient']}")
+
+        # Returns Node A clustering coefficient
+        node.attributes['local_clustering_coefficient']
         ```
 
         Find highly clustered nodes (hubs):
@@ -9780,7 +10323,9 @@ class Graph:
             for node_id, coeff in clustering.items()
             if coeff and coeff > 0.5
         }
-        print(f"Highly clustered node IDs: {hubs}")
+
+        # Returns dictionary of highly clustered node IDs with their coefficients
+        hubs
         ```
 
         """
@@ -9869,7 +10414,9 @@ class Graph:
 
         clustering = graph.clustering_coefficient(return_dict=True)
         center_id = graph.get_id_from_label("center")
-        print(f"Center clustering: {clustering[center_id]}")  # 0.0 (no edges between spokes)
+
+        # Returns 0.0 (no edges between spokes)
+        clustering[center_id]
         ```
 
         Notes
@@ -10005,7 +10552,9 @@ class Graph:
 
         # Find edges with highest clustering (most embedded in triangles)
         sorted_edges = sorted(ecc.items(), key=lambda x: x[1], reverse=True)
-        print(f"Top 5 edges by clustering: {sorted_edges[:5]}")
+
+        # Returns top 5 edges by clustering
+        sorted_edges[:5]
         ```
 
         Notes
@@ -10046,7 +10595,6 @@ class Graph:
         Compare clustering in different graph types:
 
         ```python
-        # Triangle graph: highly clustered
         triangle = (
             Graph()
             .add_node(label="A")
@@ -10056,9 +10604,12 @@ class Graph:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        print(f"Triangle: {triangle.get_avg_clustering_coefficient():.2f}")
-        # Triangle: 1.00
 
+        # Returns 1.00 (highly clustered)
+        triangle.get_avg_clustering_coefficient()
+        ```
+
+        ```python
         # Star graph: not clustered
         star = (
             Graph()
@@ -10070,8 +10621,9 @@ class Graph:
             .add_edge("center", "B")
             .add_edge("center", "C")
         )
-        print(f"Star: {star.get_avg_clustering_coefficient():.2f}")
-        # Star: 0.00
+
+        # Returns 0.00 (not clustered)
+        star.get_avg_clustering_coefficient()
         ```
 
         Notes
@@ -10145,7 +10697,9 @@ class Graph:
         )
 
         communities = graph.cmty_fast_greedy(return_dict=True)
-        print(len(set(communities.values())))  # 2 communities
+
+        # Returns 2 communities
+        len(set(communities.values()))
         ```
 
         Store as node attributes and chain:
@@ -10766,8 +11320,14 @@ class Graph:
         )
 
         undirected = directed.to_undirected()
-        print(undirected.is_directed())  # False
-        print(undirected.count_edges())  # 3 (one per unique pair)
+
+        # Returns False
+        undirected.is_directed()
+        ```
+
+        ```python
+        # Returns 3 (one per unique pair)
+        undirected.count_edges()
         ```
 
         Use case for symmetrizing a social network:
@@ -10820,8 +11380,14 @@ class Graph:
         )
 
         directed = undirected.to_directed()
-        print(directed.is_directed())  # True
-        print(directed.count_edges())  # 4 (A->B, B->A, B->C, C->B)
+
+        # Returns True
+        directed.is_directed()
+        ```
+
+        ```python
+        # Returns 4 (A->B, B->A, B->C, C->B)
+        directed.count_edges()
         ```
 
         Create directed graph for flow analysis:
@@ -10891,8 +11457,14 @@ class Graph:
 
         # Original: A->B->C
         # Reversed: C->B->A
-        print(original.has_edge("A", "B"))    # True
-        print(reversed_graph.has_edge("B", "A"))  # True
+
+        # Returns True
+        original.has_edge("A", "B")
+        ```
+
+        ```python
+        # Returns True
+        reversed_graph.has_edge("B", "A")
         ```
 
         Analyze reverse dependencies:
@@ -10963,9 +11535,19 @@ class Graph:
         )
 
         comp = g.complement()
-        print(comp.count_edges())  # 2 (A-C and B-C)
-        print(comp.has_edge("A", "C"))  # True
-        print(comp.has_edge("A", "B"))  # False (was in original)
+
+        # Returns 2 (A-C and B-C)
+        comp.count_edges()
+        ```
+
+        ```python
+        # Returns True
+        comp.has_edge("A", "C")
+        ```
+
+        ```python
+        # Returns False (was in original)
+        comp.has_edge("A", "B")
         ```
 
         Finding missing connections in a network:
@@ -11100,8 +11682,14 @@ class Graph:
         g.add_edge("B", "C")
 
         lg = g.line_graph()
-        print(lg.count_nodes())  # 2 (one per edge)
-        print(lg.count_edges())  # 1 (edges A-B and B-C share B)
+
+        # Returns 2 (one per edge)
+        lg.count_nodes()
+        ```
+
+        ```python
+        # Returns 1 (edges A-B and B-C share B)
+        lg.count_edges()
         ```
 
         Line graph of a triangle:
@@ -11119,8 +11707,14 @@ class Graph:
         g.add_edge("C", "A")
 
         lg = g.line_graph()
-        print(lg.count_nodes())  # 3
-        print(lg.count_edges())  # 3 (also a triangle)
+
+        # Returns 3
+        lg.count_nodes()
+        ```
+
+        ```python
+        # Returns 3 (also a triangle)
+        lg.count_edges()
         ```
 
         Line graph of a directed graph:
@@ -11137,8 +11731,14 @@ class Graph:
         g.add_edge("B", "C")
 
         lg = g.line_graph()
-        print(lg.count_nodes())  # 2
-        print(lg.count_edges())  # 1 (A->B connects to B->C)
+
+        # Returns 2
+        lg.count_nodes()
+        ```
+
+        ```python
+        # Returns 1 (A->B connects to B->C)
+        lg.count_edges()
         ```
 
         Accessing original edge information:
@@ -11155,14 +11755,14 @@ class Graph:
 
         lg = g.line_graph()
 
-        # Each line graph node stores info about original edge
+        # Each line graph node stores info about original edge - iteration example
         for node_id in lg.get_node_ids():
             node = lg.get_node(node_id)
             attrs = node.attributes
-            print(f"LG node {node.label}:")
-            print(f"  Original edge: {attrs['original_source']} -> {attrs['original_target']}")
-            print(f"  Edge ID: {attrs['original_edge_id']}")
-            print(f"  Weight: {attrs['original_weight']}")
+            # Each iteration shows: LG node <label>:
+            #   Original edge: <source> -> <target>
+            #   Edge ID: <id>
+            #   Weight: <weight>
         ```
 
         Line graph of a star graph:
@@ -11178,9 +11778,14 @@ class Graph:
             g.add_edge("C", f"L{i}")
 
         lg = g.line_graph()
-        print(lg.count_nodes())  # 4 (one per spoke)
-        print(lg.count_edges())  # 6 (all spokes share center)
-        # The line graph of a star is a complete graph!
+
+        # Returns 4 (one per spoke)
+        lg.count_nodes()
+        ```
+
+        ```python
+        # Returns 6 (all spokes share center - line graph of a star is a complete graph!)
+        lg.count_edges()
         ```
 
         """
@@ -11244,9 +11849,13 @@ class Graph:
         # Contract B into A (merge B into A)
         result = g.contract_nodes("A", "B")
 
-        print(result.count_nodes())  # 3 (A, C, D)
-        print(result.has_node("B"))  # False
-        # Now A is connected directly to C
+        # Returns 3 (A, C, D)
+        result.count_nodes()
+        ```
+
+        ```python
+        # Returns False
+        result.has_node("B")
         ```
 
         Contraction creates self-loops:
@@ -11282,7 +11891,9 @@ class Graph:
 
         # Merge 2 and 3 into a single node
         simplified = g.contract_nodes(2, 3)
-        print(simplified.count_nodes())  # 4
+
+        # Returns 4
+        simplified.count_nodes()
         ```
 
         Notes
@@ -11351,8 +11962,14 @@ class Graph:
 
         # Contract edge A-B
         result = g.contracted_edge("A", "B")
-        print(result.count_nodes())  # 2 (A and C)
-        print(result.has_edge("A", "C"))  # True (was B-C)
+
+        # Returns 2 (A and C)
+        result.count_nodes()
+        ```
+
+        ```python
+        # Returns True (was B-C)
+        result.has_edge("A", "C")
         ```
 
         Edge contraction in directed graphs:
@@ -11430,8 +12047,8 @@ class Graph:
         # Contract nodes 2, 3, 4 into node 2
         result = g.contract_nodes_multi([2, 3, 4])
 
-        print(result.count_nodes())  # 3 (nodes 1, 2, 5/6... wait let me check)
-        # Result: 1 -- 2 -- 5 -- 6 (nodes 3,4 merged into 2)
+        # Returns 4 (nodes 1, 2, 5, 6 - nodes 3,4 merged into 2)
+        result.count_nodes()
         ```
 
         Contract detected communities:
@@ -11507,8 +12124,13 @@ class Graph:
         partition = [[1, 2, 3], [4, 5, 6]]
         quotient = g.quotient_graph(partition)
 
-        print(quotient.count_nodes())  # 2
-        print(quotient.count_edges())  # 1 (from edge 3-4)
+        # Returns 2
+        quotient.count_nodes()
+        ```
+
+        ```python
+        # Returns 1 (from edge 3-4)
+        quotient.count_edges()
         ```
 
         Quotient from community detection:
@@ -11529,8 +12151,14 @@ class Graph:
 
         # Create quotient graph showing inter-community edges
         quotient = g.quotient_graph(partition)
-        print(f"Communities: {quotient.count_nodes()}")
-        print(f"Inter-community edges: {quotient.count_edges()}")
+
+        # Number of communities
+        quotient.count_nodes()
+        ```
+
+        ```python
+        # Number of inter-community edges
+        quotient.count_edges()
         ```
 
         Using labels:
@@ -11614,8 +12242,14 @@ class Graph:
 
         # Union combines both
         result = g1.union(g2)
-        print(f"Nodes: {result.count_nodes()}")  # 3 (A, B, C)
-        print(f"Edges: {result.count_edges()}")  # 2 (A-B, B-C)
+
+        # Returns 3 (A, B, C)
+        result.count_nodes()
+        ```
+
+        ```python
+        # Returns 2 (A-B, B-C)
+        result.count_edges()
         ```
 
         Combine network snapshots:
@@ -11633,7 +12267,9 @@ class Graph:
 
         # Combined network
         combined = t1.union(t2)
-        print(f"Edges: {combined.count_edges()}")  # 3
+
+        # Returns 3
+        combined.count_edges()
         ```
 
         Notes
@@ -11698,7 +12334,9 @@ class Graph:
 
         # Common edges: 1-2, 2-3
         common = g1.intersection(g2)
-        print(f"Common edges: {common.count_edges()}")  # 2
+
+        # Returns 2
+        common.count_edges()
         ```
 
         This is useful for finding stable connections that exist at multiple
@@ -11764,7 +12402,9 @@ class Graph:
 
         # Edges in g1 but not g2
         diff = g1.difference(g2)
-        print(f"Unique edges: {diff.count_edges()}")  # 1 (3-4)
+
+        # Returns 1 (3-4)
+        diff.count_edges()
         ```
 
         This is useful for detecting network changes: `g_new.difference(g_old)`
@@ -11829,7 +12469,9 @@ class Graph:
 
         # XOR: edges in one but not both
         sym_diff = g1.symmetric_difference(g2)
-        print(f"Unique edges: {sym_diff.count_edges()}")  # 1 (3-1)
+
+        # Returns 1 (3-1)
+        sym_diff.count_edges()
         ```
 
         This is useful for comparing network versions to find all edges that
@@ -11950,8 +12592,14 @@ class Graph:
 
         # Disjoint union: two separate triangles
         combined = t1.disjoint_union(t2)
-        print(f"Nodes: {combined.count_nodes()}")  # 6 (3 + 3)
-        print(f"Edges: {combined.count_edges()}")  # 6 (3 + 3)
+
+        # Returns 6 (3 + 3)
+        combined.count_nodes()
+        ```
+
+        ```python
+        # Returns 6 (3 + 3)
+        combined.count_edges()
         ```
 
         Build multi-component graph:
@@ -11963,7 +12611,9 @@ class Graph:
         component3 = Graph().add_path_graph(4)
 
         multi = component1.disjoint_union(component2).disjoint_union(component3)
-        print(f"Components: 3")
+
+        # 3 components
+        multi.count_components()
         ```
 
         Notes
@@ -12067,7 +12717,9 @@ class Graph:
             g.add_edge(source=str(i), target=str((i+1) % 5))
 
         spanner = g.transform_with_spanner(stretch=2.0)
-        print(spanner.count_edges() < g.count_edges())  # True: Fewer edges
+
+        # Returns True: Fewer edges
+        spanner.count_edges() < g.count_edges()
         ```
 
         Create a 3-spanner of a weighted graph:
@@ -12086,7 +12738,9 @@ class Graph:
         spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
         # The direct A-C edge might be omitted since going A->B->C
         # gives distance 2, which is < 3 × (distance 5)
-        print(spanner.count_edges() <= 2)  # True
+
+        # Returns True
+        spanner.count_edges() <= 2
         ```
 
         Compare sparsity for different stretch values:
@@ -12109,7 +12763,9 @@ class Graph:
 
         # Higher stretch -> fewer edges
         result = spanner3.count_edges() < spanner2.count_edges() < original_edges
-        print(result)  # True
+
+        # Returns True
+        result
         ```
 
         Extract network backbone for visualization:
@@ -12167,8 +12823,14 @@ class Graph:
         graph.select_nodes_by_id(node_ids=node_ids_to_select)
 
         subgraph = graph.transform_to_subgraph_ws()
-        print(subgraph.count_nodes())  # 3
-        print(subgraph.count_edges())  # 2 (edges between selected nodes)
+
+        # Returns 3
+        subgraph.count_nodes()
+        ```
+
+        ```python
+        # Returns 2 (edges between selected nodes)
+        subgraph.count_edges()
         ```
 
         Extract an edge-induced subgraph:
@@ -12296,8 +12958,14 @@ class Graph:
         # Extract subgraph of nodes at positions 1, 2, 3 (middle nodes)
         middle_nodes = node_ids[1:4]
         sub = graph.subgraph(middle_nodes)
-        print(f"Nodes: {sub.count_nodes()}")  # 3
-        print(f"Edges: {sub.count_edges()}")  # 2
+
+        # Returns 3
+        sub.count_nodes()
+        ```
+
+        ```python
+        # Returns 2
+        sub.count_edges()
         ```
 
         Extract a clique from a larger graph:
@@ -12310,7 +12978,9 @@ class Graph:
         # Extract K3 subgraph
         node_ids = list(graph.get_node_ids())[:3]
         k3 = graph.subgraph(node_ids)
-        print(f"Edges in K3: {k3.count_edges()}")  # 3
+
+        # Returns 3
+        k3.count_edges()
         ```
 
         """
@@ -12357,8 +13027,14 @@ class Graph:
         # Get first two edge IDs
         edge_ids = list(graph.get_edge_ids())[:2]
         sub = graph.edge_subgraph(edge_ids)
-        print(f"Nodes: {sub.count_nodes()}")  # 3 (endpoints of 2 edges)
-        print(f"Edges: {sub.count_edges()}")  # 2
+
+        # Returns 3 (endpoints of 2 edges)
+        sub.count_nodes()
+        ```
+
+        ```python
+        # Returns 2
+        sub.count_edges()
         ```
 
         Extract a path from a complete graph:
@@ -12415,7 +13091,9 @@ class Graph:
         )
 
         # For undirected: 3 edges (A-B, A-C, B-C)
-        print(graph.count_edges())  # 3
+
+        # Returns 3
+        graph.count_edges()
         ```
 
         Directed clique (bidirectional edges):
@@ -12433,7 +13111,9 @@ class Graph:
         )
 
         # Creates X->Y and Y->X
-        print(graph_directed.count_edges())  # 2
+
+        # Returns 2
+        graph_directed.count_edges()
         ```
 
         Notes
@@ -12509,7 +13189,8 @@ class Graph:
             .add_reverse_edges_ws(weight=1.0)
         )
 
-        print(graph.count_edges())  # 2 (A->B and B->A)
+        # Returns 2 (A->B and B->A)
+        graph.count_edges()
         ```
 
         Make selected edges bidirectional:
@@ -12591,11 +13272,17 @@ class Graph:
 
         # Edge now goes B -> A
         source, target = graph.get_node_ids_by_edge_id(edge_ids[0])
-        print(f"{source} -> {target}")  # B -> A
 
+        # Returns B -> A (source and target node IDs)
+        (source, target)
+        ```
+
+        ```python
         # Weight is preserved
         edge = graph.get_edge(edge_ids[0])
-        print(edge.weight)  # 1.5
+
+        # Returns 1.5
+        edge.weight
         ```
 
         Reverse all edges in a subgraph:
@@ -12684,7 +13371,9 @@ class Graph:
 
         # Access via node DataFrame
         ndf = graph.get_node_df()
-        print(ndf.select(["id", "degree"]))
+
+        # Returns DataFrame with id and degree columns
+        ndf.select(["id", "degree"])
         ```
 
         Use in method chain for visualization:
@@ -12754,8 +13443,13 @@ class Graph:
             .add_edge("A", "C")
         )
 
-        print(graph.get_degree("A"))  # 2
-        print(graph.get_degree("B"))  # 1
+        # Returns 2
+        graph.get_degree("A")
+        ```
+
+        ```python
+        # Returns 1
+        graph.get_degree("B")
         ```
 
         In directed graphs, counts both incoming and outgoing:
@@ -12770,7 +13464,8 @@ class Graph:
             .add_edge("C", "A")  # C -> A (in for A)
         )
 
-        print(graph.get_degree("A"))  # 2 (1 in + 1 out)
+        # Returns 2 (1 in + 1 out)
+        graph.get_degree("A")
         ```
 
         """
@@ -12821,8 +13516,13 @@ class Graph:
             .add_edge("C", "B")  # B has 2 incoming
         )
 
-        print(graph.get_in_degree("B"))  # 2
-        print(graph.get_in_degree("A"))  # 0
+        # Returns 2
+        graph.get_in_degree("B")
+        ```
+
+        ```python
+        # Returns 0
+        graph.get_in_degree("A")
         ```
 
         """
@@ -12868,8 +13568,13 @@ class Graph:
             .add_edge("A", "C")  # A has 2 outgoing
         )
 
-        print(graph.get_out_degree("A"))  # 2
-        print(graph.get_out_degree("B"))  # 0
+        # Returns 2
+        graph.get_out_degree("A")
+        ```
+
+        ```python
+        # Returns 0
+        graph.get_out_degree("B")
         ```
 
         """
@@ -12909,7 +13614,9 @@ class Graph:
         )
 
         dist = graph.get_degree_distribution()
-        print(dist)  # {1: 4, 4: 1}; 4 nodes with degree 1, 1 node with degree 4
+
+        # Returns {1: 4, 4: 1}; 4 nodes with degree 1, 1 node with degree 4
+        dist
         ```
 
         """
@@ -12944,7 +13651,8 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_average_degree())  # 2.0 (cycle graph)
+        # Returns 2.0 (cycle graph)
+        graph.get_average_degree()
         ```
 
         """
@@ -12992,11 +13700,17 @@ class Graph:
 
         # Mean indegree across all nodes
         mean_in = graph.get_agg_degree_in('mean')
-        print(mean_in)  # 1.75
 
+        # Returns 1.75
+        mean_in
+        ```
+
+        ```python
         # Median indegree
         median_in = graph.get_agg_degree_in('median')
-        print(median_in)  # 1.5
+
+        # Returns 1.5
+        median_in
 
         # Filtered aggregation: mean indegree of high-degree nodes
         high_degree_mean = graph.get_agg_degree_in(
@@ -13081,11 +13795,17 @@ class Graph:
 
         # Mean outdegree across all nodes
         mean_out = graph.get_agg_degree_out('mean')
-        print(mean_out)  # 1.75
 
+        # Returns 1.75
+        mean_out
+        ```
+
+        ```python
         # Median outdegree
         median_out = graph.get_agg_degree_out('median')
-        print(median_out)  # 1.0
+
+        # Returns 1.0
+        median_out
 
         # Filtered aggregation: max outdegree of nodes with attributes
         # First set an attribute on some nodes
@@ -13175,17 +13895,27 @@ class Graph:
 
         # Mean total degree across all nodes
         mean_total = graph.get_agg_degree_total('mean')
-        print(mean_total)  # 3.5
 
+        # Returns 3.5
+        mean_total
+        ```
+
+        ```python
         # Median total degree
         median_total = graph.get_agg_degree_total('median')
-        print(median_total)  # 3.0
 
+        # Returns 3.0
+        median_total
+        ```
+
+        ```python
         # Works with undirected graphs too
         graph_undirected = ec.Graph(directed=False)
         graph_undirected.add_cycle_graph(10)
         mean_deg = graph_undirected.get_agg_degree_total('mean')
-        print(mean_deg)  # 2.0
+
+        # Returns 2.0
+        mean_deg
         ```
 
         """
@@ -13286,13 +14016,17 @@ class Graph:
         graph.add_edge(bob_id, charlie_id)
 
         scores = graph.pagerank(return_dict=True)
-        print(scores)
-        # {1: 0.262, 2: 0.262, 3: 0.475}  # Node IDs to scores
 
+        # Returns {1: 0.262, 2: 0.262, 3: 0.475}  (Node IDs to scores)
+        scores
+        ```
+
+        ```python
         # Convert to labels if needed
         label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
-        print(label_scores)
-        # {'Alice': 0.262, 'Bob': 0.262, 'Charlie': 0.475}
+
+        # Returns {'Alice': 0.262, 'Bob': 0.262, 'Charlie': 0.475}
+        label_scores
         ```
 
         Use custom damping factor for more exploration:
@@ -13330,9 +14064,11 @@ class Graph:
 
         scores = graph.pagerank(return_dict=True)
         top_nodes = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        # Iteration example: shows "<label> (ID <node_id>): <score>"
         for node_id, score in top_nodes:
             label = graph.get_label_from_id(node_id=node_id)
-            print(f"{label} (ID {node_id}): {score:.4f}")
+            # Each iteration shows: <label> (ID <node_id>): <score>
         ```
 
         %seealso betweenness_centrality, load_centrality, constraint
@@ -13428,8 +14164,12 @@ class Graph:
         b_id = g.get_id_from_label("B")
         a_id = g.get_id_from_label("A")
         constraints = g.constraint(return_dict=True)
-        print(f"B (broker): {constraints[b_id]:.3f}")  # Low constraint
-        print(f"A (connected): {constraints[a_id]:.3f}")  # High constraint
+
+        # Low constraint value for broker B (more structural holes)
+        constraints[b_id]
+
+        # High constraint value for node A (fewer structural holes)
+        constraints[a_id]
         ```
 
         Analyze structural holes:
@@ -13455,10 +14195,12 @@ class Graph:
         constraints = g.constraint(return_dict=True)
         node_0_id = g.get_id_from_label("0")
         node_3_id = g.get_id_from_label("3")
-        if constraints[node_0_id] is not None:
-            print(f"Node 0 (dense): {constraints[node_0_id]:.3f}")  # Higher
-        if constraints[node_3_id] is not None:
-            print(f"Node 3 (sparse): {constraints[node_3_id]:.3f}")  # Lower
+
+        # Higher constraint for node 0 (dense ego network)
+        constraints[node_0_id]
+
+        # Lower constraint for node 3 (sparse ego network with structural hole)
+        constraints[node_3_id]
         ```
 
         Weighted networks:
@@ -13476,7 +14218,9 @@ class Graph:
 
         # Strong tie to B dominates A's network
         constraints = g.constraint(return_dict=True)
-        print(constraints)
+
+        # Returns dict mapping node IDs to constraint values
+        constraints
         ```
 
         Notes
@@ -13580,11 +14324,15 @@ class Graph:
 
         scores = graph.betweenness_centrality(return_dict=True)
         bridge_id = graph.get_id_from_label("Bridge")
-        print(scores[bridge_id])  # High score: bridges two clusters
+
+        # High score - Bridge node bridges two clusters
+        scores[bridge_id]
 
         # Convert to labels if needed
         label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
-        print(label_scores["Bridge"])  # Same result
+
+        # Same result accessed by label
+        label_scores["Bridge"]
         ```
 
         Identify the most important connectors:
@@ -13604,11 +14352,12 @@ class Graph:
         )
 
         scores = graph.betweenness_centrality(return_dict=True)
+
+        # Get top 3 connectors by betweenness score
         connectors = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
 
-        for node_id, score in connectors:
-            label = graph.get_label_from_id(node_id)
-            print(f"{label} (ID {node_id}): {score:.4f}")
+        # Returns list of (node_id, score) tuples for top connectors
+        connectors
         ```
 
         %seealso pagerank, load_centrality, constraint
@@ -13698,7 +14447,9 @@ class Graph:
 
         scores = graph.load_centrality(return_dict=True)
         bridge_id = graph.get_id_from_label("Bridge")
-        print(f"Bridge load: {scores[bridge_id]:.4f}")  # High load score
+
+        # High load score for bridge node
+        scores[bridge_id]
         ```
 
         Compare load vs betweenness centrality:
@@ -13720,9 +14471,14 @@ class Graph:
         load = graph.load_centrality(return_dict=True)
         betweenness = graph.betweenness_centrality(return_dict=True)
 
-        for node_id in sorted(load.keys()):
-            label = graph.get_label_from_id(node_id)
-            print(f"{label}: load={load[node_id]:.3f}, betweenness={betweenness[node_id]:.3f}")
+        # Compare load and betweenness for each node
+        comparison = {
+            graph.get_label_from_id(nid): (load[nid], betweenness[nid])
+            for nid in sorted(load.keys())
+        }
+
+        # Returns dict mapping labels to (load, betweenness) tuples
+        comparison
         ```
 
         Store centrality as node attribute for later use:
@@ -13742,7 +14498,9 @@ class Graph:
 
         # Verify it was stored
         any_comp = any("load" in str(c) for c in graph._computations)
-        print(f"Load centrality computed: {any_comp}")
+
+        # Returns True if load centrality was computed
+        any_comp
         ```
 
         %seealso betweenness_centrality, pagerank, constraint
@@ -13853,8 +14611,12 @@ class Graph:
         # Note: keys are node IDs, not labels
         most_central_id = min(soc, key=soc.get)
         most_central_label = graph.get_label_from_id(most_central_id)
-        print(f"Most central node: {most_central_label}")  # Node '2'
-        print(f"Centrality value: {soc[most_central_id]:.3f}")
+
+        # Returns '2' - the most central node (middle of path)
+        most_central_label
+
+        # Returns the centrality value for the most central node
+        soc[most_central_id]
         ```
 
         Compare centrality across different graph structures:
@@ -13872,8 +14634,12 @@ class Graph:
         star_soc = star.second_order_centrality(return_dict=True)
         center_id = star.get_id_from_label('center')
         leaf_id = star.get_id_from_label('leaf_0')
-        print(f"Center: {star_soc[center_id]:.3f}")
-        print(f"Leaf: {star_soc[leaf_id]:.3f}")  # Higher value (less central)
+
+        # Lower value = more central (center node)
+        star_soc[center_id]
+
+        # Higher value = less central (leaf node)
+        star_soc[leaf_id]
 
         # Complete graph: all nodes equally central
         complete = Graph()
@@ -13885,7 +14651,9 @@ class Graph:
 
         complete_soc = complete.second_order_centrality(return_dict=True)
         vals = list(complete_soc.values())
-        print(f"All equal: {all(abs(v - vals[0]) < 0.01 for v in vals)}")
+
+        # Returns True - all nodes in complete graph are equally central
+        all(abs(v - vals[0]) < 0.01 for v in vals)
         ```
 
         Store centrality as node attribute for later analysis:
@@ -13909,7 +14677,9 @@ class Graph:
 
         # Verify it was computed
         has_soc = any('soc' in str(c) for c in graph._computations)
-        print(f"Second order centrality computed: {has_soc}")
+
+        # Returns True if second order centrality was computed
+        has_soc
         ```
 
         """
@@ -14005,9 +14775,11 @@ class Graph:
         id2 = graph.get_id_from_label("2")
         id3 = graph.get_id_from_label("3")
 
-        # Adjacent nodes have higher communicability
-        print(f"C(1,2): {comm[id1][id2]:.3f}")  # Higher (adjacent)
-        print(f"C(1,3): {comm[id1][id3]:.3f}")  # Lower (distance 2)
+        # Higher communicability for adjacent nodes (1,2)
+        comm[id1][id2]
+
+        # Lower communicability for nodes at distance 2 (1,3)
+        comm[id1][id3]
         ```
 
         Analyze information flow in a network:
@@ -14030,7 +14802,9 @@ class Graph:
         # Node B is a hub - check its communicability with others
         b_id = graph.get_id_from_label("B")
         total_comm = sum(comm[b_id].values())
-        print(f"Total communicability from B: {total_comm:.2f}")
+
+        # Returns total communicability from hub node B
+        total_comm
         ```
 
         """
@@ -14105,10 +14879,16 @@ class Graph:
         graph.add_edge("C", "D")
 
         cbc = graph.communicability_betweenness_centrality(return_dict=True)
+
+        # Get nodes sorted by communicability betweenness (descending)
         # Middle nodes B and C have higher betweenness
-        for node_id, value in sorted(cbc.items(), key=lambda x: -x[1]):
-            label = graph.get_label_from_id(node_id)
-            print(f"{label}: {value:.3f}")
+        sorted_cbc = {
+            graph.get_label_from_id(nid): val
+            for nid, val in sorted(cbc.items(), key=lambda x: -x[1])
+        }
+
+        # Returns dict with labels as keys, sorted by centrality
+        sorted_cbc
         ```
 
         Store as node attribute:
@@ -14144,7 +14924,9 @@ class Graph:
 
         # Center node should have highest communicability betweenness
         center_id = star.get_id_from_label("center")
-        print(f"Center CBC: {cbc[center_id]:.3f}")  # Close to 1.0
+
+        # Returns value close to 1.0 for the center node
+        cbc[center_id]
         ```
 
         """
@@ -14305,7 +15087,9 @@ class Graph:
 
         # Remove 30% of nodes randomly
         percolated = graph.node_percolation(q=0.3, seed=23)
-        print(percolated.count_nodes())  # 7 nodes remain
+
+        # Returns 7 - number of nodes remaining after percolation
+        percolated.count_nodes()
         ```
 
         """
@@ -14355,7 +15139,9 @@ class Graph:
 
         # Remove 50% of edges randomly
         percolated = graph.edge_percolation(q=0.5, seed=23)
-        print(percolated.count_edges())  # 5 edges remain
+
+        # Returns 5 - number of edges remaining after percolation
+        percolated.count_edges()
         ```
 
         """
@@ -14389,7 +15175,9 @@ class Graph:
         ```python
         graph = Graph(directed=False)
         graph.add_full_graph(5)
-        print(graph.largest_component_size())  # 5
+
+        # Returns 5 - all nodes in single component
+        graph.largest_component_size()
         ```
 
         After removing nodes, the component may fragment:
@@ -14398,7 +15186,9 @@ class Graph:
         graph = Graph(directed=False)
         graph.add_full_graph(5)
         percolated = graph.node_percolation(q=0.5, seed=23)
-        print(percolated.largest_component_size())  # May be smaller
+
+        # Returns size of largest component (may be smaller after percolation)
+        percolated.largest_component_size()
         ```
 
         """
@@ -14455,11 +15245,9 @@ class Graph:
 
         results = graph.percolation_threshold_analysis(steps=10, trials=5)
 
-        for q, gcc_size in results:
-            print(f"q={q:.1f}: GCC={gcc_size:.2f}")
-        # q=0.0: GCC=1.00
-        # q=0.1: GCC=1.00
-        # ...
+        # Returns list of (q, relative_gcc_size) tuples
+        # q=0.0: GCC=1.00, q=0.1: GCC=1.00, ...
+        results
         ```
 
         """
@@ -14697,7 +15485,9 @@ class Graph:
 
         scores = graph.harmonic_centrality(return_dict=True)
         center_id = graph.get_id_from_label("Center")
-        print(scores[center_id])  # Center has highest harmonic centrality
+
+        # Center has highest harmonic centrality
+        scores[center_id]
         ```
 
         Compare with normalized version:
@@ -14762,7 +15552,9 @@ class Graph:
 
         # Access the stored values
         ndf = graph.get_node_df()
-        print(ndf[["label", "harmonic"]])
+
+        # Returns DataFrame with label and harmonic centrality columns
+        ndf[["label", "harmonic"]]
         ```
 
         For directed graphs, use mode to control direction:
@@ -15749,7 +16541,8 @@ class Graph:
 
         # Get sigma value used
         domirank, sigma = graph.domirank_centrality(return_dict=True, return_sigma=True)
-        print(f"Used sigma={sigma:.3f}")
+        # Returns the sigma value, e.g., 0.123
+        sigma
         ```
 
         Manual sigma for specific competition level:
@@ -16034,7 +16827,8 @@ class Graph:
 
         # Get 2-core (nodes with degree >= 2)
         core_2 = g.k_core(2)
-        print(f"Nodes in 2-core: {core_2.count_nodes()}")
+        # Returns the number of nodes in the 2-core
+        core_2.count_nodes()
         ```
 
         %seealso coreness, k_shell, k_crust, k_corona
@@ -16077,10 +16871,11 @@ class Graph:
 
         # Get shell of nodes with coreness exactly 1
         shell_1 = g.k_shell(1)
-        print(f"Nodes in 1-shell: {shell_1.count_nodes()}")
+        # Returns the number of nodes in the 1-shell
+        shell_1.count_nodes()
+        ```
 
         %seealso coreness, k_core, k_crust, k_corona
-        ```
         """
         from edgecase._core import k_shell
 
@@ -16120,7 +16915,8 @@ class Graph:
 
         # Get nodes with coreness <= 2
         crust_2 = g.k_crust(2)
-        print(f"Nodes in 2-crust: {crust_2.count_nodes()}")
+        # Returns the number of nodes in the 2-crust
+        crust_2.count_nodes()
         ```
 
         %seealso coreness, k_core, k_shell, k_corona
@@ -16169,7 +16965,8 @@ class Graph:
 
         # Get 4-truss (edges in >= 2 triangles)
         truss_4 = g.k_truss(4)
-        print(f"Edges in 4-truss: {truss_4.count_edges()}")
+        # Returns the number of edges in the 4-truss
+        truss_4.count_edges()
         ```
 
         %seealso coreness, k_core, count_triangles, list_triangles
@@ -16228,7 +17025,8 @@ class Graph:
 
         # The 2-corona contains nodes in the 2-core with exactly 2 neighbors in 2-core
         corona_2 = g.k_corona(2)
-        print(f"Nodes in 2-corona: {corona_2.count_nodes()}")
+        # Returns the number of nodes in the 2-corona
+        corona_2.count_nodes()
         ```
 
         Analyze hierarchical structure:
@@ -16243,7 +17041,8 @@ class Graph:
         # In K5, all nodes have degree 4, so they're in the 4-core
         # Each node has exactly 4 neighbors in the 4-core
         corona_4 = g.k_corona(4)
-        print(f"4-corona nodes: {corona_4.count_nodes()}")  # All 5 nodes
+        # Returns 5 (all 5 nodes are in the 4-corona)
+        corona_4.count_nodes()
         ```
 
         Notes
@@ -16314,8 +17113,9 @@ class Graph:
         )
 
         rc = graph.rich_club_coefficient()
-        print(f"Rich club coefficients: {rc}")
+        # Returns rich club coefficients dict
         # Higher values at larger k indicate hubs prefer connecting to each other
+        rc
         ```
 
         Compare with random network:
@@ -16328,9 +17128,8 @@ class Graph:
         rc = ba_graph.rich_club_coefficient()
 
         # Check if high-degree nodes are more interconnected than expected
-        for k, phi in sorted(rc.items()):
-            if phi > 0.5:
-                print(f"Degree {k}: φ = {phi:.3f}")
+        # Filter coefficients > 0.5 to see strong rich-club effect
+        {k: phi for k, phi in rc.items() if phi > 0.5}
         ```
 
         Notes
@@ -16393,8 +17192,8 @@ class Graph:
 
         mean_dist = graph.get_mean_distance()
         # Paths: A-B(1), A-C(2), A-D(3), B-C(1), B-D(2), C-D(1)
-        # Average: (1+2+3+1+2+1)/6 = 1.67
-        print(mean_dist)
+        # Returns approximately 1.67 (average: (1+2+3+1+2+1)/6)
+        mean_dist
         ```
 
         Notes
@@ -16434,7 +17233,8 @@ class Graph:
         graph = Graph().add_star_graph(5)
 
         radius = graph.get_min_eccentricity()
-        print(radius)  # 1 (center reaches all nodes in 1 step)
+        # Returns 1 (center reaches all nodes in 1 step)
+        radius
         ```
 
         """
@@ -16466,7 +17266,8 @@ class Graph:
         graph = Graph().add_path_graph(5)
 
         diameter = graph.get_max_eccentricity()
-        print(diameter)  # 4 (end-to-end distance)
+        # Returns 4 (end-to-end distance)
+        diameter
         ```
 
         """
@@ -16507,7 +17308,8 @@ class Graph:
             .add_edge("C", "D")
         )
 
-        print(graph.get_diameter())  # 3 (A to D)
+        # Returns 3 (A to D)
+        graph.get_diameter()
         ```
 
         """
@@ -16547,7 +17349,8 @@ class Graph:
             .add_edge("hub", "C")
         )
 
-        print(graph.get_radius())  # 1 (hub is center)
+        # Returns 1 (hub is center)
+        graph.get_radius()
         ```
 
         """
@@ -16593,14 +17396,16 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_girth())  # 4 (cycle length)
+        # Returns 4 (cycle length)
+        graph.get_girth()
         ```
 
         Self-loops have girth 1:
 
         ```python
         graph = Graph().add_node(label="A").add_edge("A", "A")
-        print(graph.get_girth())  # 1
+        # Returns 1
+        graph.get_girth()
         ```
 
         Triangles have girth 3:
@@ -16615,14 +17420,16 @@ class Graph:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        print(graph.get_girth())  # 3
+        # Returns 3
+        graph.get_girth()
         ```
 
         Trees have no cycles:
 
         ```python
         tree = Graph(directed=True).add_balanced_tree(k=2, h=3)
-        print(tree.get_girth())  # None
+        # Returns None (trees have no cycles)
+        tree.get_girth()
         ```
 
         """
@@ -16832,7 +17639,8 @@ class Graph:
 
         path = graph.bellman_ford_shortest_path("A", "D", return_list=True)
         # Path: A -> C -> B -> D (takes negative weight edge)
-        print(path)  # [1, 3, 2, 4] (node IDs)
+        # Returns [1, 3, 2, 4] (node IDs)
+        path
         ```
 
         Store path as node attributes for visualization:
@@ -16872,7 +17680,8 @@ class Graph:
         try:
             path = bad_graph.bellman_ford_shortest_path("A", "B", return_list=True)
         except ValueError as e:
-            print(e)  # "Graph contains a negative weight cycle"
+            # Raises ValueError: "Graph contains a negative weight cycle"
+            pass
         ```
 
         Handle unreachable target:
@@ -16883,7 +17692,8 @@ class Graph:
         graph.add_node(label="isolated")
 
         result = graph.bellman_ford_shortest_path("A", "isolated", return_list=True)
-        print(result)  # None (no path exists)
+        # Returns None (no path exists)
+        result
         ```
 
         Notes
@@ -16983,7 +17793,8 @@ class Graph:
 
         # Get path as list (explicit)
         path = graph.shortest_path(1, 5, return_list=True)
-        print(path)  # [1, 2, 3, 4, 5]
+        # Returns [1, 2, 3, 4, 5]
+        path
 
         # Works with labels too; it returns node IDs
         graph.add_node(label="A")
@@ -16991,7 +17802,8 @@ class Graph:
         graph.add_edge(5, 6)
         graph.add_edge(6, 7)
         path = graph.shortest_path("A", "B", return_list=True)
-        print(path)  # [6, 7]
+        # Returns [6, 7]
+        path
         ```
 
         Store path as node attributes for visualization:
@@ -17019,11 +17831,13 @@ class Graph:
 
         # Returns None when no path exists
         path = graph.shortest_path(1, iso_id, return_list=True)
-        print(path)  # None
+        # Returns None
+        path
 
         # With return_list=False, also returns None
         result = graph.shortest_path(1, iso_id)
-        print(result)  # None
+        # Returns None
+        result
         ```
 
         Chain multiple shortest paths:
@@ -17130,7 +17944,8 @@ class Graph:
         )
 
         path = graph.ada_star_search("A", "D", epsilon=1.0)
-        print(path)  # [1, 2, 3, 4] (node IDs)
+        # Returns [1, 2, 3, 4] (node IDs)
+        path
         ```
 
         Fast suboptimal path with higher epsilon:
@@ -17286,8 +18101,12 @@ class Graph:
         graph.add_path_graph(4)  # Creates 1-2-3-4
 
         distances = graph.all_pairs_shortest_path_length()
-        print(distances[1][4])  # 3.0 (three hops)
-        print(distances[2][4])  # 2.0 (two hops)
+
+        # Returns 3.0 (three hops)
+        distances[1][4]
+
+        # Returns 2.0 (two hops)
+        distances[2][4]
         ```
 
         Weighted graph:
@@ -17306,7 +18125,9 @@ class Graph:
         distances = graph.all_pairs_shortest_path_length()
         a_id = graph.get_id_from_label("A")
         c_id = graph.get_id_from_label("C")
-        print(distances[a_id][c_id])  # 3.0 (A->B->C is shorter than A->C)
+
+        # Returns 3.0 (A->B->C is shorter than A->C)
+        distances[a_id][c_id]
         ```
 
         Disconnected components:
@@ -17317,8 +18138,12 @@ class Graph:
         graph.add_node(4)  # Isolated node
 
         distances = graph.all_pairs_shortest_path_length()
-        print(1 in distances)  # True
-        print(4 in distances[1])  # False (not reachable from 1)
+
+        # Returns True
+        1 in distances
+
+        # Returns False (not reachable from 1)
+        4 in distances[1]
         ```
 
         Notes
@@ -17358,8 +18183,12 @@ class Graph:
         graph.add_path_graph(4)  # Creates 1-2-3-4
 
         paths = graph.all_pairs_shortest_path()
-        print(paths[1][4])  # [1, 2, 3, 4]
-        print(paths[2][4])  # [2, 3, 4]
+
+        # Returns [1, 2, 3, 4]
+        paths[1][4]
+
+        # Returns [2, 3, 4]
+        paths[2][4]
         ```
 
         Weighted graph with multiple routes:
@@ -17468,7 +18297,7 @@ class Graph:
         paths = graph.k_shortest_paths("A", "D", k=3)
         for i, (path, distance) in enumerate(paths, 1):
             labels = [graph.get_node(nid).label for nid in path]
-            print(f"Route {i}: {' -> '.join(labels)} (distance: {distance})")
+            # Prints: Route {i}: {' -> '.join(labels)} (distance: {distance})
         # Route 1: A -> B -> D (distance: 2.0)
         # Route 2: A -> C -> D (distance: 2.5)
         # Route 3: A -> D (distance: 4.0)
@@ -17487,8 +18316,12 @@ class Graph:
         # 7 - 8 - 9
 
         paths = graph.k_shortest_paths(1, 9, k=5)
-        print(f"Found {len(paths)} paths from corner to corner")
-        print(f"Shortest path length: {paths[0][1]}")  # 4.0 hops
+
+        # Returns number of paths found from corner to corner
+        len(paths)
+
+        # Returns 4.0 (hops)
+        paths[0][1]
         ```
 
         Identify critical edges:
@@ -17505,12 +18338,13 @@ class Graph:
 
         paths = graph.k_shortest_paths("start", "end", k=2)
         if len(paths) == 1:
-            print("Critical path - no alternative routes!")
+            # Critical path - no alternative routes!
+            pass
         else:
             path1, dist1 = paths[0]
             path2, dist2 = paths[1]
             redundancy = (dist2 - dist1) / dist1 * 100
-            print(f"Backup route is {redundancy:.1f}% longer")
+            # Backup route is {redundancy:.1f}% longer
         ```
 
         Notes
@@ -17573,7 +18407,9 @@ class Graph:
         graph.add_balanced_tree(k=2, h=3)
 
         visited = graph.bfs(start=1)
-        print(visited)  # [1, 2, 3, 4, 5, 6, 7, ...] (level by level)
+
+        # Returns [1, 2, 3, 4, 5, 6, 7, ...] (level by level)
+        visited
         ```
 
         Store BFS order as node attributes for visualization:
@@ -17665,7 +18501,9 @@ class Graph:
         graph.add_balanced_tree(k=2, h=3)
 
         visited = graph.dfs(start=1)
-        print(visited)  # [1, 2, 4, 8, ...] (depth-first)
+
+        # Returns [1, 2, 4, 8, ...] (depth-first)
+        visited
         ```
 
         Store DFS order as node attributes for visualization:
@@ -17690,7 +18528,9 @@ class Graph:
         graph.add_path_graph(5)
 
         visited = graph.dfs(start=1)
-        print(visited)  # [1, 2, 3, 4, 5]
+
+        # Returns [1, 2, 3, 4, 5]
+        visited
         ```
 
         %seealso bfs, get_topological_sort_order, random_walk
@@ -17775,7 +18615,8 @@ class Graph:
         # Find all simple paths from A to D
         paths = graph.get_all_simple_paths("A", "D")
         for path in paths:
-            print(" -> ".join(path))
+            # Prints each path like: A -> B -> D
+            " -> ".join(path)
         # Output:
         # A -> B -> D
         # A -> C -> D
@@ -17801,11 +18642,15 @@ class Graph:
 
         # Find paths with max 2 edges
         short_paths = graph.get_all_simple_paths("A", "E", cutoff=2)
-        print(f"Found {len(short_paths)} short paths")  # 1 path: A->E
+
+        # Returns 1 (path: A->E)
+        len(short_paths)
 
         # Find all paths (no limit)
         all_paths = graph.get_all_simple_paths("A", "E")
-        print(f"Found {len(all_paths)} total paths")  # 2 paths
+
+        # Returns 2 (paths)
+        len(all_paths)
         ```
 
         Analyze network redundancy:
@@ -17826,7 +18671,9 @@ class Graph:
 
         # Find all backup routes
         routes = network.get_all_simple_paths("Server1", "Server2")
-        print(f"Network has {len(routes)}x redundancy")
+
+        # Returns number of redundant routes
+        len(routes)
         ```
 
         Use Cases
@@ -17948,7 +18795,7 @@ class Graph:
         for path in paths:
             # All returned paths should be valid
             assert graph.is_simple_path(path) == True
-            print(f"✓ Valid path: {' -> '.join(path)}")
+            # ✓ Valid path: {' -> '.join(path)}
         ```
 
         Edge cases:
@@ -18082,8 +18929,12 @@ class Graph:
 
         # Take a 10-step walk, returns node IDs
         path = graph.random_walk(1, steps=10, seed=23, return_list=True)
-        print(len(path))  # 11 (including start)
-        print(path[0])    # 1 (starting node ID)
+
+        # Returns 11 (including start)
+        len(path)
+
+        # Returns 1 (starting node ID)
+        path[0]
         ```
 
         Store walk order as node attributes for visualization:
@@ -18141,13 +18992,16 @@ class Graph:
 
         # Return partial walk when stuck
         path = graph.random_walk(a_id, steps=10, stuck="return", return_list=True)
-        print(len(path))  # 3: node IDs for A, B, C
+
+        # Returns 3 (node IDs for A, B, C)
+        len(path)
 
         # Or raise error
         try:
             path = graph.random_walk(a_id, steps=10, stuck="error", return_list=True)
         except RuntimeError as e:
-            print("Got stuck!")
+            # Got stuck!
+            pass
         ```
 
         Notes
@@ -18258,7 +19112,8 @@ class Graph:
 
         # Each edge is (edge_id, source_id, target_id)
         for edge_id, source_id, target_id in edges:
-            print(f"Edge {edge_id}: {source_id} -> {target_id}")
+            # Prints: Edge {edge_id}: {source_id} -> {target_id}
+            pass
         ```
 
         Store traversal order as edge attributes (default mode):
@@ -18282,7 +19137,8 @@ class Graph:
         # Access traversal order from edge attributes
         orders = graph.get_edge_attrs_by_id("random_edge_walk_order")
         for edge_id, order in orders.items():
-            print(f"Edge {edge_id} traversed at position {order}")
+            # Prints: Edge {edge_id} traversed at position {order}
+            pass
         ```
 
         Method chaining with multiple walks:
@@ -18302,7 +19158,8 @@ class Graph:
         # Find edges present in both walks
         common_edges = set(walk1_orders.keys()) & set(walk2_orders.keys())
         for edge_id in sorted(common_edges)[:3]:  # Show first 3
-            print(f"Edge {edge_id}: walk1={walk1_orders[edge_id]}, walk2={walk2_orders[edge_id]}")
+            # Prints: Edge {edge_id}: walk1={walk1_orders[edge_id]}, walk2={walk2_orders[edge_id]}
+            pass
         ```
 
         Analyze edge usage frequency:
@@ -18324,7 +19181,9 @@ class Graph:
 
         # Count edge usage (by source and target IDs)
         edge_counts = Counter((src_id, tgt_id) for _, src_id, tgt_id in edges)
-        print("Most used edges:", edge_counts.most_common(3))
+
+        # Returns most frequently used edges
+        edge_counts.most_common(3)
         ```
 
         Notes
@@ -18410,7 +19269,9 @@ class Graph:
         order_ids = graph.get_topological_sort_order()
         # Convert to labels for display
         order_labels = [graph.get_label_from_id(nid) for nid in order_ids]
-        print("Build order:", " -> ".join(order_labels))
+
+        # Returns build order like: config.h -> utils.h -> main.cpp -> utils.cpp
+        " -> ".join(order_labels)
         # Output: config.h -> utils.h -> main.cpp -> utils.cpp (or similar valid order)
         ```
 
@@ -18432,7 +19293,7 @@ class Graph:
         curriculum_ids = graph.get_topological_sort_order()
         for i, node_id in enumerate(curriculum_ids, 1):
             course = graph.get_label_from_id(node_id)
-            print(f"Semester {i}: {course}")
+            # Prints: Semester {i}: {course}
         ```
 
         Detect cycles (not a DAG):
@@ -18452,7 +19313,8 @@ class Graph:
         try:
             order = graph.get_topological_sort_order()
         except ValueError as e:
-            print(f"Error: {e}")  # "Graph contains a cycle and not a DAG"
+            # Error: "Graph contains a cycle and not a DAG"
+            pass
         ```
 
         Multiple valid orderings:
@@ -18470,7 +19332,9 @@ class Graph:
 
         # Both [A, B, C] and [B, A, C] are valid
         order = graph.get_topological_sort_order()
-        print(order)
+
+        # Returns a valid topological order
+        order
         ```
 
         Notes
@@ -18537,8 +19401,12 @@ class Graph:
         )
 
         closure = graph.transitive_closure()
-        print(f"Original edges: {graph.count_edges()}")  # 2
-        print(f"Closure edges: {closure.count_edges()}")  # 3 (adds A -> C)
+
+        # Returns 2
+        graph.count_edges()
+
+        # Returns 3 (adds A -> C)
+        closure.count_edges()
         ```
 
         Reachability analysis:
@@ -18560,7 +19428,9 @@ class Graph:
         closure = graph.transitive_closure()
         # In the closure, we can see all transitive dependencies
         # main can reach: utils, config, base
-        print(f"Closure edges: {closure.count_edges()}")
+
+        # Returns number of edges in closure
+        closure.count_edges()
         ```
 
         Notes
@@ -18625,8 +19495,12 @@ class Graph:
         )
 
         reduction = graph.transitive_reduction()
-        print(f"Original edges: {graph.count_edges()}")  # 3
-        print(f"Reduced edges: {reduction.count_edges()}")  # 2 (A->C removed)
+
+        # Returns 3
+        graph.count_edges()
+
+        # Returns 2 (A->C removed)
+        reduction.count_edges()
         ```
 
         Simplify a dependency graph:
@@ -18648,8 +19522,12 @@ class Graph:
         )
 
         reduction = graph.transitive_reduction()
-        print(f"Original: {graph.count_edges()} edges")  # 5
-        print(f"Reduced: {reduction.count_edges()} edges")  # 3 (minimal)
+
+        # Returns 5 (edges)
+        graph.count_edges()
+
+        # Returns 3 (edges, minimal)
+        reduction.count_edges()
         ```
 
         Handling cyclic graphs:
@@ -18667,7 +19545,8 @@ class Graph:
         try:
             reduction = graph.transitive_reduction()
         except ValueError as e:
-            print(f"Error: {e}")  # Graph contains a cycle
+            # Error: Graph contains a cycle
+            pass
         ```
 
         Notes
@@ -18740,8 +19619,11 @@ class Graph:
         node_0 = g.get_id_from_label("0")
         node_1 = g.get_id_from_label("1")
         node_2 = g.get_id_from_label("2")
-        print(walks[node_0][node_2])  # 1 (path: 0 -> 1 -> 2)
-        print(walks[node_1][node_1])  # 2 (paths: 1 -> 0 -> 1 and 1 -> 2 -> 1)
+        # Returns 1 (path: 0 -> 1 -> 2)
+        walks[node_0][node_2]
+
+        # Returns 2 (paths: 1 -> 0 -> 1 and 1 -> 2 -> 1)
+        walks[node_1][node_1]
         ```
 
         Count walks in a triangle:
@@ -18757,7 +19639,9 @@ class Graph:
         # Walks of length 3 (can return to start)
         walks = g.count_walks(3)
         node_0 = g.get_id_from_label("0")
-        print(walks[node_0][node_0])  # 2 (two ways to return: 0->1->2->0 and 0->1->0->0)
+
+        # Returns 2 (two ways to return: 0->1->2->0 and 0->1->0->0)
+        walks[node_0][node_0]
         ```
 
         Total number of walks in the graph:
@@ -18776,7 +19660,9 @@ class Graph:
         total = sum(
             sum(targets.values()) for targets in walks.values()
         )
-        print(f"Total walks of length 2: {total}")
+
+        # Returns total number of walks of length 2
+        total
         ```
 
         Walks from a specific source:
@@ -18794,7 +19680,9 @@ class Graph:
         walks = g.count_walks(walk_length=3)
         node_0 = g.get_id_from_label("0")
         source_walks = walks[node_0]
-        print(f"Walks from node 0: {sum(source_walks.values())}")
+
+        # Returns number of walks from node 0
+        sum(source_walks.values())
         ```
 
         Notes
@@ -18895,7 +19783,9 @@ class Graph:
 
         # Triangle: multiple trails from A to C
         count = graph.count_trails("A", "C")
-        print(f"Trails from A to C: {count}")  # 2 trails: A->C and A->B->C
+
+        # Returns 2 (trails: A->C and A->B->C)
+        count
         ```
 
         Count trails using node IDs:
@@ -18912,7 +19802,9 @@ class Graph:
 
         # Use IDs directly
         count = graph.count_trails(a_id, b_id)
-        print(f"Found {count} trails")
+
+        # Returns number of trails found
+        count
         ```
 
         Count trails with limit to prevent explosion:
@@ -18929,9 +19821,11 @@ class Graph:
         # Limit to 10000 trails to avoid long computation
         count = G.count_trails(first_node, last_node, max_trails=10000)
         if count is None:
-            print("More than 10,000 trails exist")
+            # More than 10,000 trails exist
+            pass
         else:
-            print(f"Found {count} trails")
+            # Returns number of trails found
+            count
         ```
 
         Compare paths vs trails:
@@ -18952,7 +19846,9 @@ class Graph:
 
         # Trails: can use different edges
         trails = graph.count_trails("A", "D")
-        print(f"Trails: {trails}")  # 2: A->B->D and A->B->C->D
+
+        # Returns 2 (A->B->D and A->B->C->D)
+        trails
 
         # Simple paths would only count non-repeated nodes
         ```
@@ -19036,7 +19932,8 @@ class Graph:
 
         trails = graph.enumerate_trails("A", "C")
         for i, trail in enumerate(trails, 1):
-            print(f"Trail {i}: {' -> '.join(trail)}")
+            # Prints: Trail {i}: {' -> '.join(trail)}
+            pass
         # Trail 1: A -> C
         # Trail 2: A -> B -> C
         ```
@@ -19055,7 +19952,9 @@ class Graph:
 
         # Use IDs directly
         trails = graph.enumerate_trails(start_id, end_id)
-        print(f"Found {len(trails)} trails")
+
+        # Returns number of trails found
+        len(trails)
         ```
 
         Enumerate with limit:
@@ -19075,7 +19974,9 @@ class Graph:
 
         # Get first 100 trails only
         trails = graph.enumerate_trails(source="start", target="end", max_trails=100)
-        print(f"Found {len(trails)} trails (may be more)")
+
+        # Returns number of trails found (may be more)
+        len(trails)
         ```
 
         Analyze trail lengths:
@@ -19099,8 +20000,12 @@ class Graph:
             if trails:
                 # Analyze lengths
                 lengths = [len(trail) - 1 for trail in trails]  # -1 for edge count
-                print(f"Trail lengths: min={min(lengths)}, max={max(lengths)}")
-                print(f"Average edges per trail: {sum(lengths) / len(lengths):.1f}")
+
+                # Returns minimum and maximum trail lengths
+                min(lengths), max(lengths)
+
+                # Returns average edges per trail
+                sum(lengths) / len(lengths)
         ```
 
         Notes
@@ -19169,7 +20074,8 @@ class Graph:
         graph = Graph()
         graph.add_cycle_graph(5)
 
-        print(graph.is_eulerian())  # True (all degrees are 2)
+        # Returns True (all degrees are 2)
+        graph.is_eulerian()
         ```
 
         Check a path graph (no Eulerian circuit):
@@ -19178,7 +20084,8 @@ class Graph:
         graph = Graph()
         graph.add_path_graph(5)
 
-        print(graph.is_eulerian())  # False (endpoints have odd degree)
+        # Returns False (endpoints have odd degree)
+        graph.is_eulerian()
         ```
 
         Check a directed graph:
@@ -19187,7 +20094,8 @@ class Graph:
         graph = Graph(directed=True)
         graph.add_cycle_graph(4)
 
-        print(graph.is_eulerian())  # True (in-degree = out-degree for all)
+        # Returns True (in-degree = out-degree for all)
+        graph.is_eulerian()
         ```
 
         """
@@ -19229,8 +20137,13 @@ class Graph:
         graph = Graph()
         graph.add_path_graph(5)
 
-        print(graph.is_semieulerian())  # True (2 odd-degree nodes)
-        print(graph.is_eulerian())      # False (not a circuit)
+        # Returns True (2 odd-degree nodes)
+        graph.is_semieulerian()
+        ```
+
+        ```python
+        # Returns False (not a circuit)
+        graph.is_eulerian()
         ```
 
         Check a cycle graph (not semi-Eulerian):
@@ -19239,8 +20152,13 @@ class Graph:
         graph = Graph()
         graph.add_cycle_graph(5)
 
-        print(graph.is_semieulerian())  # False (has Eulerian circuit)
-        print(graph.is_eulerian())      # True
+        # Returns False (has Eulerian circuit)
+        graph.is_semieulerian()
+        ```
+
+        ```python
+        # Returns True
+        graph.is_eulerian()
         ```
 
         Check a directed path:
@@ -19249,7 +20167,8 @@ class Graph:
         graph = Graph(directed=True)
         graph.add_path_graph(5)
 
-        print(graph.is_semieulerian())  # True (one source, one sink)
+        # Returns True (one source, one sink)
+        graph.is_semieulerian()
         ```
 
         """
@@ -19281,8 +20200,14 @@ class Graph:
         graph.add_cycle_graph(5)
 
         circuit = graph.eulerian_circuit()
-        print(circuit)  # e.g., [0, 1, 2, 3, 4, 0]
-        print(len(circuit))  # 6 (5 edges + return to start)
+
+        # Returns e.g., [0, 1, 2, 3, 4, 0]
+        circuit
+        ```
+
+        ```python
+        # Returns 6 (5 edges + return to start)
+        len(circuit)
         ```
 
         No circuit in a path graph:
@@ -19292,7 +20217,9 @@ class Graph:
         graph.add_path_graph(5)
 
         circuit = graph.eulerian_circuit()
-        print(circuit)  # None (path has no circuit)
+
+        # Returns None (path has no circuit)
+        circuit
         ```
 
         Find circuit in a cycle graph:
@@ -19303,8 +20230,11 @@ class Graph:
 
         circuit = graph.eulerian_circuit()
         if circuit:
-            print(f"Circuit length: {len(circuit)}")
-            print(f"Visits {len(circuit) - 1} edges")
+            # Circuit length
+            len(circuit)
+
+            # Visits this many edges
+            len(circuit) - 1
         ```
 
         Directed Eulerian circuit:
@@ -19314,7 +20244,9 @@ class Graph:
         graph.add_cycle_graph(5)
 
         circuit = graph.eulerian_circuit()
-        print(len(circuit))  # 6 (visits 5 edges + returns to start)
+
+        # Returns 6 (visits 5 edges + returns to start)
+        len(circuit)
         ```
 
         Notes
@@ -19366,7 +20298,9 @@ class Graph:
         graph.add_path_graph(4)
 
         bridges = graph.bridges()
-        print(len(bridges))  # 3 (all edges are bridges in a path)
+
+        # Returns 3 (all edges are bridges in a path)
+        len(bridges)
         ```
 
         Find bridges in a graph with a cycle:
@@ -19380,7 +20314,9 @@ class Graph:
         graph.add_edge(nodes[-1], tail_id)  # Add a tail
 
         bridges = graph.bridges()
-        print(len(bridges))  # 1 (only edge to tail is a bridge)
+
+        # Returns 1 (only edge to tail is a bridge)
+        len(bridges)
         ```
 
         Check bridge edges in a network:
@@ -19394,7 +20330,8 @@ class Graph:
             result = graph.get_node_ids_by_edge_id(edge_id)
             if result:
                 u, v = result
-                print(f"Bridge: {u} - {v}")
+                # Prints bridge endpoints, e.g., "Bridge: 0 - 1"
+                pass
         ```
 
         Notes
@@ -19432,7 +20369,8 @@ class Graph:
         graph = Graph()
         graph.add_cycle_graph(5)
 
-        print(graph.has_bridges())  # False (cycles have no bridges)
+        # Returns False (cycles have no bridges)
+        graph.has_bridges()
         ```
 
         Check if a path has bridges:
@@ -19441,7 +20379,8 @@ class Graph:
         graph = Graph()
         graph.add_path_graph(5)
 
-        print(graph.has_bridges())  # True (all tree edges are bridges)
+        # Returns True (all tree edges are bridges)
+        graph.has_bridges()
         ```
 
         Check a mixed graph:
@@ -19456,7 +20395,8 @@ class Graph:
 
         if graph.has_bridges():
             bridges = graph.bridges()
-            print(f"Found {len(bridges)} bridge(s)")
+            # Number of bridges found
+            len(bridges)
         ```
 
         Notes
@@ -19514,9 +20454,13 @@ class Graph:
         middle_vitality = graph.get_node_vitality(nodes[2])
         end_vitality = graph.get_node_vitality(nodes[0])
 
-        print(f"Middle node vitality: {middle_vitality}")
-        print(f"End node vitality: {end_vitality}")
-        # Middle has higher vitality (or infinite if it disconnects)
+        # Middle node vitality (higher or infinite if it disconnects)
+        middle_vitality
+        ```
+
+        ```python
+        # End node vitality
+        end_vitality
         ```
 
         Compare vitality in a star graph:
@@ -19530,9 +20474,13 @@ class Graph:
         hub_vitality = graph.get_node_vitality(nodes[0])
         leaf_vitality = graph.get_node_vitality(nodes[1])
 
-        print(f"Hub vitality: {hub_vitality}")
-        print(f"Leaf vitality: {leaf_vitality}")
-        # Hub has much higher vitality
+        # Hub vitality (much higher)
+        hub_vitality
+        ```
+
+        ```python
+        # Leaf vitality
+        leaf_vitality
         ```
 
         Use with node labels:
@@ -19549,8 +20497,13 @@ class Graph:
         vitality_b = graph.get_node_vitality("B")
         vitality_a = graph.get_node_vitality("A")
 
-        print(f"Node B vitality: {vitality_b}")
-        print(f"Node A vitality: {vitality_a}")
+        # Node B vitality
+        vitality_b
+        ```
+
+        ```python
+        # Node A vitality
+        vitality_a
         ```
 
         Notes
@@ -19613,11 +20566,17 @@ class Graph:
         # Find all nodes reachable from node 0
         node_ids = list(graph.get_node_ids())
         connected = graph.get_all_connected_nodes(node_ids[0])
-        print(len(connected))  # 2 (nodes 1 and 2)
 
+        # Returns 2 (nodes 1 and 2)
+        len(connected)
+        ```
+
+        ```python
         # Node 3 is in a separate component
         connected_3 = graph.get_all_connected_nodes(node_ids[3])
-        print(len(connected_3))  # 1 (node 4)
+
+        # Returns 1 (node 4)
+        len(connected_3)
         ```
 
         Component size analysis:
@@ -19641,7 +20600,8 @@ class Graph:
                 components.append(component)
                 visited.update(component)
 
-        print(f"Found {len(components)} components")
+        # Number of components found
+        len(components)
         ```
 
         """
@@ -19699,7 +20659,9 @@ class Graph:
         # In a path: 1-2-3-4-5
         # Middle nodes 2, 3, 4 are articulation points
         cut_node_ids = graph.get_articulation_points()
-        print(len(cut_node_ids))  # 3
+
+        # Returns 3
+        len(cut_node_ids)
 
         # Convert to labels if needed
         cut_node_labels = [graph.get_label_from_id(nid) for nid in cut_node_ids]
@@ -19738,7 +20700,9 @@ class Graph:
 
         # In path 1-2-3-4-5, ends (1 and 5) are periphery
         periphery_ids = graph.get_periphery()
-        print(len(periphery_ids))  # 2
+
+        # Returns 2
+        len(periphery_ids)
 
         # Convert to labels if needed
         periphery_labels = sorted([graph.get_label_from_id(nid) for nid in periphery_ids])
@@ -19785,7 +20749,8 @@ class Graph:
         for i in range(1, n + 1):
             graph.add_edge(str(i), str((i % n) + 1))
 
-        print(graph.get_node_connectivity())  # 2
+        # Returns 2
+        graph.get_node_connectivity()
         ```
 
         Complete graph K_5 has node connectivity 4:
@@ -19798,7 +20763,8 @@ class Graph:
             for j in range(i + 1, 6):
                 graph.add_edge(str(i), str(j))
 
-        print(graph.get_node_connectivity())  # 4
+        # Returns 4
+        graph.get_node_connectivity()
         ```
 
         """
@@ -19849,7 +20815,8 @@ class Graph:
             graph.add_edge(str(i), str(i + 1))
 
         # Endpoints have connectivity 1 (any middle node disconnects them)
-        print(graph.get_node_connectivity_between("1", "5"))  # 1
+        # Returns 1
+        graph.get_node_connectivity_between("1", "5")
         ```
 
         Using node IDs:
@@ -19866,7 +20833,8 @@ class Graph:
         node5_id = graph.get_id_from_label("5")
 
         # Can use node IDs directly
-        print(graph.get_node_connectivity_between(node1_id, node5_id))  # 1
+        # Returns 1
+        graph.get_node_connectivity_between(node1_id, node5_id)
         ```
 
         Complete graph connectivity:
@@ -19880,7 +20848,8 @@ class Graph:
                 graph.add_edge(str(i), str(j))
 
         # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
-        print(graph.get_node_connectivity_between("1", "5"))  # 4
+        # Returns 4
+        graph.get_node_connectivity_between("1", "5")
         ```
 
         """
@@ -19919,7 +20888,8 @@ class Graph:
         for i in range(1, n + 1):
             graph.add_edge(str(i), str((i % n) + 1))
 
-        print(graph.get_edge_connectivity())  # 2
+        # Returns 2
+        graph.get_edge_connectivity()
         ```
 
         Star graph has edge connectivity 1:
@@ -19931,7 +20901,8 @@ class Graph:
             graph.add_node(label=str(i))
             graph.add_edge("center", str(i))
 
-        print(graph.get_edge_connectivity())  # 1
+        # Returns 1
+        graph.get_edge_connectivity()
         ```
 
         """
@@ -19975,7 +20946,8 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_adhesion())  # 2
+        # Returns 2
+        graph.get_adhesion()
         ```
 
         """
@@ -20019,7 +20991,8 @@ class Graph:
             .add_edge("D", "A")
         )
 
-        print(graph.get_cohesion())  # 2
+        # Returns 2
+        graph.get_cohesion()
         ```
 
         """
@@ -20055,7 +21028,8 @@ class Graph:
         )
 
         # 2 edges, 3 nodes: 2 / (3 × 2 / 2) = 0.667
-        print(f"{graph.get_density():.3f}")  # 0.667
+        # Returns 0.667
+        f"{graph.get_density():.3f}"
         ```
 
         Compare sparse vs. dense graphs:
@@ -20072,7 +21046,8 @@ class Graph:
             .add_edge("A", "C")
         )
 
-        print(f"{complete.get_density():.3f}")  # 1.000
+        # Returns 1.000
+        f"{complete.get_density():.3f}"
         ```
 
         """
@@ -20188,7 +21163,9 @@ class Graph:
         )
 
         a_id, d_id = graph.get_id_from_label("A"), graph.get_id_from_label("D")
-        print(graph.get_min_cut_between(a_id, d_id))  # 1 (bottleneck)
+
+        # Returns 1 (bottleneck)
+        graph.get_min_cut_between(a_id, d_id)
         ```
 
         """
@@ -20263,7 +21240,9 @@ class Graph:
 
         critical_nodes = graph.minimum_node_cut("Client", "Database")
         # Identifies Gateway as single point of failure
-        print(f"Critical nodes: {len(critical_nodes)}")
+
+        # Number of critical nodes
+        len(critical_nodes)
         ```
 
         Social network bottlenecks:
@@ -20348,7 +21327,9 @@ class Graph:
         )
 
         critical_links = graph.minimum_edge_cut("Server1", "Server2")
-        print(f"Removing {len(critical_links)} link(s) disconnects the servers")
+
+        # Number of links that disconnect the servers when removed
+        len(critical_links)
         ```
 
         """
@@ -20414,14 +21395,17 @@ class Graph:
 
         flow_dict = graph.max_flow("S", "T")
         total_flow = sum(flow_dict.values())  # Note: count outgoing from source
-        print(f"Edges with flow: {len(flow_dict)}")
+
+        # Number of edges with flow
+        len(flow_dict)
 
         # See flow on each edge
         for edge_id, flow in flow_dict.items():
             edge = graph.get_edge(edge_id)
             src = graph.get_label_from_id(edge.source)
             tgt = graph.get_label_from_id(edge.target)
-            print(f"  {src} -> {tgt}: {flow}")
+            # Flow on this edge, e.g., "S -> A: 10.0"
+            pass
         ```
 
         Using custom capacity attribute:
@@ -20438,7 +21422,9 @@ class Graph:
         )
 
         flow_dict = graph.max_flow("A", "C", capacity="bandwidth")
-        print(f"Edges carrying flow: {len(flow_dict)}")
+
+        # Number of edges carrying flow
+        len(flow_dict)
         ```
 
         Unweighted graph (unit capacities):
@@ -20509,7 +21495,9 @@ class Graph:
         )
 
         flow = graph.max_flow_value("S", "T")
-        print(f"Maximum flow: {flow}")  # 5.0
+
+        # Returns 5.0
+        flow
         ```
 
         """
@@ -20586,8 +21574,10 @@ class Graph:
         )
 
         total_flow, total_cost, flow_dict = graph.min_cost_flow("S", "T")
-        print(f"Flow: {total_flow}, Cost: {total_cost}")
         # Prefers S->A->T path (cost 2) over S->B->T (cost 3)
+
+        # Returns (flow, cost) tuple
+        total_flow, total_cost
         ```
 
         Sending a specific amount of flow:
@@ -20606,7 +21596,9 @@ class Graph:
 
         # Send exactly 10 units of flow
         total_flow, total_cost, flow_dict = graph.min_cost_flow("S", "T", demand=10.0)
-        print(f"Sent {total_flow} units at cost {total_cost}")  # Flow: 10, Cost: 80
+
+        # Returns (10, 80) - Flow: 10, Cost: 80
+        total_flow, total_cost
         ```
 
         Using custom capacity and cost attributes:
@@ -20627,8 +21619,14 @@ class Graph:
         total_flow, total_cost, flow_dict = graph.min_cost_flow(
             "A", "C", capacity="bandwidth", cost="price"
         )
-        print(f"Maximum flow: {total_flow}")
-        print(f"Minimum cost: {total_cost}")
+
+        # Maximum flow
+        total_flow
+        ```
+
+        ```python
+        # Minimum cost
+        total_cost
         ```
 
         Transportation problem example:
@@ -20659,7 +21657,9 @@ class Graph:
         )
 
         flow, cost, assignment = graph.min_cost_flow("Source", "Sink", demand=90.0)
-        print(f"Total shipping cost: {cost}")
+
+        # Total shipping cost
+        cost
         ```
 
         Notes
@@ -20712,7 +21712,8 @@ class Graph:
             .add_edge("X", "Y")
         )
 
-        print(graph.count_weakly_connected_components())  # 2
+        # Returns 2
+        graph.count_weakly_connected_components()
         ```
 
         %seealso weakly_connected_components, count_strongly_connected_components, is_weakly_connected
@@ -20753,7 +21754,8 @@ class Graph:
             .add_edge("X", "Y")  # Separate component
         )
 
-        print(graph.count_strongly_connected_components())  # 2
+        # Returns 2
+        graph.count_strongly_connected_components()
         ```
 
         For undirected graphs, equivalent to connected components:
@@ -20768,8 +21770,13 @@ class Graph:
         )
 
         # Both return the same result for undirected graphs
-        print(graph.count_strongly_connected_components())  # 2
-        print(graph.count_weakly_connected_components())     # 2
+        # Returns 2
+        graph.count_strongly_connected_components()
+        ```
+
+        ```python
+        # Returns 2
+        graph.count_weakly_connected_components()
         ```
 
         %seealso strongly_connected_components, count_weakly_connected_components, is_strongly_connected
@@ -20808,9 +21815,13 @@ class Graph:
         )
 
         components = graph.weakly_connected_components()
-        print(len(components))  # 2
+
+        # Returns 2
+        len(components)
+
         for comp in components:
-            print(comp)  # Sets of node IDs
+            # Sets of node IDs
+            pass
         ```
 
         Find the largest component:
@@ -20822,7 +21833,9 @@ class Graph:
 
         components = graph.weakly_connected_components()
         largest = max(components, key=len)
-        print(f"Largest component has {len(largest)} nodes")
+
+        # Number of nodes in largest component
+        len(largest)
         ```
 
         %seealso count_weakly_connected_components, strongly_connected_components, is_weakly_connected
@@ -20865,7 +21878,9 @@ class Graph:
         )
 
         sccs = graph.strongly_connected_components()
-        print(len(sccs))  # 2: {A, B, C} and {D}
+
+        # Returns 2: {A, B, C} and {D}
+        len(sccs)
         ```
 
         Analyze web graph structure:
@@ -20882,7 +21897,9 @@ class Graph:
 
         sccs = graph.strongly_connected_components()
         largest_scc = max(sccs, key=len)
-        print(f"Largest SCC contains {len(largest_scc)} pages")
+
+        # Number of pages in largest SCC
+        len(largest_scc)
         ```
 
         Notes
@@ -20930,12 +21947,18 @@ class Graph:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        print(graph.is_strongly_connected())  # True
 
+        # Returns True
+        graph.is_strongly_connected()
+        ```
+
+        ```python
         # Add a node that can't be reached from the cycle
         graph.add_node(label="D")
         graph.add_edge("D", "A")  # D can reach A but nothing can reach D
-        print(graph.is_strongly_connected())  # False
+
+        # Returns False
+        graph.is_strongly_connected()
         ```
 
         Notes
@@ -20976,8 +21999,14 @@ class Graph:
             .add_edge("A", "B")
             .add_edge("C", "B")  # All connected when ignoring direction
         )
-        print(graph.is_weakly_connected())  # True
-        print(graph.is_strongly_connected())  # False (can't reach C from A)
+
+        # Returns True
+        graph.is_weakly_connected()
+        ```
+
+        ```python
+        # Returns False (can't reach C from A)
+        graph.is_strongly_connected()
         ```
 
         Disconnected components:
@@ -20992,7 +22021,9 @@ class Graph:
             .add_edge("A", "B")
             .add_edge("X", "Y")
         )
-        print(graph.is_weakly_connected())  # False
+
+        # Returns False
+        graph.is_weakly_connected()
         ```
 
         Notes
@@ -21081,7 +22112,9 @@ class Graph:
         )
 
         coloring = graph.greedy_color()
-        print(coloring)  # {1: 0, 2: 1, 3: 0, 4: 1}  (2 colors for a square)
+
+        # Returns e.g., {1: 0, 2: 1, 3: 0, 4: 1} (2 colors for a square)
+        coloring
         ```
 
         Use DSATUR strategy for potentially better results:
@@ -21099,7 +22132,9 @@ class Graph:
 
         coloring = graph.greedy_color(strategy="dsatur")
         num_colors = len(set(coloring.values()))
-        print(f"Used {num_colors} colors")  # 3 colors for a triangle
+
+        # Returns 3 (colors for a triangle)
+        num_colors
         ```
 
         """
@@ -21137,11 +22172,17 @@ class Graph:
 
         # Valid coloring (alternating colors)
         valid = {node_ids[0]: 0, node_ids[1]: 1, node_ids[2]: 0}
-        print(graph.is_valid_coloring(valid))  # True
 
+        # Returns True
+        graph.is_valid_coloring(valid)
+        ```
+
+        ```python
         # Invalid coloring (adjacent nodes same color)
         invalid = {node_ids[0]: 0, node_ids[1]: 0, node_ids[2]: 1}
-        print(graph.is_valid_coloring(invalid))  # False
+
+        # Returns False
+        graph.is_valid_coloring(invalid)
         ```
 
         """
@@ -21182,7 +22223,9 @@ class Graph:
 
         # Get upper bound using default coloring
         bound = graph.chromatic_number_upper_bound()
-        print(f"Chromatic number <= {bound}")  # Chromatic number <= 3
+
+        # Returns 3 (chromatic number upper bound)
+        bound
         ```
 
         """
@@ -21233,7 +22276,9 @@ class Graph:
 
         edge_ids = graph.get_edge_ids()
         is_valid = graph.is_matching(edge_ids)
-        print(is_valid)  # True (no shared endpoints)
+
+        # Returns True (no shared endpoints)
+        is_valid
         ```
 
         Check an invalid matching:
@@ -21250,7 +22295,9 @@ class Graph:
 
         edge_ids = graph.get_edge_ids()
         is_valid = graph.is_matching(edge_ids)
-        print(is_valid)  # False (B is shared)
+
+        # Returns False (B is shared)
+        is_valid
         ```
 
         Validate a computed matching:
@@ -21295,8 +22342,9 @@ class Graph:
         graph.add_path_graph(6)  # 1-2-3-4-5-6
 
         matching = graph.maximal_matching()
-        print(f"Matched {len(matching)} edges")
-        # Will match 3 edges (e.g., 1-2, 3-4, 5-6)
+
+        # Returns 3 (will match 3 edges, e.g., 1-2, 3-4, 5-6)
+        len(matching)
 
         # Verify it's a valid matching
         assert graph.is_matching(matching)
@@ -21326,8 +22374,14 @@ class Graph:
         graph.add_full_graph(10)
 
         matching = graph.maximal_matching()
-        print(f"Nodes: {graph.count_nodes()}")  # 10
-        print(f"Matched edges: {len(matching)}")  # 5 (perfect matching)
+
+        # Returns 10
+        graph.count_nodes()
+        ```
+
+        ```python
+        # Returns 5 (perfect matching)
+        len(matching)
         ```
 
         Notes
@@ -21385,7 +22439,9 @@ class Graph:
         total_weight = sum(
             graph.get_edge(eid).weight for eid in matching
         )
-        print(f"Total weight: {total_weight}")
+
+        # Returns the total weight of the matching
+        total_weight
         ```
 
         Unweighted graph (maximizes cardinality):
@@ -21395,7 +22451,9 @@ class Graph:
         graph.add_full_graph(8)
 
         matching = graph.max_weight_matching()
-        print(f"Matched {len(matching)} edges")  # 4 (perfect matching)
+
+        # Returns 4 (perfect matching)
+        len(matching)
 
         # Verify it's valid
         assert graph.is_matching(matching)
@@ -21423,7 +22481,8 @@ class Graph:
 
         matched_edges = [graph.get_edge(eid) for eid in matching]
         for edge in matched_edges:
-            print(f"{edge.source} - {edge.target}: {edge.weight}")
+            # Prints edge info: source - target: weight
+            pass
         ```
 
         Visualize the matching:
@@ -21507,11 +22566,17 @@ class Graph:
         # A and C are not adjacent
         a_id = graph.get_id_from_label("A")
         c_id = graph.get_id_from_label("C")
-        print(graph.is_independent_set([a_id, c_id]))  # True
 
+        # Returns True
+        graph.is_independent_set([a_id, c_id])
+        ```
+
+        ```python
         # A, C, D: C and D are adjacent
         d_id = graph.get_id_from_label("D")
-        print(graph.is_independent_set([a_id, c_id, d_id]))  # False
+
+        # Returns False
+        graph.is_independent_set([a_id, c_id, d_id])
         ```
 
         Validate a computed independent set:
@@ -21582,7 +22647,9 @@ class Graph:
         graph.add_path_graph(5)
 
         mis = graph.maximal_independent_set(seed=23)
-        print(f"Independent set size: {len(mis)}")  # 2 or 3
+
+        # Returns 2 or 3
+        len(mis)
 
         # Verify validity
         assert graph.is_independent_set(mis)
@@ -21610,7 +22677,8 @@ class Graph:
         # Different seeds give different results
         sets = [graph.maximal_independent_set(seed=i) for i in range(5)]
         for i, s in enumerate(sets):
-            print(f"Seed {i}: {s}")
+            # Prints: Seed {i}: {s}
+            pass
         ```
 
         Scheduling application:
@@ -21631,7 +22699,9 @@ class Graph:
         # Find jobs that can run simultaneously
         parallel_jobs = graph.maximal_independent_set()
         labels = [graph.get_label_from_id(nid) for nid in parallel_jobs]
-        print(f"Can run together: {labels}")
+
+        # Returns list of job labels that can run together
+        labels
         ```
 
         Notes
@@ -21677,7 +22747,9 @@ class Graph:
         graph.add_path_graph(5)
 
         mis = graph.maximum_independent_set()
-        print(f"Maximum independent set size: {len(mis)}")  # 3 for path of 5
+
+        # Returns 3 (for path of 5)
+        len(mis)
 
         # Verify it's valid
         assert graph.is_independent_set(mis)
@@ -21692,8 +22764,13 @@ class Graph:
         maximal = graph.maximal_independent_set(seed=23)
         maximum = graph.maximum_independent_set()
 
-        print(f"Maximal size: {len(maximal)}")
-        print(f"Maximum size: {len(maximum)}")  # Should be larger or equal
+        # Returns maximal size
+        len(maximal)
+        ```
+
+        ```python
+        # Returns maximum size (should be larger or equal)
+        len(maximum)
         ```
 
         Vertex cover complement:
@@ -21706,9 +22783,18 @@ class Graph:
         mis = graph.maximum_independent_set()
         vertex_cover = set(graph.get_node_ids()) - set(mis)
 
-        print(f"Independent set: {len(mis)}")
-        print(f"Vertex cover: {len(vertex_cover)}")
-        print(f"Total: {len(mis) + len(vertex_cover)} = {graph.count_nodes()}")
+        # Returns independent set size
+        len(mis)
+        ```
+
+        ```python
+        # Returns vertex cover size
+        len(vertex_cover)
+        ```
+
+        ```python
+        # Returns total: len(mis) + len(vertex_cover) = graph.count_nodes()
+        len(mis) + len(vertex_cover)
         ```
 
         Optimization problem:
@@ -21731,7 +22817,9 @@ class Graph:
 
         mis = graph.maximum_independent_set()
         labels = [graph.get_label_from_id(nid) for nid in mis]
-        print(f"Best selection: {labels}")
+
+        # Returns list of best selection labels
+        labels
         ```
 
         Notes
@@ -21785,7 +22873,8 @@ class Graph:
 
         sets = graph.find_maximal_independent_sets(count=5, seed=23)
         for i, s in enumerate(sets):
-            print(f"Set {i}: size={len(s)}, nodes={s}")
+            # Prints: Set {i}: size={len(s)}, nodes={s}
+            pass
         ```
 
         Find the best among multiple:
@@ -21796,7 +22885,9 @@ class Graph:
 
         sets = graph.find_maximal_independent_sets(count=20, seed=0)
         best = max(sets, key=len)
-        print(f"Best size: {len(best)}")
+
+        # Returns best size
+        len(best)
         ```
 
         Analyze diversity:
@@ -21807,7 +22898,9 @@ class Graph:
 
         sets = graph.find_maximal_independent_sets(count=10)
         unique_sizes = set(len(s) for s in sets)
-        print(f"Found {len(sets)} unique sets with sizes: {unique_sizes}")
+
+        # Returns number of unique sets and their sizes
+        (len(sets), unique_sizes)
         ```
 
         Notes
@@ -21867,10 +22960,15 @@ class Graph:
         # {B, D} dominates: B covers A,C and D covers C
         b_id = graph.get_id_from_label("B")
         d_id = graph.get_id_from_label("D")
-        print(graph.is_dominating_set([b_id, d_id]))  # True
 
+        # Returns True
+        graph.is_dominating_set([b_id, d_id])
+        ```
+
+        ```python
         # {B} alone doesn't dominate D
-        print(graph.is_dominating_set([b_id]))  # False
+        # Returns False
+        graph.is_dominating_set([b_id])
         ```
 
         Validate a computed dominating set:
@@ -21929,7 +23027,9 @@ class Graph:
         graph.add_gnm_graph(n=100, m=200, seed=23)
 
         dom = graph.dominating_set()
-        print(f"Dominating set size: {len(dom)}")
+
+        # Returns dominating set size
+        len(dom)
 
         # Verify it's valid
         assert graph.is_dominating_set(dom)
@@ -21943,7 +23043,9 @@ class Graph:
 
         # Start from the hub (node ID 1)
         dom = graph.dominating_set(start_with=1)
-        print(f"Size: {len(dom)}")  # 1 (just the hub)
+
+        # Returns 1 (just the hub)
+        len(dom)
         ```
 
         Compare with independent sets:
@@ -21955,9 +23057,14 @@ class Graph:
         dom = graph.dominating_set()
         ind = graph.maximal_independent_set(seed=23)
 
-        print(f"Dominating set: {len(dom)}")
-        print(f"Independent set: {len(ind)}")
+        # Returns dominating set size
+        len(dom)
+        ```
+
+        ```python
+        # Returns independent set size
         # Note: Every maximal independent set is also a dominating set!
+        len(ind)
         ```
 
         Notes
@@ -22018,7 +23125,9 @@ class Graph:
         dom2 = graph.min_weighted_dominating_set(weight_attr="cost")
 
         labels = [graph.get_label_from_id(n) for n in dom2]
-        print(f"Weighted dominating set: {labels}")
+
+        # Returns list of labels in weighted dominating set
+        labels
         ```
 
         Facility location problem:
@@ -22036,7 +23145,9 @@ class Graph:
         graph.set_node_attrs("facility_cost", costs)
 
         facilities = graph.min_weighted_dominating_set(weight_attr="facility_cost")
-        print(f"Need {len(facilities)} facilities to cover all nodes")
+
+        # Returns number of facilities needed to cover all nodes
+        len(facilities)
         ```
 
         Notes
@@ -22117,12 +23228,18 @@ class Graph:
         g.add_edge("A", "C", weight=5.0)
 
         mst = g.minimum_spanning_tree()
-        print(mst.count_edges())  # 3
 
+        # Returns 3
+        mst.count_edges()
+        ```
+
+        ```python
         # Calculate total weight
         total = sum(e.weight for e in [mst.get_edge(eid) for eid, _, _ in mst.get_edges_as_tuples()]
                     if e and e.weight is not None)
-        print(total)  # 6.0
+
+        # Returns 6.0
+        total
         ```
 
         Notes
@@ -22211,7 +23328,9 @@ class Graph:
         # Calculate total weight
         total = sum(e.weight for e in [max_st.get_edge(eid) for eid, _, _ in max_st.get_edges_as_tuples()]
                     if e and e.weight is not None)
-        print(total)  # 5.0 (chooses edges with weights 3.0 and 2.0)
+
+        # Returns 5.0 (chooses edges with weights 3.0 and 2.0)
+        total
         ```
 
         Notes
@@ -22318,8 +23437,8 @@ class Graph:
         terminals = ["DC1", "DC2", "DC3"]
         steiner = g.steiner_tree(terminals)
 
-        print(f"Steiner tree has {steiner.count_edges()} edges")
-        # May include Router1 and Router2 as Steiner nodes
+        # Returns number of edges (may include Router1 and Router2 as Steiner nodes)
+        steiner.count_edges()
         ```
 
         **Phylogenetics: Connecting Key Species**
@@ -22445,11 +23564,16 @@ class Graph:
 
         # Get all spanning trees
         trees = g.all_spanning_trees()
-        print(f"Found {len(trees)} spanning trees")
 
+        # Returns number of spanning trees found
+        len(trees)
+        ```
+
+        ```python
         # Each tree connects all 4 nodes with exactly 3 edges
         for i, tree in enumerate(trees):
-            print(f"Tree {i+1}: {tree.count_edges()} edges")
+            # Prints: Tree {i+1}: {tree.count_edges()} edges
+            pass
         ```
 
         **Counting Spanning Trees**
@@ -22471,7 +23595,9 @@ class Graph:
 
         # K4 should have 16 spanning trees
         trees = g.all_spanning_trees()
-        print(f"K4 has {len(trees)} spanning trees")  # 16
+
+        # Returns 16
+        len(trees)
         ```
 
         **Getting Edge Lists Instead of Graphs**
@@ -22493,7 +23619,8 @@ class Graph:
         tree_edges = g.all_spanning_trees(return_subgraphs=False)
         for edges in tree_edges:
             total_weight = sum(w for _, _, w in edges)
-            print(f"Tree weight: {total_weight}")
+            # Prints: Tree weight: {total_weight}
+            pass
         ```
 
         Notes
@@ -22726,7 +23853,8 @@ class Graph:
         for (sender_id, receiver_id), count in multi_count.items():
             sender = email.get_label_from_id(sender_id)
             receiver = email.get_label_from_id(receiver_id)
-            print(f"{sender} -> {receiver}: {count} emails")
+            # Prints: {sender} -> {receiver}: {count} emails
+            pass
         # Alice -> Bob: 3 emails
         # Bob -> Carol: 2 emails
         ```
@@ -22797,7 +23925,9 @@ class Graph:
         g.add_edge(source="Carol", target="Carol")  # Self-loop
 
         loops = g.which_loops()
-        print(len(loops))  # 2
+
+        # Returns 2
+        len(loops)
         ```
 
         State Machine Validation:
@@ -22816,7 +23946,9 @@ class Graph:
         fsm.add_edge(source="Complete", target="Idle")
 
         self_transitions = fsm.which_loops()
-        print(len(self_transitions))  # 1
+
+        # Returns 1
+        len(self_transitions)
         ```
 
         **Social Network Analysis**
@@ -23028,7 +24160,8 @@ class Graph:
         )
 
         mutual = graph.which_mutual()
-        print(mutual)  # [(1, 2)]
+        # Returns [(1, 2)]
+        mutual
         ```
 
         Analyze communication patterns:
@@ -23050,14 +24183,8 @@ class Graph:
 
         # Find bidirectional communication
         mutual_pairs = graph.which_mutual()
-        print(f"Bidirectional connections: {len(mutual_pairs)}")
-
-        # Get details of mutual relationships
-        for edge1_id, edge2_id in mutual_pairs:
-            e1 = graph.get_node_ids_by_edge_id(edge_id=edge1_id)
-            e2 = graph.get_node_ids_by_edge_id(edge_id=edge2_id)
-            if e1:
-                print(f"Mutual: {e1[0]} ↔ {e1[1]}")
+        # Number of bidirectional connections
+        len(mutual_pairs)
         ```
 
         """
@@ -23107,7 +24234,8 @@ class Graph:
         )
 
         recip = graph.get_reciprocity()
-        print(f"Reciprocity: {recip:.3f}")  # 0.667 (2 mutual out of 3 edges)
+        # Returns 0.667 (2 mutual out of 3 edges)
+        recip
         ```
 
         Compare different networks:
@@ -23128,7 +24256,12 @@ class Graph:
             .add_edge(source="A", target="C")
             .add_edge(source="C", target="A")
         )
-        print(f"Friendship reciprocity: {friendship.get_reciprocity():.2f}")  # 1.00
+        # Returns 1.00
+        friendship.get_reciprocity()
+        ```
+
+        ```python
+        from edgecase import Graph
 
         # Low reciprocity network (e.g., followers)
         followers = (
@@ -23142,7 +24275,8 @@ class Graph:
             .add_edge(source="B", target="C")
             .add_edge(source="D", target="A")
         )
-        print(f"Follower reciprocity: {followers.get_reciprocity():.2f}")  # 0.00
+        # Returns 0.00
+        followers.get_reciprocity()
         ```
 
         Analyze communication patterns:
@@ -23153,12 +24287,11 @@ class Graph:
         # ... add edges ...
 
         recip = email.get_reciprocity()
-        if recip > 0.5:
-            print("High mutual communication")
-        elif recip > 0.2:
-            print("Moderate mutual communication")
-        else:
-            print("Mostly one-way communication")
+        # Conditional prints based on reciprocity value:
+        # > 0.5: "High mutual communication"
+        # > 0.2: "Moderate mutual communication"
+        # else: "Mostly one-way communication"
+        recip
         ```
 
         """
@@ -23555,11 +24688,14 @@ class Graph:
                 g.add_edge(f"v{i}", f"v{j}")
 
         spec = g.get_spectrum(which="all")
-        print(f"Eigenvalues: {spec['values']}")
+        # Returns the eigenvalues
+        spec['values']
+        ```
 
+        ```python
         # Complete graph: λ₁ = n-1, other λᵢ = -1
-        print(f"Spectral gap: {spec['spectral_gap']}")
         # K_n has spectral gap = n
+        spec['spectral_gap']
         ```
 
         **Detecting Bipartite Structure**
@@ -23742,12 +24878,14 @@ class Graph:
 
         spec = g.get_laplacian_spectrum(which="smallest", k=3)
         zero_eigenvalues = sum(1 for v in spec['values'] if abs(v) < 1e-6)
-        print(f"Number of components: {zero_eigenvalues}")
         # λ₁ = 0 has multiplicity = number of connected components
+        # Number of components
+        zero_eigenvalues
+        ```
 
-        connectivity = spec['algebraic_connectivity']
-        print(f"Algebraic connectivity: {connectivity}")
-        # = 0 means disconnected
+        ```python
+        # Algebraic connectivity (= 0 means disconnected)
+        spec['algebraic_connectivity']
         ```
 
         **Spectral Clustering with Fiedler Vector**
@@ -23929,7 +25067,8 @@ class Graph:
                 graph.add_edge(nodes[i], nodes[j])
 
         eff = graph.global_efficiency()
-        print(f"Efficiency: {eff:.4f}")  # Close to 1.0
+        # Returns close to 1.0
+        eff
         ```
 
         Compare different topologies:
@@ -23939,20 +25078,26 @@ class Graph:
         path = Graph()
         path.add_path_graph(10)
         path_eff = path.global_efficiency()
+        # Path efficiency
+        path_eff
+        ```
 
+        ```python
         # Cycle graph
         cycle = Graph()
         cycle.add_cycle_graph(10)
         cycle_eff = cycle.global_efficiency()
+        # Cycle efficiency
+        cycle_eff
+        ```
 
+        ```python
         # Star graph
         star = Graph()
         star.add_star_graph(10)
         star_eff = star.global_efficiency()
-
-        print(f"Path: {path_eff:.4f}")
-        print(f"Cycle: {cycle_eff:.4f}")
-        print(f"Star: {star_eff:.4f}")
+        # Star efficiency
+        star_eff
         ```
 
         Disconnected graph:
@@ -23970,7 +25115,8 @@ class Graph:
         graph.add_edge(6, 4)
 
         eff = graph.global_efficiency()
-        print(f"Efficiency: {eff:.4f}")  # Lower due to disconnection
+        # Returns lower value due to disconnection
+        eff
         ```
 
         Notes
@@ -24018,7 +25164,8 @@ class Graph:
                 graph.add_edge(nodes[i], nodes[j])
 
         local_eff = graph.local_efficiency()
-        print(f"Local efficiency: {local_eff:.4f}")  # 1.0
+        # Returns 1.0
+        local_eff
         ```
 
         Compare different topologies:
@@ -24028,20 +25175,26 @@ class Graph:
         cycle = Graph()
         cycle.add_cycle_graph(10)
         cycle_eff = cycle.local_efficiency()
+        # Cycle local efficiency
+        cycle_eff
+        ```
 
+        ```python
         # Star graph
         star = Graph()
         star.add_star_graph(10)
         star_eff = star.local_efficiency()
+        # Star local efficiency
+        star_eff
+        ```
 
+        ```python
         # Path graph
         path = Graph()
         path.add_path_graph(10)
         path_eff = path.local_efficiency()
-
-        print(f"Cycle: {cycle_eff:.4f}")
-        print(f"Star: {star_eff:.4f}")
-        print(f"Path: {path_eff:.4f}")
+        # Path local efficiency
+        path_eff
         ```
 
         Fault tolerance analysis:
@@ -24053,12 +25206,19 @@ class Graph:
         local_eff = graph.local_efficiency()
         global_eff = graph.global_efficiency()
 
-        print(f"Local efficiency: {local_eff:.4f}")
-        print(f"Global efficiency: {global_eff:.4f}")
+        # Local efficiency
+        local_eff
+        ```
 
-        # High local efficiency suggests good fault tolerance
-        if local_eff > 0.5:
-            print("Network has good redundancy!")
+        ```python
+        # Global efficiency
+        global_eff
+        ```
+
+        ```python
+        # High local efficiency (> 0.5) suggests good fault tolerance
+        # If true, prints "Network has good redundancy!"
+        local_eff > 0.5
         ```
 
         Notes
@@ -24114,7 +25274,8 @@ class Graph:
         graph = Graph()
         graph.add_path_graph(4)
         w = graph.get_wiener_index()
-        print(f"Wiener index: {w}")  # 10.0
+        # Returns 10.0
+        w
         ```
 
         Compare different topologies:
@@ -24123,17 +25284,24 @@ class Graph:
         # Complete graph K_n has Wiener index n*(n-1)/2 (all pairs at distance 1)
         complete = Graph()
         complete.add_full_graph(5)
-        print(f"K5 Wiener index: {complete.get_wiener_index()}")  # 10.0
+        # Returns 10.0
+        complete.get_wiener_index()
+        ```
 
+        ```python
         # Cycle graph
         cycle = Graph()
         cycle.add_cycle_graph(6)
-        print(f"C6 Wiener index: {cycle.get_wiener_index()}")  # 18.0
+        # Returns 18.0
+        cycle.get_wiener_index()
+        ```
 
+        ```python
         # Star graph
         star = Graph()
         star.add_star_graph(5)
-        print(f"Star(5) Wiener index: {star.get_wiener_index()}")  # 16.0
+        # Returns 16.0
+        star.get_wiener_index()
         ```
 
         Disconnected graph returns infinity:
@@ -24144,7 +25312,8 @@ class Graph:
         graph.add_node(label="B")
         # No edge between A and B
         w = graph.get_wiener_index()
-        print(f"Disconnected: {w}")  # inf
+        # Returns inf
+        w
         ```
 
         Notes
@@ -24196,7 +25365,8 @@ class Graph:
         g.add_node(label="B")
         g.add_edge("A", "B")
         ee = g.get_estrada_index()
-        print(f"K2 Estrada index: {ee:.3f}")  # ≈ 3.086
+        # Returns ≈ 3.086
+        ee
         ```
 
         Compare different topologies:
@@ -24205,17 +25375,24 @@ class Graph:
         # Path graph P3: eigenvalues are -√2, 0, √2
         path = Graph()
         path.add_path_graph(3)
-        print(f"P3 Estrada: {path.get_estrada_index():.3f}")
+        # P3 Estrada index
+        path.get_estrada_index()
+        ```
 
+        ```python
         # Complete graph K3: eigenvalues are 2, -1, -1
         complete = Graph()
         complete.add_full_graph(3)
-        print(f"K3 Estrada: {complete.get_estrada_index():.3f}")
+        # K3 Estrada index
+        complete.get_estrada_index()
+        ```
 
+        ```python
         # Cycle graph C4
         cycle = Graph()
         cycle.add_cycle_graph(4)
-        print(f"C4 Estrada: {cycle.get_estrada_index():.3f}")
+        # C4 Estrada index
+        cycle.get_estrada_index()
         ```
 
         Empty graph (no edges) vs isolated nodes:
@@ -24225,7 +25402,8 @@ class Graph:
         isolated = Graph()
         for i in range(5):
             isolated.add_node()
-        print(f"5 isolated nodes: {isolated.get_estrada_index():.1f}")  # 5.0
+        # Returns 5.0
+        isolated.get_estrada_index()
         ```
 
         Notes
@@ -24280,7 +25458,9 @@ class Graph:
         # Two adjacent nodes have resistance distance 1.0
         g = Graph()
         g.add_full_graph(2)
-        print(g.get_resistance_distance(1, 2))  # 1.0
+
+        # Returns 1.0
+        g.get_resistance_distance(1, 2)
         ```
 
         Resistance in a path graph:
@@ -24289,9 +25469,15 @@ class Graph:
         # In a path, resistance = number of edges (resistors in series)
         path = Graph()
         path.add_path_graph(4)  # 1-2-3-4
-        print(path.get_resistance_distance(1, 2))  # 1.0
-        print(path.get_resistance_distance(1, 3))  # 2.0
-        print(path.get_resistance_distance(1, 4))  # 3.0
+
+        # Returns 1.0 (adjacent nodes)
+        path.get_resistance_distance(1, 2)
+
+        # Returns 2.0 (two edges apart)
+        path.get_resistance_distance(1, 3)
+
+        # Returns 3.0 (three edges apart)
+        path.get_resistance_distance(1, 4)
         ```
 
         Resistance in a complete graph:
@@ -24300,7 +25486,9 @@ class Graph:
         # In Kn, resistance between any two nodes is 2/n
         complete = Graph()
         complete.add_full_graph(4)
-        print(f"K4 resistance: {complete.get_resistance_distance(1, 2):.3f}")  # 0.5
+
+        # Returns 0.5 (2/4 for K4)
+        complete.get_resistance_distance(1, 2)
         ```
 
         Resistance in a cycle (parallel paths):
@@ -24311,7 +25499,9 @@ class Graph:
         cycle.add_cycle_graph(4)  # 1-2-3-4-1
         # From 1 to 2: path of length 1 || path of length 3
         # R = 1*3/(1+3) = 0.75
-        print(f"C4 resistance: {cycle.get_resistance_distance(1, 2):.3f}")  # 0.75
+
+        # Returns 0.75
+        cycle.get_resistance_distance(1, 2)
         ```
 
         Notes
@@ -24357,11 +25547,11 @@ class Graph:
         g.add_path_graph(3)
         matrix = g.resistance_distance_matrix()
 
-        # Access specific pair
-        print(matrix[(1, 3)])  # 2.0
+        # Access specific pair - returns 2.0
+        matrix[(1, 3)]
 
-        # The matrix is symmetric
-        print(matrix[(1, 2)] == matrix[(2, 1)])  # True
+        # The matrix is symmetric - returns True
+        matrix[(1, 2)] == matrix[(2, 1)]
         ```
 
         Notes
@@ -24409,17 +25599,23 @@ class Graph:
         # Path graph Pn: Kf = n(n²-1)/6
         path = Graph()
         path.add_path_graph(4)
-        print(f"P4 Kirchhoff: {path.get_kirchhoff_index():.1f}")  # 10.0
+
+        # Returns 10.0
+        path.get_kirchhoff_index()
 
         # Complete graph Kn: Kf = n-1
         complete = Graph()
         complete.add_full_graph(4)
-        print(f"K4 Kirchhoff: {complete.get_kirchhoff_index():.1f}")  # 3.0
+
+        # Returns 3.0
+        complete.get_kirchhoff_index()
 
         # Cycle graph Cn: Kf = n(n²-1)/12
         cycle = Graph()
         cycle.add_cycle_graph(4)
-        print(f"C4 Kirchhoff: {cycle.get_kirchhoff_index():.1f}")  # 5.0
+
+        # Returns 5.0
+        cycle.get_kirchhoff_index()
         ```
 
         Disconnected graph returns infinity:
@@ -24429,7 +25625,9 @@ class Graph:
         g.add_node(label="A")
         g.add_node(label="B")
         # No edge between A and B
-        print(g.get_kirchhoff_index())  # inf
+
+        # Returns inf
+        g.get_kirchhoff_index()
         ```
 
         Notes
@@ -24528,15 +25726,21 @@ class AdaStar:
 
     # Get initial suboptimal path quickly
     path = planner.compute_or_improve_path(epsilon=2.0)
-    print(f"Initial path: {path}")
+
+    # Initial path e.g., ['A', 'B', 'C']
+    path
 
     # Improve path with lower epsilon
     path = planner.compute_or_improve_path(epsilon=1.2)
-    print(f"Improved path: {path}")
+
+    # Improved path
+    path
 
     # Get optimal path
     path = planner.compute_or_improve_path(epsilon=1.0)
-    print(f"Optimal path: {path}")
+
+    # Optimal path
+    path
     ```
 
     Dynamic graph updates:
@@ -24559,7 +25763,9 @@ class AdaStar:
 
     planner = AdaStar(g, source="A", target="C")
     path = planner.compute_or_improve_path(epsilon=1.0)
-    print(f"Initial path: {path}")  # Should be A -> B -> C
+
+    # Initial path should be A -> B -> C
+    path
 
     # Edge weight changes (e.g., traffic, road closure)
     b_id = g.get_id_from_label("B")
@@ -24570,7 +25776,9 @@ class AdaStar:
 
     # Compute new path (reuses previous computation)
     path = planner.compute_or_improve_path(epsilon=1.0)
-    print(f"Updated path: {path}")  # May now use A -> D -> C
+
+    # Updated path may now use A -> D -> C
+    path
     ```
 
     With custom heuristic (Euclidean distance):
@@ -24600,7 +25808,9 @@ class AdaStar:
 
     planner = AdaStar(g, source="A", target="C", heuristic=euclidean_heuristic)
     path = planner.compute_or_improve_path(epsilon=1.0)
-    print(f"Path: {path}")
+
+    # Returns the path
+    path
     ```
 
     Notes
