@@ -35,9 +35,15 @@ def to_igraph(graph):
     graph.add_edge("A", "B", weight=1.5, label="edge1")
 
     ig_graph = to_igraph(graph)
-    print(ig_graph.vs["name"])    # ['A', 'B']
-    print(ig_graph.vs["color"])   # ['red', 'blue']
-    print(ig_graph.es["weight"])  # [1.5]
+
+    # Returns ['A', 'B']
+    ig_graph.vs["name"]
+
+    # Returns ['red', 'blue']
+    ig_graph.vs["color"]
+
+    # Returns [1.5]
+    ig_graph.es["weight"]
     ```
 
     """
@@ -182,10 +188,17 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     ig_graph.add_edge(0, 1, weight=1.5, label="edge1")
 
     graph = from_igraph(ig_graph)
-    print(graph.count_nodes())  # 2
-    print(graph.count_edges())  # 1
+
+    # Returns 2
+    graph.count_nodes()
+
+    # Returns 1
+    graph.count_edges()
+
     node = graph.get_node(graph.get_id_from_label("A"))
-    print(node.attributes["color"])  # 'red'
+
+    # Returns 'red'
+    node.attributes["color"]
     ```
 
     """
