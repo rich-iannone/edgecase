@@ -1483,6 +1483,7 @@ class Graph:
         node_size: float = 20.0,
         edge_width: float = 2.0,
         layout: str = "force",
+        static: bool = False,
     ) -> None:
         """
         Display the graph visualization in a notebook or web browser.
@@ -1501,8 +1502,11 @@ class Graph:
         edge_width
             Edge line width in pixels
         layout
-            Layout algorithm: "force" (vis-network physics), "neato" (Graphviz spring),
-            "dot" (hierarchical), "fdp" (force-directed), "circo" (circular), "twopi" (radial)
+            Layout algorithm: `"force"` (physics-based), `"circular"`, or `"random"`
+        static
+            If `True`, disables physics simulation and interactivity (no node dragging,
+            no animation). The graph will be rendered in a fixed position after initial
+            layout. Useful for static reports, exports, or embedding in documents.
 
         Examples
         --------
@@ -1517,6 +1521,8 @@ class Graph:
         # G.show()  # Auto-detects notebook vs browser
         # G.show(target="browser")  # Force browser
         # G.show(target="notebook")  # Force notebook display
+        # G.show(static=True)  # Static view (no physics or dragging)
+        # G.show(layout="circular")  # Circular layout
         ```
 
         """
@@ -1536,6 +1542,7 @@ class Graph:
                 node_size=node_size,
                 edge_width=edge_width,
                 layout=layout,
+                static=static,
             )
         elif target == "browser":
             # Open in browser
@@ -1548,6 +1555,7 @@ class Graph:
                 node_size=node_size,
                 edge_width=edge_width,
                 layout=layout,
+                static=static,
             )
         else:
             raise ValueError(f"Unknown target display: {target}")
