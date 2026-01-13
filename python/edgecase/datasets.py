@@ -275,7 +275,9 @@ def get_dataset_info(name: str) -> dict:
     from edgecase import get_dataset_info
 
     info = get_dataset_info("roadnet_pa")
-    print(f"{info['name']}: {info['nodes']:,} nodes, {info['edges']:,} edges")
+
+    # Returns dataset metadata with nodes, edges, etc.
+    info
     ```
 
     %seealso list_registered_datasets, list_available_datasets, load_dataset
@@ -319,7 +321,7 @@ def list_registered_datasets() -> list[str]:
 
     for name in list_registered_datasets():
         info = get_dataset_info(name)
-        print(f"{name}: {info['description']}")
+        pass  # Iterates through registered datasets with their info
     ```
 
     %seealso get_dataset_info, list_available_datasets, load_dataset
@@ -541,43 +543,51 @@ def karate_club() -> Graph:
 
     # Load the dataset
     G = karate_club()
-    print(f"Nodes: {G.count_nodes()}, Edges: {G.count_edges()}")
-    # Nodes: 34, Edges: 78
+
+    # Returns 34 nodes, 78 edges
+    G.count_nodes(), G.count_edges()
 
     # Check basic metrics
     n = G.count_nodes()
     e = G.count_edges()
     density = e / (n * (n - 1) / 2)
-    print(f"Density: {density:.3f}")
-    # Density: 0.139
+
+    # Returns approximately 0.139
+    density
 
     # Access node attributes by label
     node_id = G.get_id_from_label("0")
     node = G.get_node(node_id)
-    print(f"Mr. Hi's faction: {node.attributes['faction']}")
-    # Mr. Hi's faction: 1
+
+    # Returns 1 (Mr. Hi's faction)
+    node.attributes['faction']
 
     # Analyze community structure
     communities = G.cmty_louvain(return_dict=True)
     num_communities = len(set(communities.values()))
-    print(f"Communities detected: {num_communities}")
+
+    # Returns number of detected communities
+    num_communities
 
     # Find most central members
     betweenness = G.betweenness_centrality(return_dict=True)
     top_nodes = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:3]
     for node_id, score in top_nodes:
         label = G.get_label_from_id(node_id)
-        print(f"Node {label}: {score:.3f}")
+        pass  # Iterates through top 3 nodes with centrality scores
 
     # Check k-core decomposition
     coreness = G.coreness(return_dict=True)
     max_core = max(coreness.values())
-    print(f"Maximum k-core: {max_core}")
+
+    # Returns the maximum k-core value
+    max_core
 
     # Analyze clustering
     avg_clustering = G.get_avg_clustering_coefficient()
-    print(f"Average clustering coefficient: {avg_clustering:.3f}")
-    # Average clustering coefficient: 0.571
+
+    # Returns approximately 0.571
+    avg_clustering
     ```
 
     Notes
