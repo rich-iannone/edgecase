@@ -40,13 +40,19 @@ def to_networkx(graph, multigraph: bool = False):
     graph.add_edge("A", "B", weight=1.5, label="edge1")
 
     nx_graph = to_networkx(graph)
-    print(nx_graph.nodes["A"])  # {'color': 'red', 'value': 10}
-    print(nx_graph["A"]["B"])   # {'weight': 1.5, 'label': 'edge1'}
+
+    # Returns {'color': 'red', 'value': 10}
+    nx_graph.nodes["A"]
+
+    # Returns {'weight': 1.5, 'label': 'edge1'}
+    nx_graph["A"]["B"]
 
     # For graphs with multiple edges, use multigraph=True
     graph.add_edge("A", "B", weight=2.0, label="edge2")
     nx_multi = to_networkx(graph, multigraph=True)
-    print(len(nx_multi["A"]["B"]))  # 2 edges
+
+    # Returns 2 (number of edges)
+    len(nx_multi["A"]["B"])
     ```
 
     """
@@ -167,17 +173,26 @@ def from_networkx(nx_graph, weighted: Optional[bool] = None):
     nx_graph.add_edge("A", "B", weight=1.5, label="edge1")
 
     graph = from_networkx(nx_graph)
-    print(graph.count_nodes())  # 2
-    print(graph.count_edges())  # 1
+
+    # Returns 2
+    graph.count_nodes()
+
+    # Returns 1
+    graph.count_edges()
+
     node = graph.get_node(graph.get_id_from_label("A"))
-    print(node.attributes["color"])  # 'red'
+
+    # Returns 'red'
+    node.attributes["color"]
 
     # Works with MultiGraphs too
     nx_multi = nx.MultiGraph()
     nx_multi.add_edge("X", "Y", weight=1.0)
     nx_multi.add_edge("X", "Y", weight=2.0)
     graph = from_networkx(nx_multi)
-    print(graph.count_edges())  # 2
+
+    # Returns 2
+    graph.count_edges()
     ```
 
     """
