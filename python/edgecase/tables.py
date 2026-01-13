@@ -39,8 +39,9 @@ def tbl_network_summary(
         G.add_edge(source=str(i), target=str(i+1))
 
     summary = ec.tbl_network_summary(G)
-    print(summary)
 
+    # Returns summary dict with n_nodes, n_edges, directed, weighted
+    summary
     ```
     """
     stats = {
@@ -91,8 +92,9 @@ def tbl_centrality(
         G.add_edge(source=str(i), target=str(i+1))
 
     centrality_df = ec.tbl_centrality(G, measures=['pagerank', 'degree'])
-    print(centrality_df)
 
+    # Returns DataFrame with centrality measures
+    centrality_df
     ```
     """
     if measures is None:
