@@ -1,5 +1,15 @@
 # Great Docs Configuration
-# See https://rich-iannone.github.io/great-docs/user-guide/03-configuration.html
+# See https://posit-dev.github.io/great-docs/user-guide/
+
+# Module Name
+# -----------
+# Explicit importable module name (use when it differs from project name)
+module: edgecase
+
+# Display Name
+# ------------
+# Custom display name for the package in the site navbar/title
+display_name: Edgecase
 
 # Docstring Parser
 # ----------------
@@ -22,529 +32,580 @@ authors:
     github: rich-iannone
     orcid: 0000-0003-3925-190X
 
+# Site Settings
+# -------------
+# Customize the site theme and layout
+site:
+  theme: flatly
+  toc: true
+  toc-depth: 3
+  toc-title: "On this page"
+
+# Source Link Configuration
+# -------------------------
+# Configure links to source code on GitHub
+source:
+  enabled: true
+  branch: main
+  placement: usage
+
+# Sidebar Filter
+# --------------
+# Enable filtering in the API reference sidebar
+sidebar_filter:
+  enabled: true
+  min_items: 15
+
+# Changelog
+# ---------
+# Auto-generate changelog from GitHub Releases
+changelog:
+  enabled: true
+  max_releases: 30
+
+# Exclusions
+# ----------
+# Items to exclude from API documentation (handles problematic re-exports/aliases)
+exclude:
+  - COLOR_PALETTES
+  - _HAS_NETWORKX
+  - _HAS_IGRAPH
+  - Node
+  - Edge
+  - AdaStar
+  - graph.Node
+  - graph.Edge
+  - graph.AdaStar
+
 # API Reference Structure
 # -----------------------
-# Customize the sections below to organize your API documentation.
-# - Reorder items within a section to change their display order
-# - Move items between sections or create new sections
-# - Use 'members: false' to exclude methods from documentation
-# - Add 'desc:' to sections for descriptions
+# The reference section uses the dict form to set a page title and description.
+# Sections organize the API by functionality area.
+# - Use 'members: false' to exclude class methods from documentation
+# - Add 'desc:' to sections for descriptions shown on the index page
 
 reference:
-  - title: Graph
-    desc: The core Graph class for representing and analyzing network structures
-    contents:
-      - name: Graph
-        members: false
-      - GraphWidget
+  title: API Reference
+  desc: >
+    Complete API documentation for Edgecase. The Graph class is the core object
+    for creating and analyzing network structures, with methods organized by
+    functionality including graph construction, traversal, centrality measures,
+    community detection, and interoperability with NetworkX and igraph.
+  sections:
+    - title: Graph
+      desc: The core Graph class for representing and analyzing network structures
+      contents:
+        - name: Graph
+          members: false
+        - widget:GraphWidget
 
-  - title: Graph Construction
-    desc: Methods for adding and removing nodes and edges
-    contents:
-      - Graph.add_node
-      - Graph.add_edge
-      - Graph.delete_node
-      - Graph.delete_edge
-      - Graph.delete_edge_by_id
-      - Graph.delete_nodes_ws
-      - Graph.delete_edges_ws
-      - Graph.remove_selfloops
-      - Graph.remove_duplicate_edges
-      - Graph.simplify
+    - title: Graph Construction
+      desc: Methods for adding and removing nodes and edges
+      contents:
+        - Graph.add_node
+        - Graph.add_edge
+        - Graph.delete_node
+        - Graph.delete_edge
+        - Graph.delete_edge_by_id
+        - Graph.delete_nodes_ws
+        - Graph.delete_edges_ws
+        - Graph.remove_selfloops
+        - Graph.remove_duplicate_edges
+        - Graph.simplify
 
-  - title: Graph Generators
-    desc: Methods for generating common graph structures
-    contents:
-      - Graph.add_path_graph
-      - Graph.add_cycle_graph
-      - Graph.add_star_graph
-      - Graph.add_full_graph
-      - Graph.add_balanced_tree
-      - Graph.add_grid_2d
-      - Graph.add_prism_graph
-      - Graph.add_gnp_graph
-      - Graph.add_gnm_graph
-      - Graph.add_pa_graph
-      - Graph.add_smallworld_graph
-      - Graph.add_johnson_graph
-      - Graph.add_random_geometric_graph
+    - title: Graph Generators
+      desc: Methods for generating common graph structures
+      contents:
+        - Graph.add_path_graph
+        - Graph.add_cycle_graph
+        - Graph.add_star_graph
+        - Graph.add_full_graph
+        - Graph.add_balanced_tree
+        - Graph.add_grid_2d
+        - Graph.add_prism_graph
+        - Graph.add_gnp_graph
+        - Graph.add_gnm_graph
+        - Graph.add_pa_graph
+        - Graph.add_smallworld_graph
+        - Graph.add_johnson_graph
+        - Graph.add_random_geometric_graph
 
-  - title: Graph Information
-    desc: Methods for getting information about the graph
-    contents:
-      - Graph.describe
+    - title: Graph Information
+      desc: Methods for getting information about the graph
+      contents:
+        - Graph.describe
 
-  - title: Graph Rendering
-    desc: Methods for displaying and visualizing the graph
-    contents:
-      - Graph.show
+    - title: Graph Rendering
+      desc: Methods for displaying and visualizing the graph
+      contents:
+        - Graph.show
 
-  - title: Node and Edge Accessors
-    desc: Methods for accessing individual nodes and edges
-    contents:
-      - Graph.get_node
-      - Graph.get_edge
+    - title: Node and Edge Accessors
+      desc: Methods for accessing individual nodes and edges
+      contents:
+        - Graph.get_node
+        - Graph.get_edge
 
-  - title: Graph Inspection
-    desc: Methods for inspecting nodes, edges, and structure
-    contents:
-      - Graph.get_node_ids
-      - Graph.get_edge_ids
-      - Graph.get_node_ids_by_edge_id
-      - Graph.get_id_from_label
-      - Graph.get_label_from_id
-      - Graph.get_node_creation_order
-      - Graph.get_edge_creation_order
-      - Graph.get_edges_as_tuples
-      - Graph.get_edges_str_repr
-      - Graph.has_node
-      - Graph.has_edge
-      - Graph.has_edge_id
-      - Graph.find_edge_ids
-      - Graph.count_nodes
-      - Graph.count_edges
-      - Graph.get_graph_name
+    - title: Graph Inspection
+      desc: Methods for inspecting nodes, edges, and structure
+      contents:
+        - Graph.get_node_ids
+        - Graph.get_edge_ids
+        - Graph.get_node_ids_by_edge_id
+        - Graph.get_id_from_label
+        - Graph.get_label_from_id
+        - Graph.get_node_creation_order
+        - Graph.get_edge_creation_order
+        - Graph.get_edges_as_tuples
+        - Graph.get_edges_str_repr
+        - Graph.has_node
+        - Graph.has_edge
+        - Graph.has_edge_id
+        - Graph.find_edge_ids
+        - Graph.count_nodes
+        - Graph.count_edges
+        - Graph.get_graph_name
 
-  - title: Graph Properties
-    desc: Methods for checking graph properties and characteristics
-    contents:
-      - Graph.is_directed
-      - Graph.is_weighted
-      - Graph.is_simple
-      - Graph.is_dag
-      - Graph.is_connected
-      - Graph.is_bipartite
-      - Graph.is_tree
-      - Graph.is_forest
-      - Graph.is_arborescence
-      - Graph.is_planar
-      - Graph.is_isomorphic
-      - Graph.is_regular
-      - Graph.is_k_regular
+    - title: Graph Properties
+      desc: Methods for checking graph properties and characteristics
+      contents:
+        - Graph.is_directed
+        - Graph.is_weighted
+        - Graph.is_simple
+        - Graph.is_dag
+        - Graph.is_connected
+        - Graph.is_bipartite
+        - Graph.is_tree
+        - Graph.is_forest
+        - Graph.is_arborescence
+        - Graph.is_planar
+        - Graph.is_isomorphic
+        - Graph.is_regular
+        - Graph.is_k_regular
 
-  - title: Simple Counts
-    desc: Methods for counting graph elements
-    contents:
-      - Graph.count_all_loops
-      - Graph.count_multi_edges
-      - Graph.count_mutual_node_pairs
-      - Graph.count_asymmetric_node_pairs
+    - title: Simple Counts
+      desc: Methods for counting graph elements
+      contents:
+        - Graph.count_all_loops
+        - Graph.count_multi_edges
+        - Graph.count_mutual_node_pairs
+        - Graph.count_asymmetric_node_pairs
 
-  - title: Neighbors and Connectivity
-    desc: Methods for finding neighbors and connectivity
-    contents:
-      - Graph.neighbors
-      - Graph.get_predecessors
-      - Graph.get_successors
-      - Graph.get_non_neighbors
-      - Graph.get_common_neighbors
-      - Graph.get_similar_neighbors
+    - title: Neighbors and Connectivity
+      desc: Methods for finding neighbors and connectivity
+      contents:
+        - Graph.neighbors
+        - Graph.get_predecessors
+        - Graph.get_successors
+        - Graph.get_non_neighbors
+        - Graph.get_common_neighbors
+        - Graph.get_similar_neighbors
 
-  - title: Graph Selection
-    desc: Methods for selecting subsets of nodes and edges
-    contents:
-      - Graph.select_nodes
-      - Graph.select_edges
-      - Graph.select_nodes_by_id
-      - Graph.select_edges_by_id
-      - Graph.select_edges_by_node
-      - Graph.select_last_nodes_created
-      - Graph.select_last_edges_created
-      - Graph.select_nodes_in_neighborhood
-      - Graph.select_nodes_by_degree
-      - Graph.select_nodes_by_centrality
-      - Graph.deselect_nodes
-      - Graph.deselect_edges
-      - Graph.clear_selection
-      - Graph.invert_node_selection
-      - Graph.invert_edge_selection
-      - Graph.get_selected_node_ids
-      - Graph.get_selected_edge_ids
-      - Graph.count_selected_nodes
-      - Graph.count_selected_edges
+    - title: Graph Selection
+      desc: Methods for selecting subsets of nodes and edges
+      contents:
+        - Graph.select_nodes
+        - Graph.select_edges
+        - Graph.select_nodes_by_id
+        - Graph.select_edges_by_id
+        - Graph.select_edges_by_node
+        - Graph.select_last_nodes_created
+        - Graph.select_last_edges_created
+        - Graph.select_nodes_in_neighborhood
+        - Graph.select_nodes_by_degree
+        - Graph.select_nodes_by_centrality
+        - Graph.deselect_nodes
+        - Graph.deselect_edges
+        - Graph.clear_selection
+        - Graph.invert_node_selection
+        - Graph.invert_edge_selection
+        - Graph.get_selected_node_ids
+        - Graph.get_selected_edge_ids
+        - Graph.count_selected_nodes
+        - Graph.count_selected_edges
 
-  - title: Graph Traversal
-    desc: Methods for traversing the graph
-    contents:
-      - Graph.trav_out
-      - Graph.trav_in
-      - Graph.trav_both
-      - Graph.trav_out_edge
-      - Graph.trav_in_edge
-      - Graph.trav_reverse_edge
-      - Graph.trav_out_until
-      - Graph.trav_in_until
+    - title: Graph Traversal
+      desc: Methods for traversing the graph
+      contents:
+        - Graph.trav_out
+        - Graph.trav_in
+        - Graph.trav_both
+        - Graph.trav_out_edge
+        - Graph.trav_in_edge
+        - Graph.trav_reverse_edge
+        - Graph.trav_out_until
+        - Graph.trav_in_until
 
-  - title: Node/Edge Data Frames
-    desc: Methods for working with node and edge attributes
-    contents:
-      - Graph.set_node_attrs
-      - Graph.set_node_attrs_ws
-      - Graph.set_edge_attrs
-      - Graph.set_edge_attrs_ws
-      - Graph.get_node_attrs
-      - Graph.get_edge_attrs
-      - Graph.get_edge_attrs_by_id
-      - Graph.get_node_df
-      - Graph.get_node_df_ws
-      - Graph.get_edge_df
-      - Graph.get_edge_df_ws
-      - Graph.mutate_node_attrs_ws
-      - Graph.mutate_edge_attrs_ws
-      - Graph.colorize_node_attrs
-      - Graph.rescale_node_attrs
-      - Graph.set_node_attr_to_display
+    - title: Node/Edge Data Frames
+      desc: Methods for working with node and edge attributes
+      contents:
+        - Graph.set_node_attrs
+        - Graph.set_node_attrs_ws
+        - Graph.set_edge_attrs
+        - Graph.set_edge_attrs_ws
+        - Graph.get_node_attrs
+        - Graph.get_edge_attrs
+        - Graph.get_edge_attrs_by_id
+        - Graph.get_node_df
+        - Graph.get_node_df_ws
+        - Graph.get_edge_df
+        - Graph.get_edge_df_ws
+        - Graph.mutate_node_attrs_ws
+        - Graph.mutate_edge_attrs_ws
+        - Graph.colorize_node_attrs
+        - Graph.rescale_node_attrs
+        - Graph.set_node_attr_to_display
 
-  - title: Degree
-    desc: Methods for computing node degrees
-    contents:
-      - Graph.degrees
-      - Graph.get_degree
-      - Graph.get_in_degree
-      - Graph.get_out_degree
-      - Graph.get_degree_distribution
-      - Graph.get_average_degree
-      - Graph.get_agg_degree_in
-      - Graph.get_agg_degree_out
-      - Graph.get_agg_degree_total
+    - title: Degree
+      desc: Methods for computing node degrees
+      contents:
+        - Graph.degrees
+        - Graph.get_degree
+        - Graph.get_in_degree
+        - Graph.get_out_degree
+        - Graph.get_degree_distribution
+        - Graph.get_average_degree
+        - Graph.get_agg_degree_in
+        - Graph.get_agg_degree_out
+        - Graph.get_agg_degree_total
 
-  - title: Centrality
-    desc: Methods for computing centrality measures
-    contents:
-      - Graph.pagerank
-      - Graph.constraint
-      - Graph.betweenness_centrality
-      - Graph.load_centrality
-      - Graph.second_order_centrality
-      - Graph.communicability
-      - Graph.communicability_betweenness_centrality
-      - Graph.percolation_centrality
-      - Graph.node_percolation
-      - Graph.edge_percolation
-      - Graph.largest_component_size
-      - Graph.percolation_threshold_analysis
-      - Graph.average_neighbor_degree
-      - Graph.harmonic_centrality
-      - Graph.authority_centrality
-      - Graph.hub_centrality
-      - Graph.eigen_centrality
-      - Graph.alpha_centrality
-      - Graph.bonacich_power_centrality
-      - Graph.katz_centrality
-      - Graph.leverage_centrality
-      - Graph.domirank_centrality
+    - title: Centrality
+      desc: Methods for computing centrality measures
+      contents:
+        - Graph.pagerank
+        - Graph.constraint
+        - Graph.betweenness_centrality
+        - Graph.load_centrality
+        - Graph.second_order_centrality
+        - Graph.communicability
+        - Graph.communicability_betweenness_centrality
+        - Graph.percolation_centrality
+        - Graph.node_percolation
+        - Graph.edge_percolation
+        - Graph.largest_component_size
+        - Graph.percolation_threshold_analysis
+        - Graph.average_neighbor_degree
+        - Graph.harmonic_centrality
+        - Graph.authority_centrality
+        - Graph.hub_centrality
+        - Graph.eigen_centrality
+        - Graph.alpha_centrality
+        - Graph.bonacich_power_centrality
+        - Graph.katz_centrality
+        - Graph.leverage_centrality
+        - Graph.domirank_centrality
 
-  - title: Core Decomposition
-    desc: Methods for k-core, k-shell, and related decompositions
-    contents:
-      - Graph.closeness_vitality
-      - Graph.coreness
-      - Graph.k_core
-      - Graph.k_shell
-      - Graph.k_crust
-      - Graph.k_truss
-      - Graph.k_corona
-      - Graph.rich_club_coefficient
+    - title: Core Decomposition
+      desc: Methods for k-core, k-shell, and related decompositions
+      contents:
+        - Graph.closeness_vitality
+        - Graph.coreness
+        - Graph.k_core
+        - Graph.k_shell
+        - Graph.k_crust
+        - Graph.k_truss
+        - Graph.k_corona
+        - Graph.rich_club_coefficient
 
-  - title: Distance and Paths
-    desc: Methods for shortest paths and distance calculations
-    contents:
-      - Graph.get_mean_distance
-      - Graph.get_min_eccentricity
-      - Graph.get_max_eccentricity
-      - Graph.get_diameter
-      - Graph.get_radius
-      - Graph.get_girth
-      - Graph.eccentricity
-      - Graph.radiality
-      - Graph.bellman_ford_shortest_path
-      - Graph.shortest_path
-      - Graph.ada_star_search
-      - Graph.all_pairs_shortest_path_length
-      - Graph.all_pairs_shortest_path
-      - Graph.k_shortest_paths
-      - Graph.bfs
-      - Graph.dfs
+    - title: Distance and Paths
+      desc: Methods for shortest paths and distance calculations
+      contents:
+        - Graph.get_mean_distance
+        - Graph.get_min_eccentricity
+        - Graph.get_max_eccentricity
+        - Graph.get_diameter
+        - Graph.get_radius
+        - Graph.get_girth
+        - Graph.eccentricity
+        - Graph.radiality
+        - Graph.bellman_ford_shortest_path
+        - Graph.shortest_path
+        - Graph.ada_star_search
+        - Graph.all_pairs_shortest_path_length
+        - Graph.all_pairs_shortest_path
+        - Graph.k_shortest_paths
+        - Graph.bfs
+        - Graph.dfs
 
-  - title: Path Analysis
-    desc: Methods for analyzing paths and walks
-    contents:
-      - Graph.get_all_simple_paths
-      - Graph.is_simple_path
-      - Graph.random_walk
-      - Graph.random_edge_walk
-      - Graph.get_topological_sort_order
-      - Graph.transitive_closure
-      - Graph.transitive_reduction
-      - Graph.count_walks
-      - Graph.count_trails
-      - Graph.enumerate_trails
+    - title: Path Analysis
+      desc: Methods for analyzing paths and walks
+      contents:
+        - Graph.get_all_simple_paths
+        - Graph.is_simple_path
+        - Graph.random_walk
+        - Graph.random_edge_walk
+        - Graph.get_topological_sort_order
+        - Graph.transitive_closure
+        - Graph.transitive_reduction
+        - Graph.count_walks
+        - Graph.count_trails
+        - Graph.enumerate_trails
 
-  - title: Eulerian Paths
-    desc: Methods for Eulerian path and circuit detection
-    contents:
-      - Graph.is_eulerian
-      - Graph.is_semieulerian
-      - Graph.eulerian_circuit
+    - title: Eulerian Paths
+      desc: Methods for Eulerian path and circuit detection
+      contents:
+        - Graph.is_eulerian
+        - Graph.is_semieulerian
+        - Graph.eulerian_circuit
 
-  - title: Cycle Detection
-    desc: Methods for finding cycles in graphs
-    contents:
-      - Graph.has_cycles
-      - Graph.get_cycles
-      - Graph.simple_cycles
-      - Graph.cycle_basis
-      - Graph.minimum_cycle_basis
+    - title: Cycle Detection
+      desc: Methods for finding cycles in graphs
+      contents:
+        - Graph.has_cycles
+        - Graph.get_cycles
+        - Graph.simple_cycles
+        - Graph.cycle_basis
+        - Graph.minimum_cycle_basis
 
-  - title: Clustering
-    desc: Methods for computing clustering coefficients
-    contents:
-      - Graph.local_clustering_coefficient
-      - Graph.clustering_coefficient
-      - Graph.get_edge_clustering_coefficient
-      - Graph.get_avg_clustering_coefficient
+    - title: Clustering
+      desc: Methods for computing clustering coefficients
+      contents:
+        - Graph.local_clustering_coefficient
+        - Graph.clustering_coefficient
+        - Graph.get_edge_clustering_coefficient
+        - Graph.get_avg_clustering_coefficient
 
-  - title: Triangle and Transitivity
-    desc: Methods for triangle counting and transitivity
-    contents:
-      - Graph.count_triangles
-      - Graph.list_triangles
-      - Graph.get_transitivity
+    - title: Triangle and Transitivity
+      desc: Methods for triangle counting and transitivity
+      contents:
+        - Graph.count_triangles
+        - Graph.list_triangles
+        - Graph.get_transitivity
 
-  - title: Clique Operations
-    desc: Methods for finding cliques
-    contents:
-      - Graph.find_cliques
-      - Graph.max_clique
-      - Graph.clique_number
+    - title: Clique Operations
+      desc: Methods for finding cliques
+      contents:
+        - Graph.find_cliques
+        - Graph.max_clique
+        - Graph.clique_number
 
-  - title: Community Detection
-    desc: Methods for detecting communities
-    contents:
-      - Graph.cmty_fast_greedy
-      - Graph.cmty_edge_btwns
-      - Graph.cmty_l_eigenvec
-      - Graph.cmty_louvain
-      - Graph.cmty_walktrap
+    - title: Community Detection
+      desc: Methods for detecting communities
+      contents:
+        - Graph.cmty_fast_greedy
+        - Graph.cmty_edge_btwns
+        - Graph.cmty_l_eigenvec
+        - Graph.cmty_louvain
+        - Graph.cmty_walktrap
 
-  - title: Link Analysis
-    desc: Methods for analyzing links and connections
-    contents:
-      - Graph.dispersion
+    - title: Link Analysis
+      desc: Methods for analyzing links and connections
+      contents:
+        - Graph.dispersion
 
-  - title: Link Prediction
-    desc: Methods for predicting new links
-    contents:
-      - Graph.common_neighbors
-      - Graph.jaccard_coefficient
-      - Graph.adamic_adar_index
-      - Graph.resource_allocation_index
-      - Graph.preferential_attachment
+    - title: Link Prediction
+      desc: Methods for predicting new links
+      contents:
+        - Graph.common_neighbors
+        - Graph.jaccard_coefficient
+        - Graph.adamic_adar_index
+        - Graph.resource_allocation_index
+        - Graph.preferential_attachment
 
-  - title: Similarity
-    desc: Methods for computing node similarity
-    contents:
-      - Graph.get_pairwise_similarity
-      - Graph.get_dice_similarity
-      - Graph.get_jaccard_similarity
-      - Graph.get_cosine_similarity
-      - Graph.get_overlap_similarity
+    - title: Similarity
+      desc: Methods for computing node similarity
+      contents:
+        - Graph.get_pairwise_similarity
+        - Graph.get_dice_similarity
+        - Graph.get_jaccard_similarity
+        - Graph.get_cosine_similarity
+        - Graph.get_overlap_similarity
 
-  - title: Bridges and Connectivity
-    desc: Methods for finding bridges and articulation points
-    contents:
-      - Graph.bridges
-      - Graph.has_bridges
-      - Graph.get_node_vitality
+    - title: Bridges and Connectivity
+      desc: Methods for finding bridges and articulation points
+      contents:
+        - Graph.bridges
+        - Graph.has_bridges
+        - Graph.get_node_vitality
 
-  - title: Connectivity and Flow
-    desc: Methods for connectivity and network flow
-    contents:
-      - Graph.get_all_connected_nodes
-      - Graph.get_articulation_points
-      - Graph.get_periphery
-      - Graph.get_node_connectivity
-      - Graph.get_node_connectivity_between
-      - Graph.get_edge_connectivity
-      - Graph.get_adhesion
-      - Graph.get_cohesion
-      - Graph.get_density
-      - Graph.find_cohesive_blocks
-      - Graph.get_min_cut_between
-      - Graph.minimum_node_cut
-      - Graph.minimum_edge_cut
-      - Graph.max_flow
-      - Graph.max_flow_value
-      - Graph.min_cost_flow
+    - title: Connectivity and Flow
+      desc: Methods for connectivity and network flow
+      contents:
+        - Graph.get_all_connected_nodes
+        - Graph.get_articulation_points
+        - Graph.get_periphery
+        - Graph.get_node_connectivity
+        - Graph.get_node_connectivity_between
+        - Graph.get_edge_connectivity
+        - Graph.get_adhesion
+        - Graph.get_cohesion
+        - Graph.get_density
+        - Graph.find_cohesive_blocks
+        - Graph.get_min_cut_between
+        - Graph.minimum_node_cut
+        - Graph.minimum_edge_cut
+        - Graph.max_flow
+        - Graph.max_flow_value
+        - Graph.min_cost_flow
 
-  - title: Connected Components
-    desc: Methods for finding connected components
-    contents:
-      - Graph.count_weakly_connected_components
-      - Graph.count_strongly_connected_components
-      - Graph.weakly_connected_components
-      - Graph.strongly_connected_components
-      - Graph.is_strongly_connected
-      - Graph.is_weakly_connected
+    - title: Connected Components
+      desc: Methods for finding connected components
+      contents:
+        - Graph.count_weakly_connected_components
+        - Graph.count_strongly_connected_components
+        - Graph.weakly_connected_components
+        - Graph.strongly_connected_components
+        - Graph.is_strongly_connected
+        - Graph.is_weakly_connected
 
-  - title: Graph Type Conversions
-    desc: Methods for converting between graph types
-    contents:
-      - Graph.to_undirected
-      - Graph.to_directed
-      - Graph.reverse
-      - Graph.complement
-      - Graph.line_graph
+    - title: Graph Type Conversions
+      desc: Methods for converting between graph types
+      contents:
+        - Graph.to_undirected
+        - Graph.to_directed
+        - Graph.reverse
+        - Graph.complement
+        - Graph.line_graph
 
-  - title: Node Contraction
-    desc: Methods for contracting nodes
-    contents:
-      - Graph.contract_nodes
-      - Graph.contracted_edge
-      - Graph.contract_nodes_multi
-      - Graph.quotient_graph
+    - title: Node Contraction
+      desc: Methods for contracting nodes
+      contents:
+        - Graph.contract_nodes
+        - Graph.contracted_edge
+        - Graph.contract_nodes_multi
+        - Graph.quotient_graph
 
-  - title: Graph Algebra
-    desc: Methods for graph algebraic operations
-    contents:
-      - Graph.union
-      - Graph.intersection
-      - Graph.difference
-      - Graph.symmetric_difference
-      - Graph.compose
-      - Graph.disjoint_union
-      - Graph.transform_with_spanner
-      - Graph.transform_to_subgraph_ws
-      - Graph.subgraph
-      - Graph.edge_subgraph
-      - Graph.fully_connect_nodes_ws
-      - Graph.add_reverse_edges_ws
-      - Graph.rev_edge_dir_ws
+    - title: Graph Algebra
+      desc: Methods for graph algebraic operations
+      contents:
+        - Graph.union
+        - Graph.intersection
+        - Graph.difference
+        - Graph.symmetric_difference
+        - Graph.compose
+        - Graph.disjoint_union
+        - Graph.transform_with_spanner
+        - Graph.transform_to_subgraph_ws
+        - Graph.subgraph
+        - Graph.edge_subgraph
+        - Graph.fully_connect_nodes_ws
+        - Graph.add_reverse_edges_ws
+        - Graph.rev_edge_dir_ws
 
-  - title: Graph Coloring
-    desc: Methods for graph coloring
-    contents:
-      - Graph.greedy_color
-      - Graph.is_valid_coloring
-      - Graph.chromatic_number_upper_bound
+    - title: Graph Coloring
+      desc: Methods for graph coloring
+      contents:
+        - Graph.greedy_color
+        - Graph.is_valid_coloring
+        - Graph.chromatic_number_upper_bound
 
-  - title: Matching
-    desc: Methods for finding matchings
-    contents:
-      - Graph.is_matching
-      - Graph.maximal_matching
-      - Graph.max_weight_matching
+    - title: Matching
+      desc: Methods for finding matchings
+      contents:
+        - Graph.is_matching
+        - Graph.maximal_matching
+        - Graph.max_weight_matching
 
-  - title: Independent Sets
-    desc: Methods for finding independent sets
-    contents:
-      - Graph.is_independent_set
-      - Graph.maximal_independent_set
-      - Graph.maximum_independent_set
-      - Graph.find_maximal_independent_sets
+    - title: Independent Sets
+      desc: Methods for finding independent sets
+      contents:
+        - Graph.is_independent_set
+        - Graph.maximal_independent_set
+        - Graph.maximum_independent_set
+        - Graph.find_maximal_independent_sets
 
-  - title: Dominating Sets
-    desc: Methods for finding dominating sets
-    contents:
-      - Graph.is_dominating_set
-      - Graph.dominating_set
-      - Graph.min_weighted_dominating_set
+    - title: Dominating Sets
+      desc: Methods for finding dominating sets
+      contents:
+        - Graph.is_dominating_set
+        - Graph.dominating_set
+        - Graph.min_weighted_dominating_set
 
-  - title: Spanning Trees
-    desc: Methods for finding spanning trees
-    contents:
-      - Graph.minimum_spanning_tree
-      - Graph.maximum_spanning_tree
-      - Graph.steiner_tree
-      - Graph.all_spanning_trees
+    - title: Spanning Trees
+      desc: Methods for finding spanning trees
+      contents:
+        - Graph.minimum_spanning_tree
+        - Graph.maximum_spanning_tree
+        - Graph.steiner_tree
+        - Graph.all_spanning_trees
 
-  - title: Edge Analysis
-    desc: Methods for analyzing edge types
-    contents:
-      - Graph.which_multiple
-      - Graph.count_multiple
-      - Graph.which_loops
-      - Graph.count_loops
+    - title: Edge Analysis
+      desc: Methods for analyzing edge types
+      contents:
+        - Graph.which_multiple
+        - Graph.count_multiple
+        - Graph.which_loops
+        - Graph.count_loops
 
-  - title: Reciprocity
-    desc: Methods for measuring reciprocity
-    contents:
-      - Graph.which_mutual
-      - Graph.get_reciprocity
+    - title: Reciprocity
+      desc: Methods for measuring reciprocity
+      contents:
+        - Graph.which_mutual
+        - Graph.get_reciprocity
 
-  - title: Assortativity
-    desc: Methods for measuring assortativity
-    contents:
-      - Graph.get_assortativity_degree
-      - Graph.get_assortativity_nominal
-      - Graph.get_assortativity
+    - title: Assortativity
+      desc: Methods for measuring assortativity
+      contents:
+        - Graph.get_assortativity_degree
+        - Graph.get_assortativity_nominal
+        - Graph.get_assortativity
 
-  - title: Spectral Analysis
-    desc: Methods for spectral graph analysis
-    contents:
-      - Graph.get_spectrum
-      - Graph.get_laplacian_spectrum
+    - title: Spectral Analysis
+      desc: Methods for spectral graph analysis
+      contents:
+        - Graph.get_spectrum
+        - Graph.get_laplacian_spectrum
 
-  - title: Network Efficiency
-    desc: Methods for measuring network efficiency
-    contents:
-      - Graph.global_efficiency
-      - Graph.local_efficiency
+    - title: Network Efficiency
+      desc: Methods for measuring network efficiency
+      contents:
+        - Graph.global_efficiency
+        - Graph.local_efficiency
 
-  - title: Distance Metrics
-    desc: Methods for computing distance-based metrics
-    contents:
-      - Graph.get_wiener_index
-      - Graph.get_estrada_index
-      - Graph.get_resistance_distance
-      - Graph.resistance_distance_matrix
-      - Graph.get_kirchhoff_index
+    - title: Distance Metrics
+      desc: Methods for computing distance-based metrics
+      contents:
+        - Graph.get_wiener_index
+        - Graph.get_estrada_index
+        - Graph.get_resistance_distance
+        - Graph.resistance_distance_matrix
+        - Graph.get_kirchhoff_index
 
-  - title: Datasets
-    desc: Functions for loading graph datasets
-    contents:
-      - ca_grqc
-      - celegans
-      - condmat
-      - dolphins
-      - enron
-      - football
-      - gnutella
-      - internet
-      - jazz
-      - karate_club
-      - pgp
-      - physics
-      - polbooks
-      - power_grid
-      - soc_livejournal
-      - web_google
-      - wiki_vote
-      - get_dataset_info
-      - list_available_datasets
-      - list_registered_datasets
-      - load_dataset
+    - title: Datasets
+      desc: Functions for loading graph datasets
+      contents:
+        - datasets:ca_grqc
+        - datasets:celegans
+        - datasets:condmat
+        - datasets:dolphins
+        - datasets:enron
+        - datasets:football
+        - datasets:gnutella
+        - datasets:internet
+        - datasets:jazz
+        - datasets:karate_club
+        - datasets:pgp
+        - datasets:physics
+        - datasets:polbooks
+        - datasets:power_grid
+        - datasets:soc_livejournal
+        - datasets:web_google
+        - datasets:wiki_vote
+        - datasets:get_dataset_info
+        - datasets:list_available_datasets
+        - datasets:list_registered_datasets
+        - datasets:load_dataset
 
-  - title: Tables
-    desc: Functions for creating summary tables
-    contents:
-      - tbl_centrality
-      - tbl_network_summary
+    - title: Tables
+      desc: Functions for creating summary tables
+      contents:
+        - tables:tbl_centrality
+        - tables:tbl_network_summary
 
-  - title: Interoperability
-    desc: Functions for converting between graph libraries
-    contents:
-      - from_adjacency_matrix
-      - from_igraph
-      - from_matrix_market
-      - from_networkx
-      - to_adjacency_matrix
-      - to_igraph
-      - to_networkx
+    - title: Interoperability
+      desc: Functions for converting between graph libraries
+      contents:
+        - matrix_utils:from_adjacency_matrix
+        - igraph_interop:from_igraph
+        - io:from_matrix_market
+        - networkx:from_networkx
+        - matrix_utils:to_adjacency_matrix
+        - igraph_interop:to_igraph
+        - networkx:to_networkx
 
-  - title: Utilities
-    desc: Utility functions for visualization and palettes
-    contents:
-      - graph_widget
-      - list_palettes
-      - plot_graph
+    - title: Utilities
+      desc: Utility functions for visualization and palettes
+      contents:
+        - widget:graph_widget
+        - colors:list_palettes
+        - viz:plot_graph
