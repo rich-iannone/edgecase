@@ -34,12 +34,10 @@ authors:
 
 # Site Settings
 # -------------
-# Customize the site theme and layout
+# Page metadata display options
 site:
-  theme: flatly
-  toc: true
-  toc-depth: 3
-  toc-title: "On this page"
+  show_dates: true
+  show_author: true
 
 # Source Link Configuration
 # -------------------------
