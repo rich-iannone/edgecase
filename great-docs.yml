@@ -71,6 +71,7 @@ exclude:
   - Node
   - Edge
   - AdaStar
+  - GraphWidget
   - graph.Node
   - graph.Edge
   - graph.AdaStar
@@ -95,7 +96,6 @@ reference:
       contents:
         - name: Graph
           members: false
-        - widget:GraphWidget
 
     - title: Graph Construction
       desc: Methods for adding and removing nodes and edges
@@ -562,48 +562,48 @@ reference:
     - title: Datasets
       desc: Functions for loading graph datasets
       contents:
-        - datasets:ca_grqc
-        - datasets:celegans
-        - datasets:condmat
-        - datasets:dolphins
-        - datasets:enron
-        - datasets:football
-        - datasets:gnutella
-        - datasets:internet
-        - datasets:jazz
-        - datasets:karate_club
-        - datasets:pgp
-        - datasets:physics
-        - datasets:polbooks
-        - datasets:power_grid
-        - datasets:soc_livejournal
-        - datasets:web_google
-        - datasets:wiki_vote
-        - datasets:get_dataset_info
-        - datasets:list_available_datasets
-        - datasets:list_registered_datasets
-        - datasets:load_dataset
+        - ca_grqc
+        - celegans
+        - condmat
+        - dolphins
+        - enron
+        - football
+        - gnutella
+        - internet
+        - jazz
+        - karate_club
+        - pgp
+        - physics
+        - polbooks
+        - power_grid
+        - soc_livejournal
+        - web_google
+        - wiki_vote
+        - get_dataset_info
+        - list_available_datasets
+        - list_registered_datasets
+        - load_dataset
 
     - title: Tables
       desc: Functions for creating summary tables
       contents:
-        - tables:tbl_centrality
-        - tables:tbl_network_summary
+        - tbl_centrality
+        - tbl_network_summary
 
     - title: Interoperability
       desc: Functions for converting between graph libraries
       contents:
-        - matrix_utils:from_adjacency_matrix
-        - igraph_interop:from_igraph
-        - io:from_matrix_market
-        - networkx:from_networkx
-        - matrix_utils:to_adjacency_matrix
-        - igraph_interop:to_igraph
-        - networkx:to_networkx
+        - from_adjacency_matrix
+        - from_igraph
+        - from_matrix_market
+        - from_networkx
+        - to_adjacency_matrix
+        - to_igraph
+        - to_networkx
 
     - title: Utilities
       desc: Utility functions for visualization and palettes
       contents:
-        - widget:graph_widget
-        - colors:list_palettes
-        - viz:plot_graph
+        - graph_widget
+        - list_palettes
+        - plot_graph
