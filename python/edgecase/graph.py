@@ -12613,7 +12613,7 @@ class Graph:
         multi = component1.disjoint_union(component2).disjoint_union(component3)
 
         # 3 components
-        multi.count_components()
+        multi.count_weakly_connected_components()
         ```
 
         Notes
@@ -18437,8 +18437,6 @@ class Graph:
         # Start from top-left corner
         visited = graph.bfs(start=1)
         # Visits neighbors layer by layer from start
-
-        %seealso dfs, shortest_path, random_walk
         ```
         """
         start_id = self._resolve_node_id(start, auto_create=False)
