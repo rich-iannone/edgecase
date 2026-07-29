@@ -90,47 +90,29 @@ def extract_docstrings_from_file(filepath: Path) -> List[Tuple[str, str, str]]:
     return results
 
 
-def execute_code_example(code: str, context: str) -> Tuple[bool, str]:
-    """Execute a code example and return (success, error_message).
-
-    Args:
-        code: The Python code to execute
-        context: Context string for error reporting
-
-    Returns:
-        (True, "") if successful, (False, error_msg) if failed
-    """
-    # Create a fresh namespace for each example
+def _make_namespace() -> dict:
+    """Create a fresh execution namespace with edgecase pre-imported and browser mocked."""
     namespace = {
         "__name__": "__main__",
         "__builtins__": __builtins__,
     }
-
-    # Import common modules that examples might use
     try:
         exec("from edgecase import Graph", namespace)
         exec("import edgecase", namespace)
-        exec("import edgecase as ec", namespace)  # Common alias
-
-        # Mock plot_graph and webbrowser to prevent browser windows from opening during tests
+        exec("import edgecase as ec", namespace)
         exec(
             """
-# Patch the plot_graph function to disable browser opening
 import edgecase.viz
 _original_plot_graph = edgecase.viz.plot_graph
 
 def _mock_plot_graph(*args, open_browser=True, **kwargs):
-    # Force browser opening to False during tests
     return _original_plot_graph(*args, open_browser=False, **kwargs)
 
 edgecase.viz.plot_graph = _mock_plot_graph
 
-# Also mock webbrowser.open to catch any direct calls
 import webbrowser
-_original_webbrowser_open = webbrowser.open
 
 def _mock_webbrowser_open(url, new=0, autoraise=True):
-    # Silently ignore browser open requests during tests
     pass
 
 webbrowser.open = _mock_webbrowser_open
@@ -138,7 +120,25 @@ webbrowser.open = _mock_webbrowser_open
             namespace,
         )
     except ImportError as e:
-        return False, f"Failed to import edgecase: {e}"
+        raise RuntimeError(f"Failed to import edgecase: {e}") from e
+    return namespace
+
+
+def execute_code_example(
+    code: str, context: str, namespace: dict | None = None
+) -> Tuple[bool, str]:
+    """Execute a code example and return (success, error_message).
+
+    Args:
+        code: The Python code to execute
+        context: Context string for error reporting
+        namespace: Optional shared namespace; a fresh one is created if not given.
+
+    Returns:
+        (True, "") if successful, (False, error_msg) if failed
+    """
+    if namespace is None:
+        namespace = _make_namespace()
 
     try:
         exec(code, namespace)
@@ -175,16 +175,24 @@ def test_all_docstring_examples():
     print(f"Found {len(all_examples)} code examples in docstrings")
     print("=" * 80)
 
-    # Test each example
+    # Test each example, sharing namespace across all code blocks within the same
+    # docstring so that later blocks can reference variables set in earlier ones.
     failures = []
     successes = 0
+    shared_ns: dict = {}  # namespace shared within a (filepath, context) group
+    current_group: tuple = ()
 
     for i, (filepath, context, code) in enumerate(all_examples, 1):
         location = f"{filepath.relative_to(project_root)}: {context}"
         print(f"\n[{i}/{len(all_examples)}] Testing: {location}")
         print(f"Code preview: {code[:100]}...")
 
-        success, error = execute_code_example(code, context)
+        group_key = (filepath, context)
+        if group_key != current_group:
+            shared_ns = _make_namespace()
+            current_group = group_key
+
+        success, error = execute_code_example(code, context, namespace=shared_ns)
 
         if success:
             print("✓ PASSED")
