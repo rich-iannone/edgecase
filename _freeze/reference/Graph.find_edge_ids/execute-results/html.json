@@ -1,0 +1,12 @@
+{
+  "hash": "8538acecfa201ec96e272ce42989aebd",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.find_edge_ids()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nFind edge IDs between two nodes.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L3654-L3694){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.find_edge_ids(source, target)\n```\n:::\n\n::: {.doc-text}\n\nReturns a list of all edge IDs connecting the source and target nodes. For undirected\ngraphs, edges are found regardless of direction. Supports multi-edges (multiple edges\nbetween the same pair of nodes).\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[source]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Union[int, str]]{.doc-parameter-annotation}</code>\n\n:   Source node ID or label.\n\n<code>[target]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Union[int, str]]{.doc-parameter-annotation}</code>\n\n:   Target node ID or label.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [list[int]]{.doc-parameter-annotation}</code>\n\n:   List of edge IDs. Empty list if no edges exist.\n:::\n\n## Examples {.doc-examples}\n\n::: {#e01af564 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = ec.Graph()\ngraph.add_node(label=\"A\")\ngraph.add_node(label=\"B\")\ngraph.add_edge(source=\"A\", target=\"B\")\ngraph.add_edge(source=\"A\", target=\"B\")  # Multi-edge\n\nedge_ids = graph.find_edge_ids(source=\"A\", target=\"B\")\n\n# Returns 2\nlen(edge_ids)\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n2\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.find_edge_ids_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

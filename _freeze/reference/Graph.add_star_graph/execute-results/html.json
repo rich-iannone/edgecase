@@ -1,0 +1,12 @@
+{
+  "hash": "292a06285c01c8421e1c7da99064dc3b",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.add_star_graph()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nAdd a star graph (hub-and-spoke) to the current graph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L1896-L1965){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.add_star_graph(n, type=None, label=True, rel=None)\n```\n:::\n\n::: {.doc-text}\n\nCreates a central hub node connected to `n - 1` peripheral nodes. All edges connect the hub\nto spokes; no edges between spokes.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[n]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [int]{.doc-parameter-annotation}</code>\n\n:   Total number of nodes (minimum `2`).\n\n<code>[type]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Optional[str]]{.doc-parameter-annotation} [=]{.doc-parameter-default-sep .op} [None]{.doc-parameter-default}</code>\n\n:   Optional node type/category for all nodes.\n\n<code>[label]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [bool]{.doc-parameter-annotation} [=]{.doc-parameter-default-sep .op} [[True]{.va}]{.doc-parameter-default}</code>\n\n:   If `True`, label nodes with their IDs.\n\n<code>[rel]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Optional[str]]{.doc-parameter-annotation} [=]{.doc-parameter-default-sep .op} [None]{.doc-parameter-default}</code>\n\n:   Optional relationship label for all edges.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   Self for method chaining.\n:::\n\n## Examples {.doc-examples}\n\nCreate a star graph:\n\n::: {#09c68f43 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\ngraph = ec.Graph().add_star_graph(n=5)  # 1 hub + 4 spokes\n\n# Returns node count\ngraph.count_nodes()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n5\n```\n:::\n:::\n\n\n::: {#245f164c .cell execution_count=2}\n``` {.python .cell-code}\n# Returns edge count\ngraph.count_edges()\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```\n4\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.add_star_graph_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

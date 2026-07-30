@@ -1,0 +1,12 @@
+{
+  "hash": "03e8b57eb26873ace008fee3b63b1386",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_non_neighbors()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet nodes that are NOT neighbors of the specified node.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L5194-L5260){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_non_neighbors(node)\n```\n:::\n\n::: {.doc-text}\n\nReturns all nodes in the graph except the specified node itself and its neighbors. Useful\nfor finding potential new connections or disconnected nodes.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[node]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Union[int, str]]{.doc-parameter-annotation}</code>\n\n:   Node ID or label to find non-neighbors for.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [list[int]]{.doc-parameter-annotation}</code>\n\n:   Sorted list of node IDs that are not neighbors of `node=` and are not `node=` itself.\n:::\n\n## Examples {.doc-examples}\n\n::: {#f0daa8f5 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = ec.Graph(directed=True)\ngraph.add_path_graph(5)  # 1 -> 2 -> 3 -> 4 -> 5\n\n# Node 2 is connected to 1 and 3\n# Non-neighbors are 4 and 5 (returns node IDs)\nnon_neighbors = graph.get_non_neighbors(2)\n\n# Returns [4, 5]\nnon_neighbors\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n[4, 5]\n```\n:::\n:::\n\n\nFind potential new connections:\n\n::: {#ed654142 .cell execution_count=2}\n``` {.python .cell-code}\ngraph = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_node(label=\"D\")\n    .add_edge(source=\"A\", target=\"B\")\n    .add_edge(source=\"B\", target=\"C\")\n)\n# Recommend connections for a node (using node ID)\nnode_id = graph.get_id_from_label(\"A\")\ncandidates = graph.get_non_neighbors(node_id)\n\n# Score candidates by common neighbors\nscores = [\n    (candidate, len(graph.get_common_neighbors(node_id, candidate)))\n    for candidate in candidates\n]\n```\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_non_neighbors_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

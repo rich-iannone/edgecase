@@ -1,0 +1,12 @@
+{
+  "hash": "49e9f66b277092e0b043b3c6f430aafd",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.deselect_edges()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nRemove edges from selection.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L6163-L6203){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.deselect_edges(edge_ids)\n```\n:::\n\n::: {.doc-text}\n\nUnmarks specified edges, removing them from the current selection set. Has no effect on\nedges that aren't currently selected.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[edge_ids]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [list[int]]{.doc-parameter-annotation}</code>\n\n:   List of edge IDs to deselect.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   Self for method chaining.\n:::\n\n## Examples {.doc-examples}\n\nRefine edge selection:\n\n::: {#9ceefce5 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = ec.Graph().add_cycle_graph(5)\n\nall_edges = graph.get_edge_ids()\ngraph.select_edges_by_id(all_edges)\n\n# Remove first edge from selection\ngraph.deselect_edges([all_edges[0]])\n\ncount = graph.count_selected_edges()\n\n# Returns 4\ncount\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n4\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.deselect_edges_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

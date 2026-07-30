@@ -1,0 +1,12 @@
+{
+  "hash": "ce00ae02c3c4f20fe2935600e11e4fa4",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.count_selected_edges()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet count of currently selected edges.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L6414-L6446){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.count_selected_edges()\n```\n:::\n\n::: {.doc-text}\n\nReturns the number of edges currently marked as selected. More efficient than\n`len(get_selected_edges())` when you only need the count.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [int]{.doc-parameter-annotation}</code>\n\n:   Number of selected edges.\n:::\n\n## Examples {.doc-examples}\n\nCount selected edges:\n\n::: {#aa228083 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_cycle_graph(n=10)\n    .select_edges(lambda e: e.weight is not None and e.weight > 0.7)\n)\n\ncount = graph.count_selected_edges()\n\n# e.g., \"0 high-weight edges\"\nf\"{count} high-weight edges\"\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n'0 high-weight edges'\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.count_selected_edges_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

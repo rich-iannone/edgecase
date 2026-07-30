@@ -1,0 +1,12 @@
+{
+  "hash": "7b503af5a954edcb08d816563d6cef1b",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.count_multi_edges()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCount multi-edges (parallel edges between same node pair).\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L4858-L4893){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.count_multi_edges()\n```\n:::\n\n::: {.doc-text}\n\nOnly counts edges beyond the first one for each node pair. For example, if there are 3 edges\nfrom `A` to `B`, this counts 2 of them. Multi-edges are useful for modeling scenarios like\nmultiple flights between cities or repeated transactions.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [int]{.doc-parameter-annotation}</code>\n\n:   Number of duplicate edges (beyond first edge per pair).\n:::\n\n## Examples {.doc-examples}\n\nCount multi-edges in a directed graph:\n\n::: {#bbdc7539 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph(directed=True)\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_edge(\"A\", \"B\", id=1)\n    .add_edge(\"A\", \"B\", id=2)  # Multi-edge\n    .add_edge(\"A\", \"B\", id=3)  # Another multi-edge\n    .add_edge(\"B\", \"A\", id=4)  # Different direction\n)\n\n# Returns 2\ngraph.count_multi_edges()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n2\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.count_multi_edges_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

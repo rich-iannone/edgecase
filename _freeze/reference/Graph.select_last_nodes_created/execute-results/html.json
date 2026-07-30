@@ -1,0 +1,12 @@
+{
+  "hash": "f591f6585d49bb49cc0ff7be0f9ba00a",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.select_last_nodes_created()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nSelect the last N nodes that were created.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L5743-L5785){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.select_last_nodes_created(n)\n```\n:::\n\n::: {.doc-text}\n\nSelects nodes in reverse chronological order based on creation time. Useful for incremental\ngraph building workflows where you want to work with recently added nodes.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[n]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [int]{.doc-parameter-annotation}</code>\n\n:   Number of most recently created nodes to select.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   Self for method chaining.\n:::\n\n## Examples {.doc-examples}\n\nSelect recently added nodes:\n\n::: {#810a2f9d .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_node(label=\"D\")\n    .select_last_nodes_created(2)\n)\n\n# C and D are selected (most recent)\nselected = graph.get_selected_node_ids()\n\n# Returns ['C', 'D']\nselected\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n[3, 4]\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.select_last_nodes_created_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

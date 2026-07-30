@@ -1,0 +1,12 @@
+{
+  "hash": "39f28367b62ceb781bbd88136a9a19fb",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.trav_in()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nTraverse from selected nodes to inward neighbors.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L6488-L6522){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.trav_in()\n```\n:::\n\n::: {.doc-text}\n\nFrom the currently selected nodes, moves to all nodes that have outward edges leading to the\nselected nodes (where selected nodes are targets). The current node selection is replaced\nwith the traversed nodes.\n\nFor directed graphs, follows edges in the reverse direction. For undirected graphs, follows\nedges in all directions (equivalent to `trav_both()`).\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   Self for method chaining.\n:::\n\n## Examples {.doc-examples}\n\n::: {#d888667a .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = ec.Graph(directed=True)\ngraph.add_node(\"A\").add_node(\"B\").add_node(\"C\")\ngraph.add_edge(\"A\", \"B\")\ngraph.add_edge(\"B\", \"C\")\n\nnode_c_id = graph.get_id_from_label(\"C\")\ngraph.select_nodes_by_id([node_c_id]).trav_in()\nselected = graph.get_selected_node_ids()\n# Returns [node_id_for_B]\n```\n:::\n\n\n",
+    "supporting": [
+      "Graph.trav_in_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

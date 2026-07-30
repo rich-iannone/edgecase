@@ -1,0 +1,12 @@
+{
+  "hash": "3397af88b7a0e813641b7a14de223080",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.invert_node_selection()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nInvert node selection (select unselected, unselect selected).\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L6242-L6277){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.invert_node_selection()\n```\n:::\n\n::: {.doc-text}\n\nToggles the selection state of all nodes: currently selected nodes become unselected, and\nunselected nodes become selected. Useful for getting the complement of a selection.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   Self for method chaining.\n:::\n\n## Examples {.doc-examples}\n\nGet complement of a selection:\n\n::: {#7b316cc4 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_path_graph(10)\n    .select_nodes_by_degree(max_degree=1)  # Select endpoints\n    .invert_node_selection()  # Select middle nodes\n)\n\n# Middle 8 nodes now selected\ncount = graph.count_selected_nodes()\n\n# Returns 8\ncount\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n8\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.invert_node_selection_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

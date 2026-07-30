@@ -1,0 +1,12 @@
+{
+  "hash": "06496590d6f2c3b6a43a499336fbf7ef",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.is_dag()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCheck if directed graph is a DAG (Directed Acyclic Graph).\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L4047-L4094){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.is_dag()\n```\n:::\n\n::: {.doc-text}\n\nA DAG is a directed graph with no cycles. You cannot follow directed edges and return to a\nstarting node. DAGs are fundamental for dependency resolution, scheduling, and topological\nsorting.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [bool]{.doc-parameter-annotation}</code>\n\n:   `True` if the graph is acyclic, `False` if it contains cycles.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If called on an undirected graph.\n:::\n\n## Examples {.doc-examples}\n\nCheck if a directed graph is acyclic:\n\n::: {#9dc6065a .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph(directed=True)\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_edge(\"A\", \"B\")\n    .add_edge(\"B\", \"C\")\n)\n\n# Returns True\ngraph.is_dag()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\nTrue\n```\n:::\n:::\n\n\n::: {#651d984b .cell execution_count=2}\n``` {.python .cell-code}\n# Adding a cycle makes it not a DAG\ngraph.add_edge(\"C\", \"A\")  # Creates cycle A->B->C->A\n\n# Returns False\ngraph.is_dag()\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```\nFalse\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.is_dag_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

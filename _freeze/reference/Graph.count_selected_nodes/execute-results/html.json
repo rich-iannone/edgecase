@@ -1,0 +1,12 @@
+{
+  "hash": "add64211ddf0b48c61f85f3a8fb7912e",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.count_selected_nodes()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet count of currently selected nodes.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L6380-L6412){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.count_selected_nodes()\n```\n:::\n\n::: {.doc-text}\n\nReturns the number of nodes currently marked as selected. More efficient than\n`len(get_selected_nodes())` when you only need the count.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [int]{.doc-parameter-annotation}</code>\n\n:   Number of selected nodes.\n:::\n\n## Examples {.doc-examples}\n\nCount selected nodes:\n\n::: {#df645403 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_full_graph(10)\n    .select_nodes_by_degree(min_degree=5)\n)\n\ncount = graph.count_selected_nodes()\n\n# e.g., \"10 high-degree nodes\"\nf\"{count} high-degree nodes\"\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n'10 high-degree nodes'\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.count_selected_nodes_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

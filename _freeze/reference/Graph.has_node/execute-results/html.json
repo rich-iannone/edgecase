@@ -1,0 +1,12 @@
+{
+  "hash": "029d733bc943c5c406bda364f143df73",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.has_node()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCheck if a node exists in the graph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L3515-L3556){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.has_node(node)\n```\n:::\n\n::: {.doc-text}\n\nVerifies whether a node (specified by ID or label) exists in the graph. Returns `False` for\ninvalid inputs or missing nodes.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[node]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Union[int, str]]{.doc-parameter-annotation}</code>\n\n:   Node ID (int) or label (str) to check.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [bool]{.doc-parameter-annotation}</code>\n\n:   `True` if the node exists, `False` otherwise.\n:::\n\n## Examples {.doc-examples}\n\nCheck node existence:\n\n::: {#888f4ab2 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"Alice\")\n    .add_node(label=\"Bob\")\n)\n\ngraph.has_node(\"Alice\")    # Returns True\ngraph.has_node(1)          # Returns True\ngraph.has_node(\"Charlie\")  # Returns False\ngraph.has_node(999)        # Returns False\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\nFalse\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.has_node_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

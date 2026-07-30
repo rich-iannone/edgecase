@@ -1,0 +1,12 @@
+{
+  "hash": "b39f9dd9d53b87012e4df1b81363b4e9",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.select_edges_by_id()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nSelect edges by their IDs.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L5622-L5672){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.select_edges_by_id(edge_ids)\n```\n:::\n\n::: {.doc-text}\n\nMarks specified edges as selected for subsequent operations. Edge IDs are internal integer\nidentifiers assigned when edges are created. Selection is cumulative unless cleared first.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[edge_ids]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [list[int]]{.doc-parameter-annotation}</code>\n\n:   List of edge IDs to select.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   Self for method chaining.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [KeyError]{.doc-parameter-annotation}</code>\n\n:   If any edge ID doesn't exist in the graph.\n:::\n\n## Examples {.doc-examples}\n\nSelect specific edges:\n\n::: {#1ab4ed87 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_edge(source=\"A\", target=\"B\")\n    .add_edge(source=\"B\", target=\"C\")\n    .add_edge(source=\"C\", target=\"A\")\n)\n\nedge_ids = graph.get_edge_ids()\ngraph.select_edges_by_id(edge_ids=[edge_ids[0], edge_ids[1]])\n\nselected_count = graph.count_selected_edges()\n\n# Returns 2\nselected_count\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n2\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.select_edges_by_id_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

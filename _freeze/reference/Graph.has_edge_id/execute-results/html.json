@@ -1,0 +1,12 @@
+{
+  "hash": "a53490b1a62bffaf45d3c28246be65a9",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.has_edge_id()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCheck if an edge with given ID exists.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L3615-L3652){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.has_edge_id(edge_id)\n```\n:::\n\n::: {.doc-text}\n\nVerifies whether a specific edge ID is present in the graph. Useful for validating edge IDs\nbefore performing operations.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[edge_id]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [int]{.doc-parameter-annotation}</code>\n\n:   The edge ID to check.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [bool]{.doc-parameter-annotation}</code>\n\n:   `True` if an edge with this ID exists, `False` otherwise.\n:::\n\n## Examples {.doc-examples}\n\nCheck if edge IDs exist:\n\n::: {#e0af142a .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_edge(source=\"A\", target=\"B\")\n)\n\nedge_id = graph.get_edge_ids()[0]\ngraph.has_edge_id(edge_id=edge_id)  # Returns True\ngraph.has_edge_id(edge_id=9999)     # Returns False\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\nFalse\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.has_edge_id_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

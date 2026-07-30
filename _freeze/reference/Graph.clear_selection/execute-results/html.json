@@ -1,0 +1,12 @@
+{
+  "hash": "2d4e3253d2022234ee920a1d5ddcf1fa",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.clear_selection()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nClear all node and edge selections.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L6205-L6240){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.clear_selection()\n```\n:::\n\n::: {.doc-text}\n\nResets the selection state, unmarking all previously selected nodes and edges. Useful for\nstarting fresh with a new selection workflow.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   Self for method chaining.\n:::\n\n## Examples {.doc-examples}\n\nReset selection state:\n\n::: {#4b9049d7 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_star_graph(5)\n    .select_nodes_by_degree(min_degree=3)\n    .clear_selection()\n)\n\n# No nodes selected after clearing\ncount = graph.count_selected_nodes()\n\n# Returns 0\ncount\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n0\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.clear_selection_files/figure-html"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

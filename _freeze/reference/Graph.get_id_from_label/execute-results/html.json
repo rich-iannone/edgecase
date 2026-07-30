@@ -1,0 +1,12 @@
+{
+  "hash": "0ea9732e5f4c67b84bf6e3e596bd193e",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_id_from_label()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet the integer ID for a node by its label.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L3125-L3172){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_id_from_label(label)\n```\n:::\n\n::: {.doc-text}\n\nTranslates a human-readable string label to the internal `u64` node ID. Useful when you need\nthe ID for operations that require integer identifiers.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[label]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [str]{.doc-parameter-annotation}</code>\n\n:   The string label to look up.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [int | None]{.doc-parameter-annotation}</code>\n\n:   The u64 node ID if found, or `None` if the label doesn't exist.\n:::\n\n## Examples {.doc-examples}\n\nLook up node IDs by label:\n\n::: {#aef8a429 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"Alice\")\n    .add_node(label=\"Bob\")\n)\n\nalice_id = graph.get_id_from_label(\"Alice\")\n\n# Returns 1\nalice_id\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n1\n```\n:::\n:::\n\n\n::: {#e48b4833 .cell execution_count=2}\n``` {.python .cell-code}\nunknown_id = graph.get_id_from_label(\"Unknown\")\n\n# Returns None\nunknown_id\n```\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_id_from_label_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}
