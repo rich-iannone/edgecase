@@ -80,7 +80,7 @@ edges_df = pl.DataFrame({
 graph = Graph(nodes_df=nodes_df, edges_df=edges_df, directed=False, weighted=True)
 
 # Calculate centrality and automatically store as node attributes (returns self for chaining)
-graph.get_eigen_centrality(attr_name="centrality").show()
+graph.get_eigen_centrality(attr_name="centrality").plot_vis()
 
 # Or capture values while storing
 centrality = graph.get_eigen_centrality()  # Returns dict
@@ -120,14 +120,14 @@ karate_graph = (
 )
 ```
 
-With `.show()` you get an interactive visualization where:
+With `.plot_vis()` you get an interactive visualization where:
 
 - **node colors** show community membership (categorical - each community gets a distinct color)
 - **node sizes** reflect eigenvector centrality (influence within the network)
 - **all metrics** are automatically stored as node attributes for inspection
 
 ```python
-karate_graph.show()
+karate_graph.plot_vis()
 ```
 
 And if you print the object itself, you get useful information on the graph and its attributes:
@@ -190,7 +190,7 @@ graph = Graph(nodes_df=nodes_df, edges_df=edges_df, directed=True, weighted=True
 
 ```python
 # Visualize your network with a single method call
-graph.show()
+graph.plot_vis()
 ```
 
 ![EdgeCase Visualization](edgecase-show.png)
