@@ -553,7 +553,7 @@ def get_palette(name: str) -> list[str]:
 
     Parameters
     ----------
-    name : str
+    name
         Palette name (e.g., 'Greens', 'RdBu', 'viridis', 'Set1')
 
     Returns
@@ -578,9 +578,9 @@ def list_palettes(category: str = None) -> list[str]:
 
     Parameters
     ----------
-    category : str, optional
-        Palette category ('sequential', 'diverging', 'qualitative', 'viridis', 'legacy')
-        If None, returns all palettes
+    category
+        Palette category ('sequential', 'diverging', 'qualitative', 'viridis', 'legacy'). If `None`,
+        returns all palettes.
 
     Returns
     -------

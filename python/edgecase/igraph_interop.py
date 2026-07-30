@@ -10,7 +10,7 @@ def to_igraph(graph):
 
     Parameters
     ---
-    graph : Graph
+    graph
         The EdgeCase Graph object to convert.
 
     Returns
@@ -158,20 +158,20 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     present, otherwise node indices are used.
 
     Parameters
-    ---
-    ig_graph : igraph.Graph
+    ----------
+    ig_graph
         The igraph.Graph object to convert.
-    weighted : bool, optional
+    weighted
         If `True`, create a weighted graph. If `None` (default), auto-detect
         by checking if edges have a 'weight' attribute.
 
     Returns
-    ---
+    -------
     Graph
         An EdgeCase Graph object with the same structure and attributes.
 
     Raises
-    ---
+    ------
     ImportError
         If igraph is not installed.
 

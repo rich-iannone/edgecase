@@ -48,26 +48,27 @@ def plot_graph(
 
     Parameters
     ----------
-    graph : Graph
+    graph
         EdgeCase graph to visualize
-    output_path : str, optional
-        Path to save HTML file. If None, creates temp file.
-    open_browser : bool, default True
-        Whether to open in browser automatically
-    width : int, default 800
-        Canvas width in pixels
-    height : int, default 600
-        Canvas height in pixels
-    node_size : float, default 20.0
-        Node radius in pixels
-    edge_width : float, default 2.0
-        Edge line width in pixels
-    layout : str, default "force"
-        Layout algorithm: "force" (physics-based), "circular", or "random"
-    static : bool, default False
-        If True, disables physics simulation and interactivity (no node dragging,
-        no animation). The graph will be rendered in a fixed position after initial
-        layout. Useful for static reports, exports, or embedding in documents.
+    output_path
+        Path to save HTML file. If `None`, creates a temporary file.
+    open_browser
+        Whether to open in browser automatically. Defaults to `True`.
+    width
+        Canvas width in pixels. Defaults to 800.
+    height
+        Canvas height in pixels. Defaults to 600.
+    node_size
+        Node radius in pixels. Defaults to 20.0.
+    edge_width
+        Edge line width in pixels. Defaults to 2.0.
+    layout
+        Layout algorithm: `"force"` (physics-based), `"circular"`, or `"random"`. Defaults to
+        `"force"`.
+    static
+        If `True`, disables physics simulation and interactivity (no node dragging, no animation).
+        The graph will be rendered in a fixed position after initial layout. Useful for static
+        reports, exports, or embedding in documents. Defaults to `False`.
 
     Returns
     -------
@@ -671,5 +672,114 @@ def _generate_vis_network_html(
     return html
 
 
+def plot_cosmo(
+    graph,
+    point_color_by: Optional[str] = None,
+    point_size_by: Optional[str] = None,
+    link_color_by: Optional[str] = None,
+    link_width_by: Optional[str] = None,
+):
+    """
+    Render graph as an interactive Cosmograph widget in a Jupyter notebook.
+
+    Requires the ``cosmograph`` package (``pip install cosmograph``). The widget
+    uses GPU-accelerated WebGL rendering and handles millions of nodes/edges in
+    the browser.
+
+    Parameters
+    ----------
+    graph : Graph
+        EdgeCase graph to visualize.
+    point_color_by : str, optional
+        Node DataFrame column name to use for point colour encoding.
+    point_size_by : str, optional
+        Node DataFrame column name to use for point size encoding.
+    link_color_by : str, optional
+        Edge DataFrame column name to use for link colour encoding.
+    link_width_by : str, optional
+        Edge DataFrame column name to use for link width encoding.
+
+    Returns
+    -------
+    cosmograph.Cosmograph
+        An interactive Cosmograph widget. Assign it to a variable and evaluate
+        it in a notebook cell to display it.
+
+    Raises
+    ------
+    ImportError
+        If the ``cosmograph`` package is not installed.
+
+    Examples
+    --------
+    Basic usage in a Jupyter notebook:
+
+    ```python
+    from edgecase import Graph, plot_cosmo
+
+    G = Graph()
+    G.add_node(label="Alice", type="user")
+    G.add_node(label="Bob", type="admin")
+    G.add_node(label="Carol", type="user")
+    G.add_edge(source="Alice", target="Bob")
+    G.add_edge(source="Bob", target="Carol")
+
+    widget = plot_cosmo(G)
+    widget
+    ```
+
+    Colour nodes by type attribute:
+
+    ```python
+    widget = plot_cosmo(G, point_color_by="type")
+    widget
+    ```
+    """
+    try:
+        from cosmograph import cosmo
+    except ImportError as e:
+        raise ImportError(
+            "The 'cosmograph' package is required for plot_cosmo(). "
+            "Install it with: pip install cosmograph"
+        ) from e
+
+    node_df = graph.get_node_df()
+    edge_df = graph.get_edge_df()
+
+    # Convert Polars DataFrames to pandas (cosmograph requires pandas)
+    points = node_df.to_pandas()
+    links = edge_df.to_pandas()
+
+    kwargs = {
+        "point_id_by": "id",
+        "link_source_by": "source",
+        "link_target_by": "target",
+    }
+
+    if point_color_by is not None:
+        kwargs["point_color_by"] = point_color_by
+    if point_size_by is not None:
+        kwargs["point_size_by"] = point_size_by
+    if link_color_by is not None:
+        kwargs["link_color_by"] = link_color_by
+    if link_width_by is not None:
+        kwargs["link_width_by"] = link_width_by
+
+    # Include all columns for hover/inspect by default
+    point_cols = [c for c in points.columns if c != "id"]
+    link_cols = [c for c in links.columns if c not in ("source", "target")]
+
+    if point_cols:
+        kwargs["point_include_columns"] = point_cols
+    if link_cols:
+        kwargs["link_include_columns"] = link_cols
+
+    # Use label column for point labels when present
+    if "label" in points.columns:
+        kwargs.setdefault("point_label_by", "label")
+
+    return cosmo(points=points, links=links, **kwargs)
+
+
 # Convenience export
-__all__ = ["plot_graph"]
+__all__ = ["plot_graph", "plot_cosmo"]

@@ -261,7 +261,7 @@ def get_dataset_info(name: str) -> dict:
 
     Parameters
     ----------
-    name : str
+    name
         Dataset name (with or without .mtx extension)
 
     Returns
@@ -279,8 +279,6 @@ def get_dataset_info(name: str) -> dict:
     # Returns dataset metadata with nodes, edges, etc.
     info
     ```
-
-    %seealso list_registered_datasets, list_available_datasets, load_dataset
     """
     # Remove .mtx extension if present
     name = name.replace(".mtx", "")
@@ -323,8 +321,6 @@ def list_registered_datasets() -> list[str]:
         info = get_dataset_info(name)
         pass  # Iterates through registered datasets with their info
     ```
-
-    %seealso get_dataset_info, list_available_datasets, load_dataset
     """
     return list(DATASET_REGISTRY.keys())
 
@@ -491,8 +487,6 @@ def list_available_datasets() -> list[str]:
     -------
     list[str]
         List of dataset filenames
-
-    %seealso list_registered_datasets, get_dataset_info, load_dataset
     """
     if not DATA_DIR.exists():
         return []
@@ -595,8 +589,6 @@ def karate_club() -> Graph:
     This is one of the most well-studied networks in social network analysis. The network split
     prediction problem has been validated multiple times, and the dataset serves as a standard
     benchmark for community detection algorithms.
-
-    %seealso dolphins, football, polbooks, jazz
     """
 
     # Node data with factions (1 = Mr. Hi's faction, 2 = John A.'s faction)
@@ -759,8 +751,6 @@ def web_google() -> Graph:
     -------
     Graph
         Google web graph
-
-    %seealso soc_livejournal, wiki_vote, internet
     """
     return _load_dataset_from_file(
         "web_google.mtx", directed=True, weighted=False, graph_name="Google Web Graph"
@@ -792,8 +782,6 @@ def soc_livejournal() -> Graph:
     Notes
     -----
     This is a very large graph. Requires significant RAM (~10-15GB).
-
-    %seealso web_google, enron, wiki_vote
     """
     return _load_dataset_from_file(
         "soc_livejournal.mtx",
@@ -827,8 +815,6 @@ def dolphins() -> Graph:
     -----
     This network is often used for community detection benchmarks.
     The network has been observed to split into two communities.
-
-    %seealso karate_club, football, polbooks, jazz
     """
     return _load_dataset_from_file(
         "dolphins.mtx",
@@ -862,8 +848,6 @@ def football() -> Graph:
     -----
     Teams are divided into conferences, providing natural community structure.
     Excellent dataset for testing community detection algorithms.
-
-    %seealso karate_club, dolphins, polbooks
     """
     return _load_dataset_from_file(
         "football.mtx",
@@ -897,8 +881,6 @@ def polbooks() -> Graph:
     -----
     Books have been classified as liberal, neutral, or conservative.
     The network shows clear community structure along political lines.
-
-    %seealso karate_club, dolphins, football
     """
     return _load_dataset_from_file(
         "polbooks.mtx",
@@ -931,8 +913,6 @@ def jazz() -> Graph:
     -----
     This is a highly clustered network with small-world properties.
     Good for testing clustering algorithms and visualization.
-
-    %seealso karate_club, dolphins, ca_grqc, physics, condmat
     """
     return _load_dataset_from_file(
         "jazz.mtx",
@@ -966,8 +946,6 @@ def celegans() -> Graph:
     -----
     This metabolic network shows the biochemical pathways in C. elegans.
     Different from the neural network version.
-
-    %seealso power_grid, internet
     """
     return _load_dataset_from_file(
         "celegans.mtx",
@@ -1001,8 +979,6 @@ def power_grid() -> Graph:
     -----
     Classic example of a sparse infrastructure network with small-world properties.
     Used to study robustness and cascading failures.
-
-    %seealso internet, celegans
     """
     return _load_dataset_from_file(
         "power_grid.mtx",
@@ -1036,8 +1012,6 @@ def pgp() -> Graph:
     -----
     Real-world trust network from cryptographic key signing.
     Exhibits power-law degree distribution and strong clustering.
-
-    %seealso wiki_vote, enron, gnutella, web_google
     """
     return _load_dataset_from_file(
         "pgp.mtx",
@@ -1070,8 +1044,6 @@ def internet() -> Graph:
     Notes
     -----
     Snapshot from January 2, 2000 from University of Oregon Route Views Project.
-
-    %seealso power_grid, gnutella, web_google
     """
     return _load_dataset_from_file(
         "internet.mtx",
@@ -1102,8 +1074,6 @@ def ca_grqc() -> Graph:
     -------
     Graph
         Arxiv collaboration network
-
-    %seealso physics, condmat, jazz
     """
     return _load_dataset_from_file(
         "ca_grqc.mtx",
@@ -1132,8 +1102,6 @@ def physics() -> Graph:
     -------
     Graph
         High Energy Physics collaboration network
-
-    %seealso ca_grqc, condmat, jazz
     """
     return _load_dataset_from_file(
         "physics.mtx",
@@ -1166,8 +1134,6 @@ def wiki_vote() -> Graph:
     Notes
     -----
     Includes all Wikipedia voting data from inception to January 2008.
-
-    %seealso enron, pgp, web_google, soc_livejournal
     """
     return _load_dataset_from_file(
         "wiki_vote.mtx",
@@ -1196,8 +1162,6 @@ def condmat() -> Graph:
     -------
     Graph
         Condensed Matter collaboration network
-
-    %seealso ca_grqc, physics, jazz
     """
     return _load_dataset_from_file(
         "condmat.mtx",
@@ -1230,8 +1194,6 @@ def enron() -> Graph:
     Notes
     -----
     Data from the Enron email corpus made public during the FERC investigation.
-
-    %seealso wiki_vote, pgp, soc_livejournal
     """
     return _load_dataset_from_file(
         "enron.mtx",
@@ -1260,8 +1222,6 @@ def gnutella() -> Graph:
     -------
     Graph
         Gnutella P2P network
-
-    %seealso internet, web_google, pgp
     """
     return _load_dataset_from_file(
         "gnutella.mtx",
@@ -1280,11 +1240,11 @@ def load_dataset(name: str, directed: bool = None, weighted: bool = False) -> Gr
 
     Parameters
     ----------
-    name : str
+    name
         Name of the dataset file (with or without .mtx extension)
-    directed : bool, optional
+    directed
         Override the graph type. If None, uses registry metadata or auto-detects from file.
-    weighted : bool, default=False
+    weighted
         Whether to treat edge weights as significant
 
     Returns
@@ -1292,20 +1252,12 @@ def load_dataset(name: str, directed: bool = None, weighted: bool = False) -> Gr
     Graph
         The loaded graph
 
-    See Also
-    --------
-    list_registered_datasets : List datasets with metadata
-    get_dataset_info : Get metadata for a dataset
-    list_available_datasets : List all .mtx files in data/
-
     Notes
     -----
     Small datasets (<100KB) are bundled with the package. Larger datasets
     are automatically downloaded on first use from GitHub releases and cached
     at ~/.cache/edgecase/datasets/. Set EDGECASE_NO_DOWNLOAD=1 to disable
     auto-download.
-
-    %seealso list_registered_datasets, get_dataset_info, list_available_datasets
     """
     # Remove .mtx extension if present to check registry
     name_key = name.replace(".mtx", "")

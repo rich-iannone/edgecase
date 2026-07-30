@@ -5,26 +5,26 @@ from typing import Optional
 def to_networkx(graph, multigraph: bool = False):
     """Convert an EdgeCase Graph to a NetworkX graph.
 
-    Creates a NetworkX graph preserving directionality, node/edge attributes,
-    and optionally multiple edges between nodes. Useful for validation against
-    NetworkX algorithms and leveraging the NetworkX ecosystem.
+    Creates a NetworkX graph preserving directionality, node/edge attributes, and optionally
+    multiple edges between nodes. Useful for validation against NetworkX algorithms and leveraging
+    the NetworkX ecosystem.
 
     Parameters
-    ---
-    graph : Graph
+    ----------
+    graph
         The EdgeCase Graph object to convert.
-    multigraph : bool, default False
-        If `True`, create a MultiGraph/MultiDiGraph preserving edge IDs and
-        multiple edges. If `False`, create a Graph/DiGraph. When `False` and
-        multiple edges exist, only the last edge is preserved.
+    multigraph
+        If `True`, create a MultiGraph/MultiDiGraph preserving edge IDs and multiple edges. If
+        `False`, create a Graph/DiGraph. When `False` and multiple edges exist, only the last edge
+        is preserved.
 
     Returns
-    ---
+    -------
     networkx.Graph or networkx.DiGraph or networkx.MultiGraph or networkx.MultiDiGraph
         A NetworkX graph with the same structure and attributes.
 
     Raises
-    ---
+    ------
     ImportError
         If NetworkX is not installed.
 
@@ -139,25 +139,25 @@ def to_networkx(graph, multigraph: bool = False):
 def from_networkx(nx_graph, weighted: Optional[bool] = None):
     """Convert a NetworkX graph to an EdgeCase Graph.
 
-    Creates an EdgeCase graph from NetworkX, preserving directionality, node/edge
-    attributes, and multiple edges (for MultiGraph/MultiDiGraph). Auto-detects
-    weighted graphs unless explicitly specified.
+    Creates an EdgeCase graph from NetworkX, preserving directionality, node/edge attributes, and
+    multiple edges (for MultiGraph/MultiDiGraph). Auto-detects weighted graphs unless explicitly
+    specified.
 
     Parameters
-    ---
-    nx_graph : networkx.Graph or networkx.DiGraph or networkx.MultiGraph or networkx.MultiDiGraph
+    ----------
+    nx_graph
         The NetworkX graph to convert.
-    weighted : bool, optional
-        If `True`, create a weighted graph. If `None` (default), auto-detect
-        by checking if any edge has a 'weight' attribute.
+    weighted
+        If `True`, create a weighted graph. If `None` (default), auto-detect by checking if any edge
+        has a 'weight' attribute.
 
     Returns
-    ---
+    -------
     Graph
         An EdgeCase Graph object with the same structure and attributes.
 
     Raises
-    ---
+    ------
     ImportError
         If NetworkX is not installed.
 

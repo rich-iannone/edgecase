@@ -119,7 +119,7 @@ class GraphWidget:
     G.add_edge(source='C', target='A')
 
     widget = GraphWidget(G)
-    # widget.show()
+    # widget.plot_vis()
     ```
 
     With community detection:
@@ -139,7 +139,7 @@ class GraphWidget:
 
     G.cmty_louvain(attr_name="community")
     widget = GraphWidget(G)
-    # widget.show()
+    # widget.plot_vis()
     ```
 
     Custom aesthetics:
@@ -162,7 +162,7 @@ class GraphWidget:
     G.set_node_attrs(node_attr="size", values=sizes)
 
     widget = GraphWidget(G)
-    # widget.show()
+    # widget.plot_vis()
     ```
 
     %nodoc
@@ -659,7 +659,7 @@ export default { render };
 
     def _show_browser(self):
         """Fallback to opening in browser."""
-        return self.graph.show(target="browser")
+        return self.graph.plot_vis(target="browser")
 
     def to_html(self, path: str) -> str:
         """Export to standalone interactive HTML file."""
@@ -893,7 +893,7 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     Returns
     -------
     GraphWidget
-        Widget instance (call .show() to display)
+        Widget instance (call .plot_vis() to display)
 
     Examples
     --------
@@ -910,7 +910,7 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
     G.add_edge(source='B', target='C')
 
     widget = graph_widget(G)
-    # widget.show()
+    # widget.plot_vis()
     ```
 
     With community detection:
@@ -930,7 +930,7 @@ def graph_widget(graph, **kwargs) -> GraphWidget:
 
     G.cmty_louvain(attr_name="community")
     widget = graph_widget(G)
-    # widget.show()
+    # widget.plot_vis()
     ```
     """
     return GraphWidget(graph, **kwargs)

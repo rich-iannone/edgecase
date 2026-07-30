@@ -15,12 +15,12 @@ def tbl_network_summary(
 
     Parameters
     ----------
-    graph : Graph
-        The input graph to summarize
-    by : str, optional
-        Column to group by (for stratified analysis)
-    include_centrality : bool, default True
-        Whether to include centrality measures
+    graph
+        The input graph to summarize.
+    by
+        Column to group by (for stratified analysis).
+    include_centrality
+        Whether to include centrality measures.
 
     Returns
     -------
@@ -69,16 +69,16 @@ def tbl_centrality(
 
     Parameters
     ----------
-    graph : Graph
-        The input graph
-    measures : list of str, optional
-        Centrality measures to compute. Options: 'betweenness', 'pagerank', 'degree'
-        If None, computes all available measures.
+    graph
+        The input graph.
+    measures
+        Centrality measures to compute. Options are: `"betweenness"`, `"pagerank"`, `"degree"`. If
+        `None`, computes all available measures.
 
     Returns
     -------
     pl.DataFrame
-        DataFrame with centrality measures for each node
+        DataFrame with centrality measures for each node.
 
     Examples
     --------

@@ -18,6 +18,7 @@ def from_matrix_market(
     Matrix Market is a standard format for representing sparse matrices and networks.
     This function reads coordinate format files (.mtx) and automatically detects
     graph properties from the header line:
+
     - Symmetry: 'symmetric' -> undirected, 'general' -> directed
     - Data type: 'pattern' -> unweighted, 'real'/'integer' -> weighted
 
@@ -26,16 +27,16 @@ def from_matrix_market(
 
     Parameters
     ----------
-    filepath : str or Path
-        Path to the Matrix Market (.mtx) file
-    directed : bool, optional
+    filepath
+        Path to the Matrix Market (.mtx) file.
+    directed
         Whether to create a directed graph. If None (default), automatically
-        detected from file header ('symmetric' -> False, 'general' -> True)
-    weighted : bool, optional
+        detected from file header ('symmetric' -> False, 'general' -> True).
+    weighted
         Whether the graph is weighted. If None (default), automatically detected
-        from file header ('pattern' -> False, 'real'/'integer' -> True)
-    graph_name : str, optional
-        Name for the graph
+        from file header ('pattern' -> False, 'real'/'integer' -> True).
+    graph_name
+        Name for the graph.
 
     Returns
     -------
