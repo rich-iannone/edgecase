@@ -51,7 +51,7 @@ from edgecase.io import (
 # Polars integration: Use Graph(nodes_df=..., edges_df=...) to create from DataFrames
 # Use graph.get_node_df() and graph.get_edge_df() to export to DataFrames
 from edgecase.tables import tbl_centrality, tbl_network_summary
-from edgecase.viz import plot_graph
+from edgecase.viz import plot_cosmo, plot_graph
 from edgecase.widget import GraphWidget, graph_widget
 
 # NetworkX interoperability (optional)
