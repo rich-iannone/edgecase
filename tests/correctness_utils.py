@@ -17,10 +17,10 @@ def nx_to_edgecase(nx_graph, directed=False):
 
     Parameters
     ----------
-    nx_graph : networkx.Graph
-        NetworkX graph to convert
-    directed : bool, default=False
-        Whether the graph is directed
+    nx_graph
+        NetworkX graph to convert.
+    directed
+        Whether the graph is directed. Defaults to `False`.
 
     Returns
     -------
@@ -43,10 +43,10 @@ def nx_to_igraph(nx_graph, directed=False):
 
     Parameters
     ----------
-    nx_graph : networkx.Graph
-        NetworkX graph to convert
-    directed : bool, default=False
-        Whether the graph is directed
+    nx_graph
+        NetworkX graph to convert.
+    directed
+        Whether the graph is directed. Defaults to `False`.
 
     Returns
     -------
@@ -71,8 +71,8 @@ def get_edgecase_node_mapping(ec_graph):
 
     Parameters
     ----------
-    ec_graph : edgecase.Graph
-        EdgeCase graph
+    ec_graph
+        EdgeCase graph.
 
     Returns
     -------
@@ -92,17 +92,16 @@ def align_results(ec_result, other_result, node_list, ec_graph, is_dict=True):
 
     Parameters
     ----------
-    ec_result : dict or list
-        EdgeCase algorithm output (node_id -> value)
-    other_result : dict or list
-        NetworkX/igraph algorithm output
-    node_list : list
-        List of node labels in order
-    ec_graph : edgecase.Graph
-        EdgeCase graph for mapping
-    is_dict : bool, default=True
-        Whether other_result is a dict (NetworkX) or list (igraph)
-
+    ec_result
+        EdgeCase algorithm output (node_id -> value).
+    other_result
+        NetworkX/igraph algorithm output.
+    node_list
+        List of node labels in order.
+    ec_graph
+        EdgeCase graph for mapping.
+    is_dict
+        Whether other_result is a dict (NetworkX) or list (igraph). Defaults to `True`.
     Returns
     -------
     tuple of (np.ndarray, np.ndarray)
@@ -137,14 +136,14 @@ def compute_comparison_metrics(ec_array, other_array, normalize=False, allow_sig
 
     Parameters
     ----------
-    ec_array : np.ndarray
-        EdgeCase results
-    other_array : np.ndarray
-        NetworkX/igraph results
-    normalize : bool, default=False
-        Whether to normalize to unit L2 norm (for eigenvectors)
-    allow_sign_flip : bool, default=False
-        Whether to allow sign flip (for eigenvectors)
+    ec_array
+        EdgeCase results.
+    other_array
+        NetworkX/igraph results.
+    normalize
+        Whether to normalize to unit L2 norm (for eigenvectors). Defaults to `False`.
+    allow_sign_flip
+        Whether to allow sign flip (for eigenvectors). Defaults to `False`.
 
     Returns
     -------
@@ -189,14 +188,14 @@ def check_validation_passes(metrics, max_abs_diff=1e-4, max_rel_diff=0.01, min_c
 
     Parameters
     ----------
-    metrics : dict
-        Metrics from compute_comparison_metrics
-    max_abs_diff : float, default=1e-4
-        Maximum absolute difference threshold
-    max_rel_diff : float, default=0.01
-        Maximum relative difference threshold (1%)
-    min_correlation : float, default=0.9999
-        Minimum correlation threshold
+    metrics
+        Metrics from compute_comparison_metrics.
+    max_abs_diff
+        Maximum absolute difference threshold. Defaults to `1e-4`.
+    max_rel_diff
+        Maximum relative difference threshold (1%). Defaults to `0.01`.
+    min_correlation
+        Minimum correlation threshold. Defaults to `0.9999`.
 
     Returns
     -------
@@ -213,14 +212,14 @@ def format_validation_error(algorithm, graph_name, metrics, vs_library="NetworkX
 
     Parameters
     ----------
-    algorithm : str
-        Name of algorithm
-    graph_name : str
-        Name of graph type
-    metrics : dict
-        Comparison metrics
-    vs_library : str, default="NetworkX"
-        Library being compared against
+    algorithm
+        Name of algorithm.
+    graph_name
+        Name of graph type.
+    metrics
+        Comparison metrics.
+    vs_library
+        Library being compared against. Defaults to `"NetworkX"`.
 
     Returns
     -------
