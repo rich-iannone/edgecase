@@ -133,10 +133,10 @@ reference:
       contents:
         - Graph.describe
 
-    - title: Graph Rendering
-      desc: Methods for displaying and visualizing the graph
-      contents:
-        - Graph.show
+    #- title: Graph Rendering
+    #  desc: Methods for displaying and visualizing the graph
+    #  contents:
+    #    - Graph.show
 
     - title: Node and Edge Accessors
       desc: Methods for accessing individual nodes and edges
