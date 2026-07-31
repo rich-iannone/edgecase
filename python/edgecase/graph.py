@@ -6885,7 +6885,7 @@ class Graph:
 
         Examples
         --------
-        ```python
+        ```{python}
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
@@ -6902,30 +6902,30 @@ class Graph:
             .trav_in_until(lambda nid: graph.get_node(nid).attributes.get("value") == 1)
         )
 
-        # Returns ['1']
         graph.get_selected_node_ids()
         ```
 
         Multiple stopping conditions:
 
-        ```python
+        ```{python}
         graph = ec.Graph(directed=True).add_path_graph(12)
+
         # Set value attributes
         for i, nid in enumerate(graph.get_node_ids(), start=1):
             graph.set_node_attrs("value", {nid: i})
 
         node_ids = list(graph.get_node_ids())
+
         # Find nodes with value in specific set
-        (graph
+        (
+            graph
             .clear_selection()
             .select_nodes_by_id([node_ids[5], node_ids[11]])
             .trav_in_until(
                 lambda nid: graph.get_node(nid).attributes.get("value", 0) in [1, 2, 10]
             )
         )
-        # Returns nodes with value in [1, 2, 10]
         ```
-
         """
         selected = self.get_selected_node_ids()
         if not selected:
@@ -7046,9 +7046,11 @@ class Graph:
         --------
         Set same value for specific nodes using node IDs:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -7064,9 +7066,9 @@ class Graph:
 
         Can also use labels:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -7076,9 +7078,9 @@ class Graph:
 
         Set same value for all nodes:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -7088,9 +7090,9 @@ class Graph:
 
         Set different values using a list:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -7101,19 +7103,20 @@ class Graph:
 
         Set different values using a dictionary:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
         )
+
         id_map = {graph.get_id_from_label("A"): "primary",
                   graph.get_id_from_label("B"): "secondary",
                   graph.get_id_from_label("C"): "primary"}
+
         graph.set_node_attrs("category", id_map)
         ```
-
         """
         if nodes is None:
             nodes = self.get_node_ids(limit=None)
@@ -7167,8 +7170,10 @@ class Graph:
 
         Examples
         --------
-        ```python
-        graph = Graph()
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph()
         graph.add_node('A', value=10)
         graph.add_node('B', value=20)
 
@@ -7184,21 +7189,23 @@ class Graph:
         graph.get_node(id_a).attributes['color']
         ```
 
-        ```python
+        ```{python}
         # Returns 10 (preserved)
         graph.get_node(id_a).attributes['value']
         ```
 
         Bulk attribute updates with filtering:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A", value=10)
             .add_node(label="B", value=20)
         )
+
         # Set category on high-value nodes
-        (graph
+        (
+            graph
             .select_nodes(lambda n: n.attributes.get('value', 0) > 15)
             .set_node_attrs_ws(category='high')
         )
@@ -7261,9 +7268,11 @@ class Graph:
         --------
         Set attribute for specific edges using edge IDs:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node("A")
             .add_node("B")
             .add_node("C")
@@ -7287,9 +7296,9 @@ class Graph:
 
         Can also use (source, target) tuples:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node("A")
             .add_node("B")
             .add_node("C")
@@ -7379,13 +7388,17 @@ class Graph:
 
         Examples
         --------
-        ```python
-        graph = Graph()
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph()
         graph.add_path_graph(3)
 
         # Select and update edge attributes
         edge_ids = graph.get_edge_ids()
-        (graph
+
+        (
+            graph
             .select_edges_by_id([edge_ids[0]])
             .set_edge_attrs_ws(weight=5.0, type='strong')
         )
@@ -7397,17 +7410,19 @@ class Graph:
         edge.weight
         ```
 
-        ```python
+        ```{python}
         # Returns 'strong'
         edge.attributes['type']
         ```
 
         Bulk weight updates:
 
-        ```python
-        graph = Graph().add_path_graph(3)
+        ```{python}
+        graph = ec.Graph().add_path_graph(3)
+
         # Set all edge weights to 1.0
-        (graph
+        (
+            graph
             .select_edges(lambda e: True)  # Select all edges
             .set_edge_attrs_ws(weight=1.0)
         )
@@ -7449,9 +7464,11 @@ class Graph:
         --------
         Get specific attribute from all nodes:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A", type="user", score=95)
             .add_node(label="B", type="admin", score=88)
             .add_node(label="C", type="user", score=92)
@@ -7463,7 +7480,7 @@ class Graph:
         scores
         ```
 
-        ```python
+        ```{python}
         types = graph.get_node_attrs("type")
 
         # Returns: {1: 'user', 2: 'admin', 3: 'user'}
@@ -7472,9 +7489,9 @@ class Graph:
 
         Get attribute from specific nodes using node IDs:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A", type="user", score=95)
             .add_node(label="B", type="admin", score=88)
             .add_node(label="C", type="user", score=92)
@@ -7488,19 +7505,16 @@ class Graph:
 
         Can also use labels:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A", type="user", score=95)
             .add_node(label="B", type="admin", score=88)
             .add_node(label="C", type="user", score=92)
         )
         user_scores = graph.get_node_attrs("score", nodes=["A", "C"])
-
-        # Returns {1: 95, 3: 92}
         user_scores
         ```
-
         """
 
         if nodes is None:
@@ -7549,9 +7563,11 @@ class Graph:
         --------
         Get attribute from all edges:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node("A")
             .add_node("B")
             .add_node("C")
@@ -7560,14 +7576,19 @@ class Graph:
             .add_edge("B", "C", weight=2.0, type="colleague")
             .add_edge("C", "D", weight=1.0, type="friend")
         )
-
-        weights = graph.get_edge_attrs("weight")
-        # Returns dict mapping edge IDs to weights
-
-        types = graph.get_edge_attrs("type")
-        # Returns dict mapping edge IDs to types
         ```
 
+        Return a dictionary that maps edge IDs to weights.
+
+        ```{python}
+        graph.get_edge_attrs("weight")
+        ```
+
+        Return a dictionary mapping of edge IDs to types.
+
+        ```{python}
+        graph.get_edge_attrs("type")
+        ```
         """
         result = {}
 
@@ -7626,27 +7647,33 @@ class Graph:
 
         Examples
         --------
-        Get attributes by edge ID:
+        Let's create a simple graph and then get attributes by edge ID.
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node("A")
             .add_node("B")
             .add_node("C")
             .add_edge("A", "B", weight=1.5, type="friend")
             .add_edge("B", "C", weight=2.0, type="colleague")
         )
-
-        edge_ids = graph.get_edge_ids()
-        weights_by_id = graph.get_edge_attrs_by_id("weight", edges=edge_ids[:1])
-        # Returns {edge_id: 1.5} for first edge
-
-        # Get all edge types
-        all_types = graph.get_edge_attrs_by_id("type")
-        # Maps each edge ID to its type value
         ```
 
+        Return dictionary for the first edge.
+
+        ```{python}
+        edge_ids = graph.get_edge_ids()
+        graph.get_edge_attrs_by_id("weight", edges=edge_ids[:1])
+        ```
+
+        Get all edge types.
+
+        ```{python}
+        graph.get_edge_attrs_by_id("type")
+        ```
         """
         if edges is None:
             edges = self.get_edge_ids()
@@ -7692,9 +7719,11 @@ class Graph:
         --------
         Export nodes to DataFrame:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A", type="user", score=95)
             .add_node(label="B", type="admin", score=88)
             .add_node(label="C", type="user", score=92)
@@ -7706,21 +7735,27 @@ class Graph:
         df.columns
         ```
 
-        ```python
+        ```{python}
         # Returns (3, 5)
         df.shape
         ```
 
-        Calculate statistics on node attributes:
+        We could calculate statistics on node attributes. Let's compute the average score and count
+        of users:
 
-        ```python
+        ```{python}
         import polars as pl
-        avg_score = df["score"].mean()
-        user_count = df.filter(pl.col("type") == "user").height
+        df["score"].mean()
+        ```
 
-        # Find high-degree nodes
-        hubs = df.filter(pl.col("degree") > 5)
-        hubs
+        ```{python}
+        user_count = df.filter(pl.col("type") == "user").height
+        ```
+
+        Let's now filter the table down to the higher-degree nodes.
+
+        ```{python}
+        df.filter(pl.col("degree") > 5)
         ```
         """
         import polars as pl
@@ -7790,9 +7825,11 @@ class Graph:
         --------
         Export filtered nodes:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_star_graph(10)
             .add_path_graph(5)
             .select_nodes_by_degree(min_degree=3)
@@ -7806,9 +7843,9 @@ class Graph:
 
         Combine selection with DataFrame analysis:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -7900,9 +7937,11 @@ class Graph:
         --------
         Export edges to DataFrame:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node("A")
             .add_node("B")
             .add_node("C")
@@ -7918,14 +7957,14 @@ class Graph:
         df.columns
         ```
 
-        ```python
+        ```{python}
         # Returns (3, 5)
         df.shape
         ```
 
         Filter edges by relationship type:
 
-        ```python
+        ```{python}
         import polars as pl
         friends = df.filter(pl.col("rel") == "friend")
 
@@ -8016,9 +8055,11 @@ class Graph:
         --------
         Export filtered edges:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -8037,8 +8078,8 @@ class Graph:
 
         Combine selection with DataFrame analysis:
 
-        ```python
-        graph = Graph().add_path_graph(10)
+        ```{python}
+        graph = ec.Graph().add_path_graph(10)
         edge_ids = list(graph.get_edge_ids())[:5]
         graph.select_edges_by_id(edge_ids)
 
@@ -8118,8 +8159,10 @@ class Graph:
 
         Examples
         --------
-        ```python
-        graph = Graph()
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph()
         graph.add_node('A', score=10)
         graph.add_node('B', score=20)
         graph.add_node('C', score=30)
@@ -8137,27 +8180,29 @@ class Graph:
         graph.get_node(id_a).attributes['score']
         ```
 
-        ```python
+        ```{python}
         # Returns 40
         graph.get_node(id_b).attributes['score']
         ```
 
-        ```python
+        ```{python}
         # Returns 30 (unchanged)
         graph.get_node(id_c).attributes['score']
         ```
 
         Conditional transformations:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A", price=80)
             .add_node(label="B", price=120)
             .add_node(label="C", price=150)
         )
+
         # Apply discount to high-value nodes
-        (graph
+        (
+            graph
             .select_nodes(lambda n: n.attributes.get('price', 0) > 100)
             .mutate_node_attrs_ws('price', lambda p: p * 0.9)
         )
@@ -8199,9 +8244,11 @@ class Graph:
 
         Examples
         --------
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -8220,16 +8267,16 @@ class Graph:
         graph.get_edge(edge_ids[0]).weight
         ```
 
-        ```python
+        ```{python}
         # Returns 2.0 (unchanged)
         graph.get_edge(edge_ids[1]).weight
         ```
 
         Normalize edge weights:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -8305,9 +8352,11 @@ class Graph:
         --------
         Color by community:
 
-        ```python
-        # Create a simple graph for demonstration
-        G = Graph(directed=False)
+        ```{python}
+        import edgecase as ec
+
+        G = ec.Graph(directed=False)
+
         for i in range(6):
             G.add_node(label=str(i))
 
@@ -8326,9 +8375,9 @@ class Graph:
 
         Color by node type:
 
-        ```python
+        ```{python}
         # Create graph with typed nodes
-        G = Graph()
+        G = ec.Graph()
         G.add_node(label="A", type="person")
         G.add_node(label="B", type="person")
         G.add_node(label="C", type="organization")
@@ -8340,8 +8389,8 @@ class Graph:
 
         Custom color list:
 
-        ```python
-        G = Graph()
+        ```{python}
+        G = ec.Graph()
         G.add_node(label="A", status="active")
         G.add_node(label="B", status="inactive")
         G.add_edge(source="A", target="B")
@@ -8440,11 +8489,14 @@ class Graph:
         --------
         Size by betweenness centrality:
 
-        ```python
-        # Create a simple graph
-        G = Graph()
+        ```{python}
+        import edgecase as ec
+
+        G = ec.Graph()
+
         for i in range(5):
             G.add_node(label=str(i))
+
         G.add_edge(source="0", target="1")
         G.add_edge(source="1", target="2")
         G.add_edge(source="2", target="3")
@@ -8452,6 +8504,7 @@ class Graph:
 
         # Calculate betweenness and rescale to node sizes
         betweenness = G.betweenness_centrality(return_dict=True)
+
         G.rescale_node_attrs(
             values=betweenness,
             node_attr_to="size",
@@ -8461,17 +8514,20 @@ class Graph:
 
         Scale by degree:
 
-        ```python
+        ```{python}
         # Create a simple graph
-        G = Graph()
+        G = ec.Graph()
+
         for i in range(4):
             G.add_node(label=str(i))
+
         G.add_edge(source="0", target="1")
         G.add_edge(source="0", target="2")
         G.add_edge(source="0", target="3")
 
         # Calculate degrees and rescale
         degrees = {n: len(G.neighbors(node=n)) for n in G.get_node_ids(limit=None)}
+
         G.rescale_node_attrs(
             values=degrees,
             node_attr_to="width",
@@ -8547,8 +8603,10 @@ class Graph:
 
         Examples
         --------
-        ```python
-        G = Graph()
+        ```{python}
+        import edgecase as ec
+
+        G = ec.Graph()
         G.add_node(label="Alice", age=30)
         G.add_node(label="Bob", age=25)
         G.add_edge(source="Alice", target="Bob")
@@ -8597,13 +8655,15 @@ class Graph:
         --------
         Basic dispersion calculation:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a simple social network
-        graph = Graph()
+        graph = ec.Graph()
+
         for i in range(1, 6):
             graph.add_node()
+
         for s, t in [(1, 2), (1, 3), (1, 4), (2, 3), (2, 5), (3, 4), (3, 5), (4, 5)]:
             graph.add_edge(s, t)
 
@@ -8616,8 +8676,8 @@ class Graph:
 
         Using node labels:
 
-        ```python
-        graph = Graph()
+        ```{python}
+        graph = ec.Graph()
         graph.add_node(label="Alice")
         graph.add_node(label="Bob")
         graph.add_node(label="Charlie")
@@ -8642,14 +8702,15 @@ class Graph:
 
         Normalized vs unnormalized:
 
-        ```python
-        graph = Graph()
+        ```{python}
+        graph = ec.Graph()
         graph.add_cycle_graph(6)
 
         nodes = sorted(graph.get_node_ids())
 
         # Normalized divides by embeddedness
         norm = graph.dispersion(nodes[0], nodes[1], normalized=True)
+
         # Unnormalized gives raw count
         unnorm = graph.dispersion(nodes[0], nodes[1], normalized=False)
 
@@ -8701,10 +8762,11 @@ class Graph:
         --------
         Predict missing links in a social network:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
+
         for name in ["Alice", "Bob", "Carol", "Dave"]:
             graph.add_node(label=name)
 
@@ -8722,10 +8784,12 @@ class Graph:
 
         Check specific pairs:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
+
         for name in ["Alice", "Bob", "Carol", "Dave"]:
             graph.add_node(label=name)
+
         graph.add_edge(source="Alice", target="Bob")
         graph.add_edge(source="Carol", target="Bob")
 
@@ -8779,10 +8843,10 @@ class Graph:
         --------
         Find similar nodes for link prediction:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
         graph.add_path_graph(5)  # 1-2-3-4-5
 
         # Check similarity between non-adjacent nodes
@@ -8836,10 +8900,10 @@ class Graph:
         --------
         Predict links giving more weight to rare common neighbors:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
         # Create a network with a hub (node 1) and peripheral nodes
         graph.add_node()  # Hub node 1
         for i in range(2, 10):
@@ -8856,8 +8920,8 @@ class Graph:
 
         Compare with common neighbors:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_cycle_graph(6)
 
         pairs = [(1, 3), (1, 4)]
@@ -8913,10 +8977,10 @@ class Graph:
         --------
         Compare with Adamic-Adar:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
         # Star graph: node 1 is hub connected to 2-10
         graph.add_node()  # Hub node 1
         for i in range(2, 11):
@@ -8976,10 +9040,11 @@ class Graph:
         --------
         Predict links based on node popularity:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
+
         # Create network with varying degrees
         graph.add_star_graph(5)  # Hub node 1 with degree 4
         graph.add_node()  # Node 6, isolated
@@ -8995,8 +9060,8 @@ class Graph:
 
         Compare different metrics:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(5)  # Complete graph K5
         graph.delete_edge(source=1, target=2)  # Remove one edge
 
@@ -9008,7 +9073,7 @@ class Graph:
         f"Common neighbors: {cn[0][2]}"
         ```
 
-        ```python
+        ```{python}
         # Returns e.g., "Preferential attachment: 16"
         f"Preferential attachment: {pa[0][2]}"
         ```
@@ -9097,9 +9162,11 @@ class Graph:
         --------
         **Link Prediction in Social Network**
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         # Find similar users for recommendation
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         for name in ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"]:
             g.add_node(label=name)
         g.add_edge(source="Alice", target="Bob")
@@ -9119,11 +9186,13 @@ class Graph:
 
         **Comparing Similarity Metrics**
 
-        ```python
+        ```{python}
         # Bipartite-like structure
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
+
         for name in ["A", "B", "X", "Y"]:
             g.add_node(label=name)
+
         g.add_edge(source="A", target="X")
         g.add_edge(source="A", target="Y")
         g.add_edge(source="B", target="X")
@@ -9142,11 +9211,13 @@ class Graph:
 
         **Link Prediction with Inverse Log-Weighted**
 
-        ```python
+        ```{python}
         # Protein interaction network
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
+
         for name in ["P1", "P2", "Hub", "P3", "P4"]:
             g.add_node(label=name)
+
         g.add_edge(source="P1", target="Hub")
         g.add_edge(source="P2", target="Hub")
         g.add_edge(source="Hub", target="P3")
@@ -9160,9 +9231,10 @@ class Graph:
 
         **Community Detection Helper**
 
-        ```python
+        ```{python}
         # Identify similar nodes within network
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
+
         # Create nodes first
         for i in range(5):
             g.add_node(label=f"C1_{i}")
@@ -9208,9 +9280,11 @@ class Graph:
         --------
         Calculate Dice similarity for link prediction:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9222,6 +9296,7 @@ class Graph:
         )
 
         sim = graph.get_dice_similarity()
+
         # A and D share neighbors B and C
         # Returns dict with node IDs as keys
         a_id = graph.get_id_from_label("A")
@@ -9261,9 +9336,11 @@ class Graph:
         --------
         Calculate Jaccard similarity in a star graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -9315,9 +9392,11 @@ class Graph:
         --------
         Calculate cosine similarity in a triangle graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9366,9 +9445,11 @@ class Graph:
         --------
         Detect hierarchical relationships in a hub-spoke graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="spoke")
             .add_node(label="extended")
@@ -9416,9 +9497,11 @@ class Graph:
         --------
         Check for cycles in a directed graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9430,7 +9513,7 @@ class Graph:
         graph.has_cycles()
         ```
 
-        ```python
+        ```{python}
         # Add edge to create a cycle
         graph.add_edge("C", "A")
 
@@ -9480,9 +9563,11 @@ class Graph:
         --------
         Find all cycles in a directed graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9500,9 +9585,9 @@ class Graph:
 
         Find only longer cycles:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9560,9 +9645,11 @@ class Graph:
         --------
         Find all cycles in a directed graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9580,9 +9667,9 @@ class Graph:
 
         Find cycles in an undirected graph (triangle):
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9599,9 +9686,9 @@ class Graph:
 
         Limit cycle length:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9663,10 +9750,12 @@ class Graph:
         --------
         Find the cycle basis of a simple graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         # Square with diagonal
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9686,9 +9775,9 @@ class Graph:
 
         Specify a root node:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9750,10 +9839,12 @@ class Graph:
         --------
         Find minimum cycle basis of an unweighted graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         # Two triangles sharing an edge
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9773,9 +9864,9 @@ class Graph:
 
         Find minimum cycle basis with edge weights:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9828,9 +9919,11 @@ class Graph:
         --------
         Find all maximal cliques in a triangle:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9845,16 +9938,16 @@ class Graph:
         len(cliques)
         ```
 
-        ```python
+        ```{python}
         # Returns 3 (all three nodes in the clique)
         len(cliques[0])
         ```
 
         Multiple cliques in a graph:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9872,8 +9965,8 @@ class Graph:
 
         A complete graph has one clique:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(n=5)
 
         cliques = graph.find_cliques()
@@ -9882,7 +9975,7 @@ class Graph:
         len(cliques)
         ```
 
-        ```python
+        ```{python}
         # Returns 5 (all nodes in the clique)
         len(cliques[0])
         ```
@@ -9918,9 +10011,11 @@ class Graph:
         --------
         Maximum clique in a triangle:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9937,9 +10032,9 @@ class Graph:
 
         Maximum clique in a path graph:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -9957,8 +10052,8 @@ class Graph:
 
         Empty graph:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         max_clique = graph.max_clique()
 
         # Returns []
@@ -9967,8 +10062,8 @@ class Graph:
 
         Complete graph:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(n=6)
 
         max_clique = graph.max_clique()
@@ -10008,9 +10103,11 @@ class Graph:
         --------
         Clique number of a triangle:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10025,9 +10122,9 @@ class Graph:
 
         Clique number of a path:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10041,8 +10138,8 @@ class Graph:
 
         Empty graph has clique number 0:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
 
         # Returns 0
         graph.clique_number()
@@ -10050,8 +10147,8 @@ class Graph:
 
         Complete graph K_n has clique number n:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(n=7)
 
         # Returns 7
@@ -10060,9 +10157,9 @@ class Graph:
 
         Bipartite graphs have clique number at most 2:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10105,9 +10202,11 @@ class Graph:
         --------
         Count triangles in a simple triangle:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10128,10 +10227,10 @@ class Graph:
 
         Count triangles in a more complex graph:
 
-        ```python
+        ```{python}
         # Graph with 2 triangles sharing an edge
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10174,9 +10273,11 @@ class Graph:
         --------
         List triangles in a graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10203,10 +10304,10 @@ class Graph:
 
         For larger graphs, this can identify all triadic closures:
 
-        ```python
+        ```{python}
         # Social network
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
@@ -10244,8 +10345,6 @@ class Graph:
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
 
-
-
         Returns
         -------
         Optional[float]
@@ -10255,11 +10354,11 @@ class Graph:
         --------
         Perfect triangle has transitivity 1.0:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         triangle = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10274,11 +10373,9 @@ class Graph:
 
         Chain graph has transitivity 0.0:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         chain = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10294,11 +10391,9 @@ class Graph:
 
         Real-world networks typically have values between 0.1 and 0.5:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         social_network = (
-            Graph()
+            ec.Graph()
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
