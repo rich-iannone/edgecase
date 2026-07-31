@@ -1,0 +1,12 @@
+{
+  "hash": "b7e255c860e8884ae1701af3d45691c7",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_overlap_similarity()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet overlap coefficient between all node pairs.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L9420-L9472){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_overlap_similarity()\n```\n:::\n\n::: {.doc-text}\n\nThe overlap coefficient emphasizes subset relationships:\n\n`Overlap(A, B) = |neighbors(A) ∩ neighbors(B)| / min(|neighbors(A)|, |neighbors(B)|)`\n\nRange: `[0, 1]` where `0` means no common neighbors and `1` means one neighborhood is a\nsubset of the other. Asymmetric measure useful for hierarchical patterns. Self-similarity is\nalways `1.0`.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [dict[int, dict[int, float]]]{.doc-parameter-annotation}</code>\n\n:   Nested dictionary mapping node IDs to dictionaries of similarity scores. Format:\n    `{node1_id: {node2_id: similarity_score}}`.\n:::\n\n## Common Use Cases {.doc-common-use-cases}\n\n- detecting specialization/generalization\n- finding hubs whose neighbors are subsets of others\n- hierarchical community structure\n\n## Examples {.doc-examples}\n\nDetect hierarchical relationships in a hub-spoke graph:\n\n::: {#408cd2d8 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"hub\")\n    .add_node(label=\"spoke\")\n    .add_node(label=\"extended\")\n    .add_node(label=\"extra\")\n    .add_edge(source=\"hub\", target=\"spoke\")\n    .add_edge(source=\"hub\", target=\"extended\")\n    .add_edge(source=\"spoke\", target=\"extra\")\n)\n\nsim = graph.get_overlap_similarity()\n\n# Hub's neighborhood is subset of spoke's and returns dict with node IDs\nhub_id = graph.get_id_from_label(label=\"hub\")\nspoke_id = graph.get_id_from_label(label=\"spoke\")\n\n# Returns 1.0\nsim[hub_id][spoke_id]\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n0.0\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_overlap_similarity_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

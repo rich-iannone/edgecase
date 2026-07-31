@@ -1,0 +1,12 @@
+{
+  "hash": "15fefaf8b37807d988bd5dbabbdcfe6e",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.jaccard_coefficient()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCompute Jaccard coefficient for node pairs.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L8812-L8867){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.jaccard_coefficient(ebunch=None)\n```\n:::\n\n::: {.doc-text}\n\nFor each pair of nodes `(u, v)`, computes `|N(u) ∩ N(v)| / |N(u) ∪ N(v)|`, which is the\nratio of common neighbors to total distinct neighbors.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[ebunch]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [list[tuple[Union[int, str], Union[int, str]]]]{.doc-parameter-annotation} [=]{.doc-parameter-default-sep .op} [None]{.doc-parameter-default}</code>\n\n:   List of node pairs to compute predictions for. Each pair can use node IDs (integers) or\n    labels (strings). If `None`, computes for all pairs of nodes that are not already\n    connected.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [list[tuple[int, int, float]]]{.doc-parameter-annotation}</code>\n\n:   List of `(u, v, coefficient)` tuples where coefficient is the Jaccard similarity.\n    Results are returned with node IDs. Coefficient is `0.0` if both nodes have no\n    neighbors.\n:::\n\n## Technical Notes {.doc-technical-notes}\n\n- time complexity: `O(k)` per pair where k is the average degree\n- returns value in `[0, 1]` where `1` means identical neighborhoods\n- more robust than common neighbors for nodes with different degrees\n- commonly used as similarity metric in network analysis\n\n## Examples {.doc-examples}\n\nFind similar nodes for link prediction:\n\n::: {#cd7b4e86 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = ec.Graph(directed=False)\ngraph.add_path_graph(5)  # 1-2-3-4-5\n\n# Check similarity between non-adjacent nodes\npredictions = graph.jaccard_coefficient([(1, 3), (1, 4), (2, 4)])\nfor u, v, coef in predictions:\n    # Prints e.g., \"1 - 3: Jaccard = 0.500\"\n    f\"{u} - {v}: Jaccard = {coef:.3f}\"\n```\n:::\n\n\n",
+    "supporting": [
+      "Graph.jaccard_coefficient_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

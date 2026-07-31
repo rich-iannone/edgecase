@@ -1,0 +1,12 @@
+{
+  "hash": "b43a1da0263c3bd8fa1c8fd5de064b5f",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_cosine_similarity()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet cosine similarity between all node pairs.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L9365-L9418){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_cosine_similarity()\n```\n:::\n\n::: {.doc-text}\n\nCosine similarity treats neighbors as vector components:\n\n`Cosine(A, B) = |neighbors(A) ∩ neighbors(B)| / √(|neighbors(A)| × |neighbors(B)|)`\n\nRange: `[0, 1]` where `0` means no common neighbors and `1` means identical neighborhoods.\nGeometric interpretation: cosine of angle between neighbor vectors. Self-similarity is\nalways `1.0`.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [dict[int, dict[int, float]]]{.doc-parameter-annotation}</code>\n\n:   Nested dictionary mapping node IDs to dictionaries of similarity scores. Format:\n    `{node1_id: {node2_id: similarity_score}}`.\n:::\n\n## Technical Notes {.doc-technical-notes}\n\nAdvantages:\n\n- scales well with high-degree nodes\n- balances degree differences\n- standard in text mining and recommendation systems\n\n## Examples {.doc-examples}\n\nCalculate cosine similarity in a triangle graph:\n\n::: {#eba2a6b1 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_edge(\"A\", \"B\")\n    .add_edge(\"B\", \"C\")\n    .add_edge(\"C\", \"A\")\n)\n\nsim = graph.get_cosine_similarity()\n\n# Each node shares 1 neighbor with the others and returns dict with node IDs\na_id = graph.get_id_from_label(\"A\")\nb_id = graph.get_id_from_label(\"B\")\n\n# Returns 0.5 (1 common / sqrt(2 * 2))\nsim[a_id][b_id]\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n0.4999999999999999\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_cosine_similarity_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}
