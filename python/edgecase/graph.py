@@ -10456,11 +10456,11 @@ class Graph:
         --------
         Measure clustering in a network:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10484,7 +10484,7 @@ class Graph:
         clustering[node_a_id], clustering[node_b_id], clustering[node_d_id]
         ```
 
-        ```python
+        ```{python}
         # Convert to labels if needed
         clustering_by_label = {graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()}
 
@@ -10494,11 +10494,11 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10517,11 +10517,9 @@ class Graph:
 
         Find highly clustered nodes (hubs):
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10603,9 +10601,11 @@ class Graph:
         --------
         Calculate and store clustering coefficients:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10619,9 +10619,9 @@ class Graph:
 
         Calculate clustering in a star graph:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="center")
             .add_node(label="A")
             .add_node(label="B")
@@ -10720,9 +10720,11 @@ class Graph:
         --------
         Triangle graph (complete graph K3):
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10742,9 +10744,9 @@ class Graph:
 
         Square graph (4-cycle):
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10766,9 +10768,8 @@ class Graph:
 
         Karate club network:
 
-        ```python
-        from edgecase import karate_club
-        G = karate_club()
+        ```{python}
+        G = ec.karate_club()
 
         # Get k=3 edge clustering for all edges
         ecc = G.get_edge_clustering_coefficient(k=3, normalize=True, offset=False)
@@ -10813,9 +10814,11 @@ class Graph:
         --------
         Compare clustering in different graph types:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         triangle = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10828,10 +10831,10 @@ class Graph:
         triangle.get_avg_clustering_coefficient()
         ```
 
-        ```python
+        ```{python}
         # Star graph: not clustered
         star = (
-            Graph()
+            ec.Graph()
             .add_node(label="center")
             .add_node(label="A")
             .add_node(label="B")
@@ -10896,9 +10899,11 @@ class Graph:
         --------
         Detect communities in disconnected cliques:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10918,11 +10923,9 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -10934,7 +10937,8 @@ class Graph:
             .add_edge(source="D", target="E")  # Clique 2
         )
 
-        (graph
+        (
+            graph
             .cmty_fast_greedy(attr_name="community")
             .colorize_node_attrs(node_attr_from="community", palette="Set1")
             .describe()
@@ -11009,9 +11013,11 @@ class Graph:
         --------
         Detect communities in bridged triangles:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11034,11 +11040,9 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11054,7 +11058,8 @@ class Graph:
             .add_edge(source="F", target="D")  # Triangle 2
         )
 
-        (graph
+        (
+            graph
             .cmty_edge_btwns(attr_name="community")
             .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
             .describe()
@@ -11130,9 +11135,11 @@ class Graph:
         --------
         Detect communities in bridged cliques:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11157,9 +11164,9 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11175,7 +11182,8 @@ class Graph:
             .add_edge(source="F", target="D")
         )
 
-        (graph
+        (
+            graph
             .cmty_l_eigenvec(attr_name="community")
             .colorize_node_attrs(node_attr_from="community", palette="Spectral")
             .describe()
@@ -11296,9 +11304,11 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11314,7 +11324,8 @@ class Graph:
             .add_edge(source="F", target="D")
         )
 
-        (graph
+        (
+            graph
             .cmty_louvain(attr_name="community")
             .colorize_node_attrs(node_attr_from="community", palette="viridis")
             .describe()
@@ -11405,9 +11416,11 @@ class Graph:
         --------
         Detect communities with default parameters:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11440,9 +11453,9 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11458,7 +11471,8 @@ class Graph:
             .add_edge(source="F", target="D")
         )
 
-        (graph
+        (
+            graph
             .cmty_walktrap(attr_name="community")
             .colorize_node_attrs(node_attr_from="community", palette="tab10")
             .describe()
@@ -11513,9 +11527,11 @@ class Graph:
         --------
         Convert a directed graph to undirected:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         directed = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11530,17 +11546,17 @@ class Graph:
         undirected.is_directed()
         ```
 
-        ```python
+        ```{python}
         # Returns 3 (one per unique pair)
         undirected.count_edges()
         ```
 
         Use case for symmetrizing a social network:
 
-        ```python
+        ```{python}
         # Directed: A follows B, B follows C
         followers = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
@@ -11574,9 +11590,11 @@ class Graph:
         --------
         Convert an undirected graph to directed:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         undirected = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11597,9 +11615,9 @@ class Graph:
 
         Create directed graph for flow analysis:
 
-        ```python
+        ```{python}
         # Undirected road network
-        roads = Graph(directed=False)
+        roads = ec.Graph(directed=False)
         roads.add_node(label="A")
         roads.add_node(label="B")
         roads.add_node(label="C")
@@ -11613,8 +11631,8 @@ class Graph:
 
         Use with algorithms requiring directed graphs:
 
-        ```python
-        g = Graph(directed=False)
+        ```{python}
+        g = ec.Graph(directed=False)
         g.add_node(label="X")
         g.add_node(label="Y")
         g.add_node(label="Z")
@@ -11648,9 +11666,11 @@ class Graph:
         --------
         Reverse a directed graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         original = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11667,17 +11687,17 @@ class Graph:
         original.has_edge("A", "B")
         ```
 
-        ```python
+        ```{python}
         # Returns True
         reversed_graph.has_edge("B", "A")
         ```
 
         Analyze reverse dependencies:
 
-        ```python
+        ```{python}
         # Dependencies: B depends on A, C depends on B
         deps = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11692,8 +11712,8 @@ class Graph:
 
         Use for transpose graph algorithms:
 
-        ```python
-        g = Graph(directed=True)
+        ```{python}
+        g = ec.Graph(directed=True)
         g.add_node(label="X")
         g.add_node(label="Y")
         g.add_node(label="Z")
@@ -11704,7 +11724,6 @@ class Graph:
         # (some algorithms use both G and G^T)
         g_transpose = g.reverse()
         ```
-
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.reverse()
@@ -11730,37 +11749,39 @@ class Graph:
         --------
         Complement of a simple graph:
 
-        ```python
-        g = (
-            Graph(directed=False)
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
             .add_edge("A", "B")
         )
 
-        comp = g.complement()
+        comp = graph.complement()
 
         # Returns 2 (A-C and B-C)
         comp.count_edges()
         ```
 
-        ```python
+        ```{python}
         # Returns True
         comp.has_edge("A", "C")
         ```
 
-        ```python
+        ```{python}
         # Returns False (was in original)
         comp.has_edge("A", "B")
         ```
 
         Finding missing connections in a network:
 
-        ```python
+        ```{python}
         # Social network with some friendships
         friends = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
@@ -11776,9 +11797,9 @@ class Graph:
 
         Use in graph theory analysis:
 
-        ```python
+        ```{python}
         # Check if graph is self-complementary
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         g.add_node(label="A")
         g.add_node(label="B")
         g.add_node(label="C")
@@ -11793,10 +11814,10 @@ class Graph:
 
         Directed graph complement:
 
-        ```python
+        ```{python}
         # Directed graph
         g = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11806,7 +11827,6 @@ class Graph:
         comp = g.complement()
         # `comp` has directed edges: A->C, B->A, B->C, C->A, C->B
         # (all edges except A->B)
-
         ```
         """
         result = Graph.__new__(Graph)
@@ -11875,11 +11895,11 @@ class Graph:
         --------
         Line graph of a simple path:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create path: A -- B -- C
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         g.add_node(label="A")
         g.add_node(label="B")
         g.add_node(label="C")
@@ -11892,18 +11912,18 @@ class Graph:
         lg.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 1 (edges A-B and B-C share B)
         lg.count_edges()
         ```
 
         Line graph of a triangle:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Triangle: A -- B -- C -- A
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         g.add_node(label="A")
         g.add_node(label="B")
         g.add_node(label="C")
@@ -11924,11 +11944,9 @@ class Graph:
 
         Line graph of a directed graph:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         # Chain: A -> B -> C
-        g = Graph(directed=True)
+        g = ec.Graph(directed=True)
         g.add_node(label="A")
         g.add_node(label="B")
         g.add_node(label="C")
@@ -11941,17 +11959,15 @@ class Graph:
         lg.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 1 (A->B connects to B->C)
         lg.count_edges()
         ```
 
         Accessing original edge information:
 
-        ```python
-        from edgecase import Graph
-
-        g = Graph(directed=False)
+        ```{python}
+        g = ec.Graph(directed=False)
         g.add_node(label="X")
         g.add_node(label="Y")
         g.add_node(label="Z")
@@ -11972,11 +11988,9 @@ class Graph:
 
         Line graph of a star graph:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         # Star with center C
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         g.add_node(label="C")
         for i in range(4):
             g.add_node(label=f"L{i}")
@@ -11988,11 +12002,10 @@ class Graph:
         lg.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 6 (all spokes share center - line graph of a star is a complete graph!)
         lg.count_edges()
         ```
-
         """
         result = Graph.__new__(Graph)
         result._graph = rust.line_graph(self._graph, create_using_directed)
@@ -12044,12 +12057,12 @@ class Graph:
         --------
         Basic node contraction:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a path: A -- B -- C -- D
         g = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -12066,17 +12079,17 @@ class Graph:
         result.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns False
         result.has_node("B")
         ```
 
         Contraction creates self-loops:
 
-        ```python
+        ```{python}
         # Triangle: A -- B -- C -- A
         g = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -12097,9 +12110,9 @@ class Graph:
 
         Graph simplification:
 
-        ```python
+        ```{python}
         # Use contraction to simplify a graph by merging similar nodes
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         g.add_path_graph(5)  # 1 -- 2 -- 3 -- 4 -- 5
 
         # Merge 2 and 3 into a single node
@@ -12158,11 +12171,11 @@ class Graph:
         --------
         Contract an edge:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         g = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -12177,16 +12190,16 @@ class Graph:
         result.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns True (was B-C)
         result.has_edge("A", "C")
         ```
 
         Edge contraction in directed graphs:
 
-        ```python
+        ```{python}
         g = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -12247,10 +12260,10 @@ class Graph:
         --------
         Contract a community into a single node:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         g.add_path_graph(6)  # 1 -- 2 -- 3 -- 4 -- 5 -- 6
 
         # Contract nodes 2, 3, 4 into node 2
@@ -12262,8 +12275,8 @@ class Graph:
 
         Contract detected communities:
 
-        ```python
-        g = Graph(directed=False)
+        ```{python}
+        g = ec.Graph(directed=False)
         g.add_path_graph(10)  # Build a simple graph
 
         # Detect communities (use return_dict=True to get dict)
@@ -12323,10 +12336,10 @@ class Graph:
         --------
         Create quotient from community partition:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
         g.add_path_graph(6)  # 1 -- 2 -- 3 -- 4 -- 5 -- 6
 
         # Partition: {1,2,3} and {4,5,6}
@@ -12337,15 +12350,15 @@ class Graph:
         quotient.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 1 (from edge 3-4)
         quotient.count_edges()
         ```
 
         Quotient from community detection:
 
-        ```python
-        g = Graph(directed=False)
+        ```{python}
+        g = ec.Graph(directed=False)
         g.add_path_graph(20)  # Build a simple graph
 
         # Detect communities (use return_dict=True to get dict)
@@ -12365,16 +12378,16 @@ class Graph:
         quotient.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Number of inter-community edges
         quotient.count_edges()
         ```
 
         Using labels:
 
-        ```python
+        ```{python}
         g = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -12434,16 +12447,16 @@ class Graph:
         --------
         Merge two graphs:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create two graphs
-        g1 = Graph(directed=False)
+        g1 = ec.Graph(directed=False)
         g1.add_node(label="A")
         g1.add_node(label="B")
         g1.add_edge("A", "B")
 
-        g2 = Graph(directed=False)
+        g2 = ec.Graph(directed=False)
         g2.add_node(label="B")
         g2.add_node(label="C")
         g2.add_edge("B", "C")
@@ -12455,20 +12468,20 @@ class Graph:
         result.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 2 (A-B, B-C)
         result.count_edges()
         ```
 
         Combine network snapshots:
 
-        ```python
+        ```{python}
         # Network at time t1
-        t1 = Graph(directed=False)
+        t1 = ec.Graph(directed=False)
         t1.add_path_graph(3)  # 1-2-3
 
         # Network at time t2 (new connection)
-        t2 = Graph(directed=False)
+        t2 = ec.Graph(directed=False)
         for i in range(1, 4):
             t2.add_node()
         t2.add_edge(1, 3)  # Direct connection
@@ -12519,11 +12532,11 @@ class Graph:
         --------
         Find common structure:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Triangle
-        g1 = Graph(directed=False)
+        g1 = ec.Graph(directed=False)
         for i in range(1, 4):
             g1.add_node()
         g1.add_edge(1, 2)
@@ -12531,7 +12544,7 @@ class Graph:
         g1.add_edge(3, 1)
 
         # Square with diagonal
-        g2 = Graph(directed=False)
+        g2 = ec.Graph(directed=False)
         for i in range(1, 5):
             g2.add_node()
         g2.add_edge(1, 2)
@@ -12587,11 +12600,11 @@ class Graph:
         --------
         Find edges unique to one graph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Original network
-        g1 = Graph(directed=False)
+        g1 = ec.Graph(directed=False)
         for i in range(1, 5):
             g1.add_node()
         g1.add_edge(1, 2)
@@ -12599,7 +12612,7 @@ class Graph:
         g1.add_edge(3, 4)
 
         # Subset network
-        g2 = Graph(directed=False)
+        g2 = ec.Graph(directed=False)
         for i in range(1, 4):
             g2.add_node()
         g2.add_edge(1, 2)
@@ -12653,11 +12666,11 @@ class Graph:
         --------
         Find edges unique to either graph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Triangle
-        g1 = Graph(directed=False)
+        g1 = ec.Graph(directed=False)
         for i in range(1, 4):
             g1.add_node()
         g1.add_edge(1, 2)
@@ -12665,7 +12678,7 @@ class Graph:
         g1.add_edge(3, 1)
 
         # Path
-        g2 = Graph(directed=False)
+        g2 = ec.Graph(directed=False)
         for i in range(1, 4):
             g2.add_node()
         g2.add_edge(1, 2)
@@ -12718,17 +12731,17 @@ class Graph:
         --------
         Merge with attribute updates:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Original graph
-        g1 = Graph(directed=False)
+        g1 = ec.Graph(directed=False)
         g1.add_node(label="Alice")
         g1.add_node(label="Bob")
         g1.add_edge("Alice", "Bob")
 
         # Updates (new label for node 2)
-        g2 = Graph(directed=False)
+        g2 = ec.Graph(directed=False)
         g2.add_node(label="Robert")  # Node 1 with new label
 
         # Compose: g2's labels override g1's
@@ -12774,18 +12787,18 @@ class Graph:
         --------
         Combine independent networks:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Two separate triangles
-        t1 = Graph(directed=False)
+        t1 = ec.Graph(directed=False)
         for i in range(1, 4):
             t1.add_node()
         t1.add_edge(1, 2)
         t1.add_edge(2, 3)
         t1.add_edge(3, 1)
 
-        t2 = Graph(directed=False)
+        t2 = ec.Graph(directed=False)
         for i in range(1, 4):
             t2.add_node()
         t2.add_edge(1, 2)
@@ -12799,18 +12812,18 @@ class Graph:
         combined.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 6 (3 + 3)
         combined.count_edges()
         ```
 
         Build multi-component graph:
 
-        ```python
+        ```{python}
         # Create graph with multiple disconnected components
-        component1 = Graph().add_star_graph(5)
-        component2 = Graph().add_cycle_graph(6)
-        component3 = Graph().add_path_graph(4)
+        component1 = ec.Graph().add_star_graph(5)
+        component2 = ec.Graph().add_cycle_graph(6)
+        component3 = ec.Graph().add_path_graph(4)
 
         multi = component1.disjoint_union(component2).disjoint_union(component3)
 
@@ -12900,10 +12913,10 @@ class Graph:
         --------
         Create a simple 2-spanner (distances at most 2× original):
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        g = Graph()
+        g = ec.Graph()
         for i in range(5):
             g.add_node(label=str(i))
 
@@ -12919,10 +12932,8 @@ class Graph:
 
         Create a 3-spanner of a weighted graph:
 
-        ```python
-        from edgecase import Graph
-
-        g = Graph(weighted=True)
+        ```{python}
+        g = ec.Graph(weighted=True)
         g.add_node(label="A")
         g.add_node(label="B")
         g.add_node(label="C")
@@ -12940,13 +12951,12 @@ class Graph:
 
         Compare sparsity for different stretch values:
 
-        ```python
+        ```{python}
         import networkx as nx
-        from edgecase import Graph
 
         # Create a random graph
         nx_g = nx.erdos_renyi_graph(50, 0.1, seed=23)
-        g = Graph()
+        g = ec.Graph()
         for node in nx_g.nodes():
             g.add_node(label=str(node))
         for u, v in nx_g.edges():
@@ -12965,8 +12975,8 @@ class Graph:
 
         Extract network backbone for visualization:
 
-        ```python
-        g = Graph()
+        ```{python}
+        g = ec.Graph()
         # ... build large social network ...
         # Extract 2-spanner for cleaner visualization
         backbone = g.transform_with_spanner(stretch=2.0)
