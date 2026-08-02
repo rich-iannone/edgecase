@@ -1,0 +1,12 @@
+{
+  "hash": "b4c360bdaa0e50ac61ee203444ef1e57",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.difference()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCompute the difference of this graph and another graph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L12571-L12635){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.difference(other)\n```\n:::\n\n::: {.doc-text}\n\nReturns a new graph containing edges that are in this graph but not in the other graph.\nNodes are included if they are endpoints of remaining edges.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[other]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Graph]{.doc-parameter-annotation}</code>\n\n:   The graph to subtract.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   A new graph containing edges in this graph but not in other.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If the graphs have different directedness.\n:::\n\n## Technical Notes {.doc-technical-notes}\n\n- Both graphs must have the same directedness\n- This is NOT symmetric: `g1.difference(g2) != g2.difference(g1)`\n- Nodes without edges are excluded\n\n## Examples {.doc-examples}\n\nFind edges unique to one graph:\n\n::: {#ebece871 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\n# Original network\ng1 = ec.Graph(directed=False)\nfor i in range(1, 5):\n    g1.add_node()\ng1.add_edge(1, 2)\ng1.add_edge(2, 3)\ng1.add_edge(3, 4)\n\n# Subset network\ng2 = ec.Graph(directed=False)\nfor i in range(1, 4):\n    g2.add_node()\ng2.add_edge(1, 2)\ng2.add_edge(2, 3)\n\n# Edges in g1 but not g2\ndiff = g1.difference(g2)\n\n# Returns 1 (3-4)\ndiff.count_edges()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n1\n```\n:::\n:::\n\n\nThis is useful for detecting network changes: `g_new.difference(g_old)` gives new edges,\nwhile `g_old.difference(g_new)` gives removed edges.\n\n",
+    "supporting": [
+      "Graph.difference_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

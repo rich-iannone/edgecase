@@ -1,0 +1,12 @@
+{
+  "hash": "8b709c02ebe37d3fa7a3f5d996746e6f",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.intersection()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCompute the intersection of this graph with another graph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L12502-L12569){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.intersection(other)\n```\n:::\n\n::: {.doc-text}\n\nReturns a new graph containing only edges that exist in both graphs. Nodes are included only\nif they are endpoints of common edges.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[other]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Graph]{.doc-parameter-annotation}</code>\n\n:   The graph to intersect with.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   A new graph containing edges present in both graphs.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If the graphs have different directedness.\n:::\n\n## Technical Notes {.doc-technical-notes}\n\n- Both graphs must have the same directedness\n- Only edges present in both graphs are included\n- Nodes without edges are excluded\n- Uses this graph's edge weights/attributes\n\n## Examples {.doc-examples}\n\nFind common structure:\n\n::: {#77409c29 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\n# Triangle\ng1 = ec.Graph(directed=False)\nfor i in range(1, 4):\n    g1.add_node()\ng1.add_edge(1, 2)\ng1.add_edge(2, 3)\ng1.add_edge(3, 1)\n\n# Square with diagonal\ng2 = ec.Graph(directed=False)\nfor i in range(1, 5):\n    g2.add_node()\ng2.add_edge(1, 2)\ng2.add_edge(2, 3)\ng2.add_edge(3, 4)\ng2.add_edge(4, 1)\n\n# Common edges: 1-2, 2-3\ncommon = g1.intersection(g2)\n\n# Returns 2\ncommon.count_edges()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n2\n```\n:::\n:::\n\n\nThis is useful for finding stable connections that exist at multiple\ntime points or in multiple network versions.\n\n",
+    "supporting": [
+      "Graph.intersection_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

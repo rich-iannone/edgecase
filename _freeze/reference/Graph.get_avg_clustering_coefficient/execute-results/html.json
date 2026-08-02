@@ -1,0 +1,12 @@
+{
+  "hash": "378fd4db408e794936c5b1a4e753c05f",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_avg_clustering_coefficient()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet average clustering coefficient for the graph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L10793-L10851){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_avg_clustering_coefficient()\n```\n:::\n\n::: {.doc-text}\n\nReturns the mean of all node clustering coefficients. This is a global measure of how\nclustered the graph is overall.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [float]{.doc-parameter-annotation}</code>\n\n:   Average clustering coefficient (`0.0` to `1.0`).\n:::\n\n## Technical Notes {.doc-technical-notes}\n\nValues close to `1.0` indicate a highly clustered network (many triangles). Values close to\n`0.0` indicate a tree-like or sparse network structure.\n\nSmall-world networks typically have high clustering coefficients combined with low average\npath lengths.\n\n## Examples {.doc-examples}\n\nCompare clustering in different graph types:\n\n::: {#251c781a .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ntriangle = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_edge(\"A\", \"B\")\n    .add_edge(\"B\", \"C\")\n    .add_edge(\"C\", \"A\")\n)\n\n# Returns 1.00 (highly clustered)\ntriangle.get_avg_clustering_coefficient()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n1.0\n```\n:::\n:::\n\n\n::: {#1175725e .cell execution_count=2}\n``` {.python .cell-code}\n# Star graph: not clustered\nstar = (\n    ec.Graph()\n    .add_node(label=\"center\")\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_edge(\"center\", \"A\")\n    .add_edge(\"center\", \"B\")\n    .add_edge(\"center\", \"C\")\n)\n\n# Returns 0.00 (not clustered)\nstar.get_avg_clustering_coefficient()\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```\n0.0\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_avg_clustering_coefficient_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

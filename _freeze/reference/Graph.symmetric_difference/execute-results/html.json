@@ -1,0 +1,12 @@
+{
+  "hash": "448342cd473ebf7083add48c34a70ade",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.symmetric_difference()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCompute the symmetric difference of this graph and another graph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L12637-L12701){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.symmetric_difference(other)\n```\n:::\n\n::: {.doc-text}\n\nReturns a new graph containing edges that are in exactly one of the two graphs. Equivalent\nto `(G1 - G2) ∪ (G2 - G1)`.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[other]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Graph]{.doc-parameter-annotation}</code>\n\n:   The graph to compare with.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   A new graph containing edges in exactly one of the graphs.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If the graphs have different directedness.\n:::\n\n## Technical Notes {.doc-technical-notes}\n\n- Both graphs must have the same directedness\n- Symmetric: `g1.symmetric_difference(g2) == g2.symmetric_difference(g1)`\n- Nodes without edges are excluded\n\n## Examples {.doc-examples}\n\nFind edges unique to either graph:\n\n::: {#83dfd8cc .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\n# Triangle\ng1 = ec.Graph(directed=False)\nfor i in range(1, 4):\n    g1.add_node()\ng1.add_edge(1, 2)\ng1.add_edge(2, 3)\ng1.add_edge(3, 1)\n\n# Path\ng2 = ec.Graph(directed=False)\nfor i in range(1, 4):\n    g2.add_node()\ng2.add_edge(1, 2)\ng2.add_edge(2, 3)\n\n# XOR: edges in one but not both\nsym_diff = g1.symmetric_difference(g2)\n\n# Returns 1 (3-1)\nsym_diff.count_edges()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n1\n```\n:::\n:::\n\n\nThis is useful for comparing network versions to find all edges that\nchanged (either added or removed) between snapshots.\n\n",
+    "supporting": [
+      "Graph.symmetric_difference_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}
