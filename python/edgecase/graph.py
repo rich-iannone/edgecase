@@ -11268,9 +11268,9 @@ class Graph:
         --------
         Detect communities in bridged triangles:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -11289,6 +11289,7 @@ class Graph:
             graph.add_edge(i, j)
 
         communities = graph.cmty_louvain(return_dict=True)
+
         # Nodes in same triangle have same community ID
         node_a = graph.get_id_from_label("A")
         node_b = graph.get_id_from_label("B")
@@ -11608,7 +11609,7 @@ class Graph:
         directed.is_directed()
         ```
 
-        ```python
+        ```{python}
         # Returns 4 (A->B, B->A, B->C, C->B)
         directed.count_edges()
         ```
@@ -11920,8 +11921,6 @@ class Graph:
         Line graph of a triangle:
 
         ```{python}
-        import edgecase as ec
-
         # Triangle: A -- B -- C -- A
         g = ec.Graph(directed=False)
         g.add_node(label="A")
@@ -11937,7 +11936,7 @@ class Graph:
         lg.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 3 (also a triangle)
         lg.count_edges()
         ```
@@ -13017,10 +13016,10 @@ class Graph:
         --------
         Extract a node-induced subgraph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        graph = Graph(directed=True).add_path_graph(n=6)
+        graph = ec.Graph(directed=True).add_path_graph(n=6)
 
         # Get node IDs for nodes at positions 2, 3, 4
         all_node_ids = list(graph.get_node_ids(limit=None))
@@ -13033,15 +13032,15 @@ class Graph:
         subgraph.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 2 (edges between selected nodes)
         subgraph.count_edges()
         ```
 
         Extract an edge-induced subgraph:
 
-        ```python
-        graph = Graph().add_cycle_graph(5)
+        ```{python}
+        graph = ec.Graph().add_cycle_graph(5)
 
         edges = graph.get_edge_ids()[:2]
         graph.select_edges_by_id(edges)
@@ -13049,7 +13048,6 @@ class Graph:
         subgraph = graph.transform_to_subgraph_ws()
         # Contains only selected edges and their endpoints
         ```
-
         """
         selected_nodes = self.get_selected_node_ids()
         selected_edges = self.get_selected_edge_ids()
@@ -13151,11 +13149,11 @@ class Graph:
         --------
         Extract a subgraph from a path graph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a path: 1 -- 2 -- 3 -- 4 -- 5
-        graph = Graph().add_path_graph(5)
+        graph = ec.Graph().add_path_graph(5)
 
         # Get node IDs
         node_ids = list(graph.get_node_ids())
@@ -13168,7 +13166,7 @@ class Graph:
         sub.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 2
         sub.count_edges()
         ```
@@ -13176,9 +13174,7 @@ class Graph:
         Extract a clique from a larger graph:
 
         ```python
-        from edgecase import Graph
-
-        graph = Graph().add_full_graph(5)  # K5
+        graph = ec.Graph().add_full_graph(5)  # K5
 
         # Extract K3 subgraph
         node_ids = list(graph.get_node_ids())[:3]
@@ -13187,7 +13183,6 @@ class Graph:
         # Returns 3
         k3.count_edges()
         ```
-
         """
         from edgecase._core import subgraph
 
@@ -13223,11 +13218,11 @@ class Graph:
         --------
         Extract specific edges from a graph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a cycle: 1 -- 2 -- 3 -- 4 -- 5 -- 1
-        graph = Graph().add_cycle_graph(5)
+        graph = ec.Graph().add_cycle_graph(5)
 
         # Get first two edge IDs
         edge_ids = list(graph.get_edge_ids())[:2]
@@ -13237,23 +13232,22 @@ class Graph:
         sub.count_nodes()
         ```
 
-        ```python
+        ```{python}
         # Returns 2
         sub.count_edges()
         ```
 
         Extract a path from a complete graph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        graph = Graph().add_full_graph(4)  # K4 with 6 edges
+        graph = ec.Graph().add_full_graph(4)  # K4 with 6 edges
 
         # Select specific edges to form a path
         edge_ids = list(graph.get_edge_ids())[:2]
         path = graph.edge_subgraph(edge_ids)
         ```
-
         """
         from edgecase._core import edge_subgraph
 
@@ -13286,8 +13280,10 @@ class Graph:
 
         Examples
         --------
-        ```python
-        graph = Graph()
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph()
         graph.add_node('A')
         graph.add_node('B')
         graph.add_node('C')
@@ -13298,7 +13294,7 @@ class Graph:
         id_c = graph.get_id_from_label('C')
         (graph
             .select_nodes_by_id([id_a, id_b, id_c])
-            .fully_connect_nodes_ws(type='clique', weight=1.0)
+            .fully_connect_nodes_ws(**{'type': 'clique', 'weight': 1.0})
         )
 
         # For undirected: 3 edges (A-B, A-C, B-C)
@@ -13309,7 +13305,7 @@ class Graph:
 
         Directed clique (bidirectional edges):
 
-        ```python
+        ```{python}
         graph_directed = ec.Graph(directed=True)
         graph_directed.add_node(label='X')
         graph_directed.add_node(label='Y')
@@ -13376,7 +13372,7 @@ class Graph:
 
         Examples
         --------
-        ```python
+        ```{python}
         import edgecase as ec
 
         graph = (
@@ -13388,7 +13384,9 @@ class Graph:
 
         # Add reverse edge
         edge_ids = list(graph.get_edge_ids())
-        (graph
+
+        (
+            graph
             .select_edges_by_id([edge_ids[0]])
             .add_reverse_edges_ws(weight=1.0)
         )
@@ -13399,7 +13397,7 @@ class Graph:
 
         Make selected edges bidirectional:
 
-        ```python
+        ```{python}
         graph = (
             ec.Graph(directed=True)
             .add_node(label='A')
@@ -13410,12 +13408,12 @@ class Graph:
         )
 
         # Add reverse edges for all edges with high weight
-        (graph
+        (
+            graph
             .select_edges(lambda e: e.weight is not None and e.weight > 5.0)
             .add_reverse_edges_ws()
         )
         ```
-
         """
         if not self.is_directed():
             raise ValueError("add_reverse_edges_ws() only works on directed graphs")
@@ -13467,7 +13465,7 @@ class Graph:
         --------
         Reverse specific edges:
 
-        ```python
+        ```{python}
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
@@ -13487,7 +13485,7 @@ class Graph:
         (source, target)
         ```
 
-        ```python
+        ```{python}
         # Weight is preserved
         edge = graph.get_edge(edge_ids[0])
 
@@ -13497,7 +13495,7 @@ class Graph:
 
         Reverse all edges in a subgraph:
 
-        ```python
+        ```{python}
         graph = ec.Graph(directed=True)
         graph.add_path_graph(4)  # 0->1->2->3
 
@@ -13561,9 +13559,11 @@ class Graph:
         --------
         Compute degrees for all nodes:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -13581,7 +13581,7 @@ class Graph:
 
         Use in method chain for visualization:
 
-        ```python
+        ```{python}
         graph = (
             ec.karate_club()
             .degrees(return_dict=False)
@@ -13593,7 +13593,6 @@ class Graph:
         )
         graph.describe()
         ```
-
         """
         # Compute degrees for all nodes
         node_ids = self.get_node_ids(limit=None)
@@ -13636,9 +13635,11 @@ class Graph:
         --------
         Get node degree in undirected graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -13650,16 +13651,16 @@ class Graph:
         graph.get_degree("A")
         ```
 
-        ```python
+        ```{python}
         # Returns 1
         graph.get_degree("B")
         ```
 
         In directed graphs, counts both incoming and outgoing:
 
-        ```python
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -13670,7 +13671,6 @@ class Graph:
         # Returns 2 (1 in + 1 out)
         graph.get_degree("A")
         ```
-
         """
         node_id = self._resolve_node_id(node)
         neighbors = self._graph.neighbors(node_id)
@@ -13709,9 +13709,11 @@ class Graph:
         --------
         Get in-degrees in a directed graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -13723,11 +13725,10 @@ class Graph:
         graph.get_in_degree("B")
         ```
 
-        ```python
+        ```{python}
         # Returns 0
         graph.get_in_degree("A")
         ```
-
         """
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
@@ -13761,9 +13762,11 @@ class Graph:
         --------
         Get out-degrees in a directed graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -13775,11 +13778,10 @@ class Graph:
         graph.get_out_degree("A")
         ```
 
-        ```python
+        ```{python}
         # Returns 0
         graph.get_out_degree("B")
         ```
-
         """
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
@@ -13802,9 +13804,11 @@ class Graph:
         --------
         Get degree distribution:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="Hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -13821,7 +13825,6 @@ class Graph:
         # Returns {1: 4, 4: 1}; 4 nodes with degree 1, 1 node with degree 4
         dist
         ```
-
         """
         return self._graph.degree_distribution()
 
@@ -13841,9 +13844,11 @@ class Graph:
         --------
         Calculate average degree:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -13857,7 +13862,6 @@ class Graph:
         # Returns 2.0 (cycle graph)
         graph.get_average_degree()
         ```
-
         """
         return self._graph.average_degree()
 
@@ -13894,7 +13898,7 @@ class Graph:
 
         Examples
         --------
-        ```python
+        ```{python}
         import edgecase as ec
 
         # Create directed graph
@@ -13908,7 +13912,7 @@ class Graph:
         mean_in
         ```
 
-        ```python
+        ```{python}
         # Median indegree
         median_in = graph.get_agg_degree_in('median')
 
@@ -13921,7 +13925,6 @@ class Graph:
             conditions=lambda n: graph.get_degree(node=n.id) > 3
         )
         ```
-
         """
         if not self._graph.is_directed:
             raise ValueError("get_agg_degree_in() only works with directed graphs")
@@ -13989,7 +13992,7 @@ class Graph:
 
         Examples
         --------
-        ```python
+        ```{python}
         import edgecase as ec
 
         # Create directed graph
@@ -14003,7 +14006,7 @@ class Graph:
         mean_out
         ```
 
-        ```python
+        ```{python}
         # Median outdegree
         median_out = graph.get_agg_degree_out('median')
 
@@ -14019,7 +14022,6 @@ class Graph:
             conditions=lambda n: n.attributes and 'type' in n.attributes
         )
         ```
-
         """
         if not self._graph.is_directed:
             raise ValueError("get_agg_degree_out() only works with directed graphs")
@@ -14089,7 +14091,7 @@ class Graph:
 
         Examples
         --------
-        ```python
+        ```{python}
         import edgecase as ec
 
         # Create directed graph
@@ -14103,7 +14105,7 @@ class Graph:
         mean_total
         ```
 
-        ```python
+        ```{python}
         # Median total degree
         median_total = graph.get_agg_degree_total('median')
 
@@ -14111,7 +14113,7 @@ class Graph:
         median_total
         ```
 
-        ```python
+        ```{python}
         # Works with undirected graphs too
         graph_undirected = ec.Graph(directed=False)
         graph_undirected.add_cycle_graph(10)
@@ -14120,7 +14122,6 @@ class Graph:
         # Returns 2.0
         mean_deg
         ```
-
         """
         valid_agg = {"sum", "min", "max", "mean", "median"}
         if agg not in valid_agg:
@@ -14203,9 +14204,11 @@ class Graph:
         --------
         Calculate PageRank on a simple social network:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
@@ -14224,7 +14227,7 @@ class Graph:
         scores
         ```
 
-        ```python
+        ```{python}
         # Convert to labels if needed
         label_scores = {graph.get_label_from_id(nid): score for nid, score in scores.items()}
 
@@ -14234,11 +14237,9 @@ class Graph:
 
         Use custom damping factor for more exploration:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
@@ -14252,11 +14253,9 @@ class Graph:
 
         Find the most influential nodes:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Alice")
             .add_node(label="Bob")
             .add_node(label="Charlie")
@@ -14371,10 +14370,12 @@ class Graph:
         --------
         Calculate and store constraint values:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         # Simple network with a broker (B)
         g = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")  # Broker
             .add_node(label="C")
@@ -14400,11 +14401,11 @@ class Graph:
 
         Analyze structural holes:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
 
         # Compare dense vs. sparse ego networks
-        g = Graph()
+        g = ec.Graph()
+
         for i in range(6):
             g.add_node(label=str(i))
 
@@ -14431,9 +14432,10 @@ class Graph:
 
         Weighted networks:
 
-        ```python
+        ```{python}
+
         g = (
-            Graph(weighted=True)
+            ec.Graph(weighted=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -14507,10 +14509,12 @@ class Graph:
         --------
         Find bridge nodes in a network:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         # Create two clusters connected by a bridge node
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="Bridge")
@@ -14537,9 +14541,9 @@ class Graph:
 
         Identify the most important connectors:
 
-        ```python
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -14626,12 +14630,12 @@ class Graph:
         --------
         Identify bridge nodes using load centrality:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a network with a central bridge
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="Bridge")
@@ -14652,11 +14656,9 @@ class Graph:
 
         Compare load vs betweenness centrality:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -14681,11 +14683,11 @@ class Graph:
 
         Store centrality as node attribute for later use:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
 
         # Create a simple path graph
-        graph = Graph()
+        graph = ec.Graph()
+
         for i in range(5):
             graph.add_node(label=str(i))
         for i in range(4):
@@ -14791,11 +14793,12 @@ class Graph:
         --------
         Identify central nodes in a path graph (lower values = higher centrality):
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a simple path: 0 - 1 - 2 - 3 - 4
-        graph = Graph()
+        graph = ec.Graph()
+
         for i in range(5):
             graph.add_node(label=str(i))
         for i in range(4):
@@ -14817,12 +14820,11 @@ class Graph:
 
         Compare centrality across different graph structures:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         # Star graph: center should be most central
-        star = Graph()
+        star = ec.Graph()
         star.add_node(label='center')
+
         for i in range(5):
             star.add_node(label=f'leaf_{i}')
             star.add_edge('center', f'leaf_{i}')
@@ -14838,7 +14840,7 @@ class Graph:
         star_soc[leaf_id]
 
         # Complete graph: all nodes equally central
-        complete = Graph()
+        complete = ec.Graph()
         for i in range(4):
             complete.add_node(label=str(i))
         for i in range(4):
@@ -14854,11 +14856,9 @@ class Graph:
 
         Store centrality as node attribute for later analysis:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label='A')
             .add_node(label='B')
             .add_node(label='C')
@@ -14877,7 +14877,6 @@ class Graph:
         # Returns True if second order centrality was computed
         has_soc
         ```
-
         """
         if self.is_directed():
             raise ValueError(
@@ -14955,11 +14954,11 @@ class Graph:
         --------
         Basic usage on a simple graph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a path graph: 1 -- 2 -- 3
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
         graph.add_node(label="1")
         graph.add_node(label="2")
         graph.add_node(label="3")
@@ -14980,11 +14979,9 @@ class Graph:
 
         Analyze information flow in a network:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         # Create a simple network
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
         graph.add_node(label="A")
         graph.add_node(label="B")
         graph.add_node(label="C")
@@ -15002,7 +14999,6 @@ class Graph:
         # Returns total communicability from hub node B
         total_comm
         ```
-
         """
         from edgecase._core import communicability as rust_communicability
 
@@ -15061,11 +15057,11 @@ class Graph:
         --------
         Basic usage:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a simple network
-        graph = Graph(directed=False)
+        graph = ec.Graph(directed=False)
         graph.add_node(label="A")
         graph.add_node(label="B")
         graph.add_node(label="C")
@@ -15089,10 +15085,8 @@ class Graph:
 
         Store as node attribute:
 
-        ```python
-        from edgecase import Graph
-
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_node(label="1")
         graph.add_node(label="2")
         graph.add_node(label="3")
@@ -15106,11 +15100,9 @@ class Graph:
 
         Compare with standard betweenness:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         # Star graph
-        star = Graph(directed=False)
+        star = ec.Graph(directed=False)
         star.add_node(label="center")
         for i in range(4):
             star.add_node(label=f"leaf_{i}")
@@ -15124,7 +15116,6 @@ class Graph:
         # Returns value close to 1.0 for the center node
         cbc[center_id]
         ```
-
         """
         from edgecase._core import communicability_betweenness_centrality as rust_cbc
 
@@ -15195,21 +15186,22 @@ class Graph:
         --------
         Basic usage with default states:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False)
         graph.add_path_graph(5)
         pc = graph.percolation_centrality(return_dict=True)
         ```
 
         With custom percolation states (e.g., infection probabilities):
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_path_graph(5)
         states = {"1": 1.0, "2": 0.5, "3": 0.8, "4": 0.3, "5": 1.0}
         pc = graph.percolation_centrality(states=states, return_dict=True)
         ```
-
         """
         from edgecase._core import percolation_centrality as rust_pc
 
@@ -15277,8 +15269,10 @@ class Graph:
         --------
         Remove 30% of nodes randomly:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(10)
 
         # Remove 30% of nodes randomly
@@ -15287,7 +15281,6 @@ class Graph:
         # Returns 7 - number of nodes remaining after percolation
         percolated.count_nodes()
         ```
-
         """
         from edgecase._core import node_percolation as rust_np
 
@@ -15329,8 +15322,10 @@ class Graph:
         --------
         Remove 50% of edges randomly:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(5)  # K5 has 10 edges
 
         # Remove 50% of edges randomly
@@ -15339,7 +15334,6 @@ class Graph:
         # Returns 5 - number of edges remaining after percolation
         percolated.count_edges()
         ```
-
         """
         from edgecase._core import edge_percolation as rust_ep
 
@@ -15368,8 +15362,10 @@ class Graph:
         --------
         Get the size of the largest component:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(5)
 
         # Returns 5 - all nodes in single component
@@ -15378,15 +15374,14 @@ class Graph:
 
         After removing nodes, the component may fragment:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(5)
         percolated = graph.node_percolation(q=0.5, seed=23)
 
         # Returns size of largest component (may be smaller after percolation)
         percolated.largest_component_size()
         ```
-
         """
         from edgecase._core import largest_component_size as rust_lcs
 
@@ -15435,8 +15430,10 @@ class Graph:
         --------
         Perform percolation threshold analysis:
 
-        ```python
-        graph = Graph(directed=False)
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=False)
         graph.add_full_graph(50)
 
         results = graph.percolation_threshold_analysis(steps=10, trials=5)
@@ -15445,7 +15442,6 @@ class Graph:
         # q=0.0: GCC=1.00, q=0.1: GCC=1.00, ...
         results
         ```
-
         """
         from edgecase._core import percolation_threshold_analysis as rust_pta
 
@@ -15521,12 +15517,13 @@ class Graph:
         --------
         **Path Graph - Undirected**
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # In a path graph, end nodes have neighbors with degree 1,
         # middle nodes have neighbors with varying degrees
-        g = Graph(directed=False)
+        g = ec.Graph(directed=False)
+
         for i in range(5):
             g.add_node(label=str(i))
         for i in range(4):
@@ -15540,8 +15537,8 @@ class Graph:
 
         **Directed Graph - Different source/target combinations**
 
-        ```python
-        g = Graph(directed=True)
+        ```{python}
+        g = ec.Graph(directed=True)
         g.add_node(label='A')
         g.add_node(label='B')
         g.add_node(label='C')
@@ -15558,9 +15555,9 @@ class Graph:
 
         **Store in Graph and Chain**
 
-        ```python
+        ```{python}
         g = (
-            Graph(directed=False)
+            ec.Graph(directed=False)
             .add_node(label='A')
             .add_node(label='B')
             .add_node(label='C')
@@ -15663,12 +15660,12 @@ class Graph:
         --------
         Calculate harmonic centrality in a simple network:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a star network
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="Center")
             .add_node(label="A")
             .add_node(label="B")
@@ -15687,11 +15684,9 @@ class Graph:
 
         Compare with normalized version:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -15710,11 +15705,9 @@ class Graph:
 
         Use with cutoff for local neighborhoods:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -15732,11 +15725,9 @@ class Graph:
 
         Chain with other operations:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -15754,11 +15745,9 @@ class Graph:
 
         For directed graphs, use mode to control direction:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -15852,9 +15841,11 @@ class Graph:
         --------
         Calculate authority scores in a citation network:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Paper1")
             .add_node(label="Paper2")
             .add_node(label="Paper3")
@@ -15869,11 +15860,9 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Paper1")
             .add_node(label="Paper2")
             .add_node(label="Paper3")
@@ -15881,13 +15870,13 @@ class Graph:
             .add_edge(source="Paper1", target="Paper3")
         )
 
-        (graph
+        (
+            graph
             .authority_centrality(attr_name="authority")
             .rescale_node_attrs(node_attr_from="authority", node_attr_to="size")
             .describe()
         )
         ```
-
         """
         centrality = self._graph.get_authority_centrality(max_iter, tol)
 
@@ -15956,9 +15945,11 @@ class Graph:
         --------
         Calculate hub scores in a citation network:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Paper1")
             .add_node(label="Paper2")
             .add_node(label="Paper3")
@@ -15973,11 +15964,9 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="Paper1")
             .add_node(label="Paper2")
             .add_node(label="Paper3")
@@ -15985,13 +15974,13 @@ class Graph:
             .add_edge(source="Paper1", target="Paper3")
         )
 
-        (graph
+        (
+            graph
             .hub_centrality(attr_name="hub")
             .rescale_node_attrs(node_attr_from="hub", node_attr_to="size")
             .describe()
         )
         ```
-
         """
         centrality = self._graph.get_hub_centrality(max_iter, tol)
 
@@ -16057,9 +16046,11 @@ class Graph:
         --------
         Calculate eigenvector centrality in a star graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -16076,11 +16067,9 @@ class Graph:
 
         Store as node attributes and chain other operations:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -16090,7 +16079,8 @@ class Graph:
             .add_edge(source="hub", target="C")
         )
 
-        (graph
+        (
+            graph
             .eigen_centrality(attr_name="centrality")
             .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", range=[0.5, 2.0])
             .describe()
@@ -16166,9 +16156,11 @@ class Graph:
         --------
         Calculate alpha centrality with different α values:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -16184,11 +16176,9 @@ class Graph:
 
         Store as node attributes and chain visualization:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -16198,13 +16188,13 @@ class Graph:
             .add_edge(source="hub", target="C")
         )
 
-        (graph
+        (
+            graph
             .alpha_centrality(attr_name="alpha_cent")
             .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
             .describe()
         )
         ```
-
         """
         centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
 
@@ -16318,7 +16308,7 @@ class Graph:
         --------
         Cooperative network (`β > 0`) star graph:
 
-        ```python
+        ```{python}
         import edgecase as ec
 
         # Create star: center connected to 3 leaves
@@ -16340,9 +16330,7 @@ class Graph:
 
         Competitive network (`β < 0`) exchange network:
 
-        ```python
-        import edgecase as ec
-
+        ```{python}
         # In exchange/bargaining networks, connecting to weak partners
         # gives you more bargaining power
         g = ec.Graph(directed=False)
@@ -16361,9 +16349,7 @@ class Graph:
 
         Compare with eigenvector centrality:
 
-        ```python
-        import edgecase as ec
-
+        ```{python}
         # β near 1/λ_max approximates eigenvector centrality
         # For small graphs, λ_max ≈ max_degree, so try β ≈ 1/max_degree
         g = ec.Graph(directed=False)
@@ -16475,9 +16461,11 @@ class Graph:
         --------
         Calculate Katz centrality on a simple directed graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node("A")
             .add_node("B")
             .add_node("C")
@@ -16494,11 +16482,9 @@ class Graph:
 
         Compare different alpha values:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -16575,9 +16561,11 @@ class Graph:
         --------
         Calculate leverage centrality in a star graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -16594,11 +16582,9 @@ class Graph:
 
         Store as node attributes and chain:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -16608,13 +16594,13 @@ class Graph:
             .add_edge(source="hub", target="C")
         )
 
-        (graph
+        (
+            graph
             .leverage_centrality(attr_name="leverage")
             .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
             .describe()
         )
         ```
-
         """
         centrality = self._graph.get_leverage_centrality()
 
@@ -16730,9 +16716,11 @@ class Graph:
         --------
         Auto-optimized DomiRank for a path graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node("A")
             .add_node("B")
             .add_node("C")
@@ -16753,11 +16741,9 @@ class Graph:
 
         Manual sigma for specific competition level:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         graph = (
-            Graph(directed=True)
+            ec.Graph(directed=True)
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -16875,9 +16861,11 @@ class Graph:
         --------
         Calculate closeness vitality in a star graph:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub")
             .add_node(label="A")
             .add_node(label="B")
@@ -16946,9 +16934,11 @@ class Graph:
         --------
         Calculate and store coreness:
 
-        ```python
+        ```{python}
+        import edgecase as ec
+
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="A")
             .add_node(label="B")
             .add_node(label="C")
@@ -17000,12 +16990,14 @@ class Graph:
 
         Examples
         --------
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        g = Graph()
+        g = ec.Graph()
+
         for i in range(6):
             g.add_node(label=str(i))
+
         g.add_edge("0", "1")
         g.add_edge("1", "2")
         g.add_edge("2", "3")
@@ -17043,12 +17035,14 @@ class Graph:
 
         Examples
         --------
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        g = Graph()
+        g = ec.Graph()
+
         for i in range(5):
             g.add_node(label=str(i))
+
         g.add_edge("0", "1")
         g.add_edge("1", "2")
         g.add_edge("2", "3")
@@ -17056,6 +17050,7 @@ class Graph:
 
         # Get shell of nodes with coreness exactly 1
         shell_1 = g.k_shell(1)
+
         # Returns the number of nodes in the 1-shell
         shell_1.count_nodes()
         ```
@@ -17085,12 +17080,14 @@ class Graph:
 
         Examples
         --------
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        g = Graph()
+        g = ec.Graph()
+
         for i in range(5):
             g.add_node(label=str(i))
+
         g.add_edge("0", "1")
         g.add_edge("1", "2")
         g.add_edge("2", "3")
@@ -17098,6 +17095,7 @@ class Graph:
 
         # Get nodes with coreness <= 2
         crust_2 = g.k_crust(2)
+
         # Returns the number of nodes in the 2-crust
         crust_2.count_nodes()
         ```
@@ -17133,12 +17131,14 @@ class Graph:
 
         Examples
         --------
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
-        g = Graph()
+        g = ec.Graph()
+
         for i in range(4):
             g.add_node(label=str(i))
+
         # Create complete graph K4
         for i in range(4):
             for j in range(i + 1, 4):
@@ -17146,6 +17146,7 @@ class Graph:
 
         # Get 4-truss (edges in >= 2 triangles)
         truss_4 = g.k_truss(4)
+
         # Returns the number of edges in the 4-truss
         truss_4.count_edges()
         ```
@@ -17191,11 +17192,12 @@ class Graph:
         --------
         Find the 2-corona in a simple graph:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a graph with a dense core and peripheral nodes
-        g = Graph()
+        g = ec.Graph()
+
         # Dense core: nodes 1, 2, 3 form a triangle
         g.add_node(label="1")
         g.add_node(label="2")
@@ -17218,16 +17220,15 @@ class Graph:
 
         Analyze hierarchical structure:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         # Build a graph and examine different corona levels
-        g = Graph()
+        g = ec.Graph()
         g.add_full_graph(5)  # K5 complete graph
 
         # In K5, all nodes have degree 4, so they're in the 4-core
         # Each node has exactly 4 neighbors in the 4-core
         corona_4 = g.k_corona(4)
+
         # Returns 5 (all 5 nodes are in the 4-corona)
         corona_4.count_nodes()
         ```
@@ -17275,12 +17276,12 @@ class Graph:
         --------
         Analyze hub connectivity in a network:
 
-        ```python
-        from edgecase import Graph
+        ```{python}
+        import edgecase as ec
 
         # Create a network with clear hub structure
         graph = (
-            Graph()
+            ec.Graph()
             .add_node(label="hub1")
             .add_node(label="hub2")
             .add_node(label="hub3")
@@ -17305,11 +17306,9 @@ class Graph:
 
         Compare with random network:
 
-        ```python
-        from edgecase import Graph
-
+        ```{python}
         # Scale-free networks often show rich-club phenomenon
-        ba_graph = Graph().add_pa_graph(100, 3)
+        ba_graph = ec.Graph().add_pa_graph(100, 3)
         rc = ba_graph.rich_club_coefficient()
 
         # Check if high-degree nodes are more interconnected than expected
