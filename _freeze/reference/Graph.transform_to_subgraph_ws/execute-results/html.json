@@ -1,0 +1,12 @@
+{
+  "hash": "6fc751debaf4aa69531640501e8f6cd2",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.transform_to_subgraph_ws()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCreate a subgraph from current selection.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L12997-L13122){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.transform_to_subgraph_ws()\n```\n:::\n\n::: {.doc-text}\n\nExtracts the currently selected nodes and/or edges into a new Graph object. The behavior\ndepends on what's selected:\n\n- nodes selected: include those nodes plus all edges between them\n- edges selected: include those edges plus their endpoint nodes\n- both selected: uses node selection (ignores edge selection)\n\nAll node and edge attributes are preserved in the subgraph.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   New Graph object containing the subgraph. Has same directedness as original graph.\n:::\n\n## Examples {.doc-examples}\n\nExtract a node-induced subgraph:\n\n::: {#a689ed37 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = ec.Graph(directed=True).add_path_graph(n=6)\n\n# Get node IDs for nodes at positions 2, 3, 4\nall_node_ids = list(graph.get_node_ids(limit=None))\nnode_ids_to_select = [all_node_ids[2], all_node_ids[3], all_node_ids[4]]\ngraph.select_nodes_by_id(node_ids=node_ids_to_select)\n\nsubgraph = graph.transform_to_subgraph_ws()\n\n# Returns 3\nsubgraph.count_nodes()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n3\n```\n:::\n:::\n\n\n::: {#db733b8d .cell execution_count=2}\n``` {.python .cell-code}\n# Returns 2 (edges between selected nodes)\nsubgraph.count_edges()\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```\n2\n```\n:::\n:::\n\n\nExtract an edge-induced subgraph:\n\n::: {#64740650 .cell execution_count=3}\n``` {.python .cell-code}\ngraph = ec.Graph().add_cycle_graph(5)\n\nedges = graph.get_edge_ids()[:2]\ngraph.select_edges_by_id(edges)\n\nsubgraph = graph.transform_to_subgraph_ws()\n# Contains only selected edges and their endpoints\n```\n:::\n\n\n",
+    "supporting": [
+      "Graph.transform_to_subgraph_ws_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

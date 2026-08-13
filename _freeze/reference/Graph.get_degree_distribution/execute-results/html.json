@@ -1,0 +1,12 @@
+{
+  "hash": "c5297476a8f495331e058f752302c61b",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_degree_distribution()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet degree distribution as a mapping from degree to count.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L13791-L13829){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_degree_distribution()\n```\n:::\n\n::: {.doc-text}\n\nReturns a histogram of node degrees, showing how many nodes have each degree value. Useful\nfor analyzing network topology and identifying hub nodes or scale-free properties.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [dict[int, int]]{.doc-parameter-annotation}</code>\n\n:   Dictionary mapping degree values to the number of nodes with that degree.\n:::\n\n## Examples {.doc-examples}\n\nGet degree distribution:\n\n::: {#d560e4dd .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"Hub\")\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_node(label=\"D\")\n    .add_edge(\"Hub\", \"A\")\n    .add_edge(\"Hub\", \"B\")\n    .add_edge(\"Hub\", \"C\")\n    .add_edge(\"Hub\", \"D\")\n)\n\ndist = graph.get_degree_distribution()\n\n# Returns {1: 4, 4: 1}; 4 nodes with degree 1, 1 node with degree 4\ndist\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n{1: 4, 4: 1}\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_degree_distribution_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

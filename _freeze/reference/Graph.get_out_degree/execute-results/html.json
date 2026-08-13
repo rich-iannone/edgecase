@@ -1,0 +1,12 @@
+{
+  "hash": "f4a96f84696c203782416186262bce41",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_out_degree()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet the out-degree of a node (directed graphs only).\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L13739-L13789){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_out_degree(node)\n```\n:::\n\n::: {.doc-text}\n\nOut-degree is the number of edges pointing out from the node. Only meaningful for directed\ngraphs.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[node]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [Union[int, str]]{.doc-parameter-annotation}</code>\n\n:   Node ID or label.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [int]{.doc-parameter-annotation}</code>\n\n:   Number of outgoing edges.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If the graph is undirected.\n:::\n\n## Examples {.doc-examples}\n\nGet out-degrees in a directed graph:\n\n::: {#4bf95c40 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph(directed=True)\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_edge(\"A\", \"B\")  # A has 1 outgoing\n    .add_edge(\"A\", \"C\")  # A has 2 outgoing\n)\n\n# Returns 2\ngraph.get_out_degree(\"A\")\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n2\n```\n:::\n:::\n\n\n::: {#1381d3be .cell execution_count=2}\n``` {.python .cell-code}\n# Returns 0\ngraph.get_out_degree(\"B\")\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```\n0\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_out_degree_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

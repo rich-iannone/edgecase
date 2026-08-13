@@ -1,0 +1,12 @@
+{
+  "hash": "10500dab31c8606990aed865d9a43bb7",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.k_shell()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nExtract the k-shell subgraph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L17019-L17062){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.k_shell(k)\n```\n:::\n\n::: {.doc-text}\n\nThe k-shell contains nodes with coreness exactly equal to `k`. The coreness of a node is the\nhighest `k` for which the node is part of the k-core.\n:::\n\n## Parameters {.doc-parameters}\n\n::: {.doc-definition-items}\n<code>[k]{.doc-parameter-name}[:]{.doc-parameter-annotation-sep} [int]{.doc-parameter-annotation}</code>\n\n:   Coreness value to extract.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [Graph]{.doc-parameter-annotation}</code>\n\n:   New graph containing only the k-shell nodes and their connecting edges.\n:::\n\n## Examples {.doc-examples}\n\n::: {#2a15b119 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ng = ec.Graph()\n\nfor i in range(5):\n    g.add_node(label=str(i))\n\ng.add_edge(\"0\", \"1\")\ng.add_edge(\"1\", \"2\")\ng.add_edge(\"2\", \"3\")\ng.add_edge(\"3\", \"4\")\n\n# Get shell of nodes with coreness exactly 1\nshell_1 = g.k_shell(1)\n\n# Returns the number of nodes in the 1-shell\nshell_1.count_nodes()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n5\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.k_shell_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}
