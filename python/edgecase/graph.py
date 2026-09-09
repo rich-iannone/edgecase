@@ -117,32 +117,32 @@ graph
 
 class Graph:
     """
-        A high-performance graph data structure with optional direction and weights.
+    A high-performance graph data structure with optional direction and weights.
 
-        The `Graph` class provides a Python interface to a Rust-based graph implementation, offering
-        both performance and ease of use. Nodes are identified by 64-bit unsigned integers (u64 IDs) and
-        can optionally have string labels for human-readable access.
+    The `Graph` class provides a Python interface to a Rust-based graph implementation, offering
+    both performance and ease of use. Nodes are identified by 64-bit unsigned integers (u64 IDs) and
+    can optionally have string labels for human-readable access.
 
-        Parameters
-        ----------
-        directed
-            Whether the graph should be directed. If `True`, edges have direction from source to target.
-            If `False`, edges are bidirectional.
-        weighted
-            Whether edges can have weights. If `True`, edge weights are stored and considered in
-            algorithms. If `False`, all edges are treated equally.
-        nodes_df
-            Optional Polars DataFrame to initialize nodes. Should contain at minimum an `id` column with
-            node identifiers. The values in the `id` column are used as node *labels* (not internal node
-            IDs, which are auto-managed). Additional columns are treated as node attributes.
-        edges_df
-            Optional Polars DataFrame to initialize edges. Should contain at minimum `from` and `to`
-            columns with node identifiers that reference the `id` values from `nodes_df`. Additional
-            columns are treated as edge attributes (including optional `weight` column).
-        graph_name
-            Optional name for the graph (stored as a graph attribute).
+    Parameters
+    ----------
+    directed
+        Whether the graph should be directed. If `True`, edges have direction from source to target.
+        If `False`, edges are bidirectional.
+    weighted
+        Whether edges can have weights. If `True`, edge weights are stored and considered in
+        algorithms. If `False`, all edges are treated equally.
+    nodes_df
+        Optional Polars DataFrame to initialize nodes. Should contain at minimum an `id` column with
+        node identifiers. The values in the `id` column are used as node *labels* (not internal node
+        IDs, which are auto-managed). Additional columns are treated as node attributes.
+    edges_df
+        Optional Polars DataFrame to initialize edges. Should contain at minimum `from` and `to`
+        columns with node identifiers that reference the `id` values from `nodes_df`. Additional
+        columns are treated as edge attributes (including optional `weight` column).
+    graph_name
+        Optional name for the graph (stored as a graph attribute).
 
-        Examples
+    Examples
     --------
     The simplest way to build a graph is to chain `add_node()` and `add_edge()` calls, since
     both return `self`. Printing the graph shows a summary of its structure:
