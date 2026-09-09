@@ -1085,7 +1085,7 @@ class Graph:
         return self
 
     def remove_selfloops(self) -> "Graph":
-        """
+        r"""
         Remove all self-loops from the graph.
 
         A self-loop is an edge where the source and target nodes are the same. This method removes
@@ -1099,10 +1099,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - works for both directed and undirected graphs.
-        - does not affect multi-edges (use `remove_duplicate_edges()` or `simplify()` for those).
-        - use `which_loops()` to identify self-loops before removal.
-        - use `count_loops()` to count self-loops per node before removal.
+        The removal works uniformly for directed and undirected graphs and touches only
+        self-loops (edges of the form $(v, v)$), so parallel edges between distinct
+        endpoints are left in place. If your goal is a fully simple graph, chain this with
+        `remove_duplicate_edges()` or call `simplify()` in one step. To inspect what you're
+        about to lose first, `which_loops()` returns the offending edge IDs and
+        `count_loops()` gives their per-node totals.
 
         Examples
         --------
@@ -1185,16 +1187,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - by default, **edge attributes are ignored**: edges are considered duplicates based
-        solely on their source and target nodes
-        - use `keep_distinct_attributes=True` to preserve edges that have different weights,
-        `rel` values, or other attributes
-        - the first edge (lowest edge ID) in each group of true duplicates is retained
-        - for directed graphs, edges `(u, v)` and `(v, u)` are considered different pairs
-        - for undirected graphs, edges `(u, v)` and `(v, u)` are considered the same pair
-        - does not remove self-loops (use `remove_selfloops()` or `simplify()` for those)
-        - use `which_multiple()` to identify duplicate edges before removal
-        - use `count_multiple()` to count duplicates per node pair before removal
+        By default the notion of "duplicate" ignores attributes entirely: two edges $(u, v)$
+        with different weights or `rel` values still count as the same edge, and only the
+        first one (the one with the lowest edge ID) survives. Flip `keep_distinct_attributes=True`
+        to switch to attribute-aware deduplication, in which case only edges that agree on
+        *every* attribute collapse together. Directedness matters: in a directed graph $(u, v)$
+        and $(v, u)$ are treated as separate pairs and can coexist, while in an undirected
+        graph they are the same edge. Self-loops are untouched, so reach for `remove_selfloops()`
+        or `simplify()` for those. To survey the damage first, `which_multiple()` lists the
+        duplicate edge IDs and `count_multiple()` totals duplicates per node pair.
 
         Examples
         --------
@@ -1287,11 +1288,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - equivalent to calling `remove_selfloops()` followed by `remove_duplicate_edges()`
-        - for duplicate edges, the first edge (lowest edge ID) in each group is retained
-        - for directed graphs, edges `(u, v)` and `(v, u)` are considered different pairs
-        - for undirected graphs, edges `(u, v)` and `(v, u)` are considered the same pair
-        - after simplification, `is_simple()` will return `True`
+        `simplify()` is exactly `remove_selfloops()` followed by `remove_duplicate_edges()`
+        rolled into one call: self-loops disappear and each group of parallel edges collapses
+        to its earliest survivor (lowest edge ID). Directedness affects only the second
+        step, since $(u, v)$ and $(v, u)$ are distinct pairs in a directed graph but the same
+        pair when undirected. Once it returns, `is_simple()` is guaranteed to be `True`,
+        which is the condition many algorithms in the library quietly assume.
 
         Examples
         --------
@@ -1373,8 +1375,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        The `describe_hook=` parameter allows you to compute expensive metrics only when needed. For
-        large graphs, computing properties like diameter or clustering can be slow.
+        The output is tailored to what the graph actually is: directed graphs surface in and
+        out degree breakdowns, weighted graphs get weight statistics, and disconnected graphs
+        report component counts. Anything the default summary misses, from diameter to a full
+        clustering run, can be layered on via `describe_hook=`. Because that hook is opt-in
+        per call, you can pay for expensive computations only when the answer justifies it
+        and keep routine inspection snappy.
 
         Examples
         --------
@@ -4072,8 +4078,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        For directed graphs, use `is_arborescence()` instead. For disconnected forests, use
-        `is_forest()`.
+        The four conditions above are not independent: for a connected undirected graph on
+        $n$ nodes, any two of "connected", "acyclic", and "has exactly $n - 1$ edges" imply
+        the third, which is why definitions of a tree vary across textbooks yet describe the
+        same object. Directed analogues live under `is_arborescence()`, and if you want to
+        allow multiple disjoint components use `is_forest()` instead.
 
         Examples
         --------
@@ -4155,7 +4164,10 @@ class Graph:
 
         Technical Notes
         ---------------
-        A tree is a special case of a forest with k=1 (single component).
+        A forest is exactly the disjoint union of trees, so a single tree is a forest with
+        $k = 1$, and the empty graph is a forest with $k = 0$. The edge-count law $|E| = n - k$
+        drops straight out of applying $|E| = n_i - 1$ to each of the $k$ component trees and
+        summing over $i$; combined with acyclicity this is what the check actually verifies.
 
         Examples
         --------
@@ -4220,7 +4232,7 @@ class Graph:
         return self._graph.is_forest()
 
     def is_arborescence(self) -> bool:
-        """
+        r"""
         Check if the graph is an arborescence (directed tree).
 
         An arborescence is a directed graph which:
@@ -4241,8 +4253,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        For undirected graphs, use `is_tree()` instead. An arborescence is also called a 'directed
-        rooted tree' or 'out-tree'.
+        The in-degree pattern (one node with $\deg^-(v) = 0$ and every other with
+        $\deg^-(v) = 1$) is what distinguishes an arborescence from other directed acyclic
+        structures. Because each non-root node has exactly one incoming edge, every vertex has
+        a *unique* directed path from the root, which is the property that makes arborescences
+        the natural model for parse trees, dependency hierarchies, and dominator trees in
+        compilers. The undirected analogue is `is_tree()`; in graph-theory literature this
+        object is also called a directed rooted tree or an out-tree.
 
         Examples
         --------
@@ -4312,7 +4329,7 @@ class Graph:
         return self._graph.is_arborescence()
 
     def is_planar(self) -> bool:
-        """
+        r"""
         Check if the graph is planar.
 
         A planar graph can be embedded in a plane without any edge crossings. This method uses
@@ -4327,10 +4344,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        This is a *necessary but not sufficient* test. Some non-planar graphs may pass this test.
-        For complete planarity testing, specialized algorithms implementing Kuratowski's theorem
-        would be required. However, this test will correctly identify many non-planar graphs
-        efficiently.
+        This is a *necessary but not sufficient* test built around Euler's formula
+        $n - e + f = 2$ for a planar embedding, which, combined with the fact that every face
+        of a simple planar graph is bounded by at least three edges, gives the classic edge
+        bound $e \le 3n - 6$ (or the tighter $e \le 2n - 4$ when the graph has no triangles).
+        A graph that violates one of these bounds is definitively non-planar, but the converse
+        does not hold: the notorious counter-examples $K_5$ and $K_{3,3}$ are ruled out by the
+        edge bound and by triangle counts respectively, yet subdivisions of them may slip
+        through. A complete decision procedure would need Kuratowski's or Wagner's theorem, or
+        a linear-time algorithm like Boyer-Myrvold; the cheap check here is meant as a fast
+        pre-filter.
 
         Examples
         --------
@@ -4393,7 +4416,7 @@ class Graph:
         return self._graph.is_planar()
 
     def is_isomorphic(self, other: "Graph") -> bool:
-        """
+        r"""
         Check if this graph is isomorphic to another graph.
 
         Two graphs are isomorphic if there exists a one-to-one correspondence (bijection) between
@@ -4419,10 +4442,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        This is a heuristic check using necessary but not sufficient conditions. It will correctly
-        identify *non-isomorphic* graphs (returning `False`) but may give false positives. A
-        complete isomorphism test requires algorithms like VF2. This method is useful as a fast
-        filter before more expensive isomorphism tests.
+        A true isomorphism between graphs $G_1$ and $G_2$ is a bijection $\pi: V_1 \to V_2$
+        such that $(u, v) \in E_1 \iff (\pi(u), \pi(v)) \in E_2$. Deciding whether such a $\pi$
+        exists is the graph isomorphism problem, famous for sitting in $\mathsf{NP}$ but not
+        known to be in $\mathsf{P}$ or $\mathsf{NP}\text{-complete}$, and solved in practice by
+        backtracking algorithms like VF2 or Babai's quasi-polynomial procedure. This method
+        instead checks a handful of cheap *invariants* (node count, edge count, degree
+        sequence, directedness) which any isomorphism must preserve. Two graphs that
+        disagree on any invariant are provably non-isomorphic, but agreement is only
+        suggestive: many non-isomorphic graphs share the same degree sequence. Use this as a
+        fast filter before running a full isomorphism check.
 
         Examples
         --------
@@ -4496,7 +4525,7 @@ class Graph:
         return self._graph.is_isomorphic(other._graph)
 
     def is_regular(self) -> bool:
-        """
+        r"""
         Check if the graph is regular (all nodes have the same degree).
 
         A graph is regular if every node has the same degree. For directed graphs, this means all
@@ -4510,10 +4539,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - empty graphs and single-node graphs are considered regular
-        - cycles are 2-regular
-        - complete graphs `K_n` are `(n-1)`-regular
-        - for directed graphs, checks both in-degree and out-degree regularity
+        Empty graphs and single-node graphs pass vacuously, cycles are $2$-regular, and the
+        complete graph $K_n$ is $(n - 1)$-regular. For directed graphs, both in-degree and
+        out-degree must be constant across nodes, though the constants themselves don't need
+        to agree, so a $k$-in-$\ell$-out schema is still regular. Regularity is the hypothesis
+        behind many spectral shortcuts: the adjacency eigenvalue $\lambda_1$ equals the shared
+        degree, and expander bounds like Cheeger's inequality assume it.
 
         Examples
         --------
@@ -4560,7 +4591,7 @@ class Graph:
         return is_regular(self._graph)
 
     def is_k_regular(self, k: int) -> bool:
-        """
+        r"""
         Check if the graph is k-regular (all nodes have degree `k`).
 
         A graph is k-regular if every node has degree exactly `k`. For directed graphs, this means
@@ -4578,11 +4609,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - empty graphs are considered 0-regular
-        - cycles are 2-regular
-        - complete graphs `K_n` are *(n-1)*-regular
-        - path graphs are *not* regular (end nodes have degree `1`, middle nodes have degree `2`)
-        - for directed graphs, checks both in-degree and out-degree equal `k`
+        This is the stricter cousin of `is_regular()`: instead of asking "is every degree
+        equal?", it pins down the exact value $k$. Empty graphs vacuously satisfy $k = 0$;
+        cycles are $2$-regular; the complete graph $K_n$ is $(n - 1)$-regular; and paths are
+        never regular because their endpoints have degree $1$ while interior nodes have degree
+        $2$. On directed graphs the check tightens to both $\deg^-(v) = k$ and $\deg^+(v) = k$
+        for every $v$.
 
         Examples
         --------
@@ -5159,7 +5191,7 @@ class Graph:
         tol_abs: tuple[float, float] | None = None,
         tol_pct: tuple[float, float] | None = None,
     ) -> list[int]:
-        """
+        r"""
         Get neighbors with similar attribute values.
 
         Returns neighbors whose numeric attribute values fall within a specified tolerance range of
@@ -5193,9 +5225,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - if neither `tol_abs` nor `tol_pct` is specified, only exact matches are returned.
-        - neighbors without the specified attribute are excluded from results.
-        - non-numeric attribute values raise a `ValueError`.
+        When neither `tol_abs` nor `tol_pct` is set, similarity collapses to strict equality on
+        the attribute value, so only exact matches come back. With `tol_abs=t` a neighbor $v$
+        of $u$ counts as similar when $|x_v - x_u| \le t$, and with `tol_pct=p` the tolerance
+        rescales with the anchor as $|x_v - x_u| \le p \cdot |x_u|$, which is what you want
+        when the attribute spans several orders of magnitude. Neighbors that lack the
+        attribute simply drop out of the result; a non-numeric attribute raises `ValueError`
+        rather than silently misbehaving.
 
         Examples
         --------
@@ -7474,12 +7510,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - the 'id', 'label', and 'type' columns are always present (first three columns)
-        - if a node has no label, the label column will contain `None`
-        - if a node has no type attribute, the type column will contain `None`
-        - rows are sorted by id in ascending order
-        - other attributes not present on a node will have `None` values
-        - the 'degree' column is always last
+        The column layout is deliberately stable so downstream code never has to guess:
+        `id`, `label`, and `type` always come first (in that order), any custom node
+        attributes follow in alphabetical order, and a computed `degree` column always
+        closes the frame. Rows come sorted by `id` ascending. Missing values, whether an
+        absent label, a node without the `type` attribute, or an attribute present on some
+        nodes but not others, are represented as `None`, so Polars operations that respect
+        nulls behave as expected.
 
         Examples
         --------
@@ -7579,13 +7616,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        - returns empty DataFrame if no nodes are selected
-        - the 'id', 'label', and 'type' columns are always present (first three)
-        - if a node has no label, the label column will contain None
-        - if a node has no type attribute, the type column will contain None
-        - rows are sorted by id in ascending order
-        - use selection methods before calling this
-        - same structure as `get_node_df()` but filtered to selection
+        Behaves exactly like `get_node_df()` but drains from the current selection rather
+        than the full graph. That means the same column layout (`id`, `label`, `type` first,
+        other attributes in alphabetical order, `degree` last, rows sorted by `id`) and the
+        same `None`-for-missing semantics. If nothing is selected, an empty DataFrame comes
+        back, so remember to run one of the `select_nodes...` methods first.
 
         Examples
         --------
@@ -7687,11 +7722,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - first 4 columns always: `id`, `source`, `target`, `rel` (in that order)
-        - missing `rel` values appear as `None`
-        - other attributes are sorted alphabetically
-        - DataFrame sorted by `id` ascending
-        - `weight` treated as a special attribute column
+        The layout mirrors `get_node_df()` in spirit: `id`, `source`, `target`, and `rel`
+        always come first (in that order), followed by `weight` and any other custom edge
+        attributes in alphabetical order, with rows sorted by `id` ascending. `weight` is
+        treated as a first-class attribute column rather than a bare number so it can be
+        filtered and aggregated with the rest of the schema. Missing `rel` values appear as
+        `None`.
 
         Examples
         --------
@@ -7811,10 +7847,10 @@ class Graph:
 
         Technical Notes
         ---------------
-        - first 4 columns always: `id`, `source`, `target`, `rel` (in that order)
-        - missing rel values appear as `None`
-        - DataFrame sorted by `id` ascending
-        - same structure as `get_edge_df()` but filtered to selection
+        Same schema as `get_edge_df()` (`id`, `source`, `target`, `rel` first, then other
+        attributes in alphabetical order, sorted by `id`), but scoped to the current edge
+        selection. An empty selection returns an empty DataFrame, so one of the
+        `select_edges...` methods needs to run first.
 
         Examples
         --------
@@ -8428,9 +8464,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - higher dispersion indicates the link spans different network regions
-        - low dispersion means the link is embedded in a dense cluster
-        - useful for identifying bridges between communities
+        Dispersion, introduced by Backstrom and Kleinberg (2014), asks a subtler question
+        than raw neighbor overlap: given the common neighbors of two nodes, how *dispersed*
+        are they across the rest of the network? If the shared neighbors are themselves
+        tightly interlinked, the tie between $u$ and $v$ sits in a dense cluster and
+        dispersion is low; if those neighbors are far from one another in the residual
+        graph, the tie spans different regions and dispersion is high. That property made it
+        strikingly effective in its original application, spotting romantic partners in
+        social-network data, where such ties bridge otherwise distinct friendship circles
+        even when embeddedness is high.
 
         Examples
         --------
@@ -8504,7 +8546,7 @@ class Graph:
     def common_neighbors(
         self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
     ) -> list[tuple[int, int, int]]:
-        """
+        r"""
         Compute the number of common neighbors for node pairs.
 
         For each pair of nodes `(u, v)`, counts how many nodes are neighbors of both `u` and `v`.
@@ -8525,10 +8567,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: O(k^2) per pair where k is the average degree
-        - works best for social networks with high clustering
-        - simple baseline for link prediction tasks
-        - higher count suggests higher likelihood of future connection
+        For each candidate pair $(u, v)$, the score is simply $|N(u) \cap N(v)|$, computed
+        in $O(k)$ per pair on undirected simple graphs (where $k$ is the average degree).
+        Despite its crudeness, the metric remains a competitive baseline for link prediction
+        in social networks with high clustering: the more mutual friends two people share,
+        the more likely they are to befriend each other. It ignores degree entirely, so hubs
+        dominate; the Jaccard, Adamic-Adar, and resource-allocation variants below correct
+        for that in different ways.
 
         Examples
         --------
@@ -8579,7 +8624,7 @@ class Graph:
     def jaccard_coefficient(
         self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
     ) -> list[tuple[int, int, float]]:
-        """
+        r"""
         Compute Jaccard coefficient for node pairs.
 
         For each pair of nodes `(u, v)`, computes `|N(u) ∩ N(v)| / |N(u) ∪ N(v)|`, which is the
@@ -8601,10 +8646,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(k)` per pair where k is the average degree
-        - returns value in `[0, 1]` where `1` means identical neighborhoods
-        - more robust than common neighbors for nodes with different degrees
-        - commonly used as similarity metric in network analysis
+        The Jaccard coefficient normalizes common neighbors by the total distinct neighbors
+        of the two nodes: $J(u, v) = \dfrac{|N(u) \cap N(v)|}{|N(u) \cup N(v)|} \in [0, 1]$,
+        with $1$ signalling identical neighborhoods and $0$ meaning no overlap. The
+        normalization makes it fairer than raw common-neighbor counts when comparing pairs
+        with very different degrees, at the cost of inflating scores for low-degree pairs
+        (two isolated leaves that share their only neighbor score a perfect $1$). Cost is
+        $O(k)$ per pair.
 
         Examples
         --------
@@ -8633,7 +8681,7 @@ class Graph:
     def adamic_adar_index(
         self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
     ) -> list[tuple[int, int, float]]:
-        """
+        r"""
         Compute Adamic-Adar index for node pairs.
 
         For each pair of nodes `(u, v)`, computes `Σ(1 / log(|N(w)|))` for all common neighbors `w`.
@@ -8655,10 +8703,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(k)` per pair where `k` is the average degree
-        - more accurate than common neighbors for many real networks
-        - handles hub nodes better by downweighting their contribution
-        - score is unbounded (higher is better)
+        The Adamic-Adar index refines common-neighbor counting by weighting each shared
+        neighbor $w$ by $\dfrac{1}{\log |N(w)|}$:
+        $\mathrm{AA}(u, v) = \sum_{w \in N(u) \cap N(v)} \dfrac{1}{\log |N(w)|}$. The
+        intuition, borrowed from information theory, is that rare neighbors carry more
+        evidence of a real connection than popular hubs everyone touches. The score is
+        unbounded above and empirically beats plain common-neighbor counting on many real
+        networks. Runs in $O(k)$ per pair.
 
         Examples
         --------
@@ -8704,7 +8755,7 @@ class Graph:
     def resource_allocation_index(
         self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
     ) -> list[tuple[int, int, float]]:
-        """
+        r"""
         Compute resource allocation index for node pairs.
 
         For each pair of nodes `(u, v)`, computes `Σ(1 / |N(w)|)` for all common neighbors `w`.
@@ -8726,10 +8777,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: O(k) per pair where k is the average degree
-        - penalizes high-degree common neighbors more than Adamic-Adar
-        - inspired by resource allocation dynamics on networks
-        - often outperforms Adamic-Adar on social networks
+        Resource allocation shares its shape with Adamic-Adar but replaces $1/\log|N(w)|$
+        with the harsher $1/|N(w)|$:
+        $\mathrm{RA}(u, v) = \sum_{w \in N(u) \cap N(v)} \dfrac{1}{|N(w)|}$. The motivating
+        picture is a unit of resource sent from $u$ to $v$ that splits evenly at each hub
+        $w$ before arriving; a rarer hub delivers a larger fraction. That heavier hub
+        penalty frequently edges out Adamic-Adar on social-network link-prediction
+        benchmarks. Runs in $O(k)$ per pair.
 
         Examples
         --------
@@ -8764,7 +8818,7 @@ class Graph:
     def preferential_attachment(
         self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
     ) -> list[tuple[int, int, int]]:
-        """
+        r"""
         Compute preferential attachment score for node pairs.
 
         For each pair of nodes `(u, v)`, computes `|N(u)| × |N(v)|`, the product of their degrees.
@@ -8786,10 +8840,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: O(1) per pair (just degree lookup)
-        - does not use local neighborhood structure
-        - captures "rich get richer" dynamics in scale-free networks
-        - good baseline for networks with power-law degree distribution
+        Preferential attachment scores a pair by the product of their degrees:
+        $\mathrm{PA}(u, v) = |N(u)| \cdot |N(v)|$. It uses no local structure at all, just
+        two degree lookups, which makes it $O(1)$ per pair, and it embodies the
+        Barabási-Albert "rich get richer" dynamic that produces scale-free networks. As a
+        link predictor it works well where degree distributions are heavy-tailed but tends to
+        overrank hub-hub pairs that share nothing else in common.
 
         Examples
         --------
@@ -8844,7 +8900,7 @@ class Graph:
     def get_pairwise_similarity(
         self, nodes: list[Union[int, str]] = None, method: str = "jaccard"
     ) -> list[list[float]]:
-        """
+        r"""
         Calculate pairwise similarity between nodes based on neighborhoods.
 
         Computes structural similarity using various metrics that compare the neighborhoods
@@ -8875,37 +8931,25 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Jaccard Similarity**:
+        The `method=` argument picks between four neighborhood-overlap similarities. All of
+        them are symmetric, and all live in $[0, 1]$ except for the inverse-log-weighted
+        variant, which is unbounded above. *Jaccard* is the plain
+        $J(u, v) = \dfrac{|N(u) \cap N(v)|}{|N(u) \cup N(v)|}$: cheap and the workhorse
+        baseline for structural similarity. *Dice* uses
+        $D(u, v) = \dfrac{2\,|N(u) \cap N(v)|}{|N(u)| + |N(v)|}$, giving common neighbors
+        twice the weight and always sitting at least as high as Jaccard on the same graph.
+        *Inverse log-weighted*, better known as Adamic-Adar, is
+        $\sum_{w \in N(u) \cap N(v)} \dfrac{1}{\log |N(w)|}$: rare neighbors carry more
+        signal than popular hubs, which is why it dominates so many link-prediction
+        benchmarks. *Cosine* interprets neighborhoods as $0/1$ vectors and returns
+        $\dfrac{|N(u) \cap N(v)|}{\sqrt{|N(u)| \cdot |N(v)|}}$, the angle-based analogue of
+        Jaccard.
 
-        - the most common metric
-        - range: [0, 1]
-        - sim(u,v) = |N(u) ∩ N(v)| / |N(u) ∪ N(v)|
-
-        **Dice Similarity**:
-
-        - gives more weight to common neighbors than Jaccard
-        - range: [0, 1]
-        - sim(u,v) = 2|N(u) ∩ N(v)| / (|N(u)| + |N(v)|)
-
-        **Inverse Log-Weighted (Adamic-Adar)**:
-
-        - weights common neighbors by inverse log of their degree
-        - rare neighbors contribute more
-        - sim(u,v) = Σ_{w ∈ N(u) ∩ N(v)} 1/log(|N(w)|)
-        - popular for link prediction
-
-        **Cosine Similarity**:
-
-        - normalized dot product
-        - range: [0, 1]
-        - sim(u,v) = |N(u) ∩ N(v)| / √(|N(u)| × |N(v)|)
-
-        **Use Cases**:
-
-        - link prediction: which edges are likely to form?
-        - recommendations: find similar users/items
-        - community detection: group similar nodes
-        - network embedding: similarity-based features
+        The output is a full square matrix, so the diagonal is always $1.0$ regardless of
+        method (a node is trivially similar to itself). Beyond link prediction, the same
+        matrix feeds naturally into recommendation ranking, community-detection heuristics
+        that cluster on similarity, and network-embedding pipelines that consume
+        similarity-based features.
 
         Examples
         --------
@@ -9099,7 +9143,7 @@ class Graph:
         return self._graph.get_jaccard_similarity()
 
     def get_cosine_similarity(self) -> dict[int, dict[int, float]]:
-        """
+        r"""
         Get cosine similarity between all node pairs.
 
         Cosine similarity treats neighbors as vector components:
@@ -9118,11 +9162,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        Advantages:
-
-        - scales well with high-degree nodes
-        - balances degree differences
-        - standard in text mining and recommendation systems
+        Treating each neighborhood as a $0/1$ indicator vector over the node set makes
+        cosine similarity the angle between two such vectors:
+        $\cos(\theta) = \dfrac{|N(u) \cap N(v)|}{\sqrt{|N(u)| \cdot |N(v)|}}$. The square
+        root in the denominator is what makes it robust to degree imbalance where Jaccard's
+        linear denominator would penalize high-degree nodes more heavily. That property,
+        together with the direct interpretability as an angle, is why cosine has become the
+        standard similarity in text mining (over tf-idf vectors), recommendation systems
+        (user-item overlap), and graph embeddings alike.
 
         Examples
         --------
@@ -9255,7 +9302,7 @@ class Graph:
         return self._graph.has_cycles()
 
     def get_cycles(self, min_length: int = 2) -> list[list[int]]:
-        """
+        r"""
         Get all elementary cycles in the graph using Johnson's algorithm.
 
         Implements Donald B. Johnson's 1975 algorithm for finding all elementary (simple) cycles in
@@ -9284,10 +9331,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: O(V + E)(C + 1) where C is the number of cycles
-        - space complexity: O(V + E)
-        - the algorithm uses backtracking with a blocking mechanism to avoid redundant search
-        - for large dense graphs, the number of cycles can be exponential
+        Enumeration is powered by Johnson's algorithm, which runs in
+        $O\!\left((V + E)(C + 1)\right)$ time and $O(V + E)$ space, where $C$ is the number
+        of elementary cycles actually found. The clever part is a *blocking* mechanism that
+        prevents the backtracking search from revisiting vertices along dead-end paths, and
+        that is what avoids the naive combinatorial blow-up. Even so, $C$ itself can grow
+        exponentially with $V$ in dense graphs, so bound the search with `length_bound=`
+        whenever only short cycles are of interest.
 
         Examples
         --------
@@ -9334,7 +9384,7 @@ class Graph:
         return self._graph.get_cycles(float(min_length))
 
     def simple_cycles(self, length_bound: int | None = None) -> list[list[int]]:
-        """
+        r"""
         Find all simple cycles in the graph.
 
         A simple cycle is a closed path where no node appears more than once (except that the first
@@ -9360,11 +9410,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - for directed graphs: `O(V + E)(C + 1)` where `C` is the number of cycles
-        - for undirected graphs: Can be exponential in worst case
-        - unlike `get_cycles()`, this method works for both directed and undirected graphs
-        - cycles are represented as sequences of node IDs without repeating the start node
-        - for undirected graphs, each cycle is returned only once (canonicalized)
+        Two different engines back this call. Directed graphs use Johnson's algorithm, the
+        same one behind `get_cycles()`, at $O\!\left((V + E)(C + 1)\right)$ time. Undirected
+        graphs fall back to a backtracking DFS that starts fresh from every node; its worst
+        case is exponential in $V$, but a canonicalization step ensures each cycle is
+        emitted exactly once regardless of which starting node discovered it. Cycles come
+        back as sequences of node IDs with no repeat of the start node at the end. Pass
+        `length_bound=` to cut off the search early when only short cycles are of interest.
 
         Examples
         --------
@@ -9462,10 +9514,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Time complexity: `O(V + E)` for building spanning tree and finding cycles.
-        - The cycle basis is not unique, different spanning trees yield different bases.
-        - Works on disconnected graphs (finds cycles in each component).
-        - For weighted graphs needing minimum total weight, use `minimum_cycle_basis()`.
+        The cyclomatic number $E - V + C$ (with $C$ the number of connected components)
+        fixes the size of *every* fundamental cycle basis, so what varies between choices is
+        only which cycles appear, not how many. Building one takes $O(V + E)$: a BFS
+        spanning tree covers the tree edges, and each of the remaining $E - V + C$ back
+        edges closes a unique fundamental cycle. Different `root=` choices, or different
+        spanning trees more generally, produce different but equally valid bases.
+        Disconnected graphs are handled component by component. If total edge weight
+        matters, `minimum_cycle_basis()` finds the basis of least weight.
 
         Examples
         --------
@@ -9516,7 +9572,7 @@ class Graph:
         return rust_cycle_basis(self._graph, root)
 
     def minimum_cycle_basis(self, weight: str | None = None) -> list[list[int]]:
-        """
+        r"""
         Find a minimum weight cycle basis for the graph.
 
         A minimum cycle basis is a cycle basis where the sum of weights of all cycles is minimized.
@@ -9547,11 +9603,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: O(E * V^2) for Horton's algorithm variant.
-        - the minimum cycle basis is unique in terms of total weight (though there may be multiple
-        bases with the same minimum weight).
-        - works on disconnected graphs (finds minimum basis for each component).
-        - for simple (unweighted) cycle basis, use `cycle_basis()` which is faster.
+        Horton's algorithm (1987) generates a candidate cycle for every edge $e = (u, v)$
+        by routing the shortest $u \to v$ path in $G \setminus e$ back through $e$, then
+        greedily selects the lightest cycles that are linearly independent over
+        $\mathbb{F}_2$. That independence check is the expensive step and pushes the total
+        cost to $O(E \cdot V^2)$. The total *weight* of the resulting basis is unique even
+        when the basis itself is not: multiple bases can tie for minimum weight, and this
+        call returns one of them. Disconnected graphs are handled per component. When edge
+        weights are irrelevant, `cycle_basis()` is substantially faster.
 
         Examples
         --------
@@ -9627,10 +9686,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(3^(n/3))` (worst case), but typically much faster in practice
-        - only works on undirected graphs
-        - returns cliques in arbitrary order
-        - each node ID list within a clique is sorted
+        Enumeration uses the Bron-Kerbosch algorithm with pivoting, whose worst-case runtime
+        is $O(3^{n/3})$: the Moon-Moser theorem shows a graph on $n$ vertices can have that
+        many maximal cliques, so the bound is tight. In practice most graphs stay far from
+        the worst case and enumeration is fast. Note that *maximal* is a strictly weaker
+        property than *maximum*: a clique is maximal if it cannot be extended by adding any
+        vertex, but a graph may contain multiple maximal cliques of different sizes. Use
+        `max_clique()` when you specifically want the largest one. Undirected graphs only;
+        results come back with each clique's node IDs sorted, but the cliques themselves are
+        in arbitrary order.
 
         Examples
         --------
@@ -9688,7 +9752,7 @@ class Graph:
         return self._graph.find_cliques()
 
     def max_clique(self) -> list[int]:
-        """
+        r"""
         Find a maximum clique in the graph.
 
         A maximum clique is a largest possible clique in the graph. If multiple maximum cliques
@@ -9707,10 +9771,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(3^(n/3))` in the worst case
-        - only works on undirected graphs
-        - finding the maximum clique is NP-hard
-        - returns one maximum clique if multiple exist
+        Finding a maximum clique is $\mathsf{NP}$-hard and, in fact, inapproximable within
+        any factor of $n^{1-\varepsilon}$ unless $\mathsf{P} = \mathsf{NP}$. This
+        implementation enumerates all maximal cliques via Bron-Kerbosch and returns the
+        largest, which inherits the algorithm's $O(3^{n/3})$ worst-case runtime but performs
+        well on sparse and structured inputs. If more than one maximum clique exists, one is
+        returned arbitrarily. Undirected graphs only.
 
         Examples
         --------
@@ -9768,7 +9834,7 @@ class Graph:
         return self._graph.max_clique()
 
     def clique_number(self) -> int:
-        """
+        r"""
         Get the clique number (size of the maximum clique).
 
         The clique number `ω(G)` is the size of the largest clique in the graph. This is a
@@ -9786,11 +9852,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(3^(n/3))` in the worst case
-        - only works on undirected graphs
-        - determining the clique number is NP-hard
-        - for a complete graph `K_n`, the clique number is `n`
-        - for a bipartite graph, the clique number is at most `2`
+        The clique number $\omega(G)$ is one of the fundamental graph invariants and is
+        $\mathsf{NP}$-hard to compute in general. Extremes are easy to reason about, though:
+        for the complete graph $\omega(K_n) = n$; for any bipartite graph $\omega(G) \le 2$,
+        because a third vertex would need to be adjacent to two already-adjacent vertices,
+        contradicting bipartiteness; and for any triangle-free graph the same $\omega(G)
+        \le 2$ bound holds. The implementation shares the Bron-Kerbosch enumeration behind
+        `find_cliques()` and inherits its $O(3^{n/3})$ worst-case bound. Undirected graphs
+        only.
 
         Examples
         --------
@@ -10225,7 +10294,7 @@ class Graph:
     def clustering_coefficient(
         self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Calculate local clustering coefficient for each node.
 
         The clustering coefficient measures the degree to which a node's neighbors are connected to
@@ -10258,9 +10327,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        High clustering coefficients indicate nodes in tightly-knit groups. The clustering
-        coefficient is a key measure of network transitivity and is used to identify small-world
-        networks.
+        The local clustering coefficient
+        $C(v) = \dfrac{2\,\Delta(v)}{k(v)(k(v) - 1)}$ (with $\Delta(v)$ the number of
+        triangles containing $v$ and $k(v)$ its degree) counts the fraction of possible
+        edges among $v$'s neighbors that actually exist. Values near $1$ mean the
+        neighborhood is essentially a clique; values near $0$ mean it is tree-like.
+        Averaging $C(v)$ across the graph produces the network-level statistic Watts and
+        Strogatz (1998) used to identify small-world structure: high local clustering
+        combined with short average path lengths.
 
         Examples
         --------
@@ -10330,7 +10404,7 @@ class Graph:
         normalize: bool = True,
         offset: bool = True,
     ) -> dict[int, float]:
-        """
+        r"""
         Get edge clustering coefficient for specified edges.
 
         The edge clustering coefficient measures how "clustered" the neighborhood around an edge is,
@@ -10375,14 +10449,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        Complexity:
-
-        - k=3: O(|V| d log d + |E| d) where d is max degree
-        - k=4: O(|V| d log d + |E| d²)
-
-        The original Radicchi et al. definition uses `normalize=True` and `offset=True`. Setting
-        `offset=False` allows the normalized metric to reach exactly `1.0` for edges in complete
-        subgraphs.
+        Radicchi et al. (2004) introduced this metric to identify community-bridging edges:
+        edges embedded in many short cycles are internal to a community, while those
+        embedded in few are candidates for removal in Girvan-Newman-style algorithms. Their
+        original definition uses `normalize=True` and `offset=True`, which adds $1$ to the
+        raw cycle count so a score of $0$ never appears; setting `offset=False` recovers the
+        more natural convention where an edge inside a complete subgraph scores exactly $1$.
+        Runtime is $O(|V|\,d\log d + |E|\,d)$ for $k=3$ (triangles) and
+        $O(|V|\,d\log d + |E|\,d^2)$ for $k=4$ (4-cycles), where $d$ is the maximum degree.
 
         Examples
         --------
@@ -10472,11 +10546,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        Values close to `1.0` indicate a highly clustered network (many triangles). Values close to
-        `0.0` indicate a tree-like or sparse network structure.
-
-        Small-world networks typically have high clustering coefficients combined with low average
-        path lengths.
+        Averaging the local clustering coefficient across every node gives what Watts and
+        Strogatz (1998) named the network's clustering coefficient. Values near $1$ signal a
+        graph whose neighborhoods are almost cliques (dense triangular closure); values near
+        $0$ point to tree-like or otherwise sparse structure with few triangles. Small-world
+        networks sit at the combination that made them famous: high average clustering
+        paired with a small average shortest-path length. Note that this simple mean weights
+        every node equally regardless of degree; for a degree-weighted version see
+        `get_transitivity()`.
 
         Examples
         --------
@@ -10525,7 +10602,7 @@ class Graph:
     def cmty_fast_greedy(
         self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
-        """
+        r"""
         Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
 
         This is a greedy modularity optimization algorithm that merges communities to maximize
@@ -10561,7 +10638,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        Complexity: O(n log²n) on sparse graphs, O(n + m) space.
+        Fast Greedy (Clauset, Newman, and Moore, 2004) maintains a heap of merge candidates
+        ranked by the modularity gain $\Delta Q$ their union would produce, repeatedly pops
+        the top pair, and stops once every candidate merge would strictly decrease
+        modularity. The resulting partition is the one of maximum modularity along that
+        greedy trajectory. On sparse graphs the heap bookkeeping runs in $O(n \log^2 n)$
+        time with $O(n + m)$ memory, which made it the first modularity optimizer usable on
+        graphs of a few hundred thousand nodes. Modern alternatives like Louvain
+        (`cmty_louvain()`) typically reach higher modularity at similar or better cost, but
+        Fast Greedy remains attractive when a strictly agglomerative dendrogram is useful.
 
         Examples
         --------
@@ -10666,16 +10751,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        Algorithm steps:
-
-        1. compute edge betweenness for all edges using Brandes' algorithm
-        2. remove edge with highest betweenness
-        3. recompute betweenness and check if modularity improved
-        4. repeat until modularity stops improving
-        5. return partition with maximum modularity
-
-        Complexity: `O(m²n)` where `m` is edges, `n` is nodes. For graphs with > 10K nodes, consider
-        `cmty_fast_greedy()` or `cmty_louvain()` instead.
+        The Girvan-Newman procedure (2002) treats community boundaries as bottlenecks that
+        carry disproportionate edge betweenness: any shortest path connecting two
+        communities must cross one of a few *bridge* edges, so those edges rack up high
+        betweenness scores. The algorithm computes edge betweenness with Brandes'
+        algorithm, removes the current maximum, and repeats, keeping whichever intermediate
+        partition attains the highest modularity. Because betweenness has to be recomputed
+        after every removal, the total cost is $O(m^2 n)$: fine for a few thousand nodes,
+        punishing beyond ten thousand. `cmty_fast_greedy()` and `cmty_louvain()` scale much
+        better, so reach for edge-betweenness when you want the divisive-hierarchical
+        interpretation or when the graph is small enough that the extra cost buys real
+        accuracy.
 
         Examples
         --------
@@ -10757,7 +10843,7 @@ class Graph:
     def cmty_l_eigenvec(
         self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
-        """
+        r"""
         Detect communities using Leading Eigenvector (Newman) algorithm.
 
         Spectral optimization method using recursive bisection based on the leading eigenvector of
@@ -10786,20 +10872,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        Algorithm steps:
-
-        1. start with all nodes in one community
-        2. compute modularity matrix: B_ij = A_ij - (k_i × k_j) / 2m
-        3. find leading eigenvector using power iteration
-        4. split by sign: positive -> community 1, negative -> community 2
-        5. accept split only if modularity improves
-        6. recursively split each community
-
-        Complexity: `O(n²)` per split (recursive). For very large graphs (> 50K nodes), consider
-        using `get_cmty_fast_greedy()` or `cmty_louvain()` instead.
-
-        The algorithm only splits when modularity improves, so it may return fewer communities than
-        other methods if the structure is not hierarchically organized.
+        Newman (2006) recast community detection as a linear-algebra problem: the modularity
+        matrix $B_{ij} = A_{ij} - \dfrac{k_i k_j}{2m}$ measures each edge's contribution to
+        modularity relative to a null model, and its leading eigenvector defines the split
+        that gains the most modularity in one binary cut. The implementation finds that
+        eigenvector by power iteration, partitions nodes by sign, and recurses on each
+        side, refusing to split whenever doing so would lower modularity. Each split costs
+        $O(n^2)$, and the recursion terminates only when the structure genuinely has
+        hierarchical two-way divisions, so the final community count can be smaller than
+        what agglomerative methods produce. Reach for `cmty_fast_greedy()` or
+        `cmty_louvain()` beyond a few tens of thousands of nodes.
 
         Examples
         --------
@@ -10882,7 +10964,7 @@ class Graph:
     def cmty_louvain(
         self, resolution: float = 1.0, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
-        """
+        r"""
         Detect communities using Louvain multi-level optimization algorithm.
 
         The Louvain method is a hierarchical algorithm that maximizes modularity through iterative
@@ -10917,23 +10999,18 @@ class Graph:
 
         Technical Notes
         ---------------
-        Algorithm steps:
-
-        1. phase 1 (Local optimization): each node tries joining neighboring communities to maximize
-        modularity gain `ΔQ`
-        2. phase 2 (Aggregation): communities are coarsened into super-nodes, creating a new network
-        where each community becomes a single node
-        3. repeat until modularity converges (no further improvement)
-
-        The resolution parameter tunes community size:
-
-        - `resolution < 1.0`: Larger communities
-        - `resolution = 1.0`: Standard modularity optimization
-        - `resolution > 1.0`: Smaller communities
-
-        The algorithm is deterministic but may produce different (equivalent) partitions depending
-        on node ordering. Handles disconnected components naturally. Self-loops and multi-edges are
-        currently not supported.
+        Louvain (Blondel et al., 2008) alternates two phases until modularity converges. In
+        the local phase, each node greedily joins the neighboring community that offers the
+        highest modularity gain $\Delta Q$, computed in $O(1)$ per move from precomputed
+        community sums. In the aggregation phase, every community collapses to a single
+        super-node and the process restarts on the reduced graph, which is what lets Louvain
+        reach coarse community structure in near-linear time. The `resolution=` parameter
+        multiplies the null-model term inside $\Delta Q$: values below $1$ merge communities
+        more aggressively (larger, fewer groups), values above $1$ resist merges (smaller,
+        more numerous groups), and the default of $1$ recovers standard modularity. Louvain
+        is deterministic given a fixed node ordering, but different orderings can produce
+        equally valid alternative partitions. Disconnected components are handled naturally;
+        self-loops and multi-edges are not currently supported.
 
         Examples
         --------
@@ -11028,7 +11105,7 @@ class Graph:
     def cmty_walktrap(
         self, steps: int = 4, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
-        """
+        r"""
         Detect communities using Walktrap random walk algorithm.
 
         The Walktrap algorithm exploits the property that random walks tend to stay trapped within
@@ -11067,24 +11144,18 @@ class Graph:
 
         Technical Notes
         ---------------
-        Algorithm steps:
-
-        1. compute transition probability matrix `P` (`P[i][j] = 1/deg(i)` if edge exists)
-        2. compute t-step transition probabilities `P^t` by matrix exponentiation
-        3. calculate random walk distance between each pair of nodes:
-           `d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])`
-        4. apply Ward's hierarchical clustering on the distance matrix
-        5. cut the dendrogram at the level that maximizes modularity
-
-        The step parameter controls the scale of community detection:
-
-        - lower steps (2-3): Detect finer, more local communities
-        - higher steps (5-8): Detect coarser, more global communities
-
-        The algorithm is deterministic (no randomness despite the name). Works well on hierarchical
-        community structures and handles disconnected components automatically. Performance degrades
-        on very large graphs (>10,000 nodes) due to `O(n²)` distance matrix computation. Self-loops
-        and multi-edges are currently not supported.
+        Walktrap (Pons and Latapy, 2005) rests on a simple observation: a random walk on a
+        graph tends to get *trapped* inside densely connected regions before escaping
+        through sparse bridges. The algorithm builds the $t$-step transition matrix $P^t$
+        from the row-stochastic $P_{ij} = 1/\deg(i)$, defines a random-walk distance
+        $d(i, j) = \sqrt{\sum_k \dfrac{(P^t_{ik} - P^t_{jk})^2}{\deg(k)}}$ that grows small
+        whenever two nodes send walks to similar destinations, then feeds those distances
+        into Ward's agglomerative hierarchical clustering. The dendrogram is finally cut at
+        the level of maximum modularity. Small `steps` values (2 or 3) surface fine-grained
+        local communities; larger values (5 to 8) reveal coarser structure. Nothing about
+        the procedure is random despite the name, and the $O(n^2)$ distance matrix is the
+        practical scaling ceiling around $10\,000$ nodes. Self-loops and multi-edges are not
+        currently supported.
 
         Examples
         --------
@@ -11489,7 +11560,7 @@ class Graph:
         return result
 
     def line_graph(self, create_using_directed: bool | None = None) -> "Graph":
-        """
+        r"""
         Return the line graph of the graph.
 
         The line graph `L(G)` of a graph `G` transforms edges into nodes: each edge in `G` becomes a
@@ -11521,30 +11592,19 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Definition**: For a graph `G = (V, E)`, the line graph `L(G) = (E, E')`, where nodes in
-        `L(G)` are edges of `G`, and edges in `L(G)` connect adjacent edges in `G`.
-
-        **Adjacency Rules**:
-
-        - **Undirected graphs**: edges are adjacent if they share any vertex; edge `{a, b}` is
-        adjacent to edge `{b, c}` because they share node `b`
-        - **Directed graphs**: edge `(u, v)` is adjacent to edge `(v, w)` only; the head of the
-        first edge must equal the tail of the second
-
-        **Properties**:
-
-        - `|V(L(G))| = |E(G)|` (line graph has as many nodes as `G` has edges)
-        - For undirected `G`: `|E(L(G))| = (1/2) * Σ deg(v)² - |E(G)|`
-        - The line graph of a complete graph `Kₙ` is a triangular graph
-        - The line graph of a cycle is another cycle of the same length
-
-        **Use Cases**:
-
-        - edge clustering: cluster edges by treating them as nodes
-        - network flow analysis: study edge relationships
-        - social networks: analyze "edge communities"
-        - transportation: model transfer points between routes
-        - dual representations: some graph problems are easier on L(G)
+        For a graph $G = (V, E)$, the line graph $L(G)$ has one node for each edge of $G$,
+        with two nodes in $L(G)$ adjacent whenever the corresponding edges of $G$ share an
+        endpoint. On directed graphs the sharing must respect direction: edge $(u, v)$
+        links to $(v, w)$ but not to $(w, v)$. From that definition follow several handy
+        identities. $|V(L(G))| = |E(G)|$ by construction, and for undirected $G$ the edge
+        count is $|E(L(G))| = \tfrac{1}{2} \sum_v \deg(v)^2 - |E(G)|$. The line graph of
+        $K_n$ is the triangular graph $T(n)$; the line graph of an $n$-cycle is another
+        $n$-cycle; and the line graph of a star $K_{1,n}$ is the complete graph $K_n$,
+        because all $n$ spokes share the hub. Whitney's theorem (1932) makes the whole
+        construction robust: except for the degenerate case of $K_3$ vs $K_{1,3}$,
+        $L(G) \cong L(H)$ implies $G \cong H$. That property is what makes line graphs
+        useful for edge clustering, edge-community analysis, and modeling transfer points
+        in transportation networks.
 
         Examples
         --------
@@ -11692,11 +11752,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(E)` where `E` is the number of edges
-        - creates a new graph; original is unchanged
-        - node `u` retains its label and attributes
-        - edge weights are preserved
-        - for multigraphs, duplicate edges may be removed
+        Contraction is a fundamental graph-minor operation: the surviving node $u$ inherits
+        every edge incident to $v$, and any $u$-$v$ edge becomes a self-loop on $u$ unless
+        `self_loops=False` suppresses it. The traversal costs $O(E)$ time and produces a
+        fresh graph, so the original is left intact. Node $u$ keeps its label and
+        attributes, and edge weights carry through unchanged; on multigraphs, parallel
+        edges arising from the merge may collapse depending on how the underlying edge set
+        is stored. Contraction is what drives the aggregation phase of Louvain community
+        detection and underpins the reduced graphs used in minor-based algorithms like
+        planarity testing.
 
         Examples
         --------
@@ -11799,9 +11863,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - equivalent to `contract_nodes(u, v)` when edge `(u, v)` exists
-        - raises ValueError if the edge doesn't exist
-        - for undirected graphs, edge direction doesn't matter
+        Convenience wrapper around `contract_nodes(u, v)` that first checks an edge
+        $(u, v)$ actually exists and raises `ValueError` if not. The distinction matters:
+        `contract_nodes()` happily merges any two nodes, while `contracted_edge()` is the
+        operation graph theorists usually mean when they talk about contracting *an edge*,
+        so the guard rules out accidental merges of non-adjacent nodes. On undirected
+        graphs edge orientation is irrelevant; on directed graphs either an $(u, v)$ or
+        $(v, u)$ edge satisfies the precondition.
 
         Examples
         --------
@@ -11855,7 +11923,7 @@ class Graph:
         return result
 
     def contract_nodes_multi(self, nodes: list[int | str], self_loops: bool = True) -> "Graph":
-        """
+        r"""
         Contract multiple nodes into a single node.
 
         Merges all specified nodes into the first node in the list. All edges incident to any of the
@@ -11885,9 +11953,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(k * E)` where `k` is number of nodes to contract
-        - the first node in the list retains its ID and attributes
-        - all other nodes are removed from the graph
+        Repeated contraction costs $O(k \cdot E)$ for $k$ nodes: each merge scans the
+        current edge list, and after each merge the graph is one node smaller. The head of
+        the list is the surviving node, inheriting every edge that touched any member of
+        the batch; the remaining nodes disappear along with any labels or attributes they
+        carried. This is the natural building block for community-quotienting workflows
+        where an entire cluster collapses to a single representative before further
+        analysis.
 
         Examples
         --------
@@ -11952,10 +12024,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        - every node must appear in exactly one block
-        - intra-block edges are discarded (no self-loops in quotient)
-        - edge weights from the first inter-block edge are preserved
-        - quotient nodes are numbered `1, 2, 3, ...` with labels `"block_0"`, etc.
+        A quotient graph is what you get when you glue an equivalence relation onto a
+        graph: each block of the partition collapses to a single new node, and any edge
+        crossing between blocks becomes an edge in the quotient. Intra-block edges are
+        discarded, so the quotient never carries self-loops regardless of how they arose.
+        Every original node must appear in exactly one block; a validation pass raises
+        `ValueError` otherwise. Weights come from the first inter-block edge encountered
+        per pair, which is fine when weights encode capacity but worth reviewing when they
+        encode length or cost. Nodes in the returned graph are relabeled `block_0`,
+        `block_1`, and so on, matching partition order. Quotients power community-level
+        analysis, hierarchical coarsening, and the algebraic view of graph homomorphisms.
 
         Examples
         --------
@@ -12063,10 +12141,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Both graphs must have the same directedness
-        - Node IDs are preserved; overlapping IDs are merged
-        - This graph's node labels/attributes take precedence
-        - Weighted if either graph is weighted
+        Union takes the pointwise superset of nodes and edges, merging any nodes that share
+        an ID; where attributes clash, the calling graph wins. Both operands must agree on
+        directedness, because there is no principled way to fold a directed edge into an
+        undirected graph without losing information. If either operand is weighted, so is
+        the result. Use `disjoint_union()` when you want to keep node IDs strictly separate.
 
         Examples
         --------
@@ -12117,7 +12196,7 @@ class Graph:
         return result
 
     def intersection(self, other: "Graph") -> "Graph":
-        """
+        r"""
         Compute the intersection of this graph with another graph.
 
         Returns a new graph containing only edges that exist in both graphs. Nodes are included only
@@ -12140,10 +12219,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Both graphs must have the same directedness
-        - Only edges present in both graphs are included
-        - Nodes without edges are excluded
-        - Uses this graph's edge weights/attributes
+        Intersection keeps only edges present in both graphs and drops any node that would
+        end up isolated as a result, matching the algebraic identity
+        $E(G_1 \cap G_2) = E_1 \cap E_2$ followed by node pruning. Both operands must share
+        the same directedness. Edge weights and attributes are taken from the calling
+        graph, which is worth knowing when weights differ between the two inputs. A common
+        use is identifying the stable core of a network observed at multiple time points.
 
         Examples
         --------
@@ -12208,9 +12289,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Both graphs must have the same directedness
-        - This is NOT symmetric: `g1.difference(g2) != g2.difference(g1)`
-        - Nodes without edges are excluded
+        Difference returns edges in the calling graph that are absent from `other`, and
+        suppresses any node that becomes edge-isolated as a result. It is asymmetric:
+        `g1.difference(g2)` and `g2.difference(g1)` capture different sides of what
+        changed, which is why change-detection workflows typically call both. Both operands
+        must have the same directedness. Edge attributes come from the calling graph.
 
         Examples
         --------
@@ -12273,9 +12356,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Both graphs must have the same directedness
-        - Symmetric: `g1.symmetric_difference(g2) == g2.symmetric_difference(g1)`
-        - Nodes without edges are excluded
+        Symmetric difference keeps edges present in exactly one of the two graphs, dropping
+        any node that ends up edge-isolated. Unlike `difference()` it is symmetric: the
+        same set comes back regardless of which graph makes the call. Both operands must
+        agree on directedness. This is the go-to operation for surveying all changes
+        between two network snapshots without having to reason about direction.
 
         Examples
         --------
@@ -12338,8 +12423,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Similar to union but other graph's attributes take precedence
-        - Useful for applying updates to a base graph
+        Compose is a right-biased `union()`: the same edge set is produced, but wherever
+        both graphs carry a value for the same node or edge, the *other* graph's value
+        wins. This makes it the natural primitive for applying updates or overlays to a
+        base graph without losing edges that were only in the base. Both operands must
+        share the same directedness.
 
         Examples
         --------
@@ -12393,9 +12481,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - The other graph's nodes are renumbered starting after this graph's max ID
-        - Labels are preserved but IDs change
-        - Use regular `union()` if you want to merge overlapping node IDs
+        Rather than merging on shared node IDs the way `union()` does, `disjoint_union()`
+        renumbers the incoming graph so its IDs sit strictly above the highest ID in the
+        calling graph. Labels and edge attributes carry through unchanged; only IDs shift.
+        The result is a graph with two provably disjoint components, or more when several
+        calls are chained, which is a handy way to assemble a multi-component graph out of
+        independent pieces.
 
         Examples
         --------
@@ -12454,7 +12545,7 @@ class Graph:
     def transform_with_spanner(
         self, stretch: float, weight: str | None = None, seed: int | None = None
     ) -> "Graph":
-        """
+        r"""
         Transform graph to a spanner with given stretch.
 
         A spanner is a sparse subgraph that approximates distances in the original graph. For any
@@ -12491,33 +12582,22 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Algorithm**: This implements a greedy spanner algorithm that iteratively
-        adds edges if they improve the stretch bound. The Baswana-Sen randomized
-        algorithm [1]_ would provide better theoretical guarantees but is more complex.
+        A $t$-spanner is a subgraph $H \subseteq G$ that preserves every pairwise distance
+        up to a multiplicative factor: $d_H(u, v) \le t \cdot d_G(u, v)$ for all node pairs.
+        This implementation uses a greedy scan that considers edges in weight order and
+        admits each one only when the current spanner cannot already reach its endpoints
+        within the stretch bound, costing $O(mn)$ time. The Baswana-Sen (2007) randomized
+        algorithm attains the same guarantee in expected linear time with a tighter sparsity
+        bound but is trickier to implement; the greedy variant here is chosen for clarity
+        and determinism up to the tie-breaking controlled by `seed=`. For unweighted graphs
+        the resulting spanner holds $O(n^{1 + 1/k})$ edges with
+        $k = \lfloor(t + 1)/2\rfloor$, which is optimal assuming the Erdős girth
+        conjecture; weighted graphs may keep more edges but still dramatically fewer than
+        the original.
 
-        **Complexity**: O(mn) where m = number of edges, n = number of nodes.
-        For sparse graphs this is O(n²), for dense graphs O(n³).
-
-        **Sparsity**: The number of edges in the spanner depends on the stretch:
-
-        - unweighted graphs: `O(n^(1+1/k))` edges where `k = ⌊(stretch+1)/2⌋`
-        - weighted graphs: May have more edges but still significantly fewer than the original graph
-
-        **Properties**:
-
-        - preserves graph connectivity
-        - guarantees stretch bound for all node pairs
-        - returns undirected graph (same as input)
-        - preserves node attributes
-        - preserves edge weights (when `weight` parameter is provided)
-
-        **Use Cases**:
-
-        - network backbones: extract core network structure
-        - graph compression: reduce storage while preserving distances
-        - approximate queries: fast distance estimation
-        - visualization: simplify dense networks for clearer plots
-        - preprocessing: reduce graph size before expensive algorithms
+        Spanners are the workhorse behind graph compression, network-backbone extraction,
+        and fast approximate distance queries, and they make an excellent preprocessing
+        step before running an expensive shortest-path or diameter computation.
 
         Examples
         --------
@@ -12862,9 +12942,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - for `n` selected nodes in an undirected graph, creates up to `n(n-1)/2` edges.
-        - for `n` selected nodes in a directed graph, creates up to `n(n-1)` edges.
-        - existing edges are not modified or duplicated.
+        Adding edges between every pair among $n$ selected nodes yields up to
+        $\binom{n}{2} = \tfrac{n(n-1)}{2}$ new edges in an undirected graph and up to
+        $n(n-1)$ in a directed one, since each pair contributes both directions. Existing
+        edges are left untouched: nothing is duplicated or overwritten, so calling this on
+        a partial clique only fills in the gaps. Any keyword arguments are copied onto
+        every new edge, which is a natural way to tag a freshly-materialized clique with a
+        shared label, weight, or type.
 
         Examples
         --------
@@ -13047,9 +13131,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        - only works on directed graphs
-        - edge attributes and IDs remain unchanged
-        - selection state is preserved after reversal
+        Reversal is an in-place edit rather than a delete-then-insert: the underlying edge
+        ID is preserved along with every attribute and weight, so downstream references
+        remain valid. The selection state carries through unchanged, which makes
+        `rev_edge_dir_ws()` chainable with further transformations. Requires a directed
+        graph, since undirected edges have no direction to reverse.
 
         Examples
         --------
@@ -13859,7 +13945,7 @@ class Graph:
     def constraint(
         self, weights: str | None = None, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float | None], "Graph"]:
-        """
+        r"""
         Calculate Burt's constraint for each node.
 
         Burt's constraint measures the extent to which ego's contacts are redundant, that is,
@@ -13901,28 +13987,22 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Interpretation**:
+        A constraint value close to $1$ says ego's contacts are tightly interlinked, so any
+        one tie is largely redundant with the others: high closure, little room for
+        brokerage. Values approaching $0$ mark the opposite regime: ego's contacts sit in
+        structural holes, disconnected from one another, and information or influence
+        flowing between them must pass through ego. Burt (1992) formalizes this as
+        $c_i = \sum_j \left(p_{ij} + \sum_q p_{iq}\,p_{qj}\right)^2$, where $p_{ij}$ is the
+        share of ego's tie strength invested in contact $j$; the inner sum captures indirect
+        ties routed through mutual contacts $q$, and squaring rewards concentration.
 
-        - **High constraint** (approaching 1.0): Ego's contacts are highly
-          interconnected. Limited brokerage opportunities, high closure.
-        - **Low constraint** (approaching 0.0): Ego's contacts are disconnected.
-          Many structural holes, high brokerage potential.
-
-        **Structural holes** occur when ego's contacts are not connected to each
-        other, providing opportunities for:
-
-        - information brokerage (access to diverse information)
-        - control benefits (mediating between disconnected groups)
-        - innovation (combining ideas from separate clusters)
-
-        **Use cases**:
-
-        - social capital analysis: who has advantageous network positions?
-        - innovation research: individuals spanning structural holes
-        - organizational networks: identifying key boundary spanners
-        - entrepreneurship: access to diverse resources and information
-
-        **Undefined values**: Isolated nodes have no ego network and return `None`.
+        The low-constraint positions are the ones network theorists usually care about, since
+        they concentrate the classic structural-hole payoffs: access to non-redundant
+        information, control over what crosses between otherwise separate groups, and the
+        ability to recombine ideas from disconnected clusters. That makes constraint a
+        natural instrument for social-capital studies, innovation research, and any
+        organizational analysis hunting for boundary spanners or entrepreneurial positions.
+        Isolated nodes return `None` because there is no ego network to measure over.
 
         Examples
         --------
@@ -14255,7 +14335,7 @@ class Graph:
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Compute the second order centrality for nodes in the graph.
 
         Second order centrality measures the standard deviation of return times to a node in a
@@ -14288,32 +14368,22 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Algorithm Overview:**
+        The implementation follows the analytical solution of Kermarrec et al. (2011), which
+        recasts second-order centrality in terms of Metropolis-Hastings random walks. The
+        graph is first balanced by adding self-loops so that all in-degrees agree, yielding a
+        transition matrix $P$; then for each node $i$, the linear system
+        $(I - Q_i)\,M[:, i] = \mathbf{1}$ (with $Q_i$ being $P$ with column $i$ zeroed) is
+        solved, and the centrality is read off as $\sqrt{\,2 \sum_j M_{ji} - n(n+1)\,}$.
+        Solving $n$ dense linear systems of size $n \times n$ puts the overall cost at
+        $O(n^3)$ time and $O(n^2)$ space, which is comfortable for graphs up to a few
+        thousand nodes but becomes the bottleneck beyond that.
 
-        The algorithm implements the analytical solution from Kermarrec et al. (2011) based on
-        Metropolis-Hastings random walks:
-
-        1. Balance the graph by adding self-loops to equalize in-degrees
-        2. Create transition probability matrix `P`
-        3. For each node `i`, solve the linear system: `(I - Q_i) * M[:, i] = 1`
-           where `Q_i` is `P` with column `i` zeroed
-        4. Compute centrality as: `sqrt(2 * sum(M[:, i]) - n * (n + 1))`
-
-        **Complexity:**
-
-        - Time: `O(n³)` due to solving `n` linear systems of size `n×n`
-        - Space: `O(n²)` for storing matrices
-
-        **Interpretation:**
-
-        - **Lower values** = **higher centrality** (more central nodes)
-        - Values represent consistency of return times in random walks
-        - Captures both direct and indirect influence through network structure
-        - Complements first-order metrics like degree or betweenness
-
-        **Current Limitation:**
-
-        - Only supports unweighted graphs (all edges treated equally)
+        The scale is inverted relative to most centrality measures: *lower* values indicate
+        *more* central nodes, since the metric quantifies the consistency of return times
+        for random walks passing through each node. Because it draws on the full spectrum of
+        walks rather than just shortest paths, it captures indirect influence that degree or
+        betweenness miss, and tends to complement rather than duplicate those first-order
+        metrics. Only unweighted graphs are supported, so edge weights are ignored.
 
         Examples
         --------
@@ -14429,7 +14499,7 @@ class Graph:
         self,
         return_dict: bool = True,
     ) -> dict[int, dict[int, float]]:
-        """
+        r"""
         Compute communicability between all pairs of nodes.
 
         Communicability measures the "amount of communication" between pairs of nodes based on all
@@ -14462,12 +14532,18 @@ class Graph:
 
         Technical Notes
         ---------------
-        - only works on undirected graphs without self-loops
-        - time complexity: `O(n³)` for eigendecomposition + `O(n²)` for result
-        - space complexity: `O(n²)` for matrices and results
-        - communicability is symmetric: `C(u, v) = C(v, u)`
-        - self-communicability `C(u, u) > 0` (related to subgraph centrality)
-        - higher values indicate more "paths" (walks of all lengths) between nodes
+        Communicability, introduced by Estrada and Hatano (2008), weights every walk between
+        two nodes by an exponentially decaying factor of its length:
+        $C(u, v) = \sum_{k \ge 0} \dfrac{(A^k)_{uv}}{k!} = (\exp A)_{uv}$. Expanding $\exp A$
+        in the eigenbasis $A = \sum_j \lambda_j \phi_j \phi_j^\top$ gives the working
+        formula $C(u, v) = \sum_j \phi_j(u)\, \phi_j(v)\, e^{\lambda_j}$, which is what the
+        implementation actually computes through a single dense eigendecomposition. The
+        whole procedure costs $O(n^3)$ time and $O(n^2)$ space, so it comfortably scales to
+        a few thousand nodes. Because $A$ is symmetric for undirected graphs, so is the
+        result: $C(u, v) = C(v, u)$. Self-values $C(u, u)$ are always strictly positive and
+        are known separately as the subgraph centrality. Directed graphs and self-loops are
+        rejected because their matrix exponentials have different structural
+        interpretations.
 
         Examples
         --------
@@ -14522,7 +14598,7 @@ class Graph:
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Compute communicability betweenness centrality for all nodes.
 
         This centrality measure quantifies the contribution of each node to the communicability
@@ -14560,10 +14636,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - values are normalized to be in `[0, 1]`
-        - time complexity: `O(n × n³) = O(n⁴)` due to eigendecomposition for each node
-        - best suited for small to medium graphs (n < `500`)
-        - unlike standard betweenness, considers all walks, not just shortest paths
+        For each node $r$, the metric estimates how much of the network's total
+        communicability would collapse if $r$ were removed:
+        $\omega_r = \dfrac{1}{C} \sum_{p \ne q,\; q \ne r} \dfrac{G_{prq}}{G_{pq}}$, where
+        $G_{pq} = (\exp A)_{pq}$ is the standard communicability, $G_{prq}$ is the
+        reduction in $G_{pq}$ after removing $r$, and $C = (n-1)^2 - (n-1)$ normalizes the
+        result into $[0, 1]$. Unlike shortest-path betweenness, which counts only geodesic
+        transit, this variant credits every walk, giving nodes on many short-but-not-
+        geodesic detours their due. The cost, however, is steep: each node's contribution
+        requires its own eigendecomposition, pushing the total to $O(n^4)$ and effectively
+        capping practical use around $n < 500$. Directed graphs and self-loops are
+        rejected.
 
         Examples
         --------
@@ -14908,7 +14991,7 @@ class Graph:
         trials: int = 10,
         seed: int | None = None,
     ) -> list[tuple[float, float]]:
-        """
+        r"""
         Perform percolation threshold analysis.
 
         Systematically removes nodes at different fractions and measures the relative size of the
@@ -14937,9 +15020,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        The percolation threshold is typically identified where the relative GCC size drops sharply.
-        For random Erdős-Rényi graphs, this occurs around `q_c = 1 - 1/<k>` where `<k>` is the
-        average degree.
+        Percolation theory studies what fraction of nodes you can remove before a graph
+        fragments; the *percolation threshold* $q_c$ is the fraction at which the giant
+        connected component vanishes. This routine samples the transition curve empirically
+        by removing nodes at fractions $q = 0, \tfrac{1}{s}, \tfrac{2}{s}, \dots, 1$ and
+        averaging the giant-component fraction over `trials` random draws at each $q$.
+        Sharper transitions show up as steeper drops in the returned curve. For
+        Erdős-Rényi random graphs the critical value falls near
+        $q_c \approx 1 - 1/\langle k \rangle$ with $\langle k \rangle$ the average degree,
+        a benchmark useful for spot-checking whether an empirical network is more or less
+        robust than a random baseline.
 
         Examples
         --------
@@ -14970,7 +15060,7 @@ class Graph:
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Compute average neighbor degree for each node.
 
         For each node, calculates the average degree of its neighbors. This metric helps analyze
@@ -15021,12 +15111,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        - measures degree correlation patterns in networks
-        - high values indicate nodes connect to high-degree neighbors (assortative mixing)
-        - low values indicate nodes connect to low-degree neighbors (disassortative mixing)
-        - for undirected graphs, ignores `source` and `target` parameters
-        - nodes with no neighbors have average neighbor degree of `0`
-        - weighted version not yet implemented
+        For each node $v$, this returns the mean degree of the nodes adjacent to $v$:
+        $k_{nn}(v) = \dfrac{1}{|N(v)|} \sum_{u \in N(v)} k(u)$. Aggregating that quantity
+        across degree classes reveals a network's mixing pattern: an assortative graph has
+        high-degree nodes preferentially connected to other high-degree nodes, so
+        $k_{nn}(v)$ grows with $k(v)$, while a disassortative graph shows the opposite. For
+        directed graphs the `source=` argument picks *whose* neighbors to enumerate
+        (successors, predecessors, or both) and `target=` picks *which* degree to average
+        over them, so the four combinations answer different questions about upstream and
+        downstream mixing. Isolated nodes get a value of $0$ by convention. A weighted
+        extension exists (Barrat et al., 2004) but is not yet implemented here.
 
         Examples
         --------
@@ -15759,7 +15853,7 @@ class Graph:
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Get Bonacich power centrality for each node.
 
         Bonacich power centrality generalizes eigenvector centrality to capture both cooperative and
@@ -15825,17 +15919,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - **Algorithm**: uses matrix inversion via LU decomposition to solve `(I - βA)x = A1`
-        - **Time complexity**: `O(n³)` for dense graphs due to matrix operations
-        - **Space complexity**: `O(n²)` to store the adjacency matrix
-        - **Numerical stability**: the algorithm may fail if `β` is too close to `1/λ_max`, where
-        `λ_max` is the largest eigenvalue of `A`. Choose `|β| < 0.9/λ_max` for safety.
-        - **β selection**: there's no universal "correct" `β` value; it should be chosen based on
-        theory and the specific application.
-        - **Negative β instability**: centrality can be more sensitive to `β` changes when `β < 0`
-        compared to `β > 0`. Test multiple values.
-        - **Directed graphs**: works for both directed and undirected graphs. In directed graphs,
-        the interpretation relates to in-degree influence patterns.
+        The centrality solves the linear system $(I - \beta A)\, c = \alpha\, A\, \mathbf{1}$
+        by LU decomposition, which puts the dense-graph runtime at $O(n^3)$ time and
+        $O(n^2)$ space. Numerical stability collapses as $\beta$ approaches
+        $1/\lambda_{\max}$ (the reciprocal of the adjacency spectrum's leading eigenvalue),
+        because that is where $I - \beta A$ becomes singular; staying below
+        $|\beta| \lesssim 0.9/\lambda_{\max}$ keeps the solve well-conditioned. There is no
+        universally correct $\beta$: the parameter reflects a substantive claim about
+        whether the network is cooperative or competitive, and small changes in negative
+        $\beta$ regimes can swing the scores considerably, so probing several values is
+        prudent. Directed graphs are supported and reinterpret the centrality in terms of
+        in-degree influence patterns.
 
         Examples
         --------
@@ -15937,7 +16031,7 @@ class Graph:
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Get Katz centrality for each node.
 
         Katz centrality measures node influence based on the number of walks of all lengths reaching
@@ -15985,11 +16079,18 @@ class Graph:
 
         Technical Notes
         ---------------
-        - for undirected graphs, Aᵀ = A, so behavior is similar to alpha centrality
-        - for directed graphs, high Katz = many incoming paths (prestige/authority)
-        - alpha should be < 1/λ_max to ensure convergence (typically α < 0.2)
-        - beta = 1.0 treats all nodes equally; adjust to bias certain nodes
-        - normalizes final scores to sum to 1.0 for interpretability
+        Katz centrality (Katz, 1953) generalizes eigenvector centrality by giving every node
+        a baseline contribution and geometrically discounting influence with distance. The
+        closed-form solution is
+        $c = \left((I - \alpha A^\top)^{-1} - I\right)\, \beta \mathbf{1}$ (with $\beta$
+        allowing per-node bias), which converges only when $\alpha < 1/\lambda_{\max}(A)$;
+        sensible defaults sit around $\alpha \approx 0.1$ and rarely above $0.2$. For
+        directed graphs the transpose matters: high Katz signals prestige (many incoming
+        paths, weighted toward short ones), while for undirected graphs $A^\top = A$ and the
+        metric collapses close to alpha centrality. Setting `beta` non-uniform biases the
+        walk in favor of certain seed nodes, which is the standard trick for personalized
+        ranking. Final scores are normalized to sum to $1$ so they can be compared across
+        graphs of different sizes.
 
         Examples
         --------
@@ -16170,7 +16271,7 @@ class Graph:
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], tuple[dict[int, float], float], "Graph", tuple["Graph", float]]:
-        """
+        r"""
         Get DomiRank centrality for each node.
 
         DomiRank centrality quantifies node dominance in their neighborhoods. The competition
@@ -16239,17 +16340,19 @@ class Graph:
 
         Technical Notes
         ---------------
-        - computational complexity: O(E × iterations) where E is edges
-        - suitable for large graphs (tested on millions of nodes)
-        - works for directed, undirected, weighted, and unweighted graphs
-        - negative values indicate submissive nodes that yield to neighbors
-        - joint dominance: Multiple nodes can co-dominate a neighborhood
-
-        The algorithm:
-
-        - uses Newton iteration with adaptive convergence detection
-        - automatically finds optimal sigma via smallest eigenvalue
-        - detects divergence via monotonic increase in updates
+        DomiRank (Engsig, Tejedor, Portillo, and Moreno, 2024) is a *competitive* centrality:
+        rather than rewarding proximity to important neighbors as eigenvector-family metrics
+        do, it rewards nodes that suppress their neighbors' scores. The continuous-time
+        dynamics $\dot\Gamma_i = \sigma(d_i - \sum_j A_{ij}\Gamma_j) - \Gamma_i$ settle into
+        a steady state where high-degree nodes surrounded by low-degree neighbors accumulate
+        dominance, while nodes adjacent to already-dominant neighbors go into deficit (their
+        scores drop below zero). Newton iteration solves the fixed-point equation in
+        $O(E \cdot \text{iters})$ per step, which scales to networks of millions of edges.
+        The `sigma=` parameter tunes the competition strength: as $\sigma \to 0$ the ranking
+        degenerates to degree centrality, while large $\sigma$ surfaces the small set of
+        globally dominant nodes. When `sigma=` is left unset, an internal bisection search
+        picks $\sigma = \alpha / |\lambda_{\min}(A)|$, which is empirically near the sweet
+        spot between local and global information.
 
         Examples
         --------
@@ -16366,7 +16469,7 @@ class Graph:
     def closeness_vitality(
         self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Get closeness vitality centrality for each node.
 
         Closeness vitality measures a node's importance by computing the change in total graph
@@ -16395,9 +16498,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        Computationally expensive for large graphs (O(V²E / num_cores) complexity). Consider
-        alternative centrality measures (degree, PageRank) for graphs with >1000 nodes unless high
-        accuracy is required.
+        Closeness vitality (Koschützki et al., 2005) attributes to each node $v$ the change
+        in the graph's *Wiener index* $W(G) = \sum_{u \ne w} d(u, w)$ that would result from
+        removing it: $\mathrm{vit}(v) = W(G) - W(G - v)$. A positive vitality means the
+        network's distances stretch after $v$ is gone, so $v$ was doing important routing
+        work; negative values are rare but possible when a node's removal fragments the
+        graph into components whose pairwise distances no longer count. Computation is
+        inherently expensive at $O(V^2 E / p)$ (one all-pairs shortest-path per node,
+        parallelized across $p$ cores), so plan on staying below a few thousand nodes;
+        degree, PageRank, or betweenness are the usual proxies at scale.
 
         Examples
         --------
@@ -16720,11 +16829,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - the k-corona is a subset of the k-shell (nodes with coreness exactly k)
-        - nodes in the k-corona are those that would lose their k-core membership
-          if any of their k-core neighbors were removed
-        - the k-corona can be empty even when the k-core is non-empty
-        - useful for identifying structurally vulnerable nodes in dense subgraphs
+        The $k$-corona sits inside the $k$-shell (nodes with coreness exactly $k$) and picks
+        out just those members that are *marginally* attached: they participate in the
+        $k$-core but have precisely $k$ neighbors there, so losing any one of those
+        neighbors would drop them out. Because that fragility is what defines the peeling
+        order in $k$-core decomposition, the $k$-corona corresponds exactly to the batch of
+        nodes stripped away in the very next round when computing the $(k + 1)$-core. It can
+        be empty even when the $k$-shell is non-empty, and it is the natural set to inspect
+        for structurally vulnerable positions inside dense subgraphs.
 
         Examples
         --------
@@ -16778,7 +16890,7 @@ class Graph:
         return result
 
     def rich_club_coefficient(self) -> dict[int, float]:
-        """
+        r"""
         Compute the rich-club coefficient for all degree values.
 
         The rich-club coefficient `φ(k)` measures the connectivity among high-degree nodes (the
@@ -16804,11 +16916,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - self-loops are ignored in the edge count
-        - edge weights are ignored
-        - for directed graphs, total degree (in + out) is used
-        - returns unnormalized coefficients; for normalized values comparing to random networks,
-        additional computation with degree-preserving random graphs would be needed
+        For each degree threshold $k$, the coefficient is
+        $\phi(k) = \dfrac{2\, E_{>k}}{N_{>k}(N_{>k} - 1)}$, the observed density among nodes
+        with degree strictly above $k$. Self-loops and edge weights are excluded; for
+        directed graphs the threshold applies to total degree. A rising $\phi(k)$ curve
+        suggests that hubs preferentially wire to other hubs, the classic rich-club effect
+        first characterized by Zhou and Mondragón (2004). The raw values returned here are
+        *unnormalized*, which matters because $\phi(k)$ trivially approaches $1$ near the
+        top of the degree spectrum: so few nodes remain to divide by. To decide whether a
+        real rich-club signal is present, compare against $\phi_{\mathrm{rand}}(k)$ computed
+        on a degree-preserving randomization of the graph and inspect the ratio
+        $\phi(k)/\phi_{\mathrm{rand}}(k)$.
 
         Examples
         --------
@@ -16869,7 +16987,7 @@ class Graph:
     # ==============================================================================
 
     def get_mean_distance(self, unconnected: bool = True) -> float | None:
-        """
+        r"""
         Get mean distance (average shortest path length).
 
         Computes average shortest path length between all reachable node pairs. Also known as
@@ -16889,11 +17007,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        Important network metric:
-
-        - small-world networks: low mean distance despite high clustering
-        - scale-free networks: mean distance grows logarithmically with size
-        - used in epidemiology: average infection spread time
+        The mean distance $\bar{d} = \dfrac{1}{|R|} \sum_{(u, v) \in R} d(u, v)$ is averaged
+        only over pairs $R$ that are actually reachable, which matters for directed or
+        disconnected graphs. This quantity, also called the *characteristic path length*, is
+        what Watts and Strogatz used to identify small-world structure: real networks tend
+        to display much shorter $\bar{d}$ than a regular lattice of the same size while
+        clustering stays lattice-like. In scale-free graphs, $\bar{d}$ grows only
+        logarithmically with $|V|$, and $\bar{d}$ itself appears in epidemiological
+        estimates of average time-to-infection along a contact network.
 
         Examples
         --------
@@ -17305,7 +17426,7 @@ class Graph:
         attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[int], "Graph", None]:
-        """
+        r"""
         Find shortest path using Bellman-Ford algorithm.
 
         Computes the shortest weighted path from source to target using the Bellman-Ford algorithm.
@@ -17351,24 +17472,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Algorithm complexity:**
-
-        - time: `O(V × E)` where `V` is vertices, `E` is edges
-        - space: `O(V)` for distance and predecessor arrays
-        - slower than Dijkstra but handles negative weights
-
-        **When to use:**
-
-        - graph has negative edge weights (debt, cost reductions)
-        - graph is sparse (few edges relative to nodes)
-        - you need to detect negative cycles (arbitrage opportunities)
-
-        **Applications:**
-
-        - financial modeling (debt, arbitrage detection)
-        - network routing with cost penalties
-        - game theory (negative payoffs)
-        - resource allocation with penalties
+        Bellman-Ford relaxes every edge $V - 1$ times, so it costs $O(V \cdot E)$ time and
+        $O(V)$ space, one factor slower than Dijkstra's $O((V + E) \log V)$. What justifies
+        the extra work is that Bellman-Ford tolerates *negative* edge weights: whenever a
+        shorter path exists that dips below the current distance estimate, the next
+        relaxation round finds it. A final $V$-th pass tries to relax again, and any
+        distance that still decreases proves the existence of a negative-weight cycle, which
+        the implementation surfaces as `ValueError` rather than returning an unbounded
+        path. That negative-cycle detector is what makes Bellman-Ford the standard tool for
+        arbitrage detection in currency graphs, cost-penalty routing where discounts appear
+        as negative weights, and game-theoretic setups with negative payoffs, on top of the
+        plain shortest-path role it plays on graphs with occasional negative edges.
 
         Examples
         --------
@@ -17622,7 +17736,7 @@ class Graph:
         heuristic: Optional[Callable[[Union[int, str], Union[int, str]], float]] = None,
         reuse_planner: bool = False,
     ) -> list[int]:
-        """
+        r"""
         Find path using ADA* (Anytime Dynamic A*) search algorithm.
 
         ADA* is an anytime optimal pathfinding algorithm that can return suboptimal paths quickly
@@ -17661,14 +17775,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(b^d)` where `b` is the branching factor, `d` is depth
-        - space complexity: `O(b^d)` for storing search states
-        - `epsilon=1.0` guarantees optimal paths (A* behavior)
-        - `epsilon>1.0` provides bounded suboptimality with faster search
-        - the algorithm performs backward search from target to source
-        - set `reuse_planner=True` for iterative refinement with decreasing epsilon
-        - planner state is stored in `graph._ada_star_planner` attribute
-        - different source/target pairs automatically create separate planners
+        Anytime Dynamic A* (Likhachev et al., 2005) sits between A* and D* Lite: it can
+        return a first, provably $\epsilon$-suboptimal path very quickly, then refine that
+        same search when $\epsilon$ is lowered on a subsequent call. Setting `epsilon=1.0`
+        recovers ordinary A* optimality; larger $\epsilon$ inflates the heuristic so the
+        search prunes more aggressively, trading path length for speed. The underlying
+        search runs backward from `target=` to `source=`, which is what lets it reuse work
+        when the goal is fixed but the source or graph weights change. Passing
+        `reuse_planner=True` keeps the planner alive between calls (stashed on
+        `graph._ada_star_planner`) and is the usual pattern for iterative deepening:
+        warm-start at a large $\epsilon$, then feed a shrinking sequence. Different source
+        or target pairs automatically get separate planners.
 
         Examples
         --------
@@ -17813,7 +17930,7 @@ class Graph:
         return planner.compute_or_improve_path(epsilon)
 
     def all_pairs_shortest_path_length(self) -> dict[int, dict[int, float]]:
-        """
+        r"""
         Compute shortest path lengths for all pairs of nodes.
 
         Uses Dijkstra's algorithm from each source node to find the shortest path distance to all
@@ -17827,11 +17944,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        Time complexity: `O(n * (m + n) * log(n))` where `n` is nodes and `m` is edges. Space
-        complexity: `O(n²)` for storing all pairwise distances.
-
-        For dense graphs or when you need all pairs, this is more efficient than calling
-        `shortest_path()` repeatedly. For sparse queries, use `shortest_path()` instead.
+        Runs Dijkstra from every node, giving $O(n(m + n)\log n)$ time and $O(n^2)$ space
+        to hold the full distance matrix. Unreachable pairs simply do not appear in the
+        result, so the returned dict may be sparse for disconnected or directed graphs. On
+        graphs where individual queries are the whole workload, calling `shortest_path()` on
+        demand is usually cheaper; the payoff of computing everything up-front is when many
+        pairs are needed or when the same distances feed several downstream metrics.
 
         Examples
         --------
@@ -17885,7 +18003,7 @@ class Graph:
         return all_pairs_shortest_path_length(self._graph)
 
     def all_pairs_shortest_path(self) -> dict[int, dict[int, list[int]]]:
-        """
+        r"""
         Compute shortest paths for all pairs of nodes.
 
         Uses Dijkstra's algorithm from each source node to find the shortest path to all other
@@ -17899,11 +18017,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        Time complexity: `O(n * (m + n) * log(n))` where `n` is nodes and `m` is edges. Space
-        complexity: `O(n² * average_path_length)` for storing all paths.
-
-        This method stores full paths, which can be memory intensive for large graphs. If you only
-        need distances, use `all_pairs_shortest_path_length()` instead.
+        Runs Dijkstra from every node just like `all_pairs_shortest_path_length()`, but also
+        reconstructs and stores the actual paths as lists of node IDs. Time is unchanged at
+        $O(n(m + n) \log n)$; space grows to $O(n^2 \cdot \bar\ell)$, where $\bar\ell$ is
+        the average shortest-path length, so the memory footprint can dominate on wide
+        graphs. If only distances are needed, `all_pairs_shortest_path_length()` skips the
+        reconstruction step and its associated memory.
 
         Examples
         --------
@@ -17970,7 +18089,7 @@ class Graph:
         target: Union[int, str],
         k: int,
     ) -> list[tuple[list[int], float]]:
-        """
+        r"""
         Find k shortest paths between source and target using Yen's algorithm.
 
         Finds multiple alternative paths ranked by total path weight/length. Useful for finding
@@ -17995,15 +18114,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        Time complexity: `O(k * n * (m + n * log(n)))` where `n` is nodes, `m` is edges. Space
-        complexity: `O(k * average_path_length)`.
-
-        Uses Yen's algorithm which iteratively finds the next shortest path by systematically
-        removing edges from previous paths. More efficient than finding all simple paths when `k`
-        is small relative to the total number of paths.
-
-        Paths are simple (no repeated nodes) and loop-free. For graphs with negative weights,
-        consider using `bellman_ford_shortest_path()` for single shortest path instead.
+        Yen's algorithm (1971) finds the $k$ shortest simple paths by repeatedly running
+        Dijkstra on modified graphs. Once the shortest path is known, each of its edges is
+        temporarily removed in turn to generate candidate deviations; the next shortest path
+        is whichever candidate has the smallest total weight, and the process continues
+        until $k$ paths are produced or no more valid deviations exist. Total cost is
+        $O(k \cdot n(m + n \log n))$, which is far more efficient than enumerating every
+        simple path when $k$ is much smaller than the true count. All returned paths are
+        simple (no repeated nodes). Yen's algorithm assumes non-negative edge weights, so on
+        graphs with negative edges reach for `bellman_ford_shortest_path()` and prune
+        manually.
 
         Examples
         --------
@@ -18326,10 +18446,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - for large graphs or long paths, the number of simple paths can be exponential
-        - use the `cutoff` parameter to limit search depth and prevent excessive computation
-        - for weighted graphs needing k-shortest paths, consider implementing Yen's algorithm
-        - this method returns ALL paths, which can be memory-intensive for dense graphs
+        The number of simple paths between two nodes can blow up exponentially: the complete
+        graph $K_n$ has $(n - 2)!$ simple paths between any two vertices, and even
+        moderately dense random graphs quickly exceed practical enumeration. The `cutoff=`
+        parameter is the standard escape hatch, capping the search at a fixed number of
+        edges, and it should almost always be supplied on graphs beyond a few dozen nodes.
+        Because every path is materialized in memory, the aggregate size of the result is
+        what constrains large runs more than sheer traversal cost. If ranked *shortest*
+        paths are the goal rather than every simple path, `k_shortest_paths()` uses Yen's
+        algorithm to surface just the top $k$ efficiently.
 
         Examples
         --------
@@ -18459,10 +18584,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - this method is much faster than calling `get_all_simple_paths()` and checking membership
-        - for directed graphs, edges must exist in the specified direction
-        - empty path and single-node paths are considered valid simple paths
-        - compatible with both integer node IDs and string labels
+        Validation runs in a single pass through the sequence in $O(n)$: each node is
+        checked for existence, each consecutive pair for an edge in the required direction,
+        and a visited set ensures no repetition. Enumerating all simple paths first and
+        then testing membership would work but is dramatically slower for graphs of
+        nontrivial size. Edge cases behave the way graph theory would predict: empty
+        sequences and single-node sequences count as valid (trivial) simple paths. Node IDs
+        and labels can be mixed in the same sequence and the resolver picks the right one
+        for each element.
 
         Examples
         --------
@@ -18637,12 +18766,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        Random walks are fundamental to many graph algorithms:
-
-        - PageRank and personalized PageRank
-        - Node2Vec and DeepWalk embeddings
-        - community detection (Walktrap)
-        - graph sampling and exploration
+        Random walks are the substrate under an enormous slice of graph algorithms.
+        PageRank and personalized PageRank interpret each score as the stationary
+        probability of a walker biased by teleportation; Node2Vec, DeepWalk, and related
+        graph embeddings feed sampled walks straight into skip-gram; Walktrap community
+        detection reasons about how long walks tend to stay in a community; and countless
+        sketching and sampling routines lean on walk mixing times to bound their
+        guarantees. On directed graphs the `mode=` argument decides which edges the walker
+        can traverse, which is essential when reversibility is not guaranteed. Setting
+        `seed=` locks in reproducibility, and `stuck='return'` lets the walk terminate
+        gracefully at a sink instead of raising.
 
         Examples
         --------
@@ -18805,13 +18938,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        This is useful for:
-
-        - analyzing edge importance via usage frequency
-        - edge-centric graph algorithms
-        - transition probability estimation
-        - graph sketching and sampling
-        - visualizing edge usage patterns
+        Where `random_walk()` tracks the sequence of nodes visited, this variant records the
+        sequence of edges *traversed*, which is the natural view for edge-centric analyses.
+        Counting how many times each edge appears across a long walk gives a Monte Carlo
+        estimate of the stationary edge-transition probability, which turns into an
+        edge-importance ranking, a graph-sketching primitive, or a sanity check against
+        analytic transition matrices. Because it returns `self` when `return_list=False`
+        and stores per-walk attributes under a customizable name, several walks can be
+        chained side by side under different attribute labels and later compared without
+        recomputation.
 
         Examples
         --------
@@ -18954,10 +19089,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        - uses Kahn's algorithm (BFS-based approach)
-        - maintains in-degree count for each node
-        - processes nodes with in-degree 0 first
-        - detects cycles by checking if all nodes are processed
+        Kahn's algorithm (1962) drives the sort: it maintains an in-degree count for every
+        node, seeds a queue with the zero-in-degree nodes (the ones nothing else depends
+        on), repeatedly dequeues, and decrements the in-degrees of each dequeued node's
+        successors. Cycle detection falls out for free: if the queue empties before every
+        node has been visited, at least one node must sit inside a cycle, and the
+        implementation raises `ValueError` rather than silently returning a truncated
+        result. Time and space are both $O(V + E)$. The output ordering is not unique in
+        general; any node whose entire ancestor set has already appeared is eligible next,
+        and the arbitrary tie-break here is whichever one the underlying queue serves
+        first.
 
         Examples
         --------
@@ -19050,7 +19191,7 @@ class Graph:
         return self._graph.get_topological_sort_order()
 
     def transitive_closure(self) -> "Graph":
-        """
+        r"""
         Compute the transitive closure of a directed graph.
 
         The transitive closure is a graph where there is an edge `(u, v)` if and only if there is a
@@ -19085,9 +19226,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        The transitive closure is the inverse operation of transitive reduction:
-        ``transitive_closure(transitive_reduction(G)) == transitive_closure(G)``
-        (for DAGs)
+        Closure and reduction are duals on DAGs: applying `transitive_closure()` to
+        `transitive_reduction(G)` recovers the same edge set as applying it to $G$ directly,
+        since both share exactly the same reachability relation. The construction here does
+        a BFS from each node in $O(V(V + E))$ time and stores the result as a fresh graph
+        whose edge set $E'$ can grow to $\Theta(V^2)$ in the dense-reachability limit. Once
+        built, reachability queries collapse to a single `has_edge()` lookup, which is why
+        transitive closure is a common preprocessing step for constant-time ancestor or
+        dependency queries.
 
         Examples
         --------
@@ -19141,7 +19287,7 @@ class Graph:
         return result
 
     def transitive_reduction(self) -> "Graph":
-        """
+        r"""
         Compute the transitive reduction of a directed acyclic graph (DAG).
 
         The transitive reduction is the minimal subgraph that maintains the same reachability as the
@@ -19174,8 +19320,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - the transitive reduction of a DAG is unique
-        - the reduction preserves all reachability relationships
+        The transitive reduction of a DAG is *unique* (Aho, Garey, and Ullman, 1972): among
+        all subgraphs with the same reachability, exactly one attains the minimum edge
+        count, and this call returns that graph. Uniqueness fails for cyclic graphs (any
+        edge on a cycle can be removed without losing reachability), so the implementation
+        raises `ValueError` on cyclic input rather than picking an arbitrary reduction. The
+        construction runs in $O(V \cdot E)$ time and $O(V + E)$ space. Reductions are
+        especially useful for visualizing the essential dependency structure of a DAG
+        without the visual clutter of edges implied by transitivity.
 
         Examples
         --------
@@ -19253,7 +19405,7 @@ class Graph:
         return result
 
     def count_walks(self, walk_length: int) -> dict[int, dict[int, int]]:
-        """
+        r"""
         Count walks of a specific length between all pairs of nodes.
 
         A walk is a sequence of nodes where each adjacent pair is connected by an edge. Unlike
@@ -19286,38 +19438,22 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Walk vs. Path**:
+        The number of walks of length $k$ from node $i$ to node $j$ is exactly $(A^k)_{ij}$,
+        where $A$ is the adjacency matrix. This routine computes $A^k$ by fast matrix
+        exponentiation (repeated squaring), giving $O(V^3 \log k)$ time and $O(V^2)$ space
+        regardless of how large $k$ grows. Length $0$ returns the identity ($A^0 = I$: each
+        node has one trivial walk to itself), length $1$ returns the adjacency matrix
+        directly (with entries above $1$ for multi-edges), and higher powers can grow
+        astronomically: the total walk count in a complete graph $K_n$ is $n(n - 1)^k$ for
+        length $k$, so budget accordingly.
 
-        - a *walk* can repeat nodes and edges (counted by this method)
-        - a *path* cannot repeat nodes (use shortest path algorithms)
-        - a *trail* cannot repeat edges but can repeat nodes
-
-        **Walk length 0**:
-        Returns the identity matrix where each node has exactly 1 "walk" to itself
-        (staying in place) and 0 walks to other nodes.
-
-        **Walk length 1**:
-        Returns the adjacency matrix where counts direct edges. For multigraphs,
-        this counts multiple edges between the same node pair.
-
-        **Growth of walk counts**:
-        The number of walks can grow very quickly, especially in dense graphs
-        and with larger walk lengths. For example, in a complete graph K_n,
-        the number of walks grows exponentially with walk_length.
-
-        **Applications**:
-
-        - **Network reachability**: Measure connectivity strength beyond shortest paths
-        - **Information diffusion**: Model how information can spread through multiple redundant
-        paths
-        - **Random walk analysis**: Expected number of random walks between nodes
-        - **Graph similarity**: Compare graphs based on walk structure
-        - **Spectral analysis**: Related to eigenvalues of the adjacency matrix
-
-        **Relationship to matrix powers**:
-
-        This method computes `A^k` where `A` is the adjacency matrix. The trace of `A^k` (sum of
-        diagonal elements) counts closed walks (cycles) of length `k`.
+        The distinction from paths and trails is worth stating: a *walk* may reuse both
+        nodes and edges, a *trail* may reuse nodes but not edges, and a *path* may reuse
+        neither. The trace $\mathrm{tr}(A^k) = \sum_i (A^k)_{ii}$ counts *closed* walks of
+        length $k$, and via the spectral identity $\mathrm{tr}(A^k) = \sum_j \lambda_j^k$
+        this ties walk counts directly to the adjacency spectrum. That makes `count_walks()`
+        a natural primitive for reachability strength, information-diffusion models that
+        credit multiple redundant paths, and kernel-based graph similarity.
 
         Examples
         --------
@@ -19433,23 +19569,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Complexity**:
-
-        - Time: O(trails × avg_trail_length) - exponential in worst case
-        - Space: O(edges) per trail in exploration stack
-
-        **Growth Rate**:
-
-        - triangle (3 nodes): ~2 trails
-        - complete K4 (4 nodes): ~12 trails
-        - complete K5 (5 nodes): ~100+ trails
-        - can easily exceed millions for dense graphs
-
-        **Implementation**:
-
-        - uses iterative DFS with explicit stack (avoids recursion limits)
-        - tracks visited edges (not nodes) to allow node revisiting
-        - for undirected graphs, edges are bidirectional
+        A trail generalizes a path: it forbids reusing edges but allows revisiting nodes,
+        which places it strictly between a walk (nothing forbidden) and a path (nothing
+        repeated). Under the hood this is an iterative depth-first search with an explicit
+        stack, tracking a visited-edge set that gets popped on backtrack. The count grows
+        fast: about $2$ trails on a triangle, a dozen on $K_4$, hundreds on $K_5$, and into
+        the millions on moderately dense graphs. Setting `max_trails=` short-circuits the
+        search once the cap is reached and returns `None`, which is essentially always the
+        right choice on real-world graphs. The trivial case `source == target` counts as one
+        (empty) trail. On undirected graphs, each edge can still be crossed in either
+        direction, but only once.
 
         Examples
         --------
@@ -19569,19 +19698,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Memory Warning**:
-
-        - Each trail stores full node sequence
-        - 1000 trails × 50 nodes each = ~50KB minimum
-        - Can quickly consume many GBs of memory for large graphs
-        - Always set max_trails to reasonable value
-
-        **Use Cases**:
-
-        - Analyzing alternative routes in networks
-        - Finding redundant paths for reliability
-        - Network vulnerability analysis
-        - Understanding connectivity patterns
+        Same enumeration as `count_trails()`, but every trail is materialized as its full
+        node sequence, which changes the memory picture entirely: even a modest $1{,}000$
+        trails at $50$ nodes apiece is several megabytes of Python lists, and the counts
+        explode faster than the graph size does, so `max_trails=` must almost always be set
+        to something sane. Because edges are unique but nodes are not, a returned trail can
+        revisit nodes freely, which is exactly what makes trails useful for reasoning about
+        redundant routing, network vulnerability, or edge-covering tours where the walker
+        may pass through a hub several times.
 
         Examples
         --------
@@ -19815,10 +19939,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Uses Hierholzer's algorithm: O(E) time complexity
-        - Only returns a circuit if one exists (use is_eulerian() to check first)
-        - For semi-Eulerian graphs (path but no circuit), use a pathfinding approach
-        - The returned circuit is one of potentially many valid circuits
+        An Eulerian circuit traverses every edge exactly once and returns to its starting
+        node, and Hierholzer's algorithm (1873) constructs one in $O(E)$ time by repeatedly
+        stitching sub-circuits together as soon as they close. The construction only works
+        if one actually exists: every node must have even degree in the undirected case, or
+        in-degree equal to out-degree in the directed case, and the graph must be connected
+        on the vertices that carry edges (weak connectedness suffices in the directed
+        setting). Call `is_eulerian()` first if that's not guaranteed, since this method
+        simply returns `None` when the preconditions fail. Semi-Eulerian graphs (open
+        Eulerian trail, no circuit) need a slightly different variant that starts at one of
+        the two odd-degree nodes. The circuit returned here is one of possibly many valid
+        ones.
 
         Examples
         --------
@@ -19895,10 +20026,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - bridges are critical for network vulnerability analysis
-        - in a tree, all edges are bridges
-        - in a cycle, no edges are bridges
-        - related to articulation points (vertices whose removal disconnects the graph)
+        Bridge detection uses Tarjan's DFS-based algorithm on undirected graphs, which finds
+        every bridge in $O(V + E)$ by tracking each node's DFS entry time and the lowest
+        such time reachable from its subtree; an edge $(u, v)$ is a bridge iff no back edge
+        from $v$'s subtree reaches $u$ or an earlier ancestor. On directed graphs the notion
+        generalizes to strongly-connected-component analysis, since removing an edge that
+        connects two SCCs severs any cross-component paths. Every edge of a tree is a
+        bridge; a cycle contains none. Bridges are the edge-level analogue of
+        `get_articulation_points()`, and together the two identify a graph's most fragile
+        choke points.
 
         Examples
         --------
@@ -19966,9 +20102,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - more efficient than `len(bridges()) > 0` for large graphs
-        - useful for quick connectivity analysis
-        - returns `False` for complete graphs and cycles
+        A boolean shortcut around `bridges()` that stops the DFS as soon as the first bridge
+        is detected, so the cost stays bounded above by $O(V + E)$ but is usually much lower
+        on graphs with abundant redundancy. Prefer this when the only question is whether
+        *any* bridge exists (for instance, when classifying a graph as 2-edge-connected).
+        Complete graphs and cycles both return `False`; trees return `True`, since every
+        edge of a tree is a bridge.
 
         Examples
         --------
@@ -20015,7 +20154,7 @@ class Graph:
         return has_bridges(self._graph)
 
     def get_node_vitality(self, node: Union[int, str]) -> float:
-        """
+        r"""
         Compute the vitality of a single node.
 
         Node vitality measures the impact of removing a node on graph connectivity, defined as the
@@ -20045,11 +20184,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - computationally expensive: `O(V * E)` where `V` is vertices, `E` is edges
-        - returns `inf` if node removal disconnects the graph
-        - related to `closeness_vitality()` which computes for all nodes
-        - useful for identifying critical nodes in network vulnerability analysis
-        - for all nodes, consider using `closeness_vitality()` instead
+        Vitality is defined as the increase in the network's total pairwise distance caused
+        by removing a single node: $\mathrm{vit}(v) = W(G) - W(G - v)$, where
+        $W(G) = \sum_{u \ne w} d(u, w)$ is the Wiener index. Positive values flag nodes
+        whose absence stretches out communication paths; $+\infty$ specifically flags cut
+        vertices whose removal disconnects the graph and leaves some distances undefined.
+        Because computing $W$ requires an all-pairs shortest-path pass, the cost is
+        $O(V \cdot E)$ per node, so for many nodes it is dramatically cheaper to call
+        `closeness_vitality()` once and read every value out of the same shared BFS pass.
 
         Examples
         --------
@@ -20259,7 +20401,7 @@ class Graph:
         return self._graph.get_articulation_points()
 
     def get_periphery(self) -> list[int]:
-        """
+        r"""
         Get periphery nodes (nodes with maximum eccentricity).
 
         Periphery nodes are farthest from the graph's center. These nodes have the maximum
@@ -20273,11 +20415,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        Characteristics:
-
-        - opposite of center: peripheral vs central nodes
-        - in trees: always leaf nodes
-        - multiple nodes can have maximum eccentricity
+        The periphery is the set of nodes attaining the graph's diameter, that is those with
+        $\mathrm{ecc}(v) = \max_u \mathrm{ecc}(u)$. It is the natural dual of the graph's
+        *center* (minimum-eccentricity nodes) and reveals which parts of the network sit
+        furthest from everything else. On a tree it always consists of leaves. Multiple
+        nodes commonly tie for maximum eccentricity; all such nodes are returned. If the
+        graph is disconnected, eccentricity is undefined across components and the method
+        returns an empty list rather than picking a single component.
 
         Examples
         --------
@@ -20756,7 +20900,7 @@ class Graph:
         return self._graph.get_min_cut_between(source_id, sink_id)
 
     def minimum_node_cut(self, source: Union[int, str], sink: Union[int, str]) -> set[int]:
-        """
+        r"""
         Find minimum node cut between source and sink nodes.
 
         Returns the set of nodes whose removal disconnects the source from the sink. Uses
@@ -20784,8 +20928,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        The node connectivity between two nodes is the minimum number of nodes that must be removed
-        to disconnect them. This is closely related to Menger's theorem.
+        The minimum node cut between $s$ and $t$ is the smallest set of intermediate
+        vertices whose removal severs every $s$-$t$ path, and by Menger's theorem its size
+        equals the maximum number of *internally node-disjoint* paths from $s$ to $t$. The
+        implementation reduces the problem to an edge-cut by the standard node-splitting
+        trick: replace each non-$\{s, t\}$ vertex $v$ with $v_{\mathrm{in}} \to
+        v_{\mathrm{out}}$ carrying unit capacity, so a saturated node-transit edge in the
+        transformed graph corresponds exactly to a cut node. Max-flow then finds the
+        minimum cut in $O(V \cdot E^2)$ via Edmonds-Karp. The source and sink themselves
+        are, by construction, never returned in the cut.
 
         Examples
         --------
@@ -20933,7 +21084,7 @@ class Graph:
         sink: Union[int, str],
         capacity: str | None = None,
     ) -> dict[int, float]:
-        """
+        r"""
         Compute maximum flow from source to sink.
 
         Finds the maximum amount of flow that can be sent from the source node to the sink node
@@ -20966,9 +21117,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - for undirected graphs, each edge is treated as two directed edges with equal capacity
-        - self-loops are ignored in flow computation
-        - the max-flow min-cut theorem states that max_flow equals the minimum cut capacity
+        The Edmonds-Karp variant of Ford-Fulkerson is used: at each step it augments along
+        the *shortest* augmenting path (measured in edge count) found by BFS, which bounds
+        the total number of augmentations by $O(V \cdot E)$ and gives an $O(V \cdot E^2)$
+        overall runtime regardless of the actual capacities. Undirected edges are internally
+        treated as antiparallel pairs with equal capacity, and self-loops carry no flow. The
+        max-flow min-cut theorem guarantees that the returned flow value equals the size of
+        the minimum $s$-$t$ cut, which is what `get_min_cut_between()` reports; use
+        `max_flow_value()` when only the number is needed.
 
         Examples
         --------
@@ -21101,7 +21257,7 @@ class Graph:
         capacity: str | None = None,
         cost: str | None = None,
     ) -> tuple[float, float, dict[int, float]]:
-        """
+        r"""
         Compute minimum cost flow from source to sink.
 
         Finds the flow that minimizes total cost. Can either send a specified amount of flow
@@ -21141,11 +21297,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - graph must be directed (use `.to_directed()` to convert if needed)
-        - self-loops are ignored in flow computation
-        - negative costs are allowed (the algorithm handles them correctly)
-        - the algorithm uses Successive Shortest Path with Bellman-Ford, with time complexity
-        `O(V * E * F)` where `F` is the total flow
+        Uses the Successive Shortest Path algorithm with Bellman-Ford relaxation, so
+        negative costs are permitted alongside the usual non-negative case; the algorithm
+        terminates in $O(V \cdot E \cdot F)$ where $F$ is the total flow sent. Because it
+        repeatedly routes along the *cheapest* residual path from source to sink, the greedy
+        trajectory is provably optimal in total cost. The graph must be directed (call
+        `.to_directed()` first for undirected inputs), and self-loops contribute nothing.
+        Leaving `demand=` at `None` sends the maximum possible flow at minimum cost; setting
+        it to a specific value clamps the total and raises `ValueError` if that demand
+        cannot be met by any admissible flow.
 
         Examples
         --------
@@ -21437,11 +21597,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        The algorithm used is Kosaraju's algorithm which runs in `O(V + E)` time:
-
-        1. perform DFS on original graph to get finish times
-        2. transpose the graph (reverse all edges)
-        3. perform DFS on transposed graph in reverse finish order
+        Kosaraju's algorithm (1978) computes SCCs in $O(V + E)$ time with three passes:
+        first a DFS on the original graph produces a finish-time ordering, then the edge
+        set is reversed, and a second DFS on the reversed graph in reverse-finish order
+        carves out one SCC per tree it produces. The correctness argument is elegant: a
+        node's SCC is exactly the set of vertices reachable from it in both $G$ and its
+        transpose $G^\top$. Tarjan's algorithm delivers the same guarantee in a single DFS
+        pass with an explicit stack; both are common choices, and any downstream code
+        should treat the returned component list as unordered.
 
         Examples
         --------
@@ -21511,7 +21674,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        Time complexity: `O(V + E)` using Kosaraju's algorithm to count SCCs.
+        Returns `True` iff the entire node set forms a single SCC, delegating to the same
+        Kosaraju pass as `strongly_connected_components()` and short-circuiting once a
+        second component is discovered, so the effective cost is $O(V + E)$. Empty graphs
+        are treated as trivially strongly connected, matching the vacuously-true convention
+        that pairs of nonexistent nodes need no path. On undirected graphs strong and
+        ordinary connectivity coincide, so this call falls through to `is_connected()`
+        semantics.
 
         Examples
         --------
@@ -21566,7 +21735,11 @@ class Graph:
 
         Technical Notes
         ---------------
-        Time complexity: `O(V + E)` using BFS/DFS traversal.
+        Weak connectivity ignores edge orientation: the check is whether the *underlying*
+        undirected graph is connected, which BFS or DFS decides in $O(V + E)$. Weakly
+        connected is therefore strictly weaker than strongly connected, so any
+        strongly-connected graph is also weakly connected but not conversely. Empty graphs
+        pass vacuously. For undirected inputs the notion collapses to `is_connected()`.
 
         Examples
         --------
@@ -21629,7 +21802,7 @@ class Graph:
         strategy: str = "largest_first",
         interchange: bool = False,
     ) -> dict[int, int]:
-        """
+        r"""
         Color the graph using a greedy algorithm.
 
         Graph coloring assigns colors (represented as integers) to nodes such that no two adjacent
@@ -21668,11 +21841,19 @@ class Graph:
 
         Technical Notes
         ---------------
-        - greedy coloring does not guarantee the minimum number of colors (chromatic number)
-        - the number of colors used is at most `max_degree + 1`
-        - different strategies may produce different numbers of colors
-        - for bipartite graphs, optimal coloring uses exactly 2 colors
-        - the `"smallest_last"` and `"dsatur"` strategies often produce good results
+        Greedy coloring is what every graph-coloring course starts with and what most real
+        software uses in practice, despite its worst-case wastefulness. Its output size is
+        bounded above by $\Delta(G) + 1$, where $\Delta$ is the maximum degree (a
+        Brooks-style bound), and by exactly $2$ on bipartite graphs. The `strategy=`
+        argument controls the crucial ordering step. *DSATUR* (Brélaz, 1979) is the
+        strongest general-purpose default: it colors the highest-saturation node next,
+        meaning the node whose neighborhood already uses the most distinct colors, and
+        consistently produces optimal or near-optimal colorings for typical graphs.
+        *smallest_last* peels the minimum-degree node last and applies its coloring in
+        reverse peeling order, matching DSATUR on many sparse inputs; *largest_first* is
+        faster but coarser. Because the underlying problem is $\mathsf{NP}$-hard, none of
+        these strategies guarantees the true chromatic number, but running several and
+        taking the best is a cheap and effective heuristic.
 
         Examples
         --------
@@ -21907,7 +22088,7 @@ class Graph:
         return is_matching(self._graph, edges)
 
     def maximal_matching(self) -> list[int]:
-        """
+        r"""
         Find a maximal matching in the graph.
 
         A maximal matching is a matching (set of edges with no shared endpoints) that cannot be
@@ -21923,12 +22104,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(E)` where `E` is the number of edges
-        - space complexity: `O(V)` for tracking matched nodes
-        - greedy algorithm: processes edges in arbitrary order
-        - result may vary between calls due to iteration order
-        - for maximum cardinality matching, use specialized algorithms
-        - for weighted matching, use `max_weight_matching()`
+        Runs a greedy scan of the edge list in $O(E)$: each edge whose endpoints are both
+        still unmatched joins the matching and marks them off. The result is *maximal* in
+        the inclusion-ordering sense (no further edge can be added without a conflict) but
+        not necessarily *maximum*: a matching that ties up the wrong endpoints first can
+        leave more edges dangling than an optimal one would. For maximum cardinality
+        matching on general graphs, Edmonds' blossom algorithm runs in $O(V \cdot E)$ but
+        is far more elaborate; for bipartite inputs, Hopcroft-Karp's $O(E \sqrt{V})$ is
+        the workhorse. When edge weights matter, `max_weight_matching()` handles the
+        objective-aware variant.
 
         Examples
         --------
@@ -21982,7 +22166,7 @@ class Graph:
         return maximal_matching(self._graph)
 
     def max_weight_matching(self) -> list[int]:
-        """
+        r"""
         Find a maximum weight matching in the graph.
 
         Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
@@ -21999,13 +22183,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(E log E)` for sorting edges
-        - space complexity: `O(V + E)` for tracking matched nodes and edges
-        - greedy approximation: selects heaviest edges first
-        - not guaranteed to be optimal for general graphs
-        - optimal for trees and forests
-        - for bipartite graphs, consider Hungarian algorithm
-        - for unweighted graphs, equivalent to maximal matching
+        Sorts edges by weight in $O(E \log E)$ and admits each into the matching if both
+        endpoints are still free, taking $O(V + E)$ auxiliary space to track the matched
+        set. This greedy scheme is provably optimal on trees and forests but only
+        $\tfrac{1}{2}$-approximate on general graphs (Preis, 1999): a heavy edge that shares
+        an endpoint with two moderately-weighted ones can still be the wrong choice. For an
+        exact optimum on general graphs use Edmonds' weighted blossom algorithm; for
+        bipartite inputs the Hungarian method delivers an exact result in $O(V^3)$. On
+        unweighted graphs every edge scores identically and the call degenerates into
+        `maximal_matching()`.
 
         Examples
         --------
@@ -22097,9 +22283,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(V + E)` where `V` is nodes in the set and `E` is edges
-        - empty set is trivially an independent set
-        - single node is trivially an independent set
+        An independent set contains no adjacent vertices, so validation reduces to scanning
+        the input set for any pair joined by an edge: a single such edge witnesses
+        invalidity. The cost is $O(|V| + |E|)$ in the worst case, or $O(|S|^2)$ in the
+        neighbor-set variant when $|S|$ is small. Empty and singleton sets pass trivially.
+        The dual property, that the *complement* of an independent set is a *vertex cover*,
+        is what ties this validation to some of the most well-studied problems in
+        combinatorial optimization.
 
         Examples
         --------
@@ -22157,7 +22347,7 @@ class Graph:
         nodes: list[int] | None = None,
         seed: int | None = None,
     ) -> list[int]:
-        """
+        r"""
         Find a maximal independent set in the graph.
 
         A maximal independent set is an independent set that cannot be extended by adding any other
@@ -22189,11 +22379,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(V + E)` where `V` is vertices and `E` is edges
-        - space complexity: `O(V)` for tracking available nodes
-        - randomized algorithm: results may vary without a seed
-        - maximal ≠ maximum: this is not guaranteed to find the largest possible set
-        - for the largest independent set, use `maximum_independent_set()`
+        Randomized greedy fills a set by repeatedly picking a node uniformly at random,
+        adding it if it is not yet dominated, and removing its neighborhood from further
+        consideration. Under a random ordering the expected running time is $O(V + E)$ with
+        $O(V)$ auxiliary memory, and the result is guaranteed *maximal* (no further node
+        can be added) but not necessarily *maximum*, which is $\mathsf{NP}$-hard to compute
+        exactly. Supplying `seed=` locks reproducibility; passing `nodes=` fixes a starting
+        independent set that the algorithm then extends. For the largest possible set,
+        `maximum_independent_set()` runs a different (still greedy but degree-aware)
+        heuristic.
 
         Examples
         --------
@@ -22252,7 +22446,7 @@ class Graph:
         return maximal_independent_set(self._graph, nodes, seed)
 
     def maximum_independent_set(self) -> list[int]:
-        """
+        r"""
         Find an approximate maximum independent set in the graph.
 
         The maximum independent set problem is NP-hard, so this method uses a greedy heuristic that
@@ -22270,11 +22464,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(V² + VE)` due to repeated neighbor lookups
-        - space complexity: `O(V)` for tracking available nodes
-        - this is a greedy approximation, not an exact algorithm
-        - for exact solutions on small graphs, exhaustive search is needed
-        - the complement of a maximum independent set is a minimum vertex cover
+        Repeatedly picks the minimum-degree candidate, adds it to the set, and removes it
+        and its neighbors from the pool, producing a heuristic approximation in
+        $O(V^2 + VE)$ time. The complement of any maximum independent set is a minimum
+        vertex cover, and both problems are $\mathsf{NP}$-hard: this is a Lovász-flavored
+        greedy heuristic rather than an exact solver, and even the best-known
+        polynomial-time approximations run within a factor of $O(V / \log^2 V)$ of
+        optimal. For exact answers on graphs of a few dozen nodes, branch-and-bound methods
+        are viable; beyond that, greedy or randomized approximations are the practical
+        choice.
 
         Examples
         --------
@@ -22336,7 +22534,7 @@ class Graph:
         count: int = 10,
         seed: int | None = None,
     ) -> list[list[int]]:
-        """
+        r"""
         Find multiple distinct maximal independent sets.
 
         Runs the maximal independent set algorithm multiple times with different random seeds to
@@ -22358,10 +22556,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Time complexity: `O(count × (V + E))`
-        - Attempts to find unique sets; may return fewer than requested
-        - With a seed, results are reproducible
-        - Without a seed, each call may produce different sets
+        Runs `maximal_independent_set()` `count` times with distinct seeds derived from a
+        common base, giving $O(\text{count} \cdot (V + E))$ total work. Duplicate results
+        are dropped, so the returned list may be shorter than `count` when the graph's
+        independent structure is tight enough that different starting orders keep
+        converging to the same set. Sampling a diverse pool this way is the usual bridge
+        between the fast-but-maximal single call and the slow-but-maximum exact solver:
+        keeping the largest set out of several attempts often approaches the true maximum
+        on real-world graphs.
 
         Examples
         --------
@@ -22436,10 +22638,12 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(V + E)` where `V` is nodes and `E` is edges
-        - empty set is NOT a dominating set (unless graph is empty)
-        - the entire node set is always a dominating set
-        - a single node dominates only itself and its neighbors
+        A dominating set covers every vertex either directly or via a neighbor, so
+        validation is a single pass: mark every element of the input set plus every one of
+        their neighbors, then verify that every vertex in the graph is now marked. The scan
+        costs $O(V + E)$. Edge cases behave predictably: the empty set dominates only the
+        empty graph, and the entire vertex set is always a dominating set (trivially). A
+        single-node set dominates exactly that node and its neighborhood.
 
         Examples
         --------
@@ -22492,7 +22696,7 @@ class Graph:
         return is_dominating_set(self._graph, nodes)
 
     def dominating_set(self, start_with: int | None = None) -> list[int]:
-        """
+        r"""
         Find a dominating set for the graph.
 
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
@@ -22516,11 +22720,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(V + E)` greedy algorithm
-        - space complexity: `O(V)` for tracking dominated nodes
-        - not guaranteed to find the minimum dominating set (NP-hard problem)
-        - every maximal independent set is a dominating set
-        - related to but different from `domirank_centrality()`
+        A simple greedy sweep in $O(V + E)$ that starts from `start_with=` (or an arbitrary
+        node if unset), repeatedly adds an unmarked node, and marks it and its neighbors as
+        dominated until every node is covered. The result is *some* dominating set but not
+        the smallest one possible; the minimum dominating set problem is $\mathsf{NP}$-hard,
+        so this heuristic mainly earns its keep as a fast baseline. Any maximal independent
+        set is automatically a dominating set, since every excluded vertex must be adjacent
+        to an included one, so `maximal_independent_set()` provides another cheap route to
+        the same guarantee. For a weighted objective, `min_weighted_dominating_set()` is
+        preferable.
 
         Examples
         --------
@@ -22572,7 +22780,7 @@ class Graph:
         return dominating_set(self._graph, start_with)
 
     def min_weighted_dominating_set(self, weight_attr: str | None = None) -> list[int]:
-        """
+        r"""
         Find an approximate minimum weighted dominating set.
 
         Uses a greedy algorithm that iteratively adds the most cost-effective node (lowest weight
@@ -22592,10 +22800,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(V × E)` for the greedy algorithm
-        - approximation guarantee: `O(log(sum of weights)) × optimal`
-        - for unweighted case (all weights = `1`), equivalent to `dominating_set()`
-        - NP-hard to find the exact minimum; this is a greedy approximation
+        Implements the Chvátal-style greedy heuristic that at each step picks the node
+        maximizing *domination gain per unit weight*: newly dominated nodes divided by the
+        candidate's weight. Running this to completion in $O(V \cdot E)$ time produces a
+        dominating set whose total weight is within an $O(\log n)$ factor of optimal, a
+        bound that matches the best possible polynomial-time approximation ratio for the
+        weighted set-cover problem it generalizes. Nodes with a missing or unrecognized
+        `weight_attr=` attribute are treated as weight $1$, and the unweighted case (every
+        weight equal to $1$) degenerates to `dominating_set()`.
 
         Examples
         --------
@@ -22673,7 +22885,7 @@ class Graph:
         weight_attr: str | None = None,
         return_subgraph: bool = True,
     ) -> "Graph | list[str]":
-        """
+        r"""
         Find the minimum spanning tree using Kruskal's algorithm.
 
         A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
@@ -22697,10 +22909,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(E log E)` for sorting edges
-        - space complexity: `O(V)` for union-find structure
-        - for disconnected graphs, finds a minimum spanning forest
-        - if graph has < 2 nodes, returns empty graph or list
+        Kruskal's algorithm sorts the $|E|$ edges by weight in $O(E \log E)$ and admits
+        each into the growing forest whenever its endpoints belong to different components,
+        checked with a union-find structure whose path-halving and rank compression bring
+        the amortized cost per query down to essentially $O(1)$. Prim's algorithm delivers
+        the same bound $O(E \log V)$ by growing a single tree instead. On a disconnected
+        graph the result is a *spanning forest*, one MST per component, rather than a
+        single tree. Ties among equal-weight edges are broken by insertion order, so the
+        returned tree is deterministic even when several MSTs share the minimum weight.
 
         Examples
         --------
@@ -22777,7 +22993,7 @@ class Graph:
         weight_attr: str | None = None,
         return_subgraph: bool = True,
     ) -> "Graph | list[str]":
-        """
+        r"""
         Find the maximum spanning tree using Kruskal's algorithm.
 
         A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
@@ -22800,9 +23016,14 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(E log E)` for sorting edges
-        - space complexity: `O(V)` for union-find structure
-        - useful for finding most important connections in a network
+        Same Kruskal pipeline as `minimum_spanning_tree()` with the weight comparator
+        reversed (equivalently, running MST on $-w$), so cost is $O(E \log E)$ and
+        correctness follows from the cut and cycle properties applied to the negated-weight
+        matroid. The construction is a standard tool for extracting a network *backbone*:
+        retain the strongest relationships in a social graph, the highest-throughput links
+        in a communication network, or the most similar species in a hierarchical
+        clustering. Behaves exactly like the minimum variant on disconnected input,
+        yielding one maximum spanning tree per component.
 
         Examples
         --------
@@ -22871,7 +23092,7 @@ class Graph:
         weight_attr: str | None = None,
         return_subgraph: bool = True,
     ) -> "Graph | list[tuple[str, str, float]]":
-        """
+        r"""
         Find an approximate Steiner tree connecting the given terminal nodes.
 
         A Steiner tree is a minimum weight tree that connects a specified set of terminal nodes. It
@@ -22904,11 +23125,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(|T| * (E log V))` where `T` is the number of terminal nodes
-        - space complexity: `O(V + E)`
-        - uses Mehlhorn's 2-approximation algorithm
-        - the approximation factor of 2 means the result is at most twice the optimal weight
-        - for graphs with only 2 terminal nodes, returns the shortest path between them
+        The Steiner tree problem, finding the cheapest tree that spans a designated set of
+        *terminal* nodes and may route through non-terminal "Steiner" nodes, is
+        $\mathsf{NP}$-hard even on planar graphs. This implementation uses Mehlhorn's
+        (1988) 2-approximation, which builds a metric closure of the terminals using
+        shortest paths, takes an MST of that closure, and expands the tree edges back to
+        their underlying subgraph paths, running in $O(|T| \cdot (E + V) \log V)$ time. The
+        result is guaranteed to weigh no more than twice the true optimum; that ratio is
+        tight in the worst case but is usually much better on structured inputs.
+        Two-terminal inputs degenerate to a shortest path between the pair.
 
         Examples
         --------
@@ -23003,7 +23228,7 @@ class Graph:
         weight_attr: str | None = None,
         return_subgraphs: bool = True,
     ) -> "list[Graph] | list[list[tuple[str, str, float]]]":
-        """
+        r"""
         Enumerate all spanning trees of the graph.
 
         A spanning tree is a subgraph that connects all vertices with the minimum number of edges
@@ -23040,11 +23265,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(N * E)` where `N` is the number of spanning trees
-        - space complexity: `O(N * V)` for storing all trees
-        - the number of spanning trees can grow exponentially with graph size
-        - for dense graphs, the default `max_trees=1000` prevents memory issues
-        - uses a systematic edge enumeration algorithm based on Kruskal's approach
+        By Cayley's formula (1889) the complete graph $K_n$ has $n^{n - 2}$ spanning trees,
+        and that combinatorial explosion is not confined to complete graphs: even mildly
+        dense inputs produce tree counts that exceed available memory well before
+        enumeration finishes. The implementation enumerates by systematic edge substitution
+        starting from a base spanning tree, exchanging tree edges for non-tree edges in a
+        controlled order that hits each distinct tree exactly once. The `max_trees=` cap
+        (defaulting to $1000$) is a hard budget, not a hint; treat it as the guardrail it
+        is. Kirchhoff's matrix-tree theorem lets you count spanning trees analytically as
+        $\det(L^*)$ (a cofactor of the Laplacian) when you only need the *number* and not
+        the enumeration itself.
 
         Examples
         --------
@@ -23184,10 +23414,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - self-loops are not considered multiple edges (use `which_loops()` instead)
-        - in undirected graphs, (u,v) and (v,u) are treated as the same pair
-        - returns all edges involved in duplication, including the first occurrence
-        - useful for data quality checks before analysis
+        Groups edges by their endpoint pair and returns the flat list of edge IDs for any
+        pair sharing more than one edge, including the earliest (canonical) representative.
+        Directedness matters: on directed graphs $(u, v)$ and $(v, u)$ are treated as
+        distinct pairs, so antiparallel edges do not count as duplicates; the undirected
+        case treats them as the same. Self-loops are ignored here even when duplicated,
+        since `which_loops()` handles those separately, so this is the right diagnostic to
+        run before calling `remove_duplicate_edges()` or `simplify()`.
 
         Examples
         --------
@@ -23231,7 +23464,7 @@ class Graph:
         return self._graph.which_multiple()
 
     def count_multiple(self) -> dict[tuple[int, int], int]:
-        """
+        r"""
         Count multiple edges grouped by node pair.
 
         Returns a dictionary showing how many edges exist between each pair of nodes that has
@@ -23246,10 +23479,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - only returns pairs with 2+ edges (single edges are excluded)
-        - for undirected graphs, pairs are normalized (smaller node ID first)
-        - self-loops are counted if there are 2+ self-loop edges for a node
-        - useful for understanding graph complexity before simplification
+        Aggregates the same information `which_multiple()` reports as a per-pair tally: for
+        every endpoint pair with at least two edges, the entry $(u, v) \mapsto k$ records
+        the exact multiplicity. Undirected graphs canonicalize each pair so the smaller
+        node ID comes first, which lets client code index directly without worrying about
+        orientation. Self-loops are included only when a node carries two or more of them,
+        matching the multiplicity threshold used for ordinary pairs. Useful for planning
+        edge consolidations, weighted rollups, or multigraph-to-weighted-graph conversions.
 
         Examples
         --------
@@ -23317,10 +23553,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - works for both directed and undirected graphs
-        - a node can have multiple self-loops (use `count_loops()` to count per node)
-        - self-loops affect certain graph metrics (degree, centrality, etc.)
-        - common preprocessing step is to remove self-loops for cleaner analysis
+        Enumerates every edge whose source and target coincide, in insertion order.
+        Directed and undirected graphs are both supported; a single node can carry multiple
+        self-loops and each such edge appears in the returned list. Self-loops distort
+        several graph statistics (they inflate degree by two rather than one, break certain
+        adjacency-matrix identities, and confuse some spectral bounds), so removing them
+        before analysis is a common preprocessing step: `count_loops()` gives the per-node
+        totals, and `remove_selfloops()` clears them in a single pass.
 
         Examples
         --------
@@ -23377,10 +23616,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - only returns nodes with at least one self-loop
-        - a node can have multiple self-loops (all counted)
-        - useful for identifying unusual patterns in network data
-        - common in multigraphs where multiple self-edges may exist
+        Groups the flat list from `which_loops()` by node, returning only nodes with at
+        least one self-loop and reporting the exact per-node count. A node may accumulate
+        several self-loops in a multigraph, for instance an autocatalytic species with
+        multiple self-referencing reactions in a chemical network, or a state in an
+        automaton with several distinct "no-op" transitions, and the reported multiplicity
+        reflects that. The complementary primitive is `which_loops()`, which returns the
+        flat edge-ID list without grouping.
 
         Examples
         --------
@@ -23578,7 +23820,7 @@ class Graph:
     # ==============================================================================
 
     def get_assortativity_degree(self) -> float:
-        """
+        r"""
         Calculate degree assortativity coefficient.
 
         Measures the tendency of nodes to connect to other nodes with similar degrees. Returns the
@@ -23605,11 +23847,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        - uses Newman's formula for assortativity coefficient
-        - most real-world social networks are assortative (`r > 0`)
-        - many technological/biological networks are disassortative (`r < 0`)
-        - perfect assortativity (`r = 1`) means only equal-degree nodes connect
-        - requires at least one edge and variance in node degrees
+        Assortativity by degree (Newman, 2002) is the Pearson correlation between the
+        degrees of edge endpoints, evaluated across every edge in the graph:
+        $r = \dfrac{\sum_{xy} xy\,(e_{xy} - a_x b_y)}{\sigma_a \sigma_b}$, where $e_{xy}$ is
+        the observed joint distribution of endpoint-degree pairs and $a_x, b_y$ are its
+        marginals. On directed graphs the natural convention pairs each edge's *source
+        out-degree* with its *target in-degree*; undirected graphs use total degree
+        symmetrically. Real-world social networks tend toward $r > 0$ (hubs connect to
+        hubs, a signature of homophilic wiring), while technological and biological
+        networks (power grids, protein-interaction networks, the Web) are consistently
+        disassortative ($r < 0$).
 
         Examples
         --------
@@ -23652,7 +23899,7 @@ class Graph:
         return self._graph.assortativity_degree()
 
     def get_assortativity_nominal(self, attribute: str) -> float:
-        """
+        r"""
         Calculate assortativity for categorical (nominal) node attributes.
 
         Measures the tendency of nodes with the same attribute value to connect, also known as
@@ -23682,11 +23929,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - also called "modularity by attribute" or "homophily coefficient"
-        - `r = 1` means complete segregation (no cross-type edges)
-        - common in social networks where "birds of a feather flock together"
-        - can be used to detect and measure community structure by attribute
-        - for undirected graphs, the mixing matrix is symmetric
+        For a categorical attribute this is Newman's *modularity by attribute*:
+        $r = \dfrac{\mathrm{tr}(E) - \|E^2\|_1}{1 - \|E^2\|_1}$, where $E$ is the mixing
+        matrix whose entries $e_{ij}$ record the fraction of edges running between
+        attribute values $i$ and $j$. $r = 1$ means the graph is fully segregated by
+        attribute (only within-class edges); $r = 0$ matches random mixing at the given
+        marginals; negative $r$ signals systematic cross-class connections. This is the
+        tool that formalizes the "birds of a feather" intuition, and negative variants
+        surface bipartite-style structures like predator-prey webs or user-item
+        recommendation graphs.
 
         Examples
         --------
@@ -23768,11 +24019,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - uses Pearson correlation coefficient formula
-        - common in social networks (homophily by age, income, education)
-        - can reveal hierarchical structures when negative
-        - sensitive to outliers: considers data normalization
-        - requires variance in attribute values (all same value will error)
+        For a numeric attribute this reduces to the Pearson correlation between the two
+        endpoint values across every edge. Positive coefficients pick up homophily on the
+        numeric axis (collaborators with similar publication counts, friends of similar
+        ages), while negative coefficients flag structural pairings that link dissimilar
+        values, such as mentor-mentee edges in academic networks or price-inversely-related
+        pairs in economic graphs. The metric assumes the attribute has non-zero variance
+        across nodes (a constant attribute produces a $0/0$ division and raises
+        `ValueError`), and it is sensitive to outliers, so running the same computation on
+        log-transformed or rank-transformed values is a common robustness check.
 
         Examples
         --------
@@ -23829,7 +24084,7 @@ class Graph:
         which: str = "largest",
         k: int | None = None,
     ) -> dict[str, list[float] | list[list[float]] | float | None]:
-        """
+        r"""
         Compute eigenvalues and eigenvectors of the adjacency matrix.
 
         Returns the spectrum (eigenvalues and eigenvectors) of the graph's adjacency matrix. The
@@ -23871,35 +24126,22 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Spectral Properties**:
+        The adjacency spectrum captures a graph's global structure in a bounded list of
+        real numbers, and many core properties are recoverable directly from it. The
+        *spectral radius* $\rho(A) = \max_i |\lambda_i|$ satisfies $\rho(A) \le \Delta(G)$
+        and hits that bound exactly for regular graphs, where every eigenvalue is bounded
+        above by the shared degree. The *spectral gap* $\lambda_1 - \lambda_2$ quantifies
+        expansion, and a zero gap witnesses disconnection. Bipartiteness reveals itself as
+        spectrum symmetry about the origin, since a graph is bipartite iff its adjacency
+        spectrum equals its negation as a multiset. Signature spectra include
+        $K_n \to \{n - 1, -1, \ldots, -1\}$, the cycle
+        $C_n \to \{2\cos(2\pi k / n)\}_{k = 0}^{n - 1}$, and the star
+        $S_n \to \{\sqrt{n - 1}, 0, \ldots, 0, -\sqrt{n - 1}\}$.
 
-        - **Spectral radius**: `ρ(A) = max|λᵢ|`
-          - always equals largest eigenvalue for undirected graphs
-          - bounded by max degree: `ρ(A) ≤ Δ(G)`
-          - for regular graphs: `ρ(A) = degree`
-
-        - **Spectral gap**: `λ₁ - λ₂`
-          - measures connectivity and expansion
-          - large gap -> well-connected graph
-          - small gap -> bottlenecks or clusters
-          - zero gap -> disconnected graph
-
-        - **Trace**: `Σλᵢ = 0` (sum of eigenvalues equals zero for undirected)
-
-        - **Number of spanning trees**: Related to Laplacian eigenvalues
-
-        **Special Graph Spectra**:
-
-        - complete graph K_n: {n-1, -1, -1, ..., -1}
-        - cycle C_n: {2cos(2πk/n) | k=0,...,n-1}
-        - path P_n: {2cos(πk/(n+1)) | k=1,...,n}
-        - star S_n: {√(n-1), 0, ..., 0, -√(n-1)}
-
-        **Computational Complexity**:
-
-        - `which="all"`: `O(n³)` using dense eigendecomposition
-        - `which="largest"/"smallest"`: `O(kn²)` using iterative methods
-        - Recommended: Use `k < 10` for large graphs (`n > 1000`)
+        Computationally, the `"all"` mode runs a dense $O(n^3)$ eigendecomposition suitable
+        for graphs up to a few hundred nodes, while `"largest"` and `"smallest"` use
+        Lanczos-style iterative extraction at $O(k n^2)$ and remain practical for graphs
+        into the tens of thousands as long as $k$ stays modest.
 
         Examples
         --------
@@ -23961,7 +24203,7 @@ class Graph:
         k: int | None = None,
         normalized: bool = False,
     ) -> dict[str, list[float] | list[list[float]] | float | None]:
-        """
+        r"""
         Compute eigenvalues and eigenvectors of the graph Laplacian.
 
         Returns the spectrum of the Laplacian matrix `L = D - A` (or normalized variant). The
@@ -24006,45 +24248,33 @@ class Graph:
 
         Technical Notes
         ---------------
-        **Laplacian Properties**:
+        The Laplacian $L = D - A$ carries the same structural information as the adjacency
+        matrix but organized so that its algebraic properties align with graph connectivity
+        in particularly clean ways. $L$ is always positive semi-definite, so its spectrum is
+        non-negative, and it *always* has a zero eigenvalue whose eigenvector is the
+        constant vector $\mathbf{1}$. The multiplicity of that zero eigenvalue is exactly
+        the number of connected components, so counting near-zero eigenvalues is the direct
+        spectral test for disconnection. The second-smallest eigenvalue $\lambda_2$, called
+        the *algebraic connectivity* or Fiedler value, is positive iff the graph is
+        connected and quantifies expansion through Cheeger's inequality
+        $\tfrac{h^2}{2\Delta} \le \lambda_2 \le 2h$, where $h$ is edge expansion. Its
+        eigenvector (the *Fiedler vector*) partitions the graph into two well-connected
+        halves by sign, minimizing normalized cut weight in the spectral-relaxation sense,
+        and is the workhorse of spectral bisection algorithms.
 
-        - **Always has 0 eigenvalue**: Corresponding eigenvector is constant
-        - **Number of 0 eigenvalues**: Equals number of connected components
-        - **Algebraic connectivity** (λ₂, Fiedler value):
-          - λ₂ > 0 ⟺ graph is connected
-          - λ₂ = 0 ⟺ disconnected
-          - measures robustness to edge removal
-          - lower bound on edge/node connectivity
-
-        - **Fiedler vector**: Eigenvector for λ₂
-          - sign pattern reveals natural graph partition
-          - used in spectral bisection algorithms
-          - minimizes cut weight among all bisections
-
-        **Normalized vs Unnormalized**:
-
-        - **Unnormalized L = D - A**:
-          - Eigenvalues: 0 = λ₁ ≤ λ₂ ≤ ... ≤ λₙ
-          - Sensitive to degree distribution
-          - Natural for unweighted graphs
-
-        - **Normalized L_norm = D^(-1/2) L D^(-1/2)**:
-          - Eigenvalues in [0, 2] for undirected
-          - Better for weighted/degree-imbalanced graphs
-          - Used in normalized cut clustering
-
-        **Special Graph Laplacians**:
-
-        - Path P_n: {2 - 2cos(πk/n) | k=1,...,n}, λ₂ = 2(1 - cos(π/n))
-        - Cycle C_n: {2 - 2cos(2πk/n) | k=0,...,n-1}, λ₂ = 2(1 - cos(2π/n))
-        - Complete K_n: {0, n, n, ..., n}, λ₂ = n
-        - Star S_n: {0, 1, 1, ..., 1, n}, λ₂ = 1
-
-        **Computational Complexity**:
-
-        - which="all": O(n³) for dense eigendecomposition
-        - which="smallest": O(kn²) for k smallest eigenvalues
-        - Normalized version: Additional O(n²) for degree computation
+        Passing `normalized=True` switches to
+        $L_{\mathrm{norm}} = D^{-1/2} L D^{-1/2}$, whose eigenvalues sit in $[0, 2]$
+        regardless of degree distribution; a $\lambda = 2$ eigenvalue signals a bipartite
+        component. This variant is standard in normalized-cut clustering because it handles
+        degree-imbalanced graphs (star-plus-clique structures, for instance) far more
+        gracefully than the plain Laplacian. Signature spectra include
+        $K_n \to \{0, n, \ldots, n\}$, the path
+        $P_n \to \{2 - 2\cos(\pi k / n)\}$, the cycle
+        $C_n \to \{2 - 2\cos(2\pi k / n)\}$, and the star
+        $S_n \to \{0, 1, \ldots, 1, n\}$. Computationally, the "all" mode runs the dense
+        $O(n^3)$ eigendecomposition; the iterative $O(k n^2)$ paths for "smallest" or
+        "largest" (Lanczos with restart) are what make working with graphs of tens of
+        thousands of nodes tractable when only a handful of eigenvalues are needed.
 
         Examples
         --------
@@ -24191,7 +24421,7 @@ class Graph:
     # ==============================================================================
 
     def global_efficiency(self) -> float:
-        """
+        r"""
         Calculate the global efficiency of the graph.
 
         Global efficiency is the average efficiency over all pairs of nodes, where efficiency is the
@@ -24205,11 +24435,15 @@ class Graph:
 
         Technical Notes
         ---------------
-        - returns `0` for graphs with `0` or `1` nodes
-        - returns `1` for complete graphs
-        - unweighted shortest paths are used (all edge weights = 1)
-        - for disconnected node pairs, efficiency is `0`
-        - related to the average inverse distance
+        Latora and Marchiori (2001) introduced global efficiency as an information-flow
+        measure on a comparable $[0, 1]$ scale across any topology:
+        $E_{\mathrm{glob}}(G) = \dfrac{1}{n(n-1)} \sum_{i \ne j} \dfrac{1}{d(i, j)}$, with
+        the convention that $1/d(i, j) = 0$ whenever $j$ is unreachable from $i$. A
+        complete graph achieves the maximum of $1$; an empty graph or one made of isolated
+        vertices reaches $0$. Unlike the closely related mean distance, global efficiency
+        behaves gracefully on disconnected inputs because unreachable pairs contribute
+        exactly $0$ rather than diverging. The computation reuses the all-pairs unweighted
+        BFS pass, so cost is $O(V(V + E))$ time and $O(V^2)$ space.
 
         Examples
         --------
@@ -24253,7 +24487,7 @@ class Graph:
         return global_efficiency(self._graph)
 
     def local_efficiency(self) -> float:
-        """
+        r"""
         Calculate the local efficiency of the graph.
 
         Local efficiency is the average global efficiency of each node's neighborhood subgraph. It
@@ -24267,11 +24501,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        - returns `0` for empty graphs
-        - nodes with fewer than 2 neighbors contribute `0` to the average
-        - useful for measuring network resilience
-        - related to clustering but considers path lengths
-        - unweighted shortest paths are used
+        For every node $v$, the local efficiency measures how well its neighborhood $N(v)$
+        can route around it: $E_{\mathrm{loc}}(v) = E_{\mathrm{glob}}(G[N(v)])$, the global
+        efficiency of the induced subgraph on $v$'s neighbors, and the overall statistic is
+        the average across all nodes. Nodes with $|N(v)| < 2$ contribute $0$ by convention
+        since there is nothing to route. High local efficiency signals a network with
+        redundant local paths, which is closely related to clustering but sensitive to path
+        lengths rather than just adjacency: a cycle among the neighbors gives higher local
+        efficiency than an adjacent chain even though both are equally clustered. Total
+        cost is $O(V \cdot \bar{k}(\bar{k} + \bar{e}))$ where $\bar{k}$ and $\bar{e}$ are
+        average neighborhood sizes and edge counts.
 
         Examples
         --------
@@ -24319,7 +24558,7 @@ class Graph:
     # ==============================================================================
 
     def get_wiener_index(self, weight: str | None = None) -> float:
-        """
+        r"""
         Calculate the Wiener index of the graph.
 
         The Wiener index is the sum of all pairwise shortest path distances in the graph. It is a
@@ -24343,10 +24582,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(V × (V + E))` for unweighted graphs
-        - time complexity: `O(V × (V + E) log V)` for weighted graphs
-        - a lower Wiener index indicates a more compact graph
-        - for trees: `W = Σ_{edges e} n₁(e) × n₂(e)` where `n₁`, `n₂` are subtree sizes
+        The Wiener index (Wiener, 1947) is the sum of all pairwise shortest-path distances,
+        originally introduced as a topological descriptor for the boiling points of alkanes
+        and now the standard *compactness* metric across chemistry, drug design, and
+        network theory: $W(G) = \sum_{u < v} d(u, v)$ on undirected graphs, or
+        $\sum_{u \ne v}$ on directed ones. The tree case admits a beautiful closed form:
+        for every edge $e$ that splits the tree into subtrees of size $n_1(e)$ and
+        $n_2(e)$, that edge contributes $n_1(e) \cdot n_2(e)$ to the total, so
+        $W(T) = \sum_e n_1(e) \cdot n_2(e)$. Disconnected graphs return $+\infty$ because
+        some pairs have no finite distance. Runtime is $O(V(V + E))$ for unweighted graphs
+        (BFS from every source) and $O(V(V + E) \log V)$ for weighted ones (Dijkstra from
+        every source).
 
         Examples
         --------
@@ -24382,7 +24628,7 @@ class Graph:
         return wiener_index(self._graph, weight)
 
     def get_estrada_index(self) -> float:
-        """
+        r"""
         Calculate the Estrada index of the graph.
 
         The Estrada index is the sum of exponentials of the eigenvalues of the adjacency matrix:
@@ -24405,12 +24651,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(n³)` for eigendecomposition
-        - the Estrada index is always `≥ n` for any graph with `n` nodes
-        - for graphs with no edges: `EE = n` (all eigenvalues are `0`)
-        - higher Estrada index indicates more closed walks (more "folded" structure)
-        - related to subgraph centrality: `SC(i) = Σⱼ φⱼ(i)² exp(λⱼ)`
-        - EE = trace(exp(A)) where A is the adjacency matrix
+        The Estrada index $EE(G) = \sum_i e^{\lambda_i} = \mathrm{tr}(e^A)$ (Estrada, 2000)
+        is the trace of the matrix exponential of the adjacency matrix, and Taylor-expanding
+        $e^A$ shows that it counts closed walks of every length weighted by $1/k!$: so it
+        grows whenever a graph carries more short closed walks (triangles, tetrahedra, and
+        higher cliques). Because $EE = n$ for the edgeless graph and increases with every
+        additional walk, it always satisfies $EE(G) \ge n$. It is tightly connected to the
+        *subgraph centrality*: node $i$'s score
+        $SC(i) = \sum_j \phi_j(i)^2 e^{\lambda_j}$ is the $i$-th diagonal entry of $e^A$,
+        so $EE = \sum_i SC(i)$. Computation costs $O(n^3)$ via dense eigendecomposition of
+        $A$; only undirected inputs are supported since the definition assumes a real
+        symmetric spectrum.
 
         Examples
         --------
@@ -24446,7 +24697,7 @@ class Graph:
         return estrada_index(self._graph)
 
     def get_resistance_distance(self, source: int | str, target: int | str) -> float:
-        """
+        r"""
         Calculate the resistance distance between two nodes.
 
         The resistance distance (also called effective resistance) is the electrical resistance
@@ -24475,11 +24726,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: `O(n³)` for matrix operations
-        - for adjacent nodes: `Ω(u,v) ≤ 1` (equality for bridges)
-        - resistance distance satisfies the triangle inequality
-        - related to random walk commute time: `C(u,v) = 2m × Ω(u,v)`
-        - the sum of all resistance distances is the Kirchhoff index
+        Effective resistance treats the graph as an electrical network where every edge is
+        a 1-ohm resistor and reports the voltage that would develop between $u$ and $v$
+        when one unit of current is injected. This yields a proper metric $\Omega$
+        satisfying the triangle inequality (a fact that fails for shortest-path distance on
+        multigraphs), and it exposes global connectivity: $\Omega(u, v) \le 1$ for any pair
+        adjacent by a single edge, with equality holding *only* when that edge is a bridge
+        (its removal disconnects the graph). The metric has a random-walk interpretation
+        via the Chandra-Raghavan-Ruzzo-Smolensky commute-time formula
+        $C(u, v) = 2m \cdot \Omega(u, v)$, where $m = |E|$; that identity makes $\Omega$ a
+        natural fit for algorithms that reason about mixing times. Compute cost is $O(n^3)$
+        through the Laplacian pseudoinverse $L^+$.
 
         Examples
         --------
@@ -24529,7 +24786,7 @@ class Graph:
         return resistance_distance(self._graph, source_id, target_id)
 
     def resistance_distance_matrix(self) -> dict[tuple[int, int], float]:
-        """
+        r"""
         Calculate the resistance distance matrix for all node pairs.
 
         Returns a dictionary mapping (source_id, target_id) tuples to their resistance distances.
@@ -24547,8 +24804,13 @@ class Graph:
 
         Technical Notes
         ---------------
-        - Time complexity: `O(n³)` for matrix operations
-        - Returns all `n²` pairs (including both `(i,j)` and `(j,i)`)
+        Builds the full symmetric matrix of pairwise effective resistances in a single
+        $O(n^3)$ computation of the Laplacian pseudoinverse $L^+$, from which every entry
+        is recovered as $\Omega(u, v) = L^+_{uu} + L^+_{vv} - 2 L^+_{uv}$. That shared-cost
+        structure makes the matrix substantially cheaper than $\binom{n}{2}$ individual
+        `get_resistance_distance()` calls whenever more than a handful of pairs are needed.
+        The returned dictionary contains both orientations for every ordered pair for
+        lookup convenience; entries on the diagonal are $0$.
 
         Examples
         --------
@@ -24576,7 +24838,7 @@ class Graph:
         return resistance_distance_matrix(self._graph)
 
     def get_kirchhoff_index(self) -> float:
-        """
+        r"""
         Calculate the Kirchhoff index (total resistance) of the graph.
 
         The Kirchhoff index is the sum of all pairwise resistance distances:
@@ -24602,11 +24864,16 @@ class Graph:
 
         Technical Notes
         ---------------
-        - time complexity: O(n³) for eigendecomposition
-        - the Kirchhoff index equals the quasi-Wiener index (Wiener index using
-          resistance distance instead of shortest path distance)
-        - lower Kirchhoff index indicates better overall connectivity
-        - for connected graphs: Kf ≥ n-1 with equality only for complete graphs
+        The Kirchhoff index $Kf(G) = \sum_{i < j} \Omega(i, j)$ (Klein and Randić, 1993) is
+        the electrical analogue of the Wiener index, using effective resistance in place of
+        shortest-path distance. A striking spectral identity ties it to the Laplacian
+        directly: $Kf(G) = n \sum_{k \ge 2} \tfrac{1}{\lambda_k}$, summing reciprocals of
+        the non-zero Laplacian eigenvalues, which makes small $\lambda_2$ (poor expansion)
+        inflate $Kf$ and sharp expander graphs bring it down. Complete graphs saturate the
+        lower bound $Kf \ge n - 1$; disconnected graphs give $+\infty$ because some
+        resistances diverge. Cost is $O(n^3)$ via full Laplacian eigendecomposition, and
+        only undirected inputs make sense because the electrical analogue requires
+        reversibility.
 
         Examples
         --------
@@ -24658,7 +24925,7 @@ class Graph:
 
 
 class AdaStar:
-    """
+    r"""
     Anytime Dynamic A* (ADA*) path planner.
 
     An advanced pathfinding algorithm that combines:
@@ -24710,11 +24977,15 @@ class AdaStar:
 
     Technical Notes
     ---------------
-    - the heuristic function receives internal node IDs (integers), not labels
-    - for epsilon > 1.0, the path cost is guaranteed to be at most epsilon times optimal
-    - lower epsilon values require more computation but give better paths
-    - the `update_graph()` method efficiently reuses previous computation
-    - graph must not be modified between calls except via `update_graph()`
+    The heuristic function is called with integer node IDs, not labels: resolve via
+    `graph.get_id_from_label()` first if you have labels on hand. Admissibility (never
+    overestimating the true remaining cost) is required for the $\epsilon$-suboptimality
+    guarantee $\|\text{path}\| \le \epsilon \cdot \|\text{optimal}\|$ to hold; passing
+    `None` uses $h \equiv 0$ and reduces the search to Dijkstra. Between calls the planner
+    retains its state, so cheaper subsequent queries at lower $\epsilon$ or after
+    `update_graph()` reuse the work already done, but only if the graph is *not modified
+    externally* in between. Any structural change must be routed through `update_graph()`,
+    otherwise the internal $g$-values silently desynchronize from the underlying weights.
 
     Examples
     --------
