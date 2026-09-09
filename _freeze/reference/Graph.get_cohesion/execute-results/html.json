@@ -1,0 +1,12 @@
+{
+  "hash": "2161c97c0e9e2cf5d12e6a2d3dddbef6",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_cohesion()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page doc-py-api-page\nshift-heading-level-by: 0\ntoc-depth: 3\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet cohesion (minimum node cut size).\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L20535-L20579){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_cohesion()\n```\n:::\n\n::: {.doc-text}\n\nThe cohesion is the minimum number of nodes whose removal would disconnect the graph. Also\ncalled node connectivity. Only defined for undirected graphs. Returns `0` if already\ndisconnected.\n\nNote: Current implementation provides an upper bound (minimum degree) for efficiency. Exact\ncomputation requires sophisticated algorithms.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [int]{.doc-parameter-annotation}</code>\n\n:   Minimum node cut size.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If graph is directed.\n:::\n\n## Examples {.doc-examples}\n\nThis 4-cycle has minimum degree 2, so its cohesion (upper bound) is 2:\n\n::: {#79856d7b .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_node(label=\"D\")\n    .add_edge(\"A\", \"B\")\n    .add_edge(\"B\", \"C\")\n    .add_edge(\"C\", \"D\")\n    .add_edge(\"D\", \"A\")\n)\n\n# Returns 2\ngraph.get_cohesion()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n2\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_cohesion_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

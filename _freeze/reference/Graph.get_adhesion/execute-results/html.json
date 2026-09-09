@@ -1,0 +1,12 @@
+{
+  "hash": "d9fc37d876fec5810f0e1fb4f4851bbf",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.get_adhesion()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page doc-py-api-page\nshift-heading-level-by: 0\ntoc-depth: 3\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nGet adhesion (minimum edge cut size).\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L20488-L20533){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.get_adhesion()\n```\n:::\n\n::: {.doc-text}\n\nThe adhesion is the minimum number of edges whose removal would disconnect the graph. Also\ncalled edge connectivity. Only defined for undirected graphs. Returns `0` if already\ndisconnected.\n\nNote: Current implementation provides an upper bound (minimum degree) for efficiency. Exact\ncomputation requires max-flow algorithms.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [int]{.doc-parameter-annotation}</code>\n\n:   Minimum edge cut size.\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If graph is directed.\n:::\n\n## Examples {.doc-examples}\n\nIn a 4-cycle, every node has degree 2, so at least 2 edges must be removed to disconnect\nit:\n\n::: {#57e94343 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph()\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_node(label=\"D\")\n    .add_edge(\"A\", \"B\")\n    .add_edge(\"B\", \"C\")\n    .add_edge(\"C\", \"D\")\n    .add_edge(\"D\", \"A\")\n)\n\n# Returns 2\ngraph.get_adhesion()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n2\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.get_adhesion_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

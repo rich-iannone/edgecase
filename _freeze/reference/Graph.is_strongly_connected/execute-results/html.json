@@ -1,0 +1,12 @@
+{
+  "hash": "f8ca6072b5ad0908e06c79a46479a8c5",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.is_strongly_connected()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page doc-py-api-page\nshift-heading-level-by: 0\ntoc-depth: 3\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nCheck if the graph is strongly connected.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L21495-L21548){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.is_strongly_connected()\n```\n:::\n\n::: {.doc-text}\n\nA directed graph is strongly connected if there is a directed path from every node to every\nother node. Equivalently, the graph has exactly one strongly connected component containing\nall nodes.\n\nFor undirected graphs, this is equivalent to checking regular connectivity (same as\n`is_connected()`).\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [bool]{.doc-parameter-annotation}</code>\n\n:   `True` if the graph is strongly connected, `False` otherwise. Empty graphs are\n    considered strongly connected (vacuously true).\n:::\n\n## Technical Notes {.doc-technical-notes}\n\nTime complexity: `O(V + E)` using Kosaraju's algorithm to count SCCs.\n\n## Examples {.doc-examples}\n\nIn a directed cycle, every node can reach every other node by following the arrows around:\n\n::: {#59e16e02 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ngraph = (\n    ec.Graph(directed=True)\n    .add_node(label=\"A\")\n    .add_node(label=\"B\")\n    .add_node(label=\"C\")\n    .add_edge(\"A\", \"B\")\n    .add_edge(\"B\", \"C\")\n    .add_edge(\"C\", \"A\")\n)\n\n# Returns True\ngraph.is_strongly_connected()\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\nTrue\n```\n:::\n:::\n\n\nAdding a node that can only be reached one-way breaks strong connectivity, even though the\nrest of the graph is still tightly connected:\n\n::: {#b0e33b28 .cell execution_count=2}\n``` {.python .cell-code}\ngraph.add_node(label=\"D\")\ngraph.add_edge(\"D\", \"A\")  # D can reach A, but nothing can reach D\n\n# Returns False\ngraph.is_strongly_connected()\n```\n\n::: {.cell-output .cell-output-display execution_count=2}\n```\nFalse\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.is_strongly_connected_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}
