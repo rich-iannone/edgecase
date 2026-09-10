@@ -389,6 +389,8 @@ class Graph:
         """
         Add a node to the graph with optional connections and attributes.
 
+        ![Add node](/assets/graphs/op-add-node.light.svg){.lightbox fig-alt="A graph gains a new node connected to an existing node. The new node and its new edge are shown in the accent color." width="100%"}
+
         This method provides flexible node creation, allowing you to add isolated nodes, nodes with
         labels, or nodes that are immediately connected to existing nodes. Node IDs are 64-bit
         unsigned integers managed automatically by EdgeCase, while labels provide human-readable
@@ -510,6 +512,8 @@ class Graph:
     ) -> "Graph":
         """
         Add an edge between two existing nodes in the graph.
+
+        ![Add edge](/assets/graphs/op-add-edge.light.svg){.lightbox fig-alt="A graph gains one edge between two existing nodes. The new edge is shown in the accent color." width="100%"}
 
         Edges connect existing nodes and can optionally carry weights and attributes. Both source
         and target nodes must already exist in the graph. You can reference nodes by their integer
@@ -715,6 +719,8 @@ class Graph:
         """
         Delete a node from the graph.
 
+        ![Delete node](/assets/graphs/op-delete-node.light.svg){.lightbox fig-alt="A graph loses one node and its incident edge. The doomed node and edge are highlighted in the accent color before removal." width="100%"}
+
         Removes a node and all its incident edges from the graph. The node can be specified by its
         ID or label.
 
@@ -789,6 +795,8 @@ class Graph:
     ) -> "Graph":
         """
         Delete an edge from the graph.
+
+        ![Delete edge](/assets/graphs/op-delete-edge.light.svg){.lightbox fig-alt="A graph loses one edge. The doomed edge is highlighted in the accent color before removal; every node remains in place afterward." width="100%"}
 
         Remove edges by specifying either the source and target nodes, or the edge ID directly. For
         multigraphs with source/target, only the first matching edge is deleted.
@@ -1088,6 +1096,8 @@ class Graph:
         r"""
         Remove all self-loops from the graph.
 
+        ![Self-loop](/assets/graphs/struct-self-loop.light.svg){.lightbox fig-alt="A two-node graph with one regular edge between the nodes and one self-loop attached to the first node, shown in the accent color." width="100%"}
+
         A self-loop is an edge where the source and target nodes are the same. This method removes
         all such edges from the graph, which is a common preprocessing step for many graph
         algorithms that assume simple graphs.
@@ -1167,6 +1177,8 @@ class Graph:
     def remove_duplicate_edges(self, keep_distinct_attributes: bool = False) -> "Graph":
         """
         Remove duplicate edges, keeping only one edge per node pair.
+
+        ![Multi-edge](/assets/graphs/struct-multigraph.light.svg){.lightbox fig-alt="A multigraph: two nodes A and B are connected by two parallel edges (highlighted in the accent color, drawn as curves bowing in opposite directions), while a third node C connects to B with a single default-styled edge." width="100%"}
 
         For each pair of nodes with multiple edges between them, keeps only the first edge (by edge
         ID order) and removes all others. This converts a multigraph into a simple graph with
@@ -1276,6 +1288,8 @@ class Graph:
     def simplify(self) -> "Graph":
         """
         Remove all self-loops and duplicate edges, making the graph simple.
+
+        ![Simplify](/assets/graphs/op-simplify.light.svg){.lightbox fig-alt="On the left, a three-node graph with a duplicate parallel edge between A and B and a self-loop on B, both highlighted in the accent color. On the right, the same graph after simplify(): the duplicate edge and the self-loop are gone, leaving a simple path A - B - C." width="100%"}
 
         A simple graph has no self-loops (edges from a node to itself) and no multi-edges (multiple
         edges between the same pair of nodes). This method removes both types, which is a common
@@ -1784,6 +1798,8 @@ class Graph:
         """
         Add a path graph (linear chain) to the current graph.
 
+        ![Path structure](/assets/graphs/struct-path.light.svg){.lightbox fig-alt="A path graph: five nodes connected end-to-end in a single line, with four edges." width="100%"}
+
         Creates a sequence of `n` nodes connected linearly: `1 -> 2 -> 3 -> ... -> n`. End nodes
         have degree `1`, internal nodes have degree 2.
 
@@ -1852,6 +1868,8 @@ class Graph:
         """
         Add a cycle graph (closed loop) to the current graph.
 
+        ![Cycle structure](/assets/graphs/struct-cycle.light.svg){.lightbox fig-alt="A cycle graph: five nodes arranged in a ring, each connected to its two immediate neighbors, closing back to the start." width="100%"}
+
         Creates n nodes in a circular pattern where the last connects back to first. Each node has
         exactly degree `2`.
 
@@ -1910,6 +1928,8 @@ class Graph:
     ) -> "Graph":
         """
         Add a star graph (hub-and-spoke) to the current graph.
+
+        ![Star structure](/assets/graphs/struct-star.light.svg){.lightbox fig-alt="A star graph with one central hub connected to six peripheral spokes. The hub is shown in the accent color." width="100%"}
 
         Creates a central hub node connected to `n - 1` peripheral nodes. All edges connect the hub
         to spokes; no edges between spokes.
@@ -1977,6 +1997,8 @@ class Graph:
     ) -> "Graph":
         """
         Add a complete graph (clique) to the current graph.
+
+        ![Complete graph](/assets/graphs/struct-complete.light.svg){.lightbox fig-alt="A complete graph on five nodes: every pair of nodes is joined by an edge, giving ten edges in total." width="100%"}
 
         Creates `n` nodes where every node is connected to every other node. In a complete graph
         with `n` nodes, there are `n(n - 1) / 2` edges (without self-loops).
@@ -3767,6 +3789,8 @@ class Graph:
         """
         Check if the graph is directed.
 
+        ![Directed vs. undirected](/assets/graphs/struct-directed-vs-undirected.light.svg){.lightbox fig-alt="The same three-node graph shown twice. On the left, edges are drawn without arrowheads, representing an undirected graph. On the right, the same edges carry arrowheads showing direction, representing a directed graph." width="100%"}
+
         Returns whether this graph treats edges as directed (with distinct source and target) or
         undirected (bidirectional connections). This property is set when the graph is created and
         cannot be changed afterward.
@@ -3818,6 +3842,8 @@ class Graph:
     def is_weighted(self) -> bool:
         """
         Check if the graph is weighted.
+
+        ![Weighted graph](/assets/graphs/struct-weighted.light.svg){.lightbox fig-alt="A weighted graph: three nodes on a path, with each edge carrying a numeric weight label centered along the edge." width="100%"}
 
         Returns whether this graph supports edge weights. This property is set when the graph is
         created and cannot be changed afterward. Weighted graphs can store numeric weights on edges,
@@ -3922,6 +3948,8 @@ class Graph:
         """
         Check if directed graph is a DAG (Directed Acyclic Graph).
 
+        ![Directed acyclic graph](/assets/graphs/algo-dag.light.svg){.lightbox fig-alt="A directed acyclic graph laid out in three vertical layers: two source nodes on the left, two intermediate nodes in the middle, and two sink nodes on the right. Every arrow points rightward; there are no back-edges and no cycles." width="100%"}
+
         A DAG is a directed graph with no cycles. You cannot follow directed edges and return to a
         starting node. DAGs are fundamental for dependency resolution, scheduling, and topological
         sorting.
@@ -3968,6 +3996,8 @@ class Graph:
         """
         Check if graph is connected.
 
+        ![Connected components](/assets/graphs/struct-components.light.svg){.lightbox fig-alt="A graph containing three disjoint connected components: a triangle on the left, a two-node edge in the upper right, and a single isolated node in the lower right." width="100%"}
+
         A graph is connected if there is a path between every pair of nodes. For directed graphs,
         checks weak connectivity (treating edges as undirected).
 
@@ -4007,6 +4037,8 @@ class Graph:
     def is_bipartite(self) -> bool:
         """
         Check if graph is bipartite (2-colorable).
+
+        ![Bipartite graph](/assets/graphs/struct-bipartite.light.svg){.lightbox fig-alt="A bipartite graph: six nodes arranged in two rows of three, with edges connecting only nodes in different rows; no edges run within a row." width="100%"}
 
         A graph is bipartite if its nodes can be divided into two independent sets such that every
         edge connects nodes from different sets. Equivalently, the graph can be colored with two
@@ -4062,6 +4094,8 @@ class Graph:
     def is_tree(self) -> bool:
         """
         Check if the graph is a tree.
+
+        ![Tree structure](/assets/graphs/struct-tree.light.svg){.lightbox fig-alt="A small rooted tree with seven nodes. The root is shown in the accent color; the remaining nodes form two branches of two leaves each." width="100%"}
 
         A tree is a connected, acyclic, undirected graph. For a graph with *n* nodes to be a tree
         it:
@@ -4332,6 +4366,8 @@ class Graph:
         r"""
         Check if the graph is planar.
 
+        ![Planar vs. non-planar](/assets/graphs/algo-planar-vs-not.light.svg){.lightbox fig-alt="On the left, a planar drawing of K4: four nodes with all six edges drawn without any crossings. On the right, K5 on a pentagon: five perimeter edges plus five chord edges highlighted in the accent color; the chords necessarily cross one another because K5 cannot be drawn in the plane without edge crossings." width="100%"}
+
         A planar graph can be embedded in a plane without any edge crossings. This method uses
         Euler's formula and necessary conditions to test planarity. For simple planar graphs with
         `n ≥ 3` nodes, the number of edges *e* must satisfy `e ≤ 3n - 6`. For graphs without
@@ -4418,6 +4454,8 @@ class Graph:
     def is_isomorphic(self, other: "Graph") -> bool:
         r"""
         Check if this graph is isomorphic to another graph.
+
+        ![Isomorphic graphs](/assets/graphs/algo-isomorphic.light.svg){.lightbox fig-alt="Two five-node graphs shown side by side. On the left, a pentagon: nodes labeled 1 through 5 in order around the ring, connected consecutively. On the right, a pentagram drawn on the same five physical positions but with the labels permuted, so that following the labels 1 - 2 - 3 - 4 - 5 - 1 still traces a five-cycle. The two graphs look different but are isomorphic." width="100%"}
 
         Two graphs are isomorphic if there exists a one-to-one correspondence (bijection) between
         their nodes that preserves the adjacency relationship. In simpler terms, they have the same
@@ -4759,6 +4797,8 @@ class Graph:
         """
         Count mutual node pairs (bidirectional edges) in directed graphs.
 
+        ![Reciprocity](/assets/graphs/algo-reciprocity.light.svg){.lightbox fig-alt="A four-node directed graph. The mutual pairs (A - B and C - D) each carry two accent-colored arrows curved in opposite directions, showing both directions of the reciprocal edge. The asymmetric edges A to C and D to B are drawn as single arrows in default styling." width="100%"}
+
         Returns the number of node pairs `(a,b)` where both edges `a->b` and `b->a` exist. Only
         works for directed graphs. Self-loops are excluded. This metric is useful for analyzing
         reciprocity in directed networks like social graphs.
@@ -4852,6 +4892,8 @@ class Graph:
     def neighbors(self, node: Union[int, str], mode: str = "out") -> list[int]:
         """
         Get neighbors of a node.
+
+        ![Ego network](/assets/graphs/algo-ego-network.light.svg){.lightbox fig-alt="A five-node graph centered on an ego node. The ego and its three neighbors, along with all edges among them, are shown in the accent color. A fifth node lies outside the ego network; the edge that reaches it from one of the neighbors is drawn in default styling to mark the boundary." width="100%"}
 
         Returns the neighboring nodes of a specified node, with control over directionality (for
         directed graphs).
@@ -5318,6 +5360,8 @@ class Graph:
         """
         Select nodes using a predicate function.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Applies a custom filter function to all nodes, selecting those for which the predicate
         returns `True`. The predicate receives a `Node` object with properties: `id`, `label`, and
         attributes.
@@ -5685,6 +5729,8 @@ class Graph:
     ) -> "Graph":
         """
         Select all nodes within K hops of specified seed nodes.
+
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
 
         Uses breadth-first search to find neighbors at distance up to k from the seed nodes. Does
         not include the seed nodes themselves in the selection. Useful for extracting local
@@ -8549,6 +8595,8 @@ class Graph:
         r"""
         Compute the number of common neighbors for node pairs.
 
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+
         For each pair of nodes `(u, v)`, counts how many nodes are neighbors of both `u` and `v`.
         Common neighbors is a simple but effective link prediction measure.
 
@@ -9485,6 +9533,8 @@ class Graph:
         """
         Find a fundamental cycle basis of the graph.
 
+        ![Cycle basis](/assets/graphs/algo-cycle-basis.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node. The left triangle is drawn in the accent color and the right triangle in a lighter accent tint, illustrating that the two triangles form a basis for the graph's cycle space." width="100%"}
+
         A cycle basis is a minimal set of cycles such that any cycle in the graph can be expressed
         as a symmetric difference (XOR) of cycles in the basis. For a connected graph with `V`
         vertices and `E` edges, the cycle basis has exactly `E - V + 1` cycles (the cyclomatic
@@ -9574,6 +9624,8 @@ class Graph:
     def minimum_cycle_basis(self, weight: str | None = None) -> list[list[int]]:
         r"""
         Find a minimum weight cycle basis for the graph.
+
+        ![Weighted shortest path](/assets/graphs/algo-weighted-path.light.svg){.lightbox fig-alt="A three-node graph with a direct edge from A to D of weight 10 arcing below, and a two-hop path A - B - D of weight 2 plus 2 across the top. The two-hop path is highlighted in the accent color: it has more hops but a smaller total weight, so it is the weighted shortest path." width="100%"}
 
         A minimum cycle basis is a cycle basis where the sum of weights of all cycles is minimized.
         For unweighted graphs, this minimizes the sum of cycle lengths.
@@ -9666,6 +9718,8 @@ class Graph:
     def find_cliques(self) -> list[list[int]]:
         """
         Find all maximal cliques in the graph.
+
+        ![Clique](/assets/graphs/algo-clique.light.svg){.lightbox fig-alt="A six-node graph containing a K4 clique: four mutually connected nodes shown in the accent color, with two extra nodes connected to the clique through default-styled edges." width="100%"}
 
         A clique is a subset of nodes where every pair of nodes is connected by an edge. A maximal
         clique is a clique that cannot be extended by adding another node. Uses the Bron-Kerbosch
@@ -9939,6 +9993,8 @@ class Graph:
         """
         Count triangles containing each node.
 
+        ![Triangle](/assets/graphs/struct-triangle.light.svg){.lightbox fig-alt="A four-node graph in which the triangle formed by nodes A, B, and C is highlighted in the accent color; a fourth node D connects to B and C in default styling." width="100%"}
+
         Returns the number of triangles that include each node in the graph. For undirected graphs,
         counts each triangle once per node. For directed graphs, counts directed triangles
         (closed triplets).
@@ -10066,6 +10122,8 @@ class Graph:
     def get_transitivity(self) -> Optional[float]:
         """
         Compute global transitivity (clustering coefficient).
+
+        ![Triadic closure](/assets/graphs/algo-transitivity.light.svg){.lightbox fig-alt="On the left, an open triple: node A is connected to B and to C, but B and C are not connected. On the right, the same three nodes with the closing edge between B and C added in accent, forming a triangle." width="100%"}
 
         Transitivity measures the probability that two neighbors of a node are also connected. It's
         computed as:
@@ -10967,6 +11025,8 @@ class Graph:
         r"""
         Detect communities using Louvain multi-level optimization algorithm.
 
+        ![Community structure](/assets/graphs/struct-community.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, tinted with the two accent shades so that each community is visually distinct. A single edge in default styling bridges the two clusters." width="100%"}
+
         The Louvain method is a hierarchical algorithm that maximizes modularity through iterative
         optimization. It's the most widely-used community detection algorithm in practice due to its
         speed (`O(n log n)`) and quality on large networks.
@@ -11107,6 +11167,8 @@ class Graph:
     ) -> Union[dict[int, int], "Graph"]:
         r"""
         Detect communities using Walktrap random walk algorithm.
+
+        ![Random walk](/assets/graphs/algo-random-walk.light.svg){.lightbox fig-alt="A seven-node graph traversed by a random walk of five steps. The visited nodes are numbered 1 through 5 in accent color, connected in sequence by accent-colored edges tracing the walk. Two unvisited nodes and their incident edges are drawn in default styling to show the walk in its wider context." width="100%"}
 
         The Walktrap algorithm exploits the property that random walks tend to stay trapped within
         densely connected communities. It computes distances between nodes based on random walk
@@ -11396,6 +11458,8 @@ class Graph:
         """
         Reverse the direction of all edges in the graph.
 
+        ![Reverse edges](/assets/graphs/op-reverse.light.svg){.lightbox fig-alt="A directed three-node graph on the left with three arrows; on the right, the same graph with every arrow flipped to point in the opposite direction." width="100%"}
+
         Creates a new graph with the same nodes but all edge directions reversed (`u->v` becomes
         `v->u`). For undirected graphs, returns a new copy (no structural change). Preserves all
         node and edge attributes.
@@ -11469,6 +11533,8 @@ class Graph:
     def complement(self) -> "Graph":
         """
         Return the complement of the graph.
+
+        ![Complement](/assets/graphs/op-complement.light.svg){.lightbox fig-alt="On the left, a four-node graph with three edges forming an open path A - B - C - D. On the right, the same nodes with the complementary set of three edges (the ones absent from the original graph) shown in the accent color." width="100%"}
 
         Creates a new graph with the same nodes but complementary edges. An edge exists in the
         complement if and only if it does *not* exist in the original graph. Self-loops are never
@@ -11562,6 +11628,8 @@ class Graph:
     def line_graph(self, create_using_directed: bool | None = None) -> "Graph":
         r"""
         Return the line graph of the graph.
+
+        ![Line graph](/assets/graphs/algo-line-graph.light.svg){.lightbox fig-alt="On the left, a four-node star: a central hub H connected to three spokes A, B, C by edges labeled e1, e2, and e3. On the right, the corresponding line graph: each original edge becomes a node (labeled e1, e2, e3), and every pair of original edges shared the hub H, so the three new nodes form a triangle, drawn in the accent color." width="100%"}
 
         The line graph `L(G)` of a graph `G` transforms edges into nodes: each edge in `G` becomes a
         node in `L(G)`, and two nodes in `L(G)` are connected if and only if their corresponding
@@ -11723,6 +11791,8 @@ class Graph:
     def contract_nodes(self, u: int | str, v: int | str, self_loops: bool = True) -> "Graph":
         """
         Contract two nodes by merging v into u.
+
+        ![Contract nodes](/assets/graphs/op-contract-nodes.light.svg){.lightbox fig-alt="Two nodes merge into one. Node C is absorbed into node B, which keeps its label; C's incident edges are rerouted to B, and duplicate edges collapse." width="100%"}
 
         Creates a new graph where node `v` is removed and all its edges are redirected to node `u`.
         If there was an edge between `u` and `v`, it becomes a self-loop on `u` (unless
@@ -12548,6 +12618,8 @@ class Graph:
         r"""
         Transform graph to a spanner with given stretch.
 
+        ![Spanner](/assets/graphs/algo-spanner.light.svg){.lightbox fig-alt="On the left, a six-node graph laid out as a hexagon with all six perimeter edges plus three chords crossing through the middle. On the right, the same graph as a spanner: the six perimeter edges are kept and highlighted in the accent color, while the three chords have been dropped and are shown as faded dashed lines." width="100%"}
+
         A spanner is a sparse subgraph that approximates distances in the original graph. For any
         pair of nodes `u` and `v`, the distance in the spanner is at most `stretch=` times the
         distance in the original graph:
@@ -12791,6 +12863,8 @@ class Graph:
     def subgraph(self, nodes: list[int]) -> "Graph":
         """
         Extract an induced subgraph containing the specified nodes.
+
+        ![Induced subgraph](/assets/graphs/op-subgraph.light.svg){.lightbox fig-alt="On the left, a six-node graph with three nodes (A, B, D) and the two edges among them highlighted in the accent color. On the right, only that induced subgraph remains: three accent nodes and the two accent edges connecting them." width="100%"}
 
         Returns a new graph containing only the specified nodes and all edges between them (the
         induced subgraph). This is a direct method that doesn't require prior selection, unlike
@@ -13815,6 +13889,8 @@ class Graph:
         """
         Calculate PageRank scores for all nodes in the graph.
 
+        ![Rank propagation](/assets/graphs/algo-rank-propagation.light.svg){.lightbox fig-alt="A source node on the left in the accent color, with four directed accent-colored arrows fanning out to four downstream neighbors on the right, illustrating how a node's rank is distributed to its out-neighbors each iteration." width="100%"}
+
         PageRank is a link analysis algorithm that assigns importance scores to nodes based on their
         incoming connections. Originally developed by Google to rank web pages, it's widely used in
         social network analysis, recommendation systems, and influence detection.
@@ -14102,6 +14178,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         """
         Calculate betweenness centrality scores for all nodes.
+
+        ![Bridge edge](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, joined by a single edge shown in the accent color. Removing that bridge edge would disconnect the graph into two components." width="100%"}
 
         Betweenness centrality measures how often a node appears on the shortest paths between other
         nodes in the graph. Nodes with high betweenness act as bridges or bottlenecks, controlling
@@ -14846,6 +14924,8 @@ class Graph:
     ) -> "Graph":
         """
         Simulate node percolation by randomly removing nodes.
+
+        ![Percolation](/assets/graphs/algo-percolation.light.svg){.lightbox fig-alt="On the left, a connected six-node graph laid out in two rows of three. On the right, the two middle-column nodes and every edge incident to them are shown as faded dashed ghost outlines, indicating that they have been removed. The four remaining nodes have split into two disconnected pairs." width="100%"}
 
         Creates a new graph with a fraction of nodes randomly removed, along with all their incident
         edges. This is useful for analyzing network robustness under random node failures.
@@ -16622,6 +16702,8 @@ class Graph:
         """
         Extract the k-core subgraph.
 
+        ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+
         The k-core is the maximal subgraph where all nodes have degree >= k. Iteratively removes
         nodes with degree < k until all remaining nodes satisfy the condition.
 
@@ -16892,6 +16974,8 @@ class Graph:
     def rich_club_coefficient(self) -> dict[int, float]:
         r"""
         Compute the rich-club coefficient for all degree values.
+
+        ![Rich club](/assets/graphs/algo-rich-club.light.svg){.lightbox fig-alt="A nine-node graph. Three high-degree hub nodes form a triangle at the center, shown in the accent color; each hub carries two low-degree leaf nodes that ring the outside in default styling. The dense hub-to-hub connectivity in the middle illustrates the rich-club phenomenon." width="100%"}
 
         The rich-club coefficient `φ(k)` measures the connectivity among high-degree nodes (the
         'rich club' of the network). For each degree `k`, it computes the ratio of actual edges to
@@ -17428,6 +17512,8 @@ class Graph:
     ) -> Union[list[int], "Graph", None]:
         r"""
         Find shortest path using Bellman-Ford algorithm.
+
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
 
         Computes the shortest weighted path from source to target using the Bellman-Ford algorithm.
         Unlike Dijkstra's algorithm, Bellman-Ford can handle negative edge weights and will detect
@@ -21458,6 +21544,8 @@ class Graph:
     def count_strongly_connected_components(self) -> int:
         """
         Count strongly connected components.
+
+        ![SCC vs. WCC](/assets/graphs/algo-scc-vs-wcc.light.svg){.lightbox fig-alt="The same directed graph shown twice. On the left, the strongly connected components: A, B, and C form a directed cycle and share one accent tint, while D and E are each their own singleton component, shown in a lighter accent tint. On the right, ignoring edge directions collapses everything into a single weakly connected component, and all five nodes share the same accent color." width="100%"}
 
         For directed graphs, a strongly connected component is a maximal set of nodes where every
         node is reachable from every other node following directed edges. Uses Kosaraju's algorithm
