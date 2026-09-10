@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#0d1117"/>
+<line x1="64.44" y1="70.56" x2="45.56" y2="89.44" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="102.00" y1="55.00" x2="138.00" y2="55.00" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="218.00" y1="55.00" x2="182.00" y2="55.00" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="255.56" y1="70.56" x2="274.44" y2="89.44" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="138.00" y1="155.00" x2="102.00" y2="155.00" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="182.00" y1="155.00" x2="218.00" y2="155.00" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="102.00" y1="155.00" x2="218.00" y2="155.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="45.56" y1="120.56" x2="64.44" y2="139.44" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="80" cy="55" r="22" fill="#0d1117" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="240" cy="55" r="22" fill="#0d1117" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="160" cy="155" r="22" fill="#0d1117" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="30" cy="105" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="160" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="290" cy="105" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="80" cy="155" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="240" cy="155" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+</svg>
