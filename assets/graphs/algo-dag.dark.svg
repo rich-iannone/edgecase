@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#0d1117"/>
+<line x1="72.00" y1="60.00" x2="138.00" y2="60.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="138.00,60.00 129.00,63.00 129.00,57.00" fill="#e6edf3" fill-opacity="1.0"/>
+<line x1="67.79" y1="72.94" x2="142.21" y2="127.06" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="142.21,127.06 133.16,124.19 136.69,119.34" fill="#e6edf3" fill-opacity="1.0"/>
+<line x1="72.00" y1="140.00" x2="138.00" y2="140.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="138.00,140.00 129.00,143.00 129.00,137.00" fill="#e6edf3" fill-opacity="1.0"/>
+<line x1="182.00" y1="60.00" x2="248.00" y2="60.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="248.00,60.00 239.00,63.00 239.00,57.00" fill="#e6edf3" fill-opacity="1.0"/>
+<line x1="177.79" y1="127.06" x2="252.21" y2="72.94" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="252.21,72.94 246.69,80.66 243.16,75.81" fill="#e6edf3" fill-opacity="1.0"/>
+<line x1="182.00" y1="140.00" x2="248.00" y2="140.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="248.00,140.00 239.00,143.00 239.00,137.00" fill="#e6edf3" fill-opacity="1.0"/>
+<circle cx="50" cy="60" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="50" cy="140" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="160" cy="60" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="160" cy="140" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="270" cy="60" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="270" cy="140" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+</svg>
