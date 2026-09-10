@@ -2188,6 +2188,8 @@ class Graph:
         """
         Add a 2D grid/lattice graph to the current graph.
 
+        ![2D grid](/assets/graphs/struct-grid.light.svg){.lightbox fig-alt="A three-by-three lattice: nine nodes on a regular grid, connected by twelve edges that run only horizontally between adjacent nodes in a row or vertically between adjacent nodes in a column." width="100%"}
+
         Creates a rectangular grid where each interior node is connected to its four neighbors
         (up, down, left, right). Edge nodes have fewer connections.
 
@@ -2285,6 +2287,8 @@ class Graph:
     ) -> "Graph":
         """
         Add a prism graph to the current graph.
+
+        ![Triangular prism](/assets/graphs/struct-prism.light.svg){.lightbox fig-alt="A triangular prism graph drawn as an isometric projection: a front triangle on the left and a back triangle offset up and to the right, with three parallel 'rung' edges connecting corresponding vertices of the two triangles." width="100%"}
 
         Creates two parallel n-cycles connected by n vertical edges, forming a 3D prism structure
         when visualized.
@@ -2394,6 +2398,8 @@ class Graph:
         """
         Add an Erdős-Rényi G(n,p) random graph to the current graph.
 
+        ![Random graph](/assets/graphs/struct-random.light.svg){.lightbox fig-alt="An eight-node Erdos-Renyi-style random graph. Nodes are scattered irregularly around the frame and connected by eight edges chosen without any discernible pattern, some nodes ending up with more connections than others." width="100%"}
+
         Each possible edge is included independently with probability `p`. This model is useful for
         generating random graphs with a specific edge density.
 
@@ -2453,6 +2459,8 @@ class Graph:
     ) -> "Graph":
         """
         Add an Erdős-Rényi G(n,m) random graph to the current graph.
+
+        ![Random graph](/assets/graphs/struct-random.light.svg){.lightbox fig-alt="An eight-node Erdos-Renyi-style random graph. Nodes are scattered irregularly around the frame and connected by eight edges chosen without any discernible pattern, some nodes ending up with more connections than others." width="100%"}
 
         Creates a graph with `n` nodes and exactly m randomly placed edges. This model is useful for
         generating random graphs with a fixed number of edges.
@@ -2514,6 +2522,8 @@ class Graph:
         """
         Add a Barabási-Albert preferential attachment graph.
 
+        ![Preferential attachment](/assets/graphs/struct-pa.light.svg){.lightbox fig-alt="A ten-node scale-free graph produced by preferential attachment. Two large accent-colored hub nodes dominate the middle, joined to each other and to a ring of eight small-radius leaf nodes; each leaf attaches to one or both hubs, illustrating the power-law tendency for new nodes to link to already-popular ones." width="100%"}
+
         Grows a graph by adding nodes one at a time, with each new node connecting to `m` existing
         nodes with probability proportional to degree. This creates scale-free networks with
         power-law degree distributions.
@@ -2563,6 +2573,8 @@ class Graph:
         """
         Add a Watts-Strogatz small-world graph.
 
+        ![Small-world graph](/assets/graphs/struct-smallworld.light.svg){.lightbox fig-alt="A Watts-Strogatz small-world graph: eight nodes arranged in a ring, each connected to its two immediate neighbors along the ring in default styling, plus three long-range shortcut edges highlighted in the accent color that jump across the interior of the ring." width="100%"}
+
         Creates a ring lattice with rewiring probability `p`, producing graphs with high clustering
         and short path lengths. Small-world networks model many real-world phenomena.
 
@@ -2607,6 +2619,8 @@ class Graph:
     def add_johnson_graph(self, n: int, k: int) -> "Graph":
         """
         Add a Johnson graph J(n, k) to this graph.
+
+        ![Johnson graph J(4, 2)](/assets/graphs/struct-johnson.light.svg){.lightbox fig-alt="The Johnson graph J(4, 2): six nodes labeled by the two-element subsets of {1, 2, 3, 4} arranged in a hexagon, with an edge between any two subsets that share exactly one element. Each node has degree four; the underlying graph is the octahedron." width="100%"}
 
         Creates a graph where nodes represent `k`-subsets of `{0, 1, ..., n-1}`, and two nodes are
         adjacent if their subsets intersect in exactly `k-1` elements (i.e., they differ by exactly
@@ -2727,6 +2741,8 @@ class Graph:
     ) -> "Graph":
         """
         Add a random geometric graph.
+
+        ![Random geometric graph](/assets/graphs/struct-geometric.light.svg){.lightbox fig-alt="A random geometric graph: ten nodes placed as points in the plane, with edges only between pairs closer than a fixed connection threshold. One central node is drawn in the accent color and encircled by a faint dashed radius that shows the connection distance; every edge from that node lies inside the circle." width="100%"}
 
         Places `n` nodes uniformly at random in the unit hypercube and connects nodes whose
         distance is at most the value provided in `radius=`. This creates spatial networks where
@@ -12079,6 +12095,8 @@ class Graph:
         """
         Create a quotient graph from a node partition.
 
+        ![Quotient graph](/assets/graphs/algo-quotient.light.svg){.lightbox fig-alt="On the left, a six-node graph whose nodes are partitioned into three groups of two by categorical color (orange, teal, violet), with edges both within and between the groups. On the right, the quotient graph: each color group has collapsed to a single large super-node, and the inter-group edges from the original graph become edges between the corresponding super-nodes." width="100%"}
+
         Each block (group of nodes) in the partition becomes a single node in the quotient graph.
         Edges between different blocks become edges in the quotient. Edges within the same block are
         removed.
@@ -13380,6 +13398,8 @@ class Graph:
         """
         Get the degree of a node.
 
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+
         For directed graphs, returns total degree (in-degree + out-degree). For undirected graphs,
         returns the number of neighbors.
 
@@ -13545,6 +13565,8 @@ class Graph:
     def get_degree_distribution(self) -> dict[int, int]:
         """
         Get degree distribution as a mapping from degree to count.
+
+        ![Degree distribution](/assets/graphs/algo-degree-distribution.light.svg){.lightbox fig-alt="A small bar chart showing the degree distribution P(k) of a graph. Bars correspond to degrees 1 through 5 along the x-axis, with heights giving the number of nodes at each degree. The modal degree (k=3, the tallest bar) is highlighted in the accent color; the other bars are drawn in a muted ink." width="100%"}
 
         Returns a histogram of node degrees, showing how many nodes have each degree value. Useful
         for analyzing network topology and identifying hub nodes or scale-free properties.
@@ -17839,6 +17861,8 @@ class Graph:
         r"""
         Find path using ADA* (Anytime Dynamic A*) search algorithm.
 
+        ![A* search](/assets/graphs/algo-astar.light.svg){.lightbox fig-alt="A six-node grid-like graph. The source node on the top left and the goal node on the bottom right are drawn in the accent color, connected by an accent-highlighted path along the top and right that A* found; a faint dashed accent line from source to goal illustrates the straight-line heuristic distance that biases the search toward the goal." width="100%"}
+
         ADA* is an anytime optimal pathfinding algorithm that can return suboptimal paths quickly
         and iteratively improve them. The epsilon parameter controls the trade-off between solution
         quality and speed.
@@ -18106,6 +18130,8 @@ class Graph:
         r"""
         Compute shortest paths for all pairs of nodes.
 
+        ![All-pairs shortest paths](/assets/graphs/algo-all-pairs.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, the corresponding all-pairs shortest-path distance matrix: a four-by-four table with row and column labels A, B, C, holding zero on the diagonal and the pairwise shortest-path distances off the diagonal." width="100%"}
+
         Uses Dijkstra's algorithm from each source node to find the shortest path to all other
         reachable nodes. Returns the full path as a list of node IDs.
 
@@ -18191,6 +18217,8 @@ class Graph:
     ) -> list[tuple[list[int], float]]:
         r"""
         Find k shortest paths between source and target using Yen's algorithm.
+
+        ![k shortest paths](/assets/graphs/algo-k-shortest-paths.light.svg){.lightbox fig-alt="A graph with source s and target t on the sides, connected by three distinct simple paths. The shortest path (length two, via the top) is highlighted in the accent color; the second-shortest (also length two, straight through the middle) is drawn in a lighter accent tint; and the longest (length three, bowing along the bottom) is in default styling, illustrating the top-k enumeration." width="100%"}
 
         Finds multiple alternative paths ranked by total path weight/length. Useful for finding
         backup routes, route diversity analysis, or identifying critical edges.
@@ -18308,6 +18336,8 @@ class Graph:
         """
         Perform breadth-first search (BFS) traversal from a start node.
 
+        ![Breadth-first search](/assets/graphs/algo-bfs.light.svg){.lightbox fig-alt="A six-node graph explored by BFS from a source on the left. The source and its two distance-one neighbors are shown in the accent color; the two distance-two nodes in a lighter accent tint; and the furthest distance-three node in default styling. BFS tree edges are highlighted in accent; the two non-tree same-layer edges are drawn in default." width="100%"}
+
         BFS explores the graph layer by layer, visiting all neighbors of a node before moving to
         their neighbors. Can return the visit order as a list, or store the position of each node in
         the traversal as a node attribute for visualization.
@@ -18407,6 +18437,8 @@ class Graph:
     ) -> Union[list[int], "Graph"]:
         """
         Perform depth-first search (DFS) traversal from a start node.
+
+        ![Depth-first search](/assets/graphs/algo-dfs.light.svg){.lightbox fig-alt="A six-node graph traversed by depth-first search. Each node carries a numeric badge marking the order it was first visited (1 through 6). The five DFS tree edges are drawn in the accent color following that visitation order; two non-tree back-edges are drawn in default styling." width="100%"}
 
         DFS explores as far as possible along each branch before backtracking. Can return the visit
         order as a list, or store the position of each node in the traversal as a node attribute for
@@ -18509,6 +18541,8 @@ class Graph:
     ) -> list[list[str]]:
         """
         Find all simple paths between two nodes.
+
+        ![All simple paths](/assets/graphs/algo-all-simple-paths.light.svg){.lightbox fig-alt="A graph with source s and target t on the sides, showing three distinct simple paths between them: a two-hop path through the top in accent, a two-hop path straight through the middle in a lighter accent tint, and a three-hop path along the bottom in teal, each rendered in its own distinct style." width="100%"}
 
         A simple path is a path with no repeated nodes. This method uses depth-first search with
         backtracking to enumerate all possible simple paths from source to target.
@@ -19294,6 +19328,8 @@ class Graph:
         r"""
         Compute the transitive closure of a directed graph.
 
+        ![Transitive closure](/assets/graphs/algo-transitive-closure.light.svg){.lightbox fig-alt="On the left, a directed chain A -> B -> C -> D on four nodes laid out in a square. On the right, the same graph after transitive closure: three additional accent-colored directed edges A -> C, A -> D, and B -> D have been added, so that every reachable pair is now directly connected." width="100%"}
+
         The transitive closure is a graph where there is an edge `(u, v)` if and only if there is a
         path from `u` to `v` in the original graph. This is useful for reachability analysis,
         determining which nodes can reach which other nodes.
@@ -20028,6 +20064,8 @@ class Graph:
         """
         Find an Eulerian circuit in the graph if one exists.
 
+        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+
         An Eulerian circuit is a closed trail that visits every edge exactly once, starting and
         ending at the same node. Uses Hierholzer's algorithm.
 
@@ -20461,6 +20499,8 @@ class Graph:
         """
         Find articulation points (cut nodes) in the graph.
 
+        ![Articulation point](/assets/graphs/algo-articulation-point.light.svg){.lightbox fig-alt="A seven-node graph with two triangular clusters joined at a single central node, shown in the accent color with a larger radius. The two accent-highlighted edges are the only path between the two clusters; removing the central articulation node would disconnect the graph." width="100%"}
+
         An articulation point is a node whose removal disconnects the graph or increases the number
         of connected components. Uses Tarjan's DFS-based algorithm. Only defined for undirected
         graphs.
@@ -20503,6 +20543,8 @@ class Graph:
     def get_periphery(self) -> list[int]:
         r"""
         Get periphery nodes (nodes with maximum eccentricity).
+
+        ![Eccentricity](/assets/graphs/algo-eccentricity.light.svg){.lightbox fig-alt="A path graph of five nodes laid out in a horizontal line. The two endpoint nodes (highest eccentricity) are drawn in the accent color and labeled 'periphery'; the middle node (lowest eccentricity) is drawn in a lighter accent tint and labeled 'center'; the two in-between nodes are in default styling." width="100%"}
 
         Periphery nodes are farthest from the graph's center. These nodes have the maximum
         eccentricity (longest shortest path to any other node). Returns empty list if graph is
@@ -20880,6 +20922,8 @@ class Graph:
         """
         Find hierarchical cohesive block structure.
 
+        ![Cohesive blocks](/assets/graphs/algo-cohesive-blocks.light.svg){.lightbox fig-alt="A nine-node graph organized as three nested tiers of cohesion. A dense inner triangle of three accent nodes forms the innermost cohesive block; four accent-lite nodes in the middle tier each attach to the core; two default peripheral nodes at the far sides sit in the outermost tier." width="100%"}
+
         Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal subgraph
         that requires removal of at least `k` nodes to disconnect it. Returns a hierarchical
         structure where child blocks have higher cohesion than their parents.
@@ -20945,6 +20989,8 @@ class Graph:
     def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
         """
         Get minimum cut between source and sink nodes.
+
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
 
         Computes the minimum number of edges that must be removed to disconnect the source from the
         sink. Uses the Ford-Fulkerson algorithm with BFS (Edmonds-Karp) to find maximum flow, which
@@ -21186,6 +21232,8 @@ class Graph:
     ) -> dict[int, float]:
         r"""
         Compute maximum flow from source to sink.
+
+        ![Maximum flow](/assets/graphs/algo-max-flow.light.svg){.lightbox fig-alt="A four-node directed flow network from source s on the left to sink t on the right, through two intermediate nodes a and b. Every edge carries a flow-over-capacity label. The three saturated edges (where flow equals capacity) are drawn in the accent color; the unsaturated edge is in default styling. A caption reads 'max flow = 5'." width="100%"}
 
         Finds the maximum amount of flow that can be sent from the source node to the sink node
         through the network. Uses the Edmonds-Karp algorithm (Ford-Fulkerson with BFS), which
@@ -21907,6 +21955,8 @@ class Graph:
         r"""
         Color the graph using a greedy algorithm.
 
+        ![Graph coloring](/assets/graphs/algo-coloring.light.svg){.lightbox fig-alt="A six-node graph with a proper 3-coloring: a central triangle whose three vertices are colored orange, teal, and violet, plus three pendant nodes each colored differently from the triangle vertex they attach to. No two adjacent nodes share a color." width="100%"}
+
         Graph coloring assigns colors (represented as integers) to nodes such that no two adjacent
         nodes share the same color. The greedy algorithm processes nodes in a specified order and
         assigns the smallest available color to each node.
@@ -22192,6 +22242,8 @@ class Graph:
     def maximal_matching(self) -> list[int]:
         r"""
         Find a maximal matching in the graph.
+
+        ![Matching](/assets/graphs/algo-matching.light.svg){.lightbox fig-alt="An eight-node graph in two rows of four. Three pairwise-disjoint accent-colored edges form a matching: every accent edge picks a distinct pair of nodes, and no two accent edges share an endpoint. The six matched nodes are in the accent color; two unmatched nodes remain in default styling. Additional default edges fill in the surrounding graph structure." width="100%"}
 
         A maximal matching is a matching (set of edges with no shared endpoints) that cannot be
         extended by adding any other edge. Uses a greedy algorithm.
@@ -22551,6 +22603,8 @@ class Graph:
         r"""
         Find an approximate maximum independent set in the graph.
 
+        ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
+
         The maximum independent set problem is NP-hard, so this method uses a greedy heuristic that
         prioritizes nodes with minimum degree. This provides a good approximation but is not
         guaranteed to find the true maximum.
@@ -22801,6 +22855,8 @@ class Graph:
         r"""
         Find a dominating set for the graph.
 
+        ![Dominating set](/assets/graphs/algo-dominating-set.light.svg){.lightbox fig-alt="An eight-node graph with three accent-colored nodes chosen as a dominating set. Every one of the five remaining nodes is adjacent to at least one accent node via an accent-highlighted edge. Two additional default edges between non-set nodes fill in the surrounding structure." width="100%"}
+
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
         `D` is adjacent to at least one member of `D`. This method uses a greedy algorithm that
         finds some dominating set, but not necessarily the minimum one.
@@ -22989,6 +23045,8 @@ class Graph:
     ) -> "Graph | list[str]":
         r"""
         Find the minimum spanning tree using Kruskal's algorithm.
+
+        ![Minimum spanning tree](/assets/graphs/algo-mst.light.svg){.lightbox fig-alt="On the left, a four-node weighted graph with all five edges labeled by weight (1, 2, 3, 4, 5). On the right, the same graph with the minimum spanning tree highlighted: the edges of weight 1, 2, and 3 are in the accent color and connect all four nodes; the two heavier non-tree edges of weight 4 and 5 are drawn as faded dashed lines." width="100%"}
 
         A minimum spanning tree (MST) is a subset of edges that connects all nodes with the minimum
         total edge weight. Uses the optimized union-find data structure with path-halving for
@@ -23196,6 +23254,8 @@ class Graph:
     ) -> "Graph | list[tuple[str, str, float]]":
         r"""
         Find an approximate Steiner tree connecting the given terminal nodes.
+
+        ![Steiner tree](/assets/graphs/algo-steiner-tree.light.svg){.lightbox fig-alt="A seven-node graph with three terminal nodes labeled t1, t2, and t3 in the accent color. A Steiner tree drawn in the accent color connects all three terminals by passing through two smaller non-terminal Steiner nodes. Two additional non-tree edges on the perimeter show alternative routes that the Steiner tree avoids." width="100%"}
 
         A Steiner tree is a minimum weight tree that connects a specified set of terminal nodes. It
         may include additional non-terminal nodes (called Steiner nodes) if they help reduce the
@@ -24189,6 +24249,8 @@ class Graph:
         r"""
         Compute eigenvalues and eigenvectors of the adjacency matrix.
 
+        ![Adjacency spectrum](/assets/graphs/algo-spectrum.light.svg){.lightbox fig-alt="A horizontal number line with tick marks for the five eigenvalues of a small graph's adjacency matrix, placed at -1.6, -0.8, 0, 0.8, and 2.4. The largest eigenvalue (rightmost) is highlighted with a taller accent-colored tick; a caption below labels it as the spectral radius." width="100%"}
+
         Returns the spectrum (eigenvalues and eigenvectors) of the graph's adjacency matrix. The
         spectrum reveals important structural properties including connectivity, bipartiteness, and
         graph regularity.
@@ -24526,6 +24588,8 @@ class Graph:
         r"""
         Calculate the global efficiency of the graph.
 
+        ![Efficiency](/assets/graphs/algo-efficiency.light.svg){.lightbox fig-alt="A seven-edge graph with source s on the left and target t on the right, both drawn in the accent color. A three-hop shortest path from s to t through the upper row is highlighted in accent. A small heads-up display in the top right reports the pair distance d(s,t) = 3, the pair efficiency E(s,t) = 1/3 (its reciprocal), and the graph's global efficiency E_glob = 5/12, averaged over every pair." width="100%"}
+
         Global efficiency is the average efficiency over all pairs of nodes, where efficiency is the
         multiplicative inverse of the shortest path distance. It measures how efficiently
         information flows through the network.
@@ -24801,6 +24865,8 @@ class Graph:
     def get_resistance_distance(self, source: int | str, target: int | str) -> float:
         r"""
         Calculate the resistance distance between two nodes.
+
+        ![Resistance distance](/assets/graphs/algo-resistance-distance.light.svg){.lightbox fig-alt="Two focal nodes A and B on the sides of the frame connected by two parallel two-hop paths, one through node C above and one through node D below. Every edge is drawn as a zigzag resistor symbol to make the electrical analogy explicit. A small overlay in the center reports the resulting effective resistance R(A, B) = 1, obtained by combining the two series paths in parallel." width="100%"}
 
         The resistance distance (also called effective resistance) is the electrical resistance
         between two nodes if each edge is replaced by a 1-ohm resistor. It is a metric on graphs
