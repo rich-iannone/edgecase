@@ -3110,6 +3110,8 @@ class Graph:
         """
         Get the integer ID for a node by its label.
 
+        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+
         Translates a human-readable string label to the internal `u64` node ID. Useful when you need
         the ID for operations that require integer identifiers.
 
@@ -3201,6 +3203,8 @@ class Graph:
     def get_node_creation_order(self) -> list[int]:
         """
         Get nodes in their creation order.
+
+        ![Creation order](/assets/graphs/algo-creation-order.light.svg){.lightbox fig-alt="A four-node graph in which every node carries a numeric badge (1, 2, 3, 4) marking the order in which it was added, and every edge carries a matching numeric badge along its length marking the order in which it was added." width="100%"}
 
         Returns node IDs ordered by when they were added to the graph. The first node created
         appears first, the most recently created node appears last. Useful for temporal analysis or
@@ -7543,6 +7547,8 @@ class Graph:
         """
         Get nodes as a Polars DataFrame.
 
+        ![Attribute DataFrame](/assets/graphs/algo-attribute-df.light.svg){.lightbox fig-alt="On the left, a three-node triangle whose nodes carry two attributes: a categorical color (mapped to orange, teal, or violet) and a numeric size (mapped to node radius). On the right, the same data shown as a compact three-column table with headers id, color, and size, and one row per node." width="100%"}
+
         Exports all nodes and their attributes to a Polars DataFrame for tabular analysis. Each row
         represents a node, with columns for the node ID and any attributes set on nodes. The
         DataFrame always includes 'id', 'label', and 'type' as the first three columns, sorted by
@@ -8173,6 +8179,8 @@ class Graph:
         """
         Map node attribute values to colors.
 
+        ![Categorical attribute](/assets/graphs/algo-attribute-colored.light.svg){.lightbox fig-alt="A six-node graph in which the nodes carry a categorical attribute with three distinct values, each mapped to its own color (orange, teal, and violet). Two nodes belong to each category, and edges run both within and between categories." width="100%"}
+
         Sets a color attribute on nodes based on categorical or continuous values. For categorical
         data, assigns distinct colors from a palette. For continuous data, interpolates between
         colors.
@@ -8318,6 +8326,8 @@ class Graph:
     ) -> "Graph":
         """
         Rescale node attribute values to a range.
+
+        ![Centrality-scaled sizing](/assets/graphs/algo-centrality-scaled.light.svg){.lightbox fig-alt="The same five-node graph shown twice. On the left, every node is drawn at the same uniform size. On the right, node radii scale with a centrality score: the top-scoring central hub is drawn largest and in the accent color, its two medium-degree neighbors are drawn slightly smaller, and the two lowest-degree leaves are drawn smallest." width="100%"}
 
         Normalizes numeric values to a specified range, useful for sizing nodes by centrality,
         degree, or other continuous metrics.
@@ -12191,6 +12201,8 @@ class Graph:
         """
         Compute the union of this graph with another graph.
 
+        ![Set algebra on graphs](/assets/graphs/algo-set-algebra.light.svg){.lightbox fig-alt="Three panels illustrating the union of two graphs on the same four nodes. On the left, G1 has three edges, two of which (drawn in the accent color) are unique to it. In the middle, G2 has three edges, two of which (drawn in teal) are unique to it, plus one shared edge in default ink. On the right, the union graph carries every edge from either source: the two accent edges from G1, the two teal edges from G2, and the shared ink edge." width="100%"}
+
         Returns a new graph containing all nodes and edges from both graphs. Nodes with the same ID
         are merged (this graph's attributes take precedence). Duplicate edges are not added.
 
@@ -15142,6 +15154,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Compute average neighbor degree for each node.
+
+        ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two six-node graphs shown side by side, each with two large high-degree hubs and four small low-degree leaves. On the left, an assortative arrangement: the two hubs are connected to each other and the leaves are connected to leaves. On the right, a disassortative arrangement: the hubs are not connected to each other, and every edge runs between a hub and a leaf." width="100%"}
 
         For each node, calculates the average degree of its neighbors. This metric helps analyze
         degree correlations and mixing patterns in networks, indicating whether nodes tend to
