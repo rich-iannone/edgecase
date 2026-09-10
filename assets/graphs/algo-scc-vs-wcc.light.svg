@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" width="100%" role="img">
+<rect width="640" height="200" fill="#ffffff"/>
+<line x1="72.00" y1="55.00" x2="128.00" y2="55.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="128.00,55.00 119.00,58.00 119.00,52.00" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="139.32" y1="74.23" x2="110.68" y2="125.77" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="110.68,125.77 112.43,116.44 117.68,119.36" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="89.32" y1="125.77" x2="60.68" y2="74.23" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="60.68,74.23 67.68,80.64 62.43,83.56" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="198.00" y1="55.00" x2="72.00" y2="55.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="72.00,55.00 81.00,52.00 81.00,58.00" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="230.68" y1="74.23" x2="259.32" y2="125.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="259.32,125.77 252.32,119.36 257.57,116.44" fill="#1f2328" fill-opacity="1.0"/>
+<circle cx="50" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">A</text>
+<circle cx="150" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="150" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">B</text>
+<circle cx="100" cy="145" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="100" y="145" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">C</text>
+<circle cx="220" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="0.5"/>
+<text x="220" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="0.5">D</text>
+<circle cx="270" cy="145" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="0.5"/>
+<text x="270" y="145" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="0.5">E</text>
+<line x1="412.00" y1="55.00" x2="468.00" y2="55.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="468.00,55.00 459.00,58.00 459.00,52.00" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="479.32" y1="74.23" x2="450.68" y2="125.77" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="450.68,125.77 452.43,116.44 457.68,119.36" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="429.32" y1="125.77" x2="400.68" y2="74.23" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="400.68,74.23 407.68,80.64 402.43,83.56" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="538.00" y1="55.00" x2="412.00" y2="55.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="412.00,55.00 421.00,52.00 421.00,58.00" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="570.68" y1="74.23" x2="599.32" y2="125.77" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="599.32,125.77 592.32,119.36 597.57,116.44" fill="#c2410c" fill-opacity="1.0"/>
+<circle cx="390" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="390" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">A</text>
+<circle cx="490" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="490" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">B</text>
+<circle cx="440" cy="145" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="440" y="145" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">C</text>
+<circle cx="560" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="560" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">D</text>
+<circle cx="610" cy="145" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="610" y="145" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">E</text>
+<line x1="298" y1="100" x2="323" y2="100" stroke="#1f2328" stroke-width="2.5" stroke-linecap="round"/>
+<polygon points="332,100 322,95.0 322,105.0" fill="#1f2328"/>
+<text x="140" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">3 SCCs: {A,B,C}, {D}, {E}</text>
+<text x="500" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">1 WCC: {A,B,C,D,E}</text>
+</svg>
