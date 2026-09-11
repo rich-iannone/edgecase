@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#ffffff"/>
+<line x1="74.86" y1="90.54" x2="140.14" y2="59.46" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="140.14,59.46 133.30,66.04 130.72,60.62" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="74.86" y1="109.46" x2="140.14" y2="140.54" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="140.14,140.54 130.72,139.38 133.30,133.96" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="243.00" y1="100.00" x2="77.00" y2="100.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+<polygon points="77.00,100.00 86.00,97.00 86.00,103.00" fill="#1f2328" fill-opacity="0.4"/>
+<line x1="179.86" y1="59.46" x2="245.14" y2="90.54" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="245.14,90.54 235.72,89.38 238.30,83.96" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="179.86" y1="140.54" x2="245.14" y2="109.46" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="245.14,109.46 238.30,116.04 235.72,110.62" fill="#1f2328" fill-opacity="1.0"/>
+<circle cx="55" cy="100" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="55" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">s</text>
+<circle cx="160" cy="50" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="160" cy="150" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="265" cy="100" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="160" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">trav_out()</text>
+</svg>
