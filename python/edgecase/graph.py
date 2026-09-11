@@ -2910,6 +2910,8 @@ class Graph:
         """
         Get an edge object by an edge ID.
 
+        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+
         Retrieves the `Edge` object for the specified edge ID. The `Edge` object contains id, source,
         target, weight, and attributes properties. Returns `None` if edge doesn't exist.
 
@@ -3022,6 +3024,8 @@ class Graph:
         """
         Return list of edge IDs.
 
+        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+
         Returns edge IDs in the graph up to the specified limit. Edge IDs are unique integers
         assigned to each edge, useful for direct edge access and manipulation.
 
@@ -3093,6 +3097,8 @@ class Graph:
     def get_node_ids_by_edge_id(self, edge_id: int) -> tuple[int, int] | None:
         """
         Get edge (source, target) node IDs by edge ID.
+
+        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
 
         Retrieves the source and target node IDs for a specific edge using its edge ID. Returns
         `None` if the edge ID doesn't exist.
@@ -3345,6 +3351,8 @@ class Graph:
         """
         Return list of edges as (id, source, target) tuples.
 
+        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+
         Returns all edges in the graph as tuples containing the edge ID and the source and target
         node IDs. Useful for iterating over all edges or analyzing edge structure.
 
@@ -3548,6 +3556,8 @@ class Graph:
         """
         Check if an edge exists between two nodes.
 
+        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+
         For undirected graphs, the order of source and target doesn't matter. For directed graphs,
         checks specifically for an edge from source to target.
 
@@ -3603,6 +3613,8 @@ class Graph:
     def has_edge_id(self, edge_id: int) -> bool:
         """
         Check if an edge with given ID exists.
+
+        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
 
         Verifies whether a specific edge ID is present in the graph. Useful for validating edge IDs
         before performing operations.
@@ -6058,7 +6070,7 @@ class Graph:
         """
         Remove nodes from selection.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Deselect nodes](/assets/graphs/op-deselect.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in the accent color as selected. On the right, all nodes have returned to default styling after deselection." width="100%"}
 
         Unmarks specified nodes, removing them from the current selection set. Has no effect on
         nodes that aren't currently selected.
@@ -6128,7 +6140,7 @@ class Graph:
         """
         Remove edges from selection.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Deselect nodes](/assets/graphs/op-deselect.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in the accent color as selected. On the right, all nodes have returned to default styling after deselection." width="100%"}
 
         Unmarks specified edges, removing them from the current selection set. Has no effect on
         edges that aren't currently selected.
@@ -6168,7 +6180,7 @@ class Graph:
         """
         Clear all node and edge selections.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Deselect nodes](/assets/graphs/op-deselect.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in the accent color as selected. On the right, all nodes have returned to default styling after deselection." width="100%"}
 
         Resets the selection state, unmarking all previously selected nodes and edges. Useful for
         starting fresh with a new selection workflow.
@@ -6201,7 +6213,7 @@ class Graph:
         """
         Invert node selection (select unselected, unselect selected).
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Invert selection](/assets/graphs/op-invert-selection.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, two of six nodes are highlighted in accent as selected and four are in default styling. On the right, the selection has been inverted: the four previously unselected nodes are now in accent and the original two have returned to default." width="100%"}
 
         Toggles the selection state of all nodes: currently selected nodes become unselected, and
         unselected nodes become selected. Useful for getting the complement of a selection.
@@ -6238,7 +6250,7 @@ class Graph:
         """
         Invert edge selection (select unselected, unselect selected).
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Invert selection](/assets/graphs/op-invert-selection.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, two of six nodes are highlighted in accent as selected and four are in default styling. On the right, the selection has been inverted: the four previously unselected nodes are now in accent and the original two have returned to default." width="100%"}
 
         Toggles the selection state of all edges: currently selected edges become unselected, and
         unselected edges become selected. Useful for getting the complement of an edge selection.
@@ -6410,7 +6422,7 @@ class Graph:
         """
         Traverse from selected nodes to outward neighbors.
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Outward traversal](/assets/graphs/algo-trav-directed.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the left in accent. Two accent arrows point outward from 's' to its out-neighbors, which are also in accent. A muted arrow from a fourth node back into 's' shows an inward edge that does not contribute to the out-traversal. A caption reads 'trav_out()'." width="100%"}
 
         From the currently selected nodes, moves to all nodes that can be reached by following
         outward edges (where selected nodes are sources). The current node selection is replaced
@@ -6451,7 +6463,7 @@ class Graph:
         """
         Traverse from selected nodes to inward neighbors.
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Inward traversal](/assets/graphs/algo-trav-in.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the right in accent. Two accent arrows point inward toward 's' from its in-neighbors, which are also in accent. A muted arrow from 's' outward to a fourth node shows an outward edge that does not contribute to the in-traversal. A caption reads 'trav_in()'." width="100%"}
 
         From the currently selected nodes, moves to all nodes that have outward edges leading to the
         selected nodes (where selected nodes are targets). The current node selection is replaced
@@ -6533,7 +6545,7 @@ class Graph:
         """
         Traverse from selected nodes to outbound edges.
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Outward traversal](/assets/graphs/algo-trav-directed.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the left in accent. Two accent arrows point outward from 's' to its out-neighbors, which are also in accent. A muted arrow from a fourth node back into 's' shows an inward edge that does not contribute to the out-traversal. A caption reads 'trav_out()'." width="100%"}
 
         From the currently selected nodes, moves to all edges where the selected nodes are sources
         (outbound edges). The current node selection is cleared and replaced with an edge selection.
@@ -6575,7 +6587,7 @@ class Graph:
         """
         Traverse from selected nodes to inbound edges.
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Inward traversal](/assets/graphs/algo-trav-in.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the right in accent. Two accent arrows point inward toward 's' from its in-neighbors, which are also in accent. A muted arrow from 's' outward to a fourth node shows an outward edge that does not contribute to the in-traversal. A caption reads 'trav_in()'." width="100%"}
 
         From the currently selected nodes, moves to all edges where the selected nodes are targets
         (inbound edges). The current node selection is cleared and replaced with an edge selection.
@@ -6681,7 +6693,7 @@ class Graph:
         """
         Traverse outward node-by-node until stopping conditions are met.
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Outward traversal](/assets/graphs/algo-trav-directed.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the left in accent. Two accent arrows point outward from 's' to its out-neighbors, which are also in accent. A muted arrow from a fourth node back into 's' shows an inward edge that does not contribute to the out-traversal. A caption reads 'trav_out()'." width="100%"}
 
         From the currently selected nodes, moves along outward edges to connected nodes, continuing
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
@@ -6840,7 +6852,7 @@ class Graph:
         """
         Traverse inward node-by-node until stopping conditions are met.
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Inward traversal](/assets/graphs/algo-trav-in.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the right in accent. Two accent arrows point inward toward 's' from its in-neighbors, which are also in accent. A muted arrow from 's' outward to a fourth node shows an outward edge that does not contribute to the in-traversal. A caption reads 'trav_in()'." width="100%"}
 
         From the currently selected nodes, moves along inward edges to connected nodes, continuing
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
@@ -7133,7 +7145,7 @@ class Graph:
         """
         Set attributes on all selected nodes.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
 
         Updates or adds attributes to nodes in the current selection. Existing attributes are
         preserved unless explicitly overwritten. Requires an active node selection.
@@ -7364,7 +7376,7 @@ class Graph:
     def set_edge_attrs_ws(self, **attributes) -> "Graph":
         """Set attributes on all selected edges.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
 
         Updates or adds attributes to edges in the current selection. The `weight` attribute
         receives special handling as it's a first-class edge property. Requires an active edge
@@ -7772,7 +7784,7 @@ class Graph:
         """
         Get selected nodes as a Polars DataFrame.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
 
         Similar to get_node_df but only exports currently selected nodes. Useful for analyzing
         subsets of nodes after filtering with selection methods. The DataFrame always includes 'id',
@@ -8001,7 +8013,7 @@ class Graph:
         """
         Get selected edges as a Polars DataFrame with standardized structure.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
 
         Similar to `get_edge_df()` but only exports currently selected edges. Uses the same
         consistent column structure with `id`, `source`, `target`, and `rel` as first 4 columns.
@@ -8114,7 +8126,7 @@ class Graph:
         """
         Transform a node attribute using a function on selected nodes.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
 
         Applies a transformation function to the specified attribute for all selected nodes. The
         function receives each node's current attribute value and returns the new value. Requires an
@@ -8203,7 +8215,7 @@ class Graph:
         """
         Transform an edge attribute using a function on selected edges.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
 
         Applies a transformation function to the specified attribute for all selected edges.
         Supports transforming the `weight` field directly. Requires an active edge selection. Edges
@@ -13643,7 +13655,7 @@ class Graph:
         """
         Get the in-degree of a node (directed graphs only).
 
-        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+        ![In-degree vs. out-degree](/assets/graphs/algo-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from the left (in-degree = 2) and three accent arrows depart to the right (out-degree = 3). Captions below read 'in = 2' and 'out = 3'." width="100%"}
 
         In-degree is the number of edges pointing into the node. Only meaningful for directed
         graphs.
@@ -13696,7 +13708,7 @@ class Graph:
         """
         Get the out-degree of a node (directed graphs only).
 
-        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+        ![In-degree vs. out-degree](/assets/graphs/algo-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from the left (in-degree = 2) and three accent arrows depart to the right (out-degree = 3). Captions below read 'in = 2' and 'out = 3'." width="100%"}
 
         Out-degree is the number of edges pointing out from the node. Only meaningful for directed
         graphs.
@@ -13826,7 +13838,7 @@ class Graph:
         """
         Get aggregate value from indegree of nodes.
 
-        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+        ![In-degree vs. out-degree](/assets/graphs/algo-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from the left (in-degree = 2) and three accent arrows depart to the right (out-degree = 3). Captions below read 'in = 2' and 'out = 3'." width="100%"}
 
         Computes a single aggregate statistic from the indegree values of all nodes in a directed
         graph. Useful for summarizing the indegree distribution or analyzing filtered node subsets.
@@ -13917,7 +13929,7 @@ class Graph:
         """
         Get aggregate value from outdegree of nodes.
 
-        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+        ![In-degree vs. out-degree](/assets/graphs/algo-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from the left (in-degree = 2) and three accent arrows depart to the right (out-degree = 3). Captions below read 'in = 2' and 'out = 3'." width="100%"}
 
         Computes a single aggregate statistic from the outdegree values of all nodes in a directed
         graph. Useful for summarizing the outdegree distribution or analyzing filtered node subsets.
