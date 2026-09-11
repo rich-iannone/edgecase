@@ -3626,6 +3626,8 @@ class Graph:
         """
         Find edge IDs between two nodes.
 
+        ![Find edge IDs](/assets/graphs/op-find-edge-ids.light.svg){.lightbox fig-alt="Two accent-colored nodes A and B connected by three parallel edges, each labeled with an edge ID (e1, e2, e3). The curves bow upward, straight, and downward respectively. A caption below reads find_edge_ids(A, B), showing all edge IDs between the queried pair." width="100%"}
+
         Returns a list of all edge IDs connecting the source and target nodes. For undirected
         graphs, edges are found regardless of direction. Supports multi-edges (multiple edges
         between the same pair of nodes).
@@ -4784,6 +4786,8 @@ class Graph:
     def count_multi_edges(self) -> int:
         """
         Count multi-edges (parallel edges between same node pair).
+
+        ![Count multi-edges](/assets/graphs/algo-count-multi-edges.light.svg){.lightbox fig-alt="A multigraph with three nodes. Nodes A and B are connected by two parallel edges drawn as accent-colored curves bowing in opposite directions, while B and C share a single default edge. A caption below reads multi-edge count = 1, counting the one duplicate edge beyond the first between A and B." width="100%"}
 
         Only counts edges beyond the first one for each node pair. For example, if there are 3 edges
         from `A` to `B`, this counts 2 of them. Multi-edges are useful for modeling scenarios like
@@ -15072,6 +15076,8 @@ class Graph:
         """
         Get the size of the largest connected component.
 
+        ![Largest component size](/assets/graphs/algo-largest-component.light.svg){.lightbox fig-alt="A graph with three disjoint components. The largest component, a triangle of three nodes, is highlighted in the accent color. A two-node edge and a single isolated node are drawn in muted ink. A caption below reads largest = 3 nodes." width="100%"}
+
         For undirected graphs, finds the largest connected component. For directed graphs, finds the
         largest weakly connected component.
 
@@ -21579,6 +21585,8 @@ class Graph:
         """
         Count weakly connected components in the graph.
 
+        ![Count weakly connected components](/assets/graphs/algo-count-wcc.light.svg){.lightbox fig-alt="A graph with three disjoint components, each tinted differently: a triangle in the accent color, a two-node edge in a lighter accent tint, and a single isolated node in muted ink. A caption below reads WCC count = 3." width="100%"}
+
         For undirected graphs, counts regular connected components. For directed graphs, treats all
         edges as undirected (ignoring direction) when finding components.
 
@@ -21617,7 +21625,7 @@ class Graph:
         """
         Count strongly connected components.
 
-        ![SCC vs. WCC](/assets/graphs/algo-scc-vs-wcc.light.svg){.lightbox fig-alt="The same directed graph shown twice. On the left, the strongly connected components: A, B, and C form a directed cycle and share one accent tint, while D and E are each their own singleton component, shown in a lighter accent tint. On the right, ignoring edge directions collapses everything into a single weakly connected component, and all five nodes share the same accent color." width="100%"}
+        ![Count strongly connected components](/assets/graphs/algo-count-scc.light.svg){.lightbox fig-alt="A directed graph with five nodes. Nodes A, B, and C form a directed cycle highlighted in the accent color, constituting one strongly connected component. Nodes D and E are connected by a single directed edge and form two singleton SCCs. A caption below reads SCC count = 3." width="100%"}
 
         For directed graphs, a strongly connected component is a maximal set of nodes where every
         node is reachable from every other node following directed edges. Uses Kosaraju's algorithm
@@ -23166,6 +23174,8 @@ class Graph:
         r"""
         Find the maximum spanning tree using Kruskal's algorithm.
 
+        ![Maximum spanning tree](/assets/graphs/algo-maximum-spanning-tree.light.svg){.lightbox fig-alt="On the left, a four-node weighted graph with all five edges labeled by weight (1, 2, 3, 4, 5). On the right, the same graph with the maximum spanning tree highlighted: the edges of weight 5, 4, and 3 are in the accent color and connect all four nodes; the two lighter non-tree edges of weight 2 and 1 are drawn as faded dashed lines." width="100%"}
+
         A maximum spanning tree is a subset of edges that connects all nodes with the maximum total
         edge weight. Essentially finds the MST of the negated edge weights.
 
@@ -23402,6 +23412,8 @@ class Graph:
     ) -> "list[Graph] | list[list[tuple[str, str, float]]]":
         r"""
         Enumerate all spanning trees of the graph.
+
+        ![All spanning trees](/assets/graphs/algo-all-spanning-trees.light.svg){.lightbox fig-alt="On the left, a three-node triangle with three edges. On the right, three small spanning trees arranged in a row, each keeping two of the three edges in the accent color and showing the omitted edge as a faded dashed line, illustrating exhaustive enumeration of all possible spanning trees." width="100%"}
 
         A spanning tree is a subgraph that connects all vertices with the minimum number of edges
         (`V-1` edges for `V` vertices) and contains no cycles. This method enumerates all possible
