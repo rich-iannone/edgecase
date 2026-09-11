@@ -882,6 +882,8 @@ class Graph:
         """
         Delete an edge from the graph by its ID.
 
+        ![Delete edge](/assets/graphs/op-delete-edge.light.svg){.lightbox fig-alt="A graph loses one edge. The doomed edge is highlighted in the accent color before removal; every node remains in place afterward." width="100%"}
+
         Removes an edge directly using its unique edge identifier. This is more efficient than
         deleting by source and target nodes when the edge ID is known, and is particularly useful
         for multigraphs where multiple edges may exist between the same pair of nodes.
@@ -947,6 +949,8 @@ class Graph:
     def delete_nodes_ws(self) -> "Graph":
         """
         Delete all selected nodes and their incident edges.
+
+        ![Delete node](/assets/graphs/op-delete-node.light.svg){.lightbox fig-alt="A graph loses one node and its incident edge. The doomed node and edge are highlighted in the accent color before removal." width="100%"}
 
         Removes nodes in the current selection from the graph, along with all edges connected to
         those nodes. Updates selection state and removes the selected nodes from the graph
@@ -1022,6 +1026,8 @@ class Graph:
     def delete_edges_ws(self) -> "Graph":
         """
         Delete all selected edges.
+
+        ![Delete edge](/assets/graphs/op-delete-edge.light.svg){.lightbox fig-alt="A graph loses one edge. The doomed edge is highlighted in the accent color before removal; every node remains in place afterward." width="100%"}
 
         Removes edges in the current selection from the graph. Node connectivity may be affected,
         but nodes themselves remain in the graph. Updates selection state automatically.
@@ -2855,6 +2861,8 @@ class Graph:
         """
         Get a node object by ID or label.
 
+        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+
         Retrieves the `Node` object for the specified node. The `Node` object contains `id`,
         `label`, and attributes properties. Returns `None` if node doesn't exist.
 
@@ -2947,6 +2955,8 @@ class Graph:
     def get_node_ids(self, limit: Optional[int] = 1000) -> list[int]:
         """
         Return list of node IDs.
+
+        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
 
         Returns node IDs in the graph up to the specified limit. Node IDs are unique integers
         (`u64`) assigned to each node, useful for iterating over nodes or performing operations on
@@ -3175,6 +3185,8 @@ class Graph:
         """
         Get the label for a node by its ID.
 
+        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+
         Translates an internal `u64` node ID to its human-readable string label. Returns `None` if
         the node doesn't exist or has no label assigned.
 
@@ -3273,6 +3285,8 @@ class Graph:
     def get_edge_creation_order(self) -> list[int]:
         """
         Get edges in their creation order.
+
+        ![Creation order](/assets/graphs/algo-creation-order.light.svg){.lightbox fig-alt="A graph with numeric badges on each node and edge showing the order in which they were created." width="100%"}
 
         Returns edge IDs ordered by when they were added to the graph. The first edge created
         appears first, the most recently created edge appears last. Useful for temporal analysis or
@@ -3485,6 +3499,8 @@ class Graph:
     def has_node(self, node: Union[int, str]) -> bool:
         """
         Check if a node exists in the graph.
+
+        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
 
         Verifies whether a node (specified by ID or label) exists in the graph. Returns `False` for
         invalid inputs or missing nodes.
@@ -4879,6 +4895,8 @@ class Graph:
         """
         Count asymmetric node pairs (one-way edges) in directed graphs.
 
+        ![Reciprocity](/assets/graphs/algo-reciprocity.light.svg){.lightbox fig-alt="A four-node directed graph. The mutual pairs (A - B and C - D) each carry two accent-colored arrows curved in opposite directions, showing both directions of the reciprocal edge. The asymmetric edges A to C and D to B are drawn as single arrows in default styling." width="100%"}
+
         Returns the number of node pairs `(a,b)` where edge `a->b` exists but not `b->a`. Only works
         for directed graphs. Self-loops are excluded. This metric helps analyze directional flow or
         hierarchy in directed networks.
@@ -5030,6 +5048,8 @@ class Graph:
         """
         Get direct predecessors of a node (incoming neighbors).
 
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+
         Returns nodes that have outgoing edges to the specified node. Only available for directed
         graphs.
 
@@ -5079,6 +5099,8 @@ class Graph:
         """
         Get direct successors of a node (outgoing neighbors).
 
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+
         Returns nodes that are targets of outgoing edges from the specified node. Only available for
         directed graphs.
 
@@ -5126,6 +5148,8 @@ class Graph:
     def get_non_neighbors(self, node: Union[int, str]) -> list[int]:
         """
         Get nodes that are NOT neighbors of the specified node.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         Returns all nodes in the graph except the specified node itself and its neighbors. Useful
         for finding potential new connections or disconnected nodes.
@@ -5189,6 +5213,8 @@ class Graph:
     def get_common_neighbors(self, node_1: Union[int, str], node_2: Union[int, str]) -> list[int]:
         """
         Get nodes that are neighbors of both specified nodes.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         Returns the intersection of neighbor sets for two nodes, useful for finding shared
         connections or potential triangles in the graph.
@@ -5273,6 +5299,8 @@ class Graph:
     ) -> list[int]:
         r"""
         Get neighbors with similar attribute values.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         Returns neighbors whose numeric attribute values fall within a specified tolerance range of
         the starting node's value. Useful for finding connected nodes with comparable properties.
@@ -5453,6 +5481,8 @@ class Graph:
         """
         Select edges using a predicate function.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Applies a custom filter function to all edges, selecting those for which the predicate
         returns `True`. The predicate receives an Edge object with properties: `id`, `source`,
         `target`, `weight`, and other attributes.
@@ -5517,6 +5547,8 @@ class Graph:
         """
         Select nodes by their IDs.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Marks specified nodes as selected for subsequent operations like building subgraphs or
         filtering. Selection is cumulative unless cleared first.
 
@@ -5567,6 +5599,8 @@ class Graph:
         """
         Select edges by their IDs.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Marks specified edges as selected for subsequent operations. Edge IDs are internal integer
         identifiers assigned when edges are created. Selection is cumulative unless cleared first.
 
@@ -5613,6 +5647,8 @@ class Graph:
     def select_edges_by_node(self, nodes: list[int | str]) -> "Graph":
         """
         Select all edges connected to specified nodes.
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Selects all edges where at least one endpoint is in the provided node list. For directed
         graphs, includes both incoming and outgoing edges. Useful for selecting the local
@@ -5681,6 +5717,8 @@ class Graph:
         """
         Select the last N nodes that were created.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Selects nodes in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added nodes.
 
@@ -5722,6 +5760,8 @@ class Graph:
     def select_last_edges_created(self, n: int) -> "Graph":
         """
         Select the last N edges that were created.
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Selects edges in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added edges.
@@ -5866,6 +5906,8 @@ class Graph:
         """
         Select nodes by degree criteria.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Filters nodes based on their degree (number of connections). Useful for finding hubs (high
         degree) or peripheral nodes (low degree). Can filter by in-degree, out-degree, or total
         degree.
@@ -5926,6 +5968,8 @@ class Graph:
     ) -> "Graph":
         """
         Select top-K nodes by centrality measure.
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Computes centrality scores for all nodes and selects the k highest-scoring nodes. Useful for
         identifying the most important or influential nodes by various centrality metrics.
@@ -6014,6 +6058,8 @@ class Graph:
         """
         Remove nodes from selection.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Unmarks specified nodes, removing them from the current selection set. Has no effect on
         nodes that aren't currently selected.
 
@@ -6082,6 +6128,8 @@ class Graph:
         """
         Remove edges from selection.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Unmarks specified edges, removing them from the current selection set. Has no effect on
         edges that aren't currently selected.
 
@@ -6120,6 +6168,8 @@ class Graph:
         """
         Clear all node and edge selections.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Resets the selection state, unmarking all previously selected nodes and edges. Useful for
         starting fresh with a new selection workflow.
 
@@ -6150,6 +6200,8 @@ class Graph:
     def invert_node_selection(self) -> "Graph":
         """
         Invert node selection (select unselected, unselect selected).
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Toggles the selection state of all nodes: currently selected nodes become unselected, and
         unselected nodes become selected. Useful for getting the complement of a selection.
@@ -6186,6 +6238,8 @@ class Graph:
         """
         Invert edge selection (select unselected, unselect selected).
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Toggles the selection state of all edges: currently selected edges become unselected, and
         unselected edges become selected. Useful for getting the complement of an edge selection.
 
@@ -6218,6 +6272,8 @@ class Graph:
         """
         Get currently selected node IDs.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Returns the list of node IDs that are currently marked as selected. Order is not guaranteed.
 
         Returns
@@ -6248,6 +6304,8 @@ class Graph:
     def get_selected_edge_ids(self) -> list[int]:
         """
         Get currently selected edge IDs.
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Returns the list of edge IDs that are currently marked as selected. Order is not guaranteed.
 
@@ -6280,6 +6338,8 @@ class Graph:
         """
         Get count of currently selected nodes.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Returns the number of nodes currently marked as selected. More efficient than
         `len(get_selected_nodes())` when you only need the count.
 
@@ -6311,6 +6371,8 @@ class Graph:
     def count_selected_edges(self) -> int:
         """
         Get count of currently selected edges.
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Returns the number of edges currently marked as selected. More efficient than
         `len(get_selected_edges())` when you only need the count.
@@ -6347,6 +6409,8 @@ class Graph:
     def trav_out(self) -> "Graph":
         """
         Traverse from selected nodes to outward neighbors.
+
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
 
         From the currently selected nodes, moves to all nodes that can be reached by following
         outward edges (where selected nodes are sources). The current node selection is replaced
@@ -6387,6 +6451,8 @@ class Graph:
         """
         Traverse from selected nodes to inward neighbors.
 
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+
         From the currently selected nodes, moves to all nodes that have outward edges leading to the
         selected nodes (where selected nodes are targets). The current node selection is replaced
         with the traversed nodes.
@@ -6426,6 +6492,8 @@ class Graph:
         """
         Traverse from selected nodes to all neighbors.
 
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+
         From the currently selected nodes, moves to all connected neighbors in both directions (both
         outward and inward edges). The current node selection is replaced with the traversed nodes.
 
@@ -6464,6 +6532,8 @@ class Graph:
     def trav_out_edge(self) -> "Graph":
         """
         Traverse from selected nodes to outbound edges.
+
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
 
         From the currently selected nodes, moves to all edges where the selected nodes are sources
         (outbound edges). The current node selection is cleared and replaced with an edge selection.
@@ -6505,6 +6575,8 @@ class Graph:
         """
         Traverse from selected nodes to inbound edges.
 
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+
         From the currently selected nodes, moves to all edges where the selected nodes are targets
         (inbound edges). The current node selection is cleared and replaced with an edge selection.
 
@@ -6544,6 +6616,8 @@ class Graph:
     def trav_reverse_edge(self, add_to_selection: bool = False) -> "Graph":
         """
         Traverse to reverse edges.
+
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
 
         From the currently selected edges, finds the reverse edges. For each selected edge `A->B`,
         looks for the corresponding edge `B->A`. Only works with directed graphs.
@@ -6606,6 +6680,8 @@ class Graph:
     ) -> "Graph":
         """
         Traverse outward node-by-node until stopping conditions are met.
+
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
 
         From the currently selected nodes, moves along outward edges to connected nodes, continuing
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
@@ -6763,6 +6839,8 @@ class Graph:
     ) -> "Graph":
         """
         Traverse inward node-by-node until stopping conditions are met.
+
+        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
 
         From the currently selected nodes, moves along inward edges to connected nodes, continuing
         until reaching nodes that satisfy the condition or until `max_steps=` is reached. The
@@ -7055,6 +7133,8 @@ class Graph:
         """
         Set attributes on all selected nodes.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Updates or adds attributes to nodes in the current selection. Existing attributes are
         preserved unless explicitly overwritten. Requires an active node selection.
 
@@ -7283,6 +7363,8 @@ class Graph:
 
     def set_edge_attrs_ws(self, **attributes) -> "Graph":
         """Set attributes on all selected edges.
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Updates or adds attributes to edges in the current selection. The `weight` attribute
         receives special handling as it's a first-class edge property. Requires an active edge
@@ -7690,6 +7772,8 @@ class Graph:
         """
         Get selected nodes as a Polars DataFrame.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Similar to get_node_df but only exports currently selected nodes. Useful for analyzing
         subsets of nodes after filtering with selection methods. The DataFrame always includes 'id',
         'label', and 'type' as the first three columns, sorted by 'id' in ascending order.
@@ -7788,6 +7872,8 @@ class Graph:
     def get_edge_df(self) -> "pl.DataFrame":
         """
         Get edges as a Polars DataFrame with standardized structure.
+
+        ![Attribute DataFrame](/assets/graphs/algo-attribute-df.light.svg){.lightbox fig-alt="On the left, a four-node graph with labeled attributes on each node and edge. On the right, a tabular DataFrame showing each node or edge as a row with its attribute columns." width="100%"}
 
         Returns all edges with a consistent column structure:
 
@@ -7915,6 +8001,8 @@ class Graph:
         """
         Get selected edges as a Polars DataFrame with standardized structure.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Similar to `get_edge_df()` but only exports currently selected edges. Uses the same
         consistent column structure with `id`, `source`, `target`, and `rel` as first 4 columns.
 
@@ -8026,6 +8114,8 @@ class Graph:
         """
         Transform a node attribute using a function on selected nodes.
 
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+
         Applies a transformation function to the specified attribute for all selected nodes. The
         function receives each node's current attribute value and returns the new value. Requires an
         active node selection. Nodes without the specified attribute are skipped.
@@ -8112,6 +8202,8 @@ class Graph:
     def mutate_edge_attrs_ws(self, edge_attr: str, func: Callable) -> "Graph":
         """
         Transform an edge attribute using a function on selected edges.
+
+        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
 
         Applies a transformation function to the specified attribute for all selected edges.
         Supports transforming the `weight` field directly. Requires an active edge selection. Edges
@@ -8534,6 +8626,8 @@ class Graph:
         """
         Calculate dispersion between two nodes.
 
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+
         Dispersion measures the embeddedness of a link in the network. A link between two nodes
         (`u` and `v`) has high dispersion when their mutual neighbors (friends in common) are not
         well connected to each other. This can indicate structural diversity in the network.
@@ -8719,6 +8813,8 @@ class Graph:
         r"""
         Compute Jaccard coefficient for node pairs.
 
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+
         For each pair of nodes `(u, v)`, computes `|N(u) ∩ N(v)| / |N(u) ∪ N(v)|`, which is the
         ratio of common neighbors to total distinct neighbors.
 
@@ -8775,6 +8871,8 @@ class Graph:
     ) -> list[tuple[int, int, float]]:
         r"""
         Compute Adamic-Adar index for node pairs.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `Σ(1 / log(|N(w)|))` for all common neighbors `w`.
         This gives more weight to common neighbors that themselves have fewer connections (rarer
@@ -8850,6 +8948,8 @@ class Graph:
         r"""
         Compute resource allocation index for node pairs.
 
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+
         For each pair of nodes `(u, v)`, computes `Σ(1 / |N(w)|)` for all common neighbors `w`.
         Similar to Adamic-Adar but uses `1/degree` instead of `1/log(degree)`, penalizing
         high-degree common neighbors more strongly.
@@ -8912,6 +9012,8 @@ class Graph:
     ) -> list[tuple[int, int, int]]:
         r"""
         Compute preferential attachment score for node pairs.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `|N(u)| × |N(v)|`, the product of their degrees.
         Based on the "rich get richer" principle where high-degree nodes are more likely to acquire
@@ -8994,6 +9096,8 @@ class Graph:
     ) -> list[list[float]]:
         r"""
         Calculate pairwise similarity between nodes based on neighborhoods.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         Computes structural similarity using various metrics that compare the neighborhoods
         (adjacent nodes) of node pairs. Returns a similarity matrix where higher values indicate
@@ -9128,6 +9232,8 @@ class Graph:
         """
         Get Dice similarity coefficient between all node pairs.
 
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+
         The Dice coefficient measures similarity between two nodes based on their neighborhood
         overlap:
 
@@ -9180,6 +9286,8 @@ class Graph:
     def get_jaccard_similarity(self) -> dict[int, dict[int, float]]:
         """
         Get Jaccard similarity index between all node pairs.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         The Jaccard index is a classic set similarity measure:
 
@@ -9238,6 +9346,8 @@ class Graph:
         r"""
         Get cosine similarity between all node pairs.
 
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+
         Cosine similarity treats neighbors as vector components:
 
         `Cosine(A, B) = |neighbors(A) ∩ neighbors(B)| / √(|neighbors(A)| × |neighbors(B)|)`
@@ -9293,6 +9403,8 @@ class Graph:
     def get_overlap_similarity(self) -> dict[int, dict[int, float]]:
         """
         Get overlap coefficient between all node pairs.
+
+        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 
         The overlap coefficient emphasizes subset relationships:
 
@@ -9859,6 +9971,8 @@ class Graph:
         r"""
         Find a maximum clique in the graph.
 
+        ![Clique](/assets/graphs/algo-clique.light.svg){.lightbox fig-alt="A six-node graph containing a K4 clique: four mutually connected nodes shown in the accent color, with two extra nodes connected to the clique through default-styled edges." width="100%"}
+
         A maximum clique is a largest possible clique in the graph. If multiple maximum cliques
         exist with the same size, returns one of them (arbitrary choice). Uses the Bron-Kerbosch
         algorithm to enumerate all maximal cliques and selects the largest.
@@ -9940,6 +10054,8 @@ class Graph:
     def clique_number(self) -> int:
         r"""
         Get the clique number (size of the maximum clique).
+
+        ![Clique](/assets/graphs/algo-clique.light.svg){.lightbox fig-alt="A six-node graph containing a K4 clique: four mutually connected nodes shown in the accent color, with two extra nodes connected to the clique through default-styled edges." width="100%"}
 
         The clique number `ω(G)` is the size of the largest clique in the graph. This is a
         fundamental graph invariant used in graph theory and combinatorial optimization.
@@ -10108,6 +10224,8 @@ class Graph:
     def list_triangles(self) -> list[tuple[int, int, int]]:
         """
         List all triangles in the graph.
+
+        ![Triangles](/assets/graphs/struct-triangle.light.svg){.lightbox fig-alt="A triangle graph with three nodes arranged in a triangle formation, every pair connected by an edge." width="100%"}
 
         Returns a list of all triangles (3-cycles) in the graph. Each triangle is represented as a
         sorted tuple of three node IDs. For undirected graphs, each triangle appears once. For
@@ -10515,6 +10633,8 @@ class Graph:
         r"""
         Get edge clustering coefficient for specified edges.
 
+        ![Bridge edge](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, joined by a single edge shown in the accent color. Removing that bridge edge would disconnect the graph into two components." width="100%"}
+
         The edge clustering coefficient measures how "clustered" the neighborhood around an edge is,
         based on k-cycles (cycles of length k) the edge participates in.
 
@@ -10643,6 +10763,8 @@ class Graph:
     def get_avg_clustering_coefficient(self) -> float:
         """
         Get average clustering coefficient for the graph.
+
+        ![Transitivity](/assets/graphs/algo-transitivity.light.svg){.lightbox fig-alt="A graph with clustering: a central node connects to several neighbors, some of which are also connected to each other, forming triangles." width="100%"}
 
         Returns the mean of all node clustering coefficients. This is a global measure of how
         clustered the graph is overall.
@@ -10829,6 +10951,8 @@ class Graph:
     ) -> Union[dict[int, int], "Graph"]:
         """
         Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
+
+        ![Bridge edge](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, joined by a single edge shown in the accent color. Removing that bridge edge would disconnect the graph into two components." width="100%"}
 
         Iteratively removes edges with highest betweenness centrality to reveal community structure.
         Uses Brandes' algorithm for efficient betweenness calculation. More accurate than Fast
@@ -11959,6 +12083,8 @@ class Graph:
         """
         Contract an edge by merging its endpoints.
 
+        ![Contract nodes](/assets/graphs/op-contract-nodes.light.svg){.lightbox fig-alt="Two nodes merge into one. Node C is absorbed into node B, which keeps its label; C's incident edges are rerouted to B, and duplicate edges collapse." width="100%"}
+
         Given an edge between `u` and `v`, creates a new graph where `v` is merged into `u`. This is
         equivalent to `contract_nodes(u, v)` but explicitly requires that an edge exists between the
         nodes.
@@ -12049,6 +12175,8 @@ class Graph:
     def contract_nodes_multi(self, nodes: list[int | str], self_loops: bool = True) -> "Graph":
         r"""
         Contract multiple nodes into a single node.
+
+        ![Contract nodes](/assets/graphs/op-contract-nodes.light.svg){.lightbox fig-alt="Two nodes merge into one. Node C is absorbed into node B, which keeps its label; C's incident edges are rerouted to B, and duplicate edges collapse." width="100%"}
 
         Merges all specified nodes into the first node in the list. All edges incident to any of the
         contracted nodes are redirected to the first node. Edges between contracted nodes become
@@ -12805,6 +12933,8 @@ class Graph:
         """
         Create a subgraph from current selection.
 
+        ![Induced subgraph](/assets/graphs/op-subgraph.light.svg){.lightbox fig-alt="On the left, a six-node graph with three nodes (A, B, D) and the two edges among them highlighted in the accent color. On the right, only that induced subgraph remains: three accent nodes and the two accent edges connecting them." width="100%"}
+
         Extracts the currently selected nodes and/or edges into a new Graph object. The behavior
         depends on what's selected:
 
@@ -13003,6 +13133,8 @@ class Graph:
         """
         Extract a subgraph containing the specified edges and their endpoint nodes.
 
+        ![Induced subgraph](/assets/graphs/op-subgraph.light.svg){.lightbox fig-alt="On the left, a six-node graph with three nodes (A, B, D) and the two edges among them highlighted in the accent color. On the right, only that induced subgraph remains: three accent nodes and the two accent edges connecting them." width="100%"}
+
         Returns a new graph containing only the specified edges and the nodes that are endpoints of
         those edges. This is useful when you want to focus on specific relationships rather than
         specific nodes.
@@ -13068,6 +13200,8 @@ class Graph:
     def fully_connect_nodes_ws(self, **edge_attributes) -> "Graph":
         """
         Create edges between all pairs of selected nodes (clique).
+
+        ![Complete graph](/assets/graphs/struct-complete.light.svg){.lightbox fig-alt="A complete graph with five nodes, every pair connected by an edge." width="100%"}
 
         Adds edges to form a complete graph (clique) among all selected nodes. For directed graphs,
         creates edges in both directions. Skips edges that already exist.
@@ -13166,6 +13300,8 @@ class Graph:
         """
         Add reverse edges for all selected edges (directed graphs only).
 
+        ![Reverse edges](/assets/graphs/op-reverse.light.svg){.lightbox fig-alt="A directed graph shown before and after reversing all edge directions." width="100%"}
+
         For each selected edge (A->B), adds the reverse edge (B->A) if it doesn't already exist.
         Useful for making directed graphs bidirectional or adding reciprocal relationships.
 
@@ -13257,6 +13393,8 @@ class Graph:
     def rev_edge_dir_ws(self) -> "Graph":
         """
         Reverse the direction of all selected edges (directed graphs only).
+
+        ![Reverse edges](/assets/graphs/op-reverse.light.svg){.lightbox fig-alt="A directed three-node graph on the left with three arrows; on the right, the same graph with every arrow flipped to point in the opposite direction." width="100%"}
 
         For each selected edge (A->B), changes it to (B->A). Edge IDs and all attributes (including
         weights) are preserved during reversal. Only the direction is changed.
@@ -13352,6 +13490,8 @@ class Graph:
     ) -> Union[dict[int, int], "Graph"]:
         """
         Get degree for all nodes in the graph.
+
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
 
         For directed graphs, returns total degree (in-degree + out-degree). For undirected graphs,
         returns the number of neighbors.
@@ -13503,6 +13643,8 @@ class Graph:
         """
         Get the in-degree of a node (directed graphs only).
 
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+
         In-degree is the number of edges pointing into the node. Only meaningful for directed
         graphs.
 
@@ -13553,6 +13695,8 @@ class Graph:
     def get_out_degree(self, node: Union[int, str]) -> int:
         """
         Get the out-degree of a node (directed graphs only).
+
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
 
         Out-degree is the number of edges pointing out from the node. Only meaningful for directed
         graphs.
@@ -13643,6 +13787,8 @@ class Graph:
         """
         Calculate average degree across all nodes.
 
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+
         For directed graphs, this returns the average of (in-degree + out-degree). For undirected
         graphs, each edge contributes to the degree of both endpoints.
 
@@ -13679,6 +13825,8 @@ class Graph:
     def get_agg_degree_in(self, agg: str, conditions: Optional[Callable] = None) -> float:
         """
         Get aggregate value from indegree of nodes.
+
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
 
         Computes a single aggregate statistic from the indegree values of all nodes in a directed
         graph. Useful for summarizing the indegree distribution or analyzing filtered node subsets.
@@ -13768,6 +13916,8 @@ class Graph:
     def get_agg_degree_out(self, agg: str, conditions: Optional[Callable] = None) -> float:
         """
         Get aggregate value from outdegree of nodes.
+
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
 
         Computes a single aggregate statistic from the outdegree values of all nodes in a directed
         graph. Useful for summarizing the outdegree distribution or analyzing filtered node subsets.
@@ -13860,6 +14010,8 @@ class Graph:
     def get_agg_degree_total(self, agg: str, conditions: Optional[Callable] = None) -> float:
         """
         Get aggregate value from total degree of nodes.
+
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
 
         Computes a single aggregate statistic from the total degree values of all nodes. Works with
         both directed and undirected graphs. For directed graphs, total degree = indegree +
@@ -15384,6 +15536,8 @@ class Graph:
         """
         Calculate harmonic centrality scores for all nodes.
 
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+
         Harmonic centrality is the sum of the reciprocal of shortest path distances from a node to
         all other reachable nodes. For unreachable nodes, the distance is considered infinite, and
         the reciprocal is `0`. This makes harmonic centrality more robust than closeness centrality
@@ -16709,6 +16863,8 @@ class Graph:
         """
         Calculate k-core decomposition (coreness for each node).
 
+        ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+
         The k-core is the maximal subgraph where every node has degree >= k. A node's coreness is
         the highest k-value for which it belongs to the k-core. Uses iterative pruning: repeatedly
         removes nodes with degree < k until all remaining nodes have degree >= k.
@@ -16825,6 +16981,8 @@ class Graph:
         """
         Extract the k-shell subgraph.
 
+        ![k-shell](/assets/graphs/algo-k-shell.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves. On the right, the 1-shell is highlighted: the three pendant leaves (coreness exactly 1) are in the accent color, while the triangle nodes (coreness 2) and their mutual edges are muted." width="100%"}
+
         The k-shell contains nodes with coreness exactly equal to `k`. The coreness of a node is the
         highest `k` for which the node is part of the k-core.
 
@@ -16870,6 +17028,8 @@ class Graph:
         """
         Extract the k-crust subgraph.
 
+        ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+
         The k-crust contains all nodes with coreness <= `k`. This is the complement of nodes with
         high coreness values.
 
@@ -16914,6 +17074,8 @@ class Graph:
     def k_truss(self, k: int) -> "Graph":
         """
         Extract the k-truss subgraph.
+
+        ![k-truss](/assets/graphs/algo-k-truss.light.svg){.lightbox fig-alt="On the left, a four-node graph: a triangle A-B-C with a pendant edge C-D. On the right, the 3-truss: only edges in at least one triangle survive. The triangle edges are in accent; the pendant C-D, which is in no triangle, is drawn as a faded dashed line." width="100%"}
 
         The k-truss is the maximal subgraph where every edge is part of at least `(k-2)` triangles.
         Iteratively removes edges with insufficient triangle support.
@@ -16965,6 +17127,8 @@ class Graph:
     def k_corona(self, k: int) -> "Graph":
         """
         Extract the k-corona subgraph.
+
+        ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
 
         The k-corona is the subgraph induced by nodes that are in the k-core and have exactly `k`
         neighbors in the k-core. These are the "boundary" nodes of the k-core that would be removed
@@ -17150,6 +17314,8 @@ class Graph:
         r"""
         Get mean distance (average shortest path length).
 
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+
         Computes average shortest path length between all reachable node pairs. Also known as
         average path length or characteristic path length.
 
@@ -17207,6 +17373,8 @@ class Graph:
         """
         Get minimum eccentricity (graph radius).
 
+        ![Eccentricity](/assets/graphs/algo-eccentricity.light.svg){.lightbox fig-alt="A path graph of five nodes laid out in a horizontal line. The two endpoint nodes (highest eccentricity) are drawn in the accent color and labeled 'periphery'; the middle node (lowest eccentricity) is drawn in a lighter accent tint and labeled 'center'; the two in-between nodes are in default styling." width="100%"}
+
         Alias for `get_radius()`. The minimum eccentricity is the smallest maximum distance from any
         node to all other nodes.
 
@@ -17243,6 +17411,8 @@ class Graph:
         """
         Get maximum eccentricity (graph diameter).
 
+        ![Eccentricity](/assets/graphs/algo-eccentricity.light.svg){.lightbox fig-alt="A path graph of five nodes laid out in a horizontal line. The two endpoint nodes (highest eccentricity) are drawn in the accent color and labeled 'periphery'; the middle node (lowest eccentricity) is drawn in a lighter accent tint and labeled 'center'; the two in-between nodes are in default styling." width="100%"}
+
         Alias for `get_diameter()`. The maximum eccentricity is the longest shortest path between
         any two nodes.
 
@@ -17277,6 +17447,8 @@ class Graph:
     def get_diameter(self, unconnected: bool = True) -> int | None:
         """
         Get graph diameter (maximum eccentricity).
+
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
 
         The diameter is the longest shortest path between any two nodes. This metric is useful for
         understanding the "width" of a network.
@@ -17321,6 +17493,8 @@ class Graph:
         """
         Get graph radius (minimum eccentricity).
 
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+
         The radius is the minimum of all node eccentricities. Nodes with eccentricity equal to the
         radius form the center of the graph.
 
@@ -17362,6 +17536,8 @@ class Graph:
     def get_girth(self) -> int | None:
         """
         Get girth (length of shortest cycle).
+
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
 
         The girth is the length of the shortest cycle in the graph. Returns `None` if the graph is
         acyclic (a forest/tree). Uses BFS from each node to detect shortest cycles efficiently.
@@ -17448,6 +17624,8 @@ class Graph:
         """
         Calculate eccentricity for each node in the graph.
 
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+
         Eccentricity of a node is the maximum distance from that node to any other reachable node in
         the graph. It measures how far a node is from the most distant node it can reach. Returns
         `None` for nodes in disconnected graphs where some nodes are unreachable.
@@ -17515,6 +17693,8 @@ class Graph:
     ) -> Union[dict[int, float | None], "Graph"]:
         """
         Calculate radiality centrality for each node in the graph.
+
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
 
         Radiality measures how central a node is based on its eccentricity relative to the graph
         diameter. The formula is:
@@ -18096,6 +18276,8 @@ class Graph:
     def all_pairs_shortest_path_length(self) -> dict[int, dict[int, float]]:
         r"""
         Compute shortest path lengths for all pairs of nodes.
+
+        ![All-pairs shortest paths](/assets/graphs/algo-all-pairs.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, the corresponding all-pairs shortest-path distance matrix: a four-by-four table with row and column labels A, B, C, holding zero on the diagonal and the pairwise shortest-path distances off the diagonal." width="100%"}
 
         Uses Dijkstra's algorithm from each source node to find the shortest path distance to all
         other reachable nodes. For unweighted graphs, all edges are treated as having weight `1.0`.
@@ -18723,6 +18905,8 @@ class Graph:
         """
         Check if a sequence of nodes forms a simple path in the graph.
 
+        ![All simple paths](/assets/graphs/algo-all-simple-paths.light.svg){.lightbox fig-alt="A graph with source s and target t on the sides, showing three distinct simple paths between them: a two-hop path through the top in accent, a two-hop path straight through the middle in a lighter accent tint, and a three-hop path along the bottom in teal, each rendered in its own distinct style." width="100%"}
+
         A simple path is a sequence where:
 
         1. all nodes exist in the graph
@@ -19234,6 +19418,8 @@ class Graph:
         """
         Sort nodes in topological order (DAG only).
 
+        ![Directed acyclic graph](/assets/graphs/algo-dag.light.svg){.lightbox fig-alt="A five-node directed acyclic graph with edges flowing strictly downward from a single root." width="100%"}
+
         Returns a linear ordering of nodes such that for every directed edge `u -> v`, node `u`
         appears before `v` in the ordering. This is only possible for directed acyclic graphs
         (DAGs).
@@ -19586,6 +19772,8 @@ class Graph:
         r"""
         Count walks of a specific length between all pairs of nodes.
 
+        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+
         A walk is a sequence of nodes where each adjacent pair is connected by an edge. Unlike
         paths, walks can repeat nodes and edges. The number of walks of length `k` from node `i` to
         node `j` equals the `(i,j)` entry of `A^k` where `A` is the adjacency matrix.
@@ -19713,6 +19901,8 @@ class Graph:
     ) -> int | None:
         """
         Count all trails (walks with distinct edges) from source to target.
+
+        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
 
         A *trail* is a walk where all edges are distinct, but nodes may repeat. This is different
         from:
@@ -19850,6 +20040,8 @@ class Graph:
         """
         Enumerate all trails (walks with distinct edges) from source to target.
 
+        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+
         Returns the actual sequences of nodes for each trail. A trail is a walk where all edges are
         distinct, though nodes may repeat.
 
@@ -19971,6 +20163,8 @@ class Graph:
         """
         Check if the graph has an Eulerian circuit.
 
+        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+
         An Eulerian circuit is a closed trail that visits every edge exactly once.
 
         For undirected graphs, an Eulerian circuit exists if and only if:
@@ -20030,6 +20224,8 @@ class Graph:
     def is_semieulerian(self) -> bool:
         """
         Check if the graph has an Eulerian path but not an Eulerian circuit.
+
+        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
 
         An Eulerian path is a trail that visits every edge exactly once. A graph is semi-Eulerian if
         it has an Eulerian path but NOT an Eulerian circuit.
@@ -20192,6 +20388,8 @@ class Graph:
         """
         Find all bridge edges in the graph.
 
+        ![Bridges](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="A graph with two clusters of nodes connected by a single edge highlighted in the accent color — the bridge whose removal would disconnect the graph." width="100%"}
+
         A bridge (also called a cut edge) is an edge whose removal increases the number of connected
         components. Bridges are critical edges that, if removed, would disconnect parts of the
         network.
@@ -20271,6 +20469,8 @@ class Graph:
         """
         Check if the graph contains any bridge edges.
 
+        ![Bridges](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="A graph with two clusters of nodes connected by a single edge highlighted in the accent color — the bridge whose removal would disconnect the graph." width="100%"}
+
         A bridge (cut edge) is an edge whose removal increases the number of connected components.
         This method is more efficient than `bridges()` when you only need to know if bridges exist,
         not which edges they are.
@@ -20336,6 +20536,8 @@ class Graph:
     def get_node_vitality(self, node: Union[int, str]) -> float:
         r"""
         Compute the vitality of a single node.
+
+        ![Bridges](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="A graph with two clusters of nodes connected by a single edge highlighted in the accent color — the bridge whose removal would disconnect the graph." width="100%"}
 
         Node vitality measures the impact of removing a node on graph connectivity, defined as the
         change in sum of all pairwise shortest path distances:
@@ -20446,6 +20648,8 @@ class Graph:
     def get_all_connected_nodes(self, node: Union[int, str]) -> list[int]:
         """
         Get all nodes reachable from the specified node.
+
+        ![Connected components](/assets/graphs/struct-components.light.svg){.lightbox fig-alt="A graph split into several connected components, each component shaded in a distinct color." width="100%"}
 
         Uses breadth-first search (BFS) to find all nodes in the same connected component. For
         directed graphs, treats edges as undirected during traversal.
@@ -20629,6 +20833,8 @@ class Graph:
         """
         Compute global node connectivity.
 
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+
         Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
         the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
 
@@ -20684,6 +20890,8 @@ class Graph:
     ) -> int:
         """
         Compute node connectivity between two nodes.
+
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
 
         Returns the minimum number of nodes that must be removed to disconnect the source from the
         target. Uses Menger's theorem: this equals the maximum number of node-disjoint paths between
@@ -20763,6 +20971,8 @@ class Graph:
         """
         Compute edge connectivity (minimum edge cut).
 
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+
         Returns the minimum number of edges whose removal disconnects the graph. For undirected
         graphs, this is computed as the minimum over strategic pairs of nodes. For directed graphs,
         respects edge directions.
@@ -20817,6 +21027,8 @@ class Graph:
         """
         Get adhesion (minimum edge cut size).
 
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+
         The adhesion is the minimum number of edges whose removal would disconnect the graph. Also
         called edge connectivity. Only defined for undirected graphs. Returns `0` if already
         disconnected.
@@ -20864,6 +21076,8 @@ class Graph:
         """
         Get cohesion (minimum node cut size).
 
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+
         The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
         called node connectivity. Only defined for undirected graphs. Returns `0` if already
         disconnected.
@@ -20909,6 +21123,8 @@ class Graph:
     def get_density(self) -> float:
         """
         Calculate graph density (ratio of actual to possible edges).
+
+        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
 
         Density measures how complete a graph is. A complete graph has density `1.0`, while a graph
         with no edges has density `0.0`.
@@ -21091,6 +21307,8 @@ class Graph:
         r"""
         Find minimum node cut between source and sink nodes.
 
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+
         Returns the set of nodes whose removal disconnects the source from the sink. Uses
         transformation to an edge connectivity problem where each node is split into in/out copies
         connected by unit capacity.
@@ -21196,6 +21414,8 @@ class Graph:
     ) -> set[tuple[int, int]]:
         """
         Find minimum edge cut between source and sink nodes.
+
+        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
 
         Returns the set of edges whose removal disconnects the source from the sink. Uses the
         max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut.
@@ -21718,6 +21938,8 @@ class Graph:
         """
         Get all weakly connected components as sets of node IDs.
 
+        ![Weakly connected components](/assets/graphs/algo-count-wcc.light.svg){.lightbox fig-alt="A graph with multiple disconnected clusters, each cluster highlighted to show it is a separate weakly connected component. A count badge shows the total number of components." width="100%"}
+
         For undirected graphs, returns regular connected components. For directed graphs, treats all
         edges as undirected (ignoring direction) when finding components.
 
@@ -21775,6 +21997,8 @@ class Graph:
     def strongly_connected_components(self) -> list[set[int]]:
         """
         Get all strongly connected components as sets of node IDs.
+
+        ![Strongly connected components](/assets/graphs/algo-count-scc.light.svg){.lightbox fig-alt="A directed graph partitioned into strongly connected components, each highlighted in a distinct style." width="100%"}
 
         For directed graphs, a strongly connected component (SCC) is a maximal set of nodes where
         every node is reachable from every other node following directed edges. Uses Kosaraju's
@@ -21853,6 +22077,8 @@ class Graph:
         """
         Check if the graph is strongly connected.
 
+        ![Strongly connected components](/assets/graphs/algo-count-scc.light.svg){.lightbox fig-alt="A directed graph partitioned into strongly connected components, each highlighted in a distinct style." width="100%"}
+
         A directed graph is strongly connected if there is a directed path from every node to every
         other node. Equivalently, the graph has exactly one strongly connected component containing
         all nodes.
@@ -21913,6 +22139,8 @@ class Graph:
     def is_weakly_connected(self) -> bool:
         """
         Check if the graph is weakly connected.
+
+        ![Weakly connected components](/assets/graphs/algo-count-wcc.light.svg){.lightbox fig-alt="A graph with multiple disconnected clusters, each cluster highlighted to show it is a separate weakly connected component. A count badge shows the total number of components." width="100%"}
 
         A directed graph is weakly connected if the underlying undirected graph (ignoring edge
         directions) is connected. Equivalently, there is a path between every pair of nodes when
@@ -22106,6 +22334,8 @@ class Graph:
         """
         Check if a coloring is valid (no adjacent nodes share a color).
 
+        ![Graph coloring](/assets/graphs/algo-coloring.light.svg){.lightbox fig-alt="A six-node graph with a proper 3-coloring: a central triangle whose three vertices are colored orange, teal, and violet, plus three pendant nodes each colored differently from the triangle vertex they attach to. No two adjacent nodes share a color." width="100%"}
+
         Parameters
         ----------
         coloring
@@ -22159,6 +22389,8 @@ class Graph:
         """
         Get an upper bound on the chromatic number from a coloring.
 
+        ![Graph coloring](/assets/graphs/algo-coloring.light.svg){.lightbox fig-alt="A six-node graph with a proper 3-coloring: a central triangle whose three vertices are colored orange, teal, and violet, plus three pendant nodes each colored differently from the triangle vertex they attach to. No two adjacent nodes share a color." width="100%"}
+
         The chromatic number is the minimum number of colors needed to color a graph. This method
         returns the number of distinct colors used in a coloring, which provides an upper bound.
 
@@ -22209,6 +22441,8 @@ class Graph:
     def is_matching(self, edges: list[Union[int, str]]) -> bool:
         """
         Check if a set of edges forms a valid matching.
+
+        ![Matching](/assets/graphs/algo-matching.light.svg){.lightbox fig-alt="An eight-node graph in two rows of four. Three pairwise-disjoint accent-colored edges form a matching: every accent edge picks a distinct pair of nodes, and no two accent edges share an endpoint. The six matched nodes are in the accent color; two unmatched nodes remain in default styling. Additional default edges fill in the surrounding graph structure." width="100%"}
 
         A matching is a set of edges where no two edges share a common endpoint (node). This is
         useful for validating matchings or checking matching constraints.
@@ -22367,6 +22601,8 @@ class Graph:
         r"""
         Find a maximum weight matching in the graph.
 
+        ![Matching](/assets/graphs/algo-matching.light.svg){.lightbox fig-alt="An eight-node graph in two rows of four. Three pairwise-disjoint accent-colored edges form a matching: every accent edge picks a distinct pair of nodes, and no two accent edges share an endpoint. The six matched nodes are in the accent color; two unmatched nodes remain in default styling. Additional default edges fill in the surrounding graph structure." width="100%"}
+
         Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
         selects edges by weight in descending order. For unweighted graphs, all edges have weight
         `1.0`.
@@ -22465,6 +22701,8 @@ class Graph:
         """
         Check if a set of nodes forms an independent set.
 
+        ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
+
         An independent set (also called a stable set) is a set of vertices in a graph where no two
         vertices are adjacent. This method validates whether the given nodes satisfy this property.
 
@@ -22547,6 +22785,8 @@ class Graph:
     ) -> list[int]:
         r"""
         Find a maximal independent set in the graph.
+
+        ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
 
         A maximal independent set is an independent set that cannot be extended by adding any other
         vertex. In other words, every vertex not in the set is adjacent to at least one vertex in
@@ -22737,6 +22977,8 @@ class Graph:
         r"""
         Find multiple distinct maximal independent sets.
 
+        ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
+
         Runs the maximal independent set algorithm multiple times with different random seeds to
         discover diverse solutions. This is useful for exploring the space of possible independent
         sets or for ensemble methods.
@@ -22821,6 +23063,8 @@ class Graph:
     def is_dominating_set(self, nodes: list[int]) -> bool:
         """
         Check if a set of nodes forms a dominating set.
+
+        ![Dominating set](/assets/graphs/algo-dominating-set.light.svg){.lightbox fig-alt="An eight-node graph with three accent-colored nodes chosen as a dominating set. Every one of the five remaining nodes is adjacent to at least one accent node via an accent-highlighted edge. Two additional default edges between non-set nodes fill in the surrounding structure." width="100%"}
 
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
         `D` is adjacent to at least one member of `D`. In other words, every node is either in `D`
@@ -22984,6 +23228,8 @@ class Graph:
     def min_weighted_dominating_set(self, weight_attr: str | None = None) -> list[int]:
         r"""
         Find an approximate minimum weighted dominating set.
+
+        ![Dominating set](/assets/graphs/algo-dominating-set.light.svg){.lightbox fig-alt="An eight-node graph with three accent-colored nodes chosen as a dominating set. Every one of the five remaining nodes is adjacent to at least one accent node via an accent-highlighted edge. Two additional default edges between non-set nodes fill in the surrounding structure." width="100%"}
 
         Uses a greedy algorithm that iteratively adds the most cost-effective node (lowest weight
         per number of newly dominated nodes) to the dominating set. This provides an `O(log n)`
@@ -23610,6 +23856,8 @@ class Graph:
         """
         Find edge IDs of multiple edges (duplicate edges between same node pairs).
 
+        ![Multi-edge count](/assets/graphs/algo-count-multi-edges.light.svg){.lightbox fig-alt="A multigraph with several node pairs connected by two or more parallel edges, with a count badge." width="100%"}
+
         Returns a list of edge IDs that represent multiple/duplicate edges. These edges share the
         same source and target nodes as another edge in the graph. This is useful for detecting and
         cleaning multigraphs.
@@ -23676,6 +23924,8 @@ class Graph:
     def count_multiple(self) -> dict[tuple[int, int], int]:
         r"""
         Count multiple edges grouped by node pair.
+
+        ![Multi-edge count](/assets/graphs/algo-count-multi-edges.light.svg){.lightbox fig-alt="A multigraph with several node pairs connected by two or more parallel edges, with a count badge." width="100%"}
 
         Returns a dictionary showing how many edges exist between each pair of nodes that has
         multiple edges. Only includes pairs with 2 or more edges. For undirected graphs, returns
@@ -23752,6 +24002,8 @@ class Graph:
         """
         Find edge IDs of self-loops (edges from a node to itself).
 
+        ![Self-loop](/assets/graphs/struct-self-loop.light.svg){.lightbox fig-alt="A node with a self-loop edge that begins and ends at the same node, drawn as a small circle above the node." width="100%"}
+
         Returns a list of edge IDs for all edges where the source node equals the target node.
         Self-loops are common in certain network types like state machines, chemical reactions, or
         social networks (self-mentions).
@@ -23815,6 +24067,8 @@ class Graph:
     def count_loops(self) -> dict[int, int]:
         """
         Count self-loops grouped by node.
+
+        ![Self-loop](/assets/graphs/struct-self-loop.light.svg){.lightbox fig-alt="A node with a self-loop edge that begins and ends at the same node, drawn as a small circle above the node." width="100%"}
 
         Returns a dictionary mapping node IDs to the count of self-loops for each node. Only
         includes nodes that have at least one self-loop.
@@ -23890,6 +24144,8 @@ class Graph:
         """
         Find pairs of mutual (reciprocal) edges in directed graph.
 
+        ![Reciprocity](/assets/graphs/algo-reciprocity.light.svg){.lightbox fig-alt="A directed graph with several pairs of nodes; some pairs have edges in both directions (mutual, shown in accent) while others have only one-way edges." width="100%"}
+
         Identifies edge pairs where both A->B and B->A exist, indicating bidirectional
         connections. Only meaningful for directed graphs. Each pair is returned once
         with edge IDs in ascending order.
@@ -23955,6 +24211,8 @@ class Graph:
     def get_reciprocity(self, mode: str = "default") -> float:
         """
         Calculate reciprocity (fraction of edges with reciprocal counterpart).
+
+        ![Reciprocity](/assets/graphs/algo-reciprocity.light.svg){.lightbox fig-alt="A directed graph with several pairs of nodes; some pairs have edges in both directions (mutual, shown in accent) while others have only one-way edges." width="100%"}
 
         Reciprocity measures the proportion of edges in a directed graph that are bidirectional
         (mutual). Returns a value between `0.0` (no reciprocal edges) and `1.0` (all edges are
@@ -24032,6 +24290,8 @@ class Graph:
     def get_assortativity_degree(self) -> float:
         r"""
         Calculate degree assortativity coefficient.
+
+        ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two side-by-side graphs: one with assortative mixing where high-degree nodes connect to high-degree nodes, and one with disassortative mixing where high-degree nodes connect to low-degree nodes." width="100%"}
 
         Measures the tendency of nodes to connect to other nodes with similar degrees. Returns the
         Pearson correlation coefficient of node degrees across edges, quantifying whether
@@ -24111,6 +24371,8 @@ class Graph:
     def get_assortativity_nominal(self, attribute: str) -> float:
         r"""
         Calculate assortativity for categorical (nominal) node attributes.
+
+        ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two side-by-side graphs: one with assortative mixing where high-degree nodes connect to high-degree nodes, and one with disassortative mixing where high-degree nodes connect to low-degree nodes." width="100%"}
 
         Measures the tendency of nodes with the same attribute value to connect, also known as
         homophily. Uses Newman's formula for categorical mixing patterns.
@@ -24199,6 +24461,8 @@ class Graph:
     def get_assortativity(self, attribute: str) -> float:
         """
         Calculate assortativity for numeric node attributes.
+
+        ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two side-by-side graphs: one with assortative mixing where high-degree nodes connect to high-degree nodes, and one with disassortative mixing where high-degree nodes connect to low-degree nodes." width="100%"}
 
         Measures the tendency of nodes with similar numeric attribute values to connect. Returns the
         Pearson correlation coefficient of attribute values across edges, indicating whether similar
@@ -24704,6 +24968,8 @@ class Graph:
         r"""
         Calculate the local efficiency of the graph.
 
+        ![Efficiency](/assets/graphs/algo-efficiency.light.svg){.lightbox fig-alt="A seven-edge graph with source s on the left and target t on the right, both drawn in the accent color. A three-hop shortest path from s to t through the upper row is highlighted in accent. A small heads-up display in the top right reports the pair distance d(s,t) = 3, the pair efficiency E(s,t) = 1/3 (its reciprocal), and the graph's global efficiency E_glob = 5/12, averaged over every pair." width="100%"}
+
         Local efficiency is the average global efficiency of each node's neighborhood subgraph. It
         measures how efficiently the neighbors of a node can communicate when that node is removed.
         High local efficiency indicates good redundancy and fault tolerance.
@@ -24775,6 +25041,8 @@ class Graph:
         r"""
         Calculate the Wiener index of the graph.
 
+        ![All-pairs shortest paths](/assets/graphs/algo-all-pairs.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, the corresponding all-pairs shortest-path distance matrix: a four-by-four table with row and column labels A, B, C, holding zero on the diagonal and the pairwise shortest-path distances off the diagonal." width="100%"}
+
         The Wiener index is the sum of all pairwise shortest path distances in the graph. It is a
         fundamental topological descriptor used in chemistry and network analysis to measure graph
         compactness.
@@ -24844,6 +25112,8 @@ class Graph:
     def get_estrada_index(self) -> float:
         r"""
         Calculate the Estrada index of the graph.
+
+        ![Graph spectrum](/assets/graphs/algo-spectrum.light.svg){.lightbox fig-alt="A graph with its adjacency matrix shown alongside, and eigenvalues marked on a number line below." width="100%"}
 
         The Estrada index is the sum of exponentials of the eigenvalues of the adjacency matrix:
 
@@ -25005,6 +25275,8 @@ class Graph:
         r"""
         Calculate the resistance distance matrix for all node pairs.
 
+        ![All-pairs shortest paths](/assets/graphs/algo-all-pairs.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, the corresponding all-pairs shortest-path distance matrix: a four-by-four table with row and column labels A, B, C, holding zero on the diagonal and the pairwise shortest-path distances off the diagonal." width="100%"}
+
         Returns a dictionary mapping (source_id, target_id) tuples to their resistance distances.
         The matrix is symmetric with zeros on the diagonal.
 
@@ -25056,6 +25328,8 @@ class Graph:
     def get_kirchhoff_index(self) -> float:
         r"""
         Calculate the Kirchhoff index (total resistance) of the graph.
+
+        ![Resistance distance](/assets/graphs/algo-resistance-distance.light.svg){.lightbox fig-alt="A graph modeled as an electrical network, with resistance distances between pairs of nodes indicated by numeric labels." width="100%"}
 
         The Kirchhoff index is the sum of all pairwise resistance distances:
 
@@ -25360,6 +25634,8 @@ class AdaStar:
         """
         Compute or improve the path with given epsilon.
 
+        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+
         On first call, initializes the search and finds an initial path.
         On subsequent calls, improves the existing path if epsilon is lower.
 
@@ -25467,6 +25743,8 @@ class AdaStar:
     def extract_path(self) -> list[int]:
         """
         Extract the current path without running search.
+
+        ![All simple paths](/assets/graphs/algo-all-simple-paths.light.svg){.lightbox fig-alt="A graph with source s and target t on the sides, showing three distinct simple paths between them: a two-hop path through the top in accent, a two-hop path straight through the middle in a lighter accent tint, and a three-hop path along the bottom in teal, each rendered in its own distinct style." width="100%"}
 
         Returns the path based on current g-values. Useful for inspecting
         the path without triggering additional computation.
