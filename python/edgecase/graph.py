@@ -5729,7 +5729,7 @@ class Graph:
         """
         Select the last N nodes that were created.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Select last created](/assets/graphs/algo-select-last-created.light.svg){.lightbox fig-alt="A five-node graph where each node is labeled with its creation order (1 through 5). The two most recently created nodes (4 and 5) and their incident edges are highlighted in accent. A caption reads 'last 2 created'." width="100%"}
 
         Selects nodes in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added nodes.
@@ -5773,7 +5773,7 @@ class Graph:
         """
         Select the last N edges that were created.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Select last created](/assets/graphs/algo-select-last-created.light.svg){.lightbox fig-alt="A five-node graph where each node is labeled with its creation order (1 through 5). The two most recently created nodes (4 and 5) and their incident edges are highlighted in accent. A caption reads 'last 2 created'." width="100%"}
 
         Selects edges in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added edges.
@@ -6284,7 +6284,7 @@ class Graph:
         """
         Get currently selected node IDs.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
 
         Returns the list of node IDs that are currently marked as selected. Order is not guaranteed.
 
@@ -6317,7 +6317,7 @@ class Graph:
         """
         Get currently selected edge IDs.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
 
         Returns the list of edge IDs that are currently marked as selected. Order is not guaranteed.
 
@@ -6350,7 +6350,7 @@ class Graph:
         """
         Get count of currently selected nodes.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
 
         Returns the number of nodes currently marked as selected. More efficient than
         `len(get_selected_nodes())` when you only need the count.
@@ -6384,7 +6384,7 @@ class Graph:
         """
         Get count of currently selected edges.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
 
         Returns the number of edges currently marked as selected. More efficient than
         `len(get_selected_edges())` when you only need the count.
@@ -9244,7 +9244,7 @@ class Graph:
         """
         Get Dice similarity coefficient between all node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
 
         The Dice coefficient measures similarity between two nodes based on their neighborhood
         overlap:
@@ -9299,7 +9299,7 @@ class Graph:
         """
         Get Jaccard similarity index between all node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
 
         The Jaccard index is a classic set similarity measure:
 
@@ -9358,7 +9358,7 @@ class Graph:
         r"""
         Get cosine similarity between all node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
 
         Cosine similarity treats neighbors as vector components:
 
@@ -9416,7 +9416,7 @@ class Graph:
         """
         Get overlap coefficient between all node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
 
         The overlap coefficient emphasizes subset relationships:
 
@@ -17326,7 +17326,7 @@ class Graph:
         r"""
         Get mean distance (average shortest path length).
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Graph diameter](/assets/graphs/algo-graph-distances.light.svg){.lightbox fig-alt="A six-node graph where the longest shortest path (diameter) runs through four nodes A-B-C-D, highlighted in accent. Three alternative edges provide shorter routes between some pairs. A caption below reads 'diameter = 3'." width="100%"}
 
         Computes average shortest path length between all reachable node pairs. Also known as
         average path length or characteristic path length.
@@ -17460,7 +17460,7 @@ class Graph:
         """
         Get graph diameter (maximum eccentricity).
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Graph diameter](/assets/graphs/algo-graph-distances.light.svg){.lightbox fig-alt="A six-node graph where the longest shortest path (diameter) runs through four nodes A-B-C-D, highlighted in accent. Three alternative edges provide shorter routes between some pairs. A caption below reads 'diameter = 3'." width="100%"}
 
         The diameter is the longest shortest path between any two nodes. This metric is useful for
         understanding the "width" of a network.
@@ -17505,7 +17505,7 @@ class Graph:
         """
         Get graph radius (minimum eccentricity).
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Graph diameter](/assets/graphs/algo-graph-distances.light.svg){.lightbox fig-alt="A six-node graph where the longest shortest path (diameter) runs through four nodes A-B-C-D, highlighted in accent. Three alternative edges provide shorter routes between some pairs. A caption below reads 'diameter = 3'." width="100%"}
 
         The radius is the minimum of all node eccentricities. Nodes with eccentricity equal to the
         radius form the center of the graph.
@@ -17549,7 +17549,7 @@ class Graph:
         """
         Get girth (length of shortest cycle).
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Girth (shortest cycle)](/assets/graphs/algo-girth.light.svg){.lightbox fig-alt="A five-node graph containing a triangle A-B-C highlighted in accent and a longer cycle through D and E in default. The triangle is the shortest cycle, so a caption reads 'girth = 3'." width="100%"}
 
         The girth is the length of the shortest cycle in the graph. Returns `None` if the graph is
         acyclic (a forest/tree). Uses BFS from each node to detect shortest cycles efficiently.
@@ -20549,7 +20549,7 @@ class Graph:
         r"""
         Compute the vitality of a single node.
 
-        ![Bridges](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="A graph with two clusters of nodes connected by a single edge highlighted in the accent color — the bridge whose removal would disconnect the graph." width="100%"}
+        ![Node vitality](/assets/graphs/algo-node-vitality.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, a five-node graph where node v (accent) bridges two pairs of nodes. On the right, node v has been removed (dashed outline) and the graph has split into two disconnected pairs." width="100%"}
 
         Node vitality measures the impact of removing a node on graph connectivity, defined as the
         change in sum of all pairwise shortest path distances:
@@ -20845,7 +20845,7 @@ class Graph:
         """
         Compute global node connectivity.
 
-        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+        ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
 
         Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
         the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
@@ -20983,7 +20983,7 @@ class Graph:
         """
         Compute edge connectivity (minimum edge cut).
 
-        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+        ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
 
         Returns the minimum number of edges whose removal disconnects the graph. For undirected
         graphs, this is computed as the minimum over strategic pairs of nodes. For directed graphs,
@@ -21039,7 +21039,7 @@ class Graph:
         """
         Get adhesion (minimum edge cut size).
 
-        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+        ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
 
         The adhesion is the minimum number of edges whose removal would disconnect the graph. Also
         called edge connectivity. Only defined for undirected graphs. Returns `0` if already
@@ -21088,7 +21088,7 @@ class Graph:
         """
         Get cohesion (minimum node cut size).
 
-        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+        ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
 
         The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
         called node connectivity. Only defined for undirected graphs. Returns `0` if already
