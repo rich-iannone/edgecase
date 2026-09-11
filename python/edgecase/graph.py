@@ -4771,7 +4771,7 @@ class Graph:
         """
         Count total number of self-loop edges in the graph.
 
-        ![Self-loop](/assets/graphs/struct-self-loop.light.svg){.lightbox fig-alt="A two-node graph with one regular edge between the nodes and one self-loop attached to the first node, shown in the accent color." width="100%"}
+        ![Self-loop count](/assets/graphs/algo-self-loop-query.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A small overlay reads 'loops = 2', illustrating methods that count or identify self-loops." width="100%"}
 
         A self-loop is an edge where the source and target are the same node. This counts all
         self-loop edges in the entire graph, regardless of which nodes they belong to. Use
@@ -5060,7 +5060,7 @@ class Graph:
         """
         Get direct predecessors of a node (incoming neighbors).
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Predecessors and successors](/assets/graphs/algo-predecessors-successors.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from predecessor nodes on the left; two accent arrows depart toward successor nodes on the right. Captions read 'predecessors' and 'successors'." width="100%"}
 
         Returns nodes that have outgoing edges to the specified node. Only available for directed
         graphs.
@@ -5111,7 +5111,7 @@ class Graph:
         """
         Get direct successors of a node (outgoing neighbors).
 
-        ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
+        ![Predecessors and successors](/assets/graphs/algo-predecessors-successors.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from predecessor nodes on the left; two accent arrows depart toward successor nodes on the right. Captions read 'predecessors' and 'successors'." width="100%"}
 
         Returns nodes that are targets of outgoing edges from the specified node. Only available for
         directed graphs.
@@ -13213,7 +13213,7 @@ class Graph:
         """
         Create edges between all pairs of selected nodes (clique).
 
-        ![Complete graph](/assets/graphs/struct-complete.light.svg){.lightbox fig-alt="A complete graph with five nodes, every pair connected by an edge." width="100%"}
+        ![Fully connect nodes](/assets/graphs/op-fully-connect.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, four nodes with only two edges. On the right, four new accent edges have been added so every pair of nodes is connected, forming a complete subgraph." width="100%"}
 
         Adds edges to form a complete graph (clique) among all selected nodes. For directed graphs,
         creates edges in both directions. Skips edges that already exist.
@@ -19430,7 +19430,7 @@ class Graph:
         """
         Sort nodes in topological order (DAG only).
 
-        ![Directed acyclic graph](/assets/graphs/algo-dag.light.svg){.lightbox fig-alt="A five-node directed acyclic graph with edges flowing strictly downward from a single root." width="100%"}
+        ![Topological sort](/assets/graphs/algo-topological-sort.light.svg){.lightbox fig-alt="A five-node directed acyclic graph with nodes numbered 1 through 5 in a valid topological order. Source nodes (no predecessors) are in accent on the left; all arrows point rightward. A caption reads 'topological order'." width="100%"}
 
         Returns a linear ordering of nodes such that for every directed edge `u -> v`, node `u`
         appears before `v` in the ordering. This is only possible for directed acyclic graphs
@@ -19784,7 +19784,7 @@ class Graph:
         r"""
         Count walks of a specific length between all pairs of nodes.
 
-        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+        ![Walk count](/assets/graphs/algo-walk-count.light.svg){.lightbox fig-alt="A three-node graph where a walk of length 3 is traced: A to B (step 1), B to C (step 2), C back to B (step 3). The return edge is drawn with a curve to show it reuses the B-C connection. A caption reads 'walk of length 3'." width="100%"}
 
         A walk is a sequence of nodes where each adjacent pair is connected by an edge. Unlike
         paths, walks can repeat nodes and edges. The number of walks of length `k` from node `i` to
@@ -21136,7 +21136,7 @@ class Graph:
         """
         Calculate graph density (ratio of actual to possible edges).
 
-        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+        ![Graph density](/assets/graphs/algo-density.light.svg){.lightbox fig-alt="A five-node graph with five solid edges present and five potential edges shown as faint muted lines. A small overlay reads '5/10 = 0.50', illustrating density as the ratio of actual edges to maximum possible edges." width="100%"}
 
         Density measures how complete a graph is. A complete graph has density `1.0`, while a graph
         with no edges has density `0.0`.
@@ -24014,7 +24014,7 @@ class Graph:
         """
         Find edge IDs of self-loops (edges from a node to itself).
 
-        ![Self-loop](/assets/graphs/struct-self-loop.light.svg){.lightbox fig-alt="A node with a self-loop edge that begins and ends at the same node, drawn as a small circle above the node." width="100%"}
+        ![Self-loop count](/assets/graphs/algo-self-loop-query.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A small overlay reads 'loops = 2', illustrating methods that count or identify self-loops." width="100%"}
 
         Returns a list of edge IDs for all edges where the source node equals the target node.
         Self-loops are common in certain network types like state machines, chemical reactions, or
@@ -24080,7 +24080,7 @@ class Graph:
         """
         Count self-loops grouped by node.
 
-        ![Self-loop](/assets/graphs/struct-self-loop.light.svg){.lightbox fig-alt="A node with a self-loop edge that begins and ends at the same node, drawn as a small circle above the node." width="100%"}
+        ![Self-loop count](/assets/graphs/algo-self-loop-query.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A small overlay reads 'loops = 2', illustrating methods that count or identify self-loops." width="100%"}
 
         Returns a dictionary mapping node IDs to the count of self-loops for each node. Only
         includes nodes that have at least one self-loop.
@@ -25053,7 +25053,7 @@ class Graph:
         r"""
         Calculate the Wiener index of the graph.
 
-        ![All-pairs shortest paths](/assets/graphs/algo-all-pairs.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, the corresponding all-pairs shortest-path distance matrix: a four-by-four table with row and column labels A, B, C, holding zero on the diagonal and the pairwise shortest-path distances off the diagonal." width="100%"}
+        ![Wiener index](/assets/graphs/algo-wiener-index.light.svg){.lightbox fig-alt="A four-node tree with A-B-C as a path and D hanging off B. A small overlay reads 'W = Σ d(u,v) = 8', showing the Wiener index as the sum of all pairwise shortest-path distances." width="100%"}
 
         The Wiener index is the sum of all pairwise shortest path distances in the graph. It is a
         fundamental topological descriptor used in chemistry and network analysis to measure graph
@@ -25287,7 +25287,7 @@ class Graph:
         r"""
         Calculate the resistance distance matrix for all node pairs.
 
-        ![All-pairs shortest paths](/assets/graphs/algo-all-pairs.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, the corresponding all-pairs shortest-path distance matrix: a four-by-four table with row and column labels A, B, C, holding zero on the diagonal and the pairwise shortest-path distances off the diagonal." width="100%"}
+        ![Resistance distance](/assets/graphs/algo-resistance-distance.light.svg){.lightbox fig-alt="Two focal nodes A and B on the sides of the frame connected by two parallel two-hop paths, one through node C above and one through node D below. Every edge is drawn as a zigzag resistor symbol to make the electrical analogy explicit. A small overlay in the center reports the resulting effective resistance R(A, B) = 1, obtained by combining the two series paths in parallel." width="100%"}
 
         Returns a dictionary mapping (source_id, target_id) tuples to their resistance distances.
         The matrix is symmetric with zeros on the diagonal.
