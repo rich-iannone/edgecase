@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#ffffff"/>
+<line x1="66.05" y1="70.05" x2="113.95" y2="114.95" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="113.95,114.95 105.33,110.99 109.44,106.61" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="108.00" y1="130.00" x2="72.00" y2="130.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="72.00,130.00 81.00,127.00 81.00,133.00" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="50.00" y1="108.00" x2="50.00" y2="77.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="50.00,77.00 53.00,86.00 47.00,86.00" fill="#c2410c" fill-opacity="1.0"/>
+<line x1="228.74" y1="72.18" x2="261.26" y2="112.82" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="261.26,112.82 253.29,107.67 257.98,103.92" fill="#1f2328" fill-opacity="1.0"/>
+<circle cx="50" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">A</text>
+<circle cx="130" cy="130" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="130" y="130" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">B</text>
+<circle cx="50" cy="130" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="50" y="130" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">C</text>
+<circle cx="215" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="215" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">D</text>
+<circle cx="275" cy="130" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="275" y="130" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">E</text>
+<text x="160" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">SCC count = 3</text>
+</svg>
