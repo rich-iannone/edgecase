@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" width="100%" role="img">
+<rect width="640" height="200" fill="#0d1117"/>
+<line x1="15.00" y1="77.00" x2="15.00" y2="123.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="33.86" y1="66.32" x2="71.14" y2="88.68" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="33.86" y1="133.68" x2="71.14" y2="111.32" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="108.86" y1="88.68" x2="146.14" y2="66.32" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="108.86" y1="111.32" x2="146.14" y2="133.68" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="165.00" y1="77.00" x2="165.00" y2="123.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="15" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="15" cy="145" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="90" cy="100" r="22" fill="#0d1117" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="90" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#f97316" fill-opacity="1.0">v</text>
+<circle cx="165" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="165" cy="145" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<line x1="375.00" y1="77.00" x2="375.00" y2="123.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="393.86" y1="66.32" x2="431.14" y2="88.68" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round" stroke-dasharray="5 4"/>
+<line x1="393.86" y1="133.68" x2="431.14" y2="111.32" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round" stroke-dasharray="5 4"/>
+<line x1="468.86" y1="88.68" x2="506.14" y2="66.32" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round" stroke-dasharray="5 4"/>
+<line x1="468.86" y1="111.32" x2="506.14" y2="133.68" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round" stroke-dasharray="5 4"/>
+<line x1="525.00" y1="77.00" x2="525.00" y2="123.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="375" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="375" cy="145" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="450" cy="100" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="0.4" stroke-dasharray="5 4"/>
+<circle cx="525" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="525" cy="145" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<line x1="298" y1="100" x2="323" y2="100" stroke="#e6edf3" stroke-width="2.5" stroke-linecap="round"/>
+<polygon points="332,100 322,95.0 322,105.0" fill="#e6edf3"/>
+<text x="140" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#e6edf3" fill-opacity="0.7">graph</text>
+<text x="500" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#e6edf3" fill-opacity="0.7">node v removed</text>
+</svg>
