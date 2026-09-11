@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#ffffff"/>
+<line x1="148.67" y1="36.37" x2="90.46" y2="69.12" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="171.33" y1="36.37" x2="229.54" y2="69.12" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="72.22" y1="84.14" x2="47.13" y2="113.62" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="87.78" y1="84.14" x2="112.87" y2="113.62" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="232.22" y1="84.14" x2="207.13" y2="113.62" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="247.78" y1="84.14" x2="272.87" y2="113.62" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="35.77" y1="132.15" x2="23.85" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="44.23" y1="132.15" x2="56.15" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="115.77" y1="132.15" x2="103.85" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="124.23" y1="132.15" x2="136.15" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="195.77" y1="132.15" x2="183.85" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="204.23" y1="132.15" x2="216.15" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="275.77" y1="132.15" x2="263.85" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="284.23" y1="132.15" x2="296.15" y2="160.77" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="160" cy="30" r="13" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="80" cy="75" r="12" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="240" cy="75" r="12" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="40" cy="122" r="11" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="120" cy="122" r="11" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="200" cy="122" r="11" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="280" cy="122" r="11" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="20" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="60" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="100" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="140" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="180" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="220" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="260" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="300" cy="170" r="10" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="160" y="195" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">k = 2,  h = 3</text>
+</svg>
