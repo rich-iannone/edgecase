@@ -3556,7 +3556,7 @@ class Graph:
         """
         Check if an edge exists between two nodes.
 
-        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+        ![Edge existence query](/assets/graphs/algo-edge-query.light.svg){.lightbox fig-alt="Three nodes A, B, C. A solid accent edge connects A to B with a checkmark above it. A dashed muted line between B and C carries an X mark, indicating no such edge exists. A caption reads 'has_edge?'." width="100%"}
 
         For undirected graphs, the order of source and target doesn't matter. For directed graphs,
         checks specifically for an edge from source to target.
@@ -3614,7 +3614,7 @@ class Graph:
         """
         Check if an edge with given ID exists.
 
-        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+        ![Edge existence query](/assets/graphs/algo-edge-query.light.svg){.lightbox fig-alt="Three nodes A, B, C. A solid accent edge connects A to B with a checkmark above it. A dashed muted line between B and C carries an X mark, indicating no such edge exists. A caption reads 'has_edge?'." width="100%"}
 
         Verifies whether a specific edge ID is present in the graph. Useful for validating edge IDs
         before performing operations.
@@ -5161,7 +5161,7 @@ class Graph:
         """
         Get nodes that are NOT neighbors of the specified node.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Non-neighbors](/assets/graphs/algo-non-neighbors.light.svg){.lightbox fig-alt="A focal node A in accent at the top. Its two direct neighbors are drawn muted with muted connecting edges. Three other nodes that are not adjacent to A are highlighted in teal, identified as the non-neighbor set. A caption reads 'non-neighbors of A'." width="100%"}
 
         Returns all nodes in the graph except the specified node itself and its neighbors. Useful
         for finding potential new connections or disconnected nodes.
@@ -5493,7 +5493,7 @@ class Graph:
         """
         Select edges using a predicate function.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Edge selection](/assets/graphs/algo-select-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges drawn in the accent color, indicating they are part of the current edge selection. All nodes remain in default styling, emphasizing that this operation targets edges, not nodes." width="100%"}
 
         Applies a custom filter function to all edges, selecting those for which the predicate
         returns `True`. The predicate receives an Edge object with properties: `id`, `source`,
@@ -5611,7 +5611,7 @@ class Graph:
         """
         Select edges by their IDs.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Edge selection](/assets/graphs/algo-select-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges drawn in the accent color, indicating they are part of the current edge selection. All nodes remain in default styling, emphasizing that this operation targets edges, not nodes." width="100%"}
 
         Marks specified edges as selected for subsequent operations. Edge IDs are internal integer
         identifiers assigned when edges are created. Selection is cumulative unless cleared first.
@@ -5660,7 +5660,7 @@ class Graph:
         """
         Select all edges connected to specified nodes.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Edge selection](/assets/graphs/algo-select-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges drawn in the accent color, indicating they are part of the current edge selection. All nodes remain in default styling, emphasizing that this operation targets edges, not nodes." width="100%"}
 
         Selects all edges where at least one endpoint is in the provided node list. For directed
         graphs, includes both incoming and outgoing edges. Useful for selecting the local
@@ -7376,7 +7376,7 @@ class Graph:
     def set_edge_attrs_ws(self, **attributes) -> "Graph":
         """Set attributes on all selected edges.
 
-        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
+        ![Edge workflow](/assets/graphs/algo-ws-edges.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six edges are highlighted in accent as the current edge selection. On the right, those same three edges have changed to a teal tint, showing that an attribute mutation was applied to the selected edges while the rest of the graph is unchanged." width="100%"}
 
         Updates or adds attributes to edges in the current selection. The `weight` attribute
         receives special handling as it's a first-class edge property. Requires an active edge
@@ -8013,7 +8013,7 @@ class Graph:
         """
         Get selected edges as a Polars DataFrame with standardized structure.
 
-        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
+        ![Edge workflow](/assets/graphs/algo-ws-edges.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six edges are highlighted in accent as the current edge selection. On the right, those same three edges have changed to a teal tint, showing that an attribute mutation was applied to the selected edges while the rest of the graph is unchanged." width="100%"}
 
         Similar to `get_edge_df()` but only exports currently selected edges. Uses the same
         consistent column structure with `id`, `source`, `target`, and `rel` as first 4 columns.
@@ -8215,7 +8215,7 @@ class Graph:
         """
         Transform an edge attribute using a function on selected edges.
 
-        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
+        ![Edge workflow](/assets/graphs/algo-ws-edges.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six edges are highlighted in accent as the current edge selection. On the right, those same three edges have changed to a teal tint, showing that an attribute mutation was applied to the selected edges while the rest of the graph is unchanged." width="100%"}
 
         Applies a transformation function to the specified attribute for all selected edges.
         Supports transforming the `weight` field directly. Requires an active edge selection. Edges
@@ -8638,7 +8638,7 @@ class Graph:
         """
         Calculate dispersion between two nodes.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Dispersion](/assets/graphs/algo-dispersion.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent with three common neighbors between them in lighter accent. Dashed muted lines between the common neighbors show that they are not interconnected, indicating high dispersion. A caption reads 'high dispersion'." width="100%"}
 
         Dispersion measures the embeddedness of a link in the network. A link between two nodes
         (`u` and `v`) has high dispersion when their mutual neighbors (friends in common) are not
@@ -8825,7 +8825,7 @@ class Graph:
         r"""
         Compute Jaccard coefficient for node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `|N(u) ∩ N(v)| / |N(u) ∪ N(v)|`, which is the
         ratio of common neighbors to total distinct neighbors.
@@ -8884,7 +8884,7 @@ class Graph:
         r"""
         Compute Adamic-Adar index for node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `Σ(1 / log(|N(w)|))` for all common neighbors `w`.
         This gives more weight to common neighbors that themselves have fewer connections (rarer
@@ -8960,7 +8960,7 @@ class Graph:
         r"""
         Compute resource allocation index for node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `Σ(1 / |N(w)|)` for all common neighbors `w`.
         Similar to Adamic-Adar but uses `1/degree` instead of `1/log(degree)`, penalizing
@@ -9025,7 +9025,7 @@ class Graph:
         r"""
         Compute preferential attachment score for node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `|N(u)| × |N(v)|`, the product of their degrees.
         Based on the "rich get richer" principle where high-degree nodes are more likely to acquire
@@ -20903,7 +20903,7 @@ class Graph:
         """
         Compute node connectivity between two nodes.
 
-        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+        ![Minimum node cut](/assets/graphs/algo-node-cut.light.svg){.lightbox fig-alt="An eight-node graph with source s and target t on opposite sides. Two nodes in a faintly shaded vertical strip in the middle are drawn with dashed outlines, indicating their removal disconnects s from t. A caption reads 'node cut = 2'." width="100%"}
 
         Returns the minimum number of nodes that must be removed to disconnect the source from the
         target. Uses Menger's theorem: this equals the maximum number of node-disjoint paths between
@@ -21319,7 +21319,7 @@ class Graph:
         r"""
         Find minimum node cut between source and sink nodes.
 
-        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+        ![Minimum node cut](/assets/graphs/algo-node-cut.light.svg){.lightbox fig-alt="An eight-node graph with source s and target t on opposite sides. Two nodes in a faintly shaded vertical strip in the middle are drawn with dashed outlines, indicating their removal disconnects s from t. A caption reads 'node cut = 2'." width="100%"}
 
         Returns the set of nodes whose removal disconnects the source from the sink. Uses
         transformation to an edge connectivity problem where each node is split into in/out copies
