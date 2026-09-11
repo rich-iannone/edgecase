@@ -3919,6 +3919,8 @@ class Graph:
         """
         Check if the graph is simple (no self-loops or multi-edges).
 
+        ![Simplify](/assets/graphs/op-simplify.light.svg){.lightbox fig-alt="On the left, a three-node graph with a duplicate parallel edge between A and B and a self-loop on B, both highlighted in the accent color. On the right, the same graph after simplify(): the duplicate edge and the self-loop are gone, leaving a simple path A - B - C." width="100%"}
+
         A simple graph contains no self-loops (edges from a node to itself) and no multi-edges
         (multiple edges between the same pair of nodes). This is a fundamental graph property used
         in many theoretical results.
@@ -4594,6 +4596,8 @@ class Graph:
         r"""
         Check if the graph is regular (all nodes have the same degree).
 
+        ![Complete graph](/assets/graphs/struct-complete.light.svg){.lightbox fig-alt="A complete graph on five nodes: every pair of nodes is joined by an edge, giving ten edges in total." width="100%"}
+
         A graph is regular if every node has the same degree. For directed graphs, this means all
         nodes have the same in-degree and the same out-degree (though in-degree and out-degree don't
         need to equal each other).
@@ -4659,6 +4663,8 @@ class Graph:
     def is_k_regular(self, k: int) -> bool:
         r"""
         Check if the graph is k-regular (all nodes have degree `k`).
+
+        ![Complete graph](/assets/graphs/struct-complete.light.svg){.lightbox fig-alt="A complete graph on five nodes: every pair of nodes is joined by an edge, giving ten edges in total." width="100%"}
 
         A graph is k-regular if every node has degree exactly `k`. For directed graphs, this means
         all nodes have in-degree `k` and out-degree `k`.
@@ -4736,6 +4742,8 @@ class Graph:
     def count_all_loops(self) -> int:
         """
         Count total number of self-loop edges in the graph.
+
+        ![Self-loop](/assets/graphs/struct-self-loop.light.svg){.lightbox fig-alt="A two-node graph with one regular edge between the nodes and one self-loop attached to the first node, shown in the accent color." width="100%"}
 
         A self-loop is an edge where the source and target are the same node. This counts all
         self-loop edges in the entire graph, regardless of which nodes they belong to. Use
@@ -9349,6 +9357,8 @@ class Graph:
         """
         Check if the graph contains any cycles.
 
+        ![Cycle detection](/assets/graphs/algo-has-cycles.light.svg){.lightbox fig-alt="A four-node graph where nodes A, B, and C form a triangle highlighted in the accent color, indicating a detected cycle. Node D connects to C with a default edge outside the cycle. A caption below reads has_cycles() = True." width="100%"}
+
         Uses depth-first search to detect cycles. For directed graphs, looks for back edges. For
         undirected graphs, checks for cycles excluding trivial two-node back-and-forth paths.
 
@@ -9388,6 +9398,8 @@ class Graph:
     def get_cycles(self, min_length: int = 2) -> list[list[int]]:
         r"""
         Get all elementary cycles in the graph using Johnson's algorithm.
+
+        ![Simple cycles](/assets/graphs/algo-simple-cycles.light.svg){.lightbox fig-alt="A five-node graph containing two simple cycles. Nodes A, B, and C form a triangle highlighted in accent. Nodes B, E, and C form a second cycle in a lighter accent tint. A caption below reads 2 simple cycles." width="100%"}
 
         Implements Donald B. Johnson's 1975 algorithm for finding all elementary (simple) cycles in
         a directed graph. Each cycle is found exactly once and contains no repeated nodes except the
@@ -9470,6 +9482,8 @@ class Graph:
     def simple_cycles(self, length_bound: int | None = None) -> list[list[int]]:
         r"""
         Find all simple cycles in the graph.
+
+        ![Simple cycles](/assets/graphs/algo-simple-cycles.light.svg){.lightbox fig-alt="A five-node graph containing two simple cycles. Nodes A, B, and C form a triangle highlighted in accent. Nodes B, E, and C form a second cycle in a lighter accent tint. A caption below reads 2 simple cycles." width="100%"}
 
         A simple cycle is a closed path where no node appears more than once (except that the first
         and last node are the same). This method works for both directed and undirected graphs.
@@ -12313,6 +12327,8 @@ class Graph:
         r"""
         Compute the intersection of this graph with another graph.
 
+        ![Graph intersection](/assets/graphs/op-intersection.light.svg){.lightbox fig-alt="Three panels showing the intersection of two graphs on four nodes. G1 on the left has edges A-B, A-C, and B-D. G2 in the middle has edges B-D, C-D, and A-D. On the right, the intersection keeps only the single shared edge B-D, highlighted in accent." width="100%"}
+
         Returns a new graph containing only edges that exist in both graphs. Nodes are included only
         if they are endpoints of common edges.
 
@@ -12383,6 +12399,8 @@ class Graph:
         """
         Compute the difference of this graph and another graph.
 
+        ![Graph difference](/assets/graphs/op-difference.light.svg){.lightbox fig-alt="Three panels showing the difference of two graphs. G1 on the left has edges A-B, A-C, and B-D. G2 in the middle has edges B-D, C-D, and A-D. On the right, the difference keeps only the two edges unique to G1: A-B and A-C, both in accent." width="100%"}
+
         Returns a new graph containing edges that are in this graph but not in the other graph.
         Nodes are included if they are endpoints of remaining edges.
 
@@ -12449,6 +12467,8 @@ class Graph:
     def symmetric_difference(self, other: "Graph") -> "Graph":
         """
         Compute the symmetric difference of this graph and another graph.
+
+        ![Symmetric difference](/assets/graphs/op-symmetric-difference.light.svg){.lightbox fig-alt="Three panels showing the symmetric difference of two graphs. G1 has edges A-B, A-C, B-D; G2 has B-D, C-D, A-D. The result keeps edges in exactly one graph: A-B and A-C from G1 in accent, C-D and A-D from G2 in teal. The shared edge B-D is excluded." width="100%"}
 
         Returns a new graph containing edges that are in exactly one of the two graphs. Equivalent
         to `(G1 - G2) ∪ (G2 - G1)`.
@@ -12517,6 +12537,8 @@ class Graph:
         """
         Compose this graph with another graph.
 
+        ![Set algebra on graphs](/assets/graphs/algo-set-algebra.light.svg){.lightbox fig-alt="Three panels illustrating the union of two graphs on the same four nodes. On the left, G1 has three edges, two of which (drawn in the accent color) are unique to it. In the middle, G2 has three edges, two of which (drawn in teal) are unique to it, plus one shared edge in default ink. On the right, the union graph carries every edge from either source: the two accent edges from G1, the two teal edges from G2, and the shared ink edge." width="100%"}
+
         Similar to union, but the other graph's node attributes/labels take precedence over this
         graph's. Useful when you want to merge updates from another graph.
 
@@ -12574,6 +12596,8 @@ class Graph:
     def disjoint_union(self, other: "Graph") -> "Graph":
         """
         Compute the disjoint union of this graph with another graph.
+
+        ![Disjoint union](/assets/graphs/op-disjoint-union.light.svg){.lightbox fig-alt="On the left, two small graphs drawn together: a three-node accent-colored triangle (A, B, C) and a teal two-node pair (X, Y). On the right, the disjoint union preserves both subgraphs as separate components with renumbered nodes, keeping all five nodes and four edges with no new connections between the two groups." width="100%"}
 
         Combines graphs by renumbering the other graph's nodes to avoid conflicts. The resulting
         graph has all nodes and edges from both, with no overlap.
@@ -19441,6 +19465,8 @@ class Graph:
     def transitive_reduction(self) -> "Graph":
         r"""
         Compute the transitive reduction of a directed acyclic graph (DAG).
+
+        ![Transitive closure](/assets/graphs/algo-transitive-closure.light.svg){.lightbox fig-alt="On the left, a directed chain A -> B -> C -> D on four nodes laid out in a square. On the right, the same graph after transitive closure: three additional accent-colored directed edges A -> C, A -> D, and B -> D have been added, so that every reachable pair is now directly connected." width="100%"}
 
         The transitive reduction is the minimal subgraph that maintains the same reachability as the
         original graph. It removes redundant edges while preserving all path relationships. If
