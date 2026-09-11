@@ -2079,6 +2079,8 @@ class Graph:
         """
         Add a balanced k-ary tree to the current graph.
 
+        ![Balanced tree](/assets/graphs/struct-balanced-tree.light.svg){.lightbox fig-alt="A complete binary tree of height 3: fifteen nodes on four levels (1 + 2 + 4 + 8). Every internal node has exactly two children and every leaf sits at the same depth, illustrating the balanced structure produced by add_balanced_tree(k=2, h=3). The root at the top is shown in the accent color." width="100%"}
+
         Creates a tree where each internal node has exactly `k` children, with height `h`. The total
         number of nodes will be equal to `(k^(h+1) - 1) / (k - 1)`.
 
@@ -4204,6 +4206,8 @@ class Graph:
         """
         Check if the graph is a forest.
 
+        ![Forest](/assets/graphs/struct-forest.light.svg){.lightbox fig-alt="A forest with three disjoint tree components: a small Y-shaped tree on the left, a three-node path in the middle, and a one-to-three fan on the right. The root of each tree is shown in the accent color; no edge runs between the three components." width="100%"}
+
         A forest is an acyclic, undirected graph (disjoint union of trees). For a graph with *n*
         nodes and *k* connected components to be a forest it:
 
@@ -4288,6 +4292,8 @@ class Graph:
     def is_arborescence(self) -> bool:
         r"""
         Check if the graph is an arborescence (directed tree).
+
+        ![Arborescence](/assets/graphs/struct-arborescence.light.svg){.lightbox fig-alt="A seven-node rooted directed tree (arborescence). The root at the top is drawn in the accent color; every edge carries an arrowhead pointing away from the root, so each non-root node has exactly one incoming edge." width="100%"}
 
         An arborescence is a directed graph which:
 
@@ -11352,6 +11358,8 @@ class Graph:
         """
         Convert the graph to an undirected graph.
 
+        ![Convert to undirected](/assets/graphs/op-to-undirected.light.svg){.lightbox fig-alt="On the left, a four-node directed graph with a mutual A - B pair drawn as two accent-colored curved arrows, plus two asymmetric directed edges A to C and C to D. On the right, the same nodes after to_undirected(): the mutual pair collapses into a single accent-colored undirected A - B edge, and each asymmetric edge simply loses its arrowhead." width="100%"}
+
         Creates a new graph with the same nodes and edges, but without edge direction. If the graph
         is already undirected, returns a new copy. For directed graphs, converts directed edges to
         undirected edges, removing duplicate pairs.
@@ -11412,6 +11420,8 @@ class Graph:
     def to_directed(self) -> "Graph":
         """
         Convert the graph to a directed graph.
+
+        ![Convert to directed](/assets/graphs/op-to-directed.light.svg){.lightbox fig-alt="On the left, a three-node undirected triangle with three plain edges. On the right, the same triangle after to_directed(): every original undirected edge has been replaced by a mutual pair of accent-colored directed arrows curved in opposite directions, so the total edge count doubles from three to six." width="100%"}
 
         Creates a new graph with the same nodes but directed edges. If the graph is already
         directed, returns a new copy. For undirected graphs, creates both directions (u->v and v->u)
