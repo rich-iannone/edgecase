@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#ffffff"/>
+<line x1="72.00" y1="55.00" x2="138.00" y2="55.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="160.00" y1="77.00" x2="160.00" y2="123.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="142.97" y1="131.07" x2="67.03" y2="68.93" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="180.36" y1="63.33" x2="249.64" y2="91.67" stroke="#c2410c" stroke-width="2.25" stroke-opacity="0.5" stroke-linecap="round"/>
+<line x1="249.64" y1="108.33" x2="180.36" y2="136.67" stroke="#c2410c" stroke-width="2.25" stroke-opacity="0.5" stroke-linecap="round"/>
+<circle cx="50" cy="55" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="1.0">A</text>
+<circle cx="160" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="160" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">B</text>
+<circle cx="160" cy="145" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="160" y="145" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">C</text>
+<circle cx="50" cy="145" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="0.5"/>
+<text x="50" y="145" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="0.5">D</text>
+<circle cx="270" cy="100" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="0.5"/>
+<text x="270" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#c2410c" fill-opacity="0.5">E</text>
+<text x="160" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">2 simple cycles</text>
+</svg>
