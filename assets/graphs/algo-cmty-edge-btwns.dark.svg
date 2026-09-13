@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" width="100%" role="img">
+<rect width="640" height="200" fill="#0d1117"/>
+<line x1="47.00" y1="55.00" x2="63.00" y2="55.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="33.17" y1="75.43" x2="46.83" y2="109.57" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="76.83" y1="75.43" x2="63.17" y2="109.57" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="107.00" y1="55.00" x2="153.00" y2="55.00" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="197.00" y1="55.00" x2="213.00" y2="55.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="183.17" y1="75.43" x2="196.83" y2="109.57" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="226.83" y1="75.43" x2="213.17" y2="109.57" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="25" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="85" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="55" cy="130" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="175" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="235" cy="55" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="205" cy="130" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<line x1="407.00" y1="55.00" x2="423.00" y2="55.00" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="393.17" y1="75.43" x2="406.83" y2="109.57" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="436.83" y1="75.43" x2="423.17" y2="109.57" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="557.00" y1="55.00" x2="573.00" y2="55.00" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="543.17" y1="75.43" x2="556.83" y2="109.57" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="586.83" y1="75.43" x2="573.17" y2="109.57" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="385" cy="55" r="22" fill="#0d1117" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="445" cy="55" r="22" fill="#0d1117" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="415" cy="130" r="22" fill="#0d1117" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="535" cy="55" r="22" fill="#0d1117" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="595" cy="55" r="22" fill="#0d1117" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="565" cy="130" r="22" fill="#0d1117" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="1.0"/>
+<line x1="298" y1="100" x2="323" y2="100" stroke="#e6edf3" stroke-width="2.5" stroke-linecap="round"/>
+<polygon points="332,100 322,95.0 322,105.0" fill="#e6edf3"/>
+<text x="140" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#e6edf3" fill-opacity="0.7">highest-btwns edge</text>
+<text x="500" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#e6edf3" fill-opacity="0.7">communities</text>
+</svg>
