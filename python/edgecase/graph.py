@@ -1027,7 +1027,7 @@ class Graph:
         """
         Delete all selected edges.
 
-        ![Delete edge](/assets/graphs/op-delete-edge.light.svg){.lightbox fig-alt="A graph loses one edge. The doomed edge is highlighted in the accent color before removal; every node remains in place afterward." width="100%"}
+        ![Delete Edges (Working Selection)](/assets/graphs/op-delete-edges-ws.light.svg){.lightbox fig-alt="Before: two working-selection edges highlighted in accent. After: both edges removed." width="100%"}
 
         Removes edges in the current selection from the graph. Node connectivity may be affected,
         but nodes themselves remain in the graph. Updates selection state automatically.
@@ -6180,7 +6180,7 @@ class Graph:
         """
         Clear all node and edge selections.
 
-        ![Deselect nodes](/assets/graphs/op-deselect.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in the accent color as selected. On the right, all nodes have returned to default styling after deselection." width="100%"}
+        ![Clear Selection](/assets/graphs/op-clear-selection.light.svg){.lightbox fig-alt="Before: three nodes selected in accent. After: all nodes returned to default." width="100%"}
 
         Resets the selection state, unmarking all previously selected nodes and edges. Useful for
         starting fresh with a new selection workflow.
@@ -18917,7 +18917,7 @@ class Graph:
         """
         Check if a sequence of nodes forms a simple path in the graph.
 
-        ![All simple paths](/assets/graphs/algo-all-simple-paths.light.svg){.lightbox fig-alt="A graph with source s and target t on the sides, showing three distinct simple paths between them: a two-hop path through the top in accent, a two-hop path straight through the middle in a lighter accent tint, and a three-hop path along the bottom in teal, each rendered in its own distinct style." width="100%"}
+        ![Simple Path](/assets/graphs/algo-is-simple-path.light.svg){.lightbox fig-alt="A five-node graph with an accent path A–B–C–D; a checkmark confirms it is a simple path." width="100%"}
 
         A simple path is a sequence where:
 
@@ -22089,7 +22089,7 @@ class Graph:
         """
         Check if the graph is strongly connected.
 
-        ![Strongly connected components](/assets/graphs/algo-count-scc.light.svg){.lightbox fig-alt="A directed graph partitioned into strongly connected components, each highlighted in a distinct style." width="100%"}
+        ![Strongly Connected](/assets/graphs/algo-is-strongly-connected.light.svg){.lightbox fig-alt="A four-node directed cycle in accent; a checkmark confirms strong connectivity." width="100%"}
 
         A directed graph is strongly connected if there is a directed path from every node to every
         other node. Equivalently, the graph has exactly one strongly connected component containing
@@ -22152,7 +22152,7 @@ class Graph:
         """
         Check if the graph is weakly connected.
 
-        ![Weakly connected components](/assets/graphs/algo-count-wcc.light.svg){.lightbox fig-alt="A graph with multiple disconnected clusters, each cluster highlighted to show it is a separate weakly connected component. A count badge shows the total number of components." width="100%"}
+        ![Weakly Connected](/assets/graphs/algo-is-weakly-connected.light.svg){.lightbox fig-alt="A five-node directed graph with edges proving weak connectivity; a checkmark confirms weak connectedness." width="100%"}
 
         A directed graph is weakly connected if the underlying undirected graph (ignoring edge
         directions) is connected. Equivalently, there is a path between every pair of nodes when
@@ -22346,7 +22346,7 @@ class Graph:
         """
         Check if a coloring is valid (no adjacent nodes share a color).
 
-        ![Graph coloring](/assets/graphs/algo-coloring.light.svg){.lightbox fig-alt="A six-node graph with a proper 3-coloring: a central triangle whose three vertices are colored orange, teal, and violet, plus three pendant nodes each colored differently from the triangle vertex they attach to. No two adjacent nodes share a color." width="100%"}
+        ![Valid Coloring](/assets/graphs/algo-is-valid-coloring.light.svg){.lightbox fig-alt="A four-node graph with a proper three-color assignment; a checkmark confirms the coloring is valid." width="100%"}
 
         Parameters
         ----------
@@ -25341,7 +25341,7 @@ class Graph:
         r"""
         Calculate the Kirchhoff index (total resistance) of the graph.
 
-        ![Resistance distance](/assets/graphs/algo-resistance-distance.light.svg){.lightbox fig-alt="A graph modeled as an electrical network, with resistance distances between pairs of nodes indicated by numeric labels." width="100%"}
+        ![Kirchhoff Index](/assets/graphs/algo-kirchhoff.light.svg){.lightbox fig-alt="A four-node graph with HUD overlay reading Kf(G) = 6.33." width="100%"}
 
         The Kirchhoff index is the sum of all pairwise resistance distances:
 
