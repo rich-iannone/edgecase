@@ -5918,7 +5918,7 @@ class Graph:
         """
         Select nodes by degree criteria.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Select by graph property](/assets/graphs/algo-select-by-property.light.svg){.lightbox fig-alt="A six-node graph where node radii scale with degree. The two highest-degree nodes are selected in accent; the remaining four are in default styling. A caption reads 'degree >= 3', illustrating criterion-based selection." width="100%"}
 
         Filters nodes based on their degree (number of connections). Useful for finding hubs (high
         degree) or peripheral nodes (low degree). Can filter by in-degree, out-degree, or total
@@ -5981,7 +5981,7 @@ class Graph:
         """
         Select top-K nodes by centrality measure.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Select by graph property](/assets/graphs/algo-select-by-property.light.svg){.lightbox fig-alt="A six-node graph where node radii scale with degree. The two highest-degree nodes are selected in accent; the remaining four are in default styling. A caption reads 'degree >= 3', illustrating criterion-based selection." width="100%"}
 
         Computes centrality scores for all nodes and selects the k highest-scoring nodes. Useful for
         identifying the most important or influential nodes by various centrality metrics.
@@ -9109,7 +9109,7 @@ class Graph:
         r"""
         Calculate pairwise similarity between nodes based on neighborhoods.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Pairwise similarity matrix](/assets/graphs/algo-pairwise-similarity.light.svg){.lightbox fig-alt="A four-node graph on the left with a 4x4 similarity matrix table on the right. Each cell shows the Jaccard similarity between the row and column nodes, illustrating the all-pairs pairwise similarity computation." width="100%"}
 
         Computes structural similarity using various metrics that compare the neighborhoods
         (adjacent nodes) of node pairs. Returns a similarity matrix where higher values indicate
@@ -10964,7 +10964,7 @@ class Graph:
         """
         Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
 
-        ![Bridge edge](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, joined by a single edge shown in the accent color. Removing that bridge edge would disconnect the graph into two components." width="100%"}
+        ![Edge-betweenness communities](/assets/graphs/algo-cmty-edge-btwns.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, two triangular clusters joined by a single accent edge with the highest edge betweenness. On the right, that edge has been removed, revealing two communities colored in teal and purple." width="100%"}
 
         Iteratively removes edges with highest betweenness centrality to reveal community structure.
         Uses Brandes' algorithm for efficient betweenness calculation. More accurate than Fast
@@ -13838,7 +13838,7 @@ class Graph:
         """
         Get aggregate value from indegree of nodes.
 
-        ![In-degree vs. out-degree](/assets/graphs/algo-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from the left (in-degree = 2) and three accent arrows depart to the right (out-degree = 3). Captions below read 'in = 2' and 'out = 3'." width="100%"}
+        ![Aggregate in/out degree](/assets/graphs/algo-agg-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focal node at center. Two teal arrows arrive from the left, three accent arrows depart to the right. A HUD overlay reads 'sum_in = 5' and 'sum_out = 7', showing aggregated in-degree and out-degree totals across the graph." width="100%"}
 
         Computes a single aggregate statistic from the indegree values of all nodes in a directed
         graph. Useful for summarizing the indegree distribution or analyzing filtered node subsets.
@@ -13929,7 +13929,7 @@ class Graph:
         """
         Get aggregate value from outdegree of nodes.
 
-        ![In-degree vs. out-degree](/assets/graphs/algo-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from the left (in-degree = 2) and three accent arrows depart to the right (out-degree = 3). Captions below read 'in = 2' and 'out = 3'." width="100%"}
+        ![Aggregate in/out degree](/assets/graphs/algo-agg-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focal node at center. Two teal arrows arrive from the left, three accent arrows depart to the right. A HUD overlay reads 'sum_in = 5' and 'sum_out = 7', showing aggregated in-degree and out-degree totals across the graph." width="100%"}
 
         Computes a single aggregate statistic from the outdegree values of all nodes in a directed
         graph. Useful for summarizing the outdegree distribution or analyzing filtered node subsets.
@@ -20845,7 +20845,7 @@ class Graph:
         """
         Compute global node connectivity.
 
-        ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
+        ![Graph cohesion](/assets/graphs/algo-cohesion.light.svg){.lightbox fig-alt="A seven-node graph. Two nodes in a faint shaded vertical strip are drawn with dashed outlines, indicating their removal disconnects the graph. Unlike a targeted s-t cut, this is the global minimum. A caption reads 'cohesion = 2'." width="100%"}
 
         Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
         the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
@@ -21088,7 +21088,7 @@ class Graph:
         """
         Get cohesion (minimum node cut size).
 
-        ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
+        ![Graph cohesion](/assets/graphs/algo-cohesion.light.svg){.lightbox fig-alt="A seven-node graph. Two nodes in a faint shaded vertical strip are drawn with dashed outlines, indicating their removal disconnects the graph. Unlike a targeted s-t cut, this is the global minimum. A caption reads 'cohesion = 2'." width="100%"}
 
         The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
         called node connectivity. Only defined for undirected graphs. Returns `0` if already
@@ -22454,7 +22454,7 @@ class Graph:
         """
         Check if a set of edges forms a valid matching.
 
-        ![Matching](/assets/graphs/algo-matching.light.svg){.lightbox fig-alt="An eight-node graph in two rows of four. Three pairwise-disjoint accent-colored edges form a matching: every accent edge picks a distinct pair of nodes, and no two accent edges share an endpoint. The six matched nodes are in the accent color; two unmatched nodes remain in default styling. Additional default edges fill in the surrounding graph structure." width="100%"}
+        ![Matching test](/assets/graphs/algo-is-matching.light.svg){.lightbox fig-alt="A six-node graph with two accent-colored edges that share no endpoint, forming a valid matching. A caption reads 'matching? yes' with a checkmark, indicating the boolean verification succeeded." width="100%"}
 
         A matching is a set of edges where no two edges share a common endpoint (node). This is
         useful for validating matchings or checking matching constraints.
@@ -23076,7 +23076,7 @@ class Graph:
         """
         Check if a set of nodes forms a dominating set.
 
-        ![Dominating set](/assets/graphs/algo-dominating-set.light.svg){.lightbox fig-alt="An eight-node graph with three accent-colored nodes chosen as a dominating set. Every one of the five remaining nodes is adjacent to at least one accent node via an accent-highlighted edge. Two additional default edges between non-set nodes fill in the surrounding structure." width="100%"}
+        ![Dominating set test](/assets/graphs/algo-is-dominating.light.svg){.lightbox fig-alt="A six-node graph with two accent nodes forming a candidate dominating set. Every non-accent node is adjacent to at least one accent node via an accent edge. A caption reads 'dominating? yes' with a checkmark." width="100%"}
 
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
         `D` is adjacent to at least one member of `D`. In other words, every node is either in `D`
