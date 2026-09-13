@@ -4624,7 +4624,7 @@ class Graph:
         r"""
         Check if the graph is regular (all nodes have the same degree).
 
-        ![Complete graph](/assets/graphs/struct-complete.light.svg){.lightbox fig-alt="A complete graph on five nodes: every pair of nodes is joined by an edge, giving ten edges in total." width="100%"}
+        ![Regular graph](/assets/graphs/algo-regular.light.svg){.lightbox fig-alt="A five-node cycle graph in accent where every node has exactly degree 2. A caption reads '2-regular (cycle)', illustrating that a k-regular graph has every vertex with the same degree k." width="100%"}
 
         A graph is regular if every node has the same degree. For directed graphs, this means all
         nodes have the same in-degree and the same out-degree (though in-degree and out-degree don't
@@ -4692,7 +4692,7 @@ class Graph:
         r"""
         Check if the graph is k-regular (all nodes have degree `k`).
 
-        ![Complete graph](/assets/graphs/struct-complete.light.svg){.lightbox fig-alt="A complete graph on five nodes: every pair of nodes is joined by an edge, giving ten edges in total." width="100%"}
+        ![Regular graph](/assets/graphs/algo-regular.light.svg){.lightbox fig-alt="A five-node cycle graph in accent where every node has exactly degree 2. A caption reads '2-regular (cycle)', illustrating that a k-regular graph has every vertex with the same degree k." width="100%"}
 
         A graph is k-regular if every node has degree exactly `k`. For directed graphs, this means
         all nodes have in-degree `k` and out-degree `k`.
@@ -4863,7 +4863,7 @@ class Graph:
         """
         Count mutual node pairs (bidirectional edges) in directed graphs.
 
-        ![Reciprocity](/assets/graphs/algo-reciprocity.light.svg){.lightbox fig-alt="A four-node directed graph. The mutual pairs (A - B and C - D) each carry two accent-colored arrows curved in opposite directions, showing both directions of the reciprocal edge. The asymmetric edges A to C and D to B are drawn as single arrows in default styling." width="100%"}
+        ![Mutual / asymmetric pairs](/assets/graphs/algo-mutual-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two mutual pairs (A-B and C-D) are shown with double accent arrows curved in opposite directions. Two asymmetric edges (A to C, D to B) are single default arrows. A HUD overlay reads 'mutual: 2, asymm: 2'." width="100%"}
 
         Returns the number of node pairs `(a,b)` where both edges `a->b` and `b->a` exist. Only
         works for directed graphs. Self-loops are excluded. This metric is useful for analyzing
@@ -4907,7 +4907,7 @@ class Graph:
         """
         Count asymmetric node pairs (one-way edges) in directed graphs.
 
-        ![Reciprocity](/assets/graphs/algo-reciprocity.light.svg){.lightbox fig-alt="A four-node directed graph. The mutual pairs (A - B and C - D) each carry two accent-colored arrows curved in opposite directions, showing both directions of the reciprocal edge. The asymmetric edges A to C and D to B are drawn as single arrows in default styling." width="100%"}
+        ![Mutual / asymmetric pairs](/assets/graphs/algo-mutual-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two mutual pairs (A-B and C-D) are shown with double accent arrows curved in opposite directions. Two asymmetric edges (A to C, D to B) are single default arrows. A HUD overlay reads 'mutual: 2, asymm: 2'." width="100%"}
 
         Returns the number of node pairs `(a,b)` where edge `a->b` exists but not `b->a`. Only works
         for directed graphs. Self-loops are excluded. This metric helps analyze directional flow or
@@ -6317,7 +6317,7 @@ class Graph:
         """
         Get currently selected edge IDs.
 
-        ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
+        ![Edge selection query](/assets/graphs/algo-selection-edge-query.light.svg){.lightbox fig-alt="A six-node graph with two of seven edges highlighted in accent as selected. A small HUD overlay reads '2 edges', showing the result of querying the current edge selection." width="100%"}
 
         Returns the list of edge IDs that are currently marked as selected. Order is not guaranteed.
 
@@ -6384,7 +6384,7 @@ class Graph:
         """
         Get count of currently selected edges.
 
-        ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
+        ![Edge selection query](/assets/graphs/algo-selection-edge-query.light.svg){.lightbox fig-alt="A six-node graph with two of seven edges highlighted in accent as selected. A small HUD overlay reads '2 edges', showing the result of querying the current edge selection." width="100%"}
 
         Returns the number of edges currently marked as selected. More efficient than
         `len(get_selected_edges())` when you only need the count.
@@ -13145,7 +13145,7 @@ class Graph:
         """
         Extract a subgraph containing the specified edges and their endpoint nodes.
 
-        ![Induced subgraph](/assets/graphs/op-subgraph.light.svg){.lightbox fig-alt="On the left, a six-node graph with three nodes (A, B, D) and the two edges among them highlighted in the accent color. On the right, only that induced subgraph remains: three accent nodes and the two accent edges connecting them." width="100%"}
+        ![Edge-induced subgraph](/assets/graphs/op-edge-subgraph.light.svg){.lightbox fig-alt="On the left, a six-node graph with three edges highlighted in accent. On the right, the edge-induced subgraph: only the three selected edges and their four endpoint nodes remain, all in accent." width="100%"}
 
         Returns a new graph containing only the specified edges and the nodes that are endpoints of
         those edges. This is useful when you want to focus on specific relationships rather than
@@ -13312,7 +13312,7 @@ class Graph:
         """
         Add reverse edges for all selected edges (directed graphs only).
 
-        ![Reverse edges](/assets/graphs/op-reverse.light.svg){.lightbox fig-alt="A directed graph shown before and after reversing all edge directions." width="100%"}
+        ![Reverse selected edges](/assets/graphs/op-reverse-ws.light.svg){.lightbox fig-alt="A before-and-after pair of a four-node directed graph. On the left, two accent edges A→B and C→D are selected. On the right, only those two edges have been reversed (B→A and D→C) while the other edges remain unchanged." width="100%"}
 
         For each selected edge (A->B), adds the reverse edge (B->A) if it doesn't already exist.
         Useful for making directed graphs bidirectional or adding reciprocal relationships.
@@ -13406,7 +13406,7 @@ class Graph:
         """
         Reverse the direction of all selected edges (directed graphs only).
 
-        ![Reverse edges](/assets/graphs/op-reverse.light.svg){.lightbox fig-alt="A directed three-node graph on the left with three arrows; on the right, the same graph with every arrow flipped to point in the opposite direction." width="100%"}
+        ![Reverse selected edges](/assets/graphs/op-reverse-ws.light.svg){.lightbox fig-alt="A before-and-after pair of a four-node directed graph. On the left, two accent edges A→B and C→D are selected. On the right, only those two edges have been reversed (B→A and D→C) while the other edges remain unchanged." width="100%"}
 
         For each selected edge (A->B), changes it to (B->A). Edge IDs and all attributes (including
         weights) are preserved during reversal. Only the direction is changed.
@@ -13799,7 +13799,7 @@ class Graph:
         """
         Calculate average degree across all nodes.
 
-        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+        ![Aggregate degree stats](/assets/graphs/algo-agg-degree.light.svg){.lightbox fig-alt="A five-node, five-edge graph. A HUD overlay in the bottom-right reads 'avg = 2.0' and 'total = 10', showing the average degree and sum of all degrees across the graph." width="100%"}
 
         For directed graphs, this returns the average of (in-degree + out-degree). For undirected
         graphs, each edge contributes to the degree of both endpoints.
@@ -14023,7 +14023,7 @@ class Graph:
         """
         Get aggregate value from total degree of nodes.
 
-        ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
+        ![Aggregate degree stats](/assets/graphs/algo-agg-degree.light.svg){.lightbox fig-alt="A five-node, five-edge graph. A HUD overlay in the bottom-right reads 'avg = 2.0' and 'total = 10', showing the average degree and sum of all degrees across the graph." width="100%"}
 
         Computes a single aggregate statistic from the total degree values of all nodes. Works with
         both directed and undirected graphs. For directed graphs, total degree = indegree +
@@ -14415,7 +14415,7 @@ class Graph:
         """
         Calculate betweenness centrality scores for all nodes.
 
-        ![Bridge edge](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, joined by a single edge shown in the accent color. Removing that bridge edge would disconnect the graph into two components." width="100%"}
+        ![Betweenness centrality](/assets/graphs/algo-betweenness.light.svg){.lightbox fig-alt="A five-node graph where node v sits on every shortest path between the left pair (A, B) and the right pair (C, D). The four accent edges through v show it as the sole bridge, giving it high betweenness centrality. A caption reads 'high betweenness'." width="100%"}
 
         Betweenness centrality measures how often a node appears on the shortest paths between other
         nodes in the graph. Nodes with high betweenness act as bridges or bottlenecks, controlling
@@ -24156,7 +24156,7 @@ class Graph:
         """
         Find pairs of mutual (reciprocal) edges in directed graph.
 
-        ![Reciprocity](/assets/graphs/algo-reciprocity.light.svg){.lightbox fig-alt="A directed graph with several pairs of nodes; some pairs have edges in both directions (mutual, shown in accent) while others have only one-way edges." width="100%"}
+        ![Mutual / asymmetric pairs](/assets/graphs/algo-mutual-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two mutual pairs (A-B and C-D) are shown with double accent arrows curved in opposite directions. Two asymmetric edges (A to C, D to B) are single default arrows. A HUD overlay reads 'mutual: 2, asymm: 2'." width="100%"}
 
         Identifies edge pairs where both A->B and B->A exist, indicating bidirectional
         connections. Only meaningful for directed graphs. Each pair is returned once
