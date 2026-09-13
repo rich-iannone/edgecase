@@ -2861,7 +2861,7 @@ class Graph:
         """
         Get a node object by ID or label.
 
-        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+        ![Node existence query](/assets/graphs/algo-node-query.light.svg){.lightbox fig-alt="Two nodes side by side. Node A is drawn solid in the accent color with a checkmark above it, indicating it exists. Node X is drawn as a dashed outline with an X mark above it, indicating it does not exist. A caption reads 'has_node?'." width="100%"}
 
         Retrieves the `Node` object for the specified node. The `Node` object contains `id`,
         `label`, and attributes properties. Returns `None` if node doesn't exist.
@@ -3508,7 +3508,7 @@ class Graph:
         """
         Check if a node exists in the graph.
 
-        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+        ![Node existence query](/assets/graphs/algo-node-query.light.svg){.lightbox fig-alt="Two nodes side by side. Node A is drawn solid in the accent color with a checkmark above it, indicating it exists. Node X is drawn as a dashed outline with an X mark above it, indicating it does not exist. A caption reads 'has_node?'." width="100%"}
 
         Verifies whether a node (specified by ID or label) exists in the graph. Returns `False` for
         invalid inputs or missing nodes.
@@ -10645,7 +10645,7 @@ class Graph:
         r"""
         Get edge clustering coefficient for specified edges.
 
-        ![Bridge edge](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, joined by a single edge shown in the accent color. Removing that bridge edge would disconnect the graph into two components." width="100%"}
+        ![Edge clustering coefficient](/assets/graphs/algo-edge-clustering.light.svg){.lightbox fig-alt="A five-node graph. The edge A-B is drawn in accent. The triangle A-B-C is shaded with a faint accent fill, showing one triangle that contains the focal edge. Two other nodes D and E provide additional edges but no second triangle through A-B. A caption reads 'edge cc(A,B) = 0.5'." width="100%"}
 
         The edge clustering coefficient measures how "clustered" the neighborhood around an edge is,
         based on k-cycles (cycles of length k) the edge participates in.
@@ -15381,7 +15381,7 @@ class Graph:
         r"""
         Compute average neighbor degree for each node.
 
-        ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two six-node graphs shown side by side, each with two large high-degree hubs and four small low-degree leaves. On the left, an assortative arrangement: the two hubs are connected to each other and the leaves are connected to leaves. On the right, a disassortative arrangement: the hubs are not connected to each other, and every edge runs between a hub and a leaf." width="100%"}
+        ![Average neighbor degree](/assets/graphs/algo-average-neighbor-degree.light.svg){.lightbox fig-alt="A focal node v in accent with three neighbors. Each neighbor has a small label showing its own degree: 3, 2, and 2. A caption at the top reads 'avg neighbor deg = 2.3', showing the mean degree of v's neighbors." width="100%"}
 
         For each node, calculates the average degree of its neighbors. This metric helps analyze
         degree correlations and mixing patterns in networks, indicating whether nodes tend to
@@ -15548,7 +15548,7 @@ class Graph:
         """
         Calculate harmonic centrality scores for all nodes.
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Distance-derived metric](/assets/graphs/algo-distance-metric.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark v's direct neighbors; '2' marks the farthest reachable nodes. A caption reads 'ecc(v) = 2', showing how eccentricity, harmonic centrality, and radiality derive per-node scores from shortest-path distances." width="100%"}
 
         Harmonic centrality is the sum of the reciprocal of shortest path distances from a node to
         all other reachable nodes. For unreachable nodes, the distance is considered infinite, and
@@ -16875,7 +16875,7 @@ class Graph:
         """
         Calculate k-core decomposition (coreness for each node).
 
-        ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+        ![Coreness](/assets/graphs/algo-coreness.light.svg){.lightbox fig-alt="A seven-node graph where each node is labeled with its coreness value. The inner triangle of three nodes (coreness 3) is in accent; two flanking nodes (coreness 2) are in default ink; two peripheral nodes (coreness 1) are muted. A caption reads 'coreness values'." width="100%"}
 
         The k-core is the maximal subgraph where every node has degree >= k. A node's coreness is
         the highest k-value for which it belongs to the k-core. Uses iterative pruning: repeatedly
@@ -17636,7 +17636,7 @@ class Graph:
         """
         Calculate eccentricity for each node in the graph.
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Distance-derived metric](/assets/graphs/algo-distance-metric.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark v's direct neighbors; '2' marks the farthest reachable nodes. A caption reads 'ecc(v) = 2', showing how eccentricity, harmonic centrality, and radiality derive per-node scores from shortest-path distances." width="100%"}
 
         Eccentricity of a node is the maximum distance from that node to any other reachable node in
         the graph. It measures how far a node is from the most distant node it can reach. Returns
@@ -17706,7 +17706,7 @@ class Graph:
         """
         Calculate radiality centrality for each node in the graph.
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Distance-derived metric](/assets/graphs/algo-distance-metric.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark v's direct neighbors; '2' marks the farthest reachable nodes. A caption reads 'ecc(v) = 2', showing how eccentricity, harmonic centrality, and radiality derive per-node scores from shortest-path distances." width="100%"}
 
         Radiality measures how central a node is based on its eccentricity relative to the graph
         diameter. The formula is:
@@ -19914,7 +19914,7 @@ class Graph:
         """
         Count all trails (walks with distinct edges) from source to target.
 
-        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+        ![Trail](/assets/graphs/algo-trail.light.svg){.lightbox fig-alt="A five-node graph with a trail of four edges numbered 1 through 4 in accent, tracing the path A-B-C-E-D. Two additional edges in default styling remain untraversed, showing that a trail need not cover every edge. A caption reads 'trail (4 edges)'." width="100%"}
 
         A *trail* is a walk where all edges are distinct, but nodes may repeat. This is different
         from:
@@ -20052,7 +20052,7 @@ class Graph:
         """
         Enumerate all trails (walks with distinct edges) from source to target.
 
-        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+        ![Trail](/assets/graphs/algo-trail.light.svg){.lightbox fig-alt="A five-node graph with a trail of four edges numbered 1 through 4 in accent, tracing the path A-B-C-E-D. Two additional edges in default styling remain untraversed, showing that a trail need not cover every edge. A caption reads 'trail (4 edges)'." width="100%"}
 
         Returns the actual sequences of nodes for each trail. A trail is a walk where all edges are
         distinct, though nodes may repeat.
@@ -22713,7 +22713,7 @@ class Graph:
         """
         Check if a set of nodes forms an independent set.
 
-        ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
+        ![Independent set test](/assets/graphs/algo-is-independent.light.svg){.lightbox fig-alt="A five-node graph where three accent-colored nodes have no edge between any pair of them — confirming they form a valid independent set. Two default-styled nodes carry the edges. A caption reads 'independent? yes' with a checkmark." width="100%"}
 
         An independent set (also called a stable set) is a set of vertices in a graph where no two
         vertices are adjacent. This method validates whether the given nodes satisfy this property.
