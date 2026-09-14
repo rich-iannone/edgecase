@@ -3508,7 +3508,7 @@ class Graph:
         """
         Check if a node exists in the graph.
 
-        ![Node existence query](/assets/graphs/algo-node-query.light.svg){.lightbox fig-alt="Two nodes side by side. Node A is drawn solid in the accent color with a checkmark above it, indicating it exists. Node X is drawn as a dashed outline with an X mark above it, indicating it does not exist. A caption reads 'has_node?'." width="100%"}
+        ![Node existence check](/assets/graphs/algo-has-node.light.svg){.lightbox fig-alt="A three-node triangle graph on the left, and a single accent node Q on the right with a checkmark above it. A caption reads has_node Q returns True, showing the node exists." width="100%"}
 
         Verifies whether a node (specified by ID or label) exists in the graph. Returns `False` for
         invalid inputs or missing nodes.
@@ -6250,7 +6250,7 @@ class Graph:
         """
         Invert edge selection (select unselected, unselect selected).
 
-        ![Invert selection](/assets/graphs/op-invert-selection.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, two of six nodes are highlighted in accent as selected and four are in default styling. On the right, the selection has been inverted: the four previously unselected nodes are now in accent and the original two have returned to default." width="100%"}
+        ![Invert edge selection](/assets/graphs/algo-invert-edge-selection.light.svg){.lightbox fig-alt="A before-and-after pair of a five-node graph. On the left, two of six edges are highlighted in accent as selected. On the right, the edge selection has been inverted: the four previously unselected edges are now in accent and the original two have returned to default." width="100%"}
 
         Toggles the selection state of all edges: currently selected edges become unselected, and
         unselected edges become selected. Useful for getting the complement of an edge selection.
@@ -12945,7 +12945,7 @@ class Graph:
         """
         Create a subgraph from current selection.
 
-        ![Induced subgraph](/assets/graphs/op-subgraph.light.svg){.lightbox fig-alt="On the left, a six-node graph with three nodes (A, B, D) and the two edges among them highlighted in the accent color. On the right, only that induced subgraph remains: three accent nodes and the two accent edges connecting them." width="100%"}
+        ![Subgraph from selection](/assets/graphs/algo-subgraph-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, a six-node graph with three nodes A, C, E highlighted in accent. On the right, only those three nodes remain with the two edges between them, forming the induced subgraph." width="100%"}
 
         Extracts the currently selected nodes and/or edges into a new Graph object. The behavior
         depends on what's selected:
@@ -13406,7 +13406,7 @@ class Graph:
         """
         Reverse the direction of all selected edges (directed graphs only).
 
-        ![Reverse selected edges](/assets/graphs/op-reverse-ws.light.svg){.lightbox fig-alt="A before-and-after pair of a four-node directed graph. On the left, two accent edges A→B and C→D are selected. On the right, only those two edges have been reversed (B→A and D→C) while the other edges remain unchanged." width="100%"}
+        ![Reverse selected edge direction](/assets/graphs/algo-rev-edge-dir-ws.light.svg){.lightbox fig-alt="A before-and-after pair of a five-node directed graph. On the left, two accent edges A→B and C→D are selected. On the right, only those two edges have been reversed (B→A and D→C) while the other three edges remain unchanged." width="100%"}
 
         For each selected edge (A->B), changes it to (B->A). Edge IDs and all attributes (including
         weights) are preserved during reversal. Only the direction is changed.
@@ -20237,7 +20237,7 @@ class Graph:
         """
         Check if the graph has an Eulerian path but not an Eulerian circuit.
 
-        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+        ![Semi-Eulerian test](/assets/graphs/algo-is-semieulerian.light.svg){.lightbox fig-alt="A five-node graph arranged as a trail. The two endpoints A and E are highlighted in accent with 'odd' labels, indicating they have odd degree. The three inner nodes have even degree. A caption reads 'semi-Eulerian path'." width="100%"}
 
         An Eulerian path is a trail that visits every edge exactly once. A graph is semi-Eulerian if
         it has an Eulerian path but NOT an Eulerian circuit.
@@ -21088,7 +21088,7 @@ class Graph:
         """
         Get cohesion (minimum node cut size).
 
-        ![Graph cohesion](/assets/graphs/algo-cohesion.light.svg){.lightbox fig-alt="A seven-node graph. Two nodes in a faint shaded vertical strip are drawn with dashed outlines, indicating their removal disconnects the graph. Unlike a targeted s-t cut, this is the global minimum. A caption reads 'cohesion = 2'." width="100%"}
+        ![Cohesion metric value](/assets/graphs/algo-cohesion-metric.light.svg){.lightbox fig-alt="A six-node graph with a single cut node in a faint shaded vertical strip drawn with a dashed outline. Removing this one node disconnects the graph into two components. A caption reads 'cohesion = 1'." width="100%"}
 
         The cohesion is the minimum number of nodes whose removal would disconnect the graph. Also
         called node connectivity. Only defined for undirected graphs. Returns `0` if already
@@ -22010,7 +22010,7 @@ class Graph:
         """
         Get all strongly connected components as sets of node IDs.
 
-        ![Strongly connected components](/assets/graphs/algo-count-scc.light.svg){.lightbox fig-alt="A directed graph partitioned into strongly connected components, each highlighted in a distinct style." width="100%"}
+        ![Strongly connected component listing](/assets/graphs/algo-scc-list.light.svg){.lightbox fig-alt="A directed graph partitioned into three strongly connected components. A three-node cycle A-B-C is enclosed in an accent dashed box. A two-node mutual pair D-E is enclosed in a teal dashed box. Singleton F sits in a purple dashed box. A caption reads '3 SCCs listed'." width="100%"}
 
         For directed graphs, a strongly connected component (SCC) is a maximal set of nodes where
         every node is reachable from every other node following directed edges. Uses Kosaraju's
