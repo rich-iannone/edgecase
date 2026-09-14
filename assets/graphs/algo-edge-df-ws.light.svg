@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#ffffff"/>
+<line x1="82.00" y1="60.00" x2="138.00" y2="60.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="182.00" y1="60.00" x2="238.00" y2="60.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="60.00" y1="82.00" x2="60.00" y2="123.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="82.00" y1="145.00" x2="138.00" y2="145.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="182.00" y1="145.00" x2="238.00" y2="145.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="260.00" y1="82.00" x2="260.00" y2="123.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="60" cy="60" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="160" cy="60" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="260" cy="60" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="60" cy="145" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="160" cy="145" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="260" cy="145" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<rect x="195" y="120" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="210.0" y="132.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="700" fill="#1f2328">id</text>
+<rect x="225" y="120" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="240.0" y="132.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="700" fill="#1f2328">src</text>
+<rect x="255" y="120" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="270.0" y="132.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="700" fill="#1f2328">tgt</text>
+<rect x="195" y="144" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="210.0" y="156.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328">1</text>
+<rect x="225" y="144" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="240.0" y="156.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328">1</text>
+<rect x="255" y="144" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="270.0" y="156.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328">2</text>
+<rect x="195" y="168" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="210.0" y="180.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328">4</text>
+<rect x="225" y="168" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="240.0" y="180.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328">4</text>
+<rect x="255" y="168" width="30" height="24" fill="#ffffff" stroke="#1f2328" stroke-width="1" stroke-opacity="0.35"/>
+<text x="270.0" y="180.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328">5</text>
+<line x1="195" y1="144" x2="285" y2="144" stroke="#1f2328" stroke-width="1.5"/>
+</svg>
