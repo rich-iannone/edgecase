@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" width="100%" role="img">
+<rect width="640" height="200" fill="#ffffff"/>
+<line x1="87.00" y1="55.00" x2="113.00" y2="55.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="65.00" y1="77.00" x2="65.00" y2="113.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="135.00" y1="77.00" x2="135.00" y2="113.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="65" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="65" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">A</text>
+<circle cx="135" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="135" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">B</text>
+<circle cx="65" cy="135" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="65" y="135" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">C</text>
+<circle cx="135" cy="135" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="135" y="135" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">D</text>
+<line x1="299.49" y1="71.56" x2="340.51" y2="118.44" stroke="#0e7490" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="355.00" y1="77.00" x2="355.00" y2="113.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="307.00" y1="135.00" x2="333.00" y2="135.00" stroke="#0e7490" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="285" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="285" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">A</text>
+<circle cx="355" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="355" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">B</text>
+<circle cx="285" cy="135" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="285" y="135" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">C</text>
+<circle cx="355" cy="135" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="355" y="135" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">D</text>
+<line x1="527.00" y1="55.00" x2="553.00" y2="55.00" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="505.00" y1="77.00" x2="505.00" y2="113.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="575.00" y1="77.00" x2="575.00" y2="113.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="519.49" y1="71.56" x2="560.51" y2="118.44" stroke="#0e7490" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="527.00" y1="135.00" x2="553.00" y2="135.00" stroke="#0e7490" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="505" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="505" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">A</text>
+<circle cx="575" cy="55" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="575" y="55" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">B</text>
+<circle cx="505" cy="135" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="505" y="135" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">C</text>
+<circle cx="575" cy="135" r="22" fill="#ffffff" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="575" y="135" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#1f2328" fill-opacity="1.0">D</text>
+<text x="212" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="700" fill="#1f2328">∪</text>
+<text x="432" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="700" fill="#1f2328">=</text>
+<text x="105" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">G₁</text>
+<text x="325" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">G₂</text>
+<text x="545" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">compose(G₁, G₂)</text>
+</svg>
