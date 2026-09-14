@@ -1128,6 +1128,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
 ```
 
+## `algo-jaccard` — Jaccard similarity
+
+<img src="algo-jaccard.light.svg" alt="Two focal nodes u and v in accent share one common neighbor at the top. Node u has two unique neighbors; node v has one. A caption reads Jaccard(u,v) = 1/3 = 0.33." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Jaccard similarity](/assets/graphs/algo-jaccard.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent share one common neighbor at the top. Node u has two unique neighbors; node v has one. A caption reads Jaccard(u,v) = 1/3 = 0.33." width="100%"}
+```
+
 ## `algo-cosine-similarity` — Cosine similarity
 
 <img src="algo-cosine-similarity.light.svg" alt="Two focal nodes u and v in accent, sharing two common neighbors in accent_lite. Each focal node also has one unique neighbor. A caption reads 'cosine = 0.67'." width="480">
@@ -1236,6 +1246,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+```
+
+## `algo-k-corona` — k-corona
+
+<img src="algo-k-corona.light.svg" alt="On the left, a six-node graph: a triangle with three pendant leaves. On the right, the 2-corona: the three triangle nodes highlighted in accent (each has exactly 2 neighbors in the 2-core), while the leaves are muted." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![k-corona](/assets/graphs/algo-k-corona.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves. On the right, the 2-corona: the three triangle nodes highlighted in accent (each has exactly 2 neighbors in the 2-core), while the leaves are muted." width="100%"}
 ```
 
 ## `algo-k-crust` — k-crust
@@ -1348,6 +1368,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Mutual / asymmetric pairs](/assets/graphs/algo-mutual-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two mutual pairs (A-B and C-D) are shown with double accent arrows curved in opposite directions. Two asymmetric edges (A to C, D to B) are single default arrows. A HUD overlay reads 'mutual: 2, asymm: 2'." width="100%"}
 ```
 
+## `algo-which-mutual` — List mutual edge pairs
+
+<img src="algo-which-mutual.light.svg" alt="A five-node directed graph. Nodes A-B and C-D each have mutual accent arrows. Edges A→C and D→E are single default arrows. A caption lists the mutual pairs." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![List mutual edge pairs](/assets/graphs/algo-which-mutual.light.svg){.lightbox fig-alt="A five-node directed graph. Nodes A-B and C-D each have mutual accent arrows. Edges A→C and D→E are single default arrows. A caption lists the mutual pairs." width="100%"}
+```
+
 ## `algo-asymmetric-pairs` — Asymmetric node pairs
 
 <img src="algo-asymmetric-pairs.light.svg" alt="A four-node directed graph. Two accent one-way edges (A→B and C→D) highlight the asymmetric pairs, while a reciprocal edge B→A shows a mutual pair for contrast. A HUD overlay reads 'asymm = 2'." width="480">
@@ -1446,6 +1476,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+```
+
+## `algo-label-from-id` — Label from node ID
+
+<img src="algo-label-from-id.light.svg" alt="Two nodes side by side. The left node displays label 'alice' in accent with a caption 'id=7 → alice' above it, showing a successful ID-to-label lookup. The right node displays 'bob' in default styling." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Label from node ID](/assets/graphs/algo-label-from-id.light.svg){.lightbox fig-alt="Two nodes side by side. The left node displays label 'alice' in accent with a caption 'id=7 → alice' above it, showing a successful ID-to-label lookup. The right node displays 'bob' in default styling." width="100%"}
 ```
 
 ## `algo-node-id-lookup` — Node ID lookup
@@ -1728,6 +1768,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
 ```
 
+## `algo-min-edge-cut` — Minimum edge cut between s and t
+
+<img src="algo-min-edge-cut.light.svg" alt="A six-node graph with source s and target t. Two faint background regions shade each side. Three accent edges crossing between the halves form the minimum edge cut. A caption reads 'edge cut(s, t) = 3'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Minimum edge cut between s and t](/assets/graphs/algo-min-edge-cut.light.svg){.lightbox fig-alt="A six-node graph with source s and target t. Two faint background regions shade each side. Three accent edges crossing between the halves form the minimum edge cut. A caption reads 'edge cut(s, t) = 3'." width="100%"}
+```
+
 ## `algo-node-cut` — Minimum node cut
 
 <img src="algo-node-cut.light.svg" alt="An eight-node graph with source s and target t on opposite sides. Two nodes in a faintly shaded vertical strip in the middle are drawn with dashed outlines, indicating their removal disconnects s from t. A caption reads 'node cut = 2'." width="480">
@@ -1736,6 +1786,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Minimum node cut](/assets/graphs/algo-node-cut.light.svg){.lightbox fig-alt="An eight-node graph with source s and target t on opposite sides. Two nodes in a faintly shaded vertical strip in the middle are drawn with dashed outlines, indicating their removal disconnects s from t. A caption reads 'node cut = 2'." width="100%"}
+```
+
+## `algo-min-node-cut` — Minimum node cut between s and t
+
+<img src="algo-min-node-cut.light.svg" alt="An eight-node graph with source s and target t. Two nodes in a shaded strip are drawn with dashed outlines; removing them disconnects s from t. A caption reads 'min node cut(s, t) = 2'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Minimum node cut between s and t](/assets/graphs/algo-min-node-cut.light.svg){.lightbox fig-alt="An eight-node graph with source s and target t. Two nodes in a shaded strip are drawn with dashed outlines; removing them disconnects s from t. A caption reads 'min node cut(s, t) = 2'." width="100%"}
 ```
 
 ## `algo-connectivity` — Edge / node connectivity
@@ -1816,6 +1876,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Matching](/assets/graphs/algo-matching.light.svg){.lightbox fig-alt="An eight-node graph in two rows of four. Three pairwise-disjoint accent-colored edges form a matching: every accent edge picks a distinct pair of nodes, and no two accent edges share an endpoint. The six matched nodes are in the accent color; two unmatched nodes remain in default styling. Additional default edges fill in the surrounding graph structure." width="100%"}
+```
+
+## `algo-max-weight-matching` — Maximum weight matching
+
+<img src="algo-max-weight-matching.light.svg" alt="A six-node graph with weighted edges. Two accent edges with weights 8 and 5 form the maximum weight matching, totaling 13. Four matched nodes are in accent. A caption reads 'max weight = 13'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Maximum weight matching](/assets/graphs/algo-max-weight-matching.light.svg){.lightbox fig-alt="A six-node graph with weighted edges. Two accent edges with weights 8 and 5 form the maximum weight matching, totaling 13. Four matched nodes are in accent. A caption reads 'max weight = 13'." width="100%"}
 ```
 
 ## `algo-is-matching` — Matching test
