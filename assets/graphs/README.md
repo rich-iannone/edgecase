@@ -58,6 +58,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Delete edge](/assets/graphs/op-delete-edge.light.svg){.lightbox fig-alt="A graph loses one edge. The doomed edge is highlighted in the accent color before removal; every node remains in place afterward." width="100%"}
 ```
 
+## `algo-delete-edge-by-id` — Delete edge by ID
+
+<img src="algo-delete-edge-by-id.light.svg" alt="A before-and-after pair. On the left, a triangle with three edges labeled e1, e2, e3; edge e2 is highlighted in accent. On the right, edge e2 has been removed by its ID, leaving only e1 and e3." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Delete edge by ID](/assets/graphs/algo-delete-edge-by-id.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, a triangle with three edges labeled e1, e2, e3; edge e2 is highlighted in accent. On the right, edge e2 has been removed by its ID, leaving only e1 and e3." width="100%"}
+```
+
 ## `op-delete-edges-ws` — Delete edges from selection
 
 <img src="op-delete-edges-ws.light.svg" alt="A before-and-after pair. On the left, a four-node graph with two accent edges selected. On the right, those two edges have been removed while the rest of the graph is unchanged." width="480">
@@ -76,6 +86,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Contract nodes](/assets/graphs/op-contract-nodes.light.svg){.lightbox fig-alt="Two nodes merge into one. Node C is absorbed into node B, which keeps its label; C's incident edges are rerouted to B, and duplicate edges collapse." width="100%"}
+```
+
+## `algo-contract-multi` — Multi-node contraction
+
+<img src="algo-contract-multi.light.svg" alt="A before-and-after pair. On the left, a five-node graph with three nodes B, C, D highlighted in accent. On the right, those three have been contracted into a single node B, with edges rerouted to the surviving node." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Multi-node contraction](/assets/graphs/algo-contract-multi.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, a five-node graph with three nodes B, C, D highlighted in accent. On the right, those three have been contracted into a single node B, with edges rerouted to the surviving node." width="100%"}
 ```
 
 ## `algo-contracted-edge` — Contracted edge
@@ -608,6 +628,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Random graph](/assets/graphs/struct-random.light.svg){.lightbox fig-alt="An eight-node Erdos-Renyi-style random graph. Nodes are scattered irregularly around the frame and connected by eight edges chosen without any discernible pattern, some nodes ending up with more connections than others." width="100%"}
 ```
 
+## `algo-gnm-random` — G(n,m) random graph
+
+<img src="algo-gnm-random.light.svg" alt="An eight-node random graph with exactly six edges placed randomly among the nodes. A caption at the top reads G(8, 6) indicating 8 nodes and 6 edges." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![G(n,m) random graph](/assets/graphs/algo-gnm-random.light.svg){.lightbox fig-alt="An eight-node random graph with exactly six edges placed randomly among the nodes. A caption at the top reads G(8, 6) indicating 8 nodes and 6 edges." width="100%"}
+```
+
 ## `struct-grid` — 2D grid
 
 <img src="struct-grid.light.svg" alt="A three-by-three lattice: nine nodes on a regular grid, connected by twelve edges that run only horizontally between adjacent nodes in a row or vertically between adjacent nodes in a column." width="480">
@@ -898,6 +928,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Edge workflow](/assets/graphs/algo-ws-edges.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six edges are highlighted in accent as the current edge selection. On the right, those same three edges have changed to a teal tint, showing that an attribute mutation was applied to the selected edges while the rest of the graph is unchanged." width="100%"}
 ```
 
+## `algo-mutate-edge-ws` — Mutate edge attributes
+
+<img src="algo-mutate-edge-ws.light.svg" alt="A before-and-after pair. On the left, three of six edges are highlighted in accent with weights 2, 5, and 3. On the right, those same edges are teal with doubled weights 4, 10, and 6, showing the mutation function was applied." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Mutate edge attributes](/assets/graphs/algo-mutate-edge-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six edges are highlighted in accent with weights 2, 5, and 3. On the right, those same edges are teal with doubled weights 4, 10, and 6, showing the mutation function was applied." width="100%"}
+```
+
 ## `algo-edge-df-ws` — Selected edges DataFrame
 
 <img src="algo-edge-df-ws.light.svg" alt="A six-node graph with two edges highlighted in accent as the current edge selection. A small table on the right lists the selected edges' IDs, sources, and targets." width="480">
@@ -1016,6 +1056,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Triadic closure](/assets/graphs/algo-transitivity.light.svg){.lightbox fig-alt="On the left, an open triple: node A is connected to B and to C, but B and C are not connected. On the right, the same three nodes with the closing edge between B and C added in accent, forming a triangle." width="100%"}
+```
+
+## `algo-avg-clustering` — Average clustering coefficient
+
+<img src="algo-avg-clustering.light.svg" alt="A seven-node graph with two triangles sharing an edge and a pendant node. Varying local clustering across nodes averages to approximately 0.56, shown in a caption." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Average clustering coefficient](/assets/graphs/algo-avg-clustering.light.svg){.lightbox fig-alt="A seven-node graph with two triangles sharing an edge and a pendant node. Varying local clustering across nodes averages to approximately 0.56, shown in a caption." width="100%"}
 ```
 
 ## `algo-ego-network` — Ego network
@@ -1858,6 +1908,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Trail](/assets/graphs/algo-trail.light.svg){.lightbox fig-alt="A five-node graph with a trail of four edges numbered 1 through 4 in accent, tracing the path A-B-C-E-D. Two additional edges in default styling remain untraversed, showing that a trail need not cover every edge. A caption reads 'trail (4 edges)'." width="100%"}
 ```
 
+## `algo-enumerate-trails` — Enumerate trails
+
+<img src="algo-enumerate-trails.light.svg" alt="A five-node graph with one trail A-B-C-D numbered 1-2-3 in accent. A second trail A-E-C-D exists via the default edges. A caption reads '2 trails A to D'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Enumerate trails](/assets/graphs/algo-enumerate-trails.light.svg){.lightbox fig-alt="A five-node graph with one trail A-B-C-D numbered 1-2-3 in accent. A second trail A-E-C-D exists via the default edges. A caption reads '2 trails A to D'." width="100%"}
+```
+
 ## `algo-walk-count` — Walk count
 
 <img src="algo-walk-count.light.svg" alt="A three-node graph where a walk of length 3 is traced: A to B (step 1), B to C (step 2), C back to B (step 3). The return edge is drawn with a curve to show it reuses the B-C connection. A caption reads 'walk of length 3'." width="480">
@@ -1996,6 +2056,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Adjacency spectrum](/assets/graphs/algo-spectrum.light.svg){.lightbox fig-alt="A horizontal number line with tick marks for the five eigenvalues of a small graph's adjacency matrix, placed at -1.6, -0.8, 0, 0.8, and 2.4. The largest eigenvalue (rightmost) is highlighted with a taller accent-colored tick; a caption below labels it as the spectral radius." width="100%"}
+```
+
+## `algo-estrada-index` — Estrada index
+
+<img src="algo-estrada-index.light.svg" alt="A horizontal number line with four eigenvalue ticks at -1.5, -0.5, 0.5, and 1.5. Above each tick a bar rises proportional to exp of that eigenvalue; the rightmost bar is tallest and drawn in accent. A caption reads the Estrada index sum." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Estrada index](/assets/graphs/algo-estrada-index.light.svg){.lightbox fig-alt="A horizontal number line with four eigenvalue ticks at -1.5, -0.5, 0.5, and 1.5. Above each tick a bar rises proportional to exp of that eigenvalue; the rightmost bar is tallest and drawn in accent. A caption reads the Estrada index sum." width="100%"}
 ```
 
 ## `algo-resistance-distance` — Resistance distance
