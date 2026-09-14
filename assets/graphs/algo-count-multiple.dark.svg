@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#0d1117"/>
+<path d="M 60 100 Q 110.00 118.00 160 100" fill="none" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<path d="M 60 100 Q 110.00 82.00 160 100" fill="none" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<path d="M 160 100 Q 210.00 120.00 260 100" fill="none" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="182.00" y1="100.00" x2="238.00" y2="100.00" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<path d="M 160 100 Q 210.00 80.00 260 100" fill="none" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="60" cy="100" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="60" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e6edf3" fill-opacity="1.0">A</text>
+<circle cx="160" cy="100" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="160" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e6edf3" fill-opacity="1.0">B</text>
+<circle cx="260" cy="100" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="260" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#e6edf3" fill-opacity="1.0">C</text>
+<text x="160" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#e6edf3" fill-opacity="0.7">(A,B):2  (B,C):3</text>
+</svg>
