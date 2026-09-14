@@ -4692,7 +4692,7 @@ class Graph:
         r"""
         Check if the graph is k-regular (all nodes have degree `k`).
 
-        ![Regular graph](/assets/graphs/algo-regular.light.svg){.lightbox fig-alt="A five-node cycle graph in accent where every node has exactly degree 2. A caption reads '2-regular (cycle)', illustrating that a k-regular graph has every vertex with the same degree k." width="100%"}
+        ![k-regular test](/assets/graphs/algo-is-k-regular.light.svg){.lightbox fig-alt="A four-node complete graph K4 with all nodes and edges in accent. Every node has degree 3. A caption asks '3-regular (K4)?' with a checkmark confirming yes." width="100%"}
 
         A graph is k-regular if every node has degree exactly `k`. For directed graphs, this means
         all nodes have in-degree `k` and out-degree `k`.
@@ -5111,7 +5111,7 @@ class Graph:
         """
         Get direct successors of a node (outgoing neighbors).
 
-        ![Predecessors and successors](/assets/graphs/algo-predecessors-successors.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from predecessor nodes on the left; two accent arrows depart toward successor nodes on the right. Captions read 'predecessors' and 'successors'." width="100%"}
+        ![Successor nodes](/assets/graphs/algo-successors.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two accent arrows depart toward successor nodes on the right. Two muted arrows arrive from predecessor nodes on the left. A caption reads 'successors (out-neighbors)'." width="100%"}
 
         Returns nodes that are targets of outgoing edges from the specified node. Only available for
         directed graphs.
@@ -5559,7 +5559,7 @@ class Graph:
         """
         Select nodes by their IDs.
 
-        ![Selection](/assets/graphs/algo-selection.light.svg){.lightbox fig-alt="A six-node graph with three nodes marked as selected in the accent color; the remaining three nodes are shown with default styling." width="100%"}
+        ![Select nodes by ID](/assets/graphs/algo-select-nodes-by-id.light.svg){.lightbox fig-alt="A six-node graph with nodes labeled 1 through 6. Nodes 2, 4, and 6 are highlighted in accent, selected by their IDs. A caption reads select_nodes_by_id([2, 4, 6])." width="100%"}
 
         Marks specified nodes as selected for subsequent operations like building subgraphs or
         filtering. Selection is cumulative unless cleared first.
@@ -5611,7 +5611,7 @@ class Graph:
         """
         Select edges by their IDs.
 
-        ![Edge selection](/assets/graphs/algo-select-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges drawn in the accent color, indicating they are part of the current edge selection. All nodes remain in default styling, emphasizing that this operation targets edges, not nodes." width="100%"}
+        ![Select edges by ID](/assets/graphs/algo-select-edges-by-id.light.svg){.lightbox fig-alt="A six-node graph with two of seven edges highlighted in accent, selected by their IDs. A caption reads select_edges_by_id([2, 5])." width="100%"}
 
         Marks specified edges as selected for subsequent operations. Edge IDs are internal integer
         identifiers assigned when edges are created. Selection is cumulative unless cleared first.
@@ -5773,7 +5773,7 @@ class Graph:
         """
         Select the last N edges that were created.
 
-        ![Select last created](/assets/graphs/algo-select-last-created.light.svg){.lightbox fig-alt="A five-node graph where each node is labeled with its creation order (1 through 5). The two most recently created nodes (4 and 5) and their incident edges are highlighted in accent. A caption reads 'last 2 created'." width="100%"}
+        ![Select last edges created](/assets/graphs/algo-select-last-edges.light.svg){.lightbox fig-alt="A five-node graph with edges labeled e1 through e5. The two most recently created edges e4 and e5 are highlighted in accent. A caption reads 'last 2 edges created'." width="100%"}
 
         Selects edges in reverse chronological order based on creation time. Useful for incremental
         graph building workflows where you want to work with recently added edges.
@@ -5981,7 +5981,7 @@ class Graph:
         """
         Select top-K nodes by centrality measure.
 
-        ![Select by graph property](/assets/graphs/algo-select-by-property.light.svg){.lightbox fig-alt="A six-node graph where node radii scale with degree. The two highest-degree nodes are selected in accent; the remaining four are in default styling. A caption reads 'degree >= 3', illustrating criterion-based selection." width="100%"}
+        ![Select by centrality](/assets/graphs/algo-select-by-centrality.light.svg){.lightbox fig-alt="A six-node graph where node radii scale with centrality. The two highest-centrality nodes are selected in accent; the remaining four are in default styling. A caption reads 'top-2 by centrality'." width="100%"}
 
         Computes centrality scores for all nodes and selects the k highest-scoring nodes. Useful for
         identifying the most important or influential nodes by various centrality metrics.
@@ -25287,7 +25287,7 @@ class Graph:
         r"""
         Calculate the resistance distance matrix for all node pairs.
 
-        ![Resistance distance](/assets/graphs/algo-resistance-distance.light.svg){.lightbox fig-alt="Two focal nodes A and B on the sides of the frame connected by two parallel two-hop paths, one through node C above and one through node D below. Every edge is drawn as a zigzag resistor symbol to make the electrical analogy explicit. A small overlay in the center reports the resulting effective resistance R(A, B) = 1, obtained by combining the two series paths in parallel." width="100%"}
+        ![Resistance distance matrix](/assets/graphs/algo-resistance-matrix.light.svg){.lightbox fig-alt="A four-node square graph with edges connecting A-B, B-C, C-D, and D-A. A HUD overlay reads 'R matrix: 4x4', indicating the full pairwise resistance distance matrix." width="100%"}
 
         Returns a dictionary mapping (source_id, target_id) tuples to their resistance distances.
         The matrix is symmetric with zeros on the diagonal.
