@@ -308,6 +308,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Simple cycles](/assets/graphs/algo-simple-cycles.light.svg){.lightbox fig-alt="A five-node graph containing two simple cycles. Nodes A, B, and C form a triangle highlighted in accent. Nodes B, E, and C form a second cycle in a lighter accent tint. A caption below reads 2 simple cycles." width="100%"}
 ```
 
+## `algo-simple-cycles-enum` — Enumerate simple cycles
+
+<img src="algo-simple-cycles-enum.light.svg" alt="A five-node graph with two simple cycles enumerated. Triangle A-B-C is highlighted in accent and labeled 1. Triangle B-E-C is highlighted in lighter accent and labeled 2. A caption lists both cycles." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Enumerate simple cycles](/assets/graphs/algo-simple-cycles-enum.light.svg){.lightbox fig-alt="A five-node graph with two simple cycles enumerated. Triangle A-B-C is highlighted in accent and labeled 1. Triangle B-E-C is highlighted in lighter accent and labeled 2. A caption lists both cycles." width="100%"}
+```
+
 ## `struct-complete` — Complete graph
 
 <img src="struct-complete.light.svg" alt="A complete graph on five nodes: every pair of nodes is joined by an edge, giving ten edges in total." width="480">
@@ -558,6 +568,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Self-loop count](/assets/graphs/algo-self-loop-query.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A small overlay reads 'loops = 2', illustrating methods that count or identify self-loops." width="100%"}
 ```
 
+## `algo-count-loops` — Count self-loops per node
+
+<img src="algo-count-loops.light.svg" alt="A four-node graph where node A has one self-loop and node C has two self-loops, all drawn in accent. A HUD overlay reads A: 1, C: 2, showing per-node loop counts." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Count self-loops per node](/assets/graphs/algo-count-loops.light.svg){.lightbox fig-alt="A four-node graph where node A has one self-loop and node C has two self-loops, all drawn in accent. A HUD overlay reads A: 1, C: 2, showing per-node loop counts." width="100%"}
+```
+
 ## `algo-loop-count` — Self-loop count (total)
 
 <img src="algo-loop-count.light.svg" alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A HUD overlay reads 'total = 2', showing the aggregate count of all self-loops in the graph." width="480">
@@ -708,6 +728,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
 ```
 
+## `algo-path-improve` — Compute or improve path
+
+<img src="algo-path-improve.light.svg" alt="A five-node graph with source S and target T. The optimal two-hop path S-B-T is highlighted in accent. Alternative routes through A and C are in default styling. A caption reads epsilon equals 1.0, optimal path." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Compute or improve path](/assets/graphs/algo-path-improve.light.svg){.lightbox fig-alt="A five-node graph with source S and target T. The optimal two-hop path S-B-T is highlighted in accent. Alternative routes through A and C are in default styling. A caption reads epsilon equals 1.0, optimal path." width="100%"}
+```
+
 ## `algo-distance-metric` — Distance-derived metric
 
 <img src="algo-distance-metric.light.svg" alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark v's direct neighbors; '2' marks the farthest reachable nodes. A caption reads 'ecc(v) = 2', showing how eccentricity, harmonic centrality, and radiality derive per-node scores from shortest-path distances." width="480">
@@ -828,6 +858,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
 ```
 
+## `algo-count-selected-nodes` — Count selected nodes
+
+<img src="algo-count-selected-nodes.light.svg" alt="A six-node graph with three nodes highlighted in accent. A HUD overlay reads 'count = 3', showing the result of counting the selected nodes." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Count selected nodes](/assets/graphs/algo-count-selected-nodes.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent. A HUD overlay reads 'count = 3', showing the result of counting the selected nodes." width="100%"}
+```
+
 ## `algo-selection-edge-query` — Edge selection query
 
 <img src="algo-selection-edge-query.light.svg" alt="A six-node graph with two of seven edges highlighted in accent as selected. A small HUD overlay reads '2 edges', showing the result of querying the current edge selection." width="480">
@@ -836,6 +876,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Edge selection query](/assets/graphs/algo-selection-edge-query.light.svg){.lightbox fig-alt="A six-node graph with two of seven edges highlighted in accent as selected. A small HUD overlay reads '2 edges', showing the result of querying the current edge selection." width="100%"}
+```
+
+## `algo-count-selected-edges` — Count selected edges
+
+<img src="algo-count-selected-edges.light.svg" alt="A six-node graph with three of seven edges highlighted in accent. A HUD overlay reads 'count = 3', showing the result of counting the selected edges." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Count selected edges](/assets/graphs/algo-count-selected-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges highlighted in accent. A HUD overlay reads 'count = 3', showing the result of counting the selected edges." width="100%"}
 ```
 
 ## `algo-select-last-created` — Select last created
@@ -906,6 +956,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
+```
+
+## `algo-mutate-node-ws` — Mutate node attributes
+
+<img src="algo-mutate-node-ws.light.svg" alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent with values 5, 8, and 7. On the right, those same nodes are teal with doubled values 10, 16, and 14, showing the mutation function was applied." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Mutate node attributes](/assets/graphs/algo-mutate-node-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent with values 5, 8, and 7. On the right, those same nodes are teal with doubled values 10, 16, and 14, showing the mutation function was applied." width="100%"}
 ```
 
 ## `algo-node-df-ws` — Selected nodes DataFrame
@@ -1486,6 +1546,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Set algebra on graphs](/assets/graphs/algo-set-algebra.light.svg){.lightbox fig-alt="Three panels illustrating the union of two graphs on the same four nodes. On the left, G1 has three edges, two of which (drawn in the accent color) are unique to it. In the middle, G2 has three edges, two of which (drawn in teal) are unique to it, plus one shared edge in default ink. On the right, the union graph carries every edge from either source: the two accent edges from G1, the two teal edges from G2, and the shared ink edge." width="100%"}
+```
+
+## `algo-compose` — Graph composition
+
+<img src="algo-compose.light.svg" alt="Three panels showing graph composition. On the left, G1 has three edges with one in accent. In the middle, G2 has three edges with two in teal. On the right, the composed graph has all five edges; G2 attributes take precedence." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Graph composition](/assets/graphs/algo-compose.light.svg){.lightbox fig-alt="Three panels showing graph composition. On the left, G1 has three edges with one in accent. In the middle, G2 has three edges with two in teal. On the right, the composed graph has all five edges; G2 attributes take precedence." width="100%"}
 ```
 
 ## `op-intersection` — Graph intersection
