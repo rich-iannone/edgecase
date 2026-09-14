@@ -28,6 +28,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Delete node](/assets/graphs/op-delete-node.light.svg){.lightbox fig-alt="A graph loses one node and its incident edge. The doomed node and edge are highlighted in the accent color before removal." width="100%"}
 ```
 
+## `algo-delete-nodes-ws` — Delete nodes (working selection)
+
+<img src="algo-delete-nodes-ws.light.svg" alt="Before: six nodes with two selected in accent along with their incident edges. After: the two selected nodes and their edges are removed, leaving four nodes." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Delete nodes (working selection)](/assets/graphs/algo-delete-nodes-ws.light.svg){.lightbox fig-alt="Before: six nodes with two selected in accent along with their incident edges. After: the two selected nodes and their edges are removed, leaving four nodes." width="100%"}
+```
+
 ## `op-add-edge` — Add edge
 
 <img src="op-add-edge.light.svg" alt="A graph gains one edge between two existing nodes. The new edge is shown in the accent color." width="480">
@@ -68,6 +78,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Contract nodes](/assets/graphs/op-contract-nodes.light.svg){.lightbox fig-alt="Two nodes merge into one. Node C is absorbed into node B, which keeps its label; C's incident edges are rerouted to B, and duplicate edges collapse." width="100%"}
 ```
 
+## `algo-contracted-edge` — Contracted edge
+
+<img src="algo-contracted-edge.light.svg" alt="Before: four nodes with accent edge B–C highlighted. After: C is merged into B; duplicate edges collapse. The result has three nodes." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Contracted edge](/assets/graphs/algo-contracted-edge.light.svg){.lightbox fig-alt="Before: four nodes with accent edge B–C highlighted. After: C is merged into B; duplicate edges collapse. The result has three nodes." width="100%"}
+```
+
 ## `op-simplify` — Simplify
 
 <img src="op-simplify.light.svg" alt="On the left, a three-node graph with a duplicate parallel edge between A and B and a self-loop on B, both highlighted in the accent color. On the right, the same graph after simplify(): the duplicate edge and the self-loop are gone, leaving a simple path A - B - C." width="480">
@@ -76,6 +96,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Simplify](/assets/graphs/op-simplify.light.svg){.lightbox fig-alt="On the left, a three-node graph with a duplicate parallel edge between A and B and a self-loop on B, both highlighted in the accent color. On the right, the same graph after simplify(): the duplicate edge and the self-loop are gone, leaving a simple path A - B - C." width="100%"}
+```
+
+## `algo-is-simple` — Simple graph test
+
+<img src="algo-is-simple.light.svg" alt="A three-node path graph A–B–C with no self-loops or parallel edges. A caption reads 'simple? yes' with a checkmark." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Simple graph test](/assets/graphs/algo-is-simple.light.svg){.lightbox fig-alt="A three-node path graph A–B–C with no self-loops or parallel edges. A caption reads 'simple? yes' with a checkmark." width="100%"}
 ```
 
 ## `op-reverse` — Reverse edges
@@ -278,6 +308,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Triangle](/assets/graphs/struct-triangle.light.svg){.lightbox fig-alt="A four-node graph in which the triangle formed by nodes A, B, and C is highlighted in the accent color; a fourth node D connects to B and C in default styling." width="100%"}
 ```
 
+## `algo-list-triangles` — List triangles
+
+<img src="algo-list-triangles.light.svg" alt="A four-node graph with one triangle A–B–C highlighted in accent. An extra node D connects to B and C but does not form a second triangle. A caption reads '△ = {(A, B, C)}'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![List triangles](/assets/graphs/algo-list-triangles.light.svg){.lightbox fig-alt="A four-node graph with one triangle A–B–C highlighted in accent. An extra node D connects to B and C but does not form a second triangle. A caption reads '△ = {(A, B, C)}'." width="100%"}
+```
+
 ## `struct-components` — Connected components
 
 <img src="struct-components.light.svg" alt="A graph containing three disjoint connected components: a triangle on the left, a two-node edge in the upper right, and a single isolated node in the lower right." width="480">
@@ -288,6 +328,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Connected components](/assets/graphs/struct-components.light.svg){.lightbox fig-alt="A graph containing three disjoint connected components: a triangle on the left, a two-node edge in the upper right, and a single isolated node in the lower right." width="100%"}
 ```
 
+## `algo-is-connected` — Connectivity test
+
+<img src="algo-is-connected.light.svg" alt="A four-node graph: three accent nodes form a connected triangle, while a fourth node sits isolated. A caption reads 'connected? no' with an X mark." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Connectivity test](/assets/graphs/algo-is-connected.light.svg){.lightbox fig-alt="A four-node graph: three accent nodes form a connected triangle, while a fourth node sits isolated. A caption reads 'connected? no' with an X mark." width="100%"}
+```
+
 ## `algo-count-wcc` — Count weakly connected components
 
 <img src="algo-count-wcc.light.svg" alt="A graph with three disjoint components, each tinted differently: a triangle in the accent color, a two-node edge in a lighter accent tint, and a single isolated node in muted ink. A caption below reads WCC count = 3." width="480">
@@ -296,6 +346,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Count weakly connected components](/assets/graphs/algo-count-wcc.light.svg){.lightbox fig-alt="A graph with three disjoint components, each tinted differently: a triangle in the accent color, a two-node edge in a lighter accent tint, and a single isolated node in muted ink. A caption below reads WCC count = 3." width="100%"}
+```
+
+## `algo-wcc-list` — Weakly connected components list
+
+<img src="algo-wcc-list.light.svg" alt="A six-node graph with three components: a triangle in accent, a pair in teal, and an isolate in violet. A caption reads '3 components'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Weakly connected components list](/assets/graphs/algo-wcc-list.light.svg){.lightbox fig-alt="A six-node graph with three components: a triangle in accent, a pair in teal, and an isolate in violet. A caption reads '3 components'." width="100%"}
 ```
 
 ## `algo-is-weakly-connected` — Weakly connected test
@@ -356,6 +416,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Bridge edge](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="Two triangular clusters of three nodes each, joined by a single edge shown in the accent color. Removing that bridge edge would disconnect the graph into two components." width="100%"}
+```
+
+## `algo-has-bridges` — Bridge existence test
+
+<img src="algo-has-bridges.light.svg" alt="A six-node graph with two triangular clusters connected by a single accent bridge edge. A caption reads 'has bridges? yes' with a checkmark." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Bridge existence test](/assets/graphs/algo-has-bridges.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters connected by a single accent bridge edge. A caption reads 'has bridges? yes' with a checkmark." width="100%"}
 ```
 
 ## `algo-betweenness` — Betweenness centrality
@@ -438,6 +508,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Self-loop count](/assets/graphs/algo-self-loop-query.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A small overlay reads 'loops = 2', illustrating methods that count or identify self-loops." width="100%"}
 ```
 
+## `algo-loop-count` — Self-loop count (total)
+
+<img src="algo-loop-count.light.svg" alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A HUD overlay reads 'total = 2', showing the aggregate count of all self-loops in the graph." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Self-loop count (total)](/assets/graphs/algo-loop-count.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A HUD overlay reads 'total = 2', showing the aggregate count of all self-loops in the graph." width="100%"}
+```
+
 ## `struct-multigraph` — Multi-edge
 
 <img src="struct-multigraph.light.svg" alt="A multigraph: two nodes A and B are connected by two parallel edges (highlighted in the accent color, drawn as curves bowing in opposite directions), while a third node C connects to B with a single default-styled edge." width="480">
@@ -456,6 +536,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Count multi-edges](/assets/graphs/algo-count-multi-edges.light.svg){.lightbox fig-alt="A multigraph with three nodes. Nodes A and B are connected by two parallel edges drawn as accent-colored curves bowing in opposite directions, while B and C share a single default edge. A caption below reads multi-edge count = 1, counting the one duplicate edge beyond the first between A and B." width="100%"}
+```
+
+## `algo-count-multiple` — Count multiple per pair
+
+<img src="algo-count-multiple.light.svg" alt="A three-node multigraph: A-B has two parallel accent edges, B-C has three. A caption reads '(A,B):2  (B,C):3', showing the per-pair edge counts." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Count multiple per pair](/assets/graphs/algo-count-multiple.light.svg){.lightbox fig-alt="A three-node multigraph: A-B has two parallel accent edges, B-C has three. A caption reads '(A,B):2  (B,C):3', showing the per-pair edge counts." width="100%"}
+```
+
+## `algo-multi-edge-query` — Which multiple edges
+
+<img src="algo-multi-edge-query.light.svg" alt="A three-node multigraph where A-B and B-C each have two parallel edges drawn as accent-colored curves. A caption reads 'which_multiple → [e₁,e₂,e₃,e₄]', listing the IDs of all duplicate edges." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Which multiple edges](/assets/graphs/algo-multi-edge-query.light.svg){.lightbox fig-alt="A three-node multigraph where A-B and B-C each have two parallel edges drawn as accent-colored curves. A caption reads 'which_multiple → [e₁,e₂,e₃,e₄]', listing the IDs of all duplicate edges." width="100%"}
 ```
 
 ## `op-find-edge-ids` — Find edge IDs between nodes
@@ -568,6 +668,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Graph diameter](/assets/graphs/algo-graph-distances.light.svg){.lightbox fig-alt="A six-node graph where the longest shortest path (diameter) runs through four nodes A-B-C-D, highlighted in accent. Three alternative edges provide shorter routes between some pairs. A caption below reads 'diameter = 3'." width="100%"}
 ```
 
+## `algo-radius` — Graph radius
+
+<img src="algo-radius.light.svg" alt="A five-node graph with center node C in accent — the node with minimum eccentricity. A HUD overlay reads 'radius = 2'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Graph radius](/assets/graphs/algo-radius.light.svg){.lightbox fig-alt="A five-node graph with center node C in accent — the node with minimum eccentricity. A HUD overlay reads 'radius = 2'." width="100%"}
+```
+
+## `algo-diameter` — Graph diameter
+
+<img src="algo-diameter.light.svg" alt="A five-node graph where the longest shortest path runs through four accent nodes A–B–C–D. An alternative shorter route goes through E. A HUD overlay reads 'diam = 3'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Graph diameter](/assets/graphs/algo-diameter.light.svg){.lightbox fig-alt="A five-node graph where the longest shortest path runs through four accent nodes A–B–C–D. An alternative shorter route goes through E. A HUD overlay reads 'diam = 3'." width="100%"}
+```
+
 ## `algo-girth` — Girth (shortest cycle)
 
 <img src="algo-girth.light.svg" alt="A five-node graph containing a triangle A-B-C highlighted in accent and a longer cycle through D and E in default. The triangle is the shortest cycle, so a caption reads 'girth = 3'." width="480">
@@ -628,6 +748,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Edge selection](/assets/graphs/algo-select-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges drawn in the accent color, indicating they are part of the current edge selection. All nodes remain in default styling, emphasizing that this operation targets edges, not nodes." width="100%"}
 ```
 
+## `algo-select-edges-by-node` — Select edges by node
+
+<img src="algo-select-edges-by-node.light.svg" alt="A six-node graph with one accent node. The two edges incident to that node are drawn in accent; all other edges are default. A caption reads 'edges incident to node'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Select edges by node](/assets/graphs/algo-select-edges-by-node.light.svg){.lightbox fig-alt="A six-node graph with one accent node. The two edges incident to that node are drawn in accent; all other edges are default. A caption reads 'edges incident to node'." width="100%"}
+```
+
 ## `algo-selection-query` — Selection query
 
 <img src="algo-selection-query.light.svg" alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="480">
@@ -668,6 +798,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Deselect nodes](/assets/graphs/op-deselect.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in the accent color as selected. On the right, all nodes have returned to default styling after deselection." width="100%"}
 ```
 
+## `algo-deselect-edges` — Deselect edges
+
+<img src="algo-deselect-edges.light.svg" alt="Before: six nodes with two edges highlighted in accent as selected. After: all edges returned to default styling after deselection." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Deselect edges](/assets/graphs/algo-deselect-edges.light.svg){.lightbox fig-alt="Before: six nodes with two edges highlighted in accent as selected. After: all edges returned to default styling after deselection." width="100%"}
+```
+
 ## `op-clear-selection` — Clear selection
 
 <img src="op-clear-selection.light.svg" alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, all nodes have returned to default styling after clearing the entire selection." width="480">
@@ -698,6 +838,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
 ```
 
+## `algo-node-df-ws` — Selected nodes DataFrame
+
+<img src="algo-node-df-ws.light.svg" alt="A six-node graph with three nodes highlighted in accent as the current selection. A small table on the right lists the selected nodes' IDs and labels, representing the DataFrame output." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Selected nodes DataFrame](/assets/graphs/algo-node-df-ws.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as the current selection. A small table on the right lists the selected nodes' IDs and labels, representing the DataFrame output." width="100%"}
+```
+
 ## `algo-ws-edges` — Edge workflow
 
 <img src="algo-ws-edges.light.svg" alt="A before-and-after pair. On the left, three of six edges are highlighted in accent as the current edge selection. On the right, those same three edges have changed to a teal tint, showing that an attribute mutation was applied to the selected edges while the rest of the graph is unchanged." width="480">
@@ -706,6 +856,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Edge workflow](/assets/graphs/algo-ws-edges.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six edges are highlighted in accent as the current edge selection. On the right, those same three edges have changed to a teal tint, showing that an attribute mutation was applied to the selected edges while the rest of the graph is unchanged." width="100%"}
+```
+
+## `algo-edge-df-ws` — Selected edges DataFrame
+
+<img src="algo-edge-df-ws.light.svg" alt="A six-node graph with two edges highlighted in accent as the current edge selection. A small table on the right lists the selected edges' IDs, sources, and targets." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Selected edges DataFrame](/assets/graphs/algo-edge-df-ws.light.svg){.lightbox fig-alt="A six-node graph with two edges highlighted in accent as the current edge selection. A small table on the right lists the selected edges' IDs, sources, and targets." width="100%"}
 ```
 
 ## `algo-common-neighbors` — Common neighbors
@@ -738,6 +898,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
 ```
 
+## `algo-pref-attachment` — Preferential attachment
+
+<img src="algo-pref-attachment.light.svg" alt="Two disconnected focal nodes u (degree 3) and v (degree 2) in accent, each connected to their own neighbors. A HUD overlay reads 'deg(u)=3, deg(v)=2, PA = 6', showing the preferential attachment score as the product of degrees." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Preferential attachment](/assets/graphs/algo-pref-attachment.light.svg){.lightbox fig-alt="Two disconnected focal nodes u (degree 3) and v (degree 2) in accent, each connected to their own neighbors. A HUD overlay reads 'deg(u)=3, deg(v)=2, PA = 6', showing the preferential attachment score as the product of degrees." width="100%"}
+```
+
 ## `algo-dispersion` — Dispersion
 
 <img src="algo-dispersion.light.svg" alt="Two focal nodes u and v in accent with three common neighbors between them in lighter accent. Dashed muted lines between the common neighbors show that they are not interconnected, indicating high dispersion. A caption reads 'high dispersion'." width="480">
@@ -766,6 +936,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
+```
+
+## `algo-cosine-similarity` — Cosine similarity
+
+<img src="algo-cosine-similarity.light.svg" alt="Two focal nodes u and v in accent, sharing two common neighbors in accent_lite. Each focal node also has one unique neighbor. A caption reads 'cosine = 0.67'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Cosine similarity](/assets/graphs/algo-cosine-similarity.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent, sharing two common neighbors in accent_lite. Each focal node also has one unique neighbor. A caption reads 'cosine = 0.67'." width="100%"}
+```
+
+## `algo-similarity-index` — Overlap similarity
+
+<img src="algo-similarity-index.light.svg" alt="Two focal nodes u and v in accent, sharing two common neighbors in accent_lite. Node u has one extra neighbor. A caption reads 'overlap = 1.00', showing that v's neighborhood is a subset of u's." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Overlap similarity](/assets/graphs/algo-similarity-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent, sharing two common neighbors in accent_lite. Node u has one extra neighbor. A caption reads 'overlap = 1.00', showing that v's neighborhood is a subset of u's." width="100%"}
 ```
 
 ## `algo-rank-propagation` — Rank propagation
@@ -808,6 +998,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Clique](/assets/graphs/algo-clique.light.svg){.lightbox fig-alt="A six-node graph containing a K4 clique: four mutually connected nodes shown in the accent color, with two extra nodes connected to the clique through default-styled edges." width="100%"}
 ```
 
+## `algo-clique-number` — Clique number
+
+<img src="algo-clique-number.light.svg" alt="A five-node graph containing a triangle (three mutually connected accent nodes) forming the maximum clique. Two default nodes attach to the triangle. A HUD overlay reads 'ω(G) = 3'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Clique number](/assets/graphs/algo-clique-number.light.svg){.lightbox fig-alt="A five-node graph containing a triangle (three mutually connected accent nodes) forming the maximum clique. Two default nodes attach to the triangle. A HUD overlay reads 'ω(G) = 3'." width="100%"}
+```
+
 ## `algo-dag` — Directed acyclic graph
 
 <img src="algo-dag.light.svg" alt="A directed acyclic graph laid out in three vertical layers: two source nodes on the left, two intermediate nodes in the middle, and two sink nodes on the right. Every arrow points rightward; there are no back-edges and no cycles." width="480">
@@ -836,6 +1036,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+```
+
+## `algo-k-crust` — k-crust
+
+<img src="algo-k-crust.light.svg" alt="On the left, a six-node graph: a triangle with three pendant leaves. On the right, the 1-crust is highlighted: the three pendant leaves (coreness ≤ 1) are in accent, while the triangle nodes are muted." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![k-crust](/assets/graphs/algo-k-crust.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves. On the right, the 1-crust is highlighted: the three pendant leaves (coreness ≤ 1) are in accent, while the triangle nodes are muted." width="100%"}
 ```
 
 ## `algo-coreness` — Coreness
@@ -928,6 +1138,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Mutual / asymmetric pairs](/assets/graphs/algo-mutual-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two mutual pairs (A-B and C-D) are shown with double accent arrows curved in opposite directions. Two asymmetric edges (A to C, D to B) are single default arrows. A HUD overlay reads 'mutual: 2, asymm: 2'." width="100%"}
 ```
 
+## `algo-asymmetric-pairs` — Asymmetric node pairs
+
+<img src="algo-asymmetric-pairs.light.svg" alt="A four-node directed graph. Two accent one-way edges (A→B and C→D) highlight the asymmetric pairs, while a reciprocal edge B→A shows a mutual pair for contrast. A HUD overlay reads 'asymm = 2'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Asymmetric node pairs](/assets/graphs/algo-asymmetric-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two accent one-way edges (A→B and C→D) highlight the asymmetric pairs, while a reciprocal edge B→A shows a mutual pair for contrast. A HUD overlay reads 'asymm = 2'." width="100%"}
+```
+
 ## `algo-scc-vs-wcc` — SCC vs. WCC
 
 <img src="algo-scc-vs-wcc.light.svg" alt="The same directed graph shown twice. On the left, the strongly connected components: A, B, and C form a directed cycle and share one accent tint, while D and E are each their own singleton component, shown in a lighter accent tint. On the right, ignoring edge directions collapses everything into a single weakly connected component, and all five nodes share the same accent color." width="480">
@@ -1018,6 +1238,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
 ```
 
+## `algo-node-id-lookup` — Node ID lookup
+
+<img src="algo-node-id-lookup.light.svg" alt="A single node labeled 'user' in accent with a muted caption 'id = 42' above it. A caption below reads '"user" → 42', illustrating the label-to-ID lookup." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Node ID lookup](/assets/graphs/algo-node-id-lookup.light.svg){.lightbox fig-alt="A single node labeled 'user' in accent with a muted caption 'id = 42' above it. A caption below reads '"user" → 42', illustrating the label-to-ID lookup." width="100%"}
+```
+
 ## `algo-node-query` — Node existence query
 
 <img src="algo-node-query.light.svg" alt="Two nodes side by side. Node A is drawn solid in the accent color with a checkmark above it, indicating it exists. Node X is drawn as a dashed outline with an X mark above it, indicating it does not exist. A caption reads 'has_node?'." width="480">
@@ -1038,6 +1268,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
 ```
 
+## `algo-edge-id-lookup` — Edge ID reverse lookup
+
+<img src="algo-edge-id-lookup.light.svg" alt="Two nodes A and B connected by a single accent edge labeled e₇. A caption reads 'e₇ → (A, B)', illustrating the reverse lookup from edge ID to endpoint node IDs." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Edge ID reverse lookup](/assets/graphs/algo-edge-id-lookup.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single accent edge labeled e₇. A caption reads 'e₇ → (A, B)', illustrating the reverse lookup from edge ID to endpoint node IDs." width="100%"}
+```
+
+## `algo-edge-tuples` — Edges as tuples
+
+<img src="algo-edge-tuples.light.svg" alt="A five-node directed graph with four accent edges, each labeled with its edge ID (e₁–e₄). A caption reads '(id, src, tgt) tuples', illustrating the tuple format returned by get_edges_as_tuples." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Edges as tuples](/assets/graphs/algo-edge-tuples.light.svg){.lightbox fig-alt="A five-node directed graph with four accent edges, each labeled with its edge ID (e₁–e₄). A caption reads '(id, src, tgt) tuples', illustrating the tuple format returned by get_edges_as_tuples." width="100%"}
+```
+
 ## `algo-edge-query` — Edge existence query
 
 <img src="algo-edge-query.light.svg" alt="Three nodes A, B, C. A solid accent edge connects A to B with a checkmark above it. A dashed muted line between B and C carries an X mark, indicating no such edge exists. A caption reads 'has_edge?'." width="480">
@@ -1048,6 +1298,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Edge existence query](/assets/graphs/algo-edge-query.light.svg){.lightbox fig-alt="Three nodes A, B, C. A solid accent edge connects A to B with a checkmark above it. A dashed muted line between B and C carries an X mark, indicating no such edge exists. A caption reads 'has_edge?'." width="100%"}
 ```
 
+## `algo-edge-id-resolve` — Edge ID existence check
+
+<img src="algo-edge-id-resolve.light.svg" alt="Two nodes A and B connected by a single accent edge labeled e₃. A checkmark and caption read 'has_edge_id(3)? yes'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Edge ID existence check](/assets/graphs/algo-edge-id-resolve.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single accent edge labeled e₃. A checkmark and caption read 'has_edge_id(3)? yes'." width="100%"}
+```
+
 ## `algo-creation-order` — Creation order
 
 <img src="algo-creation-order.light.svg" alt="A four-node graph in which every node carries a numeric badge (1, 2, 3, 4) marking the order in which it was added, and every edge carries a matching numeric badge along its length marking the order in which it was added." width="480">
@@ -1056,6 +1316,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Creation order](/assets/graphs/algo-creation-order.light.svg){.lightbox fig-alt="A four-node graph in which every node carries a numeric badge (1, 2, 3, 4) marking the order in which it was added, and every edge carries a matching numeric badge along its length marking the order in which it was added." width="100%"}
+```
+
+## `algo-edge-creation-order` — Edge creation order
+
+<img src="algo-edge-creation-order.light.svg" alt="A four-node graph with four edges, each carrying a circled number ①–④ showing the order in which the edges were added." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Edge creation order](/assets/graphs/algo-edge-creation-order.light.svg){.lightbox fig-alt="A four-node graph with four edges, each carrying a circled number ①–④ showing the order in which the edges were added." width="100%"}
 ```
 
 ## `algo-centrality-scaled` — Centrality-scaled sizing
@@ -1076,6 +1346,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two six-node graphs shown side by side, each with two large high-degree hubs and four small low-degree leaves. On the left, an assortative arrangement: the two hubs are connected to each other and the leaves are connected to leaves. On the right, a disassortative arrangement: the hubs are not connected to each other, and every edge runs between a hub and a leaf." width="100%"}
+```
+
+## `algo-assortativity-nominal` — Nominal assortativity
+
+<img src="algo-assortativity-nominal.light.svg" alt="A five-node graph with three colors: two accent nodes connected to each other, two teal nodes connected to each other, and one violet node bridging both groups. A HUD overlay reads 'r = 0.50', showing moderate categorical assortativity." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Nominal assortativity](/assets/graphs/algo-assortativity-nominal.light.svg){.lightbox fig-alt="A five-node graph with three colors: two accent nodes connected to each other, two teal nodes connected to each other, and one violet node bridging both groups. A HUD overlay reads 'r = 0.50', showing moderate categorical assortativity." width="100%"}
 ```
 
 ## `algo-average-neighbor-degree` — Average neighbor degree
@@ -1158,6 +1438,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Attribute DataFrame](/assets/graphs/algo-attribute-df.light.svg){.lightbox fig-alt="On the left, a three-node triangle whose nodes carry two attributes: a categorical color (mapped to orange, teal, or violet) and a numeric size (mapped to node radius). On the right, the same data shown as a compact three-column table with headers id, color, and size, and one row per node." width="100%"}
 ```
 
+## `algo-node-df` — Node DataFrame
+
+<img src="algo-node-df.light.svg" alt="On the left, a three-node triangle. On the right, a compact table with columns id, label, and deg showing one row per node — the DataFrame output of get_node_df." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Node DataFrame](/assets/graphs/algo-node-df.light.svg){.lightbox fig-alt="On the left, a three-node triangle. On the right, a compact table with columns id, label, and deg showing one row per node — the DataFrame output of get_node_df." width="100%"}
+```
+
 ## `algo-bfs` — Breadth-first search
 
 <img src="algo-bfs.light.svg" alt="A six-node graph explored by BFS from a source on the left. The source and its two distance-one neighbors are shown in the accent color; the two distance-two nodes in a lighter accent tint; and the furthest distance-three node in default styling. BFS tree edges are highlighted in accent; the two non-tree same-layer edges are drawn in default." width="480">
@@ -1226,6 +1516,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
+```
+
+## `algo-adhesion` — Adhesion (edge connectivity)
+
+<img src="algo-adhesion.light.svg" alt="A six-node graph with two triangular clusters joined by a single accent edge. A HUD overlay reads 'adhesion = 1', showing that one edge removal disconnects the graph." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Adhesion (edge connectivity)](/assets/graphs/algo-adhesion.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by a single accent edge. A HUD overlay reads 'adhesion = 1', showing that one edge removal disconnects the graph." width="100%"}
 ```
 
 ## `algo-cohesion` — Graph cohesion
@@ -1398,6 +1698,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Transitive closure](/assets/graphs/algo-transitive-closure.light.svg){.lightbox fig-alt="On the left, a directed chain A -> B -> C -> D on four nodes laid out in a square. On the right, the same graph after transitive closure: three additional accent-colored directed edges A -> C, A -> D, and B -> D have been added, so that every reachable pair is now directly connected." width="100%"}
 ```
 
+## `algo-transitive-reduction` — Transitive reduction
+
+<img src="algo-transitive-reduction.light.svg" alt="Before: a four-node DAG with edge A→C highlighted in accent as redundant (A→B→C already exists). After: the redundant edge is removed, leaving the minimal DAG." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Transitive reduction](/assets/graphs/algo-transitive-reduction.light.svg){.lightbox fig-alt="Before: a four-node DAG with edge A→C highlighted in accent as redundant (A→B→C already exists). After: the redundant edge is removed, leaving the minimal DAG." width="100%"}
+```
+
 ## `algo-k-shortest-paths` — k shortest paths
 
 <img src="algo-k-shortest-paths.light.svg" alt="A graph with source s and target t on the sides, connected by three distinct simple paths. The shortest path (length two, via the top) is highlighted in the accent color; the second-shortest (also length two, straight through the middle) is drawn in a lighter accent tint; and the longest (length three, bowing along the bottom) is in default styling, illustrating the top-k enumeration." width="480">
@@ -1456,6 +1766,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+```
+
+## `algo-is-eulerian` — Eulerian test
+
+<img src="algo-is-eulerian.light.svg" alt="A five-node graph where every node has even degree, all edges in accent. A caption reads 'eulerian? yes' with a checkmark." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Eulerian test](/assets/graphs/algo-is-eulerian.light.svg){.lightbox fig-alt="A five-node graph where every node has even degree, all edges in accent. A caption reads 'eulerian? yes' with a checkmark." width="100%"}
 ```
 
 ## `algo-trail` — Trail
@@ -1538,6 +1858,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Eccentricity](/assets/graphs/algo-eccentricity.light.svg){.lightbox fig-alt="A path graph of five nodes laid out in a horizontal line. The two endpoint nodes (highest eccentricity) are drawn in the accent color and labeled 'periphery'; the middle node (lowest eccentricity) is drawn in a lighter accent tint and labeled 'center'; the two in-between nodes are in default styling." width="100%"}
 ```
 
+## `algo-max-eccentricity` — Maximum eccentricity
+
+<img src="algo-max-eccentricity.light.svg" alt="A five-node path-like graph. The two endpoint nodes with maximum eccentricity are in accent. A HUD overlay reads 'max ecc = 4'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Maximum eccentricity](/assets/graphs/algo-max-eccentricity.light.svg){.lightbox fig-alt="A five-node path-like graph. The two endpoint nodes with maximum eccentricity are in accent. A HUD overlay reads 'max ecc = 4'." width="100%"}
+```
+
+## `algo-periphery` — Periphery nodes
+
+<img src="algo-periphery.light.svg" alt="A six-node path-like graph. The three nodes with maximum eccentricity are drawn in accent, marking the periphery. A caption reads 'periphery = 3 nodes'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Periphery nodes](/assets/graphs/algo-periphery.light.svg){.lightbox fig-alt="A six-node path-like graph. The three nodes with maximum eccentricity are drawn in accent, marking the periphery. A caption reads 'periphery = 3 nodes'." width="100%"}
+```
+
 ## `algo-quotient` — Quotient graph
 
 <img src="algo-quotient.light.svg" alt="On the left, a six-node graph whose nodes are partitioned into three groups of two by categorical color (orange, teal, violet), with edges both within and between the groups. On the right, the quotient graph: each color group has collapsed to a single large super-node, and the inter-group edges from the original graph become edges between the corresponding super-nodes." width="480">
@@ -1566,6 +1906,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Efficiency](/assets/graphs/algo-efficiency.light.svg){.lightbox fig-alt="A seven-edge graph with source s on the left and target t on the right, both drawn in the accent color. A three-hop shortest path from s to t through the upper row is highlighted in accent. A small heads-up display in the top right reports the pair distance d(s,t) = 3, the pair efficiency E(s,t) = 1/3 (its reciprocal), and the graph's global efficiency E_glob = 5/12, averaged over every pair." width="100%"}
+```
+
+## `algo-local-efficiency` — Local efficiency
+
+<img src="algo-local-efficiency.light.svg" alt="A four-node graph with focal node v in accent connected to three neighbors. Two of three neighbor pairs are directly connected. A HUD overlay reads 'E_loc = 0.83'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Local efficiency](/assets/graphs/algo-local-efficiency.light.svg){.lightbox fig-alt="A four-node graph with focal node v in accent connected to three neighbors. Two of three neighbor pairs are directly connected. A HUD overlay reads 'E_loc = 0.83'." width="100%"}
 ```
 
 ## `algo-spectrum` — Adjacency spectrum
