@@ -950,7 +950,7 @@ class Graph:
         """
         Delete all selected nodes and their incident edges.
 
-        ![Delete node](/assets/graphs/op-delete-node.light.svg){.lightbox fig-alt="A graph loses one node and its incident edge. The doomed node and edge are highlighted in the accent color before removal." width="100%"}
+        ![Delete nodes (working selection)](/assets/graphs/algo-delete-nodes-ws.light.svg){.lightbox fig-alt="Before: six nodes with two selected in accent along with their incident edges. After: the two selected nodes and their edges are removed, leaving four nodes." width="100%"}
 
         Removes nodes in the current selection from the graph, along with all edges connected to
         those nodes. Updates selection state and removes the selected nodes from the graph
@@ -3098,7 +3098,7 @@ class Graph:
         """
         Get edge (source, target) node IDs by edge ID.
 
-        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+        ![Edge ID reverse lookup](/assets/graphs/algo-edge-id-lookup.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single accent edge labeled e₇. A caption reads 'e₇ → (A, B)'." width="100%"}
 
         Retrieves the source and target node IDs for a specific edge using its edge ID. Returns
         `None` if the edge ID doesn't exist.
@@ -3144,7 +3144,7 @@ class Graph:
         """
         Get the integer ID for a node by its label.
 
-        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+        ![Node ID lookup](/assets/graphs/algo-node-id-lookup.light.svg){.lightbox fig-alt="A single node labeled 'user' in accent with a muted 'id = 42' above. A caption reads '\"user\" → 42'." width="100%"}
 
         Translates a human-readable string label to the internal `u64` node ID. Useful when you need
         the ID for operations that require integer identifiers.
@@ -3292,7 +3292,7 @@ class Graph:
         """
         Get edges in their creation order.
 
-        ![Creation order](/assets/graphs/algo-creation-order.light.svg){.lightbox fig-alt="A graph with numeric badges on each node and edge showing the order in which they were created." width="100%"}
+        ![Edge creation order](/assets/graphs/algo-edge-creation-order.light.svg){.lightbox fig-alt="A four-node graph with four edges carrying circled numbers showing creation order." width="100%"}
 
         Returns edge IDs ordered by when they were added to the graph. The first edge created
         appears first, the most recently created edge appears last. Useful for temporal analysis or
@@ -3351,7 +3351,7 @@ class Graph:
         """
         Return list of edges as (id, source, target) tuples.
 
-        ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
+        ![Edges as tuples](/assets/graphs/algo-edge-tuples.light.svg){.lightbox fig-alt="A five-node directed graph with four accent edges, each labeled with its edge ID. A caption reads '(id, src, tgt) tuples'." width="100%"}
 
         Returns all edges in the graph as tuples containing the edge ID and the source and target
         node IDs. Useful for iterating over all edges or analyzing edge structure.
@@ -3614,7 +3614,7 @@ class Graph:
         """
         Check if an edge with given ID exists.
 
-        ![Edge existence query](/assets/graphs/algo-edge-query.light.svg){.lightbox fig-alt="Three nodes A, B, C. A solid accent edge connects A to B with a checkmark above it. A dashed muted line between B and C carries an X mark, indicating no such edge exists. A caption reads 'has_edge?'." width="100%"}
+        ![Edge ID existence check](/assets/graphs/algo-edge-id-resolve.light.svg){.lightbox fig-alt="Two nodes A and B connected by accent edge e₃. A checkmark and caption read 'has_edge_id(3)? yes'." width="100%"}
 
         Verifies whether a specific edge ID is present in the graph. Useful for validating edge IDs
         before performing operations.
@@ -3947,7 +3947,7 @@ class Graph:
         """
         Check if the graph is simple (no self-loops or multi-edges).
 
-        ![Simplify](/assets/graphs/op-simplify.light.svg){.lightbox fig-alt="On the left, a three-node graph with a duplicate parallel edge between A and B and a self-loop on B, both highlighted in the accent color. On the right, the same graph after simplify(): the duplicate edge and the self-loop are gone, leaving a simple path A - B - C." width="100%"}
+        ![Simple graph test](/assets/graphs/algo-is-simple.light.svg){.lightbox fig-alt="A three-node path graph A-B-C with no self-loops or parallel edges. A caption reads 'simple? yes' with a checkmark." width="100%"}
 
         A simple graph contains no self-loops (edges from a node to itself) and no multi-edges
         (multiple edges between the same pair of nodes). This is a fundamental graph property used
@@ -4050,7 +4050,7 @@ class Graph:
         """
         Check if graph is connected.
 
-        ![Connected components](/assets/graphs/struct-components.light.svg){.lightbox fig-alt="A graph containing three disjoint connected components: a triangle on the left, a two-node edge in the upper right, and a single isolated node in the lower right." width="100%"}
+        ![Connectivity test](/assets/graphs/algo-is-connected.light.svg){.lightbox fig-alt="A four-node graph: three accent nodes form a connected triangle, while a fourth node sits isolated. A caption reads 'connected? no' with an X mark." width="100%"}
 
         A graph is connected if there is a path between every pair of nodes. For directed graphs,
         checks weak connectivity (treating edges as undirected).
@@ -4771,7 +4771,7 @@ class Graph:
         """
         Count total number of self-loop edges in the graph.
 
-        ![Self-loop count](/assets/graphs/algo-self-loop-query.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A small overlay reads 'loops = 2', illustrating methods that count or identify self-loops." width="100%"}
+        ![Self-loop count (total)](/assets/graphs/algo-loop-count.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop in accent. A HUD overlay reads 'total = 2'." width="100%"}
 
         A self-loop is an edge where the source and target are the same node. This counts all
         self-loop edges in the entire graph, regardless of which nodes they belong to. Use
@@ -4907,7 +4907,7 @@ class Graph:
         """
         Count asymmetric node pairs (one-way edges) in directed graphs.
 
-        ![Mutual / asymmetric pairs](/assets/graphs/algo-mutual-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two mutual pairs (A-B and C-D) are shown with double accent arrows curved in opposite directions. Two asymmetric edges (A to C, D to B) are single default arrows. A HUD overlay reads 'mutual: 2, asymm: 2'." width="100%"}
+        ![Asymmetric node pairs](/assets/graphs/algo-asymmetric-pairs.light.svg){.lightbox fig-alt="A four-node directed graph with two accent one-way edges highlighting asymmetric pairs. A HUD overlay reads 'asymm = 2'." width="100%"}
 
         Returns the number of node pairs `(a,b)` where edge `a->b` exists but not `b->a`. Only works
         for directed graphs. Self-loops are excluded. This metric helps analyze directional flow or
@@ -5660,7 +5660,7 @@ class Graph:
         """
         Select all edges connected to specified nodes.
 
-        ![Edge selection](/assets/graphs/algo-select-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges drawn in the accent color, indicating they are part of the current edge selection. All nodes remain in default styling, emphasizing that this operation targets edges, not nodes." width="100%"}
+        ![Select edges by node](/assets/graphs/algo-select-edges-by-node.light.svg){.lightbox fig-alt="A six-node graph with one accent node. Its two incident edges are drawn in accent; all other edges are default." width="100%"}
 
         Selects all edges where at least one endpoint is in the provided node list. For directed
         graphs, includes both incoming and outgoing edges. Useful for selecting the local
@@ -6140,7 +6140,7 @@ class Graph:
         """
         Remove edges from selection.
 
-        ![Deselect nodes](/assets/graphs/op-deselect.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in the accent color as selected. On the right, all nodes have returned to default styling after deselection." width="100%"}
+        ![Deselect edges](/assets/graphs/algo-deselect-edges.light.svg){.lightbox fig-alt="Before: six nodes with two edges highlighted in accent as selected. After: all edges returned to default styling after deselection." width="100%"}
 
         Unmarks specified edges, removing them from the current selection set. Has no effect on
         edges that aren't currently selected.
@@ -7675,7 +7675,7 @@ class Graph:
         """
         Get nodes as a Polars DataFrame.
 
-        ![Attribute DataFrame](/assets/graphs/algo-attribute-df.light.svg){.lightbox fig-alt="On the left, a three-node triangle whose nodes carry two attributes: a categorical color (mapped to orange, teal, or violet) and a numeric size (mapped to node radius). On the right, the same data shown as a compact three-column table with headers id, color, and size, and one row per node." width="100%"}
+        ![Node DataFrame](/assets/graphs/algo-node-df.light.svg){.lightbox fig-alt="On the left, a three-node triangle. On the right, a compact table with id, label, and deg columns." width="100%"}
 
         Exports all nodes and their attributes to a Polars DataFrame for tabular analysis. Each row
         represents a node, with columns for the node ID and any attributes set on nodes. The
@@ -7784,7 +7784,7 @@ class Graph:
         """
         Get selected nodes as a Polars DataFrame.
 
-        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
+        ![Selected nodes DataFrame](/assets/graphs/algo-node-df-ws.light.svg){.lightbox fig-alt="A six-node graph with three accent selected nodes. A small table lists the selected nodes' IDs and labels." width="100%"}
 
         Similar to get_node_df but only exports currently selected nodes. Useful for analyzing
         subsets of nodes after filtering with selection methods. The DataFrame always includes 'id',
@@ -8013,7 +8013,7 @@ class Graph:
         """
         Get selected edges as a Polars DataFrame with standardized structure.
 
-        ![Edge workflow](/assets/graphs/algo-ws-edges.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six edges are highlighted in accent as the current edge selection. On the right, those same three edges have changed to a teal tint, showing that an attribute mutation was applied to the selected edges while the rest of the graph is unchanged." width="100%"}
+        ![Selected edges DataFrame](/assets/graphs/algo-edge-df-ws.light.svg){.lightbox fig-alt="A six-node graph with two accent selected edges. A small table lists the selected edges' IDs, sources, and targets." width="100%"}
 
         Similar to `get_edge_df()` but only exports currently selected edges. Uses the same
         consistent column structure with `id`, `source`, `target`, and `rel` as first 4 columns.
@@ -9025,7 +9025,7 @@ class Graph:
         r"""
         Compute preferential attachment score for node pairs.
 
-        ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
+        ![Preferential attachment](/assets/graphs/algo-pref-attachment.light.svg){.lightbox fig-alt="Two disconnected focal nodes u (degree 3) and v (degree 2) in accent. A HUD overlay reads 'deg(u)=3, deg(v)=2, PA = 6'." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `|N(u)| × |N(v)|`, the product of their degrees.
         Based on the "rich get richer" principle where high-degree nodes are more likely to acquire
@@ -9358,7 +9358,7 @@ class Graph:
         r"""
         Get cosine similarity between all node pairs.
 
-        ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
+        ![Cosine similarity](/assets/graphs/algo-cosine-similarity.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent, sharing two common neighbors in accent_lite. Each has one unique neighbor. A caption reads 'cosine = 0.67'." width="100%"}
 
         Cosine similarity treats neighbors as vector components:
 
@@ -9416,7 +9416,7 @@ class Graph:
         """
         Get overlap coefficient between all node pairs.
 
-        ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
+        ![Overlap similarity](/assets/graphs/algo-similarity-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent, sharing two common neighbors in accent_lite. Node u has one extra neighbor. A caption reads 'overlap = 1.00'." width="100%"}
 
         The overlap coefficient emphasizes subset relationships:
 
@@ -10067,7 +10067,7 @@ class Graph:
         r"""
         Get the clique number (size of the maximum clique).
 
-        ![Clique](/assets/graphs/algo-clique.light.svg){.lightbox fig-alt="A six-node graph containing a K4 clique: four mutually connected nodes shown in the accent color, with two extra nodes connected to the clique through default-styled edges." width="100%"}
+        ![Clique number](/assets/graphs/algo-clique-number.light.svg){.lightbox fig-alt="A five-node graph with a three-node accent triangle as the maximum clique. A HUD overlay reads 'ω(G) = 3'." width="100%"}
 
         The clique number `ω(G)` is the size of the largest clique in the graph. This is a
         fundamental graph invariant used in graph theory and combinatorial optimization.
@@ -10237,7 +10237,7 @@ class Graph:
         """
         List all triangles in the graph.
 
-        ![Triangles](/assets/graphs/struct-triangle.light.svg){.lightbox fig-alt="A triangle graph with three nodes arranged in a triangle formation, every pair connected by an edge." width="100%"}
+        ![List triangles](/assets/graphs/algo-list-triangles.light.svg){.lightbox fig-alt="A four-node graph with one accent triangle A-B-C. An extra node D does not form a second triangle. A caption reads '△ = {(A, B, C)}'." width="100%"}
 
         Returns a list of all triangles (3-cycles) in the graph. Each triangle is represented as a
         sorted tuple of three node IDs. For undirected graphs, each triangle appears once. For
@@ -12095,7 +12095,7 @@ class Graph:
         """
         Contract an edge by merging its endpoints.
 
-        ![Contract nodes](/assets/graphs/op-contract-nodes.light.svg){.lightbox fig-alt="Two nodes merge into one. Node C is absorbed into node B, which keeps its label; C's incident edges are rerouted to B, and duplicate edges collapse." width="100%"}
+        ![Contracted edge](/assets/graphs/algo-contracted-edge.light.svg){.lightbox fig-alt="Before: four nodes with accent edge B-C. After: C merged into B, duplicate edges collapse." width="100%"}
 
         Given an edge between `u` and `v`, creates a new graph where `v` is merged into `u`. This is
         equivalent to `contract_nodes(u, v)` but explicitly requires that an edge exists between the
@@ -17040,7 +17040,7 @@ class Graph:
         """
         Extract the k-crust subgraph.
 
-        ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+        ![k-crust](/assets/graphs/algo-k-crust.light.svg){.lightbox fig-alt="On the left, a six-node graph. On the right, the 1-crust: three pendant leaves in accent, triangle nodes muted." width="100%"}
 
         The k-crust contains all nodes with coreness <= `k`. This is the complement of nodes with
         high coreness values.
@@ -17423,7 +17423,7 @@ class Graph:
         """
         Get maximum eccentricity (graph diameter).
 
-        ![Eccentricity](/assets/graphs/algo-eccentricity.light.svg){.lightbox fig-alt="A path graph of five nodes laid out in a horizontal line. The two endpoint nodes (highest eccentricity) are drawn in the accent color and labeled 'periphery'; the middle node (lowest eccentricity) is drawn in a lighter accent tint and labeled 'center'; the two in-between nodes are in default styling." width="100%"}
+        ![Maximum eccentricity](/assets/graphs/algo-max-eccentricity.light.svg){.lightbox fig-alt="A five-node path-like graph. The two endpoint nodes with maximum eccentricity are in accent. A HUD overlay reads 'max ecc = 4'." width="100%"}
 
         Alias for `get_diameter()`. The maximum eccentricity is the longest shortest path between
         any two nodes.
@@ -17460,7 +17460,7 @@ class Graph:
         """
         Get graph diameter (maximum eccentricity).
 
-        ![Graph diameter](/assets/graphs/algo-graph-distances.light.svg){.lightbox fig-alt="A six-node graph where the longest shortest path (diameter) runs through four nodes A-B-C-D, highlighted in accent. Three alternative edges provide shorter routes between some pairs. A caption below reads 'diameter = 3'." width="100%"}
+        ![Graph diameter](/assets/graphs/algo-diameter.light.svg){.lightbox fig-alt="A five-node graph where the longest shortest path A-B-C-D is highlighted in accent. A HUD overlay reads 'diam = 3'." width="100%"}
 
         The diameter is the longest shortest path between any two nodes. This metric is useful for
         understanding the "width" of a network.
@@ -17505,7 +17505,7 @@ class Graph:
         """
         Get graph radius (minimum eccentricity).
 
-        ![Graph diameter](/assets/graphs/algo-graph-distances.light.svg){.lightbox fig-alt="A six-node graph where the longest shortest path (diameter) runs through four nodes A-B-C-D, highlighted in accent. Three alternative edges provide shorter routes between some pairs. A caption below reads 'diameter = 3'." width="100%"}
+        ![Graph radius](/assets/graphs/algo-radius.light.svg){.lightbox fig-alt="A five-node graph with center node C in accent — the node with minimum eccentricity. A HUD overlay reads 'radius = 2'." width="100%"}
 
         The radius is the minimum of all node eccentricities. Nodes with eccentricity equal to the
         radius form the center of the graph.
@@ -19664,7 +19664,7 @@ class Graph:
         r"""
         Compute the transitive reduction of a directed acyclic graph (DAG).
 
-        ![Transitive closure](/assets/graphs/algo-transitive-closure.light.svg){.lightbox fig-alt="On the left, a directed chain A -> B -> C -> D on four nodes laid out in a square. On the right, the same graph after transitive closure: three additional accent-colored directed edges A -> C, A -> D, and B -> D have been added, so that every reachable pair is now directly connected." width="100%"}
+        ![Transitive reduction](/assets/graphs/algo-transitive-reduction.light.svg){.lightbox fig-alt="Before: a four-node DAG with redundant accent edge A→C. After: the redundant edge removed, leaving the minimal DAG." width="100%"}
 
         The transitive reduction is the minimal subgraph that maintains the same reachability as the
         original graph. It removes redundant edges while preserving all path relationships. If
@@ -20175,7 +20175,7 @@ class Graph:
         """
         Check if the graph has an Eulerian circuit.
 
-        ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+        ![Eulerian test](/assets/graphs/algo-is-eulerian.light.svg){.lightbox fig-alt="A five-node graph where every node has even degree, all edges in accent. A caption reads 'eulerian? yes' with a checkmark." width="100%"}
 
         An Eulerian circuit is a closed trail that visits every edge exactly once.
 
@@ -20481,7 +20481,7 @@ class Graph:
         """
         Check if the graph contains any bridge edges.
 
-        ![Bridges](/assets/graphs/struct-bridge.light.svg){.lightbox fig-alt="A graph with two clusters of nodes connected by a single edge highlighted in the accent color — the bridge whose removal would disconnect the graph." width="100%"}
+        ![Bridge existence test](/assets/graphs/algo-has-bridges.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters connected by a single accent bridge edge. A caption reads 'has bridges? yes' with a checkmark." width="100%"}
 
         A bridge (cut edge) is an edge whose removal increases the number of connected components.
         This method is more efficient than `bridges()` when you only need to know if bridges exist,
@@ -20802,7 +20802,7 @@ class Graph:
         r"""
         Get periphery nodes (nodes with maximum eccentricity).
 
-        ![Eccentricity](/assets/graphs/algo-eccentricity.light.svg){.lightbox fig-alt="A path graph of five nodes laid out in a horizontal line. The two endpoint nodes (highest eccentricity) are drawn in the accent color and labeled 'periphery'; the middle node (lowest eccentricity) is drawn in a lighter accent tint and labeled 'center'; the two in-between nodes are in default styling." width="100%"}
+        ![Periphery nodes](/assets/graphs/algo-periphery.light.svg){.lightbox fig-alt="A six-node path-like graph. The three nodes with maximum eccentricity are drawn in accent. A caption reads 'periphery = 3 nodes'." width="100%"}
 
         Periphery nodes are farthest from the graph's center. These nodes have the maximum
         eccentricity (longest shortest path to any other node). Returns empty list if graph is
@@ -21039,7 +21039,7 @@ class Graph:
         """
         Get adhesion (minimum edge cut size).
 
-        ![Edge / node connectivity](/assets/graphs/algo-connectivity.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by two accent-colored edges, which form the minimum edge cut. A small overlay reads 'κ′ = 2', showing that removing two edges is enough to disconnect the graph." width="100%"}
+        ![Adhesion (edge connectivity)](/assets/graphs/algo-adhesion.light.svg){.lightbox fig-alt="A six-node graph with two triangular clusters joined by a single accent edge. A HUD overlay reads 'adhesion = 1', showing that one edge removal disconnects the graph." width="100%"}
 
         The adhesion is the minimum number of edges whose removal would disconnect the graph. Also
         called edge connectivity. Only defined for undirected graphs. Returns `0` if already
@@ -21950,7 +21950,7 @@ class Graph:
         """
         Get all weakly connected components as sets of node IDs.
 
-        ![Weakly connected components](/assets/graphs/algo-count-wcc.light.svg){.lightbox fig-alt="A graph with multiple disconnected clusters, each cluster highlighted to show it is a separate weakly connected component. A count badge shows the total number of components." width="100%"}
+        ![Weakly connected components list](/assets/graphs/algo-wcc-list.light.svg){.lightbox fig-alt="A six-node graph with three components: a triangle in accent, a pair in teal, and an isolate in violet. A caption reads '3 components'." width="100%"}
 
         For undirected graphs, returns regular connected components. For directed graphs, treats all
         edges as undirected (ignoring direction) when finding components.
@@ -23868,7 +23868,7 @@ class Graph:
         """
         Find edge IDs of multiple edges (duplicate edges between same node pairs).
 
-        ![Multi-edge count](/assets/graphs/algo-count-multi-edges.light.svg){.lightbox fig-alt="A multigraph with several node pairs connected by two or more parallel edges, with a count badge." width="100%"}
+        ![Which multiple edges](/assets/graphs/algo-multi-edge-query.light.svg){.lightbox fig-alt="A three-node multigraph where A-B and B-C each have two parallel accent edges. A caption lists the IDs returned by which_multiple." width="100%"}
 
         Returns a list of edge IDs that represent multiple/duplicate edges. These edges share the
         same source and target nodes as another edge in the graph. This is useful for detecting and
@@ -23937,7 +23937,7 @@ class Graph:
         r"""
         Count multiple edges grouped by node pair.
 
-        ![Multi-edge count](/assets/graphs/algo-count-multi-edges.light.svg){.lightbox fig-alt="A multigraph with several node pairs connected by two or more parallel edges, with a count badge." width="100%"}
+        ![Count multiple per pair](/assets/graphs/algo-count-multiple.light.svg){.lightbox fig-alt="A three-node multigraph: A-B has two parallel accent edges, B-C has three. A caption reads '(A,B):2  (B,C):3', showing the per-pair edge counts." width="100%"}
 
         Returns a dictionary showing how many edges exist between each pair of nodes that has
         multiple edges. Only includes pairs with 2 or more edges. For undirected graphs, returns
@@ -24384,7 +24384,7 @@ class Graph:
         r"""
         Calculate assortativity for categorical (nominal) node attributes.
 
-        ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two side-by-side graphs: one with assortative mixing where high-degree nodes connect to high-degree nodes, and one with disassortative mixing where high-degree nodes connect to low-degree nodes." width="100%"}
+        ![Nominal assortativity](/assets/graphs/algo-assortativity-nominal.light.svg){.lightbox fig-alt="A five-node graph with three categorical colors. Same-color nodes are connected. A HUD overlay reads 'r = 0.50'." width="100%"}
 
         Measures the tendency of nodes with the same attribute value to connect, also known as
         homophily. Uses Newman's formula for categorical mixing patterns.
@@ -24980,7 +24980,7 @@ class Graph:
         r"""
         Calculate the local efficiency of the graph.
 
-        ![Efficiency](/assets/graphs/algo-efficiency.light.svg){.lightbox fig-alt="A seven-edge graph with source s on the left and target t on the right, both drawn in the accent color. A three-hop shortest path from s to t through the upper row is highlighted in accent. A small heads-up display in the top right reports the pair distance d(s,t) = 3, the pair efficiency E(s,t) = 1/3 (its reciprocal), and the graph's global efficiency E_glob = 5/12, averaged over every pair." width="100%"}
+        ![Local efficiency](/assets/graphs/algo-local-efficiency.light.svg){.lightbox fig-alt="A four-node graph with focal node v connected to three neighbors. A HUD overlay reads 'E_loc = 0.83'." width="100%"}
 
         Local efficiency is the average global efficiency of each node's neighborhood subgraph. It
         measures how efficiently the neighbors of a node can communicate when that node is removed.
