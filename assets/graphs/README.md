@@ -128,6 +128,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Reverse selected edges](/assets/graphs/op-reverse-ws.light.svg){.lightbox fig-alt="A before-and-after pair of a four-node directed graph. On the left, two accent edges A→B and C→D are selected. On the right, only those two edges have been reversed (B→A and D→C) while the other edges remain unchanged." width="100%"}
 ```
 
+## `algo-rev-edge-dir-ws` — Reverse selected edge direction
+
+<img src="algo-rev-edge-dir-ws.light.svg" alt="A before-and-after pair of a five-node directed graph. On the left, two accent edges A→B and C→D are selected. On the right, only those two edges have been reversed (B→A and D→C) while the other three edges remain unchanged." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Reverse selected edge direction](/assets/graphs/algo-rev-edge-dir-ws.light.svg){.lightbox fig-alt="A before-and-after pair of a five-node directed graph. On the left, two accent edges A→B and C→D are selected. On the right, only those two edges have been reversed (B→A and D→C) while the other three edges remain unchanged." width="100%"}
+```
+
 ## `op-to-directed` — Convert to directed
 
 <img src="op-to-directed.light.svg" alt="On the left, a three-node undirected triangle with three plain edges. On the right, the same triangle after to_directed(): every original undirected edge has been replaced by a mutual pair of accent-colored directed arrows curved in opposite directions, so the total edge count doubles from three to six." width="480">
@@ -156,6 +166,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Induced subgraph](/assets/graphs/op-subgraph.light.svg){.lightbox fig-alt="On the left, a six-node graph with three nodes (A, B, D) and the two edges among them highlighted in the accent color. On the right, only that induced subgraph remains: three accent nodes and the two accent edges connecting them." width="100%"}
+```
+
+## `algo-subgraph-ws` — Subgraph from selection
+
+<img src="algo-subgraph-ws.light.svg" alt="A before-and-after pair. On the left, a six-node graph with three nodes A, C, E highlighted in accent. On the right, only those three nodes remain with the two edges between them, forming the induced subgraph." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Subgraph from selection](/assets/graphs/algo-subgraph-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, a six-node graph with three nodes A, C, E highlighted in accent. On the right, only those three nodes remain with the two edges between them, forming the induced subgraph." width="100%"}
 ```
 
 ## `op-edge-subgraph` — Edge-induced subgraph
@@ -376,6 +396,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Count strongly connected components](/assets/graphs/algo-count-scc.light.svg){.lightbox fig-alt="A directed graph with five nodes. Nodes A, B, and C form a directed cycle highlighted in the accent color, constituting one strongly connected component. Nodes D and E are connected by a single directed edge and form two singleton SCCs. A caption below reads SCC count = 3." width="100%"}
+```
+
+## `algo-scc-list` — Strongly connected component listing
+
+<img src="algo-scc-list.light.svg" alt="A directed graph partitioned into three strongly connected components. A three-node cycle A-B-C is enclosed in an accent dashed box. A two-node mutual pair D-E is enclosed in a teal dashed box. Singleton F sits in a purple dashed box. A caption reads '3 SCCs listed'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Strongly connected component listing](/assets/graphs/algo-scc-list.light.svg){.lightbox fig-alt="A directed graph partitioned into three strongly connected components. A three-node cycle A-B-C is enclosed in an accent dashed box. A two-node mutual pair D-E is enclosed in a teal dashed box. Singleton F sits in a purple dashed box. A caption reads '3 SCCs listed'." width="100%"}
 ```
 
 ## `algo-is-strongly-connected` — Strongly connected test
@@ -828,6 +858,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Invert selection](/assets/graphs/op-invert-selection.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, two of six nodes are highlighted in accent as selected and four are in default styling. On the right, the selection has been inverted: the four previously unselected nodes are now in accent and the original two have returned to default." width="100%"}
 ```
 
+## `algo-invert-edge-selection` — Invert edge selection
+
+<img src="algo-invert-edge-selection.light.svg" alt="A before-and-after pair of a five-node graph. On the left, two of six edges are highlighted in accent as selected. On the right, the edge selection has been inverted: the four previously unselected edges are now in accent and the original two have returned to default." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Invert edge selection](/assets/graphs/algo-invert-edge-selection.light.svg){.lightbox fig-alt="A before-and-after pair of a five-node graph. On the left, two of six edges are highlighted in accent as selected. On the right, the edge selection has been inverted: the four previously unselected edges are now in accent and the original two have returned to default." width="100%"}
+```
+
 ## `algo-selection-ws` — Selection + mutation workflow
 
 <img src="algo-selection-ws.light.svg" alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="480">
@@ -1258,6 +1298,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Node existence query](/assets/graphs/algo-node-query.light.svg){.lightbox fig-alt="Two nodes side by side. Node A is drawn solid in the accent color with a checkmark above it, indicating it exists. Node X is drawn as a dashed outline with an X mark above it, indicating it does not exist. A caption reads 'has_node?'." width="100%"}
 ```
 
+## `algo-has-node` — Node existence check
+
+<img src="algo-has-node.light.svg" alt="A three-node triangle graph on the left, and a single accent node Q on the right with a checkmark above it. A caption reads has_node Q returns True, showing the node exists." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Node existence check](/assets/graphs/algo-has-node.light.svg){.lightbox fig-alt="A three-node triangle graph on the left, and a single accent node Q on the right with a checkmark above it. A caption reads has_node Q returns True, showing the node exists." width="100%"}
+```
+
 ## `algo-edge-labels` — Edge ID label
 
 <img src="algo-edge-labels.light.svg" alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="480">
@@ -1538,6 +1588,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Graph cohesion](/assets/graphs/algo-cohesion.light.svg){.lightbox fig-alt="A seven-node graph. Two nodes in a faint shaded vertical strip are drawn with dashed outlines, indicating their removal disconnects the graph. Unlike a targeted s-t cut, this is the global minimum. A caption reads 'cohesion = 2'." width="100%"}
 ```
 
+## `algo-cohesion-metric` — Cohesion metric value
+
+<img src="algo-cohesion-metric.light.svg" alt="A six-node graph with a single cut node in a faint shaded vertical strip drawn with a dashed outline. Removing this one node disconnects the graph into two components. A caption reads 'cohesion = 1'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Cohesion metric value](/assets/graphs/algo-cohesion-metric.light.svg){.lightbox fig-alt="A six-node graph with a single cut node in a faint shaded vertical strip drawn with a dashed outline. Removing this one node disconnects the graph into two components. A caption reads 'cohesion = 1'." width="100%"}
+```
+
 ## `algo-node-vitality` — Node vitality
 
 <img src="algo-node-vitality.light.svg" alt="A before-and-after pair. On the left, a five-node graph where node v (accent) bridges two pairs of nodes. On the right, node v has been removed (dashed outline) and the graph has split into two disconnected pairs." width="480">
@@ -1766,6 +1826,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Eulerian circuit](/assets/graphs/algo-eulerian.light.svg){.lightbox fig-alt="A five-node bowtie graph: two triangles sharing a central node, giving six edges. Every vertex has even degree so an Euler circuit exists; each edge carries a numeric badge 1 through 6 along its length showing the order in which the circuit traverses it." width="100%"}
+```
+
+## `algo-is-semieulerian` — Semi-Eulerian test
+
+<img src="algo-is-semieulerian.light.svg" alt="A five-node graph arranged as a trail. The two endpoints A and E are highlighted in accent with 'odd' labels, indicating they have odd degree. The three inner nodes have even degree. A caption reads 'semi-Eulerian path'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Semi-Eulerian test](/assets/graphs/algo-is-semieulerian.light.svg){.lightbox fig-alt="A five-node graph arranged as a trail. The two endpoints A and E are highlighted in accent with 'odd' labels, indicating they have odd degree. The three inner nodes have even degree. A caption reads 'semi-Eulerian path'." width="100%"}
 ```
 
 ## `algo-is-eulerian` — Eulerian test
