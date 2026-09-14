@@ -6350,7 +6350,7 @@ class Graph:
         """
         Get count of currently selected nodes.
 
-        ![Selection query](/assets/graphs/algo-selection-query.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent as selected. A small overlay badge at the top reads '3 selected', illustrating methods that query the current selection state." width="100%"}
+        ![Count selected nodes](/assets/graphs/algo-count-selected-nodes.light.svg){.lightbox fig-alt="A six-node graph with three nodes highlighted in accent. A HUD overlay reads 'count = 3', showing the result of counting the selected nodes." width="100%"}
 
         Returns the number of nodes currently marked as selected. More efficient than
         `len(get_selected_nodes())` when you only need the count.
@@ -6384,7 +6384,7 @@ class Graph:
         """
         Get count of currently selected edges.
 
-        ![Edge selection query](/assets/graphs/algo-selection-edge-query.light.svg){.lightbox fig-alt="A six-node graph with two of seven edges highlighted in accent as selected. A small HUD overlay reads '2 edges', showing the result of querying the current edge selection." width="100%"}
+        ![Count selected edges](/assets/graphs/algo-count-selected-edges.light.svg){.lightbox fig-alt="A six-node graph with three of seven edges highlighted in accent. A HUD overlay reads 'count = 3', showing the result of counting the selected edges." width="100%"}
 
         Returns the number of edges currently marked as selected. More efficient than
         `len(get_selected_edges())` when you only need the count.
@@ -8126,7 +8126,7 @@ class Graph:
         """
         Transform a node attribute using a function on selected nodes.
 
-        ![Selection + mutation workflow](/assets/graphs/algo-selection-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent as the current selection. On the right, those same three nodes have changed to a teal tint, showing that an attribute mutation was applied to the selected subset while the rest of the graph is unchanged." width="100%"}
+        ![Mutate node attributes](/assets/graphs/algo-mutate-node-ws.light.svg){.lightbox fig-alt="A before-and-after pair. On the left, three of six nodes are highlighted in accent with values 5, 8, and 7. On the right, those same nodes are teal with doubled values 10, 16, and 14, showing the mutation function was applied." width="100%"}
 
         Applies a transformation function to the specified attribute for all selected nodes. The
         function receives each node's current attribute value and returns the new value. Requires an
@@ -9607,7 +9607,7 @@ class Graph:
         r"""
         Find all simple cycles in the graph.
 
-        ![Simple cycles](/assets/graphs/algo-simple-cycles.light.svg){.lightbox fig-alt="A five-node graph containing two simple cycles. Nodes A, B, and C form a triangle highlighted in accent. Nodes B, E, and C form a second cycle in a lighter accent tint. A caption below reads 2 simple cycles." width="100%"}
+        ![Enumerate simple cycles](/assets/graphs/algo-simple-cycles-enum.light.svg){.lightbox fig-alt="A five-node graph with two simple cycles enumerated. Triangle A-B-C is highlighted in accent and labeled 1. Triangle B-E-C is highlighted in lighter accent and labeled 2. A caption lists both cycles." width="100%"}
 
         A simple cycle is a closed path where no node appears more than once (except that the first
         and last node are the same). This method works for both directed and undirected graphs.
@@ -12677,7 +12677,7 @@ class Graph:
         """
         Compose this graph with another graph.
 
-        ![Set algebra on graphs](/assets/graphs/algo-set-algebra.light.svg){.lightbox fig-alt="Three panels illustrating the union of two graphs on the same four nodes. On the left, G1 has three edges, two of which (drawn in the accent color) are unique to it. In the middle, G2 has three edges, two of which (drawn in teal) are unique to it, plus one shared edge in default ink. On the right, the union graph carries every edge from either source: the two accent edges from G1, the two teal edges from G2, and the shared ink edge." width="100%"}
+        ![Graph composition](/assets/graphs/algo-compose.light.svg){.lightbox fig-alt="Three panels showing graph composition. On the left, G1 has three edges with one in accent. In the middle, G2 has three edges with two in teal. On the right, the composed graph has all five edges; G2 attributes take precedence." width="100%"}
 
         Similar to union, but the other graph's node attributes/labels take precedence over this
         graph's. Useful when you want to merge updates from another graph.
@@ -24080,7 +24080,7 @@ class Graph:
         """
         Count self-loops grouped by node.
 
-        ![Self-loop count](/assets/graphs/algo-self-loop-query.light.svg){.lightbox fig-alt="A three-node graph where nodes A and C each have a self-loop drawn in accent. A small overlay reads 'loops = 2', illustrating methods that count or identify self-loops." width="100%"}
+        ![Count self-loops per node](/assets/graphs/algo-count-loops.light.svg){.lightbox fig-alt="A four-node graph where node A has one self-loop and node C has two self-loops, all drawn in accent. A HUD overlay reads A: 1, C: 2, showing per-node loop counts." width="100%"}
 
         Returns a dictionary mapping node IDs to the count of self-loops for each node. Only
         includes nodes that have at least one self-loop.
@@ -25646,7 +25646,7 @@ class AdaStar:
         """
         Compute or improve the path with given epsilon.
 
-        ![Shortest path](/assets/graphs/algo-shortest-path.light.svg){.lightbox fig-alt="A five-node graph with two paths between nodes A and D. The two-hop shortest path A - B - D is highlighted in the accent color; the alternative three-hop route A - E - F - D is drawn with default styling." width="100%"}
+        ![Compute or improve path](/assets/graphs/algo-path-improve.light.svg){.lightbox fig-alt="A five-node graph with source S and target T. The optimal two-hop path S-B-T is highlighted in accent. Alternative routes through A and C are in default styling. A caption reads epsilon equals 1.0, optimal path." width="100%"}
 
         On first call, initializes the search and finds an initial path.
         On subsequent calls, improves the existing path if epsilon is lower.
