@@ -3191,7 +3191,7 @@ class Graph:
         """
         Get the label for a node by its ID.
 
-        ![Node ID vs. label](/assets/graphs/algo-node-labels.light.svg){.lightbox fig-alt="A single node with the human-readable label 'user' centered inside it, and a small muted caption 'id = 42' hovering above, illustrating that every node has both an internal integer ID and an optional string label." width="100%"}
+        ![ID-to-label lookup](/assets/graphs/algo-label-from-id.light.svg){.lightbox fig-alt="Two nodes side by side: the left node in accent shows the string label 'alice', and the right node in default shows the raw integer ID '7'. A muted caption 'id = 7' appears above the accent node, illustrating how get_label_from_id translates IDs to labels." width="100%"}
 
         Translates an internal `u64` node ID to its human-readable string label. Returns `None` if
         the node doesn't exist or has no label assigned.
@@ -9299,7 +9299,7 @@ class Graph:
         """
         Get Jaccard similarity index between all node pairs.
 
-        ![Link prediction similarity](/assets/graphs/algo-link-prediction.light.svg){.lightbox fig-alt="Two focal nodes u and v on the sides in accent, sharing two common neighbors in the middle (also accent). Each focal node has one unique neighbor drawn in default. A caption below reads 'similarity = 0.67', illustrating how neighborhood overlap produces a link-prediction score." width="100%"}
+        ![Jaccard similarity](/assets/graphs/algo-jaccard.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on either side, sharing one common neighbor in accent at the top. Each focal node has one unique neighbor in default styling. A caption reads 'Jaccard(u,v) = |1| / |3| = 0.33'." width="100%"}
 
         The Jaccard index is a classic set similarity measure:
 
@@ -17140,7 +17140,7 @@ class Graph:
         """
         Extract the k-corona subgraph.
 
-        ![k-core](/assets/graphs/algo-k-core.light.svg){.lightbox fig-alt="On the left, a six-node graph: a triangle with three pendant leaves, each leaf attached to one triangle node. On the right, the same graph with the 2-core (the triangle) highlighted in the accent color; the three pendant leaves and their incident edges, which fall below the 2-core threshold, are muted." width="100%"}
+        ![k-corona](/assets/graphs/algo-k-corona.light.svg){.lightbox fig-alt="Two-panel figure. Left panel shows a full six-node graph with a triangle core and pendant leaves. Right panel shows the 2-corona: the three triangle nodes in accent with exactly 2 neighbors in the core; pendant nodes and their edges are muted." width="100%"}
 
         The k-corona is the subgraph induced by nodes that are in the k-core and have exactly `k`
         neighbors in the k-core. These are the "boundary" nodes of the k-core that would be removed
@@ -21319,7 +21319,7 @@ class Graph:
         r"""
         Find minimum node cut between source and sink nodes.
 
-        ![Minimum node cut](/assets/graphs/algo-node-cut.light.svg){.lightbox fig-alt="An eight-node graph with source s and target t on opposite sides. Two nodes in a faintly shaded vertical strip in the middle are drawn with dashed outlines, indicating their removal disconnects s from t. A caption reads 'node cut = 2'." width="100%"}
+        ![Minimum node cut](/assets/graphs/algo-min-node-cut.light.svg){.lightbox fig-alt="An eight-node graph with source s and target t on opposite sides. Two removed nodes drawn with dashed outlines sit in a faintly shaded vertical strip, disconnecting s from t. A caption reads 'min node cut(s, t) = 2'." width="100%"}
 
         Returns the set of nodes whose removal disconnects the source from the sink. Uses
         transformation to an edge connectivity problem where each node is split into in/out copies
@@ -21427,7 +21427,7 @@ class Graph:
         """
         Find minimum edge cut between source and sink nodes.
 
-        ![Minimum cut](/assets/graphs/algo-min-cut.light.svg){.lightbox fig-alt="A six-node graph with source s on the left and target t on the right, both in the accent color. Two faint rounded background rectangles shade the two halves of the cut. The two accent-colored edges crossing between the halves are the minimum edge cut separating s from t." width="100%"}
+        ![Minimum edge cut](/assets/graphs/algo-min-edge-cut.light.svg){.lightbox fig-alt="A six-node graph split into two faintly shaded halves. Source s sits on the left and target t on the right. Three accent-colored edges cross the cut boundary between the halves. A caption reads 'edge cut(s, t) = 3'." width="100%"}
 
         Returns the set of edges whose removal disconnects the source from the sink. Uses the
         max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut.
@@ -22613,7 +22613,7 @@ class Graph:
         r"""
         Find a maximum weight matching in the graph.
 
-        ![Matching](/assets/graphs/algo-matching.light.svg){.lightbox fig-alt="An eight-node graph in two rows of four. Three pairwise-disjoint accent-colored edges form a matching: every accent edge picks a distinct pair of nodes, and no two accent edges share an endpoint. The six matched nodes are in the accent color; two unmatched nodes remain in default styling. Additional default edges fill in the surrounding graph structure." width="100%"}
+        ![Max weight matching](/assets/graphs/algo-max-weight-matching.light.svg){.lightbox fig-alt="A six-node graph with weighted edges. Three accent-colored matched edges carry weight labels (8, 3, 2) and no two share an endpoint. A caption reads 'max weight = 13'." width="100%"}
 
         Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
         selects edges by weight in descending order. For unweighted graphs, all edges have weight
@@ -24156,7 +24156,7 @@ class Graph:
         """
         Find pairs of mutual (reciprocal) edges in directed graph.
 
-        ![Mutual / asymmetric pairs](/assets/graphs/algo-mutual-pairs.light.svg){.lightbox fig-alt="A four-node directed graph. Two mutual pairs (A-B and C-D) are shown with double accent arrows curved in opposite directions. Two asymmetric edges (A to C, D to B) are single default arrows. A HUD overlay reads 'mutual: 2, asymm: 2'." width="100%"}
+        ![Which mutual pairs](/assets/graphs/algo-which-mutual.light.svg){.lightbox fig-alt="A five-node directed graph with mutual pairs shown as double accent arrows curving in opposite directions. Asymmetric edges are single default arrows. A caption lists the mutual node pairs found." width="100%"}
 
         Identifies edge pairs where both A->B and B->A exist, indicating bidirectional
         connections. Only meaningful for directed graphs. Each pair is returned once
