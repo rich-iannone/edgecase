@@ -8745,7 +8745,7 @@ class Graph:
         r"""
         Compute the number of common neighbors for node pairs.
 
-        ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
+        ![Common neighbor count](/assets/graphs/algo-common-neighbors-fn.light.svg){.lightbox fig-alt="Two focal nodes A and B in accent on opposite sides, with two shared accent neighbors between them. Node B has one unique neighbor in default. A caption reads 'CN(A,B) = 2', showing the common neighbor count." width="100%"}
 
         For each pair of nodes `(u, v)`, counts how many nodes are neighbors of both `u` and `v`.
         Common neighbors is a simple but effective link prediction measure.
@@ -8960,7 +8960,7 @@ class Graph:
         r"""
         Compute resource allocation index for node pairs.
 
-        ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
+        ![Resource allocation index](/assets/graphs/algo-resource-allocation.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors in lighter accent. A caption reads 'RA = Σ 1/deg', showing the resource allocation formula that sums the inverse degree of each common neighbor." width="100%"}
 
         For each pair of nodes `(u, v)`, computes `Σ(1 / |N(w)|)` for all common neighbors `w`.
         Similar to Adamic-Adar but uses `1/degree` instead of `1/log(degree)`, penalizing
@@ -15548,7 +15548,7 @@ class Graph:
         """
         Calculate harmonic centrality scores for all nodes.
 
-        ![Distance-derived metric](/assets/graphs/algo-distance-metric.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark v's direct neighbors; '2' marks the farthest reachable nodes. A caption reads 'ecc(v) = 2', showing how eccentricity, harmonic centrality, and radiality derive per-node scores from shortest-path distances." width="100%"}
+        ![Harmonic centrality](/assets/graphs/algo-harmonic.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark direct neighbors, '2' marks farther nodes. A caption reads 'H(v) = Σ 1/d = 2.0', showing the harmonic centrality formula." width="100%"}
 
         Harmonic centrality is the sum of the reciprocal of shortest path distances from a node to
         all other reachable nodes. For unreachable nodes, the distance is considered infinite, and
@@ -22989,7 +22989,7 @@ class Graph:
         r"""
         Find multiple distinct maximal independent sets.
 
-        ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
+        ![Find all maximal independent sets](/assets/graphs/algo-find-independent-sets.light.svg){.lightbox fig-alt="A six-node graph with two maximal independent sets shown: three accent nodes form one set and two teal nodes form another. A caption reads '2 maximal sets found'." width="100%"}
 
         Runs the maximal independent set algorithm multiple times with different random seeds to
         discover diverse solutions. This is useful for exploring the space of possible independent
