@@ -758,6 +758,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Distance-derived metric](/assets/graphs/algo-distance-metric.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark v's direct neighbors; '2' marks the farthest reachable nodes. A caption reads 'ecc(v) = 2', showing how eccentricity, harmonic centrality, and radiality derive per-node scores from shortest-path distances." width="100%"}
 ```
 
+## `algo-harmonic` — Harmonic centrality
+
+<img src="algo-harmonic.light.svg" alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark direct neighbors, '2' marks farther nodes. A caption reads 'H(v) = Σ 1/d = 2.0', showing the harmonic centrality formula." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Harmonic centrality](/assets/graphs/algo-harmonic.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark direct neighbors, '2' marks farther nodes. A caption reads 'H(v) = Σ 1/d = 2.0', showing the harmonic centrality formula." width="100%"}
+```
+
 ## `algo-radiality` — Radiality
 
 <img src="algo-radiality.light.svg" alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark direct neighbors, '2' marks farther nodes. A caption reads 'radiality(v) = 0.75', showing a distance-derived centrality score." width="480">
@@ -1078,6 +1088,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 ```
 
+## `algo-common-neighbors-fn` — Common neighbor count
+
+<img src="algo-common-neighbors-fn.light.svg" alt="Two focal nodes A and B in accent on opposite sides, with two shared neighbors between them also in accent. Node B has one unique neighbor in default. A caption reads 'CN(A,B) = 2', showing the common neighbor count." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Common neighbor count](/assets/graphs/algo-common-neighbors-fn.light.svg){.lightbox fig-alt="Two focal nodes A and B in accent on opposite sides, with two shared neighbors between them also in accent. Node B has one unique neighbor in default. A caption reads 'CN(A,B) = 2', showing the common neighbor count." width="100%"}
+```
+
 ## `algo-similar-neighbors` — Similar neighbors
 
 <img src="algo-similar-neighbors.light.svg" alt="Two focal nodes A and B in accent with two shared neighbors between them, also accent. Node A has one unique neighbor in default. A caption reads 'similar(A) = [B]', showing that B is the most similar neighbor to A." width="480">
@@ -1106,6 +1126,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
+```
+
+## `algo-resource-allocation` — Resource allocation index
+
+<img src="algo-resource-allocation.light.svg" alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors in lighter accent. A caption reads 'RA = Σ 1/deg', showing the resource allocation formula that sums the inverse degree of each common neighbor." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Resource allocation index](/assets/graphs/algo-resource-allocation.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors in lighter accent. A caption reads 'RA = Σ 1/deg', showing the resource allocation formula that sums the inverse degree of each common neighbor." width="100%"}
 ```
 
 ## `algo-adamic-adar` — Adamic-Adar index
@@ -2026,6 +2056,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
+```
+
+## `algo-find-independent-sets` — Find all maximal independent sets
+
+<img src="algo-find-independent-sets.light.svg" alt="A six-node graph with two maximal independent sets shown: three accent nodes form one set and two teal nodes form another. A caption reads '2 maximal sets found'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Find all maximal independent sets](/assets/graphs/algo-find-independent-sets.light.svg){.lightbox fig-alt="A six-node graph with two maximal independent sets shown: three accent nodes form one set and two teal nodes form another. A caption reads '2 maximal sets found'." width="100%"}
 ```
 
 ## `algo-max-independent-set` — Maximum independent set
