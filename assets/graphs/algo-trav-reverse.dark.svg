@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#0d1117"/>
+<line x1="140.14" y1="59.46" x2="74.86" y2="90.54" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="74.86,90.54 81.70,83.96 84.28,89.38" fill="#f97316" fill-opacity="1.0"/>
+<line x1="140.14" y1="140.54" x2="74.86" y2="109.46" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="74.86,109.46 84.28,110.62 81.70,116.04" fill="#f97316" fill-opacity="1.0"/>
+<line x1="77.00" y1="100.00" x2="243.00" y2="100.00" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+<polygon points="243.00,100.00 234.00,103.00 234.00,97.00" fill="#e6edf3" fill-opacity="0.4"/>
+<line x1="245.14" y1="90.54" x2="179.86" y2="59.46" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<polygon points="179.86,59.46 189.28,60.62 186.70,66.04" fill="#e6edf3" fill-opacity="1.0"/>
+<circle cx="55" cy="100" r="22" fill="#0d1117" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="55" y="100" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#f97316" fill-opacity="1.0">s</text>
+<circle cx="160" cy="50" r="22" fill="#0d1117" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="160" cy="150" r="22" fill="#0d1117" stroke="#f97316" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="265" cy="100" r="22" fill="#0d1117" stroke="#e6edf3" stroke-width="1.5" stroke-opacity="1.0"/>
+<text x="160" y="190" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#e6edf3" fill-opacity="0.7">trav_reverse_edge()</text>
+</svg>
