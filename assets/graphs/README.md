@@ -758,6 +758,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Distance-derived metric](/assets/graphs/algo-distance-metric.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark v's direct neighbors; '2' marks the farthest reachable nodes. A caption reads 'ecc(v) = 2', showing how eccentricity, harmonic centrality, and radiality derive per-node scores from shortest-path distances." width="100%"}
 ```
 
+## `algo-radiality` — Radiality
+
+<img src="algo-radiality.light.svg" alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark direct neighbors, '2' marks farther nodes. A caption reads 'radiality(v) = 0.75', showing a distance-derived centrality score." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Radiality](/assets/graphs/algo-radiality.light.svg){.lightbox fig-alt="A five-node graph with focal node v in accent at center. Distance labels '1' mark direct neighbors, '2' marks farther nodes. A caption reads 'radiality(v) = 0.75', showing a distance-derived centrality score." width="100%"}
+```
+
 ## `algo-graph-distances` — Graph diameter
 
 <img src="algo-graph-distances.light.svg" alt="A six-node graph where the longest shortest path (diameter) runs through four nodes A-B-C-D, highlighted in accent. Three alternative edges provide shorter routes between some pairs. A caption below reads 'diameter = 3'." width="480">
@@ -1068,6 +1078,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Common neighbors](/assets/graphs/algo-common-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B, unconnected to each other, with two common neighbors between them. The focal pair, the shared neighbors, and the edges linking them are all shown in the accent color; each focal node's unique neighbor is drawn in default styling." width="100%"}
 ```
 
+## `algo-similar-neighbors` — Similar neighbors
+
+<img src="algo-similar-neighbors.light.svg" alt="Two focal nodes A and B in accent with two shared neighbors between them, also accent. Node A has one unique neighbor in default. A caption reads 'similar(A) = [B]', showing that B is the most similar neighbor to A." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Similar neighbors](/assets/graphs/algo-similar-neighbors.light.svg){.lightbox fig-alt="Two focal nodes A and B in accent with two shared neighbors between them, also accent. Node A has one unique neighbor in default. A caption reads 'similar(A) = [B]', showing that B is the most similar neighbor to A." width="100%"}
+```
+
 ## `algo-pairwise-similarity` — Pairwise similarity matrix
 
 <img src="algo-pairwise-similarity.light.svg" alt="A four-node graph on the left with a 4×4 similarity matrix on the right. Each cell shows the Jaccard similarity between the row and column nodes, illustrating the all-pairs pairwise similarity computation." width="480">
@@ -1086,6 +1106,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Neighbor-based index](/assets/graphs/algo-neighbor-index.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors drawn in a lighter accent between them. Each focal node also has one unique neighbor in default ink. A caption reads 'index = 1.53', showing the numeric score that topology-based link-prediction indices produce." width="100%"}
+```
+
+## `algo-adamic-adar` — Adamic-Adar index
+
+<img src="algo-adamic-adar.light.svg" alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors in lighter accent. Common neighbors have varying degrees (extra default edges). A caption reads 'AA = Σ 1/log(deg)', showing the Adamic-Adar weighting." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Adamic-Adar index](/assets/graphs/algo-adamic-adar.light.svg){.lightbox fig-alt="Two focal nodes u and v in accent on opposite sides, sharing three common neighbors in lighter accent. Common neighbors have varying degrees (extra default edges). A caption reads 'AA = Σ 1/log(deg)', showing the Adamic-Adar weighting." width="100%"}
 ```
 
 ## `algo-pref-attachment` — Preferential attachment
@@ -1208,6 +1238,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Clique](/assets/graphs/algo-clique.light.svg){.lightbox fig-alt="A six-node graph containing a K4 clique: four mutually connected nodes shown in the accent color, with two extra nodes connected to the clique through default-styled edges." width="100%"}
 ```
 
+## `algo-max-clique` — Maximum clique
+
+<img src="algo-max-clique.light.svg" alt="A five-node graph with the largest clique (K3) highlighted: three mutually connected accent nodes form a triangle. Two default nodes attach to the clique but do not extend it. A caption reads 'max clique = 3'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Maximum clique](/assets/graphs/algo-max-clique.light.svg){.lightbox fig-alt="A five-node graph with the largest clique (K3) highlighted: three mutually connected accent nodes form a triangle. Two default nodes attach to the clique but do not extend it. A caption reads 'max clique = 3'." width="100%"}
+```
+
 ## `algo-clique-number` — Clique number
 
 <img src="algo-clique-number.light.svg" alt="A five-node graph containing a triangle (three mutually connected accent nodes) forming the maximum clique. Two default nodes attach to the triangle. A HUD overlay reads 'ω(G) = 3'." width="480">
@@ -1308,6 +1348,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Neighborhood shells](/assets/graphs/algo-neighborhood.light.svg){.lightbox fig-alt="A six-node graph organized around a seed node on the left, shown in the accent color. Its two direct neighbors (distance one) are also in accent; the next shell (distance two) is drawn in a lighter accent tint; and the furthest node, outside the two-hop neighborhood, is drawn in default styling." width="100%"}
 ```
 
+## `algo-trav-both` — Bidirectional traversal
+
+<img src="algo-trav-both.light.svg" alt="A five-node graph with seed node s at center in accent. Three accent edges radiate outward to three neighbors, all also in accent. A fourth node beyond the one-hop shell is in default. A caption reads 'trav_both()'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Bidirectional traversal](/assets/graphs/algo-trav-both.light.svg){.lightbox fig-alt="A five-node graph with seed node s at center in accent. Three accent edges radiate outward to three neighbors, all also in accent. A fourth node beyond the one-hop shell is in default. A caption reads 'trav_both()'." width="100%"}
+```
+
+## `algo-trav-reverse` — Reverse edge traversal
+
+<img src="algo-trav-reverse.light.svg" alt="A four-node directed graph with seed node s on the left in accent. Two accent arrows point inward toward s from neighbors, traversing edges in reverse. A muted outward arrow from s shows the forward direction is ignored. A caption reads 'trav_reverse_edge()'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Reverse edge traversal](/assets/graphs/algo-trav-reverse.light.svg){.lightbox fig-alt="A four-node directed graph with seed node s on the left in accent. Two accent arrows point inward toward s from neighbors, traversing edges in reverse. A muted outward arrow from s shows the forward direction is ignored. A caption reads 'trav_reverse_edge()'." width="100%"}
+```
+
 ## `algo-predecessors-successors` — Predecessors and successors
 
 <img src="algo-predecessors-successors.light.svg" alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from predecessor nodes on the left; two accent arrows depart toward successor nodes on the right. Captions read 'predecessors' and 'successors'." width="480">
@@ -1338,6 +1398,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Outward traversal](/assets/graphs/algo-trav-directed.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the left in accent. Two accent arrows point outward from 's' to its out-neighbors, which are also in accent. A muted arrow from a fourth node back into 's' shows an inward edge that does not contribute to the out-traversal. A caption reads 'trav_out()'." width="100%"}
 ```
 
+## `algo-trav-out-edge` — Outward edge traversal
+
+<img src="algo-trav-out-edge.light.svg" alt="A four-node directed graph with seed node s on the left in accent. Two accent arrows point outward from s, selecting those edges. A muted inward arrow into s is ignored. A caption reads 'trav_out_edge()'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Outward edge traversal](/assets/graphs/algo-trav-out-edge.light.svg){.lightbox fig-alt="A four-node directed graph with seed node s on the left in accent. Two accent arrows point outward from s, selecting those edges. A muted inward arrow into s is ignored. A caption reads 'trav_out_edge()'." width="100%"}
+```
+
+## `algo-trav-out-until` — Outward traversal with stop condition
+
+<img src="algo-trav-out-until.light.svg" alt="A four-node directed graph with seed node s on the left in accent. One out-neighbor passes the predicate and is accent; the other is muted (stopped by the predicate). A caption reads 'trav_out_until(pred)'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Outward traversal with stop condition](/assets/graphs/algo-trav-out-until.light.svg){.lightbox fig-alt="A four-node directed graph with seed node s on the left in accent. One out-neighbor passes the predicate and is accent; the other is muted (stopped by the predicate). A caption reads 'trav_out_until(pred)'." width="100%"}
+```
+
 ## `algo-trav-in` — Inward traversal
 
 <img src="algo-trav-in.light.svg" alt="A four-node directed graph with a selected seed node 's' on the right in accent. Two accent arrows point inward toward 's' from its in-neighbors, which are also in accent. A muted arrow from 's' outward to a fourth node shows an outward edge that does not contribute to the in-traversal. A caption reads 'trav_in()'." width="480">
@@ -1346,6 +1426,26 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Inward traversal](/assets/graphs/algo-trav-in.light.svg){.lightbox fig-alt="A four-node directed graph with a selected seed node 's' on the right in accent. Two accent arrows point inward toward 's' from its in-neighbors, which are also in accent. A muted arrow from 's' outward to a fourth node shows an outward edge that does not contribute to the in-traversal. A caption reads 'trav_in()'." width="100%"}
+```
+
+## `algo-trav-in-edge` — Inward edge traversal
+
+<img src="algo-trav-in-edge.light.svg" alt="A four-node directed graph with seed node s on the right in accent. Two accent arrows point inward toward s, selecting those edges. A muted outward arrow from s is ignored. A caption reads 'trav_in_edge()'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Inward edge traversal](/assets/graphs/algo-trav-in-edge.light.svg){.lightbox fig-alt="A four-node directed graph with seed node s on the right in accent. Two accent arrows point inward toward s, selecting those edges. A muted outward arrow from s is ignored. A caption reads 'trav_in_edge()'." width="100%"}
+```
+
+## `algo-trav-in-until` — Inward traversal with stop condition
+
+<img src="algo-trav-in-until.light.svg" alt="A four-node directed graph with seed node s on the right in accent. One in-neighbor passes the predicate and is accent; the other is muted (stopped by the predicate). A caption reads 'trav_in_until(pred)'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Inward traversal with stop condition](/assets/graphs/algo-trav-in-until.light.svg){.lightbox fig-alt="A four-node directed graph with seed node s on the right in accent. One in-neighbor passes the predicate and is accent; the other is muted (stopped by the predicate). A caption reads 'trav_in_until(pred)'." width="100%"}
 ```
 
 ## `algo-reciprocity` — Reciprocity
@@ -1528,6 +1628,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Edge ID label](/assets/graphs/algo-edge-labels.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge with a small label 'e₁' at its midpoint and a muted caption 'edge_id = 7' above, illustrating that every edge carries an internal integer ID." width="100%"}
 ```
 
+## `algo-edge-ids` — Edge IDs
+
+<img src="algo-edge-ids.light.svg" alt="Two nodes A and B connected by a single edge. A small table below lists edge_id = 7 with source A and destination B, illustrating how get_edge_ids returns internal edge IDs." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Edge IDs](/assets/graphs/algo-edge-ids.light.svg){.lightbox fig-alt="Two nodes A and B connected by a single edge. A small table below lists edge_id = 7 with source A and destination B, illustrating how get_edge_ids returns internal edge IDs." width="100%"}
+```
+
 ## `algo-edge-id-lookup` — Edge ID reverse lookup
 
 <img src="algo-edge-id-lookup.light.svg" alt="Two nodes A and B connected by a single accent edge labeled e₇. A caption reads 'e₇ → (A, B)', illustrating the reverse lookup from edge ID to endpoint node IDs." width="480">
@@ -1606,6 +1716,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Assortativity](/assets/graphs/algo-assortativity.light.svg){.lightbox fig-alt="Two six-node graphs shown side by side, each with two large high-degree hubs and four small low-degree leaves. On the left, an assortative arrangement: the two hubs are connected to each other and the leaves are connected to leaves. On the right, a disassortative arrangement: the hubs are not connected to each other, and every edge runs between a hub and a leaf." width="100%"}
+```
+
+## `algo-assortativity-attr` — Attribute assortativity
+
+<img src="algo-assortativity-attr.light.svg" alt="A six-node graph with three categorical groups shown in orange, teal, and violet. Edges between same-color nodes are drawn in that color; cross-group edges are default. A caption reads 'r = 0.42', showing the attribute assortativity coefficient." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Attribute assortativity](/assets/graphs/algo-assortativity-attr.light.svg){.lightbox fig-alt="A six-node graph with three categorical groups shown in orange, teal, and violet. Edges between same-color nodes are drawn in that color; cross-group edges are default. A caption reads 'r = 0.42', showing the attribute assortativity coefficient." width="100%"}
 ```
 
 ## `algo-assortativity-nominal` — Nominal assortativity
@@ -1908,6 +2028,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Independent set](/assets/graphs/algo-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent-colored nodes chosen as an independent set: no edge in the graph connects any two accent nodes. The three remaining nodes and all six edges are drawn in default styling." width="100%"}
 ```
 
+## `algo-max-independent-set` — Maximum independent set
+
+<img src="algo-max-independent-set.light.svg" alt="A six-node graph with three accent nodes forming the maximum independent set: no edge connects any two accent nodes, and no larger set exists. Three default nodes fill the remaining positions. A caption reads 'max independent set = 3'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Maximum independent set](/assets/graphs/algo-max-independent-set.light.svg){.lightbox fig-alt="A six-node graph with three accent nodes forming the maximum independent set: no edge connects any two accent nodes, and no larger set exists. Three default nodes fill the remaining positions. A caption reads 'max independent set = 3'." width="100%"}
+```
+
 ## `algo-is-independent` — Independent set test
 
 <img src="algo-is-independent.light.svg" alt="A five-node graph where three accent-colored nodes have no edge between any pair of them — confirming they form a valid independent set. Two default-styled nodes carry the edges. A caption reads 'independent? yes' with a checkmark." width="480">
@@ -1928,6 +2058,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Graph coloring](/assets/graphs/algo-coloring.light.svg){.lightbox fig-alt="A six-node graph with a proper 3-coloring: a central triangle whose three vertices are colored orange, teal, and violet, plus three pendant nodes each colored differently from the triangle vertex they attach to. No two adjacent nodes share a color." width="100%"}
 ```
 
+## `algo-chromatic` — Chromatic number upper bound
+
+<img src="algo-chromatic.light.svg" alt="A five-node graph with a proper 3-coloring using orange, teal, and violet. No two adjacent nodes share a color. A caption reads 'χ ≤ 3', showing the chromatic number upper bound." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Chromatic number upper bound](/assets/graphs/algo-chromatic.light.svg){.lightbox fig-alt="A five-node graph with a proper 3-coloring using orange, teal, and violet. No two adjacent nodes share a color. A caption reads 'χ ≤ 3', showing the chromatic number upper bound." width="100%"}
+```
+
 ## `algo-is-valid-coloring` — Coloring validity test
 
 <img src="algo-is-valid-coloring.light.svg" alt="A four-node graph with three colors (orange, teal, violet). No two adjacent nodes share a color. A caption reads 'valid coloring? yes' with a checkmark, confirming the assignment is a proper graph coloring." width="480">
@@ -1946,6 +2086,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Dominating set](/assets/graphs/algo-dominating-set.light.svg){.lightbox fig-alt="An eight-node graph with three accent-colored nodes chosen as a dominating set. Every one of the five remaining nodes is adjacent to at least one accent node via an accent-highlighted edge. Two additional default edges between non-set nodes fill in the surrounding structure." width="100%"}
+```
+
+## `algo-min-dom-set` — Minimum weighted dominating set
+
+<img src="algo-min-dom-set.light.svg" alt="A six-node graph with two accent-colored nodes forming a minimum weighted dominating set. Every other node is adjacent to at least one accent node via an accent edge. A caption reads 'min dominating set = 2'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Minimum weighted dominating set](/assets/graphs/algo-min-dom-set.light.svg){.lightbox fig-alt="A six-node graph with two accent-colored nodes forming a minimum weighted dominating set. Every other node is adjacent to at least one accent node via an accent edge. A caption reads 'min dominating set = 2'." width="100%"}
 ```
 
 ## `algo-is-dominating` — Dominating set test
@@ -2038,6 +2188,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![All-pairs shortest paths](/assets/graphs/algo-all-pairs.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, the corresponding all-pairs shortest-path distance matrix: a four-by-four table with row and column labels A, B, C, holding zero on the diagonal and the pairwise shortest-path distances off the diagonal." width="100%"}
 ```
 
+## `algo-all-pairs-path` — All-pairs shortest paths
+
+<img src="algo-all-pairs-path.light.svg" alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, a path matrix showing the actual shortest paths (as node sequences) between every pair, not just distances." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![All-pairs shortest paths](/assets/graphs/algo-all-pairs-path.light.svg){.lightbox fig-alt="On the left, a three-node weighted triangle with edge weights 1, 2, and 3. On the right, a path matrix showing the actual shortest paths (as node sequences) between every pair, not just distances." width="100%"}
+```
+
 ## `algo-wiener-index` — Wiener index
 
 <img src="algo-wiener-index.light.svg" alt="A four-node tree with A-B-C as a path and D hanging off B. A small overlay reads 'W = Σ d(u,v) = 8', showing the Wiener index as the sum of all pairwise shortest-path distances." width="480">
@@ -2056,6 +2216,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![All simple paths](/assets/graphs/algo-all-simple-paths.light.svg){.lightbox fig-alt="A graph with source s and target t on the sides, showing three distinct simple paths between them: a two-hop path through the top in accent, a two-hop path straight through the middle in a lighter accent tint, and a three-hop path along the bottom in teal, each rendered in its own distinct style." width="100%"}
+```
+
+## `algo-extract-path` — Extract path
+
+<img src="algo-extract-path.light.svg" alt="A six-node graph with a single accent path highlighted from source s through two intermediate nodes to target t. An alternative route through two default nodes is not highlighted. A caption reads 'path: s → a → b → t'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Extract path](/assets/graphs/algo-extract-path.light.svg){.lightbox fig-alt="A six-node graph with a single accent path highlighted from source s through two intermediate nodes to target t. An alternative route through two default nodes is not highlighted. A caption reads 'path: s → a → b → t'." width="100%"}
 ```
 
 ## `algo-is-simple-path` — Simple path test
@@ -2138,6 +2308,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![Node degree](/assets/graphs/algo-degree.light.svg){.lightbox fig-alt="A focus node in the accent color at the center of the frame, connected by four incident edges to four neighbor nodes at the corners. A single non-neighbor node above the focus is not connected to it. A muted caption below the focus reads 'degree = 4'." width="100%"}
 ```
 
+## `algo-get-degree` — Single-node degree
+
+<img src="algo-get-degree.light.svg" alt="A single accent focus node v at center with three accent edges radiating to three neighbors. A caption reads 'degree(v) = 3', illustrating a per-node degree lookup." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Single-node degree](/assets/graphs/algo-get-degree.light.svg){.lightbox fig-alt="A single accent focus node v at center with three accent edges radiating to three neighbors. A caption reads 'degree(v) = 3', illustrating a per-node degree lookup." width="100%"}
+```
+
 ## `algo-agg-degree` — Aggregate degree stats
 
 <img src="algo-agg-degree.light.svg" alt="A five-node, five-edge graph. A HUD overlay in the bottom-right reads 'avg = 2.0' and 'total = 10', showing the average degree and sum of all degrees across the graph." width="480">
@@ -2146,6 +2326,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Aggregate degree stats](/assets/graphs/algo-agg-degree.light.svg){.lightbox fig-alt="A five-node, five-edge graph. A HUD overlay in the bottom-right reads 'avg = 2.0' and 'total = 10', showing the average degree and sum of all degrees across the graph." width="100%"}
+```
+
+## `algo-agg-degree-total` — Total degree sum
+
+<img src="algo-agg-degree-total.light.svg" alt="A five-node, five-edge graph. A HUD overlay reads 'total = 10', showing the sum of all node degrees." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Total degree sum](/assets/graphs/algo-agg-degree-total.light.svg){.lightbox fig-alt="A five-node, five-edge graph. A HUD overlay reads 'total = 10', showing the sum of all node degrees." width="100%"}
 ```
 
 ## `algo-density` — Graph density
@@ -2168,6 +2358,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 ![In-degree vs. out-degree](/assets/graphs/algo-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at the center in accent. Two teal arrows arrive from the left (in-degree = 2) and three accent arrows depart to the right (out-degree = 3). Captions below read 'in = 2' and 'out = 3'." width="100%"}
 ```
 
+## `algo-out-degree` — Out-degree
+
+<img src="algo-out-degree.light.svg" alt="A directed graph with a focus node at center in accent. Three accent arrows depart to the right (out-degree = 3). Two muted arrows arrive from the left, de-emphasized to focus attention on the outgoing edges. A caption reads 'out-degree = 3'." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Out-degree](/assets/graphs/algo-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focus node at center in accent. Three accent arrows depart to the right (out-degree = 3). Two muted arrows arrive from the left, de-emphasized to focus attention on the outgoing edges. A caption reads 'out-degree = 3'." width="100%"}
+```
+
 ## `algo-agg-in-out-degree` — Aggregate in/out degree
 
 <img src="algo-agg-in-out-degree.light.svg" alt="A directed graph with a focal node at center. Two teal arrows arrive from the left, three accent arrows depart to the right. A HUD overlay reads 'sum_in = 5' and 'sum_out = 7', showing aggregated in-degree and out-degree totals across the graph." width="480">
@@ -2176,6 +2376,16 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design.
 
 ```markdown
 ![Aggregate in/out degree](/assets/graphs/algo-agg-in-out-degree.light.svg){.lightbox fig-alt="A directed graph with a focal node at center. Two teal arrows arrive from the left, three accent arrows depart to the right. A HUD overlay reads 'sum_in = 5' and 'sum_out = 7', showing aggregated in-degree and out-degree totals across the graph." width="100%"}
+```
+
+## `algo-agg-degree-out` — Aggregate out-degree
+
+<img src="algo-agg-degree-out.light.svg" alt="A directed graph with a focal node at center. Three accent arrows depart to the right; two muted arrows arrive from the left. A HUD overlay reads 'sum_out = 7', showing the aggregated out-degree total across the graph." width="480">
+
+**Copy-paste snippet for docstrings:**
+
+```markdown
+![Aggregate out-degree](/assets/graphs/algo-agg-degree-out.light.svg){.lightbox fig-alt="A directed graph with a focal node at center. Three accent arrows depart to the right; two muted arrows arrive from the left. A HUD overlay reads 'sum_out = 7', showing the aggregated out-degree total across the graph." width="100%"}
 ```
 
 ## `algo-eccentricity` — Eccentricity
