@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" role="img">
+<rect width="320" height="200" fill="#ffffff"/>
+<line x1="102.00" y1="50.00" x2="218.00" y2="50.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="224.44" y1="65.56" x2="175.56" y2="114.44" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="144.44" y1="114.44" x2="95.56" y2="65.56" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="140.32" y1="139.84" x2="99.68" y2="160.16" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="179.68" y1="139.84" x2="220.32" y2="160.16" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<line x1="102.00" y1="170.00" x2="218.00" y2="170.00" stroke="#1f2328" stroke-width="1.5" stroke-opacity="1.0" stroke-linecap="round"/>
+<circle cx="80" cy="50" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<circle cx="240" cy="50" r="22" fill="#ffffff" stroke="#0e7490" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="160" cy="130" r="22" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="80" cy="170" r="22" fill="#ffffff" stroke="#0e7490" stroke-width="1.5" stroke-opacity="1.0"/>
+<circle cx="240" cy="170" r="22" fill="#ffffff" stroke="#c2410c" stroke-width="2.25" stroke-opacity="1.0"/>
+<text x="160" y="20" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#1f2328" fill-opacity="0.7">χ ≤ 3</text>
+</svg>
