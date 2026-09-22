@@ -13567,6 +13567,81 @@ class Graph:
         result._graph = graph_disjoint_union(self._graph, other._graph)
         return result
 
+    def edge_overlap(self, other: "Graph") -> dict:
+        """
+        Compute edge overlap (Jaccard similarity) between this graph and another.
+
+        Edges are compared by node labels. Returns a dictionary with overlap metrics.
+
+        Parameters
+        ----------
+        other
+            The graph to compare against.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys: ``jaccard`` (Jaccard index), ``overlap`` (number of
+            shared edges), ``union_size``, ``g1_only``, ``g2_only``.
+        """
+        from edgecase._core import edge_overlap as _edge_overlap
+
+        return _edge_overlap(self._graph, other._graph)
+
+    def differential_edges(self, other: "Graph") -> dict:
+        """
+        Find edges present in one graph but not the other.
+
+        Edges are compared by node labels.
+
+        Parameters
+        ----------
+        other
+            The graph to compare against.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys: ``added`` (edges in `other` but not in `self`)
+            and ``removed`` (edges in `self` but not in `other``). Each value is a
+            list of ``(source_label, target_label)`` tuples.
+        """
+        from edgecase._core import differential_edges as _differential_edges
+
+        return _differential_edges(self._graph, other._graph)
+
+    def graph_edit_distance(
+        self,
+        other: "Graph",
+        node_cost: float = 1.0,
+        edge_cost: float = 1.0,
+    ) -> dict:
+        """
+        Compute the approximate graph edit distance between this graph and another.
+
+        Counts the minimum number of node insertions, node deletions, edge insertions,
+        and edge deletions to transform this graph into the other. Uses label-based
+        matching (exact label match = same node).
+
+        Parameters
+        ----------
+        other
+            The graph to compare against.
+        node_cost
+            Cost per node insertion or deletion.
+        edge_cost
+            Cost per edge insertion or deletion.
+
+        Returns
+        -------
+        dict
+            Dictionary with keys: ``distance``, ``node_insertions``, ``node_deletions``,
+            ``edge_insertions``, ``edge_deletions``.
+        """
+        from edgecase._core import graph_edit_distance as _graph_edit_distance
+
+        return _graph_edit_distance(self._graph, other._graph, node_cost, edge_cost)
+
     # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
