@@ -1717,13 +1717,12 @@ class Graph:
         """
         Display the graph as an interactive Cosmograph widget in a Jupyter notebook.
 
-        Requires the ``cosmograph`` package (``pip install cosmograph``). The widget
-        uses GPU-accelerated WebGL rendering and handles millions of nodes/edges in
-        the browser.
+        Requires the `cosmograph` package (`pip install cosmograph`). The widget uses
+        GPU-accelerated WebGL rendering and handles millions of nodes/edges in the browser.
 
-        Unlike `plot_vis()`, Cosmograph renders only as a Jupyter widget — there is no
-        browser fallback. Call this method in a notebook cell and evaluate the returned
-        widget to display it.
+        Unlike `plot_vis()`, Cosmograph renders only as a Jupyter widget and there is no browser
+        fallback. Call this method in a notebook cell and evaluate the returned widget to display
+        it.
 
         Parameters
         ----------
@@ -11898,9 +11897,9 @@ class Graph:
         seed
             Random seed for initial assignment reproducibility.
         attr_name
-            Name of the node attribute to store assignments. Defaults to ``"sbm_block"``.
+            Name of the node attribute to store assignments. Defaults to `"sbm_block"`.
         return_dict
-            If ``True``, returns a ``{node_id: block_id}`` dict instead of self.
+            If `True`, returns a `{node_id: block_id}` dict instead of self.
 
         Returns
         -------
@@ -12049,13 +12048,12 @@ class Graph:
         Returns
         -------
         dict
-            If `target_value` is specified, returns a dict with keys:
-            ``"value"``, ``"k"`` (hits in subgraph), ``"K"`` (hits in graph),
-            ``"n"`` (subgraph size), ``"N"`` (graph size), ``"p_value"``,
-            ``"fold_enrichment"``.
+            If `target_value` is specified, returns a dict with keys: `"value"`, `"k"` (hits in
+            subgraph), `"K"` (hits in graph), `"n"` (subgraph size), `"N"` (graph size),
+            `"p_value"`, `"fold_enrichment"`.
 
-            If `target_value` is `None`, returns a dict mapping each attribute value
-            to its enrichment result dict.
+            If `target_value` is `None`, returns a dict mapping each attribute value to its
+            enrichment result dict.
 
         Examples
         --------
@@ -12170,19 +12168,19 @@ class Graph:
         ----------
         communities
             Dictionary mapping node IDs to community IDs (as returned by
-            ``cmty_louvain(return_dict=True)`` etc.).
+            `cmty_louvain(return_dict=True)` etc.).
         attribute
             Name of the categorical node attribute to test.
         correction
-            Multiple-testing correction method: `"bonferroni"` (default) or `"fdr"` (
-            Benjamini-Hochberg).
+            Multiple-testing correction method: `"bonferroni"` (default) or `"fdr"`
+            (Benjamini-Hochberg).
 
         Returns
         -------
         dict[int, dict]
-            Dictionary mapping community IDs to enrichment results. Each result is a dict
-            mapping attribute values to enrichment dicts (same structure as
-            ``subgraph_enrichment``), with an additional `"p_adjusted"` key.
+            Dictionary mapping community IDs to enrichment results. Each result is a dict mapping
+            attribute values to enrichment dicts (same structure as `subgraph_enrichment`), with an
+            additional `"p_adjusted"` key.
 
         Examples
         --------
@@ -13581,8 +13579,8 @@ class Graph:
         Returns
         -------
         dict
-            Dictionary with keys: ``jaccard`` (Jaccard index), ``overlap`` (number of
-            shared edges), ``union_size``, ``g1_only``, ``g2_only``.
+            Dictionary with keys: `jaccard` (Jaccard index), `overlap` (number of shared edges),
+            `union_size`, `g1_only`, `g2_only`.
         """
         from edgecase._core import edge_overlap as _edge_overlap
 
@@ -13602,9 +13600,9 @@ class Graph:
         Returns
         -------
         dict
-            Dictionary with keys: ``added`` (edges in `other` but not in `self`)
-            and ``removed`` (edges in `self` but not in `other``). Each value is a
-            list of ``(source_label, target_label)`` tuples.
+            Dictionary with keys: `added` (edges in `other` but not in `self`) and `removed` (edges
+            in `self` but not in `other`). Each value is a list of `(source_label, target_label)`
+            tuples.
         """
         from edgecase._core import differential_edges as _differential_edges
 
@@ -13619,9 +13617,9 @@ class Graph:
         """
         Compute the approximate graph edit distance between this graph and another.
 
-        Counts the minimum number of node insertions, node deletions, edge insertions,
-        and edge deletions to transform this graph into the other. Uses label-based
-        matching (exact label match = same node).
+        Counts the minimum number of node insertions, node deletions, edge insertions, and edge
+        deletions to transform this graph into the other. Uses label-based matching (exact label
+        match = same node).
 
         Parameters
         ----------
@@ -13635,8 +13633,8 @@ class Graph:
         Returns
         -------
         dict
-            Dictionary with keys: ``distance``, ``node_insertions``, ``node_deletions``,
-            ``edge_insertions``, ``edge_deletions``.
+            Dictionary with keys: `distance`, `node_insertions`, `node_deletions`,
+            `edge_insertions`, `edge_deletions`.
         """
         from edgecase._core import graph_edit_distance as _graph_edit_distance
 
@@ -13688,22 +13686,21 @@ class Graph:
 
         Technical Notes
         ---------------
-        A $t$-spanner is a subgraph $H \subseteq G$ that preserves every pairwise distance
-        up to a multiplicative factor: $d_H(u, v) \le t \cdot d_G(u, v)$ for all node pairs.
-        This implementation uses a greedy scan that considers edges in weight order and
-        admits each one only when the current spanner cannot already reach its endpoints
-        within the stretch bound, costing $O(mn)$ time. The Baswana-Sen (2007) randomized
-        algorithm attains the same guarantee in expected linear time with a tighter sparsity
-        bound but is trickier to implement; the greedy variant here is chosen for clarity
-        and determinism up to the tie-breaking controlled by `seed=`. For unweighted graphs
-        the resulting spanner holds $O(n^{1 + 1/k})$ edges with
-        $k = \lfloor(t + 1)/2\rfloor$, which is optimal assuming the Erdős girth
-        conjecture; weighted graphs may keep more edges but still dramatically fewer than
+        A $t$-spanner is a subgraph $H \subseteq G$ that preserves every pairwise distance up to a
+        multiplicative factor: $d_H(u, v) \le t \cdot d_G(u, v)$ for all node pairs. This
+        implementation uses a greedy scan that considers edges in weight order and admits each one
+        only when the current spanner cannot already reach its endpoints within the stretch bound,
+        costing $O(mn)$ time. The Baswana-Sen (2007) randomized algorithm attains the same guarantee
+        in expected linear time with a tighter sparsity bound but is trickier to implement. The
+        greedy variant here is chosen for clarity and determinism up to the tie-breaking controlled
+        by `seed=`. For unweighted graphs the resulting spanner holds $O(n^{1 + 1/k})$ edges with
+        $k = \lfloor(t + 1)/2\rfloor$, which is optimal assuming the Erdős girth conjecture.
+        Weighted graphs may keep more edges but still dramatically fewer than
         the original.
 
-        Spanners are the workhorse behind graph compression, network-backbone extraction,
-        and fast approximate distance queries, and they make an excellent preprocessing
-        step before running an expensive shortest-path or diameter computation.
+        Spanners are the workhorse behind graph compression, network-backbone extraction, and fast
+        approximate distance queries, and they make an excellent preprocessing step before running
+        an expensive shortest-path or diameter computation.
 
         Examples
         --------
