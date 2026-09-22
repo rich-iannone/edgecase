@@ -1,0 +1,381 @@
+//! Bipartite graph algorithms.
+//!
+//! - `bipartite_sets`: Return the two node partitions of a bipartite graph
+//! - `bipartite_projection`: Project onto one partition
+//! - `bipartite_degree_centrality`: Degree centrality within a partition
+//! - `bipartite_closeness_centrality`: Closeness centrality for bipartite graphs
+//! - `bipartite_betweenness_centrality`: Betweenness centrality for bipartite graphs
+
+use crate::graph::Graph;
+use pyo3::prelude::*;
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::BinaryHeap;
+use std::cmp::Ordering;
+
+/// Return the two partitions of a bipartite graph using BFS 2-coloring.
+///
+/// Returns (set_0, set_1) where set_0 contains nodes colored 0 and
+/// set_1 contains nodes colored 1. Raises an error if the graph is not bipartite.
+#[pyfunction]
+#[pyo3(signature = (graph,))]
+pub fn bipartite_sets(graph: &Graph) -> PyResult<(Vec<u64>, Vec<u64>)> {
+    let n = graph.num_nodes();
+    if n == 0 {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    let node_ids = graph.get_node_ids();
+    let mut color: FxHashMap<u64, u8> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
+
+    let mut set_0: Vec<u64> = Vec::new();
+    let mut set_1: Vec<u64> = Vec::new();
+
+    for &start_node in &node_ids {
+        if color.contains_key(&start_node) {
+            continue;
+        }
+
+        let mut queue: Vec<u64> = vec![start_node];
+        color.insert(start_node, 0);
+
+        while let Some(current) = queue.pop() {
+            let current_color = *color.get(&current).unwrap();
+            let next_color = 1 - current_color;
+
+            if let Ok(neighbors) = graph.neighbors(current) {
+                for &neighbor in &neighbors {
+                    if let Some(&neighbor_color) = color.get(&neighbor) {
+                        if neighbor_color == current_color {
+                            return Err(pyo3::exceptions::PyValueError::new_err(
+                                "Graph is not bipartite",
+                            ));
+                        }
+                    } else {
+                        color.insert(neighbor, next_color);
+                        queue.push(neighbor);
+                    }
+                }
+            }
+        }
+    }
+
+    for (&node_id, &c) in &color {
+        if c == 0 {
+            set_0.push(node_id);
+        } else {
+            set_1.push(node_id);
+        }
+    }
+
+    set_0.sort_unstable();
+    set_1.sort_unstable();
+
+    Ok((set_0, set_1))
+}
+
+/// Project a bipartite graph onto one partition.
+///
+/// Two nodes in the chosen partition become connected in the projection if they
+/// share at least one neighbor in the other partition. Edge weights in the
+/// projection equal the number of shared neighbors.
+///
+/// `which` selects which partition to project onto: 0 or 1 (as returned by
+/// `bipartite_sets`).
+#[pyfunction]
+#[pyo3(signature = (graph, which=0))]
+pub fn bipartite_projection(
+    graph: &Graph,
+    which: u8,
+) -> PyResult<Vec<(u64, u64, f64)>> {
+    if which > 1 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "which must be 0 or 1",
+        ));
+    }
+
+    let (set_0, set_1) = bipartite_sets(graph)?;
+
+    let (project_set, other_set) = if which == 0 {
+        (set_0, set_1)
+    } else {
+        (set_1, set_0)
+    };
+
+    let project_members: FxHashSet<u64> = project_set.iter().copied().collect();
+    let other_members: FxHashSet<u64> = other_set.iter().copied().collect();
+
+    // For each node in the other partition, collect its neighbors in the project partition
+    // then create edges between all pairs of those neighbors
+    let mut edge_weights: FxHashMap<(u64, u64), f64> = FxHashMap::default();
+
+    for &other_node in &other_set {
+        if let Ok(neighbors) = graph.neighbors(other_node) {
+            let project_neighbors: Vec<u64> = neighbors
+                .iter()
+                .filter(|n| project_members.contains(n))
+                .copied()
+                .collect();
+
+            for (i, &a) in project_neighbors.iter().enumerate() {
+                for &b in project_neighbors.iter().skip(i + 1) {
+                    let edge = if a < b { (a, b) } else { (b, a) };
+                    *edge_weights.entry(edge).or_insert(0.0) += 1.0;
+                }
+            }
+        }
+    }
+
+    let mut result: Vec<(u64, u64, f64)> = edge_weights
+        .into_iter()
+        .map(|((a, b), w)| (a, b, w))
+        .collect();
+    result.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+
+    Ok(result)
+}
+
+/// Degree centrality for nodes in one partition of a bipartite graph.
+///
+/// Normalized by the size of the opposite partition (the maximum possible degree).
+#[pyfunction]
+#[pyo3(signature = (graph, which=0))]
+pub fn bipartite_degree_centrality(
+    graph: &Graph,
+    which: u8,
+) -> PyResult<FxHashMap<u64, f64>> {
+    if which > 1 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "which must be 0 or 1",
+        ));
+    }
+
+    let (set_0, set_1) = bipartite_sets(graph)?;
+
+    let (target_set, other_size) = if which == 0 {
+        let other_len = set_1.len();
+        (set_0, other_len)
+    } else {
+        let other_len = set_0.len();
+        (set_1, other_len)
+    };
+
+    if other_size == 0 {
+        return Ok(target_set.iter().map(|&id| (id, 0.0)).collect());
+    }
+
+    let norm = 1.0 / other_size as f64;
+    let mut result = FxHashMap::default();
+
+    for &node_id in &target_set {
+        let degree = graph.neighbors(node_id).map(|n| n.len()).unwrap_or(0);
+        result.insert(node_id, degree as f64 * norm);
+    }
+
+    Ok(result)
+}
+
+#[derive(Clone)]
+struct DijkEntry {
+    dist: f64,
+    node: u64,
+}
+
+impl PartialEq for DijkEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.dist == other.dist && self.node == other.node
+    }
+}
+impl Eq for DijkEntry {}
+
+impl Ord for DijkEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .dist
+            .partial_cmp(&self.dist)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| self.node.cmp(&other.node))
+    }
+}
+
+impl PartialOrd for DijkEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn bfs_distances(graph: &Graph, source: u64) -> FxHashMap<u64, f64> {
+    let mut dist: FxHashMap<u64, f64> = FxHashMap::default();
+    dist.insert(source, 0.0);
+    let mut queue: Vec<u64> = vec![source];
+
+    while let Some(current) = queue.pop() {
+        let current_dist = dist[&current];
+        if let Ok(neighbors) = graph.neighbors(current) {
+            for &neighbor in &neighbors {
+                if !dist.contains_key(&neighbor) {
+                    dist.insert(neighbor, current_dist + 1.0);
+                    queue.push(neighbor);
+                }
+            }
+        }
+    }
+    dist
+}
+
+/// Closeness centrality for nodes in one partition of a bipartite graph.
+///
+/// Closeness is the reciprocal of the average shortest path distance to all
+/// nodes in the opposite partition.
+#[pyfunction]
+#[pyo3(signature = (graph, which=0))]
+pub fn bipartite_closeness_centrality(
+    graph: &Graph,
+    which: u8,
+) -> PyResult<FxHashMap<u64, f64>> {
+    if which > 1 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "which must be 0 or 1",
+        ));
+    }
+
+    let (set_0, set_1) = bipartite_sets(graph)?;
+
+    let (target_set, other_set) = if which == 0 {
+        (set_0, set_1)
+    } else {
+        (set_1, set_0)
+    };
+
+    let other_members: FxHashSet<u64> = other_set.iter().copied().collect();
+    let other_size = other_set.len();
+
+    if other_size == 0 {
+        return Ok(target_set.iter().map(|&id| (id, 0.0)).collect());
+    }
+
+    let mut result = FxHashMap::default();
+
+    for &node_id in &target_set {
+        let distances = bfs_distances(graph, node_id);
+        let total_dist: f64 = other_members
+            .iter()
+            .filter_map(|&other| distances.get(&other))
+            .sum();
+
+        let reachable: usize = other_members
+            .iter()
+            .filter(|&&other| distances.contains_key(&other))
+            .count();
+
+        let centrality = if reachable > 0 && total_dist > 0.0 {
+            reachable as f64 / total_dist
+        } else {
+            0.0
+        };
+
+        result.insert(node_id, centrality);
+    }
+
+    Ok(result)
+}
+
+/// Betweenness centrality for nodes in one partition of a bipartite graph.
+///
+/// Measures how often a node lies on shortest paths between pairs of nodes
+/// in the opposite partition.
+#[pyfunction]
+#[pyo3(signature = (graph, which=0))]
+pub fn bipartite_betweenness_centrality(
+    graph: &Graph,
+    which: u8,
+) -> PyResult<FxHashMap<u64, f64>> {
+    if which > 1 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "which must be 0 or 1",
+        ));
+    }
+
+    let (set_0, set_1) = bipartite_sets(graph)?;
+
+    let (target_set, other_set) = if which == 0 {
+        (set_0, set_1)
+    } else {
+        (set_1, set_0)
+    };
+
+    let target_members: FxHashSet<u64> = target_set.iter().copied().collect();
+
+    let mut betweenness: FxHashMap<u64, f64> = target_set.iter().map(|&id| (id, 0.0)).collect();
+
+    // Brandes-like algorithm: BFS from each node in the other partition
+    for &source in &other_set {
+        // BFS
+        let mut dist: FxHashMap<u64, i64> = FxHashMap::default();
+        let mut sigma: FxHashMap<u64, f64> = FxHashMap::default();
+        let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+        let mut stack: Vec<u64> = Vec::new();
+
+        dist.insert(source, 0);
+        sigma.insert(source, 1.0);
+
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(source);
+
+        while let Some(v) = queue.pop_front() {
+            stack.push(v);
+            let v_dist = dist[&v];
+
+            if let Ok(neighbors) = graph.neighbors(v) {
+                for &w in &neighbors {
+                    if !dist.contains_key(&w) {
+                        dist.insert(w, v_dist + 1);
+                        queue.push_back(w);
+                    }
+                    if dist[&w] == v_dist + 1 {
+                        *sigma.entry(w).or_insert(0.0) += sigma.get(&v).copied().unwrap_or(0.0);
+                        predecessors.entry(w).or_default().push(v);
+                    }
+                }
+            }
+        }
+
+        // Back-propagation
+        let mut delta: FxHashMap<u64, f64> = FxHashMap::default();
+
+        while let Some(w) = stack.pop() {
+            let w_delta = delta.get(&w).copied().unwrap_or(0.0);
+            let w_sigma = sigma.get(&w).copied().unwrap_or(1.0);
+
+            if let Some(preds) = predecessors.get(&w) {
+                for &v in preds {
+                    let v_sigma = sigma.get(&v).copied().unwrap_or(1.0);
+                    let contribution = (v_sigma / w_sigma) * (1.0 + w_delta);
+                    *delta.entry(v).or_insert(0.0) += contribution;
+                }
+            }
+
+            if w != source {
+                if let Some(b) = betweenness.get_mut(&w) {
+                    if target_members.contains(&w) {
+                        *b += w_delta;
+                    }
+                }
+            }
+        }
+    }
+
+    // Normalize: for undirected graphs, divide by 2
+    let norm = if other_set.len() >= 2 {
+        2.0 / ((other_set.len() as f64) * (other_set.len() as f64 - 1.0))
+    } else {
+        1.0
+    };
+
+    for val in betweenness.values_mut() {
+        *val *= norm;
+    }
+
+    Ok(betweenness)
+}
+
