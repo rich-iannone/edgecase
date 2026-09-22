@@ -38,6 +38,7 @@ pub mod regularity;
 pub mod rich_club;
 pub mod simd_intersection;
 pub mod spanning_trees;
+pub mod simrank;
 pub mod structural;
 pub mod structure;
 
