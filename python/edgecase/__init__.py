@@ -54,6 +54,7 @@ from edgecase.io import (
     to_sif,
     to_tsv_edge_list,
 )
+from edgecase.multiplex import MultiplexGraph
 
 # Python-layer functionality
 # Polars integration: Use Graph(nodes_df=..., edges_df=...) to create from DataFrames
@@ -90,6 +91,7 @@ __all__ = [
     "__version__",
     # Core classes
     "Graph",
+    "MultiplexGraph",
     "Node",
     "Edge",
     # I/O
