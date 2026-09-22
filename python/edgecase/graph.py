@@ -4145,6 +4145,251 @@ class Graph:
         """
         return self._graph.is_bipartite()
 
+    def bipartite_sets(self) -> tuple[list[int], list[int]]:
+        """
+        Return the two node partitions of a bipartite graph.
+
+        Uses BFS 2-coloring to partition nodes into two independent sets such that every
+        edge connects nodes from different sets.
+
+        Returns
+        -------
+        tuple[list[int], list[int]]
+            A pair of lists containing the node IDs of each partition.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Gene1")
+            .add_node(label="Gene2")
+            .add_node(label="Disease1")
+            .add_node(label="Disease2")
+            .add_edge("Gene1", "Disease1")
+            .add_edge("Gene1", "Disease2")
+            .add_edge("Gene2", "Disease1")
+        )
+
+        set_a, set_b = graph.bipartite_sets()
+        len(set_a), len(set_b)
+        ```
+        """
+        return rust.bipartite_sets(self._graph)
+
+    def bipartite_projection(
+        self,
+        which: int = 0,
+    ) -> "Graph":
+        """
+        Project a bipartite graph onto one of its partitions.
+
+        Two nodes in the chosen partition become connected if they share at least one
+        neighbor in the other partition. Edge weights equal the number of shared neighbors.
+
+        Parameters
+        ----------
+        which
+            Which partition to project onto: `0` or `1` (as returned by
+            ``bipartite_sets()``).
+
+        Returns
+        -------
+        Graph
+            A new graph containing only the nodes of the chosen partition, with edges
+            weighted by shared-neighbor counts.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite, or if `which` is not 0 or 1.
+
+        Examples
+        --------
+        Project a gene-disease network onto genes; genes become connected if they
+        share diseases:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Gene1")
+            .add_node(label="Gene2")
+            .add_node(label="Gene3")
+            .add_node(label="Disease1")
+            .add_node(label="Disease2")
+            .add_edge("Gene1", "Disease1")
+            .add_edge("Gene2", "Disease1")
+            .add_edge("Gene2", "Disease2")
+            .add_edge("Gene3", "Disease2")
+        )
+
+        set_a, set_b = graph.bipartite_sets()
+
+        # Find which set contains the genes
+        gene1_id = graph.get_id_from_label("Gene1")
+        gene_set = 0 if gene1_id in set_a else 1
+
+        projection = graph.bipartite_projection(which=gene_set)
+        projection.count_nodes(), projection.count_edges()
+        ```
+        """
+        edges = rust.bipartite_projection(self._graph, which)
+
+        # Determine which set we're projecting onto
+        set_0, set_1 = rust.bipartite_sets(self._graph)
+        project_nodes = set_0 if which == 0 else set_1
+
+        proj = Graph(directed=False, weighted=True)
+
+        for node_id in project_nodes:
+            label = self.get_label_from_id(node_id)
+            if label is not None:
+                proj.add_node(label)
+            else:
+                proj.add_node(str(node_id))
+
+        for source_id, target_id, weight in edges:
+            source_label = self.get_label_from_id(source_id) or str(source_id)
+            target_label = self.get_label_from_id(target_id) or str(target_id)
+            proj.add_edge(source_label, target_label, weight=weight)
+
+        return proj
+
+    def bipartite_degree_centrality(
+        self,
+        which: int = 0,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Degree centrality for nodes in one partition of a bipartite graph.
+
+        Normalized by the size of the opposite partition (the maximum possible degree
+        for any node in the target partition).
+
+        Parameters
+        ----------
+        which
+            Which partition to compute centrality for: `0` or `1`.
+        attr_name
+            Column name for the node DataFrame. Defaults to `"bipartite_degree_centrality"`.
+        return_dict
+            If `True`, returns the centrality dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Centrality scores normalized to [0, 1].
+        """
+        result_ids = rust.bipartite_degree_centrality(self._graph, which)
+
+        if attr_name is None:
+            attr_name = "bipartite_degree_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(("bipartite_degree_centrality", {"which": which}, attr_name))
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def bipartite_closeness_centrality(
+        self,
+        which: int = 0,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Closeness centrality for nodes in one partition of a bipartite graph.
+
+        Closeness is the reciprocal of the average shortest path distance to all
+        nodes in the opposite partition.
+
+        Parameters
+        ----------
+        which
+            Which partition to compute centrality for: `0` or `1`.
+        attr_name
+            Column name for the node DataFrame. Defaults to
+            `"bipartite_closeness_centrality"`.
+        return_dict
+            If `True`, returns the centrality dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Closeness centrality scores.
+        """
+        result_ids = rust.bipartite_closeness_centrality(self._graph, which)
+
+        if attr_name is None:
+            attr_name = "bipartite_closeness_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(
+                ("bipartite_closeness_centrality", {"which": which}, attr_name)
+            )
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def bipartite_betweenness_centrality(
+        self,
+        which: int = 0,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Betweenness centrality for nodes in one partition of a bipartite graph.
+
+        Measures how often a node lies on shortest paths between pairs of nodes
+        in the opposite partition.
+
+        Parameters
+        ----------
+        which
+            Which partition to compute centrality for: `0` or `1`.
+        attr_name
+            Column name for the node DataFrame. Defaults to
+            `"bipartite_betweenness_centrality"`.
+        return_dict
+            If `True`, returns the centrality dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Betweenness centrality scores.
+        """
+        result_ids = rust.bipartite_betweenness_centrality(self._graph, which)
+
+        if attr_name is None:
+            attr_name = "bipartite_betweenness_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(
+                ("bipartite_betweenness_centrality", {"which": which}, attr_name)
+            )
+
+        if return_dict:
+            return result_ids
+        return self
+
     def is_tree(self) -> bool:
         """
         Check if the graph is a tree.
@@ -11499,6 +11744,239 @@ class Graph:
         return self
 
     # ==============================================================================
+    # Network Enrichment Testing
+    # ==============================================================================
+
+    def subgraph_enrichment(
+        self,
+        subgraph_nodes: list[int],
+        attribute: str,
+        target_value: str | int | float | None = None,
+        method: str = "hypergeometric",
+    ) -> dict:
+        """
+        Test whether a subgraph is enriched for a categorical node attribute.
+
+        Given a set of nodes (e.g., a detected community), tests whether they contain
+        more nodes with a particular attribute value than expected by chance compared
+        to the full graph.
+
+        Parameters
+        ----------
+        subgraph_nodes
+            List of node IDs defining the subgraph to test.
+        attribute
+            Name of the categorical node attribute to test (e.g., `"pathway"`,
+            `"go_term"`).
+        target_value
+            Specific attribute value to test enrichment for. If `None`, tests each
+            distinct value separately and returns results for all.
+        method
+            Statistical test to use: `"hypergeometric"` (default) or `"chi_squared"`.
+
+        Returns
+        -------
+        dict
+            If `target_value` is specified, returns a dict with keys:
+            ``"value"``, ``"k"`` (hits in subgraph), ``"K"`` (hits in graph),
+            ``"n"`` (subgraph size), ``"N"`` (graph size), ``"p_value"``,
+            ``"fold_enrichment"``.
+
+            If `target_value` is `None`, returns a dict mapping each attribute value
+            to its enrichment result dict.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="G1")
+            .add_node(label="G2")
+            .add_node(label="G3")
+            .add_node(label="G4")
+            .add_node(label="G5")
+            .add_node(label="G6")
+            .add_edge("G1", "G2")
+            .add_edge("G2", "G3")
+            .add_edge("G3", "G1")
+            .add_edge("G4", "G5")
+            .add_edge("G5", "G6")
+            .add_edge("G6", "G4")
+        )
+
+        for label, pathway in [("G1", "apoptosis"), ("G2", "apoptosis"),
+                                ("G3", "apoptosis"), ("G4", "signaling"),
+                                ("G5", "signaling"), ("G6", "apoptosis")]:
+            nid = graph.get_id_from_label(label)
+            graph.set_node_attrs(nid, pathway=pathway)
+
+        subgraph = [graph.get_id_from_label(g) for g in ["G1", "G2", "G3"]]
+        result = graph.subgraph_enrichment(subgraph, "pathway", "apoptosis")
+        result["fold_enrichment"], result["p_value"]
+        ```
+        """
+        from math import comb
+
+        all_node_ids = self.get_node_ids()
+        n_total = len(all_node_ids)
+        n_sub = len(subgraph_nodes)
+        subgraph_set = set(subgraph_nodes)
+
+        # Collect attribute values for all nodes
+        attr_map: dict[int, str | int | float] = self.get_node_attrs(attribute)
+
+        def _hypergeometric_test(k: int, K: int, n: int, N: int) -> float:
+            if N == 0 or n == 0 or K == 0:
+                return 1.0
+            p_value = 0.0
+            for i in range(k, min(K, n) + 1):
+                p_value += (comb(K, i) * comb(N - K, n - i)) / comb(N, n)
+            return min(p_value, 1.0)
+
+        def _test_value(value):
+            K = sum(1 for nid in all_node_ids if attr_map.get(nid) == value)
+            k = sum(1 for nid in subgraph_nodes if attr_map.get(nid) == value)
+
+            if method == "hypergeometric":
+                p_val = _hypergeometric_test(k, K, n_sub, n_total)
+            elif method == "chi_squared":
+                expected = K * n_sub / n_total if n_total > 0 else 0
+                if expected > 0:
+                    chi2 = (k - expected) ** 2 / expected
+                    # Approximate p-value for 1 dof
+                    from math import exp, sqrt, pi
+
+                    if chi2 > 0:
+                        z = sqrt(chi2)
+                        from math import erf
+                        p_val = max(0.0, 1.0 - 0.5 * (1.0 + erf(z / sqrt(2.0))))
+                    else:
+                        p_val = 1.0
+                else:
+                    p_val = 1.0
+            else:
+                raise ValueError(f"Unknown method: {method}. Use 'hypergeometric' or 'chi_squared'.")
+
+            expected_k = K * n_sub / n_total if n_total > 0 else 0
+            fold = k / expected_k if expected_k > 0 else float("inf") if k > 0 else 0.0
+
+            return {
+                "value": value,
+                "k": k,
+                "K": K,
+                "n": n_sub,
+                "N": n_total,
+                "p_value": p_val,
+                "fold_enrichment": fold,
+            }
+
+        if target_value is not None:
+            return _test_value(target_value)
+        else:
+            values = sorted(set(attr_map.values()), key=str)
+            return {v: _test_value(v) for v in values}
+
+    def module_annotation_enrichment(
+        self,
+        communities: dict[int, int],
+        attribute: str,
+        correction: str = "bonferroni",
+    ) -> dict[int, dict]:
+        """
+        Run enrichment testing across all detected communities at once.
+
+        For each community and each distinct value of the given attribute, tests whether
+        that community is enriched for that value, with multiple-testing correction applied
+        across all tests.
+
+        Parameters
+        ----------
+        communities
+            Dictionary mapping node IDs to community IDs (as returned by
+            ``cmty_louvain(return_dict=True)`` etc.).
+        attribute
+            Name of the categorical node attribute to test.
+        correction
+            Multiple-testing correction method: `"bonferroni"` (default) or `"fdr"` (
+            Benjamini-Hochberg).
+
+        Returns
+        -------
+        dict[int, dict]
+            Dictionary mapping community IDs to enrichment results. Each result is a dict
+            mapping attribute values to enrichment dicts (same structure as
+            ``subgraph_enrichment``), with an additional `"p_adjusted"` key.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="G1")
+            .add_node(label="G2")
+            .add_node(label="G3")
+            .add_node(label="G4")
+            .add_edge("G1", "G2")
+            .add_edge("G3", "G4")
+        )
+
+        for label, pathway in [("G1", "X"), ("G2", "X"), ("G3", "Y"), ("G4", "Y")]:
+            nid = graph.get_id_from_label(label)
+            graph.set_node_attrs(nid, pathway=pathway)
+
+        communities = graph.cmty_louvain(return_dict=True)
+        results = graph.module_annotation_enrichment(communities, "pathway")
+        len(results)
+        ```
+        """
+        # Group nodes by community
+        community_groups: dict[int, list[int]] = {}
+        for node_id, cmty_id in communities.items():
+            community_groups.setdefault(cmty_id, []).append(node_id)
+
+        # Run enrichment for each community
+        all_results: dict[int, dict] = {}
+        all_p_values: list[tuple[int, str | int | float, float]] = []
+
+        for cmty_id, members in community_groups.items():
+            enrichment = self.subgraph_enrichment(members, attribute)
+            all_results[cmty_id] = enrichment
+            for value, result in enrichment.items():
+                all_p_values.append((cmty_id, value, result["p_value"]))
+
+        # Apply multiple-testing correction
+        n_tests = len(all_p_values)
+        if n_tests == 0:
+            return all_results
+
+        if correction == "bonferroni":
+            for cmty_id, value, p_val in all_p_values:
+                all_results[cmty_id][value]["p_adjusted"] = min(p_val * n_tests, 1.0)
+
+        elif correction == "fdr":
+            sorted_pvals = sorted(all_p_values, key=lambda x: x[2])
+            for rank, (cmty_id, value, p_val) in enumerate(sorted_pvals, 1):
+                adjusted = min(p_val * n_tests / rank, 1.0)
+                all_results[cmty_id][value]["p_adjusted"] = adjusted
+
+            # Enforce monotonicity (step-up procedure)
+            prev = 1.0
+            for cmty_id, value, _ in reversed(sorted_pvals):
+                curr = all_results[cmty_id][value]["p_adjusted"]
+                all_results[cmty_id][value]["p_adjusted"] = min(curr, prev)
+                prev = all_results[cmty_id][value]["p_adjusted"]
+        else:
+            raise ValueError(
+                f"Unknown correction: {correction}. Use 'bonferroni' or 'fdr'."
+            )
+
+        return all_results
+
+    # ==============================================================================
     # ------------------------------------------------------------------------------
     # TRANSFORMATIONS
     # ------------------------------------------------------------------------------
@@ -14250,6 +14728,272 @@ class Graph:
             self._computations.append(("pagerank", params, attr_name))
 
         # Return dict if requested, otherwise return self for chaining
+        if return_dict:
+            return result_ids
+        return self
+
+    def personalized_pagerank(
+        self,
+        personalization: dict[int, float],
+        damping: float = 0.85,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate Personalized PageRank with a custom restart distribution.
+
+        Unlike standard PageRank where the random surfer teleports uniformly to any node,
+        Personalized PageRank teleports back to seed nodes with probabilities given by
+        `personalization`. This makes it the primary method for gene prioritization in
+        genome-wide association studies (GWAS): seed nodes are GWAS hits, and the resulting
+        scores rank candidate genes by network proximity to those hits.
+
+        Parameters
+        ----------
+        personalization
+            Dictionary mapping node IDs to restart probabilities. Values are normalized
+            internally, so they don't need to sum to 1. Nodes not in the dictionary have
+            zero restart probability.
+        damping
+            Probability of following an edge (vs. teleporting back to a seed). Higher values
+            let the walk spread further from the seeds. Typical range: `0.5`-`0.95`.
+        max_iter
+            Maximum number of power-iteration steps.
+        tol
+            Convergence tolerance (L1 norm of rank change between iterations).
+        attr_name
+            Column name for storing scores in the node DataFrame. Defaults to
+            `"personalized_pagerank"`.
+        return_dict
+            If `True`, returns the score dictionary. If `False` (default), stores scores in
+            the node DataFrame and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to scores (sum to `1.0`).
+            Otherwise returns self.
+
+        Examples
+        --------
+        Prioritize nodes reachable from a single seed:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="GeneA")
+            .add_node(label="GeneB")
+            .add_node(label="GeneC")
+            .add_node(label="GeneD")
+            .add_edge("GeneA", "GeneB")
+            .add_edge("GeneB", "GeneC")
+            .add_edge("GeneC", "GeneD")
+            .add_edge("GeneA", "GeneD")
+        )
+
+        seed_id = graph.get_id_from_label("GeneA")
+        scores = graph.personalized_pagerank(
+            personalization={seed_id: 1.0},
+            return_dict=True,
+        )
+        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
+        ```
+        """
+        result_ids = rust.personalized_pagerank(
+            self._graph,
+            personalization,
+            damping=damping,
+            max_iter=max_iter,
+            tol=tol,
+        )
+
+        if attr_name is None:
+            attr_name = "personalized_pagerank"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            params = {}
+            if damping != 0.85:
+                params["damping"] = damping
+            if max_iter != 100:
+                params["max_iter"] = max_iter
+            if tol != 1e-6:
+                params["tol"] = tol
+            self._computations.append(("personalized_pagerank", params, attr_name))
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def random_walk_with_restart(
+        self,
+        seeds: dict[int, float],
+        restart_prob: float = 0.15,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Random walk with restart (RWR) from a set of seed nodes.
+
+        At each step the walker either follows a random outgoing edge (with probability
+        `1 - restart_prob`) or teleports back to one of the seed nodes (with probability
+        `restart_prob`). Returns the steady-state visitation probability for every node.
+
+        RWR is mathematically equivalent to Personalized PageRank. This method provides
+        a more intuitive interface for the common genomics use case of propagating scores
+        from GWAS hits through a protein-protein interaction network.
+
+        Parameters
+        ----------
+        seeds
+            Dictionary mapping seed node IDs to initial scores (e.g., ``-log10(p_value)``
+            from GWAS). Values are normalized internally.
+        restart_prob
+            Probability of teleporting back to a seed node at each step. Higher values keep
+            the walk closer to the seeds. Typical range: `0.1`-`0.3`.
+        max_iter
+            Maximum number of iterations.
+        tol
+            Convergence tolerance.
+        attr_name
+            Column name for the node DataFrame. Defaults to `"rwr"`.
+        return_dict
+            If `True`, returns the score dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Steady-state visitation probabilities for all nodes.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="BRCA1")
+            .add_node(label="TP53")
+            .add_node(label="ATM")
+            .add_node(label="CHEK2")
+            .add_edge("BRCA1", "TP53")
+            .add_edge("TP53", "ATM")
+            .add_edge("ATM", "CHEK2")
+            .add_edge("BRCA1", "CHEK2")
+        )
+
+        seed_id = graph.get_id_from_label("BRCA1")
+        scores = graph.random_walk_with_restart(
+            seeds={seed_id: 1.0},
+            restart_prob=0.15,
+            return_dict=True,
+        )
+        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
+        ```
+        """
+        result_ids = rust.random_walk_with_restart(
+            self._graph,
+            seeds,
+            restart_prob=restart_prob,
+            max_iter=max_iter,
+            tol=tol,
+        )
+
+        if attr_name is None:
+            attr_name = "rwr"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            params = {}
+            if restart_prob != 0.15:
+                params["restart_prob"] = restart_prob
+            self._computations.append(("random_walk_with_restart", params, attr_name))
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def heat_diffusion(
+        self,
+        seeds: dict[int, float],
+        t: float = 1.0,
+        max_iter: int = 50,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Diffuse heat from seed nodes through the network.
+
+        Places initial heat on seed nodes and lets it diffuse along edges using the
+        heat equation on the graph Laplacian. The parameter `t` controls diffusion time:
+        small values keep heat localized near seeds, large values spread it across the
+        entire graph.
+
+        Parameters
+        ----------
+        seeds
+            Dictionary mapping seed node IDs to initial heat values.
+        t
+            Diffusion time. Larger values spread heat further. Must be positive.
+        max_iter
+            Number of time steps for the iterative approximation.
+        attr_name
+            Column name for the node DataFrame. Defaults to `"heat"`.
+        return_dict
+            If `True`, returns the heat dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Heat values for all nodes after diffusion.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Source")
+            .add_node(label="Near")
+            .add_node(label="Far")
+            .add_edge("Source", "Near")
+            .add_edge("Near", "Far")
+        )
+
+        source_id = graph.get_id_from_label("Source")
+        heat = graph.heat_diffusion(seeds={source_id: 10.0}, t=0.5, return_dict=True)
+        {graph.get_label_from_id(nid): round(h, 4) for nid, h in heat.items()}
+        ```
+        """
+        result_ids = rust.heat_diffusion(
+            self._graph,
+            seeds,
+            t=t,
+            max_iter=max_iter,
+        )
+
+        if attr_name is None:
+            attr_name = "heat"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            params = {}
+            if t != 1.0:
+                params["t"] = t
+            if max_iter != 50:
+                params["max_iter"] = max_iter
+            self._computations.append(("heat_diffusion", params, attr_name))
+
         if return_dict:
             return result_ids
         return self
@@ -23687,6 +24431,159 @@ class Graph:
             return st
         else:
             return edges
+
+    def prize_collecting_steiner_tree(
+        self,
+        prizes: dict[str, float],
+        edge_penalty: float = 1.0,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[tuple[str, str, float]]":
+        """
+        Find a prize-collecting Steiner tree.
+
+        A variant of the Steiner tree where each node has a *prize* (benefit of
+        inclusion) and each edge has a *cost* (penalty for inclusion). The algorithm
+        finds a connected subtree that maximizes total prize minus total edge cost.
+        Unlike the standard Steiner tree, not all prize nodes need to be included if the
+        cost of connecting them is too high.
+
+        Parameters
+        ----------
+        prizes
+            Dictionary mapping node labels to prize values (e.g., ``-log10(p_value)``
+            from GWAS hits). Only nodes with prizes are candidates for inclusion.
+        edge_penalty
+            Multiplier applied to edge weights as costs. Higher values penalize longer
+            paths more aggressively, producing smaller trees. Default `1.0`.
+        weight_attr
+            Edge attribute to use for weights. If `None`, uses the edge's weight field.
+        return_subgraph
+            If `True` (default), returns a new Graph. If `False`, returns edge tuples.
+
+        Returns
+        -------
+        Graph or list[tuple[str, str, float]]
+            The prize-collecting Steiner tree as a graph or edge list.
+
+        Raises
+        ------
+        ValueError
+            If any prize node doesn't exist in the graph.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(weighted=True)
+            .add_node(label="BRCA1")
+            .add_node(label="TP53")
+            .add_node(label="ATM")
+            .add_node(label="CHEK2")
+            .add_node(label="MDM2")
+            .add_edge("BRCA1", "ATM", weight=1.0)
+            .add_edge("ATM", "CHEK2", weight=1.0)
+            .add_edge("TP53", "MDM2", weight=1.0)
+            .add_edge("ATM", "TP53", weight=2.0)
+        )
+
+        tree = graph.prize_collecting_steiner_tree(
+            prizes={"BRCA1": 5.0, "TP53": 3.0, "CHEK2": 4.0}
+        )
+        tree.count_nodes(), tree.count_edges()
+        ```
+        """
+        from edgecase._core import prize_collecting_steiner_tree as _pcst
+
+        edges = _pcst(self._graph, prizes, edge_penalty, weight_attr)
+
+        if return_subgraph:
+            st = Graph(directed=self.is_directed(), weighted=True)
+
+            tree_nodes = set()
+            for source, target, _ in edges:
+                tree_nodes.add(source)
+                tree_nodes.add(target)
+
+            for label in tree_nodes:
+                try:
+                    node_obj = self._graph.get_node(label)
+                    st.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    st.add_node(label)
+
+            for source, target, weight in edges:
+                st.add_edge(source, target, weight=weight)
+
+            return st
+        else:
+            return edges
+
+    def expand_seed_set(
+        self,
+        seeds: list[str],
+        max_size: int | None = None,
+        min_score: float = 0.0,
+    ) -> list[int]:
+        """
+        Expand a seed set to a connected module using neighborhood scoring.
+
+        Starting from seed nodes, greedily adds neighbors that are densely connected
+        to the current module. The score for each candidate is the ratio of its edges
+        to the module over its total degree, favoring nodes tightly linked to the module
+        rather than high-degree hubs.
+
+        Parameters
+        ----------
+        seeds
+            List of seed node labels.
+        max_size
+            Maximum module size. Defaults to `3 * len(seeds)`.
+        min_score
+            Minimum connectivity score for a node to be added. Candidates scoring at or
+            below this threshold are rejected.
+
+        Returns
+        -------
+        list[int]
+            Node IDs of the expanded module (includes seeds).
+
+        Raises
+        ------
+        ValueError
+            If any seed node doesn't exist in the graph.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Seed1")
+            .add_node(label="Seed2")
+            .add_node(label="Hub")
+            .add_node(label="Tightly_connected")
+            .add_node(label="Loosely_connected")
+            .add_edge("Seed1", "Hub")
+            .add_edge("Seed2", "Hub")
+            .add_edge("Seed1", "Tightly_connected")
+            .add_edge("Seed2", "Tightly_connected")
+            .add_edge("Hub", "Loosely_connected")
+        )
+
+        module = graph.expand_seed_set(seeds=["Seed1", "Seed2"], min_score=0.3)
+        [graph.get_label_from_id(nid) for nid in module]
+        ```
+        """
+        from edgecase._core import expand_seed_set as _expand
+
+        return _expand(self._graph, seeds, max_size, min_score)
 
     def all_spanning_trees(
         self,

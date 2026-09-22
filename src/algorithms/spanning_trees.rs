@@ -548,6 +548,235 @@ fn would_create_cycle(edge_indices: &[usize], edges: &[(u64, u64, u64)]) -> bool
     false
 }
 
+/// Prize-collecting Steiner tree.
+///
+/// A variant of the Steiner tree where each node has a *prize* (benefit of
+/// inclusion) and each edge has a *cost* (penalty for inclusion). The goal is
+/// to find a connected subtree maximizing total prize minus total edge cost.
+/// Not all prize nodes need to be included if the connecting cost is too high.
+///
+/// Uses a greedy heuristic:
+/// 1. Start from the highest-prize node.
+/// 2. Repeatedly attach the node with the best prize/cost ratio via its
+///    shortest path to the current tree.
+/// 3. Stop when no remaining node has a positive net benefit.
+///
+/// Returns edge tuples (source_label, target_label, weight) of the result tree.
+#[pyfunction]
+#[pyo3(signature = (graph, prizes, edge_penalty=1.0, weight_attr=None))]
+pub fn prize_collecting_steiner_tree(
+    graph: &Graph,
+    prizes: FxHashMap<String, f64>,
+    edge_penalty: f64,
+    weight_attr: Option<String>,
+) -> PyResult<Vec<(String, String, f64)>> {
+    if prizes.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let weight_attr_ref = weight_attr.as_deref();
+
+    // Convert label-keyed prizes to id-keyed
+    let mut prize_by_id: FxHashMap<u64, f64> = FxHashMap::default();
+    for (label, &prize) in &prizes {
+        match graph.id_from_label(label) {
+            Ok(node_id) => {
+                prize_by_id.insert(node_id, prize);
+            }
+            Err(_) => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Node '{}' does not exist in the graph",
+                    label
+                )));
+            }
+        }
+    }
+
+    // Start from the highest-prize node
+    let &start_node = prize_by_id
+        .iter()
+        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(Ordering::Equal))
+        .map(|(id, _)| id)
+        .unwrap();
+
+    let mut tree_nodes: FxHashSet<u64> = FxHashSet::default();
+    tree_nodes.insert(start_node);
+
+    let mut tree_edges: Vec<(u64, u64, f64)> = Vec::new();
+    let mut remaining: FxHashSet<u64> = prize_by_id
+        .keys()
+        .filter(|&&id| id != start_node)
+        .copied()
+        .collect();
+
+    // Greedy expansion
+    loop {
+        if remaining.is_empty() {
+            break;
+        }
+
+        // Find shortest path from any tree node to any remaining prize node
+        let mut best_target: Option<u64> = None;
+        let mut best_path: Option<Vec<u64>> = None;
+        let mut best_cost: f64 = f64::INFINITY;
+        let mut best_benefit: f64 = f64::NEG_INFINITY;
+
+        for &tree_node in &tree_nodes {
+            let (distances, predecessors) =
+                dijkstra_single_source(graph, tree_node, weight_attr_ref)?;
+
+            for &candidate in &remaining {
+                if let Some(&dist) = distances.get(&candidate) {
+                    let cost = dist * edge_penalty;
+                    let prize = prize_by_id.get(&candidate).copied().unwrap_or(0.0);
+                    let benefit = prize - cost;
+
+                    if benefit > best_benefit
+                        || (benefit == best_benefit && cost < best_cost)
+                    {
+                        best_benefit = benefit;
+                        best_cost = cost;
+                        best_target = Some(candidate);
+                        best_path =
+                            Some(reconstruct_path(&predecessors, tree_node, candidate));
+                    }
+                }
+            }
+        }
+
+        // Stop if no remaining node has positive benefit
+        if best_benefit <= 0.0 || best_target.is_none() || best_path.is_none() {
+            break;
+        }
+
+        let path = best_path.unwrap();
+        let target = best_target.unwrap();
+
+        // Add path edges and intermediate nodes to the tree
+        for window in path.windows(2) {
+            let (a, b) = (window[0], window[1]);
+            tree_nodes.insert(a);
+            tree_nodes.insert(b);
+
+            let edge_ids = graph.find_edge_ids(a, b);
+            let weight = if let Some(&edge_id) = edge_ids.first() {
+                get_edge_weight(graph, edge_id, weight_attr_ref)
+            } else {
+                1.0
+            };
+            tree_edges.push((a, b, weight));
+        }
+
+        remaining.remove(&target);
+    }
+
+    // Deduplicate edges and convert to labels
+    let mut seen: FxHashSet<(u64, u64)> = FxHashSet::default();
+    let mut result: Vec<(String, String, f64)> = Vec::new();
+
+    for (a, b, w) in tree_edges {
+        let edge = if a < b { (a, b) } else { (b, a) };
+        if seen.insert(edge) {
+            let source_label = get_label_or_id(graph, a);
+            let target_label = get_label_or_id(graph, b);
+            result.push((source_label, target_label, w));
+        }
+    }
+
+    Ok(result)
+}
+
+/// Expand a seed set to a connected module using neighborhood scoring.
+///
+/// Starting from seed nodes, greedily adds neighbors that are well-connected
+/// to the current module. The expansion stops when no neighbor exceeds the
+/// score threshold or the module reaches `max_size`.
+///
+/// Score for a candidate node = (edges to current module) / (total degree).
+/// This favors nodes that are densely connected to the module rather than
+/// high-degree hub nodes.
+#[pyfunction]
+#[pyo3(signature = (graph, seeds, max_size=None, min_score=0.0))]
+pub fn expand_seed_set(
+    graph: &Graph,
+    seeds: Vec<String>,
+    max_size: Option<usize>,
+    min_score: f64,
+) -> PyResult<Vec<u64>> {
+    if seeds.is_empty() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "seeds must contain at least one node",
+        ));
+    }
+
+    let mut module: FxHashSet<u64> = FxHashSet::default();
+
+    for label in &seeds {
+        match graph.id_from_label(label) {
+            Ok(node_id) => {
+                module.insert(node_id);
+            }
+            Err(_) => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Seed node '{}' does not exist in the graph",
+                    label
+                )));
+            }
+        }
+    }
+
+    let max = max_size.unwrap_or(module.len() * 3);
+
+    loop {
+        if module.len() >= max {
+            break;
+        }
+
+        // Score all candidate neighbors
+        let mut candidates: FxHashMap<u64, (usize, usize)> = FxHashMap::default();
+
+        for &node_id in &module {
+            if let Ok(neighbors) = graph.neighbors(node_id) {
+                for &neighbor in &neighbors {
+                    if !module.contains(&neighbor) {
+                        let entry = candidates.entry(neighbor).or_insert((0, 0));
+                        entry.0 += 1; // edges to module
+                    }
+                }
+            }
+        }
+
+        // Compute total degree for each candidate
+        for (&candidate, entry) in candidates.iter_mut() {
+            entry.1 = graph.neighbors(candidate).map(|n| n.len()).unwrap_or(0);
+        }
+
+        // Find best candidate
+        let best = candidates
+            .iter()
+            .map(|(&node, &(module_edges, total_degree))| {
+                let score = if total_degree > 0 {
+                    module_edges as f64 / total_degree as f64
+                } else {
+                    0.0
+                };
+                (node, score)
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
+
+        match best {
+            Some((node, score)) if score > min_score => {
+                module.insert(node);
+            }
+            _ => break,
+        }
+    }
+
+    let mut result: Vec<u64> = module.into_iter().collect();
+    result.sort_unstable();
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
