@@ -9475,6 +9475,153 @@ class Graph:
     # Similarity
     # ==============================================================================
 
+    def simrank_star_similarity(
+        self,
+        importance_factor: float = 0.8,
+        max_iterations: int = 100,
+        tolerance: float = 1e-6,
+        method: str = "closed_form",
+        return_dict: bool = False,
+    ) -> Union[dict, "Graph"]:
+        r"""
+        Compute SimRank* similarity between all node pairs.
+
+        SimRank* fixes the "zero-similarity problem" of the original SimRank, where most node pairs
+        receive a score of 0.0 on real-world graphs, by considering asymmetric in-link paths. The
+        result is a similarity matrix where each entry `s(a, b)` is in `[0, 1]`, with
+        `s(a, a) = 1.0`.
+
+        Parameters
+        ----------
+        importance_factor
+            Decay factor `C` in `[0, 1)`. Higher values propagate similarity further through the
+            graph. Default is `0.8`.
+        max_iterations
+            Maximum iterations for the `"iterative"` solver. Ignored by `"closed_form"`.
+        tolerance
+            Convergence threshold for the `"iterative"` solver. Ignored by `"closed_form"`.
+        method
+            `"closed_form"` (default) solves the PJsim Lyapunov equation exactly in *O(n³)* time via
+            Bartels-Stewart (real Schur decomposition). `"iterative"` uses fixed-point iteration in
+            *O(K·n³)* time.
+        return_dict
+            If `True`, return the raw nested dict `{node_a: {node_b: sim}}`. If `False` (default),
+            store the similarity values as a node attribute and return the graph for chaining.
+
+        Returns
+        -------
+        Union[dict, Graph]
+            If `return_dict=True`, a nested dict of similarities. Otherwise, the graph with a
+            `"simrank_star"` node attribute set to each node's similarity dict.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True)
+        for i in range(1, 5):
+            g.add_node(label=str(i))
+        g.add_edge("1", "2").add_edge("1", "3")
+        g.add_edge("2", "4").add_edge("3", "4")
+
+        g.simrank_star_similarity(return_dict=True)
+        ```
+        """
+        from edgecase._core import simrank_star_similarity
+
+        result = simrank_star_similarity(
+            self._graph,
+            importance_factor,
+            max_iterations,
+            tolerance,
+            method,
+        )
+
+        if return_dict:
+            return result
+
+        attr_name = "simrank_star"
+        node_attrs = {}
+        for node_id, inner in result.items():
+            node_attrs[node_id] = inner
+        self.set_node_attrs(attr_name, node_attrs)
+        self._computations.append(
+            (
+                "simrank_star_similarity",
+                {
+                    "importance_factor": importance_factor,
+                    "method": method,
+                },
+                attr_name,
+            )
+        )
+        return self
+
+    def simrank_star_similarity_pair(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        importance_factor: float = 0.8,
+        max_iterations: int = 100,
+        tolerance: float = 1e-6,
+        method: str = "closed_form",
+    ) -> float:
+        r"""
+        Compute SimRank* similarity between a specific pair of nodes.
+
+        This is more efficient than computing the full similarity matrix when only one pair is
+        needed, though internally it still computes the full matrix.
+
+        Parameters
+        ----------
+        source
+            First node (ID or label).
+        target
+            Second node (ID or label).
+        importance_factor
+            Decay factor `C` in `[0, 1)`. Default is `0.8`.
+        max_iterations
+            Maximum iterations for the `"iterative"` solver.
+        tolerance
+            Convergence threshold for the `"iterative"` solver.
+        method
+            `"closed_form"` (default) or `"iterative"`.
+
+        Returns
+        -------
+        float
+            Similarity score in `[0, 1]`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True)
+        for i in range(1, 5):
+            g.add_node(label=str(i))
+        g.add_edge("1", "2").add_edge("1", "3")
+        g.add_edge("2", "4").add_edge("3", "4")
+
+        g.simrank_star_similarity_pair("2", "3")
+        ```
+        """
+        from edgecase._core import simrank_star_similarity_pair
+
+        src_id = self._resolve_node_id(source)
+        tgt_id = self._resolve_node_id(target)
+
+        return simrank_star_similarity_pair(
+            self._graph,
+            src_id,
+            tgt_id,
+            importance_factor,
+            max_iterations,
+            tolerance,
+            method,
+        )
+
     def get_pairwise_similarity(
         self, nodes: list[Union[int, str]] = None, method: str = "jaccard"
     ) -> list[list[float]]:
