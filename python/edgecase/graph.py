@@ -9840,6 +9840,72 @@ class Graph:
         return self._graph.get_overlap_similarity()
 
     # ==============================================================================
+    # Topological Overlap
+    # ==============================================================================
+
+    def topological_overlap(
+        self,
+        return_dict: bool = False,
+    ) -> Union[dict[int, dict[int, float]], "Graph"]:
+        """
+        Compute the topological overlap matrix (TOM).
+
+        For each pair of nodes `(i, j)`, the topological overlap measures how much they share the
+        same neighbors, normalized by the less-connected node's degree:
+
+        `TOM(i, j) = (|N(i) ∩ N(j)| + a_ij) / (min(k_i, k_j) + 1 - a_ij)`
+
+        where `a_ij` is 1 if `(i, j)` is an edge, `k` is degree, and `N` is the neighbor set.
+        Diagonal entries are 1.0.
+
+        This is the standard TOM from WGCNA (weighted gene co-expression network analysis), widely
+        used in genomics for clustering genes into co-expression modules.
+
+        Parameters
+        ----------
+        return_dict
+            If `True`, return the TOM as a nested dictionary. Otherwise return `self` for chaining.
+
+        Returns
+        -------
+        dict or Graph
+            A `{node_id: {node_id: tom_value}}` nested dictionary, or `self`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="A", target="C")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+        )
+
+        tom = g.topological_overlap(return_dict=True)
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        tom[a_id][b_id]
+        ```
+        """
+        from edgecase._core import topological_overlap_matrix as _topological_overlap_matrix
+
+        result = _topological_overlap_matrix(self._graph)
+
+        if not return_dict:
+            self._computations.append(("topological_overlap", {}, "topological_overlap"))
+
+        if return_dict:
+            return result
+        return self
+
+    # ==============================================================================
     # ------------------------------------------------------------------------------
     # STRUCTURAL PATTERNS
     # ------------------------------------------------------------------------------
@@ -12142,6 +12208,81 @@ class Graph:
         return self
 
     # ==============================================================================
+    # Label Propagation
+    # ==============================================================================
+
+    def label_propagation(
+        self,
+        known_labels: dict[int, int],
+        max_iter: int = 100,
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Semi-supervised label propagation for node classification.
+
+        Spreads known labels through the network: at each iteration every unlabeled node adopts the
+        most common label among its neighbors (weighted by edge weight). Nodes whose labels are
+        provided in `known_labels=` are held fixed throughout.
+
+        Parameters
+        ----------
+        known_labels
+            A `{node_id: label}` dictionary of seed labels. Labels are integers. At least one entry
+            is required.
+        max_iter
+            Maximum number of propagation iterations.
+        attr_name
+            Name of the node attribute to store assignments. Defaults to `"label_propagation"`.
+        return_dict
+            If `True`, return a `{node_id: label}` dictionary directly. Otherwise store the result
+            as a node attribute and return `self`.
+
+        Returns
+        -------
+        dict or Graph
+            Label assignments for every node, or `self` for chaining. Nodes that could not be
+            reached from any seed retain label `-1`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+        )
+
+        a_id = g.get_id_from_label("A")
+        d_id = g.get_id_from_label("D")
+
+        g.label_propagation({a_id: 0, d_id: 1}, return_dict=True)
+        ```
+        """
+        from edgecase._core import label_propagation as _label_propagation
+
+        result = _label_propagation(self._graph, known_labels, max_iter)
+
+        if attr_name is None:
+            attr_name = "label_propagation"
+
+        self.set_node_attrs(attr_name, result)
+
+        if not return_dict:
+            self._computations.append(("label_propagation", {}, attr_name))
+
+        if return_dict:
+            return result
+        return self
+
+    # ==============================================================================
     # Network Enrichment Testing
     # ==============================================================================
 
@@ -13766,6 +13907,72 @@ class Graph:
         from edgecase._core import graph_edit_distance as _graph_edit_distance
 
         return _graph_edit_distance(self._graph, other._graph, node_cost, edge_cost)
+
+    def network_proximity(
+        self,
+        set_a: list[int],
+        set_b: list[int],
+        method: str = "closest",
+    ) -> dict:
+        """
+        Compute network proximity between two sets of nodes.
+
+        Measures how close two groups of nodes are in the network using shortest-path distances.
+        Useful for drug-target vs. disease-gene proximity analysis and network-based drug
+        repurposing.
+
+        Parameters
+        ----------
+        set_a
+            First set of node IDs.
+        set_b
+            Second set of node IDs.
+        method
+            Proximity measure to use:
+
+            - `"closest"`: minimum shortest-path distance across all (a, b) pairs.
+            - `"shortest"`: average shortest-path distance across all reachable pairs.
+            - `"kernel"`: average of `exp(-d)` (diffusion kernel similarity).
+            - `"separation"`: network separation `d_AB - (d_AA + d_BB) / 2`
+              (Menche et al., *Science* 2015). Negative values indicate overlapping
+              neighborhoods.
+
+        Returns
+        -------
+        dict
+            For `"closest"`, `"shortest"`, `"kernel"`: a dictionary with keys `proximity`,
+            `reachable_pairs`, `total_pairs`. For `"separation"`: a dictionary with keys
+            `separation`, `d_ab`, `d_aa`, `d_bb`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="D")
+            .add_edge(source="D", target="E")
+        )
+
+        a_id = g.get_id_from_label("A")
+        b_id = g.get_id_from_label("B")
+        d_id = g.get_id_from_label("D")
+        e_id = g.get_id_from_label("E")
+
+        g.network_proximity([a_id, b_id], [d_id, e_id], method="closest")
+        ```
+        """
+        from edgecase._core import network_proximity as _network_proximity
+
+        return _network_proximity(self._graph, set_a, set_b, method)
 
     # ==============================================================================
     # Whole-Graph Transformations
