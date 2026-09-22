@@ -144,6 +144,15 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Topological overlap
     m.add_function(wrap_pyfunction!(algorithms::topological_overlap::topological_overlap_matrix, m)?)?;
 
+    // Network robustness
+    m.add_function(wrap_pyfunction!(algorithms::robustness::network_robustness, m)?)?;
+
+    // Influence maximization
+    m.add_function(wrap_pyfunction!(algorithms::influence_maximization::influence_maximization, m)?)?;
+
+    // Network smoothing
+    m.add_function(wrap_pyfunction!(algorithms::network_smoothing::network_smooth, m)?)?;
+
     // Network comparison
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::edge_overlap, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::differential_edges, m)?)?;
