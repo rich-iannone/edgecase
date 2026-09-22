@@ -24432,6 +24432,159 @@ class Graph:
         else:
             return edges
 
+    def prize_collecting_steiner_tree(
+        self,
+        prizes: dict[str, float],
+        edge_penalty: float = 1.0,
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[tuple[str, str, float]]":
+        """
+        Find a prize-collecting Steiner tree.
+
+        A variant of the Steiner tree where each node has a *prize* (benefit of
+        inclusion) and each edge has a *cost* (penalty for inclusion). The algorithm
+        finds a connected subtree that maximizes total prize minus total edge cost.
+        Unlike the standard Steiner tree, not all prize nodes need to be included if the
+        cost of connecting them is too high.
+
+        Parameters
+        ----------
+        prizes
+            Dictionary mapping node labels to prize values (e.g., ``-log10(p_value)``
+            from GWAS hits). Only nodes with prizes are candidates for inclusion.
+        edge_penalty
+            Multiplier applied to edge weights as costs. Higher values penalize longer
+            paths more aggressively, producing smaller trees. Default `1.0`.
+        weight_attr
+            Edge attribute to use for weights. If `None`, uses the edge's weight field.
+        return_subgraph
+            If `True` (default), returns a new Graph. If `False`, returns edge tuples.
+
+        Returns
+        -------
+        Graph or list[tuple[str, str, float]]
+            The prize-collecting Steiner tree as a graph or edge list.
+
+        Raises
+        ------
+        ValueError
+            If any prize node doesn't exist in the graph.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(weighted=True)
+            .add_node(label="BRCA1")
+            .add_node(label="TP53")
+            .add_node(label="ATM")
+            .add_node(label="CHEK2")
+            .add_node(label="MDM2")
+            .add_edge("BRCA1", "ATM", weight=1.0)
+            .add_edge("ATM", "CHEK2", weight=1.0)
+            .add_edge("TP53", "MDM2", weight=1.0)
+            .add_edge("ATM", "TP53", weight=2.0)
+        )
+
+        tree = graph.prize_collecting_steiner_tree(
+            prizes={"BRCA1": 5.0, "TP53": 3.0, "CHEK2": 4.0}
+        )
+        tree.count_nodes(), tree.count_edges()
+        ```
+        """
+        from edgecase._core import prize_collecting_steiner_tree as _pcst
+
+        edges = _pcst(self._graph, prizes, edge_penalty, weight_attr)
+
+        if return_subgraph:
+            st = Graph(directed=self.is_directed(), weighted=True)
+
+            tree_nodes = set()
+            for source, target, _ in edges:
+                tree_nodes.add(source)
+                tree_nodes.add(target)
+
+            for label in tree_nodes:
+                try:
+                    node_obj = self._graph.get_node(label)
+                    st.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    st.add_node(label)
+
+            for source, target, weight in edges:
+                st.add_edge(source, target, weight=weight)
+
+            return st
+        else:
+            return edges
+
+    def expand_seed_set(
+        self,
+        seeds: list[str],
+        max_size: int | None = None,
+        min_score: float = 0.0,
+    ) -> list[int]:
+        """
+        Expand a seed set to a connected module using neighborhood scoring.
+
+        Starting from seed nodes, greedily adds neighbors that are densely connected
+        to the current module. The score for each candidate is the ratio of its edges
+        to the module over its total degree, favoring nodes tightly linked to the module
+        rather than high-degree hubs.
+
+        Parameters
+        ----------
+        seeds
+            List of seed node labels.
+        max_size
+            Maximum module size. Defaults to `3 * len(seeds)`.
+        min_score
+            Minimum connectivity score for a node to be added. Candidates scoring at or
+            below this threshold are rejected.
+
+        Returns
+        -------
+        list[int]
+            Node IDs of the expanded module (includes seeds).
+
+        Raises
+        ------
+        ValueError
+            If any seed node doesn't exist in the graph.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Seed1")
+            .add_node(label="Seed2")
+            .add_node(label="Hub")
+            .add_node(label="Tightly_connected")
+            .add_node(label="Loosely_connected")
+            .add_edge("Seed1", "Hub")
+            .add_edge("Seed2", "Hub")
+            .add_edge("Seed1", "Tightly_connected")
+            .add_edge("Seed2", "Tightly_connected")
+            .add_edge("Hub", "Loosely_connected")
+        )
+
+        module = graph.expand_seed_set(seeds=["Seed1", "Seed2"], min_score=0.3)
+        [graph.get_label_from_id(nid) for nid in module]
+        ```
+        """
+        from edgecase._core import expand_seed_set as _expand
+
+        return _expand(self._graph, seeds, max_size, min_score)
+
     def all_spanning_trees(
         self,
         max_trees: int | None = None,
