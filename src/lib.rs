@@ -35,6 +35,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::cycles::simple_cycles, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::cycles::cycle_basis, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::cycles::minimum_cycle_basis, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::cycles::directed_cycle_basis, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::domirank::domirank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::shortest_path, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::bellman_ford_shortest_path, m)?)?;
