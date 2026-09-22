@@ -10759,6 +10759,134 @@ class Graph:
         return self._graph.transitivity()
 
     # ==============================================================================
+    # Network Motif Census
+    # ==============================================================================
+
+    def motif_census(
+        self,
+        size: int = 3,
+        return_dict: bool = False,
+    ) -> Union[dict[str, int], "Graph"]:
+        """
+        Count occurrences of all non-isomorphic connected subgraphs of a given size.
+
+        Enumerates every connected induced subgraph of `size=` nodes, classifies each by its
+        isomorphism class, and returns the counts. This is the standard *motif census* used in
+        network biology to characterize local connectivity patterns.
+
+        Parameters
+        ----------
+        size
+            Number of nodes in each motif. Must be 3 or 4.
+        return_dict
+            If `True`, return the census dictionary directly. Otherwise return `self` for method
+            chaining.
+
+        Returns
+        -------
+        dict or Graph
+            A `{motif_class: count}` dictionary, or `self` for chaining.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="A", target="C")
+            .add_edge(source="C", target="D")
+        )
+
+        g.motif_census(size=3, return_dict=True)
+        ```
+        """
+        from edgecase._core import motif_census as _motif_census
+
+        result = _motif_census(self._graph, size)
+
+        if not return_dict:
+            self._computations.append(("motif_census", {"size": size}, f"motif_census_{size}"))
+
+        if return_dict:
+            return result
+        return self
+
+    def motif_significance(
+        self,
+        size: int = 3,
+        n_random: int = 100,
+        seed: Optional[int] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[str, dict[str, float]], "Graph"]:
+        """
+        Test motif significance against degree-preserving random graphs.
+
+        Computes the motif census for this graph and for `n_random=` degree-preserving rewirings,
+        then reports a z-score and empirical p-value for each motif class.
+
+        Parameters
+        ----------
+        size
+            Number of nodes per motif. Must be 3 or 4.
+        n_random
+            Number of random graphs to generate for the null distribution.
+        seed
+            Random seed for reproducibility of the null distribution.
+        return_dict
+            If `True`, return the significance results directly. Otherwise store them as a graph
+            attribute and return `self` for chaining.
+
+        Returns
+        -------
+        dict or Graph
+            A nested dictionary `{motif_class: {count, mean_random, std_random, z_score, p_value}}`,
+            or `self` for chaining.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = (
+            ec.Graph()
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="A", target="C")
+            .add_edge(source="C", target="D")
+        )
+
+        g.motif_significance(size=3, n_random=10, seed=23, return_dict=True)
+        ```
+        """
+        from edgecase._core import motif_significance as _motif_significance
+
+        result = _motif_significance(self._graph, size, n_random, seed)
+
+        if not return_dict:
+            self._computations.append(
+                (
+                    "motif_significance",
+                    {"size": size, "n_random": n_random},
+                    f"motif_significance_{size}",
+                )
+            )
+
+        if return_dict:
+            return result
+        return self
+
+    # ==============================================================================
     # Clustering
     # ==============================================================================
 
@@ -10938,19 +11066,18 @@ class Graph:
         Technical Notes
         ---------------
         The local clustering coefficient
-        $C(v) = \dfrac{2\,\Delta(v)}{k(v)(k(v) - 1)}$ (with $\Delta(v)$ the number of
-        triangles containing $v$ and $k(v)$ its degree) counts the fraction of possible
-        edges among $v$'s neighbors that actually exist. Values near $1$ mean the
-        neighborhood is essentially a clique; values near $0$ mean it is tree-like.
-        Averaging $C(v)$ across the graph produces the network-level statistic Watts and
-        Strogatz (1998) used to identify small-world structure: high local clustering
-        combined with short average path lengths.
+        $C(v) = \dfrac{2\,\Delta(v)}{k(v)(k(v) - 1)}$ (with $\Delta(v)$ the number of triangles\
+        containing $v$ and $k(v)$ its degree) counts the fraction of possible edges among $v$'s
+        neighbors that actually exist. Values near $1$ mean the neighborhood is essentially a
+        clique. Values near $0$ mean it is tree-like. Averaging $C(v)$ across the graph produces the
+        network-level statistic Watts and Strogatz (1998) used to identify small-world structure:
+        high local clustering combined with short average path lengths.
 
         Examples
         --------
-        Storing values as attributes (the default) still lets you read them back
-        afterward -- all three nodes here get a coefficient of `1.0`, since a
-        triangle's neighbors are already fully connected to each other:
+        Storing values as attributes (the default) still lets you read them back afterward. All
+        three nodes here get a coefficient of `1.0`, since a triangle's neighbors are already fully
+        connected to each other:
 
         ```{python}
         import edgecase as ec
@@ -10969,8 +11096,8 @@ class Graph:
         graph.get_node_attrs("clustering_coefficient")
         ```
 
-        In a star graph, none of the spokes connect to each other, so the hub's
-        coefficient is `0.0` even though it has several neighbors:
+        In a star graph, none of the spokes connect to each other, so the hub's coefficient is
+        `0.0` even though it has several neighbors:
 
         ```{python}
         graph = (
