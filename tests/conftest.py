@@ -91,8 +91,8 @@ def sample_dataframe():
 @pytest.fixture
 def random_seed():
     """Fixed random seed for reproducible tests"""
-    random.seed(42)
-    yield 42
+    random.seed(23)
+    yield 23
 
 
 @pytest.fixture
