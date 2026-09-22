@@ -11744,6 +11744,239 @@ class Graph:
         return self
 
     # ==============================================================================
+    # Network Enrichment Testing
+    # ==============================================================================
+
+    def subgraph_enrichment(
+        self,
+        subgraph_nodes: list[int],
+        attribute: str,
+        target_value: str | int | float | None = None,
+        method: str = "hypergeometric",
+    ) -> dict:
+        """
+        Test whether a subgraph is enriched for a categorical node attribute.
+
+        Given a set of nodes (e.g., a detected community), tests whether they contain
+        more nodes with a particular attribute value than expected by chance compared
+        to the full graph.
+
+        Parameters
+        ----------
+        subgraph_nodes
+            List of node IDs defining the subgraph to test.
+        attribute
+            Name of the categorical node attribute to test (e.g., `"pathway"`,
+            `"go_term"`).
+        target_value
+            Specific attribute value to test enrichment for. If `None`, tests each
+            distinct value separately and returns results for all.
+        method
+            Statistical test to use: `"hypergeometric"` (default) or `"chi_squared"`.
+
+        Returns
+        -------
+        dict
+            If `target_value` is specified, returns a dict with keys:
+            ``"value"``, ``"k"`` (hits in subgraph), ``"K"`` (hits in graph),
+            ``"n"`` (subgraph size), ``"N"`` (graph size), ``"p_value"``,
+            ``"fold_enrichment"``.
+
+            If `target_value` is `None`, returns a dict mapping each attribute value
+            to its enrichment result dict.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="G1")
+            .add_node(label="G2")
+            .add_node(label="G3")
+            .add_node(label="G4")
+            .add_node(label="G5")
+            .add_node(label="G6")
+            .add_edge("G1", "G2")
+            .add_edge("G2", "G3")
+            .add_edge("G3", "G1")
+            .add_edge("G4", "G5")
+            .add_edge("G5", "G6")
+            .add_edge("G6", "G4")
+        )
+
+        for label, pathway in [("G1", "apoptosis"), ("G2", "apoptosis"),
+                                ("G3", "apoptosis"), ("G4", "signaling"),
+                                ("G5", "signaling"), ("G6", "apoptosis")]:
+            nid = graph.get_id_from_label(label)
+            graph.set_node_attrs(nid, pathway=pathway)
+
+        subgraph = [graph.get_id_from_label(g) for g in ["G1", "G2", "G3"]]
+        result = graph.subgraph_enrichment(subgraph, "pathway", "apoptosis")
+        result["fold_enrichment"], result["p_value"]
+        ```
+        """
+        from math import comb
+
+        all_node_ids = self.get_node_ids()
+        n_total = len(all_node_ids)
+        n_sub = len(subgraph_nodes)
+        subgraph_set = set(subgraph_nodes)
+
+        # Collect attribute values for all nodes
+        attr_map: dict[int, str | int | float] = self.get_node_attrs(attribute)
+
+        def _hypergeometric_test(k: int, K: int, n: int, N: int) -> float:
+            if N == 0 or n == 0 or K == 0:
+                return 1.0
+            p_value = 0.0
+            for i in range(k, min(K, n) + 1):
+                p_value += (comb(K, i) * comb(N - K, n - i)) / comb(N, n)
+            return min(p_value, 1.0)
+
+        def _test_value(value):
+            K = sum(1 for nid in all_node_ids if attr_map.get(nid) == value)
+            k = sum(1 for nid in subgraph_nodes if attr_map.get(nid) == value)
+
+            if method == "hypergeometric":
+                p_val = _hypergeometric_test(k, K, n_sub, n_total)
+            elif method == "chi_squared":
+                expected = K * n_sub / n_total if n_total > 0 else 0
+                if expected > 0:
+                    chi2 = (k - expected) ** 2 / expected
+                    # Approximate p-value for 1 dof
+                    from math import exp, sqrt, pi
+
+                    if chi2 > 0:
+                        z = sqrt(chi2)
+                        from math import erf
+                        p_val = max(0.0, 1.0 - 0.5 * (1.0 + erf(z / sqrt(2.0))))
+                    else:
+                        p_val = 1.0
+                else:
+                    p_val = 1.0
+            else:
+                raise ValueError(f"Unknown method: {method}. Use 'hypergeometric' or 'chi_squared'.")
+
+            expected_k = K * n_sub / n_total if n_total > 0 else 0
+            fold = k / expected_k if expected_k > 0 else float("inf") if k > 0 else 0.0
+
+            return {
+                "value": value,
+                "k": k,
+                "K": K,
+                "n": n_sub,
+                "N": n_total,
+                "p_value": p_val,
+                "fold_enrichment": fold,
+            }
+
+        if target_value is not None:
+            return _test_value(target_value)
+        else:
+            values = sorted(set(attr_map.values()), key=str)
+            return {v: _test_value(v) for v in values}
+
+    def module_annotation_enrichment(
+        self,
+        communities: dict[int, int],
+        attribute: str,
+        correction: str = "bonferroni",
+    ) -> dict[int, dict]:
+        """
+        Run enrichment testing across all detected communities at once.
+
+        For each community and each distinct value of the given attribute, tests whether
+        that community is enriched for that value, with multiple-testing correction applied
+        across all tests.
+
+        Parameters
+        ----------
+        communities
+            Dictionary mapping node IDs to community IDs (as returned by
+            ``cmty_louvain(return_dict=True)`` etc.).
+        attribute
+            Name of the categorical node attribute to test.
+        correction
+            Multiple-testing correction method: `"bonferroni"` (default) or `"fdr"` (
+            Benjamini-Hochberg).
+
+        Returns
+        -------
+        dict[int, dict]
+            Dictionary mapping community IDs to enrichment results. Each result is a dict
+            mapping attribute values to enrichment dicts (same structure as
+            ``subgraph_enrichment``), with an additional `"p_adjusted"` key.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="G1")
+            .add_node(label="G2")
+            .add_node(label="G3")
+            .add_node(label="G4")
+            .add_edge("G1", "G2")
+            .add_edge("G3", "G4")
+        )
+
+        for label, pathway in [("G1", "X"), ("G2", "X"), ("G3", "Y"), ("G4", "Y")]:
+            nid = graph.get_id_from_label(label)
+            graph.set_node_attrs(nid, pathway=pathway)
+
+        communities = graph.cmty_louvain(return_dict=True)
+        results = graph.module_annotation_enrichment(communities, "pathway")
+        len(results)
+        ```
+        """
+        # Group nodes by community
+        community_groups: dict[int, list[int]] = {}
+        for node_id, cmty_id in communities.items():
+            community_groups.setdefault(cmty_id, []).append(node_id)
+
+        # Run enrichment for each community
+        all_results: dict[int, dict] = {}
+        all_p_values: list[tuple[int, str | int | float, float]] = []
+
+        for cmty_id, members in community_groups.items():
+            enrichment = self.subgraph_enrichment(members, attribute)
+            all_results[cmty_id] = enrichment
+            for value, result in enrichment.items():
+                all_p_values.append((cmty_id, value, result["p_value"]))
+
+        # Apply multiple-testing correction
+        n_tests = len(all_p_values)
+        if n_tests == 0:
+            return all_results
+
+        if correction == "bonferroni":
+            for cmty_id, value, p_val in all_p_values:
+                all_results[cmty_id][value]["p_adjusted"] = min(p_val * n_tests, 1.0)
+
+        elif correction == "fdr":
+            sorted_pvals = sorted(all_p_values, key=lambda x: x[2])
+            for rank, (cmty_id, value, p_val) in enumerate(sorted_pvals, 1):
+                adjusted = min(p_val * n_tests / rank, 1.0)
+                all_results[cmty_id][value]["p_adjusted"] = adjusted
+
+            # Enforce monotonicity (step-up procedure)
+            prev = 1.0
+            for cmty_id, value, _ in reversed(sorted_pvals):
+                curr = all_results[cmty_id][value]["p_adjusted"]
+                all_results[cmty_id][value]["p_adjusted"] = min(curr, prev)
+                prev = all_results[cmty_id][value]["p_adjusted"]
+        else:
+            raise ValueError(
+                f"Unknown correction: {correction}. Use 'bonferroni' or 'fdr'."
+            )
+
+        return all_results
+
+    # ==============================================================================
     # ------------------------------------------------------------------------------
     # TRANSFORMATIONS
     # ------------------------------------------------------------------------------
