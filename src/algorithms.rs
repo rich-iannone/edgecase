@@ -1,5 +1,6 @@
 //! Graph algorithms module
 
+pub mod bipartite;
 pub mod bridges;
 pub mod centrality;
 pub mod coloring;
@@ -23,6 +24,7 @@ pub mod matching;
 pub mod node_vitality;
 pub mod paths;
 pub mod percolation;
+pub mod propagation;
 pub mod regularity;
 pub mod rich_club;
 pub mod simd_intersection;
