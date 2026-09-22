@@ -10380,6 +10380,91 @@ class Graph:
 
         return rust_cycle_basis(self._graph, root)
 
+    def directed_cycle_basis(self) -> list[list[int]]:
+        """
+        Find a fundamental cycle basis for a directed graph.
+
+        For a directed graph, the cycle space operates over the rationals (not GF(2) as in
+        the undirected case). A fundamental cycle basis is computed by finding the strongly
+        connected components (SCCs), building a DFS arborescence in each non-trivial SCC,
+        and extracting one directed cycle per non-tree edge.
+
+        The number of cycles returned equals `m - n + p` where `m` is the number of edges,
+        `n` the number of nodes, and `p` the number of strongly connected components
+        (counting isolated nodes and acyclic components).
+
+        Parameters
+        ----------
+        (none)
+
+        Returns
+        -------
+        list[list[int]]
+            A list of directed cycles forming the cycle basis. Each cycle is a list of node
+            IDs `[v0, v1, ..., vk]` representing the closed walk `v0 -> v1 -> ... -> vk
+            -> v0`.
+
+        Raises
+        ------
+        ValueError
+            If called on an undirected graph (use `cycle_basis()` instead).
+
+        Technical Notes
+        ---------------
+        Unlike the undirected cycle basis (which operates over GF(2) with symmetric
+        differences), the directed cycle space uses signed incidence vectors over the
+        rationals: each arc traversed forward gets +1, backward -1, and unused arcs get 0.
+        The dimension of the directed cycle space is $m - n + p$ where $p$ is the number
+        of strongly connected components, and this function returns exactly that many cycles.
+
+        The algorithm runs in $O(V + E)$ time per SCC, so overall $O(V + E)$ for
+        the entire graph.
+
+        Examples
+        --------
+        A simple directed triangle has a single fundamental cycle:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+        )
+
+        cycles = graph.directed_cycle_basis()
+        len(cycles)
+        ```
+
+        A figure-eight has two fundamental cycles:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+            .add_edge("A", "D")
+            .add_edge("D", "A")
+        )
+
+        cycles = graph.directed_cycle_basis()
+        len(cycles)
+        ```
+        """
+        from edgecase._core import directed_cycle_basis as rust_directed_cycle_basis
+
+        return rust_directed_cycle_basis(self._graph)
+
     def minimum_cycle_basis(self, weight: str | None = None) -> list[list[int]]:
         r"""
         Find a minimum weight cycle basis for the graph.
