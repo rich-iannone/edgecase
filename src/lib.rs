@@ -131,6 +131,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::null_models::expected_degree_graph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::null_models::generate_stochastic_block_model, m)?)?;
 
+    // Network motif census
+    m.add_function(wrap_pyfunction!(algorithms::motifs::motif_census, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::motifs::motif_significance, m)?)?;
+
     // Network comparison
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::edge_overlap, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::differential_edges, m)?)?;
