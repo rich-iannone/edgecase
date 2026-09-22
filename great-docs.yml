@@ -440,6 +440,21 @@ reference:
       contents:
         - Graph.topological_overlap
 
+    - title: Network Robustness
+      desc: Methods for simulating network attack tolerance and vulnerability
+      contents:
+        - Graph.network_robustness
+
+    - title: Influence Maximization
+      desc: Methods for identifying maximally influential seed nodes
+      contents:
+        - Graph.influence_maximization
+
+    - title: Network Smoothing
+      desc: Methods for smoothing noisy node scores over network topology
+      contents:
+        - Graph.network_smooth
+
     - title: Network Comparison
       desc: Methods for comparing graphs and differential analysis
       contents:
