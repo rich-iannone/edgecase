@@ -25759,6 +25759,97 @@ class Graph:
         else:
             return edges
 
+    def directed_steiner_tree(
+        self,
+        root: str,
+        terminal_nodes: list[str],
+        weight_attr: str | None = None,
+        return_subgraph: bool = True,
+    ) -> "Graph | list[tuple[str, str, float]]":
+        r"""
+        Find an approximate directed Steiner tree (Steiner arborescence).
+
+        Given a root node and a set of terminal nodes, finds an approximate minimum-weight
+        arborescence rooted at `root` containing a directed path from `root` to every terminal.
+
+        Uses the Shortest-Path Heuristic (SPH) with edge-cost reuse: greedily selects the cheapest
+        path from root to an uncovered terminal, then zeroes the cost of used edges so future paths
+        reuse them for free. This encourages path sharing and produces compact arborescences.
+
+        Parameters
+        ----------
+        root
+            Label of the root (source) node.
+        terminal_nodes
+            Labels of the target nodes that must be reachable from `root`.
+        weight_attr
+            Edge attribute to use for weights. If `None`, uses the default `weight` field (or `1.0`
+            if unweighted).
+        return_subgraph
+            If `True` (default), return a new directed `Graph` containing only the arborescence
+            edges. If `False`, return the raw edge list.
+
+        Returns
+        -------
+        Graph | list[tuple[str, str, float]]
+            If `return_subgraph=True`: a new directed `Graph` with the arborescence. Otherwise a
+            list of `(source, target, weight)` tuples.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not directed, a node is not found, or a terminal is not reachable from
+            root.
+
+        Examples
+        --------
+        A simple directed tree where the root fans out to several targets:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True)
+        for n in ["R", "A", "B", "C", "D"]:
+            g.add_node(label=n)
+        g.add_edge("R", "A", weight=1.0)
+        g.add_edge("A", "B", weight=2.0)
+        g.add_edge("R", "C", weight=5.0)
+        g.add_edge("A", "C", weight=1.0)
+        g.add_edge("C", "D", weight=1.0)
+
+        tree = g.directed_steiner_tree("R", ["B", "D"])
+        tree.count_edges()
+        ```
+        """
+        from edgecase._core import directed_steiner_tree as _directed_steiner_tree
+
+        edges = _directed_steiner_tree(self._graph, root, terminal_nodes, weight_attr)
+
+        if return_subgraph:
+            st = Graph(directed=True, weighted=True)
+
+            tree_nodes = set()
+            for source, target, _ in edges:
+                tree_nodes.add(source)
+                tree_nodes.add(target)
+
+            for label in tree_nodes:
+                try:
+                    node_obj = self._graph.get_node(label)
+                    st.add_node(
+                        label,
+                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
+                    )
+                except Exception:
+                    st.add_node(label)
+
+            for source, target, weight in edges:
+                st.add_edge(source, target, weight=weight)
+
+            return st
+        else:
+            return edges
+
     def prize_collecting_steiner_tree(
         self,
         prizes: dict[str, float],
@@ -25769,20 +25860,19 @@ class Graph:
         """
         Find a prize-collecting Steiner tree.
 
-        A variant of the Steiner tree where each node has a *prize* (benefit of
-        inclusion) and each edge has a *cost* (penalty for inclusion). The algorithm
-        finds a connected subtree that maximizes total prize minus total edge cost.
-        Unlike the standard Steiner tree, not all prize nodes need to be included if the
-        cost of connecting them is too high.
+        A variant of the Steiner tree where each node has a *prize* (benefit of inclusion) and each
+        edge has a *cost* (penalty for inclusion). The algorithm finds a connected subtree that
+        maximizes total prize minus total edge cost. Unlike the standard Steiner tree, not all prize
+        nodes need to be included if the cost of connecting them is too high.
 
         Parameters
         ----------
         prizes
-            Dictionary mapping node labels to prize values (e.g., ``-log10(p_value)``
-            from GWAS hits). Only nodes with prizes are candidates for inclusion.
+            Dictionary mapping node labels to prize values (e.g., `-log10(p_value)` from GWAS hits).
+            Only nodes with prizes are candidates for inclusion.
         edge_penalty
-            Multiplier applied to edge weights as costs. Higher values penalize longer
-            paths more aggressively, producing smaller trees. Default `1.0`.
+            Multiplier applied to edge weights as costs. Higher values penalize longer paths more
+            aggressively, producing smaller trees. Default `1.0`.
         weight_attr
             Edge attribute to use for weights. If `None`, uses the edge's weight field.
         return_subgraph
@@ -25860,10 +25950,9 @@ class Graph:
         """
         Expand a seed set to a connected module using neighborhood scoring.
 
-        Starting from seed nodes, greedily adds neighbors that are densely connected
-        to the current module. The score for each candidate is the ratio of its edges
-        to the module over its total degree, favoring nodes tightly linked to the module
-        rather than high-degree hubs.
+        Starting from seed nodes, greedily adds neighbors that are densely connected to the current
+        module. The score for each candidate is the ratio of its edges to the module over its total
+        degree, favoring nodes tightly linked to the module rather than high-degree hubs.
 
         Parameters
         ----------
@@ -25872,8 +25961,8 @@ class Graph:
         max_size
             Maximum module size. Defaults to `3 * len(seeds)`.
         min_score
-            Minimum connectivity score for a node to be added. Candidates scoring at or
-            below this threshold are rejected.
+            Minimum connectivity score for a node to be added. Candidates scoring at or below this
+            threshold are rejected.
 
         Returns
         -------
