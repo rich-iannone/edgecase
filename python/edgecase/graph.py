@@ -18497,6 +18497,160 @@ class Graph:
 
         return self
 
+    def bridging_centrality(
+        self,
+        normalized: bool = True,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        r"""
+        Compute bridging centrality for each node.
+
+        Bridging centrality identifies nodes that act as bridges between densely connected
+        communities. It combines the *bridging coefficient* (a local measure of how much a node
+        links to otherwise-separated groups) with *betweenness centrality* (global importance for
+        shortest paths):
+
+        $$\mathrm{BrC}(v) = \mathrm{BC}_{\mathrm{coeff}}(v) \times \mathrm{betweenness}(v)$$
+
+        where the bridging coefficient is:
+
+        $$\mathrm{BC}_{\mathrm{coeff}}(v) = \frac{1/d(v)}{\sum_{j \in N(v)} 1/d(j)}$$
+
+        Parameters
+        ----------
+        normalized
+            If `True` (the default), normalize so the maximum value is `1.0`.
+        attr_name
+            Name for the node attribute to store results. If not provided, defaults to
+            `"bridging_centrality"`.
+        return_dict
+            If `True`, return the raw dictionary. If `False`, store as node attributes and return
+            self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=True`: dictionary mapping node IDs to bridging centrality scores.
+            Otherwise returns self.
+
+        Examples
+        --------
+        In a barbell graph (two cliques joined by a single bridge), the bridge
+        node scores highest:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=False)
+        for i in range(1, 5):
+            g.add_node(label=str(i))
+        for i in range(5, 9):
+            g.add_node(label=str(i))
+        # Clique 1
+        for i in range(1, 5):
+            for j in range(i + 1, 5):
+                g.add_edge(str(i), str(j))
+        # Clique 2
+        for i in range(5, 9):
+            for j in range(i + 1, 9):
+                g.add_edge(str(i), str(j))
+        # Bridge
+        g.add_edge("4", "5")
+
+        g.bridging_centrality(return_dict=True)
+        ```
+        """
+        from edgecase._core import bridging_centrality
+
+        result_ids = bridging_centrality(self._graph, normalized=normalized)
+
+        if return_dict:
+            return result_ids
+
+        if attr_name is None:
+            attr_name = "bridging_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(
+                ("bridging_centrality", {"normalized": normalized}, attr_name)
+            )
+
+        return self
+
+    def laplacian_centrality(
+        self,
+        normalized: bool = True,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        r"""
+        Compute Laplacian centrality for each node.
+
+        Laplacian centrality measures how much the overall connectivity of the network is disrupted
+        by removing a node. It uses a closed-form expression based on the Laplacian energy of the
+        graph:
+
+        $$\Delta E(v) = d(v)^2 + d(v) + 2 \sum_{u \in N(v)} d(u)$$
+
+        When normalized (the default), the score is divided by the total Laplacian energy of the
+        graph, so values sum to `1.0`.
+
+        Parameters
+        ----------
+        normalized
+            If `True` (the default), normalize by total Laplacian energy so values sum to `1.0`. If
+            `False`, return raw energy-drop values.
+        attr_name
+            Name for the node attribute to store results. If not provided, defaults to
+            `"laplacian_centrality"`.
+        return_dict
+            If `True`, return the raw dictionary. If `False`, store as node attributes and return
+            self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=True`: dictionary mapping node IDs to Laplacian centrality scores.
+            Otherwise returns self.
+
+        Examples
+        --------
+        In a star graph, the hub contributes the most Laplacian energy:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=False)
+        g.add_node(label="hub")
+        for i in range(1, 6):
+            g.add_node(label=str(i))
+            g.add_edge("hub", str(i))
+
+        g.laplacian_centrality(return_dict=True)
+        ```
+        """
+        from edgecase._core import laplacian_centrality
+
+        result_ids = laplacian_centrality(self._graph, normalized=normalized)
+
+        if return_dict:
+            return result_ids
+
+        if attr_name is None:
+            attr_name = "laplacian_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(
+                ("laplacian_centrality", {"normalized": normalized}, attr_name)
+            )
+
+        return self
+
     def domirank_centrality(
         self,
         sigma: float | None = None,
