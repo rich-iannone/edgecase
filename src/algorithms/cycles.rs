@@ -6,6 +6,7 @@
 //! - `cycle_basis`: Find a fundamental cycle basis of an undirected graph
 //! - `minimum_cycle_basis`: Find a minimum weight cycle basis of an undirected graph
 //! - `find_cycles`: Legacy function for finding cycles in directed graphs (Johnson's algorithm)
+//! - `directed_cycle_basis`: Find a fundamental cycle basis of a directed graph
 //! - `has_cycle`: Check if a graph contains any cycle
 
 use crate::graph::Graph;
@@ -1167,6 +1168,147 @@ fn has_cycle_util(
 
     rec_stack.remove(&node);
     false
+}
+
+/// Find a fundamental cycle basis for a directed graph.
+///
+/// For each strongly connected component (SCC) with more than one node,
+/// builds a DFS arborescence and extracts a fundamental directed cycle
+/// for each non-tree edge within that SCC. The cycle space dimension
+/// is m - n + p (edges minus nodes plus number of SCCs).
+///
+/// Returns cycles as lists of node IDs (each cycle is a closed walk
+/// omitting the repeated last node, i.e., [v0, v1, ..., vk] represents
+/// v0 -> v1 -> ... -> vk -> v0).
+#[pyfunction]
+pub fn directed_cycle_basis(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
+    if !graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "directed_cycle_basis() is only defined for directed graphs. Use cycle_basis() for undirected graphs."
+        ));
+    }
+
+    let node_ids = graph.get_node_ids();
+    if node_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let sccs = crate::algorithms::connectivity::strongly_connected_components(graph)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    let adj = graph.get_adjacency_list();
+    let mut cycles: Vec<Vec<u64>> = Vec::new();
+
+    for scc in &sccs {
+        if scc.len() < 2 {
+            continue;
+        }
+
+        let scc_set: FxHashSet<u64> = scc.iter().copied().collect();
+
+        // Build DFS arborescence within this SCC
+        let root = scc[0];
+        let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
+        let mut visited: FxHashSet<u64> = FxHashSet::default();
+        let mut tree_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
+        let mut stack = vec![root];
+        visited.insert(root);
+
+        while let Some(u) = stack.pop() {
+            if let Some(neighbors) = adj.get(&u) {
+                for &v in neighbors {
+                    if scc_set.contains(&v) && !visited.contains(&v) {
+                        visited.insert(v);
+                        parent.insert(v, u);
+                        tree_edges.insert((u, v));
+                        stack.push(v);
+                    }
+                }
+            }
+        }
+
+        // For each non-tree edge (u, v) within the SCC, extract a fundamental cycle.
+        // The cycle is: tree path from root to v, but we need the path that closes.
+        // For a non-tree edge u -> v: find the tree path from v to u (via parent pointers),
+        // then the cycle is v -> ... -> u -> v.
+        for &u in scc {
+            if let Some(neighbors) = adj.get(&u) {
+                for &v in neighbors {
+                    if !scc_set.contains(&v) || tree_edges.contains(&(u, v)) {
+                        continue;
+                    }
+                    // Non-tree edge u -> v. Find tree path from v up to u.
+                    // Since both u and v are in the same SCC's DFS tree rooted at `root`,
+                    // we need to find if there's a tree path from v to u.
+                    // Collect ancestors of u and ancestors of v to find the path.
+                    let path_root_to_u = tree_path_to_root(&parent, u);
+                    let path_root_to_v = tree_path_to_root(&parent, v);
+
+                    // Find LCA (lowest common ancestor)
+                    let ancestors_of_u: FxHashSet<u64> = path_root_to_u.iter().copied().collect();
+
+                    let mut lca = root;
+                    for &node in &path_root_to_v {
+                        if ancestors_of_u.contains(&node) {
+                            lca = node;
+                        }
+                    }
+
+                    // Cycle: path from lca to v (tree), then v...u via tree, then edge u->v
+                    // Actually: tree path lca -> ... -> u, then edge u -> v, then tree path v -> ... -> lca
+                    // But we need lca->u and lca->v from the tree paths.
+                    let seg_lca_to_u = sub_path(&path_root_to_v, &path_root_to_u, lca, u);
+                    let seg_lca_to_v = sub_path(&path_root_to_v, &path_root_to_v, lca, v);
+
+                    // Cycle: lca -> ... -> u -> v -> ... -> lca
+                    // But the tree path lca->u and lca->v are both forward (root-ward to leaf-ward).
+                    // We want: lca -> ... -> u (forward tree), edge u -> v, then v -> ... -> lca (reverse tree)
+                    // However for directed trees the path is always root-to-leaf direction.
+                    // The cycle is: (tree path from lca to u) ++ [edge u->v] ++ (reverse of tree path from lca to v)
+                    let mut cycle = seg_lca_to_u.clone();
+                    // Add v's path in reverse (from v back to lca), skipping lca itself
+                    let mut v_to_lca = seg_lca_to_v.clone();
+                    v_to_lca.reverse();
+                    // Remove the lca from v_to_lca since it's already the start of the cycle
+                    if !v_to_lca.is_empty() {
+                        v_to_lca.pop(); // remove lca at end (which was start of seg_lca_to_v)
+                    }
+                    cycle.extend(v_to_lca);
+
+                    if cycle.len() >= 2 {
+                        cycles.push(cycle);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(cycles)
+}
+
+fn tree_path_to_root(parent: &FxHashMap<u64, u64>, node: u64) -> Vec<u64> {
+    let mut path = vec![node];
+    let mut current = node;
+    while let Some(&p) = parent.get(&current) {
+        path.push(p);
+        current = p;
+    }
+    path.reverse();
+    path
+}
+
+fn sub_path(
+    _path_root_to_v: &[u64],
+    path_root_to_target: &[u64],
+    from: u64,
+    to: u64,
+) -> Vec<u64> {
+    let start = path_root_to_target.iter().position(|&n| n == from);
+    let end = path_root_to_target.iter().position(|&n| n == to);
+    match (start, end) {
+        (Some(s), Some(e)) if s <= e => path_root_to_target[s..=e].to_vec(),
+        _ => vec![from, to],
+    }
 }
 
 #[cfg(test)]
