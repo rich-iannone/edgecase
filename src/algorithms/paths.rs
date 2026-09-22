@@ -329,7 +329,7 @@ pub fn all_pairs_shortest_path(
 
 /// Helper function: Compute distances from a single source using Dijkstra
 #[inline]
-fn single_source_dijkstra_distances(
+pub(crate) fn single_source_dijkstra_distances(
     graph: &Graph,
     source: u64,
 ) -> PyResult<FxHashMap<u64, f64>> {
