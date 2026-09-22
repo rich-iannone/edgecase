@@ -4145,6 +4145,251 @@ class Graph:
         """
         return self._graph.is_bipartite()
 
+    def bipartite_sets(self) -> tuple[list[int], list[int]]:
+        """
+        Return the two node partitions of a bipartite graph.
+
+        Uses BFS 2-coloring to partition nodes into two independent sets such that every
+        edge connects nodes from different sets.
+
+        Returns
+        -------
+        tuple[list[int], list[int]]
+            A pair of lists containing the node IDs of each partition.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Gene1")
+            .add_node(label="Gene2")
+            .add_node(label="Disease1")
+            .add_node(label="Disease2")
+            .add_edge("Gene1", "Disease1")
+            .add_edge("Gene1", "Disease2")
+            .add_edge("Gene2", "Disease1")
+        )
+
+        set_a, set_b = graph.bipartite_sets()
+        len(set_a), len(set_b)
+        ```
+        """
+        return rust.bipartite_sets(self._graph)
+
+    def bipartite_projection(
+        self,
+        which: int = 0,
+    ) -> "Graph":
+        """
+        Project a bipartite graph onto one of its partitions.
+
+        Two nodes in the chosen partition become connected if they share at least one
+        neighbor in the other partition. Edge weights equal the number of shared neighbors.
+
+        Parameters
+        ----------
+        which
+            Which partition to project onto: `0` or `1` (as returned by
+            ``bipartite_sets()``).
+
+        Returns
+        -------
+        Graph
+            A new graph containing only the nodes of the chosen partition, with edges
+            weighted by shared-neighbor counts.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite, or if `which` is not 0 or 1.
+
+        Examples
+        --------
+        Project a gene-disease network onto genes; genes become connected if they
+        share diseases:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Gene1")
+            .add_node(label="Gene2")
+            .add_node(label="Gene3")
+            .add_node(label="Disease1")
+            .add_node(label="Disease2")
+            .add_edge("Gene1", "Disease1")
+            .add_edge("Gene2", "Disease1")
+            .add_edge("Gene2", "Disease2")
+            .add_edge("Gene3", "Disease2")
+        )
+
+        set_a, set_b = graph.bipartite_sets()
+
+        # Find which set contains the genes
+        gene1_id = graph.get_id_from_label("Gene1")
+        gene_set = 0 if gene1_id in set_a else 1
+
+        projection = graph.bipartite_projection(which=gene_set)
+        projection.count_nodes(), projection.count_edges()
+        ```
+        """
+        edges = rust.bipartite_projection(self._graph, which)
+
+        # Determine which set we're projecting onto
+        set_0, set_1 = rust.bipartite_sets(self._graph)
+        project_nodes = set_0 if which == 0 else set_1
+
+        proj = Graph(directed=False, weighted=True)
+
+        for node_id in project_nodes:
+            label = self.get_label_from_id(node_id)
+            if label is not None:
+                proj.add_node(label)
+            else:
+                proj.add_node(str(node_id))
+
+        for source_id, target_id, weight in edges:
+            source_label = self.get_label_from_id(source_id) or str(source_id)
+            target_label = self.get_label_from_id(target_id) or str(target_id)
+            proj.add_edge(source_label, target_label, weight=weight)
+
+        return proj
+
+    def bipartite_degree_centrality(
+        self,
+        which: int = 0,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Degree centrality for nodes in one partition of a bipartite graph.
+
+        Normalized by the size of the opposite partition (the maximum possible degree
+        for any node in the target partition).
+
+        Parameters
+        ----------
+        which
+            Which partition to compute centrality for: `0` or `1`.
+        attr_name
+            Column name for the node DataFrame. Defaults to `"bipartite_degree_centrality"`.
+        return_dict
+            If `True`, returns the centrality dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Centrality scores normalized to [0, 1].
+        """
+        result_ids = rust.bipartite_degree_centrality(self._graph, which)
+
+        if attr_name is None:
+            attr_name = "bipartite_degree_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(("bipartite_degree_centrality", {"which": which}, attr_name))
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def bipartite_closeness_centrality(
+        self,
+        which: int = 0,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Closeness centrality for nodes in one partition of a bipartite graph.
+
+        Closeness is the reciprocal of the average shortest path distance to all
+        nodes in the opposite partition.
+
+        Parameters
+        ----------
+        which
+            Which partition to compute centrality for: `0` or `1`.
+        attr_name
+            Column name for the node DataFrame. Defaults to
+            `"bipartite_closeness_centrality"`.
+        return_dict
+            If `True`, returns the centrality dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Closeness centrality scores.
+        """
+        result_ids = rust.bipartite_closeness_centrality(self._graph, which)
+
+        if attr_name is None:
+            attr_name = "bipartite_closeness_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(
+                ("bipartite_closeness_centrality", {"which": which}, attr_name)
+            )
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def bipartite_betweenness_centrality(
+        self,
+        which: int = 0,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Betweenness centrality for nodes in one partition of a bipartite graph.
+
+        Measures how often a node lies on shortest paths between pairs of nodes
+        in the opposite partition.
+
+        Parameters
+        ----------
+        which
+            Which partition to compute centrality for: `0` or `1`.
+        attr_name
+            Column name for the node DataFrame. Defaults to
+            `"bipartite_betweenness_centrality"`.
+        return_dict
+            If `True`, returns the centrality dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Betweenness centrality scores.
+        """
+        result_ids = rust.bipartite_betweenness_centrality(self._graph, which)
+
+        if attr_name is None:
+            attr_name = "bipartite_betweenness_centrality"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            self._computations.append(
+                ("bipartite_betweenness_centrality", {"which": which}, attr_name)
+            )
+
+        if return_dict:
+            return result_ids
+        return self
+
     def is_tree(self) -> bool:
         """
         Check if the graph is a tree.
