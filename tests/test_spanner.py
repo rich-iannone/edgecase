@@ -384,7 +384,7 @@ class TestSpannerLarge:
         """Spanner of Erdős-Rényi random graph."""
         import random
 
-        random.seed(42)
+        random.seed(23)
 
         g = Graph()
         n = 20
