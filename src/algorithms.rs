@@ -21,6 +21,7 @@ pub mod independent_set;
 pub mod line_graph;
 pub mod link_prediction;
 pub mod matching;
+pub mod motifs;
 pub mod network_comparison;
 pub mod null_models;
 pub mod node_vitality;
