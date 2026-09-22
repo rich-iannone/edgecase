@@ -16208,6 +16208,78 @@ class Graph:
             return result_ids
         return self
 
+    def knotty_centrality(
+        self,
+        top_m: int = 10,
+        compact: bool = False,
+    ) -> tuple[float, list[int]]:
+        """
+        Find the connective core of the network using knotty centrality.
+
+        Knotty centrality identifies the subset of nodes that are both densely
+        interconnected *and* collectively high in betweenness centrality. The result is
+        the tightest "knot" of important connectors in the graph.
+
+        The score for a subset *S* is:
+
+        `KC(S) = density(S) * (1 / |S|) * sum(bc_norm(i) for i in S)`
+
+        where `density(S) = 2 * E_S / (|S| * (|S| - 1))` and `bc_norm` is betweenness
+        centrality normalized to sum to 1 over the whole graph.
+
+        Uses a two-phase heuristic: exhaustive search over the top-`top_m` nodes by
+        betweenness, followed by gradient ascent over the full node set.
+
+        Parameters
+        ----------
+        top_m
+            Number of top-betweenness nodes to include in the exhaustive search phase.
+            Higher values find better solutions but cost `O(2^top_m)`. Default is `10`.
+        compact
+            If `True`, penalizes larger subsets: `KCC(S) = KC(S) * (N - |S|) / N`.
+            Default is `False`.
+
+        Returns
+        -------
+        tuple[float, list[int]]
+            A `(score, core_node_ids)` tuple. The score is the knotty-centrality value
+            (range `[0, 1]`) and `core_node_ids` is the sorted list of node IDs in the
+            connective core. Returns `(0.0, [])` for graphs with fewer than 2 nodes or
+            zero betweenness centrality.
+
+        Examples
+        --------
+        The bridge nodes connecting two triangles form the connective core:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+            .add_edge("C", "D")  # Bridge
+            .add_edge("D", "E")
+            .add_edge("E", "F")
+            .add_edge("F", "D")
+        )
+
+        score, core = graph.knotty_centrality()
+        labels = [graph.get_label_from_id(nid) for nid in core]
+        (round(score, 4), labels)
+        ```
+        """
+        from edgecase._core import knotty_centrality as _knotty_centrality
+
+        return _knotty_centrality(self._graph, top_m=top_m, compact=compact)
+
     def load_centrality(
         self,
         normalized: bool = True,
