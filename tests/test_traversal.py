@@ -317,9 +317,11 @@ class TestConditionalTraversal:
         # Start at node 1, traverse until value == 8
         G.select_nodes(lambda n: n.label == "1")
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 8
-            if G.get_node(nid).attributes
-            else False
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 8
+                if G.get_node(nid).attributes
+                else False
+            )
         )
 
         node_ids = G.get_selected_node_ids()
@@ -339,9 +341,11 @@ class TestConditionalTraversal:
         # Start at node 10, traverse backward until value == 1
         G.select_nodes(lambda n: n.label == "10")
         G.trav_in_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 1
-            if G.get_node(nid).attributes
-            else False
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 1
+                if G.get_node(nid).attributes
+                else False
+            )
         )
 
         node_ids = G.get_selected_node_ids()
@@ -370,9 +374,11 @@ class TestConditionalTraversal:
         # Start at 1 and 7, traverse until value in [5, 6, 9]
         G.select_nodes(lambda n: n.label in ["1", "7"])
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value") in [5, 6, 9]
-            if G.get_node(nid).attributes
-            else False,
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") in [5, 6, 9]
+                if G.get_node(nid).attributes
+                else False
+            ),
             exclude_unmatched=True,
         )
 
@@ -402,9 +408,11 @@ class TestConditionalTraversal:
         # Start at 6 and 12, traverse backward until value in [1, 2, 10]
         G.select_nodes(lambda n: n.label in ["6", "12"])
         G.trav_in_until(
-            lambda nid: G.get_node(nid).attributes.get("value") in [1, 2, 10]
-            if G.get_node(nid).attributes
-            else False,
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") in [1, 2, 10]
+                if G.get_node(nid).attributes
+                else False
+            ),
             exclude_unmatched=True,
         )
 
@@ -424,9 +432,11 @@ class TestConditionalTraversal:
         # Start at 1, try to reach 20 but limit to 5 steps
         G.select_nodes(lambda n: n.label == "1")
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 20
-            if G.get_node(nid).attributes
-            else False,
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 20
+                if G.get_node(nid).attributes
+                else False
+            ),
             max_steps=5,
             exclude_unmatched=False,
         )
@@ -449,9 +459,11 @@ class TestConditionalTraversal:
         # Traverse from 1 to 5, keeping all visited nodes
         G.select_nodes(lambda n: n.label == "1")
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 5
-            if G.get_node(nid).attributes
-            else False,
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 5
+                if G.get_node(nid).attributes
+                else False
+            ),
             add_to_selection=True,
             exclude_unmatched=False,
         )
@@ -473,9 +485,11 @@ class TestConditionalTraversal:
         # Traverse from 10 to 6, keeping all visited nodes
         G.select_nodes(lambda n: n.label == "10")
         G.trav_in_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 6
-            if G.get_node(nid).attributes
-            else False,
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 6
+                if G.get_node(nid).attributes
+                else False
+            ),
             add_to_selection=True,
             exclude_unmatched=False,
         )
@@ -497,9 +511,11 @@ class TestConditionalTraversal:
         # Traverse but look for non-existent value
         G.select_nodes(lambda n: n.label == "1")
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 999
-            if G.get_node(nid).attributes
-            else False,
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 999
+                if G.get_node(nid).attributes
+                else False
+            ),
             max_steps=2,
             exclude_unmatched=False,
         )
@@ -521,9 +537,11 @@ class TestConditionalTraversal:
         # Traverse but look for non-existent value
         G.select_nodes(lambda n: n.label == "1")
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 999
-            if G.get_node(nid).attributes
-            else False,
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 999
+                if G.get_node(nid).attributes
+                else False
+            ),
             max_steps=2,
             exclude_unmatched=True,
         )
@@ -544,9 +562,11 @@ class TestConditionalTraversal:
         # Start at node that already matches
         G.select_nodes(lambda n: n.label == "3")
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value") == 3
-            if G.get_node(nid).attributes
-            else False
+            lambda nid: (
+                G.get_node(nid).attributes.get("value") == 3
+                if G.get_node(nid).attributes
+                else False
+            )
         )
 
         node_ids = G.get_selected_node_ids()
@@ -573,9 +593,11 @@ class TestConditionalTraversal:
         # Traverse from 1 until value >= 3
         G.select_nodes(lambda n: n.label == "1")
         G.trav_out_until(
-            lambda nid: G.get_node(nid).attributes.get("value", 0) >= 3
-            if G.get_node(nid).attributes
-            else False
+            lambda nid: (
+                G.get_node(nid).attributes.get("value", 0) >= 3
+                if G.get_node(nid).attributes
+                else False
+            )
         )
 
         node_ids = G.get_selected_node_ids()
@@ -608,11 +630,13 @@ class TestConditionalTraversal:
         G.select_nodes(lambda n: n.label == "1")
         G.trav_out_until(
             lambda nid: (
-                G.get_node(nid).attributes.get("value", 0) >= 6
-                and G.get_node(nid).attributes.get("category") == "even"
+                (
+                    G.get_node(nid).attributes.get("value", 0) >= 6
+                    and G.get_node(nid).attributes.get("category") == "even"
+                )
+                if G.get_node(nid).attributes
+                else False
             )
-            if G.get_node(nid).attributes
-            else False
         )
 
         node_ids = G.get_selected_node_ids()
@@ -680,9 +704,9 @@ class TestBFS:
     def test_bfs_single_node(self):
         """Test BFS on single isolated node."""
         g = ec.Graph()
-        g.add_node(label="42")
+        g.add_node(label="23")
 
-        result = g.bfs("42", return_list=True)
+        result = g.bfs("23", return_list=True)
         # Returns node IDs, but we search by label
         assert len(result) == 1
 
@@ -776,9 +800,9 @@ class TestDFS:
     def test_dfs_single_node(self):
         """Test DFS on single isolated node."""
         g = ec.Graph()
-        g.add_node(label="42")
+        g.add_node(label="23")
 
-        result = g.dfs("42", return_list=True)
+        result = g.dfs("23", return_list=True)
         # Returns node IDs, but we search by label
         assert len(result) == 1
 
