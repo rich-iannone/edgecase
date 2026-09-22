@@ -13974,6 +13974,190 @@ class Graph:
 
         return _network_proximity(self._graph, set_a, set_b, method)
 
+    def network_robustness(
+        self,
+        strategy: str = "degree",
+        steps: int | None = None,
+        seed: int | None = None,
+        return_dict: bool = False,
+    ) -> "Graph | list[tuple[float, float]]":
+        """
+        Simulate progressive node removal and measure network degradation.
+
+        Removes nodes one at a time according to a strategy and records the fraction of nodes in the
+        largest connected component at each step. Useful for studying essential genes and network
+        vulnerability in protein–protein interaction networks.
+
+        Parameters
+        ----------
+        strategy
+            Node removal strategy:
+
+            - `"degree"`: remove highest-degree nodes first (targeted attack).
+            - `"betweenness"`: remove highest-betweenness nodes first.
+            - `"random"`: remove nodes in random order.
+        steps
+            Number of nodes to remove. Defaults to all nodes.
+        seed
+            Random seed (only used when `strategy="random"`).
+        return_dict
+            If `True`, return the robustness curve as a list of
+            `(fraction_removed, largest_component_fraction)` tuples. If `False`, store the result
+            and return `self` for chaining.
+
+        Returns
+        -------
+        Graph | list[tuple[float, float]]
+            The robustness curve (if `return_dict=True`) or `self`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph()
+        for i in range(10):
+            g.add_node(label=str(i))
+        for i in range(9):
+            g.add_edge(source=str(i), target=str(i + 1))
+
+        curve = g.network_robustness(strategy="degree", return_dict=True)
+        curve[:3]
+        ```
+        """
+        from edgecase._core import network_robustness as _network_robustness
+
+        result = _network_robustness(self._graph, strategy, steps, seed)
+        if return_dict:
+            return result
+        self._computations.append(("network_robustness", result))
+        return self
+
+    def influence_maximization(
+        self,
+        k: int,
+        model: str = "independent_cascade",
+        probability: float = 0.1,
+        n_simulations: int = 100,
+        seed: int | None = None,
+        return_dict: bool = False,
+    ) -> "Graph | list[tuple[int, float]]":
+        """
+        Find the k most influential nodes for information spread.
+
+        Uses a greedy algorithm to select seed nodes that maximize the expected spread in an
+        Independent Cascade model. Useful for identifying key regulatory genes or optimal drug
+        targets in signaling networks.
+
+        Parameters
+        ----------
+        k
+            Number of seed nodes to select.
+        model
+            Diffusion model. Currently only `"independent_cascade"` is supported.
+        probability
+            Per-edge activation probability in each cascade step.
+        n_simulations
+            Number of Monte Carlo simulations per candidate evaluation.
+        seed
+            Random seed for reproducibility.
+        return_dict
+            If `True`, return a list of `(node_id, marginal_gain)` tuples. If `False`, store the
+            result and return `self` for chaining.
+
+        Returns
+        -------
+        Graph | list[tuple[int, float]]
+            The selected seed nodes with their marginal gains (if `return_dict=True`) or `self`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph()
+        for i in range(6):
+            g.add_node(label=str(i))
+        for i in range(5):
+            g.add_edge(source=str(i), target=str(i + 1))
+
+        seeds = g.influence_maximization(k=2, probability=0.5, seed=42, return_dict=True)
+        seeds
+        ```
+        """
+        from edgecase._core import influence_maximization as _influence_maximization
+
+        result = _influence_maximization(self._graph, k, model, probability, n_simulations, seed)
+        if return_dict:
+            return result
+        self._computations.append(("influence_maximization", result))
+        return self
+
+    def network_smooth(
+        self,
+        scores: dict[int, float],
+        alpha: float = 0.5,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> "Graph | dict[int, float]":
+        """
+        Smooth node scores over the network topology.
+
+        Propagates noisy per-node scores (e.g., differential expression values) through the network
+        to produce denoised estimates that incorporate neighborhood information. Uses iterative
+        label spreading: `f(t+1) = alpha * W_norm * f(t) + (1 - alpha) * f(0)`.
+
+        Parameters
+        ----------
+        scores
+            Dictionary mapping node IDs to initial scores. Nodes not in the dictionary default to
+            0.0.
+        alpha
+            Smoothing strength between 0 and 1. Higher values give more weight to network neighbors.
+            Lower values preserve the original signal.
+        max_iter
+            Maximum number of iterations.
+        tol
+            Convergence tolerance.
+        attr_name
+            If provided, store the smoothed scores as a node attribute with this name.
+        return_dict
+            If `True`, return the smoothed scores as a dictionary. If `False`, store the result and
+            return `self` for chaining.
+
+        Returns
+        -------
+        Graph | dict[int, float]
+            Smoothed scores (if `return_dict=True`) or `self`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph()
+        for i in range(5):
+            g.add_node(label=str(i))
+        for i in range(4):
+            g.add_edge(source=str(i), target=str(i + 1))
+
+        scores = {g.get_id_from_label("0"): 10.0, g.get_id_from_label("4"): -5.0}
+        smoothed = g.network_smooth(scores, alpha=0.5, return_dict=True)
+        smoothed
+        ```
+        """
+        from edgecase._core import network_smooth as _network_smooth
+
+        result = _network_smooth(self._graph, scores, alpha, max_iter, tol)
+        if return_dict:
+            return result
+        if attr_name is not None:
+            self.set_node_attrs(attr_name, result)
+        self._computations.append(("network_smooth", result))
+        return self
+
     # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
