@@ -655,6 +655,12 @@ reference:
         - from_tsv_edge_list
         - to_tsv_edge_list
 
+    - title: Multiplex Networks
+      desc: Multi-layer network container and cross-layer algorithms
+      contents:
+        - name: MultiplexGraph
+          members: true
+
     - title: Utilities
       desc: Utility functions for visualization and palettes
       contents:
