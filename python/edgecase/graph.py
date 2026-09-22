@@ -2853,6 +2853,134 @@ class Graph:
         self._graph.generate_random_geometric_graph(n, radius, dim, p_norm, seed)
         return self
 
+    def configuration_model(
+        self,
+        degree_sequence: list[int],
+        directed: bool = False,
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """
+        Generate a random graph matching a given degree sequence (configuration model).
+
+        Creates a new graph where each node has the specified degree. Stubs are created
+        for each node (one per degree unit) and then randomly paired. The resulting graph
+        may contain self-loops and multi-edges.
+
+        Parameters
+        ----------
+        degree_sequence
+            List of non-negative integers specifying the degree of each node.
+            For undirected graphs, the sum must be even.
+        directed
+            If `True`, generates a directed graph where the degree sequence represents
+            out-degrees.
+        seed
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        Graph
+            A new graph with the specified degree sequence.
+        """
+        from edgecase._core import configuration_model as _configuration_model
+
+        result = Graph.__new__(Graph)
+        result._graph = _configuration_model(degree_sequence, directed, seed)
+        return result
+
+    def degree_preserving_rewire(
+        self,
+        n_swaps: Optional[int] = None,
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """
+        Randomly rewire edges while preserving the degree of every node.
+
+        Performs edge-swap operations: picks two edges (a-b, c-d) and replaces them
+        with (a-d, c-b), ensuring no self-loops or duplicate edges are introduced.
+
+        Parameters
+        ----------
+        n_swaps
+            Number of successful swaps to perform. Defaults to 10× the edge count.
+        seed
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        Graph
+            A new graph with the same degree sequence but randomized edge wiring.
+        """
+        from edgecase._core import degree_preserving_rewire as _degree_preserving_rewire
+
+        result = Graph.__new__(Graph)
+        result._graph = _degree_preserving_rewire(self._graph, n_swaps, seed)
+        return result
+
+    def expected_degree_graph(
+        self,
+        weights: list[float],
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """
+        Generate a random graph with a given expected degree sequence (Chung-Lu model).
+
+        Each edge (i, j) is included independently with probability
+        w_i * w_j / sum(w), where w is the weight vector. This produces a graph
+        whose expected degree sequence matches the given weights.
+
+        Parameters
+        ----------
+        weights
+            List of non-negative floats specifying the expected degree of each node.
+        seed
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        Graph
+            A new graph with the specified expected degree sequence.
+        """
+        from edgecase._core import expected_degree_graph as _expected_degree_graph
+
+        result = Graph.__new__(Graph)
+        result._graph = _expected_degree_graph(weights, seed)
+        return result
+
+    def generate_stochastic_block_model(
+        self,
+        sizes: list[int],
+        p_matrix: list[float],
+        seed: Optional[int] = None,
+    ) -> "Graph":
+        """
+        Generate a graph from a stochastic block model (SBM).
+
+        Creates a graph with nodes divided into blocks of the given sizes, where
+        edges are added independently with probabilities specified by the block
+        probability matrix.
+
+        Parameters
+        ----------
+        sizes
+            List of block sizes (number of nodes in each block).
+        p_matrix
+            Flat row-major k×k probability matrix, where k = len(sizes).
+            Entry p_matrix[i*k + j] is the edge probability between blocks i and j.
+        seed
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        Graph
+            A new graph generated from the SBM.
+        """
+        from edgecase._core import generate_stochastic_block_model as _generate_sbm
+
+        result = Graph.__new__(Graph)
+        result._graph = _generate_sbm(sizes, p_matrix, seed)
+        return result
+
     # ==============================================================================
     # Node and Edge Accessors
     # ==============================================================================
