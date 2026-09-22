@@ -44,7 +44,15 @@ from edgecase.graph import (
     Node,
 )
 from edgecase.io import (
+    from_gml,
+    from_graphml,
     from_matrix_market,
+    from_sif,
+    from_tsv_edge_list,
+    to_gml,
+    to_graphml,
+    to_sif,
+    to_tsv_edge_list,
 )
 
 # Python-layer functionality
@@ -98,6 +106,15 @@ __all__ = [
     # Tables
     "tbl_centrality",
     "tbl_network_summary",
+    # File format I/O
+    "from_graphml",
+    "to_graphml",
+    "from_gml",
+    "to_gml",
+    "from_sif",
+    "to_sif",
+    "from_tsv_edge_list",
+    "to_tsv_edge_list",
     # Datasets
     "from_matrix_market",
     "load_dataset",
