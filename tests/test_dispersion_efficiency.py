@@ -424,7 +424,7 @@ class TestEfficiencyIntegration:
         # Create a random graph manually
         import random
 
-        random.seed(42)
+        random.seed(23)
         n = 10
         for i in range(n):
             graph.add_node()
