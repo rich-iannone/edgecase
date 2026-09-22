@@ -117,7 +117,7 @@ class TestMultiEdgeGraphs:
 
         # Multiple relationships with different attributes
         g.add_edge("User1", "User2", rel="follows", since="2020")
-        g.add_edge("User1", "User2", rel="likes", count=42)
+        g.add_edge("User1", "User2", rel="likes", count=23)
         g.add_edge("User1", "User2", rel="mentions", frequency="high")
 
         assert g.count_edges() == 3
