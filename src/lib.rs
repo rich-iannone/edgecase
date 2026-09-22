@@ -125,6 +125,17 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::spanning_trees::prize_collecting_steiner_tree, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::spanning_trees::expand_seed_set, m)?)?;
 
+    // Null models and randomization
+    m.add_function(wrap_pyfunction!(algorithms::null_models::configuration_model, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::null_models::degree_preserving_rewire, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::null_models::expected_degree_graph, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::null_models::generate_stochastic_block_model, m)?)?;
+
+    // Network comparison
+    m.add_function(wrap_pyfunction!(algorithms::network_comparison::edge_overlap, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::network_comparison::differential_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::network_comparison::graph_edit_distance, m)?)?;
+
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
 
