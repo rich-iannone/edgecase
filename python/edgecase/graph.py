@@ -11907,8 +11907,8 @@ class Graph:
         dict or Graph
             Community assignments as a dict, or self for method chaining.
         """
-        import random as _random
         import math as _math
+        import random as _random
 
         if attr_name is None:
             attr_name = "sbm_block"
@@ -11967,8 +11967,7 @@ class Graph:
                     else:
                         possible = block_sizes[r] * block_sizes[c]
                     if possible > 0:
-                        p_matrix[r][c] = max(1e-10, min(1.0 - 1e-10,
-                            edge_counts[r][c] / possible))
+                        p_matrix[r][c] = max(1e-10, min(1.0 - 1e-10, edge_counts[r][c] / possible))
                     else:
                         p_matrix[r][c] = 1e-10
                     p_matrix[c][r] = p_matrix[r][c]
@@ -12119,18 +12118,21 @@ class Graph:
                 if expected > 0:
                     chi2 = (k - expected) ** 2 / expected
                     # Approximate p-value for 1 dof
-                    from math import exp, sqrt, pi
+                    from math import sqrt
 
                     if chi2 > 0:
                         z = sqrt(chi2)
                         from math import erf
+
                         p_val = max(0.0, 1.0 - 0.5 * (1.0 + erf(z / sqrt(2.0))))
                     else:
                         p_val = 1.0
                 else:
                     p_val = 1.0
             else:
-                raise ValueError(f"Unknown method: {method}. Use 'hypergeometric' or 'chi_squared'.")
+                raise ValueError(
+                    f"Unknown method: {method}. Use 'hypergeometric' or 'chi_squared'."
+                )
 
             expected_k = K * n_sub / n_total if n_total > 0 else 0
             fold = k / expected_k if expected_k > 0 else float("inf") if k > 0 else 0.0
@@ -12243,9 +12245,7 @@ class Graph:
                 all_results[cmty_id][value]["p_adjusted"] = min(curr, prev)
                 prev = all_results[cmty_id][value]["p_adjusted"]
         else:
-            raise ValueError(
-                f"Unknown correction: {correction}. Use 'bonferroni' or 'fdr'."
-            )
+            raise ValueError(f"Unknown correction: {correction}. Use 'bonferroni' or 'fdr'.")
 
         return all_results
 
