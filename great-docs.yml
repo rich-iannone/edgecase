@@ -127,6 +127,10 @@ reference:
         - Graph.add_smallworld_graph
         - Graph.add_johnson_graph
         - Graph.add_random_geometric_graph
+        - Graph.configuration_model
+        - Graph.degree_preserving_rewire
+        - Graph.expected_degree_graph
+        - Graph.generate_stochastic_block_model
 
     - title: Graph Information
       desc: Methods for getting information about the graph
@@ -385,6 +389,42 @@ reference:
         - Graph.cmty_l_eigenvec
         - Graph.cmty_louvain
         - Graph.cmty_walktrap
+        - Graph.cmty_stochastic_block_model
+
+    - title: Network Propagation
+      desc: Methods for propagating scores through the network
+      contents:
+        - Graph.personalized_pagerank
+        - Graph.random_walk_with_restart
+        - Graph.heat_diffusion
+
+    - title: Bipartite Analysis
+      desc: Methods for bipartite graph operations
+      contents:
+        - Graph.bipartite_sets
+        - Graph.bipartite_projection
+        - Graph.bipartite_degree_centrality
+        - Graph.bipartite_closeness_centrality
+        - Graph.bipartite_betweenness_centrality
+
+    - title: Seed Module Discovery
+      desc: Methods for discovering network modules from seed nodes
+      contents:
+        - Graph.prize_collecting_steiner_tree
+        - Graph.expand_seed_set
+
+    - title: Network Enrichment
+      desc: Methods for testing enrichment of subgraphs and communities
+      contents:
+        - Graph.subgraph_enrichment
+        - Graph.module_annotation_enrichment
+
+    - title: Network Comparison
+      desc: Methods for comparing graphs and differential analysis
+      contents:
+        - Graph.edge_overlap
+        - Graph.differential_edges
+        - Graph.graph_edit_distance
 
     - title: Link Analysis
       desc: Methods for analyzing links and connections
@@ -591,7 +631,7 @@ reference:
         - tbl_network_summary
 
     - title: Interoperability
-      desc: Functions for converting between graph libraries
+      desc: Functions for converting between graph libraries and file formats
       contents:
         - from_adjacency_matrix
         - from_igraph
@@ -600,6 +640,14 @@ reference:
         - to_adjacency_matrix
         - to_igraph
         - to_networkx
+        - from_graphml
+        - to_graphml
+        - from_gml
+        - to_gml
+        - from_sif
+        - to_sif
+        - from_tsv_edge_list
+        - to_tsv_edge_list
 
     - title: Utilities
       desc: Utility functions for visualization and palettes
