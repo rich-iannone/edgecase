@@ -1065,3 +1065,180 @@ pub fn average_neighbor_degree(
 
     Ok(result)
 }
+
+/// Knotty centrality: find the "connective core" of a network.
+///
+/// Returns `(kc_value, core_nodes)`: the knotty-centrality score of the
+/// best subset found, and the node IDs in that subset.
+///
+/// The knotty-centrality of a subset S is:
+///   KC(S) = density(S) · (1/|S|) · Σ bc_norm(i)  for i ∈ S
+/// where density(S) = 2·E_S / (|S|·(|S|-1)), and bc_norm is betweenness
+/// centrality normalized so the whole graph sums to 1.
+///
+/// When `compact` is true the score is penalised for large subsets:
+///   KCC(S) = KC(S) · (N - |S|) / N
+///
+/// The search uses a two-phase heuristic from the original paper:
+/// 1. Exhaustive: evaluate all 2^M subsets (size ≥ 2) of the top-M nodes
+///    by betweenness centrality.
+/// 2. Gradient ascent: iteratively try adding/removing single nodes to
+///    improve the score, stopping when no improvement is found.
+///
+/// Shanahan M, Wildie M (2012) Knotty-Centrality: Finding the Connective
+/// Core of a Complex Network. PLoS ONE 7(5): e36579.
+#[pyfunction]
+#[pyo3(signature = (graph, top_m=10, compact=false))]
+pub fn knotty_centrality(
+    graph: &Graph,
+    top_m: usize,
+    compact: bool,
+) -> PyResult<(f64, Vec<u64>)> {
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n < 2 {
+        return Ok((0.0, vec![]));
+    }
+
+    let bc = betweenness_centrality(graph)?;
+    let bc_sum: f64 = bc.values().sum();
+
+    if bc_sum == 0.0 {
+        return Ok((0.0, vec![]));
+    }
+
+    let bc_norm: FxHashMap<u64, f64> = bc
+        .iter()
+        .map(|(&id, &v)| (id, v / bc_sum))
+        .collect();
+
+    let adj: FxHashMap<u64, rustc_hash::FxHashSet<u64>> = {
+        let raw = graph.get_adjacency_list();
+        raw.iter()
+            .map(|(&k, v)| (k, v.iter().copied().collect()))
+            .collect()
+    };
+
+    let mut ranked: Vec<(u64, f64)> = bc_norm.iter().map(|(&id, &v)| (id, v)).collect();
+    ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    let m = top_m.min(ranked.len());
+    let top_nodes: Vec<u64> = ranked[..m].iter().map(|&(id, _)| id).collect();
+
+    let score_fn = |subset: &[u64]| -> f64 {
+        kc_score(subset, &bc_norm, &adj, n, compact)
+    };
+
+    // Phase 1: exhaustive search over subsets of top_nodes (size >= 2)
+    let mut best_score: f64 = 0.0;
+    let mut best_subset: Vec<u64> = vec![];
+
+    let num_subsets = 1u64 << m;
+    for mask in 3..num_subsets {
+        if mask.count_ones() < 2 {
+            continue;
+        }
+        let subset: Vec<u64> = (0..m)
+            .filter(|&bit| mask & (1 << bit) != 0)
+            .map(|bit| top_nodes[bit])
+            .collect();
+
+        let sc = score_fn(&subset);
+        if sc > best_score {
+            best_score = sc;
+            best_subset = subset;
+        }
+    }
+
+    if best_subset.is_empty() {
+        return Ok((0.0, vec![]));
+    }
+
+    // Phase 2: gradient ascent -- try adding/removing nodes
+    let all_node_set: rustc_hash::FxHashSet<u64> = node_ids.iter().copied().collect();
+    loop {
+        let mut improved = false;
+
+        let current_set: rustc_hash::FxHashSet<u64> =
+            best_subset.iter().copied().collect();
+        for &nid in &all_node_set {
+            if current_set.contains(&nid) {
+                continue;
+            }
+            let mut candidate = best_subset.clone();
+            candidate.push(nid);
+            let sc = score_fn(&candidate);
+            if sc > best_score {
+                best_score = sc;
+                best_subset = candidate;
+                improved = true;
+                break;
+            }
+        }
+
+        if improved {
+            continue;
+        }
+
+        if best_subset.len() > 2 {
+            for i in 0..best_subset.len() {
+                let mut candidate = best_subset.clone();
+                candidate.swap_remove(i);
+                let sc = score_fn(&candidate);
+                if sc > best_score {
+                    best_score = sc;
+                    best_subset = candidate;
+                    improved = true;
+                    break;
+                }
+            }
+        }
+
+        if !improved {
+            break;
+        }
+    }
+
+    best_subset.sort_unstable();
+    Ok((best_score, best_subset))
+}
+
+#[inline]
+fn kc_score(
+    subset: &[u64],
+    bc_norm: &FxHashMap<u64, f64>,
+    adj: &FxHashMap<u64, rustc_hash::FxHashSet<u64>>,
+    n_total: usize,
+    compact: bool,
+) -> f64 {
+    let ns = subset.len();
+    if ns < 2 {
+        return 0.0;
+    }
+
+    let mut edge_count: usize = 0;
+    for i in 0..ns {
+        if let Some(neighbors) = adj.get(&subset[i]) {
+            for j in (i + 1)..ns {
+                if neighbors.contains(&subset[j]) {
+                    edge_count += 1;
+                }
+            }
+        }
+    }
+
+    let density = (2.0 * edge_count as f64) / (ns as f64 * (ns as f64 - 1.0));
+
+    let bc_total: f64 = subset
+        .iter()
+        .map(|id| bc_norm.get(id).copied().unwrap_or(0.0))
+        .sum();
+
+    let kc = density * bc_total / ns as f64;
+
+    if compact {
+        kc * ((n_total - ns) as f64 / n_total as f64)
+    } else {
+        kc
+    }
+}
