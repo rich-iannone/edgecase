@@ -374,6 +374,12 @@ reference:
         - Graph.list_triangles
         - Graph.get_transitivity
 
+    - title: Network Motif Census
+      desc: Methods for counting and testing significance of network motifs
+      contents:
+        - Graph.motif_census
+        - Graph.motif_significance
+
     - title: Clique Operations
       desc: Methods for finding cliques
       contents:
