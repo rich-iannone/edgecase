@@ -11871,6 +11871,151 @@ class Graph:
             return communities
         return self
 
+    def cmty_stochastic_block_model(
+        self,
+        k: int = 2,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        seed: Optional[int] = None,
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict, "Graph"]:
+        """
+        Fit a stochastic block model to this graph using expectation-maximization.
+
+        Partitions nodes into `k` blocks by iteratively estimating block membership
+        probabilities and the block interaction matrix, then assigns each node to its
+        most probable block.
+
+        Parameters
+        ----------
+        k
+            Number of blocks (communities) to fit.
+        max_iter
+            Maximum number of EM iterations.
+        tol
+            Convergence tolerance on the log-likelihood change.
+        seed
+            Random seed for initial assignment reproducibility.
+        attr_name
+            Name of the node attribute to store assignments. Defaults to ``"sbm_block"``.
+        return_dict
+            If ``True``, returns a ``{node_id: block_id}`` dict instead of self.
+
+        Returns
+        -------
+        dict or Graph
+            Community assignments as a dict, or self for method chaining.
+        """
+        import random as _random
+        import math as _math
+
+        if attr_name is None:
+            attr_name = "sbm_block"
+
+        node_ids = self.get_node_ids()
+        n = len(node_ids)
+        if n == 0:
+            if return_dict:
+                return {}
+            return self
+
+        id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        # Build adjacency set
+        adj: dict[int, set[int]] = {nid: set() for nid in node_ids}
+        edges_raw = self._graph.edges()
+        for _, s, t in edges_raw:
+            adj[s].add(t)
+            if not self.is_directed():
+                adj[t].add(s)
+
+        rng = _random.Random(seed)
+
+        # Initialize random block assignments
+        assignments = [rng.randint(0, k - 1) for _ in range(n)]
+
+        # EM iterations
+        prev_ll = float("-inf")
+        for _iteration in range(max_iter):
+            # M-step: estimate block interaction matrix
+            block_sizes = [0] * k
+            for b in assignments:
+                block_sizes[b] += 1
+
+            # Count edges between blocks
+            edge_counts = [[0] * k for _ in range(k)]
+            for idx_i, nid_i in enumerate(node_ids):
+                bi = assignments[idx_i]
+                for nid_j in adj[nid_i]:
+                    if nid_j in id_to_idx:
+                        bj = assignments[id_to_idx[nid_j]]
+                        edge_counts[bi][bj] += 1
+
+            # For undirected, each edge counted twice
+            if not self.is_directed():
+                for r in range(k):
+                    for c in range(k):
+                        edge_counts[r][c] //= 2
+
+            # Estimate probabilities
+            p_matrix = [[0.0] * k for _ in range(k)]
+            for r in range(k):
+                for c in range(r, k):
+                    if r == c:
+                        possible = block_sizes[r] * (block_sizes[r] - 1) // 2
+                    else:
+                        possible = block_sizes[r] * block_sizes[c]
+                    if possible > 0:
+                        p_matrix[r][c] = max(1e-10, min(1.0 - 1e-10,
+                            edge_counts[r][c] / possible))
+                    else:
+                        p_matrix[r][c] = 1e-10
+                    p_matrix[c][r] = p_matrix[r][c]
+
+            # E-step: compute log-likelihood of each node in each block
+            log_likelihood = 0.0
+            new_assignments = [0] * n
+            for idx_i, nid_i in enumerate(node_ids):
+                best_block = 0
+                best_score = float("-inf")
+                neighbors = adj[nid_i]
+                for b in range(k):
+                    score = 0.0
+                    for idx_j, nid_j in enumerate(node_ids):
+                        if idx_j == idx_i:
+                            continue
+                        bj = assignments[idx_j]
+                        p = p_matrix[b][bj]
+                        if nid_j in neighbors:
+                            score += _math.log(p)
+                        else:
+                            score += _math.log(1.0 - p)
+                    if score > best_score:
+                        best_score = score
+                        best_block = b
+                new_assignments[idx_i] = best_block
+                log_likelihood += best_score
+
+            assignments = new_assignments
+
+            if abs(log_likelihood - prev_ll) < tol:
+                break
+            prev_ll = log_likelihood
+
+        # Build result dict
+        communities = {nid: assignments[i] for i, nid in enumerate(node_ids)}
+
+        self.set_node_attrs(attr_name, communities)
+
+        params = {"k": k}
+        if not return_dict:
+            self._computations.append(("cmty_stochastic_block_model", params, attr_name))
+
+        if return_dict:
+            return communities
+        return self
+
     # ==============================================================================
     # Network Enrichment Testing
     # ==============================================================================
