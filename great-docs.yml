@@ -425,6 +425,21 @@ reference:
         - Graph.subgraph_enrichment
         - Graph.module_annotation_enrichment
 
+    - title: Network Proximity
+      desc: Methods for measuring network distance and separation between node sets
+      contents:
+        - Graph.network_proximity
+
+    - title: Label Propagation
+      desc: Semi-supervised label propagation through the network
+      contents:
+        - Graph.label_propagation
+
+    - title: Topological Overlap
+      desc: Methods for computing topological overlap between nodes
+      contents:
+        - Graph.topological_overlap
+
     - title: Network Comparison
       desc: Methods for comparing graphs and differential analysis
       contents:
