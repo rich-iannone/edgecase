@@ -11649,6 +11649,97 @@ class Graph:
             return communities
         return self
 
+    def cmty_girvan_newman(
+        self,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+        most_valuable_edge: str | None = None,
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities using an optimized Girvan-Newman algorithm.
+
+        Iteratively removes the edge with highest betweenness centrality to reveal hierarchical
+        community structure, returning the partition that maximizes Newman-Girvan modularity. Faster
+        than `cmty_edge_btwns()` on graphs with clear community structure thanks to per-component
+        betweenness recomputation and parallel BFS.
+
+        Parameters
+        ----------
+        attr_name
+            Column name to store community assignments in the node DataFrame. If `None`
+            (default), automatically uses `cmty_girvan_newman`. Overwrites column if it
+            already exists.
+        return_dict
+            If `True`, returns dictionary instead of self. If `False` (default), stores in
+            NDF and returns self for chaining.
+        most_valuable_edge
+            Strategy for selecting which edge to remove. If `"weight"`, uses edge weight in
+            the betweenness calculation (Dijkstra instead of BFS). If `None` (default), treats
+            the graph as unweighted.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to community IDs
+            (0-indexed, contiguous). If `return_dict=` is `False` (default): returns self for
+            method chaining.
+
+        Raises
+        ------
+        ValueError
+            If graph is directed (requires undirected graph).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_node(label="E")
+            .add_node(label="F")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")  # Triangle 1
+            .add_edge("C", "D")  # Bridge edge
+            .add_edge("D", "E")
+            .add_edge("E", "F")
+            .add_edge("F", "D")  # Triangle 2
+        )
+
+        communities = graph.cmty_girvan_newman(return_dict=True)
+        {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
+        ```
+        """
+        from edgecase._core import girvan_newman
+
+        dendrogram = girvan_newman(self._graph, most_valuable_edge)
+
+        if not dendrogram:
+            communities: dict[int, int] = {}
+        else:
+            best_partition = dendrogram[0]
+            communities = {}
+            for comm_id, members in enumerate(best_partition):
+                for node_id in members:
+                    communities[node_id] = comm_id
+
+        if attr_name is None:
+            attr_name = "cmty_girvan_newman"
+
+        self.set_node_attrs(attr_name, communities)
+
+        if not return_dict:
+            self._computations.append(("cmty_girvan_newman", {}, attr_name))
+
+        if return_dict:
+            return communities
+        return self
+
     def cmty_l_eigenvec(
         self, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, int], "Graph"]:
