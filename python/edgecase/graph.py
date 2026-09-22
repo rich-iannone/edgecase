@@ -14732,6 +14732,272 @@ class Graph:
             return result_ids
         return self
 
+    def personalized_pagerank(
+        self,
+        personalization: dict[int, float],
+        damping: float = 0.85,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate Personalized PageRank with a custom restart distribution.
+
+        Unlike standard PageRank where the random surfer teleports uniformly to any node,
+        Personalized PageRank teleports back to seed nodes with probabilities given by
+        `personalization`. This makes it the primary method for gene prioritization in
+        genome-wide association studies (GWAS): seed nodes are GWAS hits, and the resulting
+        scores rank candidate genes by network proximity to those hits.
+
+        Parameters
+        ----------
+        personalization
+            Dictionary mapping node IDs to restart probabilities. Values are normalized
+            internally, so they don't need to sum to 1. Nodes not in the dictionary have
+            zero restart probability.
+        damping
+            Probability of following an edge (vs. teleporting back to a seed). Higher values
+            let the walk spread further from the seeds. Typical range: `0.5`-`0.95`.
+        max_iter
+            Maximum number of power-iteration steps.
+        tol
+            Convergence tolerance (L1 norm of rank change between iterations).
+        attr_name
+            Column name for storing scores in the node DataFrame. Defaults to
+            `"personalized_pagerank"`.
+        return_dict
+            If `True`, returns the score dictionary. If `False` (default), stores scores in
+            the node DataFrame and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict` is `True`: dictionary mapping node IDs to scores (sum to `1.0`).
+            Otherwise returns self.
+
+        Examples
+        --------
+        Prioritize nodes reachable from a single seed:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="GeneA")
+            .add_node(label="GeneB")
+            .add_node(label="GeneC")
+            .add_node(label="GeneD")
+            .add_edge("GeneA", "GeneB")
+            .add_edge("GeneB", "GeneC")
+            .add_edge("GeneC", "GeneD")
+            .add_edge("GeneA", "GeneD")
+        )
+
+        seed_id = graph.get_id_from_label("GeneA")
+        scores = graph.personalized_pagerank(
+            personalization={seed_id: 1.0},
+            return_dict=True,
+        )
+        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
+        ```
+        """
+        result_ids = rust.personalized_pagerank(
+            self._graph,
+            personalization,
+            damping=damping,
+            max_iter=max_iter,
+            tol=tol,
+        )
+
+        if attr_name is None:
+            attr_name = "personalized_pagerank"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            params = {}
+            if damping != 0.85:
+                params["damping"] = damping
+            if max_iter != 100:
+                params["max_iter"] = max_iter
+            if tol != 1e-6:
+                params["tol"] = tol
+            self._computations.append(("personalized_pagerank", params, attr_name))
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def random_walk_with_restart(
+        self,
+        seeds: dict[int, float],
+        restart_prob: float = 0.15,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Random walk with restart (RWR) from a set of seed nodes.
+
+        At each step the walker either follows a random outgoing edge (with probability
+        `1 - restart_prob`) or teleports back to one of the seed nodes (with probability
+        `restart_prob`). Returns the steady-state visitation probability for every node.
+
+        RWR is mathematically equivalent to Personalized PageRank. This method provides
+        a more intuitive interface for the common genomics use case of propagating scores
+        from GWAS hits through a protein-protein interaction network.
+
+        Parameters
+        ----------
+        seeds
+            Dictionary mapping seed node IDs to initial scores (e.g., ``-log10(p_value)``
+            from GWAS). Values are normalized internally.
+        restart_prob
+            Probability of teleporting back to a seed node at each step. Higher values keep
+            the walk closer to the seeds. Typical range: `0.1`-`0.3`.
+        max_iter
+            Maximum number of iterations.
+        tol
+            Convergence tolerance.
+        attr_name
+            Column name for the node DataFrame. Defaults to `"rwr"`.
+        return_dict
+            If `True`, returns the score dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Steady-state visitation probabilities for all nodes.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="BRCA1")
+            .add_node(label="TP53")
+            .add_node(label="ATM")
+            .add_node(label="CHEK2")
+            .add_edge("BRCA1", "TP53")
+            .add_edge("TP53", "ATM")
+            .add_edge("ATM", "CHEK2")
+            .add_edge("BRCA1", "CHEK2")
+        )
+
+        seed_id = graph.get_id_from_label("BRCA1")
+        scores = graph.random_walk_with_restart(
+            seeds={seed_id: 1.0},
+            restart_prob=0.15,
+            return_dict=True,
+        )
+        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
+        ```
+        """
+        result_ids = rust.random_walk_with_restart(
+            self._graph,
+            seeds,
+            restart_prob=restart_prob,
+            max_iter=max_iter,
+            tol=tol,
+        )
+
+        if attr_name is None:
+            attr_name = "rwr"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            params = {}
+            if restart_prob != 0.15:
+                params["restart_prob"] = restart_prob
+            self._computations.append(("random_walk_with_restart", params, attr_name))
+
+        if return_dict:
+            return result_ids
+        return self
+
+    def heat_diffusion(
+        self,
+        seeds: dict[int, float],
+        t: float = 1.0,
+        max_iter: int = 50,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Diffuse heat from seed nodes through the network.
+
+        Places initial heat on seed nodes and lets it diffuse along edges using the
+        heat equation on the graph Laplacian. The parameter `t` controls diffusion time:
+        small values keep heat localized near seeds, large values spread it across the
+        entire graph.
+
+        Parameters
+        ----------
+        seeds
+            Dictionary mapping seed node IDs to initial heat values.
+        t
+            Diffusion time. Larger values spread heat further. Must be positive.
+        max_iter
+            Number of time steps for the iterative approximation.
+        attr_name
+            Column name for the node DataFrame. Defaults to `"heat"`.
+        return_dict
+            If `True`, returns the heat dictionary. Otherwise stores and returns self.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            Heat values for all nodes after diffusion.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_node(label="Source")
+            .add_node(label="Near")
+            .add_node(label="Far")
+            .add_edge("Source", "Near")
+            .add_edge("Near", "Far")
+        )
+
+        source_id = graph.get_id_from_label("Source")
+        heat = graph.heat_diffusion(seeds={source_id: 10.0}, t=0.5, return_dict=True)
+        {graph.get_label_from_id(nid): round(h, 4) for nid, h in heat.items()}
+        ```
+        """
+        result_ids = rust.heat_diffusion(
+            self._graph,
+            seeds,
+            t=t,
+            max_iter=max_iter,
+        )
+
+        if attr_name is None:
+            attr_name = "heat"
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        if not return_dict:
+            params = {}
+            if t != 1.0:
+                params["t"] = t
+            if max_iter != 50:
+                params["max_iter"] = max_iter
+            self._computations.append(("heat_diffusion", params, attr_name))
+
+        if return_dict:
+            return result_ids
+        return self
+
     def constraint(
         self, weights: str | None = None, attr_name: str | None = None, return_dict: bool = False
     ) -> Union[dict[int, float | None], "Graph"]:
