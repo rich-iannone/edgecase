@@ -111,6 +111,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::distance_metrics::kirchhoff_index, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::rich_club::rich_club_coefficient, m)?)?;
 
+    // SimRank* similarity
+    m.add_function(wrap_pyfunction!(algorithms::simrank::simrank_star_similarity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::simrank::simrank_star_similarity_pair, m)?)?;
+
     // Propagation algorithms
     m.add_function(wrap_pyfunction!(algorithms::propagation::personalized_pagerank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::propagation::random_walk_with_restart, m)?)?;
