@@ -135,6 +135,15 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_census, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_significance, m)?)?;
 
+    // Network proximity
+    m.add_function(wrap_pyfunction!(algorithms::network_proximity::network_proximity, m)?)?;
+
+    // Label propagation
+    m.add_function(wrap_pyfunction!(algorithms::label_propagation::label_propagation, m)?)?;
+
+    // Topological overlap
+    m.add_function(wrap_pyfunction!(algorithms::topological_overlap::topological_overlap_matrix, m)?)?;
+
     // Network comparison
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::edge_overlap, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::differential_edges, m)?)?;
