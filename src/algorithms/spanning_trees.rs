@@ -777,6 +777,203 @@ pub fn expand_seed_set(
     Ok(result)
 }
 
+/// Find an approximate directed Steiner tree (Steiner arborescence).
+///
+/// Given a directed graph, a root node, and a set of terminal nodes, finds an
+/// approximate minimum-weight arborescence rooted at `root` that contains a
+/// directed path from `root` to every terminal.
+///
+/// Uses the Shortest-Path Heuristic (SPH) with edge-cost reuse: greedily adds
+/// cheapest paths from root to uncovered terminals, then zeroes the cost of
+/// used edges so subsequent paths can reuse them for free. This encourages
+/// path sharing and produces compact arborescences.
+///
+/// Reference: Charikar, Chekuri, Cheung, Dai, Goel, Guha, Li (1999).
+/// "Approximation Algorithms for Directed Steiner Problems."
+/// Journal of Algorithms, 33(1):73-91. (Level-1 variant)
+///
+/// # Arguments
+/// * `graph` - A directed graph
+/// * `root` - Label of the root node
+/// * `terminal_nodes` - Labels of target nodes to reach from root
+/// * `weight_attr` - Optional edge attribute for weights (default: edge.weight or 1.0)
+///
+/// # Returns
+/// List of (source_label, target_label, weight) tuples forming the arborescence
+#[pyfunction]
+#[pyo3(signature = (graph, root, terminal_nodes, weight_attr=None))]
+pub fn directed_steiner_tree(
+    graph: &Graph,
+    root: String,
+    terminal_nodes: Vec<String>,
+    weight_attr: Option<String>,
+) -> PyResult<Vec<(String, String, f64)>> {
+    if !graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "directed_steiner_tree requires a directed graph; use steiner_tree for undirected",
+        ));
+    }
+
+    if terminal_nodes.is_empty() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "At least 1 terminal node is required",
+        ));
+    }
+
+    let root_id = graph.id_from_label(&root).map_err(|_| {
+        pyo3::exceptions::PyValueError::new_err(format!("Root node '{}' not found", root))
+    })?;
+
+    let mut terminal_ids: Vec<u64> = Vec::with_capacity(terminal_nodes.len());
+    for label in &terminal_nodes {
+        let nid = graph.id_from_label(label).map_err(|_| {
+            pyo3::exceptions::PyValueError::new_err(format!("Terminal node '{}' not found", label))
+        })?;
+        if nid == root_id {
+            continue; // root reaching itself is trivial
+        }
+        terminal_ids.push(nid);
+    }
+
+    if terminal_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    terminal_ids.sort_unstable();
+    terminal_ids.dedup();
+
+    let weight_attr_ref = weight_attr.as_deref();
+
+    // Edge cost overrides: edge_id -> 0.0 (for already-used edges)
+    let mut cost_overrides: FxHashMap<u64, f64> = FxHashMap::default();
+
+    // Collected arborescence edges: (source_id, target_id, edge_id)
+    let mut tree_edges: FxHashSet<u64> = FxHashSet::default();
+    // Parent map for the arborescence
+    let mut tree_parent: FxHashMap<u64, u64> = FxHashMap::default();
+
+    let mut uncovered: FxHashSet<u64> = terminal_ids.iter().copied().collect();
+
+    while !uncovered.is_empty() {
+        // Dijkstra from root with cost overrides
+        let (distances, predecessors) =
+            dijkstra_with_overrides(graph, root_id, weight_attr_ref, &cost_overrides)?;
+
+        // Find cheapest uncovered terminal
+        let mut best_terminal: Option<u64> = None;
+        let mut best_dist = f64::INFINITY;
+
+        for &t in &uncovered {
+            if let Some(&d) = distances.get(&t) {
+                if d < best_dist {
+                    best_dist = d;
+                    best_terminal = Some(t);
+                }
+            }
+        }
+
+        let target = best_terminal.ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(
+                "Some terminal nodes are not reachable from root",
+            )
+        })?;
+
+        // Trace path from root to target, collect edges, zero their costs
+        let path = reconstruct_path(&predecessors, root_id, target);
+        if path.len() < 2 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "No directed path from root to terminal '{}'",
+                get_label_or_id(graph, target)
+            )));
+        }
+
+        for w in path.windows(2) {
+            let (u, v) = (w[0], w[1]);
+            let edge_ids = graph.find_edge_ids(u, v);
+            if let Some(&eid) = edge_ids.first() {
+                tree_edges.insert(eid);
+                tree_parent.insert(v, u);
+                cost_overrides.insert(eid, 0.0);
+            }
+        }
+
+        // Mark covered terminals (any terminal on this path)
+        for &node in &path {
+            uncovered.remove(&node);
+        }
+    }
+
+    // Build result edge list
+    let mut result: Vec<(String, String, f64)> = Vec::with_capacity(tree_edges.len());
+    for &eid in &tree_edges {
+        if let Some(edge) = graph.get_edge(eid) {
+            let src_label = get_label_or_id(graph, edge.source);
+            let tgt_label = get_label_or_id(graph, edge.target);
+            let weight = get_edge_weight(graph, eid, weight_attr_ref);
+            result.push((src_label, tgt_label, weight));
+        }
+    }
+
+    result.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    Ok(result)
+}
+
+/// Dijkstra with edge-cost overrides (used for edge reuse in SPH).
+fn dijkstra_with_overrides(
+    graph: &Graph,
+    source: u64,
+    weight_attr: Option<&str>,
+    cost_overrides: &FxHashMap<u64, f64>,
+) -> PyResult<(FxHashMap<u64, f64>, FxHashMap<u64, u64>)> {
+    let mut distances: FxHashMap<u64, f64> = FxHashMap::default();
+    let mut predecessors: FxHashMap<u64, u64> = FxHashMap::default();
+    let mut heap = BinaryHeap::new();
+
+    distances.insert(source, 0.0);
+    heap.push(DijkstraEntry {
+        distance: 0.0,
+        node: source,
+    });
+
+    while let Some(DijkstraEntry { distance, node }) = heap.pop() {
+        if let Some(&best) = distances.get(&node) {
+            if distance > best {
+                continue;
+            }
+        }
+
+        let neighbors = graph.neighbors(node)?;
+
+        for neighbor in neighbors {
+            let edge_ids = graph.find_edge_ids(node, neighbor);
+            if edge_ids.is_empty() {
+                continue;
+            }
+
+            let edge_id = edge_ids[0];
+            let edge_weight = if let Some(&override_cost) = cost_overrides.get(&edge_id) {
+                override_cost
+            } else {
+                get_edge_weight(graph, edge_id, weight_attr)
+            };
+
+            let new_dist = distance + edge_weight;
+            let current_dist = distances.get(&neighbor).copied().unwrap_or(f64::INFINITY);
+
+            if new_dist < current_dist {
+                distances.insert(neighbor, new_dist);
+                predecessors.insert(neighbor, node);
+                heap.push(DijkstraEntry {
+                    distance: new_dist,
+                    node: neighbor,
+                });
+            }
+        }
+    }
+
+    Ok((distances, predecessors))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
