@@ -1242,3 +1242,124 @@ fn kc_score(
         kc
     }
 }
+
+/// Bridging centrality for all nodes.
+///
+/// Hwang, W. et al. (2008). "Bridging Centrality: Graph Mining from Element
+/// Level to Group Level." Proc. 14th ACM SIGKDD, pp. 336-344.
+///
+/// BrC(v) = bridging_coeff(v) × betweenness(v)
+/// bridging_coeff(v) = (1/d(v)) / Σ_{j∈N(v)} (1/d(j))
+///
+/// Identifies nodes that bridge densely-connected communities.
+#[pyfunction]
+#[pyo3(signature = (graph, normalized=true))]
+pub fn bridging_centrality(
+    graph: &Graph,
+    normalized: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
+    let node_ids = graph.get_node_ids();
+    if node_ids.is_empty() {
+        return Ok(FxHashMap::default());
+    }
+
+    let bc = betweenness_centrality(graph)?;
+    let degrees = compute_degrees(graph, &node_ids);
+
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(node_ids.len(), Default::default());
+
+    for &nid in &node_ids {
+        let d_v = degrees[&nid] as f64;
+        if d_v == 0.0 {
+            result.insert(nid, 0.0);
+            continue;
+        }
+
+        let neighbors = graph.neighbors(nid).unwrap_or_default();
+        let inv_sum: f64 = neighbors
+            .iter()
+            .map(|nbr| {
+                let d_j = degrees[nbr] as f64;
+                if d_j > 0.0 { 1.0 / d_j } else { 0.0 }
+            })
+            .sum();
+
+        let bridging_coeff = if inv_sum > 0.0 {
+            (1.0 / d_v) / inv_sum
+        } else {
+            0.0
+        };
+
+        let bc_val = bc.get(&nid).copied().unwrap_or(0.0);
+        result.insert(nid, bridging_coeff * bc_val);
+    }
+
+    if normalized {
+        let max_val = result.values().copied().fold(0.0_f64, f64::max);
+        if max_val > 0.0 {
+            for val in result.values_mut() {
+                *val /= max_val;
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+/// Laplacian centrality for all nodes.
+///
+/// Qi, X. et al. (2012). "Laplacian centrality: A new centrality measure for
+/// weighted networks." Information Sciences, 194, pp. 240-253.
+///
+/// Uses the closed-form: ΔE(v) = d(v)² + d(v) + 2·Σ_{u∈N(v)} d(u)
+/// Normalized: C_L(v) = ΔE(v) / E_L(G) where E_L(G) = Σ_v ΔE(v)
+#[pyfunction]
+#[pyo3(signature = (graph, normalized=true))]
+pub fn laplacian_centrality(
+    graph: &Graph,
+    normalized: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
+    let node_ids = graph.get_node_ids();
+    if node_ids.is_empty() {
+        return Ok(FxHashMap::default());
+    }
+
+    let degrees = compute_degrees(graph, &node_ids);
+
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(node_ids.len(), Default::default());
+
+    let mut total_energy = 0.0;
+
+    for &nid in &node_ids {
+        let d_v = degrees[&nid] as f64;
+        let neighbors = graph.neighbors(nid).unwrap_or_default();
+        let neighbor_deg_sum: f64 = neighbors
+            .iter()
+            .map(|nbr| degrees[nbr] as f64)
+            .sum();
+
+        let delta_e = d_v * d_v + d_v + 2.0 * neighbor_deg_sum;
+        result.insert(nid, delta_e);
+        total_energy += delta_e;
+    }
+
+    if normalized && total_energy > 0.0 {
+        for val in result.values_mut() {
+            *val /= total_energy;
+        }
+    }
+
+    Ok(result)
+}
+
+fn compute_degrees(graph: &Graph, node_ids: &[u64]) -> FxHashMap<u64, usize> {
+    let mut degrees: FxHashMap<u64, usize> =
+        FxHashMap::with_capacity_and_hasher(node_ids.len(), Default::default());
+    for &nid in node_ids {
+        let deg = graph.neighbors(nid).map(|n| n.len()).unwrap_or(0);
+        degrees.insert(nid, deg);
+    }
+    degrees
+}
