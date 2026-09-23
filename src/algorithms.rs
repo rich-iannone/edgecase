@@ -41,6 +41,7 @@ pub mod spanning_trees;
 pub mod simrank;
 pub mod structural;
 pub mod structure;
+pub mod wgcna;
 
 #[cfg(test)]
 mod tests {
