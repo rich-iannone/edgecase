@@ -14481,6 +14481,198 @@ class Graph:
         self._computations.append(("network_smooth", result))
         return self
 
+    def soft_threshold_power(
+        self,
+        powers: list[float] | None = None,
+        r_squared_cutoff: float = 0.8,
+        return_dict: bool = False,
+    ) -> "Graph | dict":
+        """
+        Evaluate soft-thresholding powers for WGCNA network construction.
+
+        For each candidate power β, raises edge weights to |w|^β and checks whether the resulting
+        degree distribution follows a scale-free topology by fitting log(p(k)) ~ log(k). Returns
+        the signed R² (positive when slope is negative, indicating scale-free), the slope, and the
+        mean connectivity at each power. Recommends the lowest power achieving the R² cutoff.
+
+        Parameters
+        ----------
+        powers
+            List of candidate powers to evaluate. Defaults to
+            `[1, 2, ..., 10, 12, 14, 16, 18, 20]`.
+        r_squared_cutoff
+            Minimum signed R² to accept a power as adequate. The default is `0.8`.
+        return_dict
+            If `True`, return the results as a dictionary. If `False`, store the result and return
+            `self` for chaining.
+
+        Returns
+        -------
+        Graph | dict
+            A dictionary with keys `powers`, `signed_r_squared`, `slope`, `mean_connectivity`,
+            `r_squared_cutoff`, and `recommended_power` (the lowest power achieving the cutoff, or
+            `None`).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(weighted=True)
+        for i in range(20):
+            g.add_node(label=str(i))
+        import random
+        random.seed(23)
+        for i in range(20):
+            for j in range(i + 1, 20):
+                if random.random() < 0.3:
+                    g.add_edge(source=str(i), target=str(j), weight=random.random())
+
+        result = g.soft_threshold_power(return_dict=True)
+        result["recommended_power"]
+        ```
+        """
+        from edgecase._core import soft_threshold_power as _soft_threshold_power
+
+        result = _soft_threshold_power(self._graph, powers, r_squared_cutoff)
+        if return_dict:
+            return result
+        self._computations.append(("soft_threshold_power", result))
+        return self
+
+    def gwas_pipeline(
+        self,
+        scores: dict[int, float],
+        smooth_alpha: float = 0.5,
+        smooth_max_iter: int = 100,
+        community_method: str = "louvain",
+        community_resolution: float = 1.0,
+        enrichment_attr: str | None = None,
+        enrichment_labels: list[int] | None = None,
+    ) -> dict:
+        """
+        Run a GWAS-style network analysis pipeline.
+
+        Chains three steps:
+
+        1. network smoothing: propagates raw scores (e.g., -log10 p-values) over the graph to
+           denoise using neighborhood context.
+        2. community detection: partitions the smoothed graph into modules.
+        3. module scoring: computes mean smoothed score per module and ranks modules by aggregate
+           signal.
+
+        Optionally, if `enrichment_attr=` and `enrichment_labels=` are provided, runs subgraph
+        enrichment on each community to test for over-representation of labeled nodes.
+
+        Parameters
+        ----------
+        scores
+            Dictionary mapping node IDs to raw scores (e.g., GWAS -log10(p-value) or differential
+            expression fold change).
+        smooth_alpha
+            Smoothing strength (0–1). Higher values give more weight to network neighbors.
+        smooth_max_iter
+            Maximum smoothing iterations.
+        community_method
+            Community detection method: `"louvain"` or `"walktrap"`.
+        community_resolution
+            Resolution parameter for community detection (Louvain only).
+        enrichment_attr
+            Optional node attribute name for enrichment testing.
+        enrichment_labels
+            Optional list of node IDs considered as the "positive" set for enrichment testing.
+
+        Returns
+        -------
+        dict
+            A dictionary with:
+
+            - `smoothed_scores`: dict mapping node IDs to smoothed values.
+            - `communities`: dict mapping community ID to list of node IDs.
+            - `module_scores`: dict mapping community ID to mean smoothed score,
+              sorted descending.
+            - `enrichment` (if requested): dict mapping community ID to
+              enrichment p-value.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph()
+        for i in range(12):
+            g.add_node(label=str(i))
+        for i in range(4):
+            for j in range(i + 1, 4):
+                g.add_edge(source=str(i), target=str(j))
+        for i in range(4, 8):
+            for j in range(i + 1, 8):
+                g.add_edge(source=str(i), target=str(j))
+        for i in range(8, 12):
+            for j in range(i + 1, 12):
+                g.add_edge(source=str(i), target=str(j))
+        g.add_edge(source="3", target="4")
+        g.add_edge(source="7", target="8")
+
+        scores = {}
+        for i in range(4):
+            scores[g.get_id_from_label(str(i))] = 5.0
+        for i in range(4, 12):
+            scores[g.get_id_from_label(str(i))] = 0.5
+
+        result = g.gwas_pipeline(scores)
+        result["module_scores"]
+        ```
+        """
+        from edgecase._core import network_smooth as _network_smooth
+
+        smoothed = _network_smooth(self._graph, scores, smooth_alpha, smooth_max_iter, 1e-6)
+
+        if community_method == "louvain":
+            community_result = self.cmty_louvain(resolution=community_resolution, return_dict=True)
+        elif community_method == "walktrap":
+            community_result = self.cmty_walktrap(return_dict=True)
+        else:
+            raise ValueError(
+                f"Unknown community method '{community_method}'. Use 'louvain' or 'walktrap'."
+            )
+
+        communities: dict[int, list[int]] = {}
+        for node_id, comm_id in community_result.items():
+            communities.setdefault(comm_id, []).append(node_id)
+
+        module_scores: dict[int, float] = {}
+        for comm_id, members in communities.items():
+            member_scores = [smoothed.get(nid, 0.0) for nid in members]
+            module_scores[comm_id] = (
+                sum(member_scores) / len(member_scores) if member_scores else 0.0
+            )
+
+        module_scores = dict(sorted(module_scores.items(), key=lambda x: x[1], reverse=True))
+
+        result = {
+            "smoothed_scores": smoothed,
+            "communities": communities,
+            "module_scores": module_scores,
+        }
+
+        if enrichment_attr is not None and enrichment_labels is not None:
+            enrichment: dict[int, float] = {}
+            positive_set = set(enrichment_labels)
+            total_positive = len(positive_set)
+            total_nodes = len(smoothed)
+            for comm_id, members in communities.items():
+                k = len(members)
+                overlap = len(positive_set.intersection(members))
+                if total_nodes > 0 and k > 0 and total_positive > 0:
+                    expected = k * total_positive / total_nodes
+                    enrichment[comm_id] = overlap / expected if expected > 0 else 0.0
+                else:
+                    enrichment[comm_id] = 0.0
+            result["enrichment"] = enrichment
+
+        return result
+
     # ==============================================================================
     # Whole-Graph Transformations
     # ==============================================================================
