@@ -23412,6 +23412,87 @@ class Graph:
         """
         return self._graph.cohesive_blocks()
 
+    def k_components(self) -> dict[int, list[list[int]]]:
+        """
+        Find the k-component structure of the graph.
+
+        A k-component is a maximal subset of nodes such that every pair of nodes in the subset has
+        node connectivity at least k. The result is a dictionary mapping each connectivity level k
+        to the list of k-components at that level.
+
+        For directed graphs, k-connectivity means that removing any fewer than k nodes keeps the
+        induced subgraph strongly connected. This extends the standard undirected k-components to
+        digraphs.
+
+        The k-components form a hierarchical structure: every (k+1)-component is contained within
+        some k-component.
+
+        Returns
+        -------
+        dict[int, list[list[int]]]
+            A dictionary where keys are connectivity levels k (positive integers) and
+            values are lists of k-components (each component is a list of node IDs).
+
+        Technical Notes
+        ---------------
+        Uses the Moody-White cohesive blocking approach:
+
+        1. **Base case (k=1):** strongly connected components (directed) or connected components
+           (undirected).
+        2. **Recursion:** for each component, compute its vertex connectivity $\\kappa$. If
+           $\\kappa > k$, the component is also a $(k+1)$-, ..., $\\kappa$-component. Then find
+           minimum vertex separators and recurse on the resulting sub-components to find
+           higher-connectivity subsets.
+
+        For directed graphs, vertex connectivity between an ordered pair $(u, v)$ is the maximum
+        number of internally vertex-disjoint directed paths from $u$ to $v$. The algorithm checks
+        both directions for every pair.
+
+        Complexity is dominated by pairwise max-flow computations: $O(n^2)$ max-flow calls per
+        component, each $O(VE)$.
+
+        Examples
+        --------
+        A barbell graph has bridge nodes at connectivity 1 but the cliques at higher k:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=False)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_node(label="D")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "A")
+            .add_edge("C", "D")
+        )
+
+        kc = graph.k_components()
+        sorted(kc.keys())
+        ```
+
+        A complete directed graph on 4 nodes is 3-connected:
+
+        ```{python}
+        g = ec.Graph(directed=True)
+        for n in ["A", "B", "C", "D"]:
+            g.add_node(label=n)
+        for s in ["A", "B", "C", "D"]:
+            for t in ["A", "B", "C", "D"]:
+                if s != t:
+                    g.add_edge(s, t)
+
+        kc = g.k_components()
+        max(kc.keys())
+        ```
+        """
+        from edgecase._core import k_components as rust_k_components
+
+        return rust_k_components(self._graph)
+
     def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
         """
         Get minimum cut between source and sink nodes.
