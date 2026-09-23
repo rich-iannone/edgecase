@@ -164,6 +164,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Network smoothing
     m.add_function(wrap_pyfunction!(algorithms::network_smoothing::network_smooth, m)?)?;
 
+    // WGCNA
+    m.add_function(wrap_pyfunction!(algorithms::wgcna::soft_threshold_power, m)?)?;
+
     // Network comparison
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::edge_overlap, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::differential_edges, m)?)?;
