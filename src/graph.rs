@@ -8889,7 +8889,7 @@ impl Graph {
 
     /// Check if there's an edge between two nodes
     #[inline]
-    fn has_edge(&self, source: u64, target: u64) -> bool {
+    pub(crate) fn has_edge(&self, source: u64, target: u64) -> bool {
         if let Some(neighbors) = self.adjacency_list.get(&source) {
             neighbors.contains(&target)
         } else {
@@ -9571,7 +9571,7 @@ impl Graph {
     ///
     /// A k-separator is a set of k nodes whose removal disconnects the subgraph.
     /// A minimal separator has no proper subset that is also a separator.
-    fn find_minimal_separators(
+    pub(crate) fn find_minimal_separators(
         &self,
         nodes: &[u64],
         k: usize,
@@ -9641,7 +9641,7 @@ impl Graph {
     }
 
     /// Compute node connectivity of an induced subgraph
-    fn induced_subgraph_connectivity(&self, nodes: &[u64]) -> PyResult<usize> {
+    pub(crate) fn induced_subgraph_connectivity(&self, nodes: &[u64]) -> PyResult<usize> {
         let n = nodes.len();
 
         if n <= 1 {
@@ -9720,7 +9720,7 @@ impl Graph {
     }
 
     /// Check if a subgraph defined by node set is connected
-    fn is_subgraph_connected(&self, node_set: &FxHashSet<u64>) -> bool {
+    pub(crate) fn is_subgraph_connected(&self, node_set: &FxHashSet<u64>) -> bool {
         if node_set.is_empty() {
             return true;
         }
@@ -9747,7 +9747,7 @@ impl Graph {
     }
 
     /// Find connected components within a subgraph
-    fn find_components_in_subgraph(&self, nodes: &[u64]) -> Vec<Vec<u64>> {
+    pub(crate) fn find_components_in_subgraph(&self, nodes: &[u64]) -> Vec<Vec<u64>> {
         let n = nodes.len();
         let mut node_set = FxHashSet::with_capacity_and_hasher(n, Default::default());
         node_set.extend(nodes.iter().copied());
@@ -9812,7 +9812,7 @@ impl Graph {
     }
 
     /// Compute node connectivity between two nodes in a subgraph
-    fn node_connectivity_between_in_subgraph(
+    pub(crate) fn node_connectivity_between_in_subgraph(
         &self,
         source: u64,
         target: u64,
@@ -9867,7 +9867,7 @@ impl Graph {
                         offset + to * 2 // in-node
                     };
 
-                    capacity.insert((from_node, to_node), usize::MAX);
+                    *capacity.entry((from_node, to_node)).or_insert(0) += 1;
                 }
             }
         }
