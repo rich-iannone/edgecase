@@ -455,6 +455,16 @@ reference:
       contents:
         - Graph.network_smooth
 
+    - title: WGCNA
+      desc: Weighted Gene Co-expression Network Analysis utilities
+      contents:
+        - Graph.soft_threshold_power
+
+    - title: GWAS Pipeline
+      desc: High-level GWAS network analysis workflow
+      contents:
+        - Graph.gwas_pipeline
+
     - title: Network Comparison
       desc: Methods for comparing graphs and differential analysis
       contents:
