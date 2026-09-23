@@ -333,3 +333,384 @@ pub fn is_weakly_connected(graph: &Graph) -> bool {
     // A graph is weakly connected iff it has exactly one WCC
     count_weakly_connected_components(graph) == 1
 }
+
+/// Find k-components of a graph (directed or undirected).
+///
+/// A k-component is a maximal subset of nodes such that every pair of nodes
+/// in the subset has node connectivity at least k. The result is a mapping
+/// from k to the list of k-components for that level.
+///
+/// For directed graphs, k-connectivity means that removing any fewer than k
+/// nodes keeps the subgraph strongly connected.
+///
+/// Uses the Moody-White cohesive blocking approach:
+/// 1. Find base components (SCCs for directed, CCs for undirected)
+/// 2. Recursively find higher-connectivity subsets using minimum separators
+#[pyo3::pyfunction]
+pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u64>>>> {
+    let mut result: FxHashMap<usize, Vec<Vec<u64>>> = FxHashMap::default();
+
+    let node_ids = graph.get_node_ids();
+    if node_ids.is_empty() {
+        return Ok(result);
+    }
+
+    // k=1: SCCs for directed, CCs for undirected
+    let base_components = if graph.is_directed() {
+        strongly_connected_components(graph)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?
+    } else {
+        weakly_connected_components_list(graph)
+    };
+
+    // Filter to components with >= 2 nodes
+    let base_nontrivial: Vec<Vec<u64>> = base_components
+        .into_iter()
+        .filter(|c| c.len() >= 2)
+        .collect();
+
+    if base_nontrivial.is_empty() {
+        return Ok(result);
+    }
+
+    result.entry(1).or_default().extend(base_nontrivial.iter().cloned());
+
+    // For each base component, recursively find higher-k components
+    for component in &base_nontrivial {
+        find_k_components_recursive(graph, component, 1, &mut result)?;
+    }
+
+    Ok(result)
+}
+
+fn find_k_components_recursive(
+    graph: &Graph,
+    nodes: &[u64],
+    current_k: usize,
+    result: &mut FxHashMap<usize, Vec<Vec<u64>>>,
+) -> pyo3::PyResult<()> {
+    if nodes.len() <= current_k {
+        return Ok(());
+    }
+
+    // Compute the connectivity of this subgraph
+    let connectivity = if graph.is_directed() {
+        directed_subgraph_connectivity(graph, nodes)?
+    } else {
+        graph.induced_subgraph_connectivity(nodes)?
+    };
+
+    // Register this component at all levels from current_k+1 up to its connectivity
+    for k in (current_k + 1)..=connectivity {
+        result.entry(k).or_default().push(nodes.to_vec());
+    }
+
+    if connectivity <= current_k {
+        return Ok(());
+    }
+
+    // Try to find sub-components with even higher connectivity
+    let next_k = connectivity;
+
+    // Find minimum separators of size = connectivity
+    let separators = graph.find_minimal_separators(nodes, next_k)?;
+
+    if separators.is_empty() {
+        return Ok(());
+    }
+
+    let mut processed = FxHashSet::default();
+
+    for separator in &separators {
+        let sep_set: FxHashSet<u64> = separator.iter().copied().collect();
+
+        let remaining: Vec<u64> = nodes
+            .iter()
+            .filter(|&&n| !sep_set.contains(&n))
+            .copied()
+            .collect();
+
+        if remaining.is_empty() {
+            continue;
+        }
+
+        let components = if graph.is_directed() {
+            find_directed_components_in_subgraph(graph, &remaining)
+        } else {
+            graph.find_components_in_subgraph(&remaining)
+        };
+
+        for comp in components {
+            if comp.len() <= 1 {
+                continue;
+            }
+
+            // Form candidate: component + separator
+            let mut candidate: Vec<u64> = comp;
+            candidate.extend(separator.iter().copied());
+            candidate.sort_unstable();
+            candidate.dedup();
+
+            let sig = format!("{:?}", candidate);
+            if processed.contains(&sig) {
+                continue;
+            }
+            processed.insert(sig);
+
+            if candidate.len() <= next_k {
+                continue;
+            }
+
+            find_k_components_recursive(graph, &candidate, next_k, result)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Compute directed node connectivity of a subgraph.
+///
+/// For directed graphs, connectivity κ means the graph remains strongly
+/// connected after removing any fewer than κ vertices. We compute this as
+/// the minimum over all ordered pairs (u,v) of the directed node connectivity.
+fn directed_subgraph_connectivity(graph: &Graph, nodes: &[u64]) -> pyo3::PyResult<usize> {
+    let n = nodes.len();
+
+    if n <= 1 {
+        return Ok(0);
+    }
+
+    if n == 2 {
+        let has_fwd = graph.has_edge(nodes[0], nodes[1]);
+        let has_bwd = graph.has_edge(nodes[1], nodes[0]);
+        return Ok(if has_fwd && has_bwd { 1 } else { 0 });
+    }
+
+    let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+
+    // Check if the subgraph is strongly connected
+    if !is_subgraph_strongly_connected(graph, &node_set) {
+        return Ok(0);
+    }
+
+    // Compute min pairwise directed connectivity (both directions)
+    let mut min_conn = usize::MAX;
+
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let u = nodes[i];
+            let v = nodes[j];
+
+            // Check u -> v connectivity
+            let conn_uv = graph.node_connectivity_between_in_subgraph(u, v, &node_set)?;
+            min_conn = min_conn.min(conn_uv);
+
+            if min_conn == 0 {
+                return Ok(0);
+            }
+
+            // Check v -> u connectivity
+            let conn_vu = graph.node_connectivity_between_in_subgraph(v, u, &node_set)?;
+            min_conn = min_conn.min(conn_vu);
+
+            if min_conn <= 1 {
+                return Ok(min_conn);
+            }
+        }
+    }
+
+    if min_conn == usize::MAX {
+        Ok(n - 1)
+    } else {
+        Ok(min_conn)
+    }
+}
+
+/// Check if a subgraph is strongly connected (all nodes can reach all others via directed edges).
+fn is_subgraph_strongly_connected(graph: &Graph, node_set: &FxHashSet<u64>) -> bool {
+    if node_set.len() <= 1 {
+        return true;
+    }
+
+    let start = *node_set.iter().next().unwrap();
+    let adj = graph.get_adjacency_list();
+
+    // Forward reachability
+    let mut visited = FxHashSet::default();
+    let mut queue = std::collections::VecDeque::new();
+    visited.insert(start);
+    queue.push_back(start);
+
+    while let Some(u) = queue.pop_front() {
+        if let Some(neighbors) = adj.get(&u) {
+            for &v in neighbors {
+                if node_set.contains(&v) && !visited.contains(&v) {
+                    visited.insert(v);
+                    queue.push_back(v);
+                }
+            }
+        }
+    }
+
+    if visited.len() != node_set.len() {
+        return false;
+    }
+
+    // Backward reachability (reverse edges)
+    let mut visited = FxHashSet::default();
+    let mut queue = std::collections::VecDeque::new();
+    visited.insert(start);
+    queue.push_back(start);
+
+    // Build reverse adjacency restricted to node_set
+    let edges = graph.get_edges_internal();
+    let mut reverse_adj: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+    for edge in edges {
+        if node_set.contains(&edge.source) && node_set.contains(&edge.target) {
+            reverse_adj.entry(edge.target).or_default().push(edge.source);
+        }
+    }
+
+    while let Some(u) = queue.pop_front() {
+        if let Some(preds) = reverse_adj.get(&u) {
+            for &v in preds {
+                if !visited.contains(&v) {
+                    visited.insert(v);
+                    queue.push_back(v);
+                }
+            }
+        }
+    }
+
+    visited.len() == node_set.len()
+}
+
+/// Find strongly connected components within a subgraph (restricted to node_set).
+fn find_directed_components_in_subgraph(graph: &Graph, nodes: &[u64]) -> Vec<Vec<u64>> {
+    let node_set: FxHashSet<u64> = nodes.iter().copied().collect();
+    let adj = graph.get_adjacency_list();
+
+    // Kosaraju's within the subgraph
+    // Step 1: forward DFS to get finish order
+    let mut visited = FxHashSet::default();
+    let mut stack = Vec::new();
+
+    fn fill_order(
+        node: u64,
+        visited: &mut FxHashSet<u64>,
+        stack: &mut Vec<u64>,
+        adj: &FxHashMap<u64, Vec<u64>>,
+        node_set: &FxHashSet<u64>,
+    ) {
+        visited.insert(node);
+        if let Some(neighbors) = adj.get(&node) {
+            for &v in neighbors {
+                if node_set.contains(&v) && !visited.contains(&v) {
+                    fill_order(v, visited, stack, adj, node_set);
+                }
+            }
+        }
+        stack.push(node);
+    }
+
+    for &node in nodes {
+        if !visited.contains(&node) {
+            fill_order(node, &mut visited, &mut stack, adj, &node_set);
+        }
+    }
+
+    // Step 2: Build reverse adjacency
+    let edges = graph.get_edges_internal();
+    let mut reverse_adj: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+    for edge in edges {
+        if node_set.contains(&edge.source) && node_set.contains(&edge.target) {
+            reverse_adj.entry(edge.target).or_default().push(edge.source);
+        }
+    }
+
+    // Step 3: DFS on transposed in reverse finish order
+    visited.clear();
+    let mut components = Vec::new();
+
+    fn dfs_collect(
+        node: u64,
+        visited: &mut FxHashSet<u64>,
+        adj: &FxHashMap<u64, Vec<u64>>,
+        component: &mut Vec<u64>,
+    ) {
+        visited.insert(node);
+        component.push(node);
+        if let Some(neighbors) = adj.get(&node) {
+            for &v in neighbors {
+                if !visited.contains(&v) {
+                    dfs_collect(v, visited, adj, component);
+                }
+            }
+        }
+    }
+
+    while let Some(node) = stack.pop() {
+        if !visited.contains(&node) {
+            let mut component = Vec::new();
+            dfs_collect(node, &mut visited, &reverse_adj, &mut component);
+            components.push(component);
+        }
+    }
+
+    components
+}
+
+/// Get weakly connected components as a list of node ID vectors.
+fn weakly_connected_components_list(graph: &Graph) -> Vec<Vec<u64>> {
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    if n == 0 {
+        return Vec::new();
+    }
+
+    let adj = graph.get_adjacency_list();
+    let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
+    let mut components = Vec::new();
+
+    // For undirected graphs, adjacency_list has both directions
+    // For directed, we need to ignore direction
+    let mut undirected_adj: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+    if graph.is_directed() {
+        for (&node, neighbors) in adj.iter() {
+            for &nbr in neighbors {
+                undirected_adj.entry(node).or_default().push(nbr);
+                undirected_adj.entry(nbr).or_default().push(node);
+            }
+        }
+    }
+
+    let effective_adj = if graph.is_directed() { &undirected_adj } else { adj };
+
+    for &node in &node_ids {
+        if visited.contains(&node) {
+            continue;
+        }
+
+        let mut component = Vec::new();
+        let mut queue = std::collections::VecDeque::new();
+        visited.insert(node);
+        queue.push_back(node);
+
+        while let Some(current) = queue.pop_front() {
+            component.push(current);
+            if let Some(neighbors) = effective_adj.get(&current) {
+                for &nbr in neighbors {
+                    if !visited.contains(&nbr) {
+                        visited.insert(nbr);
+                        queue.push_back(nbr);
+                    }
+                }
+            }
+        }
+
+        components.push(component);
+    }
+
+    components
+}
