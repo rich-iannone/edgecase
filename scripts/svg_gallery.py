@@ -40,6 +40,7 @@ svg_renderer.__name__ = _mod_name
 spec.loader.exec_module(svg_renderer)
 render_plot = svg_renderer.render_plot
 render_traversal = svg_renderer.render_traversal
+render_traversal_chain = svg_renderer.render_traversal_chain
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -53,15 +54,18 @@ class MockNode:
 
 
 class MockEdge:
-    def __init__(self, attrs: Optional[Dict] = None):
+    def __init__(self, attrs: Optional[Dict] = None, source: Any = None, target: Any = None):
         self.attributes = attrs or {}
+        self.source = source
+        self.target = target
 
 
 class MockGraph:
     def __init__(self, directed: bool = False):
         self._directed = directed
         self._nodes: Dict[str, Dict] = {}
-        self._edges: Dict[Tuple[str, str], Dict] = {}
+        self._edges_list: List[Tuple[str, str, int, Dict]] = []
+        self._edge_counts: Dict[Tuple[str, str], int] = {}
         self._adj: Dict[str, List[str]] = {}
 
     def add_node(self, nid: str, **attrs: Any) -> None:
@@ -70,7 +74,10 @@ class MockGraph:
             self._adj[nid] = []
 
     def add_edge(self, src: str, tgt: str, **attrs: Any) -> None:
-        self._edges[(src, tgt)] = attrs
+        key = (src, tgt)
+        idx = self._edge_counts.get(key, 0)
+        self._edge_counts[key] = idx + 1
+        self._edges_list.append((src, tgt, idx, attrs))
         if src not in self._adj:
             self._adj[src] = []
         self._adj[src].append(tgt)
@@ -92,14 +99,29 @@ class MockGraph:
         return self._adj.get(nid, [])
 
     def find_edge_ids(self, src: str, tgt: str) -> List:
-        if (src, tgt) in self._edges:
-            return [(src, tgt)]
-        if not self._directed and (tgt, src) in self._edges:
-            return [(tgt, src)]
-        return []
+        results = []
+        count = self._edge_counts.get((src, tgt), 0)
+        for i in range(count):
+            results.append((src, tgt, i))
+        if not self._directed:
+            count2 = self._edge_counts.get((tgt, src), 0)
+            for i in range(count2):
+                results.append((tgt, src, i))
+        return results
 
     def get_edge(self, eid: Any) -> MockEdge:
-        return MockEdge(self._edges.get(eid, {}))
+        if isinstance(eid, tuple) and len(eid) >= 3:
+            src, tgt, idx = eid[0], eid[1], eid[2]
+            for s, t, i, attrs in self._edges_list:
+                if s == src and t == tgt and i == idx:
+                    return MockEdge(attrs, source=src, target=tgt)
+            return MockEdge({}, source=src, target=tgt)
+        src = eid[0] if isinstance(eid, tuple) else None
+        tgt = eid[1] if isinstance(eid, tuple) else None
+        for s, t, _i, attrs in self._edges_list:
+            if s == src and t == tgt:
+                return MockEdge(attrs, source=src, target=tgt)
+        return MockEdge({}, source=src, target=tgt)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -530,6 +552,93 @@ class GalleryItem:
     render_kwargs: Dict[str, Any]
     tags: List[str] = field(default_factory=list)
     render_fn: Any = None  # defaults to render_plot
+    code: str = ""  # EdgeCase code snippet for this example
+
+
+def _generate_code(item: "GalleryItem") -> str:
+    """Auto-generate EdgeCase Python code from a gallery item."""
+    g = item.graph_fn()
+    lines: List[str] = ["import edgecase", ""]
+
+    # Graph construction
+    directed = g.is_directed()
+    lines.append(f"G = edgecase.Graph(directed={directed})")
+    lines.append("")
+
+    # Nodes
+    node_ids = g.get_node_ids()
+    for nid in node_ids:
+        obj = g.get_node(nid)
+        attrs = dict(obj.attributes) if obj and obj.attributes else {}
+        if attrs:
+            kw = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+            lines.append(f"G.add_node({nid!r}, {kw})")
+        else:
+            lines.append(f"G.add_node({nid!r})")
+
+    # Edges
+    if hasattr(g, "_edges_list"):
+        edge_data = [(s, t, a) for s, t, _i, a in g._edges_list]
+    else:
+        edge_data = []
+    if edge_data:
+        lines.append("")
+        for src, tgt, attrs in edge_data:
+            if attrs:
+                kw = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+                lines.append(f"G.add_edge({src!r}, {tgt!r}, {kw})")
+            else:
+                lines.append(f"G.add_edge({src!r}, {tgt!r})")
+
+    lines.append("")
+
+    # Render call
+    rk = dict(item.render_kwargs)
+    rk.pop("width", None)
+    rk.pop("height", None)
+
+    if item.render_fn is not None:
+        # Check if it's a chain renderer (traversal chain)
+        fn = item.render_fn
+        chain_steps = getattr(fn, "__closure__", None)
+        if chain_steps and hasattr(fn, "__code__") and "chain_steps" in (fn.__code__.co_freevars if hasattr(fn.__code__, "co_freevars") else ()):
+            # Traversal chain — show record_traversal pattern
+            # Extract steps from closure
+            steps = None
+            for cell in fn.__closure__ or []:
+                try:
+                    val = cell.cell_contents
+                    if isinstance(val, list) and val and isinstance(val[0], dict):
+                        steps = val
+                        break
+                except ValueError:
+                    pass
+            if steps:
+                lines.append("rec = G.record_traversal()")
+                for step in steps:
+                    op = step.get("op", "")
+                    display = step.get("op_display", op + "()")
+                    lines.append(f"rec.{display}")
+                kw_str = ", ".join(f"{k}={v!r}" for k, v in rk.items() if v is not None and v is not False)
+                call = f"rec.plot({kw_str})" if kw_str else "rec.plot()"
+                lines.append(call)
+            else:
+                kw_str = ", ".join(f"{k}={v!r}" for k, v in rk.items() if v is not None and v is not False)
+                lines.append(f"G.plot({kw_str})" if kw_str else "G.plot()")
+        else:
+            kw_str = ", ".join(f"{k}={v!r}" for k, v in rk.items() if v is not None and v is not False)
+            lines.append(f"G.plot({kw_str})" if kw_str else "G.plot()")
+    elif "bfs" in item.tags or "dfs" in item.tags:
+        algo = "dfs" if "dfs" in item.tags else "bfs"
+        start = node_ids[0] if node_ids else "1"
+        kw_str = ", ".join(f"{k}={v!r}" for k, v in rk.items() if v is not None and v is not False)
+        extra = f", {kw_str}" if kw_str else ""
+        lines.append(f'G.plot_traversal(start={start!r}, algorithm="{algo.upper()}"{extra})')
+    else:
+        kw_str = ", ".join(f"{k}={v!r}" for k, v in rk.items() if v is not None and v is not False)
+        lines.append(f"G.plot({kw_str})" if kw_str else "G.plot()")
+
+    return "\n".join(lines)
 
 
 def build_gallery_items() -> List[GalleryItem]:
@@ -1437,7 +1546,7 @@ def build_gallery_items() -> List[GalleryItem]:
     )
 
     # ------------------------------------------------------------------
-    # 17. Traversal visualizations (interactive slider)
+    # 17. BFS / DFS traversal visualizations (visit-order slider)
     # ------------------------------------------------------------------
 
     # BFS on Star graph: Hub first, then all leaves
@@ -1454,7 +1563,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 height=400,
                 node_size=18.0,
             ),
-            tags=["traversal", "bfs", "small", "light"],
+            tags=["bfs", "small", "light"],
             render_fn=render_traversal,
         )
     )
@@ -1467,19 +1576,8 @@ def build_gallery_items() -> List[GalleryItem]:
             graph_fn=_graph_social_small,
             render_kwargs=dict(
                 visit_order=[
-                    "Mallory",
-                    "Alice",
-                    "Bob",
-                    "Frank",
-                    "Judy",
-                    "Eve",
-                    "Carol",
-                    "Grace",
-                    "Karl",
-                    "Leo",
-                    "Dave",
-                    "Heidi",
-                    "Ivan",
+                    "Mallory", "Alice", "Bob", "Frank", "Judy", "Eve",
+                    "Carol", "Grace", "Karl", "Leo", "Dave", "Heidi", "Ivan",
                 ],
                 algorithm="BFS",
                 layout="force",
@@ -1487,7 +1585,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 height=450,
                 node_size=16.0,
             ),
-            tags=["traversal", "bfs", "medium", "light"],
+            tags=["bfs", "medium", "light"],
             render_fn=render_traversal,
         )
     )
@@ -1500,19 +1598,8 @@ def build_gallery_items() -> List[GalleryItem]:
             graph_fn=_graph_social_small,
             render_kwargs=dict(
                 visit_order=[
-                    "Mallory",
-                    "Alice",
-                    "Bob",
-                    "Carol",
-                    "Dave",
-                    "Eve",
-                    "Frank",
-                    "Grace",
-                    "Heidi",
-                    "Ivan",
-                    "Judy",
-                    "Karl",
-                    "Leo",
+                    "Mallory", "Alice", "Bob", "Carol", "Dave", "Eve",
+                    "Frank", "Grace", "Heidi", "Ivan", "Judy", "Karl", "Leo",
                 ],
                 algorithm="DFS",
                 layout="force",
@@ -1520,7 +1607,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 height=450,
                 node_size=16.0,
             ),
-            tags=["traversal", "dfs", "medium", "light"],
+            tags=["dfs", "medium", "light"],
             render_fn=render_traversal,
         )
     )
@@ -1533,19 +1620,8 @@ def build_gallery_items() -> List[GalleryItem]:
             graph_fn=_graph_social_small,
             render_kwargs=dict(
                 visit_order=[
-                    "Mallory",
-                    "Alice",
-                    "Bob",
-                    "Frank",
-                    "Judy",
-                    "Eve",
-                    "Carol",
-                    "Grace",
-                    "Karl",
-                    "Leo",
-                    "Dave",
-                    "Heidi",
-                    "Ivan",
+                    "Mallory", "Alice", "Bob", "Frank", "Judy", "Eve",
+                    "Carol", "Grace", "Karl", "Leo", "Dave", "Heidi", "Ivan",
                 ],
                 algorithm="BFS",
                 layout="force",
@@ -1554,7 +1630,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 height=450,
                 node_size=16.0,
             ),
-            tags=["traversal", "bfs", "medium", "dark"],
+            tags=["bfs", "medium", "dark"],
             render_fn=render_traversal,
         )
     )
@@ -1567,21 +1643,8 @@ def build_gallery_items() -> List[GalleryItem]:
             graph_fn=_graph_tree,
             render_kwargs=dict(
                 visit_order=[
-                    "N0",
-                    "N1",
-                    "N3",
-                    "N7",
-                    "N8",
-                    "N4",
-                    "N9",
-                    "N10",
-                    "N2",
-                    "N5",
-                    "N11",
-                    "N12",
-                    "N6",
-                    "N13",
-                    "N14",
+                    "N0", "N1", "N3", "N7", "N8", "N4", "N9", "N10",
+                    "N2", "N5", "N11", "N12", "N6", "N13", "N14",
                 ],
                 algorithm="DFS",
                 layout="force",
@@ -1589,8 +1652,695 @@ def build_gallery_items() -> List[GalleryItem]:
                 height=500,
                 node_size=16.0,
             ),
-            tags=["traversal", "dfs", "medium", "light"],
+            tags=["dfs", "medium", "light"],
             render_fn=render_traversal,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # 18. Traversal chain visualizations (trav_* selection-based)
+    # ------------------------------------------------------------------
+
+    def _make_chain_renderer(chain_steps):
+        def _render(graph, **kwargs):
+            return render_traversal_chain(graph, chain_steps, **kwargs)
+        return _render
+
+    # --- trav_out: forward hop on directed DAG ---
+    # DAG: Source→Filter→{Transform,Validate}→Load→{Archive,Report}
+    items.append(
+        GalleryItem(
+            title="trav_out — DAG pipeline",
+            description="select Source → trav_out × 2 → trav_out_edge — forward traversal",
+            graph_fn=_graph_directed_dag,
+            render_kwargs=dict(layout="force", width=600, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Source])",
+                 "selection_type": "nodes", "ids": ["Source"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["Filter"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["Transform", "Validate"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges",
+                 "ids": [("Transform", "Load"), ("Validate", "Load")]},
+            ]),
+        )
+    )
+
+    # --- trav_in: backward hop on directed cycle ---
+    # Directed small: A→B, A→C, B→D, C→D, D→E, E→A
+    items.append(
+        GalleryItem(
+            title="trav_in — reverse on directed cycle",
+            description="select D → trav_in — finds B and C (who feed into D)",
+            graph_fn=_graph_directed_small,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([D])",
+                 "selection_type": "nodes", "ids": ["D"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["B", "C"]},
+            ]),
+        )
+    )
+
+    # --- trav_in chained: two backward hops ---
+    items.append(
+        GalleryItem(
+            title="trav_in — two backward hops",
+            description="select E → trav_in → trav_in — walks the DAG backward",
+            graph_fn=_graph_directed_dag,
+            render_kwargs=dict(layout="force", width=600, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Report])",
+                 "selection_type": "nodes", "ids": ["Report"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["Load"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["Transform", "Validate"]},
+            ]),
+        )
+    )
+
+    # --- trav_both: undirected neighbor expansion ---
+    items.append(
+        GalleryItem(
+            title="trav_both — star bounce",
+            description="Leaf → trav_both (hub) → trav_both (all leaves)",
+            graph_fn=_graph_star,
+            render_kwargs=dict(layout="circular", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "light", "circular"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([L1])",
+                 "selection_type": "nodes", "ids": ["L1"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes", "ids": ["Hub"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes",
+                 "ids": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"]},
+            ]),
+        )
+    )
+
+    # --- trav_both on directed graph: bidirectional ---
+    items.append(
+        GalleryItem(
+            title="trav_both — bidirectional on directed",
+            description="select D → trav_both — finds B, C (in) and E (out)",
+            graph_fn=_graph_directed_small,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([D])",
+                 "selection_type": "nodes", "ids": ["D"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes", "ids": ["B", "C", "E"]},
+            ]),
+        )
+    )
+
+    # --- trav_out_edge: node → edge selection ---
+    items.append(
+        GalleryItem(
+            title="trav_out_edge — social hub expansion",
+            description="Select Mallory → trav_both → trav_out_edge — node to edge",
+            graph_fn=_graph_social_small,
+            render_kwargs=dict(layout="force", width=600, height=450, show_labels=True),
+            tags=["traversal", "medium", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Mallory])",
+                 "selection_type": "nodes", "ids": ["Mallory"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes",
+                 "ids": ["Alice", "Bob", "Frank", "Judy", "Eve"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges",
+                 "ids": [("Alice", "Bob"), ("Alice", "Carol"), ("Bob", "Carol"),
+                         ("Bob", "Dave"), ("Frank", "Grace"), ("Frank", "Ivan"),
+                         ("Judy", "Karl"), ("Judy", "Leo"), ("Eve", "Frank"),
+                         ("Dave", "Eve"), ("Ivan", "Judy")]},
+            ]),
+        )
+    )
+
+    # --- trav_in_edge: inbound edges of selected nodes ---
+    items.append(
+        GalleryItem(
+            title="trav_in_edge — inbound edges",
+            description="select B, C → trav_in_edge — reveals A→B, A→C",
+            graph_fn=_graph_directed_small,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([B, C])",
+                 "selection_type": "nodes", "ids": ["B", "C"]},
+                {"op": "trav_in_edge", "op_display": "trav_in_edge()",
+                 "selection_type": "edges", "ids": [("A", "B"), ("A", "C")]},
+            ]),
+        )
+    )
+
+    # --- trav_out then trav_in_edge combo ---
+    items.append(
+        GalleryItem(
+            title="trav_out → trav_in_edge — round trip",
+            description="select A → trav_out → trav_in_edge — forward then back-edges",
+            graph_fn=_graph_directed_small,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([A])",
+                 "selection_type": "nodes", "ids": ["A"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["B", "C"]},
+                {"op": "trav_in_edge", "op_display": "trav_in_edge()",
+                 "selection_type": "edges", "ids": [("A", "B"), ("A", "C")]},
+            ]),
+        )
+    )
+
+    # --- trav_reverse_edge: edge direction flip ---
+    # Directed small: A→B, A→C, B→D, C→D, D→E, E→A
+    # Select edges A→B, A→C then reverse → should find E→A (only reverse that exists)
+    # Actually: reverse of A→B is B→A (doesn't exist), reverse of A→C is C→A (doesn't exist)
+    # Better: select D→E, then reverse → E→A (which does exist: E→A)
+    # Actually E→A is the reverse of A→E (which doesn't exist).
+    # D→E reverse = E→D (doesn't exist). E→A reverse = A→E (doesn't exist).
+    # The graph edges are: A→B, A→C, B→D, C→D, D→E, E→A
+    # Reverse of E→A = A→E (doesn't exist). Reverse of D→E = E→D (doesn't exist).
+    # Reverse of A→B = B→A (no). Reverse of B→D = D→B (no).
+    # For this graph, no edge has its reverse present except maybe...
+    # None of the edges have reverses. Let's use a different graph with bidirectional edges.
+
+    # --- trav_reverse_edge on a graph with reciprocal edges ---
+    def _graph_reciprocal() -> MockGraph:
+        g = MockGraph(directed=True)
+        for n in ["X", "Y", "Z", "W"]:
+            g.add_node(n)
+        g.add_edge("X", "Y", rel="friend")
+        g.add_edge("Y", "X", rel="friend")
+        g.add_edge("Y", "Z", rel="follows")
+        g.add_edge("Z", "Y", rel="follows")
+        g.add_edge("Z", "W", rel="follows")
+        # W→Z does NOT exist — one-way
+        g.add_edge("X", "W", rel="admin")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="trav_reverse_edge — reciprocal check",
+            description="select X→Y, Y→Z edges → trav_reverse_edge — finds Y→X, Z→Y",
+            graph_fn=_graph_reciprocal,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force", "multi_edge"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_edges_by_id", "op_display": "select_edges_by_id([X→Y, Y→Z])",
+                 "selection_type": "edges", "ids": [("X", "Y"), ("Y", "Z")]},
+                {"op": "trav_reverse_edge", "op_display": "trav_reverse_edge()",
+                 "selection_type": "edges", "ids": [("Y", "X"), ("Z", "Y")]},
+            ]),
+        )
+    )
+
+    # --- Long chain: DAG full forward walk ---
+    items.append(
+        GalleryItem(
+            title="trav_out — DAG full walk (6 steps)",
+            description="Source → Filter → branch → Load → sinks — complete pipeline",
+            graph_fn=_graph_directed_dag,
+            render_kwargs=dict(layout="force", width=600, height=450, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Source])",
+                 "selection_type": "nodes", "ids": ["Source"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["Filter"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["Transform", "Validate"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["Load"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["Archive", "Report"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges", "ids": []},
+            ]),
+        )
+    )
+
+    # --- trav_both multi-hop on social — community spread ---
+    items.append(
+        GalleryItem(
+            title="trav_both — 3-hop community spread",
+            description="Judy → neighbors → 2nd hop → 3rd hop — ripple across communities",
+            graph_fn=_graph_social_small,
+            render_kwargs=dict(layout="force", width=600, height=450, show_labels=True),
+            tags=["traversal", "medium", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Judy])",
+                 "selection_type": "nodes", "ids": ["Judy"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes", "ids": ["Karl", "Leo", "Mallory", "Ivan"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes",
+                 "ids": ["Judy", "Leo", "Alice", "Bob", "Frank", "Eve",
+                         "Heidi", "Grace"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes",
+                 "ids": ["Karl", "Mallory", "Ivan", "Carol", "Dave",
+                         "Leo", "Judy"]},
+            ]),
+        )
+    )
+
+    # --- trav_in on DAG: backward from sinks ---
+    items.append(
+        GalleryItem(
+            title="trav_in — backward from DAG sinks",
+            description="select Archive, Report → trav_in → trav_in — back to sources",
+            graph_fn=_graph_directed_dag,
+            render_kwargs=dict(layout="force", width=600, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id",
+                 "op_display": "select_nodes_by_id([Archive, Report])",
+                 "selection_type": "nodes", "ids": ["Archive", "Report"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["Load"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["Transform", "Validate"]},
+                {"op": "trav_in_edge", "op_display": "trav_in_edge()",
+                 "selection_type": "edges",
+                 "ids": [("Filter", "Transform"), ("Filter", "Validate")]},
+            ]),
+        )
+    )
+
+    # --- Mixed node/edge oscillation ---
+    items.append(
+        GalleryItem(
+            title="Node ↔ edge oscillation",
+            description="select → trav_out_edge → (edges) → select connected → repeat",
+            graph_fn=_graph_directed_small,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([A])",
+                 "selection_type": "nodes", "ids": ["A"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges", "ids": [("A", "B"), ("A", "C")]},
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([D])",
+                 "selection_type": "nodes", "ids": ["D"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges", "ids": [("D", "E")]},
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([E])",
+                 "selection_type": "nodes", "ids": ["E"]},
+            ]),
+        )
+    )
+
+    # --- trav_out on social: from Eve (cross-community bridge) ---
+    items.append(
+        GalleryItem(
+            title="trav_both — bridge node",
+            description="Eve sits between communities A and B — trav_both shows the bridge",
+            graph_fn=_graph_social_small,
+            render_kwargs=dict(layout="force", width=600, height=450, show_labels=True),
+            tags=["traversal", "medium", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Eve])",
+                 "selection_type": "nodes", "ids": ["Eve"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes", "ids": ["Dave", "Mallory", "Frank"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges",
+                 "ids": [("Carol", "Dave"), ("Bob", "Dave"), ("Mallory", "Alice"),
+                         ("Mallory", "Bob"), ("Mallory", "Frank"), ("Mallory", "Judy"),
+                         ("Mallory", "Eve"), ("Frank", "Grace"), ("Frank", "Ivan")]},
+            ]),
+        )
+    )
+
+    # --- Dark theme: trav_both community ripple ---
+    items.append(
+        GalleryItem(
+            title="trav_both — dark theme ripple",
+            description="Judy → trav_both × 2 → trav_out_edge — dark theme",
+            graph_fn=_graph_social_small,
+            render_kwargs=dict(layout="force", theme="dark", width=600, height=450,
+                               show_labels=True),
+            tags=["traversal", "medium", "dark", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Judy])",
+                 "selection_type": "nodes", "ids": ["Judy"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes", "ids": ["Karl", "Leo", "Mallory", "Ivan"]},
+                {"op": "trav_both", "op_display": "trav_both()",
+                 "selection_type": "nodes",
+                 "ids": ["Judy", "Leo", "Alice", "Bob", "Frank", "Eve",
+                         "Heidi", "Grace"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges",
+                 "ids": [("Judy", "Karl"), ("Judy", "Leo"), ("Alice", "Bob"),
+                         ("Alice", "Carol"), ("Bob", "Carol"), ("Bob", "Dave"),
+                         ("Frank", "Grace"), ("Frank", "Ivan"), ("Eve", "Frank"),
+                         ("Heidi", "Ivan"), ("Grace", "Heidi")]},
+            ]),
+        )
+    )
+
+    # --- Dark theme: trav_in on DAG ---
+    items.append(
+        GalleryItem(
+            title="trav_in — DAG backward (dark)",
+            description="Report → trav_in × 3 — reverse pipeline walk, dark",
+            graph_fn=_graph_directed_dag,
+            render_kwargs=dict(layout="force", theme="dark", width=600, height=400,
+                               show_labels=True),
+            tags=["traversal", "small", "directed", "dark", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Report])",
+                 "selection_type": "nodes", "ids": ["Report"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["Load"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["Transform", "Validate"]},
+                {"op": "trav_in", "op_display": "trav_in()",
+                 "selection_type": "nodes", "ids": ["Filter"]},
+            ]),
+        )
+    )
+
+    # --- trav_in_edge then back to nodes ---
+    items.append(
+        GalleryItem(
+            title="trav_in_edge → nodes — edge then source",
+            description="select Load → trav_in_edge → see who feeds Load",
+            graph_fn=_graph_directed_dag,
+            render_kwargs=dict(layout="force", width=600, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([Load])",
+                 "selection_type": "nodes", "ids": ["Load"]},
+                {"op": "trav_in_edge", "op_display": "trav_in_edge()",
+                 "selection_type": "edges",
+                 "ids": [("Transform", "Load"), ("Validate", "Load")]},
+                {"op": "select_nodes_by_id",
+                 "op_display": "select_nodes_by_id([Transform, Validate])",
+                 "selection_type": "nodes", "ids": ["Transform", "Validate"]},
+            ]),
+        )
+    )
+
+    # --- Circular layout: trav_out on directed cycle ---
+    items.append(
+        GalleryItem(
+            title="trav_out — directed cycle (circular)",
+            description="A → B → D → E → A — chasing the cycle",
+            graph_fn=_graph_directed_small,
+            render_kwargs=dict(layout="circular", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "circular"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([A])",
+                 "selection_type": "nodes", "ids": ["A"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["B", "C"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["D"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["E"]},
+                {"op": "trav_out", "op_display": "trav_out()",
+                 "selection_type": "nodes", "ids": ["A"]},
+            ]),
+        )
+    )
+
+    # --- trav_reverse_edge with add_to_selection ---
+    items.append(
+        GalleryItem(
+            title="trav_reverse_edge(add=True)",
+            description="select X→Y → reverse(add=True) — accumulates both directions",
+            graph_fn=_graph_reciprocal,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force", "multi_edge"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([X])",
+                 "selection_type": "nodes", "ids": ["X"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges", "ids": [("X", "Y"), ("X", "W")]},
+                {"op": "trav_reverse_edge",
+                 "op_display": "trav_reverse_edge(add_to_selection=True)",
+                 "selection_type": "edges",
+                 "ids": [("X", "Y"), ("X", "W"), ("Y", "X")]},
+            ]),
+        )
+    )
+
+    # --- select_edges_by_id → trav_reverse_edge on reciprocal ---
+    items.append(
+        GalleryItem(
+            title="Edge select → reverse — dark",
+            description="Start from edges, find reverses — dark theme",
+            graph_fn=_graph_reciprocal,
+            render_kwargs=dict(layout="force", theme="dark", width=500, height=400,
+                               show_labels=True),
+            tags=["traversal", "small", "directed", "dark", "force", "multi_edge"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_edges_by_id", "op_display": "select_edges_by_id([Y→Z, Z→W])",
+                 "selection_type": "edges", "ids": [("Y", "Z"), ("Z", "W")]},
+                {"op": "trav_reverse_edge", "op_display": "trav_reverse_edge()",
+                 "selection_type": "edges", "ids": [("Z", "Y")]},
+            ]),
+        )
+    )
+
+    # --- Self-loop examples ---
+    def _graph_with_loops() -> MockGraph:
+        g = MockGraph(directed=True)
+        for n in ["A", "B", "C"]:
+            g.add_node(n)
+        g.add_edge("A", "B", rel="sends")
+        g.add_edge("B", "C", rel="sends")
+        g.add_edge("A", "A", rel="self-ref")
+        g.add_edge("C", "C", rel="retry")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="Self-loop edges",
+            description="Graph with self-loops (A→A, C→C) rendered as arcs",
+            graph_fn=_graph_with_loops,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force", "multi_edge"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([A])",
+                 "selection_type": "nodes", "ids": ["A"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges", "ids": [("A", "B"), ("A", "A")]},
+            ]),
+        )
+    )
+
+    # Reciprocal + self-loop combined
+    def _graph_reciprocal_with_loop() -> MockGraph:
+        g = MockGraph(directed=True)
+        for n in ["P", "Q", "R"]:
+            g.add_node(n)
+        g.add_edge("P", "Q", rel="link")
+        g.add_edge("Q", "P", rel="link")
+        g.add_edge("Q", "R", rel="link")
+        g.add_edge("P", "P", rel="self")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="Reciprocal + self-loop",
+            description="P↔Q reciprocal pair with P→P self-loop — all rendered as curves/arcs",
+            graph_fn=_graph_reciprocal_with_loop,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["traversal", "small", "directed", "light", "force", "multi_edge"],
+            render_fn=_make_chain_renderer([
+                {"op": "select_nodes_by_id", "op_display": "select_nodes_by_id([P])",
+                 "selection_type": "nodes", "ids": ["P"]},
+                {"op": "trav_out_edge", "op_display": "trav_out_edge()",
+                 "selection_type": "edges", "ids": [("P", "Q"), ("P", "P")]},
+                {"op": "trav_reverse_edge", "op_display": "trav_reverse_edge()",
+                 "selection_type": "edges", "ids": [("Q", "P"), ("P", "P")]},
+            ]),
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # Multi-edge static examples (non-traversal)
+    # ------------------------------------------------------------------
+
+    # Reciprocal pair — static plot
+    def _graph_reciprocal_static() -> MockGraph:
+        g = MockGraph(directed=True)
+        for n in ["A", "B", "C", "D"]:
+            g.add_node(n)
+        g.add_edge("A", "B")
+        g.add_edge("B", "A")
+        g.add_edge("B", "C")
+        g.add_edge("C", "B")
+        g.add_edge("C", "D")
+        g.add_edge("A", "D")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="Reciprocal edges — static",
+            description="Directed graph with A↔B and B↔C reciprocal pairs, auto-curved",
+            graph_fn=_graph_reciprocal_static,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["small", "directed", "light", "force", "multi_edge"],
+        )
+    )
+
+    items.append(
+        GalleryItem(
+            title="Reciprocal edges — dark",
+            description="Same reciprocal graph in dark theme",
+            graph_fn=_graph_reciprocal_static,
+            render_kwargs=dict(layout="force", theme="dark", width=500, height=400,
+                               show_labels=True),
+            tags=["small", "directed", "dark", "force", "multi_edge"],
+        )
+    )
+
+    # Triple edges between same pair
+    def _graph_triple_edge() -> MockGraph:
+        g = MockGraph(directed=True)
+        for n in ["X", "Y", "Z"]:
+            g.add_node(n)
+        g.add_edge("X", "Y", label="email")
+        g.add_edge("X", "Y", label="chat")
+        g.add_edge("X", "Y", label="call")
+        g.add_edge("Y", "Z", label="link")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="Triple parallel edges",
+            description="Three X→Y edges fan out as curves; Y→Z stays straight",
+            graph_fn=_graph_triple_edge,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["tiny", "directed", "light", "force", "multi_edge"],
+        )
+    )
+
+    # Self-loop — static
+    def _graph_self_loop_static() -> MockGraph:
+        g = MockGraph(directed=True)
+        for n in ["S", "T", "U"]:
+            g.add_node(n)
+        g.add_edge("S", "T")
+        g.add_edge("T", "U")
+        g.add_edge("S", "S")
+        g.add_edge("U", "U")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="Self-loops — static",
+            description="Directed graph with S→S and U→U self-loop arcs",
+            graph_fn=_graph_self_loop_static,
+            render_kwargs=dict(layout="force", width=500, height=400, show_labels=True),
+            tags=["tiny", "directed", "light", "force", "multi_edge"],
+        )
+    )
+
+    # Stress test: dense multi-edge graph
+    def _graph_multi_edge_stress() -> MockGraph:
+        g = MockGraph(directed=True)
+        nodes = ["N1", "N2", "N3", "N4", "N5"]
+        for n in nodes:
+            g.add_node(n)
+        # 5 edges between N1↔N2
+        for i in range(3):
+            g.add_edge("N1", "N2", idx=i)
+        for i in range(2):
+            g.add_edge("N2", "N1", idx=i)
+        # 4 edges between N3↔N4
+        for i in range(2):
+            g.add_edge("N3", "N4", idx=i)
+        for i in range(2):
+            g.add_edge("N4", "N3", idx=i)
+        # Regular edges
+        g.add_edge("N2", "N3")
+        g.add_edge("N4", "N5")
+        g.add_edge("N5", "N1")
+        # Self-loop
+        g.add_edge("N3", "N3")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="Multi-edge stress — 5 nodes",
+            description="Dense multi-edge: 5 edges N1↔N2, 4 edges N3↔N4, self-loop on N3",
+            graph_fn=_graph_multi_edge_stress,
+            render_kwargs=dict(layout="force", width=600, height=500, show_labels=True),
+            tags=["small", "directed", "light", "force", "multi_edge"],
+        )
+    )
+
+    items.append(
+        GalleryItem(
+            title="Multi-edge stress — dark",
+            description="Same dense multi-edge graph in dark theme",
+            graph_fn=_graph_multi_edge_stress,
+            render_kwargs=dict(layout="force", theme="dark", width=600, height=500,
+                               show_labels=True),
+            tags=["small", "directed", "dark", "force", "multi_edge"],
+        )
+    )
+
+    # Large multi-edge stress: many pairs with multiple edges
+    def _graph_multi_edge_large() -> MockGraph:
+        g = MockGraph(directed=True)
+        import random as _rng
+        _rng.seed(42)
+        nodes = [f"v{i}" for i in range(12)]
+        for n in nodes:
+            g.add_node(n)
+        pairs = [
+            ("v0", "v1"), ("v1", "v2"), ("v2", "v3"), ("v3", "v4"),
+            ("v4", "v5"), ("v5", "v0"), ("v0", "v3"),
+            ("v6", "v7"), ("v7", "v8"), ("v8", "v6"),
+            ("v9", "v10"), ("v10", "v11"), ("v11", "v9"),
+            ("v2", "v7"), ("v5", "v9"),
+        ]
+        for s, t in pairs:
+            n_edges = _rng.choice([1, 1, 1, 2, 2, 3])
+            for _ in range(n_edges):
+                g.add_edge(s, t)
+            if _rng.random() < 0.3:
+                g.add_edge(t, s)
+        # A few self-loops
+        g.add_edge("v0", "v0")
+        g.add_edge("v6", "v6")
+        return g
+
+    items.append(
+        GalleryItem(
+            title="Multi-edge stress — 12 nodes",
+            description="12 nodes with random multi-edges (1-3 per pair) and self-loops",
+            graph_fn=_graph_multi_edge_large,
+            render_kwargs=dict(layout="force", width=700, height=500, show_labels=True),
+            tags=["medium", "directed", "light", "force", "multi_edge"],
+        )
+    )
+
+    items.append(
+        GalleryItem(
+            title="Multi-edge circular layout",
+            description="Same 12-node multi-edge graph in circular layout",
+            graph_fn=_graph_multi_edge_large,
+            render_kwargs=dict(layout="circular", width=700, height=500, show_labels=True),
+            tags=["medium", "directed", "light", "circular", "multi_edge"],
         )
     )
 
@@ -2030,6 +2780,7 @@ FILTER_AXES = {
         "traversal",
         "bfs",
         "dfs",
+        "multi_edge",
     ],
 }
 
@@ -2069,15 +2820,21 @@ TAG_COLORS = {
     "traversal": "#7c3aed",
     "bfs": "#8b5cf6",
     "dfs": "#6d28d9",
+    "multi_edge": "#e11d48",
 }
 
 
 def generate_gallery_html(items: List[GalleryItem]) -> str:
     t0 = time.time()
 
-    # Render all SVGs
+    # Generate code for each item and render all SVGs
     rendered = []
     for i, item in enumerate(items):
+        if not item.code:
+            try:
+                item.code = _generate_code(item)
+            except Exception:
+                item.code = "# Code generation failed"
         g = item.graph_fn()
         try:
             fn = item.render_fn or render_plot
@@ -2121,12 +2878,21 @@ def generate_gallery_html(items: List[GalleryItem]) -> str:
             if k not in ("width", "height") and v is not None and v is not False
         )
 
+        code_escaped = (
+            item.code
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
         cards_html.append(f"""
 <div class="card" data-tags='{tags_json}' data-idx="{idx}"
      style="border-color:{border_color};">
   <div class="card-header">
     <span class="card-num">#{idx + 1:03d}</span>
     <span class="card-title">{item.title}</span>
+    <button class="code-btn" onclick="showCode(this)" data-code="{code_escaped}"
+            title="Show EdgeCase code">&lt;/&gt;</button>
   </div>
   <div class="card-desc">{item.description}</div>
   <div class="card-kwargs">{kw_display}</div>
@@ -2307,6 +3073,110 @@ def generate_gallery_html(items: List[GalleryItem]) -> str:
     color: var(--text-muted);
     font-size: 16px;
   }}
+  .code-btn {{
+    margin-left: auto;
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }}
+  .code-btn:hover {{
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }}
+  .code-overlay {{
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }}
+  .code-overlay.visible {{
+    display: flex;
+  }}
+  .code-panel {{
+    background: #1e1e2e;
+    border: 1px solid #45475a;
+    border-radius: 12px;
+    width: min(720px, 90vw);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  }}
+  .code-panel-header {{
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #45475a;
+    gap: 12px;
+  }}
+  .code-panel-title {{
+    font-size: 14px;
+    font-weight: 600;
+    color: #cdd6f4;
+    flex: 1;
+  }}
+  .code-panel-copy {{
+    padding: 4px 12px;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    background: transparent;
+    color: #a6adc8;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }}
+  .code-panel-copy:hover {{
+    background: #45475a;
+    color: #cdd6f4;
+  }}
+  .code-panel-close {{
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #a6adc8;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }}
+  .code-panel-close:hover {{
+    background: #45475a;
+    color: #cdd6f4;
+  }}
+  .code-panel-body {{
+    overflow: auto;
+    padding: 0;
+  }}
+  .code-panel-body pre {{
+    margin: 0;
+    padding: 16px 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    tab-size: 4;
+  }}
+  .code-panel-body code {{
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  }}
+  /* Syntax colors (Catppuccin Mocha inspired) */
+  .code-panel-body .kw {{ color: #cba6f7; }}
+  .code-panel-body .fn {{ color: #89b4fa; }}
+  .code-panel-body .str {{ color: #a6e3a1; }}
+  .code-panel-body .num {{ color: #fab387; }}
+  .code-panel-body .cmt {{ color: #6c7086; font-style: italic; }}
+  .code-panel-body .op {{ color: #89dceb; }}
+  .code-panel-body .bool {{ color: #fab387; }}
 </style>
 </head>
 <body>
@@ -2327,6 +3197,19 @@ def generate_gallery_html(items: List[GalleryItem]) -> str:
 <div class="grid" id="gallery">
   {cards_joined}
   <div class="no-results hidden" id="no-results">No examples match this filter.</div>
+</div>
+
+<div class="code-overlay" id="code-overlay" onclick="if(event.target===this)closeCode()">
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <span class="code-panel-title" id="code-panel-title">EdgeCase Code</span>
+      <button class="code-panel-copy" onclick="copyCode()">Copy</button>
+      <button class="code-panel-close" onclick="closeCode()">&times;</button>
+    </div>
+    <div class="code-panel-body">
+      <pre><code id="code-content"></code></pre>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -2366,6 +3249,52 @@ def generate_gallery_html(items: List[GalleryItem]) -> str:
     }}
   }});
 }})();
+
+var _rawCode = '';
+
+function highlightPython(code) {{
+  var re = /(&quot;[^&]*?&quot;|'[^'\\n]*?')|(#[^\\n]*)|(\\b(?:import|from|as|def|class|return|if|elif|else|for|in|while|with|try|except|raise|pass|break|continue|and|or|not|is|lambda|yield|global|nonlocal|assert|del)\\b)|(\\b(?:True|False|None)\\b)|(\\b\\d+\\.?\\d*\\b)|([a-zA-Z_]\\w*(?=\\s*\\())/g;
+  return code.replace(re, function(m,s,c,k,b,n,f) {{
+    if (s) return '<span class="str">'+m+'</span>';
+    if (c) return '<span class="cmt">'+m+'</span>';
+    if (k) return '<span class="kw">'+m+'</span>';
+    if (b) return '<span class="bool">'+m+'</span>';
+    if (n) return '<span class="num">'+m+'</span>';
+    if (f) return '<span class="fn">'+m+'</span>';
+    return m;
+  }});
+}}
+
+function escHtml(s) {{
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}}
+
+function showCode(btn) {{
+  var raw = btn.getAttribute('data-code');
+  _rawCode = raw;
+  var card = btn.closest('.card');
+  var title = card ? card.querySelector('.card-title') : null;
+  document.getElementById('code-panel-title').textContent =
+    title ? title.textContent + ' — EdgeCase Code' : 'EdgeCase Code';
+  document.getElementById('code-content').innerHTML = highlightPython(escHtml(raw));
+  document.getElementById('code-overlay').classList.add('visible');
+}}
+
+function closeCode() {{
+  document.getElementById('code-overlay').classList.remove('visible');
+}}
+
+function copyCode() {{
+  navigator.clipboard.writeText(_rawCode).then(function() {{
+    var btn = document.querySelector('.code-panel-copy');
+    btn.textContent = 'Copied!';
+    setTimeout(function() {{ btn.textContent = 'Copy'; }}, 1500);
+  }});
+}}
+
+document.addEventListener('keydown', function(e) {{
+  if (e.key === 'Escape') closeCode();
+}});
 </script>
 </body>
 </html>"""
