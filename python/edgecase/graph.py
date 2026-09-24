@@ -3,6 +3,18 @@ from typing import Any, Callable, Optional, Union
 import polars as pl
 
 from edgecase import _core as rust
+from edgecase.steps import (
+    Step,
+    StepDelta,
+    StepList,
+    auto_narrate,
+    KIND_BUILD_NODES,
+    KIND_BUILD_EDGES,
+    KIND_REMOVE,
+    KIND_ANNOTATE,
+    KIND_GENERATE,
+    KIND_TRAVERSE,
+)
 
 # ==============================================================================
 # Core Data Structures
@@ -215,6 +227,11 @@ class Graph:
         self._computations = []  # List of (method_name, params, attr_name) tuples
         self._aesthetics = []  # List of (attr_name, source_attr, operation) tuples
 
+        # Step recording (always on)
+        self._steps: StepList = StepList()
+        self._pending_note: Optional[str] = None
+        self._recording_depth: int = 0
+
         # Initialize from DataFrames if provided
         id_to_label_map = {}
         if nodes_df is not None:
@@ -375,6 +392,115 @@ class Graph:
     # ==============================================================================
 
     # ==============================================================================
+    # Step Recording
+    # ==============================================================================
+
+    def _snapshot_counts(self) -> tuple:
+        """Return (node_count, edge_count) for delta computation."""
+        return (self.count_nodes(), self.count_edges())
+
+    def _begin_compound(self) -> tuple:
+        """Start a compound operation (suppresses child recordings). Returns snapshot."""
+        self._recording_depth += 1
+        return self._snapshot_counts()
+
+    def _end_compound(self, method: str, code: str, before: tuple, kind: str = KIND_GENERATE):
+        """End a compound operation and record one summary step."""
+        self._recording_depth -= 1
+        if self._recording_depth == 0:
+            n_before, e_before = before
+            n_after, e_after = self._snapshot_counts()
+            delta = StepDelta()
+            if n_after > n_before:
+                delta.nodes_added = [f"+{n_after - n_before} nodes"]
+            if e_after > e_before:
+                delta.edges_added = [(f"+{e_after - e_before}", "edges")]
+            self._record_step(kind, method, code, delta=delta)
+
+    def _record_step(
+        self,
+        kind: str,
+        method: str,
+        code: str,
+        delta: Optional[StepDelta] = None,
+        result: Any = None,
+        sub_steps: Optional[list] = None,
+    ) -> Step:
+        """Append a step to the internal log and return it."""
+        step = Step(
+            index=len(self._steps),
+            kind=kind,
+            method=method,
+            code=code,
+            delta=delta or StepDelta(),
+            result=result,
+            sub_steps=sub_steps or [],
+        )
+        if self._pending_note is not None:
+            step.narration = self._pending_note
+            self._pending_note = None
+        else:
+            step.narration = auto_narrate(step)
+        self._steps.append(step)
+        return step
+
+    @property
+    def steps(self) -> StepList:
+        """The step log — a list of every recorded operation on this graph."""
+        return self._steps
+
+    def note(self, text: str) -> "Graph":
+        """
+        Attach a narration to the next recorded step.
+
+        If called without a following operation, creates a standalone annotation step.
+        Returns self for chaining.
+
+        Parameters
+        ----------
+        text
+            The narration text to display during replay.
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+        """
+        if self._pending_note is not None:
+            self._record_step(
+                kind=KIND_ANNOTATE,
+                method="note",
+                code=f"G.note({self._pending_note!r})",
+            )
+        self._pending_note = text
+        return self
+
+    def clear_steps(self) -> "Graph":
+        """
+        Reset the step log.
+
+        Clears all recorded steps without affecting the graph itself. Useful when you want
+        a fresh recording starting from the current state.
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+        """
+        self._steps = StepList()
+        self._pending_note = None
+        return self
+
+    def print_steps(self) -> None:
+        """Pretty-print the step log."""
+        if not self._steps:
+            print("No steps recorded.")
+            return
+        for s in self._steps:
+            sub = f"  [{len(s.sub_steps)} sub-steps]" if s.sub_steps else ""
+            print(f"  Step {s.index + 1:<3d} {s.kind:<14s} {s.method}(){sub}")
+
+    # ==============================================================================
     # Graph Construction
     # ==============================================================================
 
@@ -492,12 +618,27 @@ class Graph:
 
         # Add edges if from_node or to_node specified
         if from_node is not None:
-            # Create edge: new_node -> from_node
+            self._recording_depth += 1
             self.add_edge(new_id, from_node)
+            self._recording_depth -= 1
 
         if to_node is not None:
-            # Create edge: to_node -> new_node
+            self._recording_depth += 1
             self.add_edge(to_node, new_id)
+            self._recording_depth -= 1
+
+        # Record step (only at top-level)
+        if self._recording_depth == 0:
+            str_label = str(label) if not isinstance(label, rust.Node) else str(label.label)
+            attrs_str = "".join(f", {k}={v!r}" for k, v in attributes.items()) if attributes else ""
+            type_str = f", type={type!r}" if type is not None else ""
+            code = f"G.add_node({str_label!r}{type_str}{attrs_str})"
+            delta = StepDelta(nodes_added=[str_label])
+            if from_node is not None:
+                delta.edges_added.append((str(str_label), str(from_node)))
+            if to_node is not None:
+                delta.edges_added.append((str(to_node), str(str_label)))
+            self._record_step(KIND_BUILD_NODES, "add_node", code, delta=delta)
 
         return self
 
@@ -585,6 +726,8 @@ class Graph:
         ```
 
         """
+        labels_added = []
+        self._recording_depth += 1
         for item in nodes:
             if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], dict):
                 label, overrides = item
@@ -592,8 +735,20 @@ class Graph:
                 node_type = overrides.get("type", type)
                 merged.pop("type", None)
                 self.add_node(label=str(label), type=node_type, **merged)
+                labels_added.append(str(label))
             else:
                 self.add_node(label=str(item), type=type, **shared_attrs)
+                labels_added.append(str(item))
+        self._recording_depth -= 1
+
+        node_list = repr([str(n) for n in nodes] if not isinstance(nodes, range) else nodes)
+        attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
+        type_str = f", type={type!r}" if type is not None else ""
+        code = f"G.add_nodes({node_list}{type_str}{attrs_str})"
+        self._record_step(
+            KIND_BUILD_NODES, "add_nodes", code,
+            delta=StepDelta(nodes_added=labels_added),
+        )
 
         return self
 
@@ -764,6 +919,18 @@ class Graph:
             attributes=attributes if attributes else None,
         )
         self._graph.add_edge(edge)
+
+        if self._recording_depth == 0:
+            s, t = str(source), str(target)
+            attrs_str = "".join(f", {k}={v!r}" for k, v in attributes.items()) if attributes else ""
+            rel_str = f", rel={rel!r}" if rel is not None else ""
+            weight_str = f", weight={weight!r}" if weight is not None else ""
+            code = f"G.add_edge({s!r}, {t!r}{rel_str}{weight_str}{attrs_str})"
+            self._record_step(
+                KIND_BUILD_EDGES, "add_edge", code,
+                delta=StepDelta(edges_added=[(s, t)]),
+            )
+
         return self
 
     def add_edges(
@@ -873,6 +1040,8 @@ class Graph:
         ```
 
         """
+        edges_added = []
+        self._recording_depth += 1
         for item in edges:
             if len(item) == 3 and isinstance(item[2], dict):
                 source, target, overrides = item
@@ -889,6 +1058,7 @@ class Graph:
                     auto_create_nodes=auto_create_nodes,
                     **merged,
                 )
+                edges_added.append((str(source), str(target)))
             else:
                 source, target = item[0], item[1]
                 self.add_edge(
@@ -899,6 +1069,18 @@ class Graph:
                     auto_create_nodes=auto_create_nodes,
                     **shared_attrs,
                 )
+                edges_added.append((str(source), str(target)))
+        self._recording_depth -= 1
+
+        pairs = repr([(s, t) for s, t in edges_added])
+        attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
+        rel_str = f", rel={rel!r}" if rel is not None else ""
+        weight_str = f", weight={weight!r}" if weight is not None else ""
+        code = f"G.add_edges({pairs}{rel_str}{weight_str}{attrs_str})"
+        self._record_step(
+            KIND_BUILD_EDGES, "add_edges", code,
+            delta=StepDelta(edges_added=edges_added),
+        )
 
         return self
 
@@ -996,6 +1178,14 @@ class Graph:
             attributes=attributes if attributes else None,
         )
         self._graph.add_edge(edge)
+
+        if self._recording_depth == 0:
+            code = f"G.add_edge_by_id({source}, {target})"
+            self._record_step(
+                KIND_BUILD_EDGES, "add_edge_by_id", code,
+                delta=StepDelta(edges_added=[(str(source), str(target))]),
+            )
+
         return self
 
     def add_edges_by_id(
@@ -1083,6 +1273,8 @@ class Graph:
         ```
 
         """
+        edges_added = []
+        self._recording_depth += 1
         for item in edges:
             if len(item) == 3 and isinstance(item[2], dict):
                 source, target, overrides = item
@@ -1098,6 +1290,7 @@ class Graph:
                     weight=edge_weight,
                     **merged,
                 )
+                edges_added.append((str(source), str(target)))
             else:
                 source, target = item[0], item[1]
                 self.add_edge_by_id(
@@ -1107,6 +1300,15 @@ class Graph:
                     weight=weight,
                     **shared_attrs,
                 )
+                edges_added.append((str(source), str(target)))
+        self._recording_depth -= 1
+
+        pairs = repr([(int(s), int(t)) for s, t in edges_added])
+        code = f"G.add_edges_by_id({pairs})"
+        self._record_step(
+            KIND_BUILD_EDGES, "add_edges_by_id", code,
+            delta=StepDelta(edges_added=edges_added),
+        )
 
         return self
 
@@ -1225,6 +1427,14 @@ class Graph:
 
         # Rust delete_node raises PyKeyError if node doesn't exist
         self._graph.delete_node(node_id)
+
+        if self._recording_depth == 0:
+            code = f"G.delete_node({node!r})"
+            self._record_step(
+                KIND_REMOVE, "delete_node", code,
+                delta=StepDelta(nodes_removed=[str(node)]),
+            )
+
         return self
 
     def delete_edge(
@@ -1315,6 +1525,18 @@ class Graph:
                 raise KeyError(f"No edge found from '{source}' to '{target}'")
         else:
             raise ValueError("Must specify either (source, target) or id")
+
+        if self._recording_depth == 0:
+            if id is not None:
+                code = f"G.delete_edge(id={id})"
+                self._record_step(KIND_REMOVE, "delete_edge", code, delta=StepDelta())
+            else:
+                s, t = str(source), str(target)
+                code = f"G.delete_edge({s!r}, {t!r})"
+                self._record_step(
+                    KIND_REMOVE, "delete_edge", code,
+                    delta=StepDelta(edges_removed=[(s, t)]),
+                )
 
         return self
 
@@ -2540,6 +2762,8 @@ class Graph:
         if n < 1:
             raise ValueError("Path must have at least 1 node")
 
+        before = self._begin_compound()
+
         # Get starting node ID (continue from existing nodes)
         start_id = self.count_nodes() + 1
 
@@ -2560,6 +2784,7 @@ class Graph:
                 edge_attrs["rel"] = rel
             self.add_edge(source, target, **edge_attrs)
 
+        self._end_compound("add_path_graph", f"G.add_path_graph(n={n})", before)
         return self
 
     def add_cycle_graph(
@@ -2610,6 +2835,8 @@ class Graph:
         if n < 3:
             raise ValueError("Cycle must have at least 3 nodes")
 
+        before = self._begin_compound()
+
         # Add path first
         self.add_path_graph(n, type=type, label=label, rel=rel)
 
@@ -2621,6 +2848,7 @@ class Graph:
             edge_attrs["rel"] = rel
         self.add_edge(str(end_id), str(start_id), **edge_attrs)
 
+        self._end_compound("add_cycle_graph", f"G.add_cycle_graph(n={n})", before)
         return self
 
     def add_star_graph(
@@ -2670,6 +2898,8 @@ class Graph:
         if n < 2:
             raise ValueError("Star must have at least 2 nodes")
 
+        before = self._begin_compound()
+
         start_id = self.count_nodes() + 1
         center_id = str(start_id)
 
@@ -2689,6 +2919,7 @@ class Graph:
                 edge_attrs["rel"] = rel
             self.add_edge(center_id, peripheral_id, **edge_attrs)
 
+        self._end_compound("add_star_graph", f"G.add_star_graph(n={n})", before)
         return self
 
     def add_full_graph(
@@ -2741,6 +2972,8 @@ class Graph:
         if n < 1:
             raise ValueError("Complete graph must have at least 1 node")
 
+        before = self._begin_compound()
+
         start_id = self.count_nodes() + 1
 
         # Add nodes
@@ -2770,6 +3003,7 @@ class Graph:
                     target = str(start_id + j)
                     self.add_edge(source, target, **edge_attrs)
 
+        self._end_compound("add_full_graph", f"G.add_full_graph(n={n})", before)
         return self
 
     def add_balanced_tree(
@@ -2829,6 +3063,8 @@ class Graph:
         if h < 0:
             raise ValueError("Height h cannot be negative")
 
+        before = self._begin_compound()
+
         start_id = self.count_nodes() + 1
         node_count = 0
 
@@ -2881,6 +3117,7 @@ class Graph:
                     queue.append((child_id, level + 1))
                     node_count += 1
 
+        self._end_compound("add_balanced_tree", f"G.add_balanced_tree(k={k}, h={h})", before)
         return self
 
     def add_grid_2d(
@@ -2935,6 +3172,8 @@ class Graph:
         if rows < 1 or cols < 1:
             raise ValueError("Grid must have at least 1 row and 1 column")
 
+        before = self._begin_compound()
+
         start_id = self.count_nodes() + 1
 
         # Add nodes in grid layout
@@ -2982,6 +3221,7 @@ class Graph:
                         bottom = start_id + (i + 1) * cols + j
                     self.add_edge(current, bottom, **edge_attrs)
 
+        self._end_compound("add_grid_2d", f"G.add_grid_2d(rows={rows}, cols={cols})", before)
         return self
 
     def add_prism_graph(
@@ -3032,6 +3272,8 @@ class Graph:
         """
         if n < 3:
             raise ValueError("Prism must have at least 3 nodes per cycle")
+
+        before = self._begin_compound()
 
         start_id = self.count_nodes() + 1
 
@@ -3092,6 +3334,7 @@ class Graph:
                 bottom_node = cycle2_start + i
             self.add_edge(top_node, bottom_node, **edge_attrs)
 
+        self._end_compound("add_prism_graph", f"G.add_prism_graph(n={n})", before)
         return self
 
     def add_gnp_graph(
@@ -3141,6 +3384,8 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
         """
+        before = self._begin_compound()
+
         if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
             temp = Graph(directed=directed)
@@ -3154,6 +3399,7 @@ class Graph:
         else:
             self._graph.generate_gnp_graph(n, p, seed)
 
+        self._end_compound("add_gnp_graph", f"G.add_gnp_graph(n={n}, p={p})", before)
         return self
 
     def add_gnm_graph(
@@ -3204,6 +3450,8 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
         """
+        before = self._begin_compound()
+
         if directed is not None and directed != self.is_directed():
             # Create temporary graph with desired directedness
             temp = Graph(directed=directed)
@@ -3217,6 +3465,7 @@ class Graph:
         else:
             self._graph.generate_gnm_graph(n, m, seed)
 
+        self._end_compound("add_gnm_graph", f"G.add_gnm_graph(n={n}, m={m})", before)
         return self
 
     def add_pa_graph(
@@ -3266,7 +3515,11 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
         """
+        before = self._begin_compound()
+
         self._graph.generate_pa_graph(n, m, seed)
+
+        self._end_compound("add_pa_graph", f"G.add_pa_graph(n={n}, m={m})", before)
         return self
 
     def add_smallworld_graph(
@@ -3319,7 +3572,11 @@ class Graph:
         ```
 
         """
+        before = self._begin_compound()
+
         self._graph.generate_smallworld_graph(n, k, p, seed)
+
+        self._end_compound("add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})", before)
         return self
 
     def add_johnson_graph(self, n: int, k: int) -> "Graph":
