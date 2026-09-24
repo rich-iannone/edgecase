@@ -101,7 +101,11 @@ reference:
       desc: Methods for adding and removing nodes and edges
       contents:
         - Graph.add_node
+        - Graph.add_nodes
         - Graph.add_edge
+        - Graph.add_edges
+        - Graph.add_edge_by_id
+        - Graph.add_edges_by_id
         - Graph.delete_node
         - Graph.delete_edge
         - Graph.delete_edge_by_id
