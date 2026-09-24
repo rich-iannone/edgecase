@@ -501,6 +501,102 @@ class Graph:
 
         return self
 
+    def add_nodes(
+        self,
+        nodes: Union[list, range],
+        type: Optional[str] = None,
+        **shared_attrs,
+    ) -> "Graph":
+        """
+        Add multiple nodes to the graph in a single call.
+
+        A bulk version of `add_node()` that accepts a list of node labels and applies shared
+        attributes to all of them. Individual nodes can override shared attributes by passing a
+        tuple of `(label, dict)` instead of a bare label.
+
+        Parameters
+        ----------
+        nodes
+            Node labels to add. Each element can be:
+
+            - A string or int label (e.g., `'Alice'`, `42`).
+            - A tuple of `(label, attrs_dict)` to override shared attributes for that node.
+        type
+            Optional type applied to every node (unless overridden per-node).
+        **shared_attrs
+            Attributes applied to every node (unless overridden per-node).
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Examples
+        --------
+        Add several nodes at once with a shared type:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_nodes(
+            ['Alice', 'Bob', 'Carol'],
+            type='person'
+        )
+
+        graph
+        ```
+
+        Per-node overrides via tuples:
+
+        ```{python}
+        graph = ec.Graph().add_nodes(
+            [
+                'Alice',
+                ('Bob', {'role': 'admin'}),
+                'Carol',
+            ],
+            type='person'
+        )
+
+        graph
+        ```
+
+        Chaining with other methods:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(
+                ['A', 'B', 'C', 'D'],
+                type='router'
+            )
+            .add_edges([('A', 'B'), ('B', 'C'), ('C', 'D')])
+        )
+
+        graph
+        ```
+
+        Use a range for numeric node labels:
+
+        ```{python}
+        graph = ec.Graph().add_nodes(range(1, 6))
+
+        graph
+        ```
+
+        """
+        for item in nodes:
+            if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], dict):
+                label, overrides = item
+                merged = {**shared_attrs, **overrides}
+                node_type = overrides.get("type", type)
+                merged.pop("type", None)
+                self.add_node(label=str(label), type=node_type, **merged)
+            else:
+                self.add_node(label=str(item), type=type, **shared_attrs)
+
+        return self
+
     def add_edge(
         self,
         source: Union[int, str, rust.Edge],
@@ -668,6 +764,350 @@ class Graph:
             attributes=attributes if attributes else None,
         )
         self._graph.add_edge(edge)
+        return self
+
+    def add_edges(
+        self,
+        edges: list,
+        rel: Optional[str] = None,
+        weight: Optional[float] = None,
+        auto_create_nodes: bool = False,
+        **shared_attrs,
+    ) -> "Graph":
+        """
+        Add multiple edges to the graph in a single call.
+
+        A bulk version of `add_edge()` that accepts a list of `(source, target)` pairs and applies
+        shared attributes to all of them. Individual edges can override shared attributes by passing
+        a third element as a dict in the tuple.
+
+        Parameters
+        ----------
+        edges
+            Edge definitions to add. Each element can be:
+
+            - A tuple of `(source, target)` with shared attributes applied.
+            - A tuple of `(source, target, attrs_dict)` to override shared attributes for that edge.
+        rel
+            Optional relationship type applied to every edge (unless overridden per-edge).
+        weight
+            Optional weight applied to every edge (unless overridden per-edge).
+        auto_create_nodes
+            If `True`, automatically create nodes that don't exist yet. If `False` (default),
+            all referenced nodes must already exist.
+        **shared_attrs
+            Attributes applied to every edge (unless overridden per-edge).
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Examples
+        --------
+        Add several edges at once:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(['A', 'B', 'C', 'D'])
+            .add_edges([('A', 'B'), ('B', 'C'), ('C', 'D')])
+        )
+
+        graph
+        ```
+
+        Shared relationship type:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(['Alice', 'Bob', 'Carol'])
+            .add_edges(
+                [('Alice', 'Bob'), ('Bob', 'Carol')],
+                rel='follows'
+            )
+        )
+
+        graph
+        ```
+
+        Per-edge overrides via a third tuple element:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True, weighted=True)
+            .add_nodes(['A', 'B', 'C'])
+            .add_edges(
+                [
+                    ('A', 'B'),
+                    ('A', 'C', {'weight': 2.0, 'rel': 'strong'}),
+                ],
+                rel='weak',
+                weight=1.0
+            )
+        )
+
+        graph
+        ```
+
+        Build a complete graph using `auto_create_nodes`:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True)
+            .add_edges(
+                [
+                    ('Alice', 'Bob'),
+                    ('Bob', 'Carol'),
+                    ('Carol', 'Alice'),
+                ],
+                rel='knows',
+                auto_create_nodes=True
+            )
+        )
+
+        graph
+        ```
+
+        """
+        for item in edges:
+            if len(item) == 3 and isinstance(item[2], dict):
+                source, target, overrides = item
+                merged = {**shared_attrs, **overrides}
+                edge_rel = overrides.get("rel", rel)
+                edge_weight = overrides.get("weight", weight)
+                merged.pop("rel", None)
+                merged.pop("weight", None)
+                self.add_edge(
+                    source=source,
+                    target=target,
+                    rel=edge_rel,
+                    weight=edge_weight,
+                    auto_create_nodes=auto_create_nodes,
+                    **merged,
+                )
+            else:
+                source, target = item[0], item[1]
+                self.add_edge(
+                    source=source,
+                    target=target,
+                    rel=rel,
+                    weight=weight,
+                    auto_create_nodes=auto_create_nodes,
+                    **shared_attrs,
+                )
+
+        return self
+
+    def add_edge_by_id(
+        self,
+        source: int,
+        target: int,
+        rel: Optional[str] = None,
+        weight: Optional[float] = None,
+        **attributes,
+    ) -> "Graph":
+        """
+        Add an edge between two nodes using their integer IDs.
+
+        A strict version of `add_edge()` that only accepts integer node IDs — no label
+        resolution. Both source and target must be valid node IDs that already exist in the
+        graph.
+
+        Parameters
+        ----------
+        source
+            The source node ID (integer).
+        target
+            The target node ID (integer).
+        rel
+            Optional relationship type for the edge.
+        weight
+            Optional edge weight.
+        **attributes
+            Arbitrary key-value pairs to store as edge attributes.
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Raises
+        ------
+        TypeError
+            If source or target is not an integer.
+        ValueError
+            If source or target node ID does not exist in the graph.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_node(label='Alice')
+        graph.add_node(label='Bob')
+
+        alice_id = graph.get_id_from_label('Alice')
+        bob_id = graph.get_id_from_label('Bob')
+
+        graph.add_edge_by_id(
+            source=alice_id,
+            target=bob_id,
+            rel='follows'
+        )
+
+        graph
+        ```
+
+        """
+        if not isinstance(source, int):
+            raise TypeError(
+                f"source must be an integer node ID, got {type(source).__name__}. "
+                f"Use add_edge() to reference nodes by label."
+            )
+        if not isinstance(target, int):
+            raise TypeError(
+                f"target must be an integer node ID, got {type(target).__name__}. "
+                f"Use add_edge() to reference nodes by label."
+            )
+
+        if not self._graph.has_node_id(source):
+            raise ValueError(
+                f"Source node ID {source} does not exist in the graph."
+            )
+        if not self._graph.has_node_id(target):
+            raise ValueError(
+                f"Target node ID {target} does not exist in the graph."
+            )
+
+        if rel is not None:
+            attributes = attributes.copy() if attributes else {}
+            attributes["rel"] = rel
+
+        edge = rust.Edge(
+            id=0,
+            source=source,
+            target=target,
+            weight=weight,
+            attributes=attributes if attributes else None,
+        )
+        self._graph.add_edge(edge)
+        return self
+
+    def add_edges_by_id(
+        self,
+        edges: list,
+        rel: Optional[str] = None,
+        weight: Optional[float] = None,
+        **shared_attrs,
+    ) -> "Graph":
+        """
+        Add multiple edges using integer node IDs.
+
+        A strict bulk version of `add_edge_by_id()` that only accepts integer node IDs — no
+        label resolution. All referenced nodes must already exist in the graph.
+
+        Parameters
+        ----------
+        edges
+            Edge definitions to add. Each element can be:
+
+            - A tuple of `(source_id, target_id)` with shared attributes applied.
+            - A tuple of `(source_id, target_id, attrs_dict)` to override shared attributes.
+        rel
+            Optional relationship type applied to every edge (unless overridden per-edge).
+        weight
+            Optional weight applied to every edge (unless overridden per-edge).
+        **shared_attrs
+            Attributes applied to every edge (unless overridden per-edge).
+
+        Returns
+        -------
+        Graph
+            Returns self to enable method chaining.
+
+        Raises
+        ------
+        TypeError
+            If any source or target is not an integer.
+        ValueError
+            If any source or target node ID does not exist in the graph.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_nodes(['A', 'B', 'C', 'D'])
+
+        ids = {
+            label: graph.get_id_from_label(label)
+            for label in ['A', 'B', 'C', 'D']
+        }
+
+        graph.add_edges_by_id(
+            [
+                (ids['A'], ids['B']),
+                (ids['B'], ids['C']),
+                (ids['C'], ids['D']),
+            ],
+            rel='link'
+        )
+
+        graph
+        ```
+
+        Per-edge overrides:
+
+        ```{python}
+        graph = ec.Graph(directed=True).add_nodes(['X', 'Y', 'Z'])
+
+        ids = {
+            label: graph.get_id_from_label(label)
+            for label in ['X', 'Y', 'Z']
+        }
+
+        graph.add_edges_by_id(
+            [
+                (ids['X'], ids['Y']),
+                (ids['Y'], ids['Z'], {'rel': 'strong'}),
+            ],
+            rel='weak'
+        )
+
+        graph
+        ```
+
+        """
+        for item in edges:
+            if len(item) == 3 and isinstance(item[2], dict):
+                source, target, overrides = item
+                merged = {**shared_attrs, **overrides}
+                edge_rel = overrides.get("rel", rel)
+                edge_weight = overrides.get("weight", weight)
+                merged.pop("rel", None)
+                merged.pop("weight", None)
+                self.add_edge_by_id(
+                    source=source,
+                    target=target,
+                    rel=edge_rel,
+                    weight=edge_weight,
+                    **merged,
+                )
+            else:
+                source, target = item[0], item[1]
+                self.add_edge_by_id(
+                    source=source,
+                    target=target,
+                    rel=rel,
+                    weight=weight,
+                    **shared_attrs,
+                )
+
         return self
 
     def _resolve_node_id(self, node: Union[int, str], auto_create: bool = False) -> int:
@@ -1997,6 +2437,43 @@ class Graph:
             show_labels=show_labels,
             output=output,
         )
+
+    def record_traversal(self):
+        """
+        Create a traversal recorder for step-by-step visualization.
+
+        Returns a :class:`~edgecase.svg_renderer.TraversalRecorder` that wraps
+        this graph.  Each ``trav_*`` or ``select_*`` call on the recorder is
+        forwarded to the graph **and** the resulting selection is captured as a
+        step.  Call ``.plot()`` on the recorder to render an interactive
+        traversal-chain visualization.
+
+        Returns
+        -------
+        TraversalRecorder
+            A recorder object supporting the same traversal/selection API as
+            :class:`Graph`, plus a ``.plot()`` method to visualize the chain.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True)
+        graph.add_node("A").add_node("B").add_node("C")
+        graph.add_edge("A", "B").add_edge("B", "C")
+
+        node_a = graph.get_id_from_label("A")
+        rec = graph.record_traversal()
+        rec.select_nodes_by_id([node_a])
+        rec.trav_out()
+        rec.trav_out_edge()
+        rec.plot()
+        ```
+        """
+        from edgecase.svg_renderer import TraversalRecorder
+
+        return TraversalRecorder(self)
 
     def _infer_render_target(self) -> str:
         """Infer whether to render in notebook or browser."""
