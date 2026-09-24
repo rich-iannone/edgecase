@@ -55,6 +55,7 @@ from edgecase.io import (
     to_tsv_edge_list,
 )
 from edgecase.multiplex import MultiplexGraph
+from edgecase.svg_renderer import PlotSVG
 
 # Python-layer functionality
 # Polars integration: Use Graph(nodes_df=..., edges_df=...) to create from DataFrames
@@ -102,6 +103,7 @@ __all__ = [
     "to_adjacency_matrix",
     "from_adjacency_matrix",
     # Visualization
+    "PlotSVG",
     # "plot_graph",
     # "GraphWidget",
     # "graph_widget",
