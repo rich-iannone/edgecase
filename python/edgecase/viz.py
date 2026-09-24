@@ -180,6 +180,43 @@ def _random_layout(nodes: list[str]) -> dict:
     return {node: [random.uniform(-200, 200), random.uniform(-200, 200)] for node in nodes}
 
 
+def _force_directed_layout(
+    node_ids: list,
+    edges: list,
+    iterations: int = 500,
+    use_barnes_hut: bool = True,
+) -> dict:
+    """Compute force-directed layout via the Rust Fruchterman-Reingold engine.
+
+    Parameters
+    ----------
+    node_ids : list
+        Node identifiers (any hashable type).
+    edges : list
+        Edge tuples `(source, target)`.
+    iterations : int
+        Number of FR iterations.
+    use_barnes_hut : bool
+        Whether to use Barnes-Hut approximation.
+
+    Returns
+    -------
+    dict
+        Mapping of node id to `[x, y]` position.
+    """
+    from edgecase import _core as rust
+
+    id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+    index_edges = []
+    for src, tgt in edges:
+        if src in id_to_idx and tgt in id_to_idx:
+            index_edges.append((id_to_idx[src], id_to_idx[tgt]))
+
+    raw = rust.force_directed_layout_rust(len(node_ids), index_edges, iterations, use_barnes_hut)
+
+    return {node_ids[idx]: [x, y] for idx, (x, y) in raw.items()}
+
+
 def _generate_vis_network_html(
     graph,
     nodes: list[str],
@@ -682,7 +719,7 @@ def plot_cosmo(
     """
     Render graph as an interactive Cosmograph widget in a Jupyter notebook.
 
-    Requires the ``cosmograph`` package (``pip install cosmograph``). The widget
+    Requires the `cosmograph` package (`pip install cosmograph`). The widget
     uses GPU-accelerated WebGL rendering and handles millions of nodes/edges in
     the browser.
 
@@ -708,7 +745,7 @@ def plot_cosmo(
     Raises
     ------
     ImportError
-        If the ``cosmograph`` package is not installed.
+        If the `cosmograph` package is not installed.
 
     Examples
     --------
