@@ -1776,6 +1776,228 @@ class Graph:
             link_width_by=link_width_by,
         )
 
+    def plot(
+        self,
+        layout: str = "force",
+        color_by: Optional[str] = None,
+        edge_color_by: Optional[str] = None,
+        size_by: Optional[str] = None,
+        label_by: str = "id",
+        edge_label_by: Optional[str] = None,
+        curved_edges: bool = False,
+        theme: str = "light",
+        palette: str = "tableau",
+        width: int = 600,
+        height: int = 400,
+        node_size: float = 16.0,
+        edge_width: float = 1.2,
+        edge_opacity: float = 0.4,
+        cross_community_color: Optional[str] = None,
+        node_overlap: Union[str, float] = "remove",
+        edge_routing: Union[str, float] = "around",
+        show_labels: bool = True,
+        output: Optional[str] = None,
+    ):
+        """
+        Render the graph as a static SVG image.
+
+        Produces a publication-quality SVG with filled-circle nodes, semi-transparent
+        edges, optional community coloring, and light hover interactivity (tooltips).
+        Visually consistent with the Cosmograph renderer used for large graphs.
+
+        Parameters
+        ----------
+        layout : str, default "force"
+            Layout algorithm: ``"force"`` (Fruchterman-Reingold), ``"circular"``,
+            or ``"random"``.
+        color_by : str, optional
+            Node attribute to map to categorical colors (e.g., ``"community"``).
+        size_by : str, optional
+            Node attribute to map to node radius (min-max scaled).
+        label_by : str, default "id"
+            Node attribute (or ``"id"``) to use as the visible label.
+        edge_label_by : str, optional
+            Edge attribute to display as a label along each edge.
+        curved_edges : bool, default False
+            If ``True``, draw edges as quadratic Bezier curves instead of straight
+            lines.
+        theme : str, default "light"
+            Color theme: ``"light"`` or ``"dark"``.
+        palette : str, default "tableau"
+            Color palette name from :mod:`edgecase.colors`.
+        width : int, default 600
+            SVG canvas width in pixels.
+        height : int, default 400
+            SVG canvas height in pixels.
+        node_size : float, default 16.0
+            Base node circle radius in pixels.
+        edge_width : float, default 1.2
+            Edge stroke width in pixels.
+        edge_opacity : float, default 0.4
+            Edge stroke opacity (0--1).
+        node_overlap : str or float, default "remove"
+            Node overlap handling: ``"remove"`` pushes overlapping nodes apart
+            (force/random layouts only), ``"allow"`` keeps raw layout positions,
+            or a float specifying the minimum padding (in px) between node circles.
+        edge_routing : str or float, default "around"
+            Edge routing: ``"around"`` routes edges around intermediate nodes,
+            ``"straight"`` draws direct lines, or a float specifying the clearance
+            margin (in px) around nodes that edges must avoid.
+        show_labels : bool, default True
+            Whether to display node labels.
+        output : str, optional
+            File path (``.svg`` or ``.html``) to save the output.
+
+        Returns
+        -------
+        PlotSVG
+            A wrapper that auto-renders in Jupyter notebooks (via ``_repr_html_``),
+            exposes ``.svg`` for the raw SVG string, and can be saved with
+            ``.save(path)``.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        ec.karate_club().cmty_louvain().plot(color_by="community")
+        ```
+
+        ```{python}
+        import edgecase as ec
+
+        ec.dolphins().plot(layout="force", curved_edges=True, theme="dark")
+        ```
+        """
+        from edgecase.svg_renderer import render_plot
+
+        return render_plot(
+            self,
+            layout=layout,
+            color_by=color_by,
+            edge_color_by=edge_color_by,
+            size_by=size_by,
+            label_by=label_by,
+            edge_label_by=edge_label_by,
+            curved_edges=curved_edges,
+            theme=theme,
+            palette=palette,
+            width=width,
+            height=height,
+            node_size=node_size,
+            edge_width=edge_width,
+            edge_opacity=edge_opacity,
+            cross_community_color=cross_community_color,
+            node_overlap=node_overlap,
+            edge_routing=edge_routing,
+            show_labels=show_labels,
+            output=output,
+        )
+
+    def plot_traversal(
+        self,
+        visit_order: Optional[list] = None,
+        tree_edges: Optional[list] = None,
+        algorithm: str = "",
+        start: Optional[Union[int, str]] = None,
+        layout: str = "force",
+        theme: str = "light",
+        width: int = 700,
+        height: int = 500,
+        node_size: float = 18.0,
+        edge_width: float = 1.5,
+        show_labels: bool = True,
+        output: Optional[str] = None,
+    ):
+        """
+        Render an interactive traversal visualization with a step-through slider.
+
+        Produces an HTML widget with an SVG graph and a slider control that
+        steps through a BFS/DFS traversal one node at a time. Nodes transition
+        through visual states: unvisited (gray), frontier (highlighted ring),
+        current (bright glow), and visited (original color with step number).
+
+        Parameters
+        ----------
+        visit_order : list, optional
+            Node IDs in traversal visit order. If ``None``, ``start`` must be
+            provided and BFS is run automatically.
+        tree_edges : list of tuples, optional
+            Explicit tree edges as ``(source, target)`` pairs. If ``None``,
+            inferred from the visit order.
+        algorithm : str, default ""
+            Label shown in the controls (e.g., ``"BFS"``, ``"DFS"``).
+        start : int or str, optional
+            Starting node. If ``visit_order`` is ``None``, BFS is run from
+            this node.
+        layout : str, default "force"
+            Layout algorithm: ``"force"``, ``"circular"``, or ``"random"``.
+        theme : str, default "light"
+            Color theme: ``"light"`` or ``"dark"``.
+        width : int, default 700
+            SVG canvas width in pixels.
+        height : int, default 500
+            SVG canvas height in pixels.
+        node_size : float, default 18.0
+            Base node circle radius in pixels.
+        edge_width : float, default 1.5
+            Edge stroke width in pixels.
+        show_labels : bool, default True
+            Whether to display node labels.
+        output : str, optional
+            File path (``.html``) to save the output.
+
+        Returns
+        -------
+        PlotSVG
+            Interactive HTML widget that renders in Jupyter via
+            ``_repr_html_`` and can be saved with ``.save(path)``.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.karate_club()
+        g.plot_traversal(start=1)
+        ```
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.karate_club()
+        order = g.dfs(start=1, return_list=True)
+        g.plot_traversal(visit_order=order, algorithm="DFS")
+        ```
+        """
+        if visit_order is None:
+            if start is None:
+                raise ValueError("Either visit_order or start must be provided")
+            visit_order = self.bfs(start, return_list=True)
+            if not algorithm:
+                algorithm = "BFS"
+
+        visit_order = [str(v) for v in visit_order]
+        if tree_edges is not None:
+            tree_edges = [(str(s), str(t)) for s, t in tree_edges]
+
+        from edgecase.svg_renderer import render_traversal
+
+        return render_traversal(
+            self,
+            visit_order=visit_order,
+            tree_edges=tree_edges,
+            algorithm=algorithm,
+            layout=layout,
+            theme=theme,
+            width=width,
+            height=height,
+            node_size=node_size,
+            edge_width=edge_width,
+            show_labels=show_labels,
+            output=output,
+        )
+
     def _infer_render_target(self) -> str:
         """Infer whether to render in notebook or browser."""
         try:
