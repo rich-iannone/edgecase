@@ -1,4 +1,4 @@
-.PHONY: help install dev build test test-rust test-python test-all coverage lint format clean docs examples benchmark
+.PHONY: help install dev build test test-rust test-python test-all coverage lint format clean docs examples benchmark gallery gallery-serve
 
 help:
 	@echo "EdgeCase Development Commands"
@@ -24,6 +24,10 @@ help:
 	@echo "  make benchmark     Run benchmarks"
 	@echo "  make bench-rust    Run Rust benchmarks"
 	@echo "  make bench-python  Run Python benchmarks"
+	@echo ""
+	@echo "Gallery:"
+	@echo "  make gallery       Build the SVG gallery (SAGE)"
+	@echo "  make gallery-serve Build and serve the gallery at http://localhost:8765"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make examples      Run example scripts"
@@ -110,6 +114,15 @@ examples:
 	@echo ""
 	@echo "Running fraud detection example..."
 	python examples/fraud_detection.py
+
+gallery:
+	python3 scripts/svg_gallery.py
+
+gallery-serve: gallery
+	@echo "Serving gallery at http://localhost:8765/svg_gallery.html"
+	@echo "Press Ctrl+C to stop."
+	@python3 -c "import webbrowser; webbrowser.open('http://localhost:8765/svg_gallery.html')" &
+	python3 -m http.server 8765
 
 docs:
 	cd docs && make html
