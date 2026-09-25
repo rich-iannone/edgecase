@@ -42,6 +42,13 @@ render_plot = svg_renderer.render_plot
 render_traversal = svg_renderer.render_traversal
 render_traversal_chain = svg_renderer.render_traversal_chain
 
+# Import real edgecase for step-player examples
+sys.path.insert(
+    0,
+    str(__import__("pathlib").Path(__file__).resolve().parent.parent / "python"),
+)
+import edgecase as ec
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Mock Graph classes (matches the Graph API that svg_renderer expects)
@@ -2752,6 +2759,1126 @@ def build_gallery_items() -> List[GalleryItem]:
         )
     )
 
+    # ------------------------------------------------------------------
+    # Step Player examples (using real edgecase.Graph with step recording)
+    # ------------------------------------------------------------------
+
+    def _step_player_social_build(graph_unused, **kwargs):
+        """Build a social graph step-by-step with annotations."""
+        G = (
+            ec.Graph()
+            .note("Building a small social network.")
+            .add_node("Alice")
+            .add_node("Bob")
+            .add_node("Carol")
+            .add_node("Dave")
+            .add_edge("Alice", "Bob")
+            .add_edge("Bob", "Carol")
+            .add_edge("Alice", "Carol")
+            .add_edge("Carol", "Dave")
+            .set_node_attrs("color", "red", nodes=[1])
+            .select_nodes_by_id([1])
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — social build (light)",
+            description="Graph construction step-by-step with annotations, selection, and mutation",
+            graph_fn=_graph_social_small,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_social_build,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .note('Building a small social network.')\n"
+                "    .add_node('Alice')\n"
+                "    .add_node('Bob')\n"
+                "    .add_node('Carol')\n"
+                "    .add_node('Dave')\n"
+                "    .add_edge('Alice', 'Bob')\n"
+                "    .add_edge('Bob', 'Carol')\n"
+                "    .add_edge('Alice', 'Carol')\n"
+                "    .add_edge('Carol', 'Dave')\n"
+                "    .set_node_attrs('color', 'red', nodes=[1])\n"
+                "    .select_nodes_by_id([1])\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    items.append(
+        GalleryItem(
+            title="Step player — social build (dark)",
+            description="Same construction on dark theme",
+            graph_fn=_graph_social_small,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_social_build,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .note('Building a small social network.')\n"
+                "    .add_node('Alice')\n"
+                "    .add_node('Bob')\n"
+                "    .add_node('Carol')\n"
+                "    .add_node('Dave')\n"
+                "    .add_edge('Alice', 'Bob')\n"
+                "    .add_edge('Bob', 'Carol')\n"
+                "    .add_edge('Alice', 'Carol')\n"
+                "    .add_edge('Carol', 'Dave')\n"
+                "    .set_node_attrs('color', 'red', nodes=[1])\n"
+                "    .select_nodes_by_id([1])\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    def _step_player_bfs(graph_unused, **kwargs):
+        """BFS traversal as a step player with visit-order numbers."""
+        G = (
+            ec.Graph()
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
+            .add_node("E")
+            .add_node("F")
+            .add_edge("A", "B")
+            .add_edge("A", "C")
+            .add_edge("B", "D")
+            .add_edge("B", "E")
+            .add_edge("C", "F")
+            .add_edge("D", "E")
+            .bfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — BFS traversal",
+            description="BFS with visit-order numbers on nodes, tree edges highlighted",
+            graph_fn=_graph_star,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "bfs", "light", "medium"],
+            render_fn=_step_player_bfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A').add_node('B').add_node('C')\n"
+                "    .add_node('D').add_node('E').add_node('F')\n"
+                "    .add_edge('A', 'B').add_edge('A', 'C')\n"
+                "    .add_edge('B', 'D').add_edge('B', 'E')\n"
+                "    .add_edge('C', 'F').add_edge('D', 'E')\n"
+                "    .bfs(start=1)\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    items.append(
+        GalleryItem(
+            title="Step player — BFS traversal (dark)",
+            description="BFS traversal on dark theme",
+            graph_fn=_graph_star,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "bfs", "dark", "medium"],
+            render_fn=_step_player_bfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A').add_node('B').add_node('C')\n"
+                "    .add_node('D').add_node('E').add_node('F')\n"
+                "    .add_edge('A', 'B').add_edge('A', 'C')\n"
+                "    .add_edge('B', 'D').add_edge('B', 'E')\n"
+                "    .add_edge('C', 'F').add_edge('D', 'E')\n"
+                "    .bfs(start=1)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    def _step_player_removal(graph_unused, **kwargs):
+        """Graph with node/edge removal to showcase red glow effects."""
+        G = (
+            ec.Graph()
+            .add_node("A")
+            .add_node("B")
+            .add_node("C")
+            .add_node("D")
+            .add_node("E")
+            .add_edge("A", "B")
+            .add_edge("B", "C")
+            .add_edge("C", "D")
+            .add_edge("D", "E")
+            .add_edge("A", "E")
+            .add_edge("B", "D")
+            .note("Now removing some elements to see the red glow effects.")
+            .delete_node(3)
+            .delete_node(5)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — build and remove",
+            description="Build then remove nodes — red glow on deletion steps",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_removal,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A').add_node('B').add_node('C')\n"
+                "    .add_node('D').add_node('E')\n"
+                "    .add_edge('A', 'B').add_edge('B', 'C')\n"
+                "    .add_edge('C', 'D').add_edge('D', 'E')\n"
+                "    .add_edge('A', 'E').add_edge('B', 'D')\n"
+                "    .note('Now removing some elements.')\n"
+                "    .delete_node(3).delete_node(5)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Directed graph construction ---
+    def _step_player_directed(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .note("Building a directed client-server architecture.")
+            .add_node("Client")
+            .add_node("Server")
+            .add_node("Database")
+            .add_node("Cache")
+            .add_edge("Client", "Server")
+            .add_edge("Server", "Database")
+            .add_edge("Database", "Server")
+            .add_edge("Server", "Cache")
+            .add_edge("Cache", "Server")
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed graph",
+            description="Directed graph showing client-server architecture",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium", "directed"],
+            render_fn=_step_player_directed,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .note('Building a directed client-server architecture.')\n"
+                "    .add_node('Client').add_node('Server')\n"
+                "    .add_node('Database').add_node('Cache')\n"
+                "    .add_edge('Client', 'Server')\n"
+                "    .add_edge('Server', 'Database')\n"
+                "    .add_edge('Database', 'Server')\n"
+                "    .add_edge('Server', 'Cache')\n"
+                "    .add_edge('Cache', 'Server')\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- DataFrame construction ---
+    def _step_player_dataframe(graph_unused, **kwargs):
+        import polars as pl
+        nodes_df = pl.DataFrame({
+            "id": ["Alice", "Bob", "Carol", "Dave", "Eve"],
+            "role": ["admin", "user", "user", "mod", "user"],
+        })
+        edges_df = pl.DataFrame({
+            "from": ["Alice", "Alice", "Bob", "Carol", "Dave"],
+            "to": ["Bob", "Carol", "Carol", "Dave", "Eve"],
+        })
+        G = ec.Graph(nodes_df=nodes_df, edges_df=edges_df)
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — from Polars DataFrame",
+            description="Graph built from Polars nodes_df and edges_df",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_dataframe,
+            code=(
+                "import polars as pl\n\n"
+                "nodes_df = pl.DataFrame({\n"
+                "    'id': ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'],\n"
+                "    'role': ['admin', 'user', 'user', 'mod', 'user'],\n"
+                "})\n"
+                "edges_df = pl.DataFrame({\n"
+                "    'from': ['Alice', 'Alice', 'Bob', 'Carol', 'Dave'],\n"
+                "    'to': ['Bob', 'Carol', 'Carol', 'Dave', 'Eve'],\n"
+                "})\n\n"
+                "G = ec.Graph(nodes_df=nodes_df, edges_df=edges_df)\n"
+                "G.play()"
+            ),
+        )
+    )
+    items.append(
+        GalleryItem(
+            title="Step player — from Polars DataFrame (dark)",
+            description="Graph built from Polars DataFrames on dark theme",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_dataframe,
+            code=(
+                "import polars as pl\n\n"
+                "nodes_df = pl.DataFrame({\n"
+                "    'id': ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'],\n"
+                "    'role': ['admin', 'user', 'user', 'mod', 'user'],\n"
+                "})\n"
+                "edges_df = pl.DataFrame({\n"
+                "    'from': ['Alice', 'Alice', 'Bob', 'Carol', 'Dave'],\n"
+                "    'to': ['Bob', 'Carol', 'Carol', 'Dave', 'Eve'],\n"
+                "})\n\n"
+                "G = ec.Graph(nodes_df=nodes_df, edges_df=edges_df)\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- DFS traversal ---
+    def _step_player_dfs(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E").add_node("F")
+            .add_edge("A", "B").add_edge("A", "C")
+            .add_edge("B", "D").add_edge("B", "E")
+            .add_edge("C", "F")
+            .dfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — DFS traversal",
+            description="Depth-first search with visit-order numbering",
+            graph_fn=_graph_star,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dfs", "dark", "medium"],
+            render_fn=_step_player_dfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A').add_node('B').add_node('C')\n"
+                "    .add_node('D').add_node('E').add_node('F')\n"
+                "    .add_edge('A', 'B').add_edge('A', 'C')\n"
+                "    .add_edge('B', 'D').add_edge('B', 'E')\n"
+                "    .add_edge('C', 'F')\n"
+                "    .dfs(start=1)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Selection + mutation chain ---
+    def _step_player_selection_chain(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Building a diamond graph, then coloring nodes by selection.")
+            .add_node("A").add_node("B").add_node("C").add_node("D")
+            .add_edge("A", "B").add_edge("A", "C")
+            .add_edge("B", "D").add_edge("C", "D")
+            .select_nodes_by_id([1, 4])
+            .set_node_attrs_ws(color="#ef4444")
+            .invert_node_selection()
+            .set_node_attrs_ws(color="#3b82f6")
+            .clear_selection()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — select and color",
+            description="Select nodes, mutate attributes, invert selection, color again",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_selection_chain,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A').add_node('B')\n"
+                "    .add_node('C').add_node('D')\n"
+                "    .add_edge('A', 'B').add_edge('A', 'C')\n"
+                "    .add_edge('B', 'D').add_edge('C', 'D')\n"
+                "    .select_nodes_by_id([1, 4])\n"
+                "    .set_node_attrs_ws(color='#ef4444')\n"
+                "    .invert_node_selection()\n"
+                "    .set_node_attrs_ws(color='#3b82f6')\n"
+                "    .clear_selection()\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Generator: star graph + BFS ---
+    def _step_player_star_bfs(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .add_star_graph(n=8)
+            .bfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — star graph + BFS",
+            description="Generate a star graph then BFS from center",
+            graph_fn=_graph_star,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "bfs", "dark", "medium"],
+            render_fn=_step_player_star_bfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_star_graph(n=8)\n"
+                "    .bfs(start=1)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Generator: cycle graph ---
+    def _step_player_cycle(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Generating a cycle graph with 8 nodes.")
+            .add_cycle_graph(n=8)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — cycle graph",
+            description="Generate a cycle graph from a single method call",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="circular",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_cycle,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .note('Generating a cycle graph with 8 nodes.')\n"
+                "    .add_cycle_graph(n=8)\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Grid graph + DFS ---
+    def _step_player_grid_dfs(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .add_grid_2d(rows=3, cols=3)
+            .dfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — grid + DFS",
+            description="3x3 grid graph explored with depth-first search",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dfs", "dark", "medium"],
+            render_fn=_step_player_grid_dfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_grid_2d(rows=3, cols=3)\n"
+                "    .dfs(start=1)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Path graph: build + selective removal ---
+    def _step_player_path_removal(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .add_path_graph(n=7)
+            .note("Removing interior nodes to fragment the path.")
+            .delete_node(3)
+            .delete_node(5)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — path fragmentation",
+            description="Generate a path graph then remove interior nodes",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_path_removal,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_path_graph(n=7)\n"
+                "    .note('Removing interior nodes.')\n"
+                "    .delete_node(3)\n"
+                "    .delete_node(5)\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Directed DataFrame with edges only ---
+    def _step_player_directed_df(graph_unused, **kwargs):
+        import polars as pl
+        edges_df = pl.DataFrame({
+            "from": ["login", "login", "dashboard", "dashboard", "settings"],
+            "to": ["dashboard", "signup", "settings", "profile", "logout"],
+        })
+        G = ec.Graph(edges_df=edges_df, directed=True)
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed edges from DataFrame",
+            description="Directed page-flow graph built from an edges-only DataFrame",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium", "directed"],
+            render_fn=_step_player_directed_df,
+            code=(
+                "import polars as pl\n\n"
+                "edges_df = pl.DataFrame({\n"
+                "    'from': ['login', 'login', 'dashboard',\n"
+                "             'dashboard', 'settings'],\n"
+                "    'to': ['dashboard', 'signup', 'settings',\n"
+                "           'profile', 'logout'],\n"
+                "})\n\n"
+                "G = ec.Graph(edges_df=edges_df, directed=True)\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Full build-select-mutate-remove lifecycle ---
+    def _step_player_lifecycle(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Full lifecycle: build, select, mutate, remove.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E")
+            .add_edge("A", "B").add_edge("B", "C")
+            .add_edge("C", "D").add_edge("D", "E")
+            .add_edge("A", "E").add_edge("B", "D")
+            .select_nodes_by_id([2, 4])
+            .set_node_attrs_ws(color="#f59e0b")
+            .clear_selection()
+            .note("Now pruning leaf node E.")
+            .delete_node(5)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — full lifecycle",
+            description="Build, annotate, select, mutate, and remove in one chain",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_lifecycle,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .note('Full lifecycle.')\n"
+                "    .add_node('A').add_node('B').add_node('C')\n"
+                "    .add_node('D').add_node('E')\n"
+                "    .add_edge('A', 'B').add_edge('B', 'C')\n"
+                "    .add_edge('C', 'D').add_edge('D', 'E')\n"
+                "    .add_edge('A', 'E').add_edge('B', 'D')\n"
+                "    .select_nodes_by_id([2, 4])\n"
+                "    .set_node_attrs_ws(color='#f59e0b')\n"
+                "    .clear_selection()\n"
+                "    .note('Pruning leaf node E.')\n"
+                "    .delete_node(5)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Bulk add with add_nodes / add_edges ---
+    def _step_player_bulk_add(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Adding nodes and edges in bulk.")
+            .add_nodes(["W", "X", "Y", "Z"])
+            .add_edges([("W", "X"), ("X", "Y"), ("Y", "Z"), ("Z", "W"), ("W", "Y")])
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — bulk add_nodes/add_edges",
+            description="Batch node and edge creation with add_nodes() and add_edges()",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_bulk_add,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .note('Adding nodes and edges in bulk.')\n"
+                "    .add_nodes(['W', 'X', 'Y', 'Z'])\n"
+                "    .add_edges([\n"
+                "        ('W', 'X'), ('X', 'Y'),\n"
+                "        ('Y', 'Z'), ('Z', 'W'), ('W', 'Y'),\n"
+                "    ])\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Balanced tree + BFS ---
+    def _step_player_tree_bfs(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .add_balanced_tree(k=2, h=3)
+            .bfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — balanced tree + BFS",
+            description="Complete binary tree (k=2, h=3) explored with BFS level by level",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "bfs", "light", "medium"],
+            render_fn=_step_player_tree_bfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_balanced_tree(k=2, h=3)\n"
+                "    .bfs(start=1)\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Directed: DAG task dependencies ---
+    def _step_player_dag(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .note("A task dependency DAG.")
+            .add_nodes(["Parse", "Validate", "Transform", "Enrich", "Load", "Report"])
+            .add_edges([
+                ("Parse", "Validate"),
+                ("Validate", "Transform"),
+                ("Validate", "Enrich"),
+                ("Transform", "Load"),
+                ("Enrich", "Load"),
+                ("Load", "Report"),
+            ])
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — DAG pipeline",
+            description="Directed acyclic graph modeling a data pipeline",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium", "directed"],
+            render_fn=_step_player_dag,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .note('A task dependency DAG.')\n"
+                "    .add_nodes(['Parse', 'Validate',\n"
+                "                'Transform', 'Enrich',\n"
+                "                'Load', 'Report'])\n"
+                "    .add_edges([\n"
+                "        ('Parse', 'Validate'),\n"
+                "        ('Validate', 'Transform'),\n"
+                "        ('Validate', 'Enrich'),\n"
+                "        ('Transform', 'Load'),\n"
+                "        ('Enrich', 'Load'),\n"
+                "        ('Load', 'Report'),\n"
+                "    ])\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Directed: BFS on a digraph ---
+    def _step_player_directed_bfs(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .add_node("S").add_node("A").add_node("B")
+            .add_node("C").add_node("D").add_node("E")
+            .add_edge("S", "A").add_edge("S", "B")
+            .add_edge("A", "C").add_edge("B", "C")
+            .add_edge("B", "D").add_edge("C", "E")
+            .add_edge("D", "E")
+            .bfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed BFS",
+            description="BFS on a directed graph following outgoing edges only",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "bfs", "light", "medium", "directed"],
+            render_fn=_step_player_directed_bfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .add_node('S').add_node('A').add_node('B')\n"
+                "    .add_node('C').add_node('D').add_node('E')\n"
+                "    .add_edge('S', 'A').add_edge('S', 'B')\n"
+                "    .add_edge('A', 'C').add_edge('B', 'C')\n"
+                "    .add_edge('B', 'D').add_edge('C', 'E')\n"
+                "    .add_edge('D', 'E')\n"
+                "    .bfs(start=1)\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Directed: DFS on a digraph ---
+    def _step_player_directed_dfs(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .add_node("R").add_node("A").add_node("B")
+            .add_node("C").add_node("D").add_node("E")
+            .add_edge("R", "A").add_edge("R", "B")
+            .add_edge("A", "C").add_edge("A", "D")
+            .add_edge("B", "D").add_edge("D", "E")
+            .dfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed DFS",
+            description="DFS on a directed graph with back edges and cross edges",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dfs", "dark", "medium", "directed"],
+            render_fn=_step_player_directed_dfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .add_node('R').add_node('A').add_node('B')\n"
+                "    .add_node('C').add_node('D').add_node('E')\n"
+                "    .add_edge('R', 'A').add_edge('R', 'B')\n"
+                "    .add_edge('A', 'C').add_edge('A', 'D')\n"
+                "    .add_edge('B', 'D').add_edge('D', 'E')\n"
+                "    .dfs(start=1)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Directed: cycle with select + mutate ---
+    def _step_player_directed_cycle_mutate(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .note("A directed cycle with attribute mutation.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E")
+            .add_edge("A", "B").add_edge("B", "C")
+            .add_edge("C", "D").add_edge("D", "E")
+            .add_edge("E", "A")
+            .select_nodes_by_id([1, 3, 5])
+            .set_node_attrs_ws(color="#f59e0b")
+            .clear_selection()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed cycle + color",
+            description="Directed cycle with alternating node colors via selection",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="circular",
+                               theme="light"),
+            tags=["step_player", "light", "medium", "directed"],
+            render_fn=_step_player_directed_cycle_mutate,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .note('A directed cycle.')\n"
+                "    .add_node('A').add_node('B').add_node('C')\n"
+                "    .add_node('D').add_node('E')\n"
+                "    .add_edge('A', 'B').add_edge('B', 'C')\n"
+                "    .add_edge('C', 'D').add_edge('D', 'E')\n"
+                "    .add_edge('E', 'A')\n"
+                "    .select_nodes_by_id([1, 3, 5])\n"
+                "    .set_node_attrs_ws(color='#f59e0b')\n"
+                "    .clear_selection()\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Directed: social followers ---
+    def _step_player_followers(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .note("A follower graph: edges mean 'follows'.")
+            .add_node("Alice").add_node("Bob").add_node("Carol")
+            .add_node("Dave").add_node("Eve")
+            .add_edge("Bob", "Alice")
+            .add_edge("Carol", "Alice")
+            .add_edge("Dave", "Alice")
+            .add_edge("Eve", "Alice")
+            .add_edge("Eve", "Bob")
+            .add_edge("Carol", "Bob")
+            .add_edge("Dave", "Carol")
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — follower graph",
+            description="Directed social follower network where edges mean 'follows'",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium", "directed"],
+            render_fn=_step_player_followers,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .note(\"A follower graph: edges mean 'follows'.\")\n"
+                "    .add_node('Alice').add_node('Bob')\n"
+                "    .add_node('Carol').add_node('Dave')\n"
+                "    .add_node('Eve')\n"
+                "    .add_edge('Bob', 'Alice')\n"
+                "    .add_edge('Carol', 'Alice')\n"
+                "    .add_edge('Dave', 'Alice')\n"
+                "    .add_edge('Eve', 'Alice')\n"
+                "    .add_edge('Eve', 'Bob')\n"
+                "    .add_edge('Carol', 'Bob')\n"
+                "    .add_edge('Dave', 'Carol')\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Directed: build, select edges, remove ---
+    def _step_player_directed_edge_ops(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .note("Directed graph with edge selection and removal.")
+            .add_node("X").add_node("Y").add_node("Z").add_node("W")
+            .add_edge("X", "Y").add_edge("Y", "Z")
+            .add_edge("Z", "W").add_edge("W", "X")
+            .add_edge("X", "Z").add_edge("Y", "W")
+            .select_edges_by_node([1])
+            .note("Removing the back-edge to break the cycle.")
+            .delete_edge("W", "X")
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed edge ops",
+            description="Directed graph with edge selection and edge removal",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium", "directed"],
+            render_fn=_step_player_directed_edge_ops,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .add_node('X').add_node('Y')\n"
+                "    .add_node('Z').add_node('W')\n"
+                "    .add_edge('X', 'Y').add_edge('Y', 'Z')\n"
+                "    .add_edge('Z', 'W').add_edge('W', 'X')\n"
+                "    .add_edge('X', 'Z').add_edge('Y', 'W')\n"
+                "    .select_edges_by_node([1])\n"
+                "    .note('Removing back-edge.')\n"
+                "    .delete_edge('W', 'X')\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Directed: DataFrame with weights ---
+    def _step_player_directed_weighted_df(graph_unused, **kwargs):
+        import polars as pl
+        nodes_df = pl.DataFrame({
+            "id": ["SFO", "LAX", "ORD", "JFK", "ATL", "DFW"],
+        })
+        edges_df = pl.DataFrame({
+            "from": ["SFO", "SFO", "LAX", "ORD", "ORD", "JFK", "ATL", "DFW"],
+            "to":   ["LAX", "ORD", "DFW", "JFK", "ATL", "ATL", "DFW", "SFO"],
+        })
+        G = ec.Graph(nodes_df=nodes_df, edges_df=edges_df, directed=True)
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed flight routes",
+            description="Directed airport route network from Polars DataFrames",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium", "directed"],
+            render_fn=_step_player_directed_weighted_df,
+            code=(
+                "import polars as pl\n\n"
+                "nodes_df = pl.DataFrame({\n"
+                "    'id': ['SFO','LAX','ORD','JFK','ATL','DFW'],\n"
+                "})\n"
+                "edges_df = pl.DataFrame({\n"
+                "    'from': ['SFO','SFO','LAX','ORD',\n"
+                "             'ORD','JFK','ATL','DFW'],\n"
+                "    'to':   ['LAX','ORD','DFW','JFK',\n"
+                "             'ATL','ATL','DFW','SFO'],\n"
+                "})\n\n"
+                "G = ec.Graph(\n"
+                "    nodes_df=nodes_df,\n"
+                "    edges_df=edges_df,\n"
+                "    directed=True,\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Directed: star graph + BFS ---
+    def _step_player_directed_star_bfs(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .add_star_graph(n=7)
+            .bfs(start=1)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed star + BFS",
+            description="Directed star graph with BFS from center hub",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "bfs", "light", "medium", "directed"],
+            render_fn=_step_player_directed_star_bfs,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .add_star_graph(n=7)\n"
+                "    .bfs(start=1)\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Directed: lifecycle with deletion ---
+    def _step_player_directed_lifecycle(graph_unused, **kwargs):
+        G = (
+            ec.Graph(directed=True)
+            .note("Directed lifecycle: build, mutate, prune.")
+            .add_node("Input").add_node("Process")
+            .add_node("Cache").add_node("Output")
+            .add_node("Log").add_node("Archive")
+            .add_edge("Input", "Process")
+            .add_edge("Process", "Cache")
+            .add_edge("Process", "Output")
+            .add_edge("Process", "Log")
+            .add_edge("Log", "Archive")
+            .add_edge("Cache", "Output")
+            .select_nodes_by_id([5, 6])
+            .set_node_attrs_ws(color="#ef4444")
+            .clear_selection()
+            .note("Removing the logging pipeline.")
+            .delete_node(5)
+            .delete_node(6)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — directed lifecycle",
+            description="Directed pipeline: build, color, annotate, and prune nodes",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium", "directed"],
+            render_fn=_step_player_directed_lifecycle,
+            code=(
+                "G = (\n"
+                "    ec.Graph(directed=True)\n"
+                "    .note('Directed lifecycle.')\n"
+                "    .add_node('Input').add_node('Process')\n"
+                "    .add_node('Cache').add_node('Output')\n"
+                "    .add_node('Log').add_node('Archive')\n"
+                "    .add_edge('Input', 'Process')\n"
+                "    .add_edge('Process', 'Cache')\n"
+                "    .add_edge('Process', 'Output')\n"
+                "    .add_edge('Process', 'Log')\n"
+                "    .add_edge('Log', 'Archive')\n"
+                "    .add_edge('Cache', 'Output')\n"
+                "    .select_nodes_by_id([5, 6])\n"
+                "    .set_node_attrs_ws(color='#ef4444')\n"
+                "    .clear_selection()\n"
+                "    .note('Removing logging pipeline.')\n"
+                "    .delete_node(5).delete_node(6)\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
     return items
 
 
@@ -2761,6 +3888,7 @@ def build_gallery_items() -> List[GalleryItem]:
 
 FILTER_AXES = {
     "Graph Size": ["tiny", "small", "medium", "large", "xlarge"],
+    "Type": ["step_player"],
     "Layout": ["circular", "random", "force"],
     "Theme": ["light", "dark"],
     "Edges": ["straight", "curved"],
@@ -2786,6 +3914,7 @@ FILTER_AXES = {
 
 AXIS_COLORS = {
     "Graph Size": "#6366f1",
+    "Type": "#e11d48",
     "Layout": "#0891b2",
     "Theme": "#7c3aed",
     "Edges": "#059669",
