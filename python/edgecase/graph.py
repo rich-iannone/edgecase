@@ -8,7 +8,10 @@ from edgecase.steps import (
     KIND_BUILD_EDGES,
     KIND_BUILD_NODES,
     KIND_GENERATE,
+    KIND_MUTATE,
     KIND_REMOVE,
+    KIND_SELECT,
+    KIND_TRANSFORM,
     KIND_TRAVERSE,
     Step,
     StepDelta,
@@ -240,6 +243,14 @@ class Graph:
         if edges_df is not None:
             self._init_from_edges_df(edges_df, id_to_label_map)
 
+    def __getattr__(self, name: str):
+        if name in ("_steps", "_recording_depth", "_pending_note"):
+            self._steps = StepList()
+            self._recording_depth = 0
+            self._pending_note = None
+            return getattr(self, name)
+        raise AttributeError(f"'Graph' object has no attribute {name!r}")
+
     def _init_from_nodes_df(self, nodes_df: pl.DataFrame) -> dict[str, str]:
         """
         Initialize nodes from a Polars DataFrame.
@@ -399,15 +410,12 @@ class Graph:
         """Return (node_id_set, edge_set) for delta computation."""
         node_ids = set(self.get_node_ids(limit=None))
         edges = set()
-        for nid in node_ids:
-            try:
-                for nb in self.neighbors(nid):
-                    if self.is_directed():
-                        edges.add((nid, nb))
-                    else:
-                        edges.add((min(nid, nb), max(nid, nb)))
-            except Exception:
-                pass
+        is_dir = self.is_directed()
+        for eid, src, tgt in self.get_edges_as_tuples():
+            if is_dir:
+                edges.add((src, tgt))
+            else:
+                edges.add((min(src, tgt), max(src, tgt)))
         return (node_ids, edges)
 
     def _begin_compound(self) -> tuple:
@@ -1714,7 +1722,28 @@ class Graph:
         ```
 
         """
+        src_label = tgt_label = None
+        if self._recording_depth == 0:
+            try:
+                src_id, tgt_id = self._graph.get_node_ids_by_edge_id(edge_id)
+                src_obj = self.get_node(src_id)
+                tgt_obj = self.get_node(tgt_id)
+                src_label = str(src_obj.label) if src_obj and src_obj.label else str(src_id)
+                tgt_label = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(tgt_id)
+            except Exception:
+                pass
+
         self._graph.delete_edge_by_id(edge_id)
+
+        if self._recording_depth == 0:
+            code = f"G.delete_edge_by_id(edge_id={edge_id})"
+            edges_removed = [(src_label, tgt_label)] if src_label else []
+            self._record_step(
+                KIND_REMOVE, "delete_edge_by_id", code,
+                delta=StepDelta(edges_removed=edges_removed),
+            )
+
+        return self
 
     def delete_nodes_ws(self) -> "Graph":
         """
@@ -1784,12 +1813,26 @@ class Graph:
         """
         selected = self.get_selected_node_ids()
 
+        removed_labels = []
+        if self._recording_depth == 0:
+            for nid in selected:
+                obj = self.get_node(nid)
+                removed_labels.append(str(obj.label) if obj and obj.label else str(nid))
+
         # Delete each selected node (Rust handles incident edges)
         for node_id in selected:
             try:
                 self._graph.delete_node(node_id)
             except Exception:
                 pass  # Node might already be deleted
+
+        if self._recording_depth == 0 and removed_labels:
+            n = len(removed_labels)
+            code = f"G.delete_nodes_ws()  # {n} node(s)"
+            self._record_step(
+                KIND_REMOVE, "delete_nodes_ws", code,
+                delta=StepDelta(nodes_removed=removed_labels),
+            )
 
         return self
 
@@ -1861,10 +1904,31 @@ class Graph:
         """
         selected = self.get_selected_edge_ids()
 
+        removed_edges = []
+        if self._recording_depth == 0:
+            for eid in selected:
+                try:
+                    src_id, tgt_id = self._graph.get_node_ids_by_edge_id(eid)
+                    src_obj = self.get_node(src_id)
+                    tgt_obj = self.get_node(tgt_id)
+                    s = str(src_obj.label) if src_obj and src_obj.label else str(src_id)
+                    t = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(tgt_id)
+                    removed_edges.append((s, t))
+                except Exception:
+                    pass
+
+        self._recording_depth += 1
         for edge_id in selected:
             self.delete_edge_by_id(edge_id)
+        self._recording_depth -= 1
 
-        # Edge selection is automatically cleared since edges no longer exist
+        if self._recording_depth == 0 and removed_edges:
+            n = len(removed_edges)
+            code = f"G.delete_edges_ws()  # {n} edge(s)"
+            self._record_step(
+                KIND_REMOVE, "delete_edges_ws", code,
+                delta=StepDelta(edges_removed=removed_edges),
+            )
 
         return self
 
@@ -1947,7 +2011,27 @@ class Graph:
         g.is_simple()
         ```
         """
+        before = self._snapshot_state() if self._recording_depth == 0 else None
         self._graph.remove_selfloops()
+
+        if before is not None:
+            _, old_edges = before
+            _, new_edges = self._snapshot_state()
+            removed = old_edges - new_edges
+            edges_removed = []
+            for src, tgt in sorted(removed):
+                src_obj = self.get_node(src)
+                tgt_obj = self.get_node(tgt)
+                s = str(src_obj.label) if src_obj and src_obj.label else str(src)
+                t = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(tgt)
+                edges_removed.append((s, t))
+            if edges_removed:
+                code = f"G.remove_selfloops()  # {len(edges_removed)} removed"
+                self._record_step(
+                    KIND_REMOVE, "remove_selfloops", code,
+                    delta=StepDelta(edges_removed=edges_removed),
+                )
+
         return self
 
     def remove_duplicate_edges(self, keep_distinct_attributes: bool = False) -> "Graph":
@@ -2058,7 +2142,18 @@ class Graph:
         g.count_edges()
         ```
         """
+        before_count = self.count_edges() if self._recording_depth == 0 else 0
         self._graph.remove_duplicate_edges(keep_distinct_attributes)
+
+        if self._recording_depth == 0:
+            n_removed = before_count - self.count_edges()
+            if n_removed > 0:
+                code = f"G.remove_duplicate_edges()  # {n_removed} removed"
+                self._record_step(
+                    KIND_REMOVE, "remove_duplicate_edges", code,
+                    delta=StepDelta(),
+                )
+
         return self
 
     def simplify(self) -> "Graph":
@@ -2143,7 +2238,33 @@ class Graph:
         g.is_simple()
         ```
         """
+        if self._recording_depth == 0:
+            before_snap = self._snapshot_state()
+            before_count = self.count_edges()
+        else:
+            before_snap = None
+
         self._graph.simplify()
+
+        if before_snap is not None:
+            _, old_edges = before_snap
+            _, new_edges = self._snapshot_state()
+            removed = old_edges - new_edges
+            edges_removed = []
+            for src, tgt in sorted(removed):
+                src_obj = self.get_node(src)
+                tgt_obj = self.get_node(tgt)
+                s = str(src_obj.label) if src_obj and src_obj.label else str(src)
+                t = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(tgt)
+                edges_removed.append((s, t))
+            n_total = before_count - self.count_edges()
+            if n_total > 0:
+                code = f"G.simplify()  # {n_total} edge(s) removed"
+                self._record_step(
+                    KIND_REMOVE, "simplify", code,
+                    delta=StepDelta(edges_removed=edges_removed),
+                )
+
         return self
 
     # ====================================================================
@@ -4028,6 +4149,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _configuration_model(degree_sequence, directed, seed)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_GENERATE, "configuration_model",
+                              f"G.configuration_model(...)  # {len(degree_sequence)} nodes")
+
         return result
 
     def degree_preserving_rewire(
@@ -4057,6 +4183,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _degree_preserving_rewire(self._graph, n_swaps, seed)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "degree_preserving_rewire",
+                              f"G.degree_preserving_rewire(n_swaps={n_swaps})")
+
         return result
 
     def expected_degree_graph(
@@ -4087,6 +4218,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _expected_degree_graph(weights, seed)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_GENERATE, "expected_degree_graph",
+                              f"G.expected_degree_graph(...)  # {len(weights)} nodes")
+
         return result
 
     def generate_stochastic_block_model(
@@ -4121,6 +4257,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _generate_sbm(sizes, p_matrix, seed)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_GENERATE, "generate_stochastic_block_model",
+                              f"G.generate_stochastic_block_model(...)  # {len(sizes)} blocks")
+
         return result
 
     # ==============================================================================
@@ -7002,6 +7143,12 @@ class Graph:
 
         """
         self._graph.select_nodes(predicate)
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.select_nodes(predicate)  # {n} selected"
+            self._record_step(KIND_SELECT, "select_nodes", code)
+
         return self
 
     def select_edges(self, predicate) -> "Graph":
@@ -7068,6 +7215,12 @@ class Graph:
 
         """
         self._graph.select_edges(predicate)
+
+        if self._recording_depth == 0:
+            n = self.count_selected_edges()
+            code = f"G.select_edges(predicate)  # {n} selected"
+            self._record_step(KIND_SELECT, "select_edges", code)
+
         return self
 
     def select_nodes_by_id(self, node_ids: list[int]) -> "Graph":
@@ -7120,6 +7273,11 @@ class Graph:
 
         """
         self._graph.select_nodes_by_id(node_ids)
+
+        if self._recording_depth == 0:
+            code = f"G.select_nodes_by_id(...)  # {len(node_ids)} selected"
+            self._record_step(KIND_SELECT, "select_nodes_by_id", code)
+
         return self
 
     def select_edges_by_id(self, edge_ids: list[int]) -> "Graph":
@@ -7169,6 +7327,11 @@ class Graph:
 
         """
         self._graph.select_edges_by_id(edge_ids)
+
+        if self._recording_depth == 0:
+            code = f"G.select_edges_by_id(...)  # {len(edge_ids)} selected"
+            self._record_step(KIND_SELECT, "select_edges_by_id", code)
+
         return self
 
     def select_edges_by_node(self, nodes: list[int | str]) -> "Graph":
@@ -7238,6 +7401,12 @@ class Graph:
         # Resolve labels to IDs
         resolved_ids = [self._resolve_node_id(nid) for nid in nodes]
         self._graph.select_edges_by_node_id(resolved_ids)
+
+        if self._recording_depth == 0:
+            n = self.count_selected_edges()
+            code = f"G.select_edges_by_node(...)  # {n} selected"
+            self._record_step(KIND_SELECT, "select_edges_by_node", code)
+
         return self
 
     def select_last_nodes_created(self, n: int) -> "Graph":
@@ -7282,6 +7451,11 @@ class Graph:
 
         """
         self._graph.select_last_nodes_created(n)
+
+        if self._recording_depth == 0:
+            code = f"G.select_last_nodes_created({n})"
+            self._record_step(KIND_SELECT, "select_last_nodes_created", code)
+
         return self
 
     def select_last_edges_created(self, n: int) -> "Graph":
@@ -7327,6 +7501,11 @@ class Graph:
 
         """
         self._graph.select_last_edges_created(n)
+
+        if self._recording_depth == 0:
+            code = f"G.select_last_edges_created({n})"
+            self._record_step(KIND_SELECT, "select_last_edges_created", code)
+
         return self
 
     def select_nodes_in_neighborhood(
@@ -7422,6 +7601,12 @@ class Graph:
         resolved_ids = [self._resolve_node_id(nid) for nid in nodes]
 
         self._graph.select_nodes_in_neighborhood(resolved_ids, k, mode)
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.select_nodes_in_neighborhood(..., k={k})  # {n} selected"
+            self._record_step(KIND_SELECT, "select_nodes_in_neighborhood", code)
+
         return self
 
     def select_nodes_by_degree(
@@ -7488,6 +7673,12 @@ class Graph:
         self._graph.select_nodes_by_degree(
             min_degree=min_degree, max_degree=max_degree, degree_type=degree_type
         )
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.select_nodes_by_degree(...)  # {n} selected"
+            self._record_step(KIND_SELECT, "select_nodes_by_degree", code)
+
         return self
 
     def select_nodes_by_centrality(
@@ -7579,6 +7770,12 @@ class Graph:
 
         # Use the Rust helper to select top-k
         self._graph.select_nodes_by_scores(scores, k, include_ties)
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.select_nodes_by_centrality({measure!r}, k={k})  # {n} selected"
+            self._record_step(KIND_SELECT, "select_nodes_by_centrality", code)
+
         return self
 
     def deselect_nodes(self, node_ids: list[int | str]) -> "Graph":
@@ -7649,6 +7846,11 @@ class Graph:
         # Resolve labels to IDs
         resolved_ids = [self._resolve_node_id(nid) for nid in node_ids]
         self._graph.deselect_nodes(resolved_ids)
+
+        if self._recording_depth == 0:
+            code = f"G.deselect_nodes(...)  # {len(node_ids)} deselected"
+            self._record_step(KIND_SELECT, "deselect_nodes", code)
+
         return self
 
     def deselect_edges(self, edge_ids: list[int]) -> "Graph":
@@ -7689,6 +7891,11 @@ class Graph:
 
         """
         self._graph.deselect_edges(edge_ids)
+
+        if self._recording_depth == 0:
+            code = f"G.deselect_edges(...)  # {len(edge_ids)} deselected"
+            self._record_step(KIND_SELECT, "deselect_edges", code)
+
         return self
 
     def clear_selection(self) -> "Graph":
@@ -7722,6 +7929,11 @@ class Graph:
 
         """
         self._graph.clear_selection()
+
+        if self._recording_depth == 0:
+            code = "G.clear_selection()"
+            self._record_step(KIND_SELECT, "clear_selection", code)
+
         return self
 
     def invert_node_selection(self) -> "Graph":
@@ -7759,6 +7971,12 @@ class Graph:
 
         """
         self._graph.invert_node_selection()
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.invert_node_selection()  # {n} now selected"
+            self._record_step(KIND_SELECT, "invert_node_selection", code)
+
         return self
 
     def invert_edge_selection(self) -> "Graph":
@@ -7793,6 +8011,12 @@ class Graph:
 
         """
         self._graph.invert_edge_selection()
+
+        if self._recording_depth == 0:
+            n = self.count_selected_edges()
+            code = f"G.invert_edge_selection()  # {n} now selected"
+            self._record_step(KIND_SELECT, "invert_edge_selection", code)
+
         return self
 
     def get_selected_node_ids(self) -> list[int]:
@@ -7972,6 +8196,12 @@ class Graph:
 
         """
         self._graph.trav_out()
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.trav_out()  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_out", code)
+
         return self
 
     def trav_in(self) -> "Graph":
@@ -8013,6 +8243,12 @@ class Graph:
 
         """
         self._graph.trav_in()
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.trav_in()  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_in", code)
+
         return self
 
     def trav_both(self) -> "Graph":
@@ -8054,6 +8290,12 @@ class Graph:
 
         """
         self._graph.trav_both()
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.trav_both()  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_both", code)
+
         return self
 
     def trav_out_edge(self) -> "Graph":
@@ -8096,6 +8338,12 @@ class Graph:
 
         """
         self._graph.trav_out_edge()
+
+        if self._recording_depth == 0:
+            n = self.count_selected_edges()
+            code = f"G.trav_out_edge()  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_out_edge", code)
+
         return self
 
     def trav_in_edge(self) -> "Graph":
@@ -8138,6 +8386,12 @@ class Graph:
 
         """
         self._graph.trav_in_edge()
+
+        if self._recording_depth == 0:
+            n = self.count_selected_edges()
+            code = f"G.trav_in_edge()  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_in_edge", code)
+
         return self
 
     def trav_reverse_edge(self, add_to_selection: bool = False) -> "Graph":
@@ -8196,6 +8450,12 @@ class Graph:
 
         """
         self._graph.trav_reverse_edge(add_to_selection)
+
+        if self._recording_depth == 0:
+            n = self.count_selected_edges()
+            code = f"G.trav_reverse_edge()  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_reverse_edge", code)
+
         return self
 
     def trav_out_until(
@@ -8340,20 +8600,24 @@ class Graph:
                         final_nodes.add(node_id)
 
         # Update selection
+        self._recording_depth += 1
         self.clear_selection()
 
         if add_to_selection:
-            # Include all visited nodes
             nodes_to_select = all_visited
             if exclude_unmatched:
-                # But only keep those that satisfy conditions
                 nodes_to_select = {n for n in all_visited if conditions(n)}
         else:
-            # Only final nodes
             nodes_to_select = final_nodes
 
         if nodes_to_select:
             self.select_nodes_by_id(list(nodes_to_select))
+        self._recording_depth -= 1
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.trav_out_until(conditions)  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_out_until", code)
 
         return self
 
@@ -8498,20 +8762,24 @@ class Graph:
                         final_nodes.add(node_id)
 
         # Update selection
+        self._recording_depth += 1
         self.clear_selection()
 
         if add_to_selection:
-            # Include all visited nodes
             nodes_to_select = all_visited
             if exclude_unmatched:
-                # But only keep those that satisfy conditions
                 nodes_to_select = {n for n in all_visited if conditions(n)}
         else:
-            # Only final nodes
             nodes_to_select = final_nodes
 
         if nodes_to_select:
             self.select_nodes_by_id(list(nodes_to_select))
+        self._recording_depth -= 1
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes()
+            code = f"G.trav_in_until(conditions)  # {n} selected"
+            self._record_step(KIND_SELECT, "trav_in_until", code)
 
         return self
 
@@ -8654,6 +8922,14 @@ class Graph:
             for node_id in nodes:
                 self._graph.set_node_attr(node_id, node_attr, values)
 
+        if self._recording_depth == 0:
+            n = len(nodes)
+            code = f"G.set_node_attrs({node_attr!r}, ...)  # {n} node(s)"
+            self._record_step(
+                KIND_MUTATE, "set_node_attrs", code,
+                delta=StepDelta(attrs_changed={node_attr: n}),
+            )
+
         return self
 
     def set_node_attrs_ws(self, **attributes) -> "Graph":
@@ -8731,6 +9007,15 @@ class Graph:
             for key, value in attributes.items():
                 # Use Rust set_node_attr for persistence
                 self._graph.set_node_attr(node_id, key, value)
+
+        if self._recording_depth == 0 and selected:
+            attrs = ", ".join(f"{k}={v!r}" for k, v in attributes.items())
+            code = f"G.set_node_attrs_ws({attrs})  # {len(selected)} node(s)"
+            changed = {k: len(selected) for k in attributes}
+            self._record_step(
+                KIND_MUTATE, "set_node_attrs_ws", code,
+                delta=StepDelta(attrs_changed=changed),
+            )
 
         return self
 
@@ -8886,6 +9171,14 @@ class Graph:
             for edge_id in target_edge_ids:
                 self._graph.set_edge_attr(edge_id, edge_attr, values)
 
+        if self._recording_depth == 0:
+            n = len(target_edge_ids)
+            code = f"G.set_edge_attrs({edge_attr!r}, ...)  # {n} edge(s)"
+            self._record_step(
+                KIND_MUTATE, "set_edge_attrs", code,
+                delta=StepDelta(attrs_changed={edge_attr: n}),
+            )
+
         return self
 
     def set_edge_attrs_ws(self, **attributes) -> "Graph":
@@ -8958,6 +9251,15 @@ class Graph:
             for key, value in attributes.items():
                 # Use Rust set_edge_attr for persistence (handles weight specially)
                 self._graph.set_edge_attr(edge_id, key, value)
+
+        if self._recording_depth == 0 and selected:
+            attrs = ", ".join(f"{k}={v!r}" for k, v in attributes.items())
+            code = f"G.set_edge_attrs_ws({attrs})  # {len(selected)} edge(s)"
+            changed = {k: len(selected) for k in attributes}
+            self._record_step(
+                KIND_MUTATE, "set_edge_attrs_ws", code,
+                delta=StepDelta(attrs_changed=changed),
+            )
 
         return self
 
@@ -9716,13 +10018,21 @@ class Graph:
         """
         selected = self.get_selected_node_ids()
 
+        mutated = 0
         for node_id in selected:
             node = self.get_node(node_id)
             if node and node.attributes and node_attr in node.attributes:
                 old_value = node.attributes[node_attr]
                 new_value = func(old_value)
-                # Use Rust method to persist the change
                 self._graph.set_node_attr(node_id, node_attr, new_value)
+                mutated += 1
+
+        if self._recording_depth == 0 and mutated:
+            code = f"G.mutate_node_attrs_ws({node_attr!r}, func)  # {mutated} node(s)"
+            self._record_step(
+                KIND_MUTATE, "mutate_node_attrs_ws", code,
+                delta=StepDelta(attrs_changed={node_attr: mutated}),
+            )
 
         return self
 
@@ -9807,16 +10117,26 @@ class Graph:
         """
         selected = self.get_selected_edge_ids()
 
+        mutated = 0
         for edge_id in selected:
             edge = self.get_edge(edge_id)
             if edge:
                 if edge_attr == "weight" and edge.weight is not None:
                     new_value = func(edge.weight)
                     self._graph.set_edge_attr(edge_id, "weight", new_value)
+                    mutated += 1
                 elif edge.attributes and edge_attr in edge.attributes:
                     old_value = edge.attributes[edge_attr]
                     new_value = func(old_value)
                     self._graph.set_edge_attr(edge_id, edge_attr, new_value)
+                    mutated += 1
+
+        if self._recording_depth == 0 and mutated:
+            code = f"G.mutate_edge_attrs_ws({edge_attr!r}, func)  # {mutated} edge(s)"
+            self._record_step(
+                KIND_MUTATE, "mutate_edge_attrs_ws", code,
+                delta=StepDelta(attrs_changed={edge_attr: mutated}),
+            )
 
         return self
 
@@ -9967,6 +10287,14 @@ class Graph:
         palette_name = palette if isinstance(palette, str) else "custom"
         self._aesthetics.append((node_attr_to, source, "colorize", {"palette": palette_name}))
 
+        if self._recording_depth == 0:
+            n = len(values)
+            code = f"G.colorize_node_attrs({node_attr_to!r})  # {n} node(s)"
+            self._record_step(
+                KIND_MUTATE, "colorize_node_attrs", code,
+                delta=StepDelta(attrs_changed={node_attr_to: n}),
+            )
+
         return self
 
     def rescale_node_attrs(
@@ -10105,6 +10433,14 @@ class Graph:
             (node_attr_to, source, "rescale", {"range": [to_lower_bound, to_upper_bound]})
         )
 
+        if self._recording_depth == 0:
+            n = len(values)
+            code = f"G.rescale_node_attrs({node_attr_to!r})  # {n} node(s)"
+            self._record_step(
+                KIND_MUTATE, "rescale_node_attrs", code,
+                delta=StepDelta(attrs_changed={node_attr_to: n}),
+            )
+
         return self
 
     def set_node_attr_to_display(
@@ -10143,6 +10479,14 @@ class Graph:
 
         """
         self._display_attr = attr
+
+        if self._recording_depth == 0:
+            code = f"G.set_node_attr_to_display(attr={attr!r})"
+            self._record_step(
+                KIND_MUTATE, "set_node_attr_to_display", code,
+                delta=StepDelta(attrs_changed={"display_attr": 1}),
+            )
+
         return self
 
     # ==============================================================================
@@ -14052,6 +14396,10 @@ class Graph:
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.to_undirected()
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "to_undirected", "G.to_undirected()")
+
         return result
 
     def to_directed(self) -> "Graph":
@@ -14125,6 +14473,10 @@ class Graph:
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.to_directed()
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "to_directed", "G.to_directed()")
+
         return result
 
     def reverse(self) -> "Graph":
@@ -14201,6 +14553,10 @@ class Graph:
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.reverse()
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "reverse", "G.reverse()")
+
         return result
 
     def complement(self) -> "Graph":
@@ -14296,6 +14652,10 @@ class Graph:
         """
         result = Graph.__new__(Graph)
         result._graph = self._graph.complement()
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "complement", "G.complement()")
+
         return result
 
     def line_graph(self, create_using_directed: bool | None = None) -> "Graph":
@@ -14455,6 +14815,10 @@ class Graph:
         """
         result = Graph.__new__(Graph)
         result._graph = rust.line_graph(self._graph, create_using_directed)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "line_graph", "G.line_graph()")
+
         return result
 
     # ==============================================================================
@@ -14572,6 +14936,10 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _contract_nodes(self._graph, u_id, v_id, self_loops)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "contract_nodes", f"G.contract_nodes({u!r}, {v!r})")
+
         return result
 
     def contracted_edge(self, u: int | str, v: int | str, self_loops: bool = True) -> "Graph":
@@ -14665,6 +15033,10 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _contracted_edge(self._graph, u_id, v_id, self_loops)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "contracted_edge", f"G.contracted_edge({u!r}, {v!r})")
+
         return result
 
     def contract_nodes_multi(self, nodes: list[int | str], self_loops: bool = True) -> "Graph":
@@ -14740,6 +15112,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _contract_nodes_multi(self._graph, resolved_nodes, self_loops)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "contract_nodes_multi",
+                              f"G.contract_nodes_multi(...)  # {len(nodes)} nodes")
+
         return result
 
     def quotient_graph(self, partition: list[list[int | str]]) -> "Graph":
@@ -14860,6 +15237,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = _quotient_graph(self._graph, resolved_partition)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "quotient_graph",
+                              f"G.quotient_graph(...)  # {len(partition)} groups")
+
         return result
 
     # ==============================================================================
@@ -15938,6 +16320,11 @@ class Graph:
         # Create result graph and wrap the Rust graph
         result = Graph()
         result._graph = self._graph.spanner(stretch, weight, seed)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "transform_with_spanner",
+                              f"G.transform_with_spanner(stretch={stretch})")
+
         return result
 
     def transform_to_subgraph_ws(self) -> "Graph":
@@ -16067,6 +16454,10 @@ class Graph:
                     attrs.update(edge.attributes)
                 subgraph.add_edge(source_label, target_label, **attrs)
 
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "transform_to_subgraph_ws",
+                              "G.transform_to_subgraph_ws()")
+
         return subgraph
 
     def subgraph(self, nodes: list[int]) -> "Graph":
@@ -16138,6 +16529,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = subgraph(self._graph, nodes)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "subgraph",
+                              f"G.subgraph(...)  # {len(nodes)} nodes")
+
         return result
 
     def edge_subgraph(self, edges: list[int]) -> "Graph":
@@ -16206,6 +16602,11 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = edge_subgraph(self._graph, edges)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "edge_subgraph",
+                              f"G.edge_subgraph(...)  # {len(edges)} edges")
+
         return result
 
     def fully_connect_nodes_ws(self, **edge_attributes) -> "Graph":
@@ -16284,6 +16685,8 @@ class Graph:
         """
         selected = list(self.get_selected_node_ids())
 
+        before = self._begin_compound()
+
         # Create edges between all pairs
         for i, source in enumerate(selected):
             for target in selected[i + 1 :]:
@@ -16304,6 +16707,12 @@ class Graph:
                     )
                     if not has_reverse:
                         self.add_edge(target, source, **edge_attributes)
+
+        self._end_compound(
+            "fully_connect_nodes_ws",
+            f"G.fully_connect_nodes_ws()  # {len(selected)} nodes",
+            before, kind=KIND_TRANSFORM,
+        )
 
         return self
 
@@ -16396,8 +16805,14 @@ class Graph:
                     edges_to_add.append((target, source))
 
         # Add reverse edges
+        before = self._begin_compound()
         for source, target in edges_to_add:
             self.add_edge(source, target, **edge_attributes)
+        self._end_compound(
+            "add_reverse_edges_ws",
+            f"G.add_reverse_edges_ws()  # {len(edges_to_add)} added",
+            before, kind=KIND_TRANSFORM,
+        )
 
         return self
 
@@ -16483,6 +16898,10 @@ class Graph:
         for edge_id in selected:
             # Use Rust method to reverse edge direction
             self._graph.reverse_edge_direction(edge_id)
+
+        if self._recording_depth == 0 and selected:
+            code = f"G.rev_edge_dir_ws()  # {len(selected)} edge(s)"
+            self._record_step(KIND_TRANSFORM, "rev_edge_dir_ws", code)
 
         return self
 
@@ -23159,6 +23578,10 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = transitive_closure(self._graph)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "transitive_closure", "G.transitive_closure()")
+
         return result
 
     def transitive_reduction(self) -> "Graph":
@@ -23279,6 +23702,10 @@ class Graph:
 
         result = Graph.__new__(Graph)
         result._graph = transitive_reduction(self._graph)
+
+        if self._recording_depth == 0:
+            self._record_step(KIND_TRANSFORM, "transitive_reduction", "G.transitive_reduction()")
+
         return result
 
     def count_walks(self, walk_length: int) -> dict[int, dict[int, int]]:
