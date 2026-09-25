@@ -207,4 +207,18 @@ def auto_narrate(step: Step) -> str:
             return f"{step.method}() added {detail}."
         return f"Graph structure generated via {step.method}()."
 
+    if step.kind == KIND_MUTATE:
+        if d.attrs_changed:
+            attrs = ", ".join(d.attrs_changed.keys())
+            return f"Attribute(s) updated: {attrs}."
+        return f"{step.method}() applied."
+
+    if step.kind == KIND_SELECT:
+        return f"Selection updated via {step.method}()."
+
+    if step.kind == KIND_TRANSFORM:
+        if d.edges_added:
+            return f"{step.method}() added {len(d.edges_added)} edges."
+        return f"Graph transformed via {step.method}()."
+
     return f"{step.method}() called."
