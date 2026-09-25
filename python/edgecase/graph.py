@@ -231,7 +231,10 @@ class Graph:
         self._aesthetics = []  # List of (attr_name, source_attr, operation) tuples
 
         # Step recording (always on)
+        import weakref
+
         self._steps: StepList = StepList()
+        self._steps._graph_ref = weakref.ref(self)
         self._pending_note: Optional[str] = None
         self._recording_depth: int = 0
 
@@ -245,7 +248,10 @@ class Graph:
 
     def __getattr__(self, name: str):
         if name in ("_steps", "_recording_depth", "_pending_note"):
+            import weakref
+
             self._steps = StepList()
+            self._steps._graph_ref = weakref.ref(self)
             self._recording_depth = 0
             self._pending_note = None
             return getattr(self, name)
@@ -613,7 +619,10 @@ class Graph:
         Graph
             Returns self to enable method chaining.
         """
+        import weakref
+
         self._steps = StepList()
+        self._steps._graph_ref = weakref.ref(self)
         self._pending_note = None
         return self
 
