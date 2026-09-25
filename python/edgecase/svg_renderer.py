@@ -3367,6 +3367,7 @@ def render_steps(
     th = THEMES.get(theme, LIGHT)
     is_dark = th.name == "dark"
     sel_color = "#a78bfa" if is_dark else "#7c3aed"
+    node_color = "#60a5fa" if is_dark else DEFAULT_NODE_COLOR
 
     if not steps:
         svg = (
@@ -3551,7 +3552,7 @@ def render_steps(
         svg_parts.append(
             f'<circle class="step-node" data-label="{html_mod.escape(label)}" '
             f'cx="{x:.1f}" cy="{y:.1f}" r="{node_size:.1f}" '
-            f'fill="{DEFAULT_NODE_COLOR}" stroke="none" stroke-width="2" opacity="0" '
+            f'fill="{node_color}" stroke="none" stroke-width="2" opacity="0" '
             f'style="transition:opacity 0.3s ease,fill 0.3s ease,r 0.3s ease,stroke 0.3s ease,filter 0.3s ease;"/>'
         )
         if show_labels:
@@ -3826,7 +3827,7 @@ def render_steps(
   var cur=0, playing=false, timer=null;
   var speed={speed};
   var directed={"true" if is_directed else "false"};
-  var COL_DEFAULT='{DEFAULT_NODE_COLOR}';
+  var COL_DEFAULT='{node_color}';
   var COL_CURRENT='{trav_current}';
   var COL_FRONTIER='{trav_frontier}';
   var COL_UNVISITED='{trav_unvisited}';
