@@ -3879,6 +3879,294 @@ def build_gallery_items() -> List[GalleryItem]:
         )
     )
 
+    # --- Computation: clustering coefficient ---
+    def _step_player_clustering(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Build a small network and compute clustering coefficients.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E").add_node("F")
+            .add_edge("A", "B").add_edge("B", "C").add_edge("A", "C")
+            .add_edge("C", "D").add_edge("D", "E").add_edge("E", "F")
+            .add_edge("D", "F")
+            .clustering_coefficient()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — clustering coefficient",
+            description="Build graph then compute clustering coefficient for each node",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_clustering,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A').add_node('B').add_node('C')\n"
+                "    .add_node('D').add_node('E').add_node('F')\n"
+                "    .add_edge('A', 'B').add_edge('B', 'C').add_edge('A', 'C')\n"
+                "    .add_edge('C', 'D').add_edge('D', 'E').add_edge('E', 'F')\n"
+                "    .add_edge('D', 'F')\n"
+                "    .clustering_coefficient()\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Computation: coreness ---
+    def _step_player_coreness(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Compute k-core decomposition of a small network.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E").add_node("F")
+            .add_node("G").add_node("H")
+            .add_edge("A", "B").add_edge("A", "C").add_edge("B", "C")
+            .add_edge("B", "D").add_edge("C", "D").add_edge("A", "D")
+            .add_edge("D", "E").add_edge("E", "F")
+            .add_edge("F", "G").add_edge("G", "H")
+            .coreness()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — coreness",
+            description="Build graph then compute k-core decomposition",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_coreness,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A')...add_node('H')\n"
+                "    .add_edge('A', 'B')...add_edge('G', 'H')\n"
+                "    .coreness()\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Computation: eccentricity + radiality ---
+    def _step_player_eccentricity_radiality(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Compute eccentricity and radiality on a path-like graph.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E")
+            .add_edge("A", "B").add_edge("B", "C")
+            .add_edge("C", "D").add_edge("D", "E")
+            .add_edge("B", "D")
+            .eccentricity()
+            .radiality()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — eccentricity + radiality",
+            description="Compute eccentricity then radiality on the same graph",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_eccentricity_radiality,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A')...add_node('E')\n"
+                "    .add_edge('A', 'B')...add_edge('B', 'D')\n"
+                "    .eccentricity()\n"
+                "    .radiality()\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Computation: constraint ---
+    def _step_player_constraint(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Burt's constraint: how constrained is each node by its neighbors?")
+            .add_node("Hub").add_node("A").add_node("B")
+            .add_node("C").add_node("D").add_node("E")
+            .add_edge("Hub", "A").add_edge("Hub", "B")
+            .add_edge("Hub", "C").add_edge("Hub", "D")
+            .add_edge("A", "B").add_edge("C", "D")
+            .add_edge("D", "E")
+            .constraint()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — constraint (Burt)",
+            description="Structural constraint showing brokerage opportunities",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_constraint,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('Hub').add_node('A')...add_node('E')\n"
+                "    .add_edge('Hub', 'A')...add_edge('D', 'E')\n"
+                "    .constraint()\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Analysis: motif census ---
+    def _step_player_motif_census(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Count 3-node motifs in a small social network.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E")
+            .add_edge("A", "B").add_edge("B", "C").add_edge("A", "C")
+            .add_edge("C", "D").add_edge("D", "E")
+            .motif_census(size=3)
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — motif census",
+            description="Build graph then count 3-node motifs",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_motif_census,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A')...add_node('E')\n"
+                "    .add_edge('A', 'B')...add_edge('D', 'E')\n"
+                "    .motif_census(size=3)\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
+    # --- Analysis: topological overlap ---
+    def _step_player_topological_overlap(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Compute topological overlap matrix (WGCNA-style).")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E")
+            .add_edge("A", "B").add_edge("A", "C")
+            .add_edge("B", "C").add_edge("C", "D")
+            .add_edge("D", "E")
+            .topological_overlap()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — topological overlap",
+            description="Compute topological overlap matrix on a small graph",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_topological_overlap,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A')...add_node('E')\n"
+                "    .add_edge('A', 'B')...add_edge('D', 'E')\n"
+                "    .topological_overlap()\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
+    # --- Combined: build + compute + select + mutate ---
+    def _step_player_full_analysis(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Full analysis pipeline: build, compute, select, and style.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E").add_node("F")
+            .add_edge("A", "B").add_edge("B", "C").add_edge("A", "C")
+            .add_edge("C", "D").add_edge("D", "E").add_edge("E", "F")
+            .add_edge("D", "F")
+            .clustering_coefficient()
+            .coreness()
+            .select_nodes_by_id([1, 2, 3])
+            .set_node_attrs_ws(color="#2563eb")
+            .clear_selection()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — full analysis pipeline",
+            description="Build, compute metrics, select nodes, and style them",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "light", "medium"],
+            render_fn=_step_player_full_analysis,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A')...add_node('F')\n"
+                "    .add_edge('A', 'B')...add_edge('D', 'F')\n"
+                "    .clustering_coefficient()\n"
+                "    .coreness()\n"
+                "    .select_nodes_by_id([1, 2, 3])\n"
+                "    .set_node_attrs_ws(color='#2563eb')\n"
+                "    .clear_selection()\n"
+                ")\n"
+                "G.play()"
+            ),
+        )
+    )
+
     return items
 
 
