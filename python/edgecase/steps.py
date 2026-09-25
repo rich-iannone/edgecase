@@ -40,6 +40,13 @@ class Step:
 class StepList(list):
     """A list of Steps with Polars-style filtering and export."""
 
+    _graph_ref = None
+
+    def _with_graph(self, source: "StepList") -> "StepList":
+        """Copy graph reference from another StepList."""
+        self._graph_ref = source._graph_ref
+        return self
+
     def filter(
         self,
         kind: Optional[str | list[str]] = None,
@@ -79,13 +86,13 @@ class StepList(list):
             if match:
                 result.append(step)
 
-        return result
+        return result._with_graph(self)
 
     def head(self, n: int = 5) -> StepList:
-        return StepList(self[:n])
+        return StepList(self[:n])._with_graph(self)
 
     def tail(self, n: int = 5) -> StepList:
-        return StepList(self[-n:])
+        return StepList(self[-n:])._with_graph(self)
 
     def select(self, *fields: str) -> list[dict]:
         """Extract specific fields from each step."""
@@ -137,10 +144,50 @@ class StepList(list):
             lines.append(f"  {s.index + 1:>3}  {s.kind:<14s} {s.method}(){sub}")
         return "StepList([\n" + "\n".join(lines) + "\n])"
 
+    def play(
+        self,
+        layout: str = "force",
+        theme: str = "light",
+        width: int = 700,
+        height: int = 500,
+        node_size: float = 16.0,
+        edge_width: float = 1.2,
+        show_labels: bool = True,
+        auto_play: bool = False,
+        speed: float = 1.0,
+        output: Optional[str] = None,
+    ):
+        """Replay this subset of steps as an interactive visualization."""
+
+        graph = self._graph_ref() if self._graph_ref else None
+        if graph is None:
+            raise ValueError(
+                "No graph reference available. Use G.play() or pass a graph: "
+                "G.steps.filter(...).play()"
+            )
+        from edgecase.svg_renderer import render_steps
+
+        full_steps = list(graph.steps)
+        return render_steps(
+            graph=graph,
+            steps=list(self),
+            full_steps=full_steps,
+            layout=layout,
+            theme=theme,
+            width=width,
+            height=height,
+            node_size=node_size,
+            edge_width=edge_width,
+            show_labels=show_labels,
+            auto_play=auto_play,
+            speed=speed,
+            output=output,
+        )
+
     def __getitem__(self, key):
         result = super().__getitem__(key)
         if isinstance(key, slice):
-            return StepList(result)
+            return StepList(result)._with_graph(self)
         return result
 
 
