@@ -444,6 +444,22 @@ class Graph:
                 delta.edges_added.append((s_label, t_label))
             self._record_step(kind, method, code, delta=delta)
 
+    def _snapshot_selection(self, delta: StepDelta) -> None:
+        """Capture the current node/edge selection into a StepDelta."""
+        for nid in self.get_selected_node_ids():
+            obj = self.get_node(nid)
+            label = str(obj.label) if obj and obj.label else str(nid)
+            delta.nodes_selected.append(label)
+        is_dir = self.is_directed()
+        for eid in self.get_selected_edge_ids():
+            edge = self.get_edge(eid)
+            if edge:
+                src_obj = self.get_node(edge.source)
+                tgt_obj = self.get_node(edge.target)
+                src_lbl = str(src_obj.label) if src_obj and src_obj.label else str(edge.source)
+                tgt_lbl = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(edge.target)
+                delta.edges_selected.append((src_lbl, tgt_lbl))
+
     def _record_step(
         self,
         kind: str,
@@ -454,12 +470,16 @@ class Graph:
         sub_steps: Optional[list] = None,
     ) -> Step:
         """Append a step to the internal log and return it."""
+        if delta is None:
+            delta = StepDelta()
+        if kind == KIND_SELECT:
+            self._snapshot_selection(delta)
         step = Step(
             index=len(self._steps),
             kind=kind,
             method=method,
             code=code,
-            delta=delta or StepDelta(),
+            delta=delta,
             result=result,
             sub_steps=sub_steps or [],
         )
@@ -1739,7 +1759,9 @@ class Graph:
             code = f"G.delete_edge_by_id(edge_id={edge_id})"
             edges_removed = [(src_label, tgt_label)] if src_label else []
             self._record_step(
-                KIND_REMOVE, "delete_edge_by_id", code,
+                KIND_REMOVE,
+                "delete_edge_by_id",
+                code,
                 delta=StepDelta(edges_removed=edges_removed),
             )
 
@@ -1830,7 +1852,9 @@ class Graph:
             n = len(removed_labels)
             code = f"G.delete_nodes_ws()  # {n} node(s)"
             self._record_step(
-                KIND_REMOVE, "delete_nodes_ws", code,
+                KIND_REMOVE,
+                "delete_nodes_ws",
+                code,
                 delta=StepDelta(nodes_removed=removed_labels),
             )
 
@@ -1926,7 +1950,9 @@ class Graph:
             n = len(removed_edges)
             code = f"G.delete_edges_ws()  # {n} edge(s)"
             self._record_step(
-                KIND_REMOVE, "delete_edges_ws", code,
+                KIND_REMOVE,
+                "delete_edges_ws",
+                code,
                 delta=StepDelta(edges_removed=removed_edges),
             )
 
@@ -2028,7 +2054,9 @@ class Graph:
             if edges_removed:
                 code = f"G.remove_selfloops()  # {len(edges_removed)} removed"
                 self._record_step(
-                    KIND_REMOVE, "remove_selfloops", code,
+                    KIND_REMOVE,
+                    "remove_selfloops",
+                    code,
                     delta=StepDelta(edges_removed=edges_removed),
                 )
 
@@ -2150,7 +2178,9 @@ class Graph:
             if n_removed > 0:
                 code = f"G.remove_duplicate_edges()  # {n_removed} removed"
                 self._record_step(
-                    KIND_REMOVE, "remove_duplicate_edges", code,
+                    KIND_REMOVE,
+                    "remove_duplicate_edges",
+                    code,
                     delta=StepDelta(),
                 )
 
@@ -2261,7 +2291,9 @@ class Graph:
             if n_total > 0:
                 code = f"G.simplify()  # {n_total} edge(s) removed"
                 self._record_step(
-                    KIND_REMOVE, "simplify", code,
+                    KIND_REMOVE,
+                    "simplify",
+                    code,
                     delta=StepDelta(edges_removed=edges_removed),
                 )
 
@@ -4151,8 +4183,11 @@ class Graph:
         result._graph = _configuration_model(degree_sequence, directed, seed)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_GENERATE, "configuration_model",
-                              f"G.configuration_model(...)  # {len(degree_sequence)} nodes")
+            self._record_step(
+                KIND_GENERATE,
+                "configuration_model",
+                f"G.configuration_model(...)  # {len(degree_sequence)} nodes",
+            )
 
         return result
 
@@ -4185,8 +4220,11 @@ class Graph:
         result._graph = _degree_preserving_rewire(self._graph, n_swaps, seed)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_TRANSFORM, "degree_preserving_rewire",
-                              f"G.degree_preserving_rewire(n_swaps={n_swaps})")
+            self._record_step(
+                KIND_TRANSFORM,
+                "degree_preserving_rewire",
+                f"G.degree_preserving_rewire(n_swaps={n_swaps})",
+            )
 
         return result
 
@@ -4220,8 +4258,11 @@ class Graph:
         result._graph = _expected_degree_graph(weights, seed)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_GENERATE, "expected_degree_graph",
-                              f"G.expected_degree_graph(...)  # {len(weights)} nodes")
+            self._record_step(
+                KIND_GENERATE,
+                "expected_degree_graph",
+                f"G.expected_degree_graph(...)  # {len(weights)} nodes",
+            )
 
         return result
 
@@ -4259,8 +4300,11 @@ class Graph:
         result._graph = _generate_sbm(sizes, p_matrix, seed)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_GENERATE, "generate_stochastic_block_model",
-                              f"G.generate_stochastic_block_model(...)  # {len(sizes)} blocks")
+            self._record_step(
+                KIND_GENERATE,
+                "generate_stochastic_block_model",
+                f"G.generate_stochastic_block_model(...)  # {len(sizes)} blocks",
+            )
 
         return result
 
@@ -8926,7 +8970,9 @@ class Graph:
             n = len(nodes)
             code = f"G.set_node_attrs({node_attr!r}, ...)  # {n} node(s)"
             self._record_step(
-                KIND_MUTATE, "set_node_attrs", code,
+                KIND_MUTATE,
+                "set_node_attrs",
+                code,
                 delta=StepDelta(attrs_changed={node_attr: n}),
             )
 
@@ -9013,7 +9059,9 @@ class Graph:
             code = f"G.set_node_attrs_ws({attrs})  # {len(selected)} node(s)"
             changed = {k: len(selected) for k in attributes}
             self._record_step(
-                KIND_MUTATE, "set_node_attrs_ws", code,
+                KIND_MUTATE,
+                "set_node_attrs_ws",
+                code,
                 delta=StepDelta(attrs_changed=changed),
             )
 
@@ -9175,7 +9223,9 @@ class Graph:
             n = len(target_edge_ids)
             code = f"G.set_edge_attrs({edge_attr!r}, ...)  # {n} edge(s)"
             self._record_step(
-                KIND_MUTATE, "set_edge_attrs", code,
+                KIND_MUTATE,
+                "set_edge_attrs",
+                code,
                 delta=StepDelta(attrs_changed={edge_attr: n}),
             )
 
@@ -9257,7 +9307,9 @@ class Graph:
             code = f"G.set_edge_attrs_ws({attrs})  # {len(selected)} edge(s)"
             changed = {k: len(selected) for k in attributes}
             self._record_step(
-                KIND_MUTATE, "set_edge_attrs_ws", code,
+                KIND_MUTATE,
+                "set_edge_attrs_ws",
+                code,
                 delta=StepDelta(attrs_changed=changed),
             )
 
@@ -9880,7 +9932,7 @@ class Graph:
         ```
 
         This makes it easy to run DataFrame analysis on just a subset of the graph's
-        edges -- for example, the first few edges added:
+        edges, for example, the first few edges added:
 
         ```{python}
         graph = ec.Graph().add_path_graph(10)
@@ -9964,8 +10016,8 @@ class Graph:
 
         Examples
         --------
-        The function receives each selected node's current value and returns the
-        replacement -- here, doubling `score` for two of the three nodes:
+        The function receives each selected node's current value and returns the replacement. Here
+        we double `score` for two of the three nodes:
 
         ```{python}
         import edgecase as ec
@@ -9997,7 +10049,7 @@ class Graph:
         ```
 
         Combining this with `select_nodes()` applies the transformation only to nodes
-        matching a condition -- here, discounting prices above `100`:
+        matching a condition (here, discounting prices above `100`):
 
         ```{python}
         graph = (
@@ -10030,7 +10082,9 @@ class Graph:
         if self._recording_depth == 0 and mutated:
             code = f"G.mutate_node_attrs_ws({node_attr!r}, func)  # {mutated} node(s)"
             self._record_step(
-                KIND_MUTATE, "mutate_node_attrs_ws", code,
+                KIND_MUTATE,
+                "mutate_node_attrs_ws",
+                code,
                 delta=StepDelta(attrs_changed={node_attr: mutated}),
             )
 
@@ -10134,7 +10188,9 @@ class Graph:
         if self._recording_depth == 0 and mutated:
             code = f"G.mutate_edge_attrs_ws({edge_attr!r}, func)  # {mutated} edge(s)"
             self._record_step(
-                KIND_MUTATE, "mutate_edge_attrs_ws", code,
+                KIND_MUTATE,
+                "mutate_edge_attrs_ws",
+                code,
                 delta=StepDelta(attrs_changed={edge_attr: mutated}),
             )
 
@@ -10291,7 +10347,9 @@ class Graph:
             n = len(values)
             code = f"G.colorize_node_attrs({node_attr_to!r})  # {n} node(s)"
             self._record_step(
-                KIND_MUTATE, "colorize_node_attrs", code,
+                KIND_MUTATE,
+                "colorize_node_attrs",
+                code,
                 delta=StepDelta(attrs_changed={node_attr_to: n}),
             )
 
@@ -10437,7 +10495,9 @@ class Graph:
             n = len(values)
             code = f"G.rescale_node_attrs({node_attr_to!r})  # {n} node(s)"
             self._record_step(
-                KIND_MUTATE, "rescale_node_attrs", code,
+                KIND_MUTATE,
+                "rescale_node_attrs",
+                code,
                 delta=StepDelta(attrs_changed={node_attr_to: n}),
             )
 
@@ -10483,7 +10543,9 @@ class Graph:
         if self._recording_depth == 0:
             code = f"G.set_node_attr_to_display(attr={attr!r})"
             self._record_step(
-                KIND_MUTATE, "set_node_attr_to_display", code,
+                KIND_MUTATE,
+                "set_node_attr_to_display",
+                code,
                 delta=StepDelta(attrs_changed={"display_attr": 1}),
             )
 
@@ -15114,8 +15176,11 @@ class Graph:
         result._graph = _contract_nodes_multi(self._graph, resolved_nodes, self_loops)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_TRANSFORM, "contract_nodes_multi",
-                              f"G.contract_nodes_multi(...)  # {len(nodes)} nodes")
+            self._record_step(
+                KIND_TRANSFORM,
+                "contract_nodes_multi",
+                f"G.contract_nodes_multi(...)  # {len(nodes)} nodes",
+            )
 
         return result
 
@@ -15239,8 +15304,11 @@ class Graph:
         result._graph = _quotient_graph(self._graph, resolved_partition)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_TRANSFORM, "quotient_graph",
-                              f"G.quotient_graph(...)  # {len(partition)} groups")
+            self._record_step(
+                KIND_TRANSFORM,
+                "quotient_graph",
+                f"G.quotient_graph(...)  # {len(partition)} groups",
+            )
 
         return result
 
@@ -16322,8 +16390,11 @@ class Graph:
         result._graph = self._graph.spanner(stretch, weight, seed)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_TRANSFORM, "transform_with_spanner",
-                              f"G.transform_with_spanner(stretch={stretch})")
+            self._record_step(
+                KIND_TRANSFORM,
+                "transform_with_spanner",
+                f"G.transform_with_spanner(stretch={stretch})",
+            )
 
         return result
 
@@ -16455,8 +16526,9 @@ class Graph:
                 subgraph.add_edge(source_label, target_label, **attrs)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_TRANSFORM, "transform_to_subgraph_ws",
-                              "G.transform_to_subgraph_ws()")
+            self._record_step(
+                KIND_TRANSFORM, "transform_to_subgraph_ws", "G.transform_to_subgraph_ws()"
+            )
 
         return subgraph
 
@@ -16531,8 +16603,7 @@ class Graph:
         result._graph = subgraph(self._graph, nodes)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_TRANSFORM, "subgraph",
-                              f"G.subgraph(...)  # {len(nodes)} nodes")
+            self._record_step(KIND_TRANSFORM, "subgraph", f"G.subgraph(...)  # {len(nodes)} nodes")
 
         return result
 
@@ -16604,8 +16675,9 @@ class Graph:
         result._graph = edge_subgraph(self._graph, edges)
 
         if self._recording_depth == 0:
-            self._record_step(KIND_TRANSFORM, "edge_subgraph",
-                              f"G.edge_subgraph(...)  # {len(edges)} edges")
+            self._record_step(
+                KIND_TRANSFORM, "edge_subgraph", f"G.edge_subgraph(...)  # {len(edges)} edges"
+            )
 
         return result
 
@@ -16711,7 +16783,8 @@ class Graph:
         self._end_compound(
             "fully_connect_nodes_ws",
             f"G.fully_connect_nodes_ws()  # {len(selected)} nodes",
-            before, kind=KIND_TRANSFORM,
+            before,
+            kind=KIND_TRANSFORM,
         )
 
         return self
@@ -16811,7 +16884,8 @@ class Graph:
         self._end_compound(
             "add_reverse_edges_ws",
             f"G.add_reverse_edges_ws()  # {len(edges_to_add)} added",
-            before, kind=KIND_TRANSFORM,
+            before,
+            kind=KIND_TRANSFORM,
         )
 
         return self
