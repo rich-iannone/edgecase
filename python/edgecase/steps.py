@@ -14,6 +14,8 @@ class StepDelta:
     edges_added: list[tuple[str, str]] = field(default_factory=list)
     edges_removed: list[tuple[str, str]] = field(default_factory=list)
     attrs_changed: dict[str, Any] = field(default_factory=dict)
+    nodes_mutated: list[str] = field(default_factory=list)
+    edges_mutated: list[tuple[str, str]] = field(default_factory=list)
     nodes_selected: list[str] = field(default_factory=list)
     edges_selected: list[tuple[str, str]] = field(default_factory=list)
 
