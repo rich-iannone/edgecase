@@ -3247,6 +3247,15 @@ def _generate_chain_html_wrapper(
 _step_counter = 0
 
 
+def _delta_val_repr(v):
+    """Format a delta attribute value for JSON display."""
+    if isinstance(v, dict):
+        return str(v)
+    if isinstance(v, (list, tuple)):
+        return str(v)
+    return v
+
+
 def render_steps(
     graph,
     steps: list,
@@ -3369,6 +3378,26 @@ def render_steps(
         f'<svg id="{uid}-svg" xmlns="http://www.w3.org/2000/svg" '
         f'width="{width}" height="{height}" viewBox="{vb_str}" '
         f'style="font-family:{FONT_FAMILY};">',
+        f'<defs>'
+        f'<filter id="{uid}-glow-add" x="-50%" y="-50%" width="200%" height="200%">'
+        f'<feGaussianBlur stdDeviation="3" result="blur"/>'
+        f'<feFlood flood-color="#22c55e" flood-opacity="0.6" result="color"/>'
+        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
+        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        f'</filter>'
+        f'<filter id="{uid}-glow-rm" x="-50%" y="-50%" width="200%" height="200%">'
+        f'<feGaussianBlur stdDeviation="3" result="blur"/>'
+        f'<feFlood flood-color="#ef4444" flood-opacity="0.6" result="color"/>'
+        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
+        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        f'</filter>'
+        f'<filter id="{uid}-glow-mut" x="-50%" y="-50%" width="200%" height="200%">'
+        f'<feGaussianBlur stdDeviation="2.5" result="blur"/>'
+        f'<feFlood flood-color="#f59e0b" flood-opacity="0.5" result="color"/>'
+        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
+        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        f'</filter>'
+        f'</defs>',
         f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" '
         f'height="{vb[3]:.1f}" fill="{th.bg}"/>',
     ]
@@ -3414,8 +3443,8 @@ def render_steps(
         svg_parts.append(
             f'<circle class="step-node" data-label="{html_mod.escape(label)}" '
             f'cx="{x:.1f}" cy="{y:.1f}" r="{node_size:.1f}" '
-            f'fill="{DEFAULT_NODE_COLOR}" opacity="0" '
-            f'style="transition:opacity 0.3s ease,fill 0.3s ease,r 0.3s ease;"/>'
+            f'fill="{DEFAULT_NODE_COLOR}" stroke="none" stroke-width="2" opacity="0" '
+            f'style="transition:opacity 0.3s ease,fill 0.3s ease,r 0.3s ease,stroke 0.3s ease,filter 0.3s ease;"/>'
         )
         if show_labels:
             svg_parts.append(
@@ -3501,6 +3530,16 @@ def render_steps(
                     },
                 })
         else:
+            delta_obj = {
+                "na": list(step.delta.nodes_added),
+                "nr": list(step.delta.nodes_removed),
+                "ea": [list(e) for e in step.delta.edges_added],
+                "er": [list(e) for e in step.delta.edges_removed],
+            }
+            if step.delta.attrs_changed:
+                delta_obj["ac"] = {
+                    k: _delta_val_repr(v) for k, v in step.delta.attrs_changed.items()
+                }
             step_data.append({
                 "kind": step.kind,
                 "method": step.method,
@@ -3508,6 +3547,7 @@ def render_steps(
                 "narration": step.narration,
                 "nodes": base_nodes,
                 "edges": base_edges,
+                "delta": delta_obj,
             })
     steps_json = json.dumps(step_data)
 
@@ -3613,6 +3653,33 @@ def render_steps(
   background:{accent}22;
   color:{accent};
 }}
+#{uid} .step-delta {{
+  margin-top:6px;
+  font-size:11.5px;
+  line-height:1.6;
+  color:{narr_fg};
+}}
+#{uid} .step-delta .delta-chip {{
+  display:inline-block;
+  padding:1px 7px;
+  border-radius:3px;
+  font-size:10.5px;
+  font-weight:500;
+  margin-right:4px;
+  margin-bottom:2px;
+}}
+#{uid} .delta-add {{
+  background:{"#16533822" if is_dark else "#dcfce7"};
+  color:{"#4ade80" if is_dark else "#15803d"};
+}}
+#{uid} .delta-rm {{
+  background:{"#45181822" if is_dark else "#fee2e2"};
+  color:{"#f87171" if is_dark else "#b91c1c"};
+}}
+#{uid} .delta-attr {{
+  background:{"#42290622" if is_dark else "#fef3c7"};
+  color:{"#fbbf24" if is_dark else "#b45309"};
+}}
 </style>
 
 <div class="step-panel">
@@ -3623,6 +3690,7 @@ def render_steps(
     <span class="step-kind-badge" id="{uid}-badge"></span>
     <pre><code id="{uid}-codetext"></code></pre>
     <div class="step-narration" id="{uid}-narration"></div>
+    <div class="step-delta" id="{uid}-delta"></div>
   </div>
   <div class="step-controls">
     <button id="{uid}-prev" title="Previous step">&#9664;</button>
@@ -3650,11 +3718,19 @@ def render_steps(
   var codeEl=document.getElementById('{uid}-codetext');
   var narrEl=document.getElementById('{uid}-narration');
   var badgeEl=document.getElementById('{uid}-badge');
+  var deltaEl=document.getElementById('{uid}-delta');
   var slider=document.getElementById('{uid}-slider');
   var counter=document.getElementById('{uid}-counter');
   var prevBtn=document.getElementById('{uid}-prev');
   var playBtn=document.getElementById('{uid}-play');
   var nextBtn=document.getElementById('{uid}-next');
+
+  var GLOW_ADD='url(#{uid}-glow-add)';
+  var GLOW_RM='url(#{uid}-glow-rm)';
+  var GLOW_MUT='url(#{uid}-glow-mut)';
+  var COL_ADD='#22c55e';
+  var COL_RM='#ef4444';
+  var COL_MUT='#f59e0b';
 
   function hlPy(c){{
     var h=c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3690,14 +3766,38 @@ def render_steps(
       }});
     }}
 
+    // Delta sets (for non-traverse steps)
+    var d=s.delta||{{}};
+    var addedN=new Set(d.na||[]);
+    var removedN=new Set(d.nr||[]);
+    var addedE=new Set();
+    (d.ea||[]).forEach(function(e){{
+      addedE.add(e[0]+'\\0'+e[1]);
+      if(!directed) addedE.add(e[1]+'\\0'+e[0]);
+    }});
+    var removedE=new Set();
+    (d.er||[]).forEach(function(e){{
+      removedE.add(e[0]+'\\0'+e[1]);
+      if(!directed) removedE.add(e[1]+'\\0'+e[0]);
+    }});
+    var hasMut=d.ac && Object.keys(d.ac).length>0;
+
     // Nodes
     var circles=svg.querySelectorAll('.step-node');
     for(var i=0;i<circles.length;i++){{
       var el=circles[i];
       var lbl=el.getAttribute('data-label');
-      if(!vn.has(lbl)){{
+      el.removeAttribute('filter');
+      el.setAttribute('stroke','none');
+      if(removedN.has(lbl)){{
+        el.setAttribute('opacity','0.35');
+        el.setAttribute('fill',COL_RM);
+        el.setAttribute('filter',GLOW_RM);
+        el.setAttribute('r','{node_size:.1f}');
+      }} else if(!vn.has(lbl)){{
         el.setAttribute('opacity','0');
         el.setAttribute('fill',COL_DEFAULT);
+        el.setAttribute('r','{node_size:.1f}');
       }} else if(tv){{
         el.setAttribute('opacity','1');
         if(lbl===tv.current){{
@@ -3714,6 +3814,16 @@ def render_steps(
           el.setAttribute('opacity','0.4');
           el.setAttribute('r','{node_size:.1f}');
         }}
+      }} else if(addedN.has(lbl)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',COL_ADD);
+        el.setAttribute('filter',GLOW_ADD);
+        el.setAttribute('r','{node_size:.1f}');
+      }} else if(hasMut && s.method.indexOf('node')!==-1){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',COL_DEFAULT);
+        el.setAttribute('stroke',COL_MUT);
+        el.setAttribute('r','{node_size:.1f}');
       }} else {{
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_DEFAULT);
@@ -3726,12 +3836,21 @@ def render_steps(
     for(var i=0;i<labels.length;i++){{
       var el=labels[i];
       var lbl=el.getAttribute('data-label');
-      if(!vn.has(lbl)){{
+      if(removedN.has(lbl)){{
+        el.setAttribute('opacity','0.4');
+        el.setAttribute('fill',COL_RM);
+      }} else if(!vn.has(lbl)){{
         el.setAttribute('opacity','0');
+        el.setAttribute('fill','{th.label_color}');
       }} else if(tv && !tvVisited.has(lbl) && !tvFrontier.has(lbl) && lbl!==tv.current){{
         el.setAttribute('opacity','0.3');
+        el.setAttribute('fill','{th.label_color}');
+      }} else if(addedN.has(lbl)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',COL_ADD);
       }} else {{
         el.setAttribute('opacity','1');
+        el.setAttribute('fill','{th.label_color}');
       }}
     }}
 
@@ -3740,37 +3859,97 @@ def render_steps(
     for(var i=0;i<edges.length;i++){{
       var el=edges[i];
       var key=el.getAttribute('data-src')+'\\0'+el.getAttribute('data-tgt');
-      if(!ve.has(key)){{
+      el.removeAttribute('filter');
+      if(removedE.has(key)){{
+        el.setAttribute('opacity','0.4');
+        el.setAttribute('stroke',COL_RM);
+        el.setAttribute('stroke-width','{edge_width * 1.5:.1f}');
+        el.setAttribute('stroke-dasharray','4 3');
+        el.setAttribute('filter',GLOW_RM);
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_RM);
+      }} else if(!ve.has(key)){{
         el.setAttribute('opacity','0');
         el.setAttribute('stroke',COL_EDGE);
+        el.setAttribute('stroke-width','{edge_width:.1f}');
+        el.removeAttribute('stroke-dasharray');
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
       }} else if(tv){{
+        el.removeAttribute('stroke-dasharray');
         if(tv.current_edge && (key===tv.current_edge[0]+'\\0'+tv.current_edge[1]||(!directed && key===tv.current_edge[1]+'\\0'+tv.current_edge[0]))){{
           el.setAttribute('opacity','1');
           el.setAttribute('stroke',COL_CURRENT);
           el.setAttribute('stroke-width','{edge_width * 3:.1f}');
-          if(el.hasAttribute('fill')) el.setAttribute('fill',COL_CURRENT);
+          if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_CURRENT);
         }} else if(tvTreeEdges.has(key)){{
           el.setAttribute('opacity','0.7');
           el.setAttribute('stroke',COL_TREE_EDGE);
           el.setAttribute('stroke-width','{edge_width * 2:.1f}');
-          if(el.hasAttribute('fill')) el.setAttribute('fill',COL_TREE_EDGE);
+          if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_TREE_EDGE);
         }} else {{
           el.setAttribute('opacity','0.15');
           el.setAttribute('stroke',COL_EDGE);
           el.setAttribute('stroke-width','{edge_width:.1f}');
-          if(el.hasAttribute('fill')) el.setAttribute('fill',COL_EDGE);
+          if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
         }}
+      }} else if(addedE.has(key)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('stroke',COL_ADD);
+        el.setAttribute('stroke-width','{edge_width * 2:.1f}');
+        el.removeAttribute('stroke-dasharray');
+        el.setAttribute('filter',GLOW_ADD);
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_ADD);
+      }} else if(hasMut && s.method.indexOf('edge')!==-1){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('stroke',COL_MUT);
+        el.setAttribute('stroke-width','{edge_width * 1.8:.1f}');
+        el.removeAttribute('stroke-dasharray');
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_MUT);
       }} else {{
         el.setAttribute('opacity','1');
         el.setAttribute('stroke',COL_EDGE);
         el.setAttribute('stroke-width','{edge_width:.1f}');
-        if(el.hasAttribute('fill')) el.setAttribute('fill',COL_EDGE);
+        el.removeAttribute('stroke-dasharray');
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
       }}
     }}
 
+    // Badge and text
     badgeEl.textContent=tv?s.method.toUpperCase()+' ('+tv.step_num+'/'+tv.total+')':s.kind;
     codeEl.innerHTML=hlPy(s.code);
     narrEl.textContent=s.narration;
+
+    // Delta detail chips
+    var dh='';
+    if(!tv && d){{
+      if(d.na && d.na.length){{
+        var lbl=d.na.length===1?d.na[0]:d.na.length+' nodes';
+        dh+='<span class="delta-chip delta-add">+ '+lbl+'</span> ';
+      }}
+      if(d.ea && d.ea.length){{
+        var n=d.ea.length;
+        var lbl=n===1?d.ea[0][0]+' \\u2192 '+d.ea[0][1]:n+' edges';
+        dh+='<span class="delta-chip delta-add">+ '+lbl+'</span> ';
+      }}
+      if(d.nr && d.nr.length){{
+        var lbl=d.nr.length===1?d.nr[0]:d.nr.length+' nodes';
+        dh+='<span class="delta-chip delta-rm">&minus; '+lbl+'</span> ';
+      }}
+      if(d.er && d.er.length){{
+        var n=d.er.length;
+        var lbl=n===1?d.er[0][0]+' \\u2192 '+d.er[0][1]:n+' edges';
+        dh+='<span class="delta-chip delta-rm">&minus; '+lbl+'</span> ';
+      }}
+      if(d.ac){{
+        for(var k in d.ac){{
+          var v=d.ac[k];
+          var vs=typeof v==='string'?v:JSON.stringify(v);
+          if(vs.length>30) vs=vs.substring(0,27)+'\\u2026';
+          dh+='<span class="delta-chip delta-attr">'+k+' = '+vs+'</span> ';
+        }}
+      }}
+    }}
+    deltaEl.innerHTML=dh;
+
     slider.value=idx;
     counter.textContent='Step '+(idx+1)+' / '+STEPS.length;
   }}
