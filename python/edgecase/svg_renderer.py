@@ -3665,6 +3665,10 @@ def render_steps(
                 delta_obj["ac"] = {
                     k: _delta_val_repr(v) for k, v in step.delta.attrs_changed.items()
                 }
+            if step.delta.nodes_mutated:
+                delta_obj["nm"] = list(step.delta.nodes_mutated)
+            if step.delta.edges_mutated:
+                delta_obj["em"] = [list(e) for e in step.delta.edges_mutated]
             if step.delta.nodes_selected:
                 delta_obj["sn"] = list(step.delta.nodes_selected)
             if step.delta.edges_selected:
@@ -3680,6 +3684,24 @@ def render_steps(
                     "delta": delta_obj,
                 }
             )
+
+    # Append a final step showing the settled graph state
+    final_nodes = step_states[-1]["nodes"] if step_states else []
+    final_edges = step_states[-1]["edges"] if step_states else []
+    n_nodes = len(final_nodes)
+    n_edges = len(final_edges)
+    step_data.append(
+        {
+            "kind": "done",
+            "method": "",
+            "code": f"# Final graph: {n_nodes} node{'s' if n_nodes != 1 else ''}, {n_edges} edge{'s' if n_edges != 1 else ''}",
+            "narration": f"Graph ready — {n_nodes} node{'s' if n_nodes != 1 else ''}, {n_edges} edge{'s' if n_edges != 1 else ''}.",
+            "nodes": final_nodes,
+            "edges": final_edges,
+            "delta": {"na": [], "nr": [], "ea": [], "er": []},
+        }
+    )
+
     steps_json = json.dumps(step_data)
 
     # --- Build HTML ---
@@ -3707,6 +3729,7 @@ def render_steps(
     # Timeline segment colors by kind
     tl_colors = {
         "init": "#94a3b8" if is_dark else "#64748b",
+        "done": "#94a3b8" if is_dark else "#64748b",
         "build_nodes": "#22c55e",
         "build_edges": "#22c55e",
         "remove": "#ef4444",
@@ -4209,7 +4232,8 @@ def render_steps(
     if((d.na||[]).indexOf(lbl)!==-1) return 'Added this step';
     if((d.nr||[]).indexOf(lbl)!==-1) return 'Removed this step';
     if((d.sn||[]).indexOf(lbl)!==-1) return 'Selected';
-    if(d.ac && Object.keys(d.ac).length>0 && s.method.indexOf('node')!==-1) return 'Mutated';
+    if((d.nm||[]).indexOf(lbl)!==-1) return 'Mutated';
+    if(d.ac && Object.keys(d.ac).length>0 && (d.nm||[]).length===0 && s.method.indexOf('node')!==-1) return 'Mutated';
     return '';
   }}
   function edgeState(src,tgt){{
@@ -4390,6 +4414,7 @@ def render_steps(
       if(!directed) removedE.add(e[1]+'\\0'+e[0]);
     }});
     var hasMut=d.ac && Object.keys(d.ac).length>0;
+    var mutN=new Set(d.nm||[]);
     var selN=new Set(d.sn||[]);
     var selE=new Set();
     (d.se||[]).forEach(function(e){{
@@ -4444,7 +4469,12 @@ def render_steps(
         el.setAttribute('opacity','0.35');
         el.setAttribute('fill',COL_DEFAULT);
         el.setAttribute('r','{node_size:.1f}');
-      }} else if(hasMut && s.method.indexOf('node')!==-1){{
+      }} else if(mutN.has(lbl)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',COL_DEFAULT);
+        el.setAttribute('stroke',COL_MUT);
+        el.setAttribute('r','{node_size:.1f}');
+      }} else if(hasMut && mutN.size===0 && s.method.indexOf('node')!==-1){{
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_DEFAULT);
         el.setAttribute('stroke',COL_MUT);
