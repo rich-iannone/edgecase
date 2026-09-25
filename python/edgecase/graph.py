@@ -2327,18 +2327,17 @@ class Graph:
 
         Technical Notes
         ---------------
-        The output is tailored to what the graph actually is: directed graphs surface in and
-        out degree breakdowns, weighted graphs get weight statistics, and disconnected graphs
-        report component counts. Anything the default summary misses, from diameter to a full
-        clustering run, can be layered on via `describe_hook=`. Because that hook is opt-in
-        per call, you can pay for expensive computations only when the answer justifies it
-        and keep routine inspection snappy.
+        The output is tailored to what the graph actually is: directed graphs surface in and out
+        degree breakdowns, weighted graphs get weight statistics, and disconnected graphs report
+        component counts. Anything the default summary misses, from diameter to a full clustering
+        run, can be layered on via `describe_hook=`. Because that hook is opt-in per call, you can
+        opt into more expensive computations whenever needed and keep routine inspection quick.
 
         Examples
         --------
-        Calling `describe()` prints a structured summary straight to the console -- node and
-        edge counts, density, degree statistics, and connectivity, tailored to whether the
-        graph is directed or undirected:
+        Calling `describe()` prints a structured summary to the console. We include node and edge
+        counts, density, degree statistics, and connectivity, tailored to whether the graph is
+        directed or undirected:
 
         ```{python}
         import edgecase as ec
@@ -2355,8 +2354,8 @@ class Graph:
         graph.describe()
         ```
 
-        Pass `describe_hook=` to append your own computed properties to the printout --
-        useful for metrics that are too expensive to compute automatically on every call:
+        Pass `describe_hook=` to append your own computed properties to the printout. This is useful
+        for metrics that are too expensive to compute automatically on every call:
 
         ```{python}
         import edgecase as ec
@@ -2371,8 +2370,8 @@ class Graph:
         graph.describe(describe_hook=custom_stats)
         ```
 
-        On a larger, real-world graph the same call surfaces its overall shape at a glance --
-        here, the well-known Zachary's karate club network:
+        On a larger, real-world graph the same call surfaces its overall shape at a glance. Here we
+        illustrate this with the well-known Zachary's karate club network:
 
         ```{python}
         import edgecase as ec
@@ -2576,9 +2575,9 @@ class Graph:
         layout
             Layout algorithm: `"force"` (physics-based), `"circular"`, or `"random"`
         static
-            If `True`, disables physics simulation and interactivity (no node dragging,
-            no animation). The graph will be rendered in a fixed position after initial
-            layout. Useful for static reports, exports, or embedding in documents.
+            If `True`, disables physics simulation and interactivity (no node dragging, no
+            animation). The graph will be rendered in a fixed position after initial layout. Useful
+            for static reports, exports, or embedding in documents.
 
         Examples
         --------
@@ -2680,8 +2679,8 @@ class Graph:
         Examples
         --------
         Compute community and centrality attributes, then chain directly into `plot_cosmo()` to
-        encode them visually -- point color reflects community membership, and point size
-        reflects centrality:
+        encode them visually (point color reflects community membership, and point size reflects
+        centrality):
 
         ```{python}
         import edgecase as ec
@@ -2733,28 +2732,26 @@ class Graph:
         """
         Render the graph as a static SVG image.
 
-        Produces a publication-quality SVG with filled-circle nodes, semi-transparent
-        edges, optional community coloring, and light hover interactivity (tooltips).
-        Visually consistent with the Cosmograph renderer used for large graphs.
+        Produces a publication-quality SVG with filled-circle nodes, semi-transparent edges,
+        optional community coloring, and light hover interactivity (tooltips). Visually consistent
+        with the Cosmograph renderer used for large graphs.
 
         Parameters
         ----------
         layout : str, default "force"
-            Layout algorithm: ``"force"`` (Fruchterman-Reingold), ``"circular"``,
-            or ``"random"``.
+            Layout algorithm: `"force"` (Fruchterman-Reingold), `"circular"`, or `"random"`.
         color_by : str, optional
-            Node attribute to map to categorical colors (e.g., ``"community"``).
+            Node attribute to map to categorical colors (e.g., `"community"`).
         size_by : str, optional
             Node attribute to map to node radius (min-max scaled).
         label_by : str, default "id"
-            Node attribute (or ``"id"``) to use as the visible label.
+            Node attribute (or `"id"`) to use as the visible label.
         edge_label_by : str, optional
             Edge attribute to display as a label along each edge.
         curved_edges : bool, default False
-            If ``True``, draw edges as quadratic Bezier curves instead of straight
-            lines.
+            If `True`, draw edges as quadratic Bezier curves instead of straight lines.
         theme : str, default "light"
-            Color theme: ``"light"`` or ``"dark"``.
+            Color theme: `"light"` or `"dark"`.
         palette : str, default "tableau"
             Color palette name from :mod:`edgecase.colors`.
         width : int, default 600
@@ -2768,24 +2765,23 @@ class Graph:
         edge_opacity : float, default 0.4
             Edge stroke opacity (0--1).
         node_overlap : str or float, default "remove"
-            Node overlap handling: ``"remove"`` pushes overlapping nodes apart
-            (force/random layouts only), ``"allow"`` keeps raw layout positions,
-            or a float specifying the minimum padding (in px) between node circles.
+            Node overlap handling: `"remove"` pushes overlapping nodes apart (force/random layouts
+            only), `"allow"` keeps raw layout positions, or a float specifying the minimum padding
+            (in px) between node circles.
         edge_routing : str or float, default "around"
-            Edge routing: ``"around"`` routes edges around intermediate nodes,
-            ``"straight"`` draws direct lines, or a float specifying the clearance
-            margin (in px) around nodes that edges must avoid.
+            Edge routing: `"around"` routes edges around intermediate nodes, `"straight"` draws
+            direct lines, or a float specifying the clearance margin (in px) around nodes that edges
+            must avoid.
         show_labels : bool, default True
             Whether to display node labels.
         output : str, optional
-            File path (``.svg`` or ``.html``) to save the output.
+            File path (`.svg` or `.html`) to save the output.
 
         Returns
         -------
-        PlotSVG
-            A wrapper that auto-renders in Jupyter notebooks (via ``_repr_html_``),
-            exposes ``.svg`` for the raw SVG string, and can be saved with
-            ``.save(path)``.
+        StepPlayer
+            Interactive visualization that auto-renders in Jupyter notebooks (via `_repr_html_`) and
+            can be saved with `.save(path)`.
 
         Examples
         --------
@@ -2873,12 +2869,13 @@ class Graph:
             `"stable"` computes layout on the final graph state (positions don't jump).
             `"progressive"` recomputes per step.
         output
-            File path to save. If `None`, returns a `PlotSVG` for Jupyter display.
+            File path to save. If `None`, returns a `StepPlayer` for Jupyter display.
 
         Returns
         -------
-        PlotSVG
-            Interactive HTML visualization.
+        StepPlayer
+            Interactive step-through visualization with playback controls,
+            timeline, and code panel.
         """
         if self._pending_note is not None:
             self._record_step(
@@ -2959,9 +2956,9 @@ class Graph:
 
         Returns
         -------
-        PlotSVG
-            Interactive HTML widget that renders in Jupyter via `_repr_html_` and can be saved with
-            `save(path)`.
+        StepPlayer
+            Interactive traversal visualization with step-through slider, node state transitions,
+            and visit-order numbering.
 
         Examples
         --------
@@ -22650,7 +22647,9 @@ class Graph:
 
         # Create dict mapping node_id -> position in traversal
         positions = {node_id: idx for idx, node_id in enumerate(visited_order)}
+        self._recording_depth += 1
         self.set_node_attrs(attr_name, positions)
+        self._recording_depth -= 1
 
         # Track computation
         params = {"start": start}
@@ -22755,7 +22754,9 @@ class Graph:
 
         # Create dict mapping node_id -> position in traversal
         positions = {node_id: idx for idx, node_id in enumerate(visited_order)}
+        self._recording_depth += 1
         self.set_node_attrs(attr_name, positions)
+        self._recording_depth -= 1
 
         # Track computation
         params = {"start": start}
