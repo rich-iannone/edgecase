@@ -3346,6 +3346,7 @@ def _delta_val_repr(v):
 def render_steps(
     graph,
     steps: list,
+    full_steps: Optional[list] = None,
     layout: str = "force",
     theme: str = "light",
     width: int = 700,
@@ -3384,14 +3385,19 @@ def render_steps(
     is_directed = graph.is_directed()
 
     # --- Build cumulative step states (using labels) ---
-    # Compute first so we know all nodes/edges that ever appeared.
+    # When full_steps is given (filtered playback), compute state from the full
+    # history so the graph is correct at each displayed step, then extract only
+    # the states for the steps we're actually showing.
+    state_source = full_steps if full_steps is not None else steps
+    visible_indices = {id(s) for s in steps} if full_steps is not None else None
+
     step_states = []
     cum_nodes: set = set()
     cum_edges: set = set()
     all_nodes: set = set()
     all_edges: set = set()
 
-    for step in steps:
+    for step in state_source:
         delta = step.delta
         for label in delta.nodes_added:
             cum_nodes.add(label)
@@ -3404,12 +3410,13 @@ def render_steps(
             cum_edges.discard(pair)
         all_nodes.update(cum_nodes)
         all_edges.update(cum_edges)
-        step_states.append(
-            {
-                "nodes": sorted(cum_nodes),
-                "edges": [(s, t) for s, t in sorted(cum_edges)],
-            }
-        )
+        if visible_indices is None or id(step) in visible_indices:
+            step_states.append(
+                {
+                    "nodes": sorted(cum_nodes),
+                    "edges": [(s, t) for s, t in sorted(cum_edges)],
+                }
+            )
 
     # --- Build label <-> id maps from graph (for nodes still in graph) ---
     node_ids = list(graph.get_node_ids(limit=None))
