@@ -197,6 +197,14 @@ def auto_narrate(step: Step) -> str:
         return f"{step.method.upper()} traversal: {n} nodes visited."
 
     if step.kind == KIND_GENERATE:
+        parts = []
+        if d.nodes_added:
+            parts.append(f"{len(d.nodes_added)} nodes")
+        if d.edges_added:
+            parts.append(f"{len(d.edges_added)} edges")
+        detail = " and ".join(parts)
+        if detail:
+            return f"{step.method}() added {detail}."
         return f"Graph structure generated via {step.method}()."
 
     return f"{step.method}() called."
