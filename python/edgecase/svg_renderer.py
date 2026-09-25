@@ -1,8 +1,7 @@
 """Static SVG graph renderer for publication-quality small graphs.
 
-Produces clean SVG with optional hover interactivity, visually consistent
-with Cosmograph's aesthetic: filled circles, thin semi-transparent edges,
-minimal chrome.
+Produces clean SVG with optional hover interactivity, visually consistent with Cosmograph's
+aesthetic: filled circles, thin semi-transparent edges, minimal chrome.
 """
 
 from __future__ import annotations
@@ -60,15 +59,15 @@ FONT_FAMILY = (
 
 
 # ---------------------------------------------------------------------------
-# PlotSVG result object
+# StepPlayer result object
 # ---------------------------------------------------------------------------
 
 
-class PlotSVG:
-    """SVG visualization result.
+class StepPlayer:
+    """Interactive graph visualization result.
 
-    Renders inline in Jupyter via ``_repr_html_`` (with hover tooltips) or
-    ``_repr_svg_`` (pure SVG). Can be saved to file with ``.save()``.
+    Returned by `Graph.play()`, `Graph.plot()`, and `Graph.plot_traversal()`. Renders inline in
+    Jupyter via `_repr_html_` and can be saved with `.save()`.
     """
 
     def __init__(self, svg_str: str, html_str: str) -> None:
@@ -91,7 +90,7 @@ class PlotSVG:
         p.write_text(content, encoding="utf-8")
 
     def __repr__(self) -> str:
-        return f"PlotSVG({len(self._svg)} chars)"
+        return f"StepPlayer({len(self._svg)} chars)"
 
 
 # ---------------------------------------------------------------------------
@@ -266,9 +265,8 @@ def _point_to_segment_dist(
 ) -> Tuple[float, float, float]:
     """Distance from point (px,py) to segment (ax,ay)-(bx,by).
 
-    Returns (distance, t_param, side) where t_param is the projection
-    parameter [0,1] along the segment and side is +1/-1 indicating which
-    side of the segment the point lies on.
+    Returns (distance, t_param, side) where t_param is the projection parameter [0,1] along the
+    segment and side is +1/-1 indicating which side of the segment the point lies on.
     """
     dx, dy = bx - ax, by - ay
     seg_len2 = dx * dx + dy * dy
@@ -295,9 +293,8 @@ def _route_edge(
 ) -> Optional[List[Tuple[float, float]]]:
     """Compute waypoints that route an edge around intermediate nodes.
 
-    Returns None if the straight line is clear (no routing needed),
-    or a list of waypoints [src, wp1, wp2, ..., dst] that avoids all
-    intermediate node circles.
+    Returns None if the straight line is clear (no routing needed), or a list of waypoints
+    [src, wp1, wp2, ..., dst] that avoids all intermediate node circles.
     """
     x1, y1 = positions[src_id]
     x2, y2 = positions[dst_id]
@@ -356,8 +353,8 @@ def _waypoints_to_svg_path(
     r_src: float,
     r_dst: float,
 ) -> str:
-    """Convert waypoints to a smooth SVG cubic bezier path string,
-    trimmed to stop at node circle edges."""
+    """Convert waypoints to a smooth SVG cubic bezier path string, trimmed to stop at node circle
+    edges."""
     if len(waypoints) < 2:
         return ""
 
@@ -601,18 +598,18 @@ def _compute_edge_fans(
     """Compute bow values and loop sizes for fanning out parallel edges.
 
     For each edge, returns:
-    - bow: curve amount (0.0 = straight). For edges between the same unordered
-      pair of nodes, bows are assigned so the curves visually fan out.
+
+    - bow: curve amount (0.0 = straight). For edges between the same unordered pair of nodes, bows
+    are assigned so the curves visually fan out.
     - loop_size: scaling multiplier for self-loop arcs (1.0 = default).
 
-    The key insight: for edge A→B, the perpendicular is in one direction;
-    for B→A it's reversed. So to place them on OPPOSITE visual sides, both
-    need the SAME bow value (the perpendicular reversal provides the mirror).
-    To place them on the same visual side, they need opposite bow values.
+    The key insight: for edge A→B, the perpendicular is in one direction; for B→A it's reversed. So
+    to place them on OPPOSITE visual sides, both need the SAME bow value (the perpendicular reversal
+    provides the mirror). To place them on the same visual side, they need opposite bow values.
 
     We assign visual offsets along a canonical perpendicular, then convert:
-    canonical direction = src < tgt. For canonical-direction edges, bow = v.
-    For reverse-direction edges, bow = -v.
+    canonical direction = src < tgt. For canonical-direction edges, bow = v. For reverse-direction
+    edges, bow = -v.
     """
     from collections import defaultdict
 
@@ -1068,8 +1065,8 @@ def render_plot(
     edge_routing: Union[str, float] = "around",
     show_labels: bool = True,
     output: Optional[str] = None,
-) -> "PlotSVG":
-    """Render a graph as static SVG. Returns a PlotSVG object."""
+) -> "StepPlayer":
+    """Render a graph as a static SVG wrapped in a StepPlayer."""
 
     th = THEMES.get(theme, LIGHT)
 
@@ -1084,7 +1081,7 @@ def render_plot(
             f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
             f'font-size="14">Empty graph</text></svg>'
         )
-        result = PlotSVG(svg, svg)
+        result = StepPlayer(svg, svg)
         if output:
             result.save(output)
         return result
@@ -1508,7 +1505,7 @@ def render_plot(
     # --- HTML wrapper with hover tooltips ---
     html_str = _generate_html_wrapper(svg_str, th, width, height)
 
-    result = PlotSVG(svg_str, html_str)
+    result = StepPlayer(svg_str, html_str)
     if output:
         result.save(output)
     return result
@@ -1592,8 +1589,8 @@ def _infer_tree_edges(
 ) -> List[Tuple[str, str]]:
     """Infer tree edges from a visit order.
 
-    For each node after the first, the tree edge connects it to its
-    already-visited neighbor that appears latest in visit_order.
+    For each node after the first, the tree edge connects it to its already-visited neighbor that
+    appears latest in visit_order.
     """
     order_idx = {nid: i for i, nid in enumerate(visit_order)}
     tree_edges: List[Tuple[str, str]] = []
@@ -1697,11 +1694,8 @@ def render_traversal(
     node_overlap: Union[str, float] = "remove",
     show_labels: bool = True,
     output: Optional[str] = None,
-) -> "PlotSVG":
-    """Render an interactive graph traversal visualization.
-
-    Returns a PlotSVG with an HTML slider that steps through the traversal.
-    """
+) -> "StepPlayer":
+    """Render an interactive traversal StepPlayer with a step-through slider."""
     global _traversal_counter
     _traversal_counter += 1
     uid = f"tv{_traversal_counter}"
@@ -2107,7 +2101,7 @@ def render_traversal(
         width,
     )
 
-    result = PlotSVG(svg_str, html_str)
+    result = StepPlayer(svg_str, html_str)
     if output:
         result.save(output)
     return result
@@ -2364,10 +2358,9 @@ _chain_counter = 0
 class TraversalRecorder:
     """Records a sequence of selection/traversal operations on a graph.
 
-    Each call to a ``trav_*`` or ``select_*`` method is delegated to the
-    underlying graph, then the resulting selection (node IDs or edge IDs)
-    is captured as a step.  The recorded chain can be rendered as an
-    interactive visualization with :meth:`plot`.
+    Each call to a `trav_*()` or `select_*()` method is delegated to the underlying graph, then the
+    resulting selection (node IDs or edge IDs) is captured as a step. The recorded chain can be
+    rendered as an interactive visualization with `plot()`.
     """
 
     _EDGE_OPS = frozenset({"trav_out_edge", "trav_in_edge", "trav_reverse_edge"})
@@ -2532,7 +2525,7 @@ class TraversalRecorder:
         node_overlap: Union[str, float] = "remove",
         show_labels: bool = True,
         output: Optional[str] = None,
-    ) -> PlotSVG:
+    ) -> StepPlayer:
         return render_traversal_chain(
             self._graph,
             self._steps,
@@ -2565,14 +2558,12 @@ def render_traversal_chain(
     node_overlap: Union[str, float] = "remove",
     show_labels: bool = True,
     output: Optional[str] = None,
-) -> PlotSVG:
+) -> StepPlayer:
     """Render an interactive traversal-chain visualization.
 
-    Each step in *chain_steps* is a dict with keys ``op``, ``op_display``,
-    ``selection_type`` (``"nodes"`` or ``"edges"``), and ``ids`` (list of
-    integer IDs).  The visualization shows the full graph and lets the user
-    step through the chain, highlighting the selected nodes or edges at each
-    step.
+    Each step in *chain_steps* is a dict with keys `op`, `op_display`, `selection_type` (`"nodes"`
+    or `"edges"`), and `ids` (list of integer IDs).  The visualization shows the full graph and lets
+    the user step through the chain, highlighting the selected nodes or edges at each step.
     """
     global _chain_counter
     _chain_counter += 1
@@ -3033,7 +3024,7 @@ def render_traversal_chain(
         svg_width=width,
     )
 
-    result = PlotSVG(svg_str, html_str)
+    result = StepPlayer(svg_str, html_str)
     if output:
         result.save(output)
     return result
@@ -3358,7 +3349,7 @@ def render_steps(
     speed: float = 1.0,
     layout_mode: str = "stable",
     output: Optional[str] = None,
-) -> "PlotSVG":
+) -> "StepPlayer":
     """Render an interactive step-through visualization of recorded graph steps."""
     global _step_counter
     _step_counter += 1
@@ -3378,7 +3369,7 @@ def render_steps(
             f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
             f'font-size="14">No steps recorded</text></svg>'
         )
-        result = PlotSVG(svg, svg)
+        result = StepPlayer(svg, svg)
         if output:
             result.save(output)
         return result
@@ -3555,6 +3546,14 @@ def render_steps(
             f'fill="{node_color}" stroke="none" stroke-width="2" opacity="0" '
             f'style="transition:opacity 0.3s ease,fill 0.3s ease,r 0.3s ease,stroke 0.3s ease,filter 0.3s ease;"/>'
         )
+        svg_parts.append(
+            f'<text class="step-order" data-label="{html_mod.escape(label)}" '
+            f'x="{x:.1f}" y="{y + 4:.1f}" '
+            f'text-anchor="middle" font-size="{max(9, node_size * 0.7):.0f}" '
+            f'font-weight="700" fill="#fff" opacity="0" '
+            f'pointer-events="none" '
+            f'style="transition:opacity 0.3s ease;"></text>'
+        )
         if show_labels:
             svg_parts.append(
                 f'<text class="step-label" data-label="{html_mod.escape(label)}" '
@@ -3569,7 +3568,19 @@ def render_steps(
     svg_str = "\n".join(svg_parts)
 
     # --- Step data JSON (expand traverse sub-steps) ---
-    step_data = []
+    # Prepend an initial step showing the empty graph state
+    dir_label = "directed" if is_directed else "undirected"
+    step_data = [
+        {
+            "kind": "init",
+            "method": "",
+            "code": f"Graph(directed={'True' if is_directed else 'False'})",
+            "narration": f"Empty {dir_label} graph.",
+            "nodes": [],
+            "edges": [],
+            "delta": {"na": [], "nr": [], "ea": [], "er": []},
+        }
+    ]
     for i, step in enumerate(steps):
         base_nodes = step_states[i]["nodes"]
         base_edges = step_states[i]["edges"]
@@ -3604,10 +3615,12 @@ def render_steps(
                     tree_edge_for[lbl] = (parts[0], parts[1])
 
             visited_so_far: set = set()
+            visit_order: list = []
             tree_edges_so_far: list = []
             for j, sub in enumerate(step.sub_steps):
                 lbl = sub.delta.nodes_added[0]
                 visited_so_far.add(lbl)
+                visit_order.append(lbl)
 
                 current_edge = None
                 if lbl in tree_edge_for:
@@ -3637,6 +3650,7 @@ def render_steps(
                             "current_edge": current_edge,
                             "step_num": j + 1,
                             "total": len(step.sub_steps),
+                            "step_labels": {v: k + 1 for k, v in enumerate(visit_order)},
                         },
                     }
                 )
@@ -3692,6 +3706,7 @@ def render_steps(
 
     # Timeline segment colors by kind
     tl_colors = {
+        "init": "#94a3b8" if is_dark else "#64748b",
         "build_nodes": "#22c55e",
         "build_edges": "#22c55e",
         "remove": "#ef4444",
@@ -3715,7 +3730,31 @@ def render_steps(
         )
     tl_html = "\n    ".join(tl_segs)
 
-    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};max-width:{width}px;margin:0 auto;">
+    # --- Step list overlay items + notch indicators ---
+    sl_items = []
+    notch_items = []
+    for i, sd in enumerate(step_data):
+        c = tl_colors.get(sd["kind"], tl_default)
+        cls = "sl-item active" if i == 0 else "sl-item"
+        method = sd["method"] + "()" if sd["kind"] != "annotate" else ""
+        narr = sd.get("narration", "")
+        narr_esc = narr.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+        if len(narr_esc) > 50:
+            narr_esc = narr_esc[:47] + "..."
+        sl_items.append(
+            f'<div class="{cls}" data-idx="{i}" title="{narr_esc}">'
+            f'<span class="sl-num">{i + 1}</span>'
+            f'<span class="sl-badge" style="background:{c}22;color:{c}">'
+            f"{sd['kind']}</span>"
+            f'<span class="sl-method">{method}</span>'
+            f"</div>"
+        )
+        ncls = "step-notch active" if i == 0 else "step-notch"
+        notch_items.append(f'<div class="{ncls}" data-idx="{i}" style="background:{c}"></div>')
+    sl_html = "\n      ".join(sl_items)
+    notch_html = "\n      ".join(notch_items)
+
+    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};max-width:{width}px;margin:0 auto;overflow:hidden;">
 <style>
 #{uid} .step-panel {{
   border:1px solid {border};
@@ -3742,8 +3781,31 @@ def render_steps(
   border-radius:6px;
   font-size:12.5px;
   line-height:1.5;
-  overflow-x:auto;
-  white-space:pre-wrap;
+  overflow:hidden;
+  white-space:nowrap;
+  color:{fg};
+  position:relative;
+  max-width:100%;
+  box-sizing:border-box;
+}}
+#{uid} .code-expand {{
+  display:none;
+  position:absolute;
+  right:4px;
+  top:50%;
+  transform:translateY(-50%);
+  background:{code_bg};
+  padding:2px 6px 2px 12px;
+  font-size:11px;
+  font-weight:600;
+  color:{accent};
+  cursor:pointer;
+  border-radius:3px;
+  font-family:inherit;
+  box-shadow:-8px 0 8px {code_bg};
+  z-index:2;
+}}
+#{uid} .code-expand:hover {{
   color:{fg};
 }}
 #{uid} .kw {{ color:{kw_color}; }}
@@ -3936,15 +3998,133 @@ def render_steps(
   background:{"#2e1a6522" if is_dark else "#ede9fe"};
   color:{"#a78bfa" if is_dark else "#6d28d9"};
 }}
+#{uid} .step-tooltip {{
+  display:none;
+  position:absolute;
+  pointer-events:none;
+  z-index:100;
+  background:{"#1e293b" if is_dark else "#fff"};
+  border:1px solid {border};
+  border-radius:6px;
+  padding:6px 10px;
+  font-size:11.5px;
+  line-height:1.5;
+  color:{fg};
+  box-shadow:0 2px 8px rgba(0,0,0,{".3" if is_dark else ".12"});
+  max-width:220px;
+  white-space:nowrap;
+}}
+#{uid} .step-tooltip.visible {{
+  display:block;
+}}
+#{uid} .step-tooltip .tt-label {{
+  font-weight:600;
+  font-size:12px;
+}}
+#{uid} .step-tooltip .tt-state {{
+  font-size:10.5px;
+  margin-top:2px;
+  opacity:0.75;
+}}
+#{uid} .step-notches {{
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:20px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:1px;
+  padding:8px 0;
+  z-index:50;
+  cursor:pointer;
+}}
+#{uid} .step-notch {{
+  width:4px;
+  height:4px;
+  min-height:2px;
+  border-radius:1px;
+  margin-left:4px;
+  opacity:0.35;
+  transition:opacity 0.15s ease, background 0.15s ease;
+}}
+#{uid} .step-notch.active {{
+  opacity:1;
+  width:5px;
+}}
+#{uid} .step-overlay {{
+  display:none;
+  position:absolute;
+  left:0; top:0;
+  width:80%;
+  max-height:80%;
+  overflow-y:auto;
+  background:{"rgba(15,23,42,0.92)" if is_dark else "rgba(255,255,255,0.94)"};
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-radius:0 8px 8px 0;
+  border:1px solid {"rgba(255,255,255,0.08)" if is_dark else "rgba(0,0,0,0.08)"};
+  border-left:none;
+  box-shadow:0 4px 24px rgba(0,0,0,{".4" if is_dark else ".12"});
+  z-index:60;
+  padding:6px 0;
+  font-size:11.5px;
+}}
+#{uid} .step-overlay.visible {{
+  display:block;
+}}
+#{uid} .sl-item {{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:5px 10px;
+  cursor:pointer;
+  transition:background 0.1s ease;
+}}
+#{uid} .sl-item:hover {{
+  background:{"rgba(255,255,255,0.06)" if is_dark else "rgba(0,0,0,0.04)"};
+}}
+#{uid} .sl-item.active {{
+  background:{accent}22;
+  border-left:2px solid {accent};
+}}
+#{uid} .sl-num {{
+  color:{narr_fg};
+  font-size:10px;
+  min-width:18px;
+  text-align:right;
+  flex-shrink:0;
+}}
+#{uid} .sl-badge {{
+  font-size:9px;
+  font-weight:600;
+  padding:1px 5px;
+  border-radius:3px;
+  flex-shrink:0;
+  white-space:nowrap;
+}}
+#{uid} .sl-method {{
+  color:{fg};
+  font-size:11px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}}
 </style>
 
 <div class="step-panel">
-  <div class="step-svg-wrap">
+  <div class="step-svg-wrap" style="position:relative;">
     {svg_str}
+    <div class="step-tooltip" id="{uid}-tooltip"></div>
+    <div class="step-notches" id="{uid}-notches">
+      {notch_html}
+    </div>
+    <div class="step-overlay" id="{uid}-overlay">
+      {sl_html}
+    </div>
   </div>
   <div class="step-code-panel" id="{uid}-code">
     <span class="step-kind-badge" id="{uid}-badge"></span>
-    <pre id="{uid}-codewrap"><code id="{uid}-codetext"></code></pre>
+    <pre id="{uid}-codewrap"><code id="{uid}-codetext"></code><span class="code-expand" id="{uid}-codemore">[&hellip;]</span></pre>
     <p class="step-note-text" id="{uid}-notetext" style="display:none"></p>
     <div class="step-narration" id="{uid}-narration"></div>
     <div class="step-delta" id="{uid}-delta"></div>
@@ -3991,6 +4171,7 @@ def render_steps(
   var codeWrap=document.getElementById('{uid}-codewrap');
   var noteEl=document.getElementById('{uid}-notetext');
   var narrEl=document.getElementById('{uid}-narration');
+  var codeMore=document.getElementById('{uid}-codemore');
   var badgeEl=document.getElementById('{uid}-badge');
   var deltaEl=document.getElementById('{uid}-delta');
   var slider=document.getElementById('{uid}-slider');
@@ -4005,12 +4186,109 @@ def render_steps(
   var modalOverlay=document.getElementById('{uid}-modal');
   var modalBody=document.getElementById('{uid}-modal-body');
   var modalClose=document.getElementById('{uid}-modal-close');
+  var notches=document.getElementById('{uid}-notches');
+  var notchEls=notches.querySelectorAll('.step-notch');
+  var overlay=document.getElementById('{uid}-overlay');
+  var slItems=overlay.querySelectorAll('.sl-item');
+  var wrapper=document.getElementById('{uid}');
+  var tooltip=document.getElementById('{uid}-tooltip');
+  var svgWrap=svg.parentElement;
+
+  function nodeState(lbl){{
+    var s=STEPS[cur],d=s.delta||{{}},tv=s.traverse||null;
+    if(tv){{
+      var sl=tv.step_labels||{{}};
+      var ord=sl[lbl]?' (#'+sl[lbl]+')':'';
+      if(lbl===tv.current) return 'Current node'+ord;
+      var vis=new Set(tv.visited);
+      if(vis.has(lbl)) return 'Visited'+ord;
+      var fr=new Set(tv.frontier);
+      if(fr.has(lbl)) return 'Frontier';
+      return 'Unvisited';
+    }}
+    if((d.na||[]).indexOf(lbl)!==-1) return 'Added this step';
+    if((d.nr||[]).indexOf(lbl)!==-1) return 'Removed this step';
+    if((d.sn||[]).indexOf(lbl)!==-1) return 'Selected';
+    if(d.ac && Object.keys(d.ac).length>0 && s.method.indexOf('node')!==-1) return 'Mutated';
+    return '';
+  }}
+  function edgeState(src,tgt){{
+    var s=STEPS[cur],d=s.delta||{{}},tv=s.traverse||null;
+    if(tv){{
+      if(tv.current_edge && ((tv.current_edge[0]===src&&tv.current_edge[1]===tgt)||(tv.current_edge[0]===tgt&&tv.current_edge[1]===src))) return 'Current edge';
+      var te=new Set();
+      tv.tree_edges.forEach(function(e){{ te.add(e[0]+'\\0'+e[1]); te.add(e[1]+'\\0'+e[0]); }});
+      if(te.has(src+'\\0'+tgt)) return 'Tree edge';
+      return '';
+    }}
+    var ea=new Set();
+    (d.ea||[]).forEach(function(e){{ ea.add(e[0]+'\\0'+e[1]); ea.add(e[1]+'\\0'+e[0]); }});
+    if(ea.has(src+'\\0'+tgt)) return 'Added this step';
+    var er=new Set();
+    (d.er||[]).forEach(function(e){{ er.add(e[0]+'\\0'+e[1]); er.add(e[1]+'\\0'+e[0]); }});
+    if(er.has(src+'\\0'+tgt)) return 'Removed this step';
+    var se=new Set();
+    (d.se||[]).forEach(function(e){{ se.add(e[0]+'\\0'+e[1]); se.add(e[1]+'\\0'+e[0]); }});
+    if(se.has(src+'\\0'+tgt)) return 'Selected';
+    return '';
+  }}
+  function showTooltip(html,e){{
+    tooltip.innerHTML=html;
+    tooltip.classList.add('visible');
+    positionTooltip(e);
+  }}
+  function positionTooltip(e){{
+    var r=svgWrap.getBoundingClientRect();
+    var x=e.clientX-r.left+12;
+    var y=e.clientY-r.top-10;
+    if(x+tooltip.offsetWidth>r.width-8) x=e.clientX-r.left-tooltip.offsetWidth-8;
+    if(y<4) y=4;
+    tooltip.style.left=x+'px';
+    tooltip.style.top=y+'px';
+  }}
+  function hideTooltip(){{
+    tooltip.classList.remove('visible');
+  }}
+  svg.addEventListener('mouseover',function(e){{
+    var node=e.target.closest('.step-node');
+    if(node){{
+      var lbl=node.getAttribute('data-label');
+      if(parseFloat(node.getAttribute('opacity'))<0.01) return;
+      var st=nodeState(lbl);
+      var h='<div class="tt-label">'+lbl+'</div>';
+      if(st) h+='<div class="tt-state">'+st+'</div>';
+      showTooltip(h,e);
+      return;
+    }}
+    var edge=e.target.closest('.step-edge');
+    if(edge){{
+      var src=edge.getAttribute('data-src'), tgt=edge.getAttribute('data-tgt');
+      if(parseFloat(edge.getAttribute('opacity'))<0.01) return;
+      var st=edgeState(src,tgt);
+      var h='<div class="tt-label">'+src+' \\u2192 '+tgt+'</div>';
+      if(st) h+='<div class="tt-state">'+st+'</div>';
+      showTooltip(h,e);
+      return;
+    }}
+    hideTooltip();
+  }});
+  svg.addEventListener('mousemove',function(e){{
+    if(tooltip.classList.contains('visible')) positionTooltip(e);
+  }});
+  svg.addEventListener('mouseout',function(e){{
+    if(!svg.contains(e.relatedTarget)) hideTooltip();
+  }});
+  svg.addEventListener('mouseleave',hideTooltip);
 
   function isTruncated(el){{
     return el.scrollHeight>el.clientHeight+1;
   }}
-  function openModal(text){{
-    modalBody.textContent=text;
+  function openModal(text,asCode){{
+    if(asCode){{
+      modalBody.innerHTML='<pre style="margin:0;white-space:pre-wrap;word-break:break-all;font-size:13px;line-height:1.6">'+hlPy(text)+'</pre>';
+    }} else {{
+      modalBody.textContent=text;
+    }}
     modalOverlay.classList.add('open');
   }}
   function closeModal(){{
@@ -4035,6 +4313,17 @@ def render_steps(
       }}
     }},0);
   }}
+  var _codeRaw='';
+  function checkCodeOverflow(){{
+    setTimeout(function(){{
+      if(codeWrap.scrollWidth>codeWrap.clientWidth+1){{
+        codeMore.style.display='inline';
+      }} else {{
+        codeMore.style.display='none';
+      }}
+    }},0);
+  }}
+  codeMore.addEventListener('click',function(){{ openModal(_codeRaw,true); }});
   modalClose.addEventListener('click',closeModal);
   modalOverlay.addEventListener('click',function(e){{
     if(e.target===modalOverlay) closeModal();
@@ -4196,6 +4485,21 @@ def render_steps(
       }}
     }}
 
+    // Step-order numbers (traversal only)
+    var orders=svg.querySelectorAll('.step-order');
+    var sl=tv?tv.step_labels:{{}};
+    for(var i=0;i<orders.length;i++){{
+      var el=orders[i];
+      var lbl=el.getAttribute('data-label');
+      if(tv && sl[lbl]){{
+        el.textContent=sl[lbl];
+        el.setAttribute('opacity', lbl===tv.current?'1':'0.85');
+      }} else {{
+        el.textContent='';
+        el.setAttribute('opacity','0');
+      }}
+    }}
+
     // Edges
     var edges=svg.querySelectorAll('.step-edge');
     for(var i=0;i<edges.length;i++){{
@@ -4276,11 +4580,14 @@ def render_steps(
       noteEl.textContent=s.narration;
       narrEl.style.display='none';
       addMoreLink(noteEl,s.narration);
+      codeMore.style.display='none';
     }} else {{
       codeWrap.style.display='';
       noteEl.style.display='none';
       narrEl.style.display='';
+      _codeRaw=s.code;
       codeEl.innerHTML=hlPy(s.code);
+      checkCodeOverflow();
       narrEl.textContent=s.narration;
       addMoreLink(narrEl,s.narration);
     }}
@@ -4330,6 +4637,15 @@ def render_steps(
     counter.textContent='Step '+(idx+1)+' / '+STEPS.length;
     for(var t=0;t<tlSegs.length;t++){{
       tlSegs[t].classList.toggle('active',t===idx);
+    }}
+    for(var t=0;t<slItems.length;t++){{
+      slItems[t].classList.toggle('active',t===idx);
+    }}
+    for(var t=0;t<notchEls.length;t++){{
+      notchEls[t].classList.toggle('active',t===idx);
+    }}
+    if(overlay.classList.contains('visible')&&slItems[idx]){{
+      slItems[idx].scrollIntoView({{block:'nearest',behavior:'smooth'}});
     }}
     var atEnd=idx>=STEPS.length-1;
     replayBtn.style.display=atEnd&&!playing?'inline-block':'none';
@@ -4396,6 +4712,33 @@ def render_steps(
     cur=idx;
     applyStep(cur);
   }});
+  var overlayTimer=null;
+  function showOverlay(){{
+    clearTimeout(overlayTimer);
+    overlay.classList.add('visible');
+    if(slItems[cur]) slItems[cur].scrollIntoView({{block:'nearest',behavior:'instant'}});
+  }}
+  function scheduleHide(){{
+    overlayTimer=setTimeout(function(){{ overlay.classList.remove('visible'); }},300);
+  }}
+  notches.addEventListener('mouseenter',showOverlay);
+  notches.addEventListener('mouseleave',scheduleHide);
+  overlay.addEventListener('mouseenter',function(){{ clearTimeout(overlayTimer); }});
+  overlay.addEventListener('mouseleave',function(){{ overlay.classList.remove('visible'); }});
+  notches.addEventListener('click',function(e){{
+    var n=e.target.closest('.step-notch');
+    if(!n) return;
+    var idx=parseInt(n.getAttribute('data-idx'));
+    if(isNaN(idx)) return;
+    stopPlay(); cur=idx; applyStep(cur);
+  }});
+  overlay.addEventListener('click',function(e){{
+    var item=e.target.closest('.sl-item');
+    if(!item) return;
+    var idx=parseInt(item.getAttribute('data-idx'));
+    if(isNaN(idx)) return;
+    stopPlay(); cur=idx; applyStep(cur);
+  }});
 
   document.addEventListener('keydown',function(e){{
     if(!document.getElementById('{uid}')) return;
@@ -4405,6 +4748,7 @@ def render_steps(
     else if(e.key===' '){{ playBtn.click(); e.preventDefault(); }}
     else if(e.key==='Home'){{ stopPlay(); cur=0; applyStep(cur); e.preventDefault(); }}
     else if(e.key==='End'){{ stopPlay(); cur=STEPS.length-1; applyStep(cur); e.preventDefault(); }}
+    else if(e.key==='l'||e.key==='L'){{ overlay.classList.toggle('visible'); e.preventDefault(); }}
   }});
 
   applyStep(0);
@@ -4413,7 +4757,7 @@ def render_steps(
 </script>
 </div>"""
 
-    result = PlotSVG(svg_str, html)
+    result = StepPlayer(svg_str, html)
     if output:
         result.save(output)
     return result
