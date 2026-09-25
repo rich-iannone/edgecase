@@ -4,16 +4,16 @@ import polars as pl
 
 from edgecase import _core as rust
 from edgecase.steps import (
+    KIND_ANNOTATE,
+    KIND_BUILD_EDGES,
+    KIND_BUILD_NODES,
+    KIND_GENERATE,
+    KIND_REMOVE,
+    KIND_TRAVERSE,
     Step,
     StepDelta,
     StepList,
     auto_narrate,
-    KIND_BUILD_NODES,
-    KIND_BUILD_EDGES,
-    KIND_REMOVE,
-    KIND_ANNOTATE,
-    KIND_GENERATE,
-    KIND_TRAVERSE,
 )
 
 # ==============================================================================
@@ -395,26 +395,45 @@ class Graph:
     # Step Recording
     # ==============================================================================
 
-    def _snapshot_counts(self) -> tuple:
-        """Return (node_count, edge_count) for delta computation."""
-        return (self.count_nodes(), self.count_edges())
+    def _snapshot_state(self) -> tuple:
+        """Return (node_id_set, edge_set) for delta computation."""
+        node_ids = set(self.get_node_ids(limit=None))
+        edges = set()
+        for nid in node_ids:
+            try:
+                for nb in self.neighbors(nid):
+                    if self.is_directed():
+                        edges.add((nid, nb))
+                    else:
+                        edges.add((min(nid, nb), max(nid, nb)))
+            except Exception:
+                pass
+        return (node_ids, edges)
 
     def _begin_compound(self) -> tuple:
         """Start a compound operation (suppresses child recordings). Returns snapshot."""
         self._recording_depth += 1
-        return self._snapshot_counts()
+        return self._snapshot_state()
 
     def _end_compound(self, method: str, code: str, before: tuple, kind: str = KIND_GENERATE):
         """End a compound operation and record one summary step."""
         self._recording_depth -= 1
         if self._recording_depth == 0:
-            n_before, e_before = before
-            n_after, e_after = self._snapshot_counts()
+            old_nodes, old_edges = before
+            new_nodes, new_edges = self._snapshot_state()
+            added_nids = new_nodes - old_nodes
+            added_edges = new_edges - old_edges
             delta = StepDelta()
-            if n_after > n_before:
-                delta.nodes_added = [f"+{n_after - n_before} nodes"]
-            if e_after > e_before:
-                delta.edges_added = [(f"+{e_after - e_before}", "edges")]
+            for nid in sorted(added_nids):
+                obj = self.get_node(nid)
+                label = str(obj.label) if obj and obj.label else str(nid)
+                delta.nodes_added.append(label)
+            for src, tgt in sorted(added_edges):
+                src_obj = self.get_node(src)
+                tgt_obj = self.get_node(tgt)
+                s_label = str(src_obj.label) if src_obj and src_obj.label else str(src)
+                t_label = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(tgt)
+                delta.edges_added.append((s_label, t_label))
             self._record_step(kind, method, code, delta=delta)
 
     def _record_step(
@@ -443,6 +462,85 @@ class Graph:
             step.narration = auto_narrate(step)
         self._steps.append(step)
         return step
+
+    def _record_traversal(self, algorithm: str, start, visited_order: list) -> None:
+        """Record a traversal as a single step with sub-steps for each node visit."""
+        labels = []
+        for nid in visited_order:
+            obj = self.get_node(nid)
+            labels.append(str(obj.label) if obj and obj.label else str(nid))
+
+        # Build undirected adjacency (labels) for tree-edge inference
+        adjacency: dict = {}
+        for nid in visited_order:
+            obj = self.get_node(nid)
+            lbl = str(obj.label) if obj and obj.label else str(nid)
+            nbs = []
+            try:
+                for nb in self.neighbors(nid):
+                    nb_obj = self.get_node(nb)
+                    nbs.append(str(nb_obj.label) if nb_obj and nb_obj.label else str(nb))
+            except Exception:
+                pass
+            adjacency.setdefault(lbl, []).extend(nbs)
+            for nb_lbl in nbs:
+                adjacency.setdefault(nb_lbl, []).append(lbl)
+        for k in adjacency:
+            adjacency[k] = list(dict.fromkeys(adjacency[k]))
+
+        # Infer tree edges
+        order_idx = {lbl: i for i, lbl in enumerate(labels)}
+        tree_edges: list = []
+        visited_set: set = set()
+        parent_of: dict = {}
+        for i, lbl in enumerate(labels):
+            if i == 0:
+                visited_set.add(lbl)
+                continue
+            best_parent = None
+            best_pos = -1
+            for nb in adjacency.get(lbl, []):
+                if nb in visited_set:
+                    pos = order_idx.get(nb, -1)
+                    if pos > best_pos:
+                        best_pos = pos
+                        best_parent = nb
+            if best_parent is not None:
+                tree_edges.append((best_parent, lbl))
+                parent_of[lbl] = best_parent
+            visited_set.add(lbl)
+
+        # Build sub-steps
+        sub_steps = []
+        visited_so_far: set = set()
+        for i, lbl in enumerate(labels):
+            visited_so_far.add(lbl)
+            frontier = set()
+            for v in visited_so_far:
+                for nb in adjacency.get(v, []):
+                    if nb not in visited_so_far:
+                        frontier.add(nb)
+            sub = Step(
+                index=i,
+                kind=KIND_TRAVERSE,
+                method=algorithm,
+                code=f"visit {lbl}" if i == 0 else f"{parent_of.get(lbl, '?')} → {lbl}",
+                narration=f"Start at {lbl}"
+                if i == 0
+                else f"Visit {lbl} from {parent_of.get(lbl, '?')}",
+                delta=StepDelta(nodes_added=[lbl]),
+            )
+            sub_steps.append(sub)
+
+        start_label = labels[0] if labels else str(start)
+        code = f"G.{algorithm}(start={start!r})"
+        self._record_step(
+            kind=KIND_TRAVERSE,
+            method=algorithm,
+            code=code,
+            sub_steps=sub_steps,
+            result=visited_order,
+        )
 
     @property
     def steps(self) -> StepList:
@@ -746,7 +844,9 @@ class Graph:
         type_str = f", type={type!r}" if type is not None else ""
         code = f"G.add_nodes({node_list}{type_str}{attrs_str})"
         self._record_step(
-            KIND_BUILD_NODES, "add_nodes", code,
+            KIND_BUILD_NODES,
+            "add_nodes",
+            code,
             delta=StepDelta(nodes_added=labels_added),
         )
 
@@ -927,7 +1027,9 @@ class Graph:
             weight_str = f", weight={weight!r}" if weight is not None else ""
             code = f"G.add_edge({s!r}, {t!r}{rel_str}{weight_str}{attrs_str})"
             self._record_step(
-                KIND_BUILD_EDGES, "add_edge", code,
+                KIND_BUILD_EDGES,
+                "add_edge",
+                code,
                 delta=StepDelta(edges_added=[(s, t)]),
             )
 
@@ -1078,7 +1180,9 @@ class Graph:
         weight_str = f", weight={weight!r}" if weight is not None else ""
         code = f"G.add_edges({pairs}{rel_str}{weight_str}{attrs_str})"
         self._record_step(
-            KIND_BUILD_EDGES, "add_edges", code,
+            KIND_BUILD_EDGES,
+            "add_edges",
+            code,
             delta=StepDelta(edges_added=edges_added),
         )
 
@@ -1158,13 +1262,9 @@ class Graph:
             )
 
         if not self._graph.has_node_id(source):
-            raise ValueError(
-                f"Source node ID {source} does not exist in the graph."
-            )
+            raise ValueError(f"Source node ID {source} does not exist in the graph.")
         if not self._graph.has_node_id(target):
-            raise ValueError(
-                f"Target node ID {target} does not exist in the graph."
-            )
+            raise ValueError(f"Target node ID {target} does not exist in the graph.")
 
         if rel is not None:
             attributes = attributes.copy() if attributes else {}
@@ -1182,7 +1282,9 @@ class Graph:
         if self._recording_depth == 0:
             code = f"G.add_edge_by_id({source}, {target})"
             self._record_step(
-                KIND_BUILD_EDGES, "add_edge_by_id", code,
+                KIND_BUILD_EDGES,
+                "add_edge_by_id",
+                code,
                 delta=StepDelta(edges_added=[(str(source), str(target))]),
             )
 
@@ -1306,7 +1408,9 @@ class Graph:
         pairs = repr([(int(s), int(t)) for s, t in edges_added])
         code = f"G.add_edges_by_id({pairs})"
         self._record_step(
-            KIND_BUILD_EDGES, "add_edges_by_id", code,
+            KIND_BUILD_EDGES,
+            "add_edges_by_id",
+            code,
             delta=StepDelta(edges_added=edges_added),
         )
 
@@ -1431,7 +1535,9 @@ class Graph:
         if self._recording_depth == 0:
             code = f"G.delete_node({node!r})"
             self._record_step(
-                KIND_REMOVE, "delete_node", code,
+                KIND_REMOVE,
+                "delete_node",
+                code,
                 delta=StepDelta(nodes_removed=[str(node)]),
             )
 
@@ -1534,7 +1640,9 @@ class Graph:
                 s, t = str(source), str(target)
                 code = f"G.delete_edge({s!r}, {t!r})"
                 self._record_step(
-                    KIND_REMOVE, "delete_edge", code,
+                    KIND_REMOVE,
+                    "delete_edge",
+                    code,
                     delta=StepDelta(edges_removed=[(s, t)]),
                 )
 
@@ -2556,6 +2664,85 @@ class Graph:
             output=output,
         )
 
+    def play(
+        self,
+        steps: Optional[list] = None,
+        layout: str = "force",
+        theme: str = "light",
+        width: int = 700,
+        height: int = 500,
+        node_size: float = 16.0,
+        edge_width: float = 1.2,
+        show_labels: bool = True,
+        auto_play: bool = False,
+        speed: float = 1.0,
+        layout_mode: str = "stable",
+        output: Optional[str] = None,
+    ):
+        """
+        Replay the step log as an interactive step-through visualization.
+
+        Produces an HTML widget with the graph SVG, syntax-highlighted code, narration, and slider
+        controls. Each step reveals the graph elements that were added or modified at that point.
+
+        Parameters
+        ----------
+        steps
+            A subset of steps to replay. If `None`, replays all steps in `self.steps`.
+        layout
+            Layout algorithm: `"force"`, `"circular"`, or `"random"`.
+        theme
+            Color theme: `"light"` or `"dark"`.
+        width
+            SVG canvas width in pixels.
+        height
+            SVG canvas height in pixels.
+        node_size
+            Base node circle radius.
+        edge_width
+            Base edge stroke width.
+        show_labels
+            Whether to show node labels.
+        auto_play
+            If `True`, start playback automatically.
+        speed
+            Playback speed multiplier (1.0 = normal).
+        layout_mode
+            `"stable"` computes layout on the final graph state (positions don't jump).
+            `"progressive"` recomputes per step.
+        output
+            File path to save. If `None`, returns a `PlotSVG` for Jupyter display.
+
+        Returns
+        -------
+        PlotSVG
+            Interactive HTML visualization.
+        """
+        if self._pending_note is not None:
+            self._record_step(
+                kind=KIND_ANNOTATE,
+                method="note",
+                code=f"G.note({self._pending_note!r})",
+            )
+
+        from edgecase.svg_renderer import render_steps
+
+        return render_steps(
+            graph=self,
+            steps=steps or list(self._steps),
+            layout=layout,
+            theme=theme,
+            width=width,
+            height=height,
+            node_size=node_size,
+            edge_width=edge_width,
+            show_labels=show_labels,
+            auto_play=auto_play,
+            speed=speed,
+            layout_mode=layout_mode,
+            output=output,
+        )
+
     def plot_traversal(
         self,
         visit_order: Optional[list] = None,
@@ -2574,28 +2761,27 @@ class Graph:
         """
         Render an interactive traversal visualization with a step-through slider.
 
-        Produces an HTML widget with an SVG graph and a slider control that
-        steps through a BFS/DFS traversal one node at a time. Nodes transition
-        through visual states: unvisited (gray), frontier (highlighted ring),
-        current (bright glow), and visited (original color with step number).
+        Produces an HTML widget with an SVG graph and a slider control that steps through a BFS/DFS
+        traversal one node at a time. Nodes transition through visual states: unvisited (gray),
+        frontier (highlighted ring), current (bright glow), and visited (original color with step
+        number).
 
         Parameters
         ----------
         visit_order : list, optional
-            Node IDs in traversal visit order. If ``None``, ``start`` must be
-            provided and BFS is run automatically.
+            Node IDs in traversal visit order. If `None`, `start` must be provided and BFS is run
+            automatically.
         tree_edges : list of tuples, optional
-            Explicit tree edges as ``(source, target)`` pairs. If ``None``,
-            inferred from the visit order.
+            Explicit tree edges as `(source, target)` pairs. If `None`, inferred from the visit
+            order.
         algorithm : str, default ""
-            Label shown in the controls (e.g., ``"BFS"``, ``"DFS"``).
+            Label shown in the controls (e.g., `"BFS"`, `"DFS"`).
         start : int or str, optional
-            Starting node. If ``visit_order`` is ``None``, BFS is run from
-            this node.
+            Starting node. If `visit_order` is `None`, BFS is run from this node.
         layout : str, default "force"
-            Layout algorithm: ``"force"``, ``"circular"``, or ``"random"``.
+            Layout algorithm: `"force"`, `"circular"`, or `"random"`.
         theme : str, default "light"
-            Color theme: ``"light"`` or ``"dark"``.
+            Color theme: `"light"` or `"dark"`.
         width : int, default 700
             SVG canvas width in pixels.
         height : int, default 500
@@ -2607,13 +2793,13 @@ class Graph:
         show_labels : bool, default True
             Whether to display node labels.
         output : str, optional
-            File path (``.html``) to save the output.
+            File path (`.html`) to save the output.
 
         Returns
         -------
         PlotSVG
-            Interactive HTML widget that renders in Jupyter via
-            ``_repr_html_`` and can be saved with ``.save(path)``.
+            Interactive HTML widget that renders in Jupyter via `_repr_html_` and can be saved with
+            `save(path)`.
 
         Examples
         --------
@@ -2664,17 +2850,16 @@ class Graph:
         """
         Create a traversal recorder for step-by-step visualization.
 
-        Returns a :class:`~edgecase.svg_renderer.TraversalRecorder` that wraps
-        this graph.  Each ``trav_*`` or ``select_*`` call on the recorder is
-        forwarded to the graph **and** the resulting selection is captured as a
-        step.  Call ``.plot()`` on the recorder to render an interactive
-        traversal-chain visualization.
+        Returns a `~edgecase.svg_renderer.TraversalRecorder` that wraps this graph. Each `trav_*` or
+        `select_*` call on the recorder is forwarded to the graph **and** the resulting selection is
+        captured as a step. Call `plot()` on the recorder to render an interactive traversal-chain
+        visualization.
 
         Returns
         -------
         TraversalRecorder
-            A recorder object supporting the same traversal/selection API as
-            :class:`Graph`, plus a ``.plot()`` method to visualize the chain.
+            A recorder object supporting the same traversal/selection API as `Graph`, plus a
+            `plot()` method to visualize the chain.
 
         Examples
         --------
@@ -3576,7 +3761,9 @@ class Graph:
 
         self._graph.generate_smallworld_graph(n, k, p, seed)
 
-        self._end_compound("add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})", before)
+        self._end_compound(
+            "add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})", before
+        )
         return self
 
     def add_johnson_graph(self, n: int, k: int) -> "Graph":
@@ -21951,6 +22138,8 @@ class Graph:
         visited_order = self._graph.bfs(start_id)
 
         if return_list:
+            if self._recording_depth == 0:
+                self._record_traversal("bfs", start, visited_order)
             return visited_order
 
         # Store traversal positions as node attributes
@@ -21964,6 +22153,9 @@ class Graph:
         # Track computation
         params = {"start": start}
         self._computations.append(("bfs", params, attr_name))
+
+        if self._recording_depth == 0:
+            self._record_traversal("bfs", start, visited_order)
 
         return self
 
@@ -22051,6 +22243,8 @@ class Graph:
         visited_order = self._graph.dfs(start_id)
 
         if return_list:
+            if self._recording_depth == 0:
+                self._record_traversal("dfs", start, visited_order)
             return visited_order
 
         # Store traversal positions as node attributes
@@ -22064,6 +22258,9 @@ class Graph:
         # Track computation
         params = {"start": start}
         self._computations.append(("dfs", params, attr_name))
+
+        if self._recording_depth == 0:
+            self._record_traversal("dfs", start, visited_order)
 
         return self
 
