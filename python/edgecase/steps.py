@@ -14,6 +14,8 @@ class StepDelta:
     edges_added: list[tuple[str, str]] = field(default_factory=list)
     edges_removed: list[tuple[str, str]] = field(default_factory=list)
     attrs_changed: dict[str, Any] = field(default_factory=dict)
+    nodes_selected: list[str] = field(default_factory=list)
+    edges_selected: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -103,6 +105,8 @@ class StepList(list):
                 "nodes_removed": s.delta.nodes_removed,
                 "edges_added": s.delta.edges_added,
                 "edges_removed": s.delta.edges_removed,
+                "nodes_selected": s.delta.nodes_selected,
+                "edges_selected": s.delta.edges_selected,
                 "sub_step_count": len(s.sub_steps),
                 "timestamp": s.timestamp,
             }
@@ -131,7 +135,7 @@ class StepList(list):
         for s in self:
             sub = f"  [{len(s.sub_steps)} sub-steps]" if s.sub_steps else ""
             lines.append(f"  {s.index + 1:>3}  {s.kind:<14s} {s.method}(){sub}")
-        return f"StepList([\n" + "\n".join(lines) + "\n])"
+        return "StepList([\n" + "\n".join(lines) + "\n])"
 
     def __getitem__(self, key):
         result = super().__getitem__(key)
@@ -214,6 +218,16 @@ def auto_narrate(step: Step) -> str:
         return f"{step.method}() applied."
 
     if step.kind == KIND_SELECT:
+        nn = len(d.nodes_selected)
+        ne = len(d.edges_selected)
+        if step.method == "clear_selection":
+            return "Selection cleared."
+        if nn and ne:
+            return f"{nn} nodes and {ne} edges selected."
+        if nn:
+            return f"{nn} node{'s' if nn != 1 else ''} selected via {step.method}()."
+        if ne:
+            return f"{ne} edge{'s' if ne != 1 else ''} selected via {step.method}()."
         return f"Selection updated via {step.method}()."
 
     if step.kind == KIND_TRANSFORM:
