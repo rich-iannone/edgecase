@@ -3690,6 +3690,31 @@ def render_steps(
     bool_color = "#fab387" if is_dark else "#fe640b"
     cmt_color = "#6c7086" if is_dark else "#9ca0b0"
 
+    # Timeline segment colors by kind
+    tl_colors = {
+        "build_nodes": "#22c55e",
+        "build_edges": "#22c55e",
+        "remove": "#ef4444",
+        "mutate": "#f59e0b",
+        "select": "#a78bfa" if is_dark else "#7c3aed",
+        "traverse": "#3b82f6",
+        "transform": "#06b6d4",
+        "generate": "#06b6d4",
+        "annotate": "#6b7280" if is_dark else "#9ca3af",
+        "query": "#8b5cf6",
+        "metric": "#8b5cf6",
+    }
+    tl_default = "#6b7280"
+    tl_segs = []
+    for i, sd in enumerate(step_data):
+        c = tl_colors.get(sd["kind"], tl_default)
+        cls = "tl-seg active" if i == 0 else "tl-seg"
+        tl_segs.append(
+            f'<div class="{cls}" data-idx="{i}" '
+            f'style="background:{c}" title="{sd["kind"]}: {sd["method"]}()"></div>'
+        )
+    tl_html = "\n    ".join(tl_segs)
+
     html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};max-width:{width}px;margin:0 auto;">
 <style>
 #{uid} .step-panel {{
@@ -3803,6 +3828,30 @@ def render_steps(
   white-space:pre-wrap;
   margin-top:4px;
 }}
+#{uid} .step-timeline {{
+  display:flex;
+  height:6px;
+  gap:1px;
+  padding:0 16px;
+  background:{ctrl_bg};
+  cursor:pointer;
+}}
+#{uid} .step-timeline .tl-seg {{
+  flex:1;
+  border-radius:1px;
+  opacity:0.45;
+  transition:opacity 0.15s ease,height 0.15s ease,margin-top 0.15s ease;
+  height:4px;
+  margin-top:1px;
+}}
+#{uid} .step-timeline .tl-seg:hover {{
+  opacity:0.75;
+}}
+#{uid} .step-timeline .tl-seg.active {{
+  opacity:1;
+  height:6px;
+  margin-top:0;
+}}
 #{uid} .step-controls {{
   display:flex;
   align-items:center;
@@ -3900,6 +3949,9 @@ def render_steps(
     <div class="step-narration" id="{uid}-narration"></div>
     <div class="step-delta" id="{uid}-delta"></div>
   </div>
+  <div class="step-timeline" id="{uid}-timeline">
+    {tl_html}
+  </div>
   <div class="step-controls">
     <button id="{uid}-prev" title="Previous step (&#8592;)">&#9664;</button>
     <button id="{uid}-play" title="Play / Pause (Space)">&#9654;</button>
@@ -3948,6 +4000,8 @@ def render_steps(
   var nextBtn=document.getElementById('{uid}-next');
   var replayBtn=document.getElementById('{uid}-replay');
   var speedSel=document.getElementById('{uid}-speed');
+  var timeline=document.getElementById('{uid}-timeline');
+  var tlSegs=timeline.querySelectorAll('.tl-seg');
   var modalOverlay=document.getElementById('{uid}-modal');
   var modalBody=document.getElementById('{uid}-modal-body');
   var modalClose=document.getElementById('{uid}-modal-close');
@@ -4274,6 +4328,9 @@ def render_steps(
 
     slider.value=idx;
     counter.textContent='Step '+(idx+1)+' / '+STEPS.length;
+    for(var t=0;t<tlSegs.length;t++){{
+      tlSegs[t].classList.toggle('active',t===idx);
+    }}
     var atEnd=idx>=STEPS.length-1;
     replayBtn.style.display=atEnd&&!playing?'inline-block':'none';
     nextBtn.style.display=atEnd?'none':'inline-block';
@@ -4329,6 +4386,15 @@ def render_steps(
       if(cur<STEPS.length-1){{ cur++; applyStep(cur); }}
       else {{ stopPlay(); }}
     }}, getInterval()); }}
+  }});
+  timeline.addEventListener('click',function(e){{
+    var seg=e.target.closest('.tl-seg');
+    if(!seg) return;
+    var idx=parseInt(seg.getAttribute('data-idx'));
+    if(isNaN(idx)) return;
+    stopPlay();
+    cur=idx;
+    applyStep(cur);
   }});
 
   document.addEventListener('keydown',function(e){{
