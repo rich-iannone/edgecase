@@ -8,7 +8,9 @@ from edgecase.steps import (
     KIND_BUILD_EDGES,
     KIND_BUILD_NODES,
     KIND_GENERATE,
+    KIND_METRIC,
     KIND_MUTATE,
+    KIND_QUERY,
     KIND_REMOVE,
     KIND_SELECT,
     KIND_TRANSFORM,
@@ -4040,7 +4042,11 @@ class Graph:
         that's actually the Kneser graph `K(5,2)`. `J(5,2)` has 10 nodes and is 6-regular,
         while the Petersen graph has 10 nodes but is only 3-regular.
         """
+        before = self._begin_compound()
+
         self._graph.generate_johnson_graph(n, k)
+
+        self._end_compound("add_johnson_graph", f"G.add_johnson_graph(n={n}, k={k})", before)
         return self
 
     def add_random_geometric_graph(
@@ -4154,7 +4160,15 @@ class Graph:
         ```
 
         """
+        before = self._begin_compound()
+
         self._graph.generate_random_geometric_graph(n, radius, dim, p_norm, seed)
+
+        self._end_compound(
+            "add_random_geometric_graph",
+            f"G.add_random_geometric_graph(n={n}, radius={radius}, dim={dim}, p_norm={p_norm})",
+            before,
+        )
         return self
 
     def configuration_model(
@@ -11608,6 +11622,16 @@ class Graph:
         if not return_dict:
             self._computations.append(("topological_overlap", {}, "topological_overlap"))
 
+        if self._recording_depth == 0:
+            n = len(result)
+            code = "G.topological_overlap()"
+            self._record_step(
+                KIND_QUERY,
+                "topological_overlap",
+                code,
+                delta=StepDelta(attrs_changed={"topological_overlap": n}),
+            )
+
         if return_dict:
             return result
         return self
@@ -12672,6 +12696,15 @@ class Graph:
         if not return_dict:
             self._computations.append(("motif_census", {"size": size}, f"motif_census_{size}"))
 
+        if self._recording_depth == 0:
+            code = f"G.motif_census(size={size})"
+            self._record_step(
+                KIND_QUERY,
+                "motif_census",
+                code,
+                delta=StepDelta(attrs_changed={"motif_census": len(result)}),
+            )
+
         if return_dict:
             return result
         return self
@@ -12738,6 +12771,15 @@ class Graph:
                     {"size": size, "n_random": n_random},
                     f"motif_significance_{size}",
                 )
+            )
+
+        if self._recording_depth == 0:
+            code = f"G.motif_significance(size={size}, n_random={n_random})"
+            self._record_step(
+                KIND_QUERY,
+                "motif_significance",
+                code,
+                delta=StepDelta(attrs_changed={"motif_significance": len(result)}),
             )
 
         if return_dict:
@@ -12885,6 +12927,16 @@ class Graph:
         # Track computation
         self._computations.append(("local_clustering_coefficient", {}, attr_name))
 
+        if self._recording_depth == 0:
+            n = len(clustering_values)
+            code = f"G.local_clustering_coefficient(attr_name={attr_name!r})"
+            self._record_step(
+                KIND_METRIC,
+                "local_clustering_coefficient",
+                code,
+                delta=StepDelta(attrs_changed={attr_name: n}),
+            )
+
         return self
 
     def clustering_coefficient(
@@ -12989,6 +13041,16 @@ class Graph:
 
         # Track computation
         self._computations.append(("clustering_coefficient", {}, attr_name))
+
+        if self._recording_depth == 0:
+            n = len(clustering_values)
+            code = f"G.clustering_coefficient(attr_name={attr_name!r})"
+            self._record_step(
+                KIND_METRIC,
+                "clustering_coefficient",
+                code,
+                delta=StepDelta(attrs_changed={attr_name: n}),
+            )
 
         return self
 
@@ -13566,14 +13628,13 @@ class Graph:
         ---------------
         Newman (2006) recast community detection as a linear-algebra problem: the modularity
         matrix $B_{ij} = A_{ij} - \dfrac{k_i k_j}{2m}$ measures each edge's contribution to
-        modularity relative to a null model, and its leading eigenvector defines the split
-        that gains the most modularity in one binary cut. The implementation finds that
-        eigenvector by power iteration, partitions nodes by sign, and recurses on each
-        side, refusing to split whenever doing so would lower modularity. Each split costs
-        $O(n^2)$, and the recursion terminates only when the structure genuinely has
-        hierarchical two-way divisions, so the final community count can be smaller than
-        what agglomerative methods produce. Reach for `cmty_fast_greedy()` or
-        `cmty_louvain()` beyond a few tens of thousands of nodes.
+        modularity relative to a null model, and its leading eigenvector defines the split that
+        gains the most modularity in one binary cut. The implementation finds that eigenvector by
+        power iteration, partitions nodes by sign, and recurses on each side, refusing to split
+        whenever doing so would lower modularity. Each split costs $O(n^2)$, and the recursion
+        terminates only when the structure genuinely has hierarchical two-way divisions, so the
+        final community count can be smaller than what agglomerative methods produce. Use
+        `cmty_fast_greedy()` or `cmty_louvain()` beyond a few tens of thousands of nodes.
 
         Examples
         --------
@@ -15955,6 +16016,16 @@ class Graph:
         from edgecase._core import network_robustness as _network_robustness
 
         result = _network_robustness(self._graph, strategy, steps, seed)
+
+        if self._recording_depth == 0:
+            code = f"G.network_robustness(strategy={strategy!r})"
+            self._record_step(
+                KIND_QUERY,
+                "network_robustness",
+                code,
+                delta=StepDelta(attrs_changed={"network_robustness": len(result)}),
+            )
+
         if return_dict:
             return result
         self._computations.append(("network_robustness", result))
@@ -16015,6 +16086,16 @@ class Graph:
         from edgecase._core import influence_maximization as _influence_maximization
 
         result = _influence_maximization(self._graph, k, model, probability, n_simulations, seed)
+
+        if self._recording_depth == 0:
+            code = f"G.influence_maximization(k={k}, probability={probability})"
+            self._record_step(
+                KIND_QUERY,
+                "influence_maximization",
+                code,
+                delta=StepDelta(attrs_changed={"influence_maximization": len(result)}),
+            )
+
         if return_dict:
             return result
         self._computations.append(("influence_maximization", result))
@@ -16139,6 +16220,16 @@ class Graph:
         from edgecase._core import soft_threshold_power as _soft_threshold_power
 
         result = _soft_threshold_power(self._graph, powers, r_squared_cutoff)
+
+        if self._recording_depth == 0:
+            code = f"G.soft_threshold_power(r_squared_cutoff={r_squared_cutoff})"
+            self._record_step(
+                KIND_QUERY,
+                "soft_threshold_power",
+                code,
+                delta=StepDelta(attrs_changed={"soft_threshold_power": 1}),
+            )
+
         if return_dict:
             return result
         self._computations.append(("soft_threshold_power", result))
@@ -18087,9 +18178,9 @@ class Graph:
 
         Examples
         --------
-        Node "B" brokers between "C" and "D", which aren't connected to each other -- a
-        structural hole that gives "B" a low constraint score, while "A" (connected only
-        to "B") has nowhere else to turn and so shows a much higher one:
+        Node "B" brokers between "C" and "D", which aren't connected to each other. A structural
+        hole that gives "B" a low constraint score, while "A" (connected only to "B") has nowhere
+        else to turn and so shows a much higher one:
 
         ```{python}
         import edgecase as ec
@@ -18116,7 +18207,7 @@ class Graph:
 
         Node "0"'s two contacts ("1" and "2") are connected to each other, closing off
         any structural hole, while node "3"'s contacts ("4" and "5") remain disconnected
-        -- giving "3" the lower constraint score:
+        (giving "3" the lower constraint score):
 
         ```{python}
         # Compare dense vs. sparse ego networks
@@ -18141,7 +18232,7 @@ class Graph:
         constraints[node_0_id], constraints[node_3_id]
         ```
 
-        Edge weights factor into the calculation too -- a strong tie dominates the
+        Edge weights factor into the calculation too, where a strong tie dominates the
         constraint formula more than a weak one:
 
         ```{python}
@@ -18175,6 +18266,19 @@ class Graph:
         if weights is not None:
             params["weights"] = weights
         self._computations.append(("constraint", params, attr_name))
+
+        if self._recording_depth == 0:
+            n = len(constraint_values)
+            if weights is not None:
+                code = f"G.constraint(weights={weights!r}, attr_name={attr_name!r})"
+            else:
+                code = f"G.constraint(attr_name={attr_name!r})"
+            self._record_step(
+                KIND_METRIC,
+                "constraint",
+                code,
+                delta=StepDelta(attrs_changed={attr_name: n}),
+            )
 
         return self
 
@@ -20935,6 +21039,16 @@ class Graph:
         # Track computation
         self._computations.append(("coreness", {}, attr_name))
 
+        if self._recording_depth == 0:
+            n = len(coreness_values)
+            code = f"G.coreness(attr_name={attr_name!r})"
+            self._record_step(
+                KIND_METRIC,
+                "coreness",
+                code,
+                delta=StepDelta(attrs_changed={attr_name: n}),
+            )
+
         return self
 
     def k_core(self, k: int) -> "Graph":
@@ -21693,6 +21807,16 @@ class Graph:
         # Track computation
         self._computations.append(("eccentricity", {}, attr_name))
 
+        if self._recording_depth == 0:
+            n = len(eccentricity_values)
+            code = f"G.eccentricity(attr_name={attr_name!r})"
+            self._record_step(
+                KIND_METRIC,
+                "eccentricity",
+                code,
+                delta=StepDelta(attrs_changed={attr_name: n}),
+            )
+
         return self
 
     def radiality(
@@ -21763,6 +21887,16 @@ class Graph:
 
         # Track computation
         self._computations.append(("radiality", {}, attr_name))
+
+        if self._recording_depth == 0:
+            n = len(radiality_values)
+            code = f"G.radiality(attr_name={attr_name!r})"
+            self._record_step(
+                KIND_METRIC,
+                "radiality",
+                code,
+                delta=StepDelta(attrs_changed={attr_name: n}),
+            )
 
         return self
 
