@@ -645,7 +645,7 @@ def _compute_edge_fans(
         canonical_a, canonical_b = key
         for k, (idx, src, tgt) in enumerate(group):
             visual_offset = (k - (n - 1) / 2) * step
-            is_canonical = (src <= tgt)
+            is_canonical = src <= tgt
             bows[idx] = visual_offset if is_canonical else -visual_offset
 
     return bows, loop_sizes
@@ -1311,8 +1311,15 @@ def render_plot(
         if src == tgt:
             svg_parts.append(
                 _svg_edge_loop(
-                    x1, y1, r_src, e_color, edge_width,
-                    edge_opacity, is_directed, eid, attrs_j,
+                    x1,
+                    y1,
+                    r_src,
+                    e_color,
+                    edge_width,
+                    edge_opacity,
+                    is_directed,
+                    eid,
+                    attrs_j,
                     loop_size=edge_loop_sizes[i],
                 )
             )
@@ -1322,33 +1329,67 @@ def render_plot(
         if curved_edges:
             svg_parts.append(
                 _svg_edge_curved(
-                    x1, y1, x2, y2, r_src, r_dst,
-                    e_color, edge_width, edge_opacity,
-                    is_directed, eid, attrs_j,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    r_src,
+                    r_dst,
+                    e_color,
+                    edge_width,
+                    edge_opacity,
+                    is_directed,
+                    eid,
+                    attrs_j,
                 )
             )
         elif abs(bow) > 1e-6:
             svg_parts.append(
                 _svg_edge_curved(
-                    x1, y1, x2, y2, r_src, r_dst,
-                    e_color, edge_width, edge_opacity,
-                    is_directed, eid, attrs_j, bow=bow,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    r_src,
+                    r_dst,
+                    e_color,
+                    edge_width,
+                    edge_opacity,
+                    is_directed,
+                    eid,
+                    attrs_j,
+                    bow=bow,
                 )
             )
         elif route is not None:
             svg_parts.append(
                 _svg_edge_routed(
-                    route, r_src, r_dst,
-                    e_color, edge_width, edge_opacity,
-                    is_directed, eid, attrs_j,
+                    route,
+                    r_src,
+                    r_dst,
+                    e_color,
+                    edge_width,
+                    edge_opacity,
+                    is_directed,
+                    eid,
+                    attrs_j,
                 )
             )
         else:
             svg_parts.append(
                 _svg_edge_straight(
-                    x1, y1, x2, y2, r_src, r_dst,
-                    e_color, edge_width, edge_opacity,
-                    is_directed, eid, attrs_j,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    r_src,
+                    r_dst,
+                    e_color,
+                    edge_width,
+                    edge_opacity,
+                    is_directed,
+                    eid,
+                    attrs_j,
                 )
             )
 
@@ -2330,17 +2371,31 @@ class TraversalRecorder:
     """
 
     _EDGE_OPS = frozenset({"trav_out_edge", "trav_in_edge", "trav_reverse_edge"})
-    _NODE_OPS = frozenset({
-        "trav_out", "trav_in", "trav_both",
-        "trav_out_until", "trav_in_until",
-        "select_nodes", "select_nodes_by_id", "select_nodes_by_degree",
-        "select_nodes_by_centrality", "select_nodes_in_neighborhood",
-        "select_last_nodes_created", "invert_node_selection",
-    })
-    _EDGE_SELECT_OPS = frozenset({
-        "select_edges", "select_edges_by_id", "select_edges_by_node",
-        "select_last_edges_created", "invert_edge_selection",
-    })
+    _NODE_OPS = frozenset(
+        {
+            "trav_out",
+            "trav_in",
+            "trav_both",
+            "trav_out_until",
+            "trav_in_until",
+            "select_nodes",
+            "select_nodes_by_id",
+            "select_nodes_by_degree",
+            "select_nodes_by_centrality",
+            "select_nodes_in_neighborhood",
+            "select_last_nodes_created",
+            "invert_node_selection",
+        }
+    )
+    _EDGE_SELECT_OPS = frozenset(
+        {
+            "select_edges",
+            "select_edges_by_id",
+            "select_edges_by_node",
+            "select_last_edges_created",
+            "invert_edge_selection",
+        }
+    )
 
     def __init__(self, graph) -> None:
         self._graph = graph
@@ -2353,12 +2408,14 @@ class TraversalRecorder:
         else:
             sel_type = "nodes"
             ids = list(self._graph.get_selected_node_ids())
-        self._steps.append({
-            "op": op_name,
-            "op_display": f"{op_name}({op_args_str})" if op_args_str else f"{op_name}()",
-            "selection_type": sel_type,
-            "ids": ids,
-        })
+        self._steps.append(
+            {
+                "op": op_name,
+                "op_display": f"{op_name}({op_args_str})" if op_args_str else f"{op_name}()",
+                "selection_type": sel_type,
+                "ids": ids,
+            }
+        )
 
     def _delegate(self, method_name: str, args_str: str, *args, **kwargs):
         getattr(self._graph, method_name)(*args, **kwargs)
@@ -2375,13 +2432,29 @@ class TraversalRecorder:
     def trav_both(self):
         return self._delegate("trav_both", "")
 
-    def trav_out_until(self, conditions, max_steps=30, exclude_unmatched=True, add_to_selection=False):
-        return self._delegate("trav_out_until", "...", conditions, max_steps=max_steps,
-                              exclude_unmatched=exclude_unmatched, add_to_selection=add_to_selection)
+    def trav_out_until(
+        self, conditions, max_steps=30, exclude_unmatched=True, add_to_selection=False
+    ):
+        return self._delegate(
+            "trav_out_until",
+            "...",
+            conditions,
+            max_steps=max_steps,
+            exclude_unmatched=exclude_unmatched,
+            add_to_selection=add_to_selection,
+        )
 
-    def trav_in_until(self, conditions, max_steps=30, exclude_unmatched=True, add_to_selection=False):
-        return self._delegate("trav_in_until", "...", conditions, max_steps=max_steps,
-                              exclude_unmatched=exclude_unmatched, add_to_selection=add_to_selection)
+    def trav_in_until(
+        self, conditions, max_steps=30, exclude_unmatched=True, add_to_selection=False
+    ):
+        return self._delegate(
+            "trav_in_until",
+            "...",
+            conditions,
+            max_steps=max_steps,
+            exclude_unmatched=exclude_unmatched,
+            add_to_selection=add_to_selection,
+        )
 
     # --- Edge traversals ---
     def trav_out_edge(self):
@@ -2565,8 +2638,9 @@ def render_traversal_chain(
     visual_to_edge_ids: Dict[Tuple[str, str], List[int]] = {}
     for src_s, tgt_s in edges:
         try:
-            eids = graph.find_edge_ids(int(src_s) if src_s.isdigit() else src_s,
-                                       int(tgt_s) if tgt_s.isdigit() else tgt_s)
+            eids = graph.find_edge_ids(
+                int(src_s) if src_s.isdigit() else src_s, int(tgt_s) if tgt_s.isdigit() else tgt_s
+            )
         except Exception:
             eids = []
         visual_to_edge_ids[(src_s, tgt_s)] = list(eids)
@@ -2605,13 +2679,15 @@ def render_traversal_chain(
                         s_src = _sanitize_svg_id(src_s)
                         s_tgt = _sanitize_svg_id(tgt_s)
                         related_edge_keys.append(f"{s_src}-{s_tgt}")
-            js_steps.append({
-                "sel": "nodes",
-                "nodes": sel_node_strs,
-                "edges": [],
-                "related_edges": list(dict.fromkeys(related_edge_keys)),
-                "op": step["op_display"],
-            })
+            js_steps.append(
+                {
+                    "sel": "nodes",
+                    "nodes": sel_node_strs,
+                    "edges": [],
+                    "related_edges": list(dict.fromkeys(related_edge_keys)),
+                    "op": step["op_display"],
+                }
+            )
         else:
             sel_edge_visuals = []
             connected_nodes = set()
@@ -2623,13 +2699,15 @@ def render_traversal_chain(
                     sel_edge_visuals.append(f"{s_src}-{s_tgt}")
                     connected_nodes.add(vis[0])
                     connected_nodes.add(vis[1])
-            js_steps.append({
-                "sel": "edges",
-                "nodes": [],
-                "edges": list(dict.fromkeys(sel_edge_visuals)),
-                "related_nodes": list(connected_nodes),
-                "op": step["op_display"],
-            })
+            js_steps.append(
+                {
+                    "sel": "edges",
+                    "nodes": [],
+                    "edges": list(dict.fromkeys(sel_edge_visuals)),
+                    "related_nodes": list(connected_nodes),
+                    "op": step["op_display"],
+                }
+            )
 
     # Previous-step data for "prev" indicators
     for i in range(len(js_steps)):
@@ -2650,7 +2728,11 @@ def render_traversal_chain(
     else:
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
         positions = _force_directed_layout(
-            str_ids, edges, float(width), float(height), iterations=fr_iters,
+            str_ids,
+            edges,
+            float(width),
+            float(height),
+            iterations=fr_iters,
         )
 
     radii = {nid: node_size for nid in str_ids}
@@ -2667,7 +2749,8 @@ def render_traversal_chain(
             lbl = node_data.get(nid, {}).get("label", nid)
             label_map[nid] = str(lbl) if lbl else nid
     vb = _compute_viewbox(
-        positions, radii,
+        positions,
+        radii,
         labels=label_map if show_labels else None,
         label_space=20 if show_labels else 0,
     )
@@ -2689,10 +2772,10 @@ def render_traversal_chain(
 
     # Defs — glow filter
     svg_parts.append(
-        f'<defs>'
+        f"<defs>"
         f'<filter id="{uid}-glow"><feGaussianBlur stdDeviation="3" result="b"/>'
         f'<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f'</filter></defs>'
+        f"</filter></defs>"
     )
 
     # --- Edges ---
@@ -3002,31 +3085,35 @@ def _generate_chain_html_wrapper(
             ids_display += f", ... ({len(step['ids'])} total)"
         step_log_lines.append(
             f'<div id="{uid}-log-{i}" style="display:flex;gap:8px;align-items:baseline;'
-            f'padding:3px 8px;border-radius:4px;opacity:0.5;'
+            f"padding:3px 8px;border-radius:4px;opacity:0.5;"
             f'transition:opacity 0.2s ease,background 0.2s ease">'
             f'<span style="min-width:18px;font-size:12px">{i + 1}.</span>'
             f'<span style="background:{badge_bg};color:{badge_fg};'
             f'padding:1px 6px;border-radius:4px;font-size:11px;white-space:nowrap">'
-            f'{badge_label}</span>'
+            f"{badge_label}</span>"
             f'<span style="font-size:12px;font-family:monospace">'
-            f'{html_mod.escape(step["op_display"])}</span>'
+            f"{html_mod.escape(step['op_display'])}</span>"
             f'<span style="color:{th.label_color};opacity:0.5;margin-left:auto;'
             f'font-size:11px;font-family:monospace;white-space:nowrap">'
-            f'→ {{{html_mod.escape(ids_display)}}}</span>'
-            f'</div>'
+            f"→ {{{html_mod.escape(ids_display)}}}</span>"
+            f"</div>"
         )
     step_log_html = "\n".join(step_log_lines)
 
     # Step pill bar (SVG overlay approach is complex, use HTML pills below SVG)
     pill_items = []
     for i, step in enumerate(chain_steps):
-        short_op = step["op"].replace("select_nodes_by_id", "select").replace("select_edges_by_id", "select")
+        short_op = (
+            step["op"]
+            .replace("select_nodes_by_id", "select")
+            .replace("select_edges_by_id", "select")
+        )
         if len(short_op) > 16:
             short_op = short_op[:14] + ".."
         pill_items.append(
             f'<span id="{uid}-pill-{i}" style="'
-            f'padding:3px 10px;border-radius:12px;font-size:11px;cursor:pointer;'
-            f'white-space:nowrap;border:1px solid {btn_bg};color:{th.label_color};'
+            f"padding:3px 10px;border-radius:12px;font-size:11px;cursor:pointer;"
+            f"white-space:nowrap;border:1px solid {btn_bg};color:{th.label_color};"
             f'transition:background 0.2s ease,color 0.2s ease,border-color 0.2s ease"'
             f' data-step="{i}">{html_mod.escape(short_op)}</span>'
         )
@@ -3277,6 +3364,8 @@ def render_steps(
     uid = f"stv{_step_counter}"
 
     th = THEMES.get(theme, LIGHT)
+    is_dark = th.name == "dark"
+    sel_color = "#a78bfa" if is_dark else "#7c3aed"
 
     if not steps:
         svg = (
@@ -3315,10 +3404,12 @@ def render_steps(
             cum_edges.discard(pair)
         all_nodes.update(cum_nodes)
         all_edges.update(cum_edges)
-        step_states.append({
-            "nodes": sorted(cum_nodes),
-            "edges": [(s, t) for s, t in sorted(cum_edges)],
-        })
+        step_states.append(
+            {
+                "nodes": sorted(cum_nodes),
+                "edges": [(s, t) for s, t in sorted(cum_edges)],
+            }
+        )
 
     # --- Build label <-> id maps from graph (for nodes still in graph) ---
     node_ids = list(graph.get_node_ids(limit=None))
@@ -3357,7 +3448,11 @@ def render_steps(
     else:
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
         positions = _force_directed_layout(
-            all_label_ids, all_edge_ids, float(width), float(height), iterations=fr_iters,
+            all_label_ids,
+            all_edge_ids,
+            float(width),
+            float(height),
+            iterations=fr_iters,
         )
 
     # Overlap removal (force layout only)
@@ -3378,26 +3473,32 @@ def render_steps(
         f'<svg id="{uid}-svg" xmlns="http://www.w3.org/2000/svg" '
         f'width="{width}" height="{height}" viewBox="{vb_str}" '
         f'style="font-family:{FONT_FAMILY};">',
-        f'<defs>'
+        f"<defs>"
         f'<filter id="{uid}-glow-add" x="-50%" y="-50%" width="200%" height="200%">'
         f'<feGaussianBlur stdDeviation="3" result="blur"/>'
         f'<feFlood flood-color="#22c55e" flood-opacity="0.6" result="color"/>'
         f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
         f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f'</filter>'
+        f"</filter>"
         f'<filter id="{uid}-glow-rm" x="-50%" y="-50%" width="200%" height="200%">'
         f'<feGaussianBlur stdDeviation="3" result="blur"/>'
         f'<feFlood flood-color="#ef4444" flood-opacity="0.6" result="color"/>'
         f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
         f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f'</filter>'
+        f"</filter>"
+        f'<filter id="{uid}-glow-sel" x="-50%" y="-50%" width="200%" height="200%">'
+        f'<feGaussianBlur stdDeviation="3" result="blur"/>'
+        f'<feFlood flood-color="{sel_color}" flood-opacity="0.5" result="color"/>'
+        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
+        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        f"</filter>"
         f'<filter id="{uid}-glow-mut" x="-50%" y="-50%" width="200%" height="200%">'
         f'<feGaussianBlur stdDeviation="2.5" result="blur"/>'
         f'<feFlood flood-color="#f59e0b" flood-opacity="0.5" result="color"/>'
         f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
         f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f'</filter>'
-        f'</defs>',
+        f"</filter>"
+        f"</defs>",
         f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" '
         f'height="{vb[3]:.1f}" fill="{th.bg}"/>',
     ]
@@ -3430,7 +3531,7 @@ def render_steps(
                 f'data-src="{html_mod.escape(src_label)}" '
                 f'data-tgt="{html_mod.escape(tgt_label)}" '
                 f'points="{ax + ux * sz:.1f},{ay + uy * sz:.1f} '
-                f'{ax + px * sz * 0.5:.1f},{ay + py * sz * 0.5:.1f} '
+                f"{ax + px * sz * 0.5:.1f},{ay + py * sz * 0.5:.1f} "
                 f'{ax - px * sz * 0.5:.1f},{ay - py * sz * 0.5:.1f}" '
                 f'fill="{th.edge_color}" opacity="0" '
                 f'style="transition:opacity 0.4s ease,fill 0.3s ease;"/>'
@@ -3453,7 +3554,7 @@ def render_steps(
                 f'text-anchor="middle" font-size="10" '
                 f'fill="{th.label_color}" opacity="0" '
                 f'style="transition:opacity 0.3s ease;">'
-                f'{html_mod.escape(label)}</text>'
+                f"{html_mod.escape(label)}</text>"
             )
 
     svg_parts.append("</svg>")
@@ -3512,23 +3613,25 @@ def render_steps(
                         if nb not in visited_so_far:
                             frontier.add(nb)
 
-                step_data.append({
-                    "kind": "traverse",
-                    "method": step.method,
-                    "code": sub.code,
-                    "narration": sub.narration,
-                    "nodes": base_nodes,
-                    "edges": base_edges,
-                    "traverse": {
-                        "current": lbl,
-                        "visited": sorted(visited_so_far),
-                        "frontier": sorted(frontier),
-                        "tree_edges": [list(e) for e in tree_edges_so_far],
-                        "current_edge": current_edge,
-                        "step_num": j + 1,
-                        "total": len(step.sub_steps),
-                    },
-                })
+                step_data.append(
+                    {
+                        "kind": "traverse",
+                        "method": step.method,
+                        "code": sub.code,
+                        "narration": sub.narration,
+                        "nodes": base_nodes,
+                        "edges": base_edges,
+                        "traverse": {
+                            "current": lbl,
+                            "visited": sorted(visited_so_far),
+                            "frontier": sorted(frontier),
+                            "tree_edges": [list(e) for e in tree_edges_so_far],
+                            "current_edge": current_edge,
+                            "step_num": j + 1,
+                            "total": len(step.sub_steps),
+                        },
+                    }
+                )
         else:
             delta_obj = {
                 "na": list(step.delta.nodes_added),
@@ -3540,19 +3643,24 @@ def render_steps(
                 delta_obj["ac"] = {
                     k: _delta_val_repr(v) for k, v in step.delta.attrs_changed.items()
                 }
-            step_data.append({
-                "kind": step.kind,
-                "method": step.method,
-                "code": step.code,
-                "narration": step.narration,
-                "nodes": base_nodes,
-                "edges": base_edges,
-                "delta": delta_obj,
-            })
+            if step.delta.nodes_selected:
+                delta_obj["sn"] = list(step.delta.nodes_selected)
+            if step.delta.edges_selected:
+                delta_obj["se"] = [list(e) for e in step.delta.edges_selected]
+            step_data.append(
+                {
+                    "kind": step.kind,
+                    "method": step.method,
+                    "code": step.code,
+                    "narration": step.narration,
+                    "nodes": base_nodes,
+                    "edges": base_edges,
+                    "delta": delta_obj,
+                }
+            )
     steps_json = json.dumps(step_data)
 
     # --- Build HTML ---
-    is_dark = th.name == "dark"
     bg = th.bg
     fg = th.label_color
     accent = "#60a5fa" if is_dark else "#4e79a7"
@@ -3680,6 +3788,10 @@ def render_steps(
   background:{"#42290622" if is_dark else "#fef3c7"};
   color:{"#fbbf24" if is_dark else "#b45309"};
 }}
+#{uid} .delta-sel {{
+  background:{"#2e1a6522" if is_dark else "#ede9fe"};
+  color:{"#a78bfa" if is_dark else "#6d28d9"};
+}}
 </style>
 
 <div class="step-panel">
@@ -3706,7 +3818,7 @@ def render_steps(
   var STEPS={steps_json};
   var cur=0, playing=false, timer=null;
   var speed={speed};
-  var directed={'true' if is_directed else 'false'};
+  var directed={"true" if is_directed else "false"};
   var COL_DEFAULT='{DEFAULT_NODE_COLOR}';
   var COL_CURRENT='{trav_current}';
   var COL_FRONTIER='{trav_frontier}';
@@ -3728,9 +3840,11 @@ def render_steps(
   var GLOW_ADD='url(#{uid}-glow-add)';
   var GLOW_RM='url(#{uid}-glow-rm)';
   var GLOW_MUT='url(#{uid}-glow-mut)';
+  var GLOW_SEL='url(#{uid}-glow-sel)';
   var COL_ADD='#22c55e';
   var COL_RM='#ef4444';
   var COL_MUT='#f59e0b';
+  var COL_SEL='{sel_color}';
 
   function hlPy(c){{
     var h=c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3781,6 +3895,13 @@ def render_steps(
       if(!directed) removedE.add(e[1]+'\\0'+e[0]);
     }});
     var hasMut=d.ac && Object.keys(d.ac).length>0;
+    var selN=new Set(d.sn||[]);
+    var selE=new Set();
+    (d.se||[]).forEach(function(e){{
+      selE.add(e[0]+'\\0'+e[1]);
+      if(!directed) selE.add(e[1]+'\\0'+e[0]);
+    }});
+    var hasSel=selN.size>0||selE.size>0;
 
     // Nodes
     var circles=svg.querySelectorAll('.step-node');
@@ -3819,6 +3940,15 @@ def render_steps(
         el.setAttribute('fill',COL_ADD);
         el.setAttribute('filter',GLOW_ADD);
         el.setAttribute('r','{node_size:.1f}');
+      }} else if(selN.has(lbl)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',COL_SEL);
+        el.setAttribute('filter',GLOW_SEL);
+        el.setAttribute('r','{node_size * 1.15:.1f}');
+      }} else if(hasSel && selN.size>0){{
+        el.setAttribute('opacity','0.35');
+        el.setAttribute('fill',COL_DEFAULT);
+        el.setAttribute('r','{node_size:.1f}');
       }} else if(hasMut && s.method.indexOf('node')!==-1){{
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_DEFAULT);
@@ -3848,6 +3978,12 @@ def render_steps(
       }} else if(addedN.has(lbl)){{
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_ADD);
+      }} else if(selN.has(lbl)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',COL_SEL);
+      }} else if(hasSel && selN.size>0){{
+        el.setAttribute('opacity','0.3');
+        el.setAttribute('fill','{th.label_color}');
       }} else {{
         el.setAttribute('opacity','1');
         el.setAttribute('fill','{th.label_color}');
@@ -3898,6 +4034,19 @@ def render_steps(
         el.removeAttribute('stroke-dasharray');
         el.setAttribute('filter',GLOW_ADD);
         if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_ADD);
+      }} else if(selE.has(key)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('stroke',COL_SEL);
+        el.setAttribute('stroke-width','{edge_width * 2.5:.1f}');
+        el.removeAttribute('stroke-dasharray');
+        el.setAttribute('filter',GLOW_SEL);
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_SEL);
+      }} else if(hasSel && selE.size>0){{
+        el.setAttribute('opacity','0.15');
+        el.setAttribute('stroke',COL_EDGE);
+        el.setAttribute('stroke-width','{edge_width:.1f}');
+        el.removeAttribute('stroke-dasharray');
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
       }} else if(hasMut && s.method.indexOf('edge')!==-1){{
         el.setAttribute('opacity','1');
         el.setAttribute('stroke',COL_MUT);
@@ -3947,6 +4096,15 @@ def render_steps(
           dh+='<span class="delta-chip delta-attr">'+k+' = '+vs+'</span> ';
         }}
       }}
+      if(d.sn && d.sn.length){{
+        var lbl=d.sn.length<=4?d.sn.join(', '):d.sn.length+' nodes';
+        dh+='<span class="delta-chip delta-sel">\\u25c9 '+lbl+'</span> ';
+      }}
+      if(d.se && d.se.length){{
+        var n=d.se.length;
+        var lbl=n<=2?d.se.map(function(e){{return e[0]+' \\u2192 '+e[1];}}).join(', '):n+' edges';
+        dh+='<span class="delta-chip delta-sel">\\u25c9 '+lbl+'</span> ';
+      }}
     }}
     deltaEl.innerHTML=dh;
 
@@ -3995,7 +4153,7 @@ def render_steps(
   }});
 
   applyStep(0);
-  {'startPlay();' if auto_play else ''}
+  {"startPlay();" if auto_play else ""}
 }})();
 </script>
 </div>"""
