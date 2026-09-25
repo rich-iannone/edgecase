@@ -1566,6 +1566,8 @@ class Graph:
             # Convert ValueError to KeyError for consistency
             raise KeyError(str(e))
 
+        node_label = self.get_label_from_id(node_id) or str(node)
+
         # Rust delete_node raises PyKeyError if node doesn't exist
         self._graph.delete_node(node_id)
 
@@ -1575,7 +1577,7 @@ class Graph:
                 KIND_REMOVE,
                 "delete_node",
                 code,
-                delta=StepDelta(nodes_removed=[str(node)]),
+                delta=StepDelta(nodes_removed=[node_label]),
             )
 
         return self
@@ -1674,13 +1676,14 @@ class Graph:
                 code = f"G.delete_edge(id={id})"
                 self._record_step(KIND_REMOVE, "delete_edge", code, delta=StepDelta())
             else:
-                s, t = str(source), str(target)
-                code = f"G.delete_edge({s!r}, {t!r})"
+                s_label = self.get_label_from_id(self._resolve_node_id(source)) or str(source)
+                t_label = self.get_label_from_id(self._resolve_node_id(target)) or str(target)
+                code = f"G.delete_edge({str(source)!r}, {str(target)!r})"
                 self._record_step(
                     KIND_REMOVE,
                     "delete_edge",
                     code,
-                    delta=StepDelta(edges_removed=[(s, t)]),
+                    delta=StepDelta(edges_removed=[(s_label, t_label)]),
                 )
 
         return self
@@ -8974,12 +8977,13 @@ class Graph:
 
         if self._recording_depth == 0:
             n = len(nodes)
+            node_labels = [self.get_label_from_id(nid) or str(nid) for nid in nodes]
             code = f"G.set_node_attrs({node_attr!r}, ...)  # {n} node(s)"
             self._record_step(
                 KIND_MUTATE,
                 "set_node_attrs",
                 code,
-                delta=StepDelta(attrs_changed={node_attr: n}),
+                delta=StepDelta(attrs_changed={node_attr: n}, nodes_mutated=node_labels),
             )
 
         return self
@@ -9064,11 +9068,12 @@ class Graph:
             attrs = ", ".join(f"{k}={v!r}" for k, v in attributes.items())
             code = f"G.set_node_attrs_ws({attrs})  # {len(selected)} node(s)"
             changed = {k: len(selected) for k in attributes}
+            node_labels = [self.get_label_from_id(nid) or str(nid) for nid in selected]
             self._record_step(
                 KIND_MUTATE,
                 "set_node_attrs_ws",
                 code,
-                delta=StepDelta(attrs_changed=changed),
+                delta=StepDelta(attrs_changed=changed, nodes_mutated=node_labels),
             )
 
         return self
