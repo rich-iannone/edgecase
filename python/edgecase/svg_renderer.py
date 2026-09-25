@@ -3238,3 +3238,590 @@ def _generate_chain_html_wrapper(
 }})();
 </script>
 </div>"""
+
+
+# ---------------------------------------------------------------------------
+# Step-through renderer
+# ---------------------------------------------------------------------------
+
+_step_counter = 0
+
+
+def render_steps(
+    graph,
+    steps: list,
+    layout: str = "force",
+    theme: str = "light",
+    width: int = 700,
+    height: int = 500,
+    node_size: float = 16.0,
+    edge_width: float = 1.2,
+    show_labels: bool = True,
+    auto_play: bool = False,
+    speed: float = 1.0,
+    layout_mode: str = "stable",
+    output: Optional[str] = None,
+) -> "PlotSVG":
+    """Render an interactive step-through visualization of recorded graph steps."""
+    global _step_counter
+    _step_counter += 1
+    uid = f"stv{_step_counter}"
+
+    th = THEMES.get(theme, LIGHT)
+
+    if not steps:
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}">'
+            f'<rect width="100%" height="100%" fill="{th.bg}"/>'
+            f'<text x="{width / 2}" y="{height / 2}" text-anchor="middle" '
+            f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
+            f'font-size="14">No steps recorded</text></svg>'
+        )
+        result = PlotSVG(svg, svg)
+        if output:
+            result.save(output)
+        return result
+
+    is_directed = graph.is_directed()
+
+    # --- Build cumulative step states (using labels) ---
+    # Compute first so we know all nodes/edges that ever appeared.
+    step_states = []
+    cum_nodes: set = set()
+    cum_edges: set = set()
+    all_nodes: set = set()
+    all_edges: set = set()
+
+    for step in steps:
+        delta = step.delta
+        for label in delta.nodes_added:
+            cum_nodes.add(label)
+        for src, tgt in delta.edges_added:
+            cum_edges.add((src, tgt))
+        for label in delta.nodes_removed:
+            cum_nodes.discard(label)
+            cum_edges = {(s, t) for s, t in cum_edges if s != label and t != label}
+        for pair in delta.edges_removed:
+            cum_edges.discard(pair)
+        all_nodes.update(cum_nodes)
+        all_edges.update(cum_edges)
+        step_states.append({
+            "nodes": sorted(cum_nodes),
+            "edges": [(s, t) for s, t in sorted(cum_edges)],
+        })
+
+    # --- Build label <-> id maps from graph (for nodes still in graph) ---
+    node_ids = list(graph.get_node_ids(limit=None))
+    id_to_label: Dict[str, str] = {}
+    label_to_id: Dict[str, str] = {}
+    for nid in node_ids:
+        obj = graph.get_node(nid)
+        label = str(obj.label) if obj and obj.label else str(nid)
+        id_to_label[str(nid)] = label
+        label_to_id[label] = str(nid)
+
+    # For deleted nodes not in graph, use label as its own ID
+    for label in all_nodes:
+        if label not in label_to_id:
+            label_to_id[label] = label
+            id_to_label[label] = label
+
+    # All label-IDs for layout (sorted for deterministic order)
+    all_label_ids = sorted(label_to_id[lbl] for lbl in all_nodes)
+    all_edge_ids = [(label_to_id.get(s, s), label_to_id.get(t, t)) for s, t in all_edges]
+
+    # --- Adaptive sizes ---
+    n = len(all_label_ids)
+    if node_size == 16.0:
+        avg_spacing = math.sqrt(float(width * height) / max(n, 1))
+        node_size = max(3.5, min(16.0, avg_spacing * 0.15))
+    if edge_width == 1.2:
+        edge_width = max(0.5, 3.0 - n * 0.06) if n < 40 else max(0.5, 1.2 - (n - 40) * 0.002)
+    edge_width = max(edge_width, 0.5)
+
+    # --- Layout (on maximal graph state — all nodes/edges that ever appeared) ---
+    if layout == "circular":
+        positions = _circular_layout(all_label_ids, float(width), float(height))
+    elif layout == "random":
+        positions = _random_layout(all_label_ids, float(width), float(height))
+    else:
+        fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
+        positions = _force_directed_layout(
+            all_label_ids, all_edge_ids, float(width), float(height), iterations=fr_iters,
+        )
+
+    # Overlap removal (force layout only)
+    radii = {nid: node_size for nid in all_label_ids}
+    if layout not in ("circular",) and n >= 2:
+        positions = _remove_overlaps(positions, radii, padding=2.0)
+
+    # ViewBox
+    label_map = {}
+    if show_labels:
+        for nid in all_label_ids:
+            label_map[nid] = id_to_label.get(nid, nid)
+    vb = _compute_viewbox(positions, radii, labels=label_map if show_labels else None)
+    vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
+
+    # --- Build SVG ---
+    svg_parts = [
+        f'<svg id="{uid}-svg" xmlns="http://www.w3.org/2000/svg" '
+        f'width="{width}" height="{height}" viewBox="{vb_str}" '
+        f'style="font-family:{FONT_FAMILY};">',
+        f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" '
+        f'height="{vb[3]:.1f}" fill="{th.bg}"/>',
+    ]
+
+    # Edges (all hidden initially; data-src/data-tgt use labels)
+    for src_label, tgt_label in sorted(all_edges):
+        src_id = label_to_id.get(src_label, src_label)
+        tgt_id = label_to_id.get(tgt_label, tgt_label)
+        x1, y1 = positions.get(src_id, (0, 0))
+        x2, y2 = positions.get(tgt_id, (0, 0))
+        svg_parts.append(
+            f'<line class="step-edge" '
+            f'data-src="{html_mod.escape(src_label)}" '
+            f'data-tgt="{html_mod.escape(tgt_label)}" '
+            f'x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+            f'stroke="{th.edge_color}" stroke-width="{edge_width:.1f}" '
+            f'stroke-opacity="0.4" opacity="0" '
+            f'style="transition:opacity 0.4s ease,stroke 0.3s ease,stroke-width 0.3s ease;"/>'
+        )
+        if is_directed:
+            dx, dy = x2 - x1, y2 - y1
+            ln = math.sqrt(dx * dx + dy * dy) or 1
+            ux, uy = dx / ln, dy / ln
+            ax = x2 - ux * (node_size + 2)
+            ay = y2 - uy * (node_size + 2)
+            sz = max(4, edge_width * 2.5)
+            px, py = -uy, ux
+            svg_parts.append(
+                f'<polygon class="step-edge" '
+                f'data-src="{html_mod.escape(src_label)}" '
+                f'data-tgt="{html_mod.escape(tgt_label)}" '
+                f'points="{ax + ux * sz:.1f},{ay + uy * sz:.1f} '
+                f'{ax + px * sz * 0.5:.1f},{ay + py * sz * 0.5:.1f} '
+                f'{ax - px * sz * 0.5:.1f},{ay - py * sz * 0.5:.1f}" '
+                f'fill="{th.edge_color}" opacity="0" '
+                f'style="transition:opacity 0.4s ease,fill 0.3s ease;"/>'
+            )
+
+    # Nodes (all hidden initially; data-label uses label)
+    for nid in all_label_ids:
+        x, y = positions.get(nid, (0, 0))
+        label = id_to_label.get(nid, nid)
+        svg_parts.append(
+            f'<circle class="step-node" data-label="{html_mod.escape(label)}" '
+            f'cx="{x:.1f}" cy="{y:.1f}" r="{node_size:.1f}" '
+            f'fill="{DEFAULT_NODE_COLOR}" opacity="0" '
+            f'style="transition:opacity 0.3s ease,fill 0.3s ease,r 0.3s ease;"/>'
+        )
+        if show_labels:
+            svg_parts.append(
+                f'<text class="step-label" data-label="{html_mod.escape(label)}" '
+                f'x="{x:.1f}" y="{y + node_size + 12:.1f}" '
+                f'text-anchor="middle" font-size="10" '
+                f'fill="{th.label_color}" opacity="0" '
+                f'style="transition:opacity 0.3s ease;">'
+                f'{html_mod.escape(label)}</text>'
+            )
+
+    svg_parts.append("</svg>")
+    svg_str = "\n".join(svg_parts)
+
+    # --- Step data JSON (expand traverse sub-steps) ---
+    step_data = []
+    for i, step in enumerate(steps):
+        base_nodes = step_states[i]["nodes"]
+        base_edges = step_states[i]["edges"]
+
+        if step.kind == "traverse" and step.sub_steps:
+            # Build adjacency from the graph for frontier computation
+            adj: Dict[str, List[str]] = {}
+            for nid in graph.get_node_ids(limit=None):
+                obj = graph.get_node(nid)
+                lbl = str(obj.label) if obj and obj.label else str(nid)
+                try:
+                    nbs = []
+                    for nb in graph.neighbors(nid):
+                        nb_obj = graph.get_node(nb)
+                        nbs.append(str(nb_obj.label) if nb_obj and nb_obj.label else str(nb))
+                    adj[lbl] = nbs
+                    if not graph.is_directed():
+                        for nb_lbl in nbs:
+                            adj.setdefault(nb_lbl, []).append(lbl)
+                except Exception:
+                    pass
+            for k in adj:
+                adj[k] = list(dict.fromkeys(adj[k]))
+
+            # Infer tree edges for this traversal
+            visit_labels = [sub.delta.nodes_added[0] for sub in step.sub_steps]
+            tree_edge_for: Dict[str, Tuple[str, str]] = {}
+            for sub in step.sub_steps[1:]:
+                lbl = sub.delta.nodes_added[0]
+                parts = sub.code.split(" → ")
+                if len(parts) == 2:
+                    tree_edge_for[lbl] = (parts[0], parts[1])
+
+            visited_so_far: set = set()
+            tree_edges_so_far: list = []
+            for j, sub in enumerate(step.sub_steps):
+                lbl = sub.delta.nodes_added[0]
+                visited_so_far.add(lbl)
+
+                current_edge = None
+                if lbl in tree_edge_for:
+                    te = tree_edge_for[lbl]
+                    current_edge = [te[0], te[1]]
+                    tree_edges_so_far.append(current_edge)
+
+                frontier = set()
+                for v in visited_so_far:
+                    for nb in adj.get(v, []):
+                        if nb not in visited_so_far:
+                            frontier.add(nb)
+
+                step_data.append({
+                    "kind": "traverse",
+                    "method": step.method,
+                    "code": sub.code,
+                    "narration": sub.narration,
+                    "nodes": base_nodes,
+                    "edges": base_edges,
+                    "traverse": {
+                        "current": lbl,
+                        "visited": sorted(visited_so_far),
+                        "frontier": sorted(frontier),
+                        "tree_edges": [list(e) for e in tree_edges_so_far],
+                        "current_edge": current_edge,
+                        "step_num": j + 1,
+                        "total": len(step.sub_steps),
+                    },
+                })
+        else:
+            step_data.append({
+                "kind": step.kind,
+                "method": step.method,
+                "code": step.code,
+                "narration": step.narration,
+                "nodes": base_nodes,
+                "edges": base_edges,
+            })
+    steps_json = json.dumps(step_data)
+
+    # --- Build HTML ---
+    is_dark = th.name == "dark"
+    bg = th.bg
+    fg = th.label_color
+    accent = "#60a5fa" if is_dark else "#4e79a7"
+    border = "#30363d" if is_dark else "#d0d7de"
+    code_bg = "#161b22" if is_dark else "#f6f8fa"
+    narr_fg = "#8b949e" if is_dark else "#656d76"
+    ctrl_bg = "#0d1117" if is_dark else "#f0f3f6"
+
+    # Traversal colors
+    trav_current = "#3b82f6" if is_dark else "#2563eb"
+    trav_frontier = "#60a5fa" if is_dark else "#93c5fd"
+    trav_unvisited = "#4b5563" if is_dark else "#d1d5db"
+    trav_tree_edge = "#60a5fa" if is_dark else "#2563eb"
+
+    kw_color = "#cba6f7" if is_dark else "#8839ef"
+    fn_color = "#89b4fa" if is_dark else "#1e66f5"
+    str_color = "#a6e3a1" if is_dark else "#40a02b"
+    num_color = "#fab387" if is_dark else "#fe640b"
+    bool_color = "#fab387" if is_dark else "#fe640b"
+    cmt_color = "#6c7086" if is_dark else "#9ca0b0"
+
+    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};max-width:{width}px;margin:0 auto;">
+<style>
+#{uid} .step-panel {{
+  border:1px solid {border};
+  border-radius:8px;
+  overflow:hidden;
+  background:{bg};
+}}
+#{uid} .step-svg-wrap {{
+  border-bottom:1px solid {border};
+  background:{bg};
+}}
+#{uid} .step-code-panel {{
+  padding:12px 16px;
+  border-bottom:1px solid {border};
+  min-height:60px;
+}}
+#{uid} .step-code-panel pre {{
+  margin:0;
+  padding:8px 12px;
+  background:{code_bg};
+  border-radius:6px;
+  font-size:12.5px;
+  line-height:1.5;
+  overflow-x:auto;
+  white-space:pre-wrap;
+  color:{fg};
+}}
+#{uid} .kw {{ color:{kw_color}; }}
+#{uid} .fn {{ color:{fn_color}; }}
+#{uid} .str {{ color:{str_color}; }}
+#{uid} .num {{ color:{num_color}; }}
+#{uid} .bool {{ color:{bool_color}; }}
+#{uid} .cmt {{ color:{cmt_color}; font-style:italic; }}
+#{uid} .step-narration {{
+  margin-top:8px;
+  font-size:13px;
+  color:{narr_fg};
+  font-style:italic;
+}}
+#{uid} .step-controls {{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 16px;
+  background:{ctrl_bg};
+}}
+#{uid} .step-controls button {{
+  background:{accent};
+  color:#fff;
+  border:none;
+  border-radius:4px;
+  padding:4px 10px;
+  cursor:pointer;
+  font-size:13px;
+  font-family:inherit;
+  min-width:32px;
+}}
+#{uid} .step-controls button:hover {{ opacity:0.85; }}
+#{uid} .step-controls input[type=range] {{
+  flex:1;
+  accent-color:{accent};
+}}
+#{uid} .step-counter {{
+  font-size:12.5px;
+  color:{fg};
+  min-width:80px;
+  text-align:right;
+}}
+#{uid} .step-kind-badge {{
+  display:inline-block;
+  padding:2px 8px;
+  border-radius:3px;
+  font-size:11px;
+  font-weight:600;
+  margin-bottom:6px;
+  background:{accent}22;
+  color:{accent};
+}}
+</style>
+
+<div class="step-panel">
+  <div class="step-svg-wrap">
+    {svg_str}
+  </div>
+  <div class="step-code-panel" id="{uid}-code">
+    <span class="step-kind-badge" id="{uid}-badge"></span>
+    <pre><code id="{uid}-codetext"></code></pre>
+    <div class="step-narration" id="{uid}-narration"></div>
+  </div>
+  <div class="step-controls">
+    <button id="{uid}-prev" title="Previous step">&#9664;</button>
+    <button id="{uid}-play" title="Play / Pause">&#9654;</button>
+    <button id="{uid}-next" title="Next step">&#9654;</button>
+    <input type="range" id="{uid}-slider" min="0" max="{len(step_data) - 1}" value="0" step="1"/>
+    <span class="step-counter" id="{uid}-counter">Step 1 / {len(step_data)}</span>
+  </div>
+</div>
+
+<script>
+(function(){{
+  var STEPS={steps_json};
+  var cur=0, playing=false, timer=null;
+  var speed={speed};
+  var directed={'true' if is_directed else 'false'};
+  var COL_DEFAULT='{DEFAULT_NODE_COLOR}';
+  var COL_CURRENT='{trav_current}';
+  var COL_FRONTIER='{trav_frontier}';
+  var COL_UNVISITED='{trav_unvisited}';
+  var COL_TREE_EDGE='{trav_tree_edge}';
+  var COL_EDGE='{th.edge_color}';
+
+  var svg=document.getElementById('{uid}-svg');
+  var codeEl=document.getElementById('{uid}-codetext');
+  var narrEl=document.getElementById('{uid}-narration');
+  var badgeEl=document.getElementById('{uid}-badge');
+  var slider=document.getElementById('{uid}-slider');
+  var counter=document.getElementById('{uid}-counter');
+  var prevBtn=document.getElementById('{uid}-prev');
+  var playBtn=document.getElementById('{uid}-play');
+  var nextBtn=document.getElementById('{uid}-next');
+
+  function hlPy(c){{
+    var h=c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return h.replace(/("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*')|(#[^\\n]*)|(\\b(?:import|from|as|def|class|return|if|elif|else|for|in|while|with|try|except|raise|pass|break|continue|and|or|not|is|lambda|yield|global|nonlocal|assert|del)\\b)|(\\b(?:True|False|None)\\b)|(\\b\\d+\\.?\\d*\\b)|([a-zA-Z_]\\w*(?=\\s*\\())/g,
+      function(m,s,c,k,b,n,f){{
+        if(s) return '<span class="str">'+m+'</span>';
+        if(c) return '<span class="cmt">'+m+'</span>';
+        if(k) return '<span class="kw">'+m+'</span>';
+        if(b) return '<span class="bool">'+m+'</span>';
+        if(n) return '<span class="num">'+m+'</span>';
+        if(f) return '<span class="fn">'+m+'</span>';
+        return m;
+      }});
+  }}
+
+  function applyStep(idx){{
+    var s=STEPS[idx];
+    var vn=new Set(s.nodes);
+    var ve=new Set();
+    s.edges.forEach(function(e){{
+      ve.add(e[0]+'\\0'+e[1]);
+      if(!directed) ve.add(e[1]+'\\0'+e[0]);
+    }});
+
+    var tv=s.traverse||null;
+    var tvVisited=tv?new Set(tv.visited):null;
+    var tvFrontier=tv?new Set(tv.frontier):null;
+    var tvTreeEdges=new Set();
+    if(tv){{
+      tv.tree_edges.forEach(function(e){{
+        tvTreeEdges.add(e[0]+'\\0'+e[1]);
+        if(!directed) tvTreeEdges.add(e[1]+'\\0'+e[0]);
+      }});
+    }}
+
+    // Nodes
+    var circles=svg.querySelectorAll('.step-node');
+    for(var i=0;i<circles.length;i++){{
+      var el=circles[i];
+      var lbl=el.getAttribute('data-label');
+      if(!vn.has(lbl)){{
+        el.setAttribute('opacity','0');
+        el.setAttribute('fill',COL_DEFAULT);
+      }} else if(tv){{
+        el.setAttribute('opacity','1');
+        if(lbl===tv.current){{
+          el.setAttribute('fill',COL_CURRENT);
+          el.setAttribute('r','{node_size * 1.4:.1f}');
+        }} else if(tvVisited.has(lbl)){{
+          el.setAttribute('fill',COL_DEFAULT);
+          el.setAttribute('r','{node_size:.1f}');
+        }} else if(tvFrontier.has(lbl)){{
+          el.setAttribute('fill',COL_FRONTIER);
+          el.setAttribute('r','{node_size:.1f}');
+        }} else {{
+          el.setAttribute('fill',COL_UNVISITED);
+          el.setAttribute('opacity','0.4');
+          el.setAttribute('r','{node_size:.1f}');
+        }}
+      }} else {{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',COL_DEFAULT);
+        el.setAttribute('r','{node_size:.1f}');
+      }}
+    }}
+
+    // Labels
+    var labels=svg.querySelectorAll('.step-label');
+    for(var i=0;i<labels.length;i++){{
+      var el=labels[i];
+      var lbl=el.getAttribute('data-label');
+      if(!vn.has(lbl)){{
+        el.setAttribute('opacity','0');
+      }} else if(tv && !tvVisited.has(lbl) && !tvFrontier.has(lbl) && lbl!==tv.current){{
+        el.setAttribute('opacity','0.3');
+      }} else {{
+        el.setAttribute('opacity','1');
+      }}
+    }}
+
+    // Edges
+    var edges=svg.querySelectorAll('.step-edge');
+    for(var i=0;i<edges.length;i++){{
+      var el=edges[i];
+      var key=el.getAttribute('data-src')+'\\0'+el.getAttribute('data-tgt');
+      if(!ve.has(key)){{
+        el.setAttribute('opacity','0');
+        el.setAttribute('stroke',COL_EDGE);
+      }} else if(tv){{
+        if(tv.current_edge && (key===tv.current_edge[0]+'\\0'+tv.current_edge[1]||(!directed && key===tv.current_edge[1]+'\\0'+tv.current_edge[0]))){{
+          el.setAttribute('opacity','1');
+          el.setAttribute('stroke',COL_CURRENT);
+          el.setAttribute('stroke-width','{edge_width * 3:.1f}');
+          if(el.hasAttribute('fill')) el.setAttribute('fill',COL_CURRENT);
+        }} else if(tvTreeEdges.has(key)){{
+          el.setAttribute('opacity','0.7');
+          el.setAttribute('stroke',COL_TREE_EDGE);
+          el.setAttribute('stroke-width','{edge_width * 2:.1f}');
+          if(el.hasAttribute('fill')) el.setAttribute('fill',COL_TREE_EDGE);
+        }} else {{
+          el.setAttribute('opacity','0.15');
+          el.setAttribute('stroke',COL_EDGE);
+          el.setAttribute('stroke-width','{edge_width:.1f}');
+          if(el.hasAttribute('fill')) el.setAttribute('fill',COL_EDGE);
+        }}
+      }} else {{
+        el.setAttribute('opacity','1');
+        el.setAttribute('stroke',COL_EDGE);
+        el.setAttribute('stroke-width','{edge_width:.1f}');
+        if(el.hasAttribute('fill')) el.setAttribute('fill',COL_EDGE);
+      }}
+    }}
+
+    badgeEl.textContent=tv?s.method.toUpperCase()+' ('+tv.step_num+'/'+tv.total+')':s.kind;
+    codeEl.innerHTML=hlPy(s.code);
+    narrEl.textContent=s.narration;
+    slider.value=idx;
+    counter.textContent='Step '+(idx+1)+' / '+STEPS.length;
+  }}
+
+  function stopPlay(){{
+    playing=false;
+    playBtn.innerHTML='&#9654;';
+    if(timer){{ clearInterval(timer); timer=null; }}
+  }}
+
+  function startPlay(){{
+    playing=true;
+    playBtn.innerHTML='&#9646;&#9646;';
+    timer=setInterval(function(){{
+      if(cur<STEPS.length-1){{ cur++; applyStep(cur); }}
+      else {{ stopPlay(); }}
+    }}, Math.round(1200/speed));
+  }}
+
+  prevBtn.addEventListener('click',function(){{
+    stopPlay();
+    if(cur>0){{ cur--; applyStep(cur); }}
+  }});
+  nextBtn.addEventListener('click',function(){{
+    stopPlay();
+    if(cur<STEPS.length-1){{ cur++; applyStep(cur); }}
+  }});
+  playBtn.addEventListener('click',function(){{
+    if(playing){{ stopPlay(); }}
+    else {{ if(cur>=STEPS.length-1){{ cur=0; }} startPlay(); }}
+  }});
+  slider.addEventListener('input',function(){{
+    stopPlay();
+    cur=parseInt(this.value);
+    applyStep(cur);
+  }});
+
+  document.addEventListener('keydown',function(e){{
+    if(!document.getElementById('{uid}')) return;
+    if(e.key==='ArrowRight'){{ nextBtn.click(); e.preventDefault(); }}
+    else if(e.key==='ArrowLeft'){{ prevBtn.click(); e.preventDefault(); }}
+    else if(e.key===' '){{ playBtn.click(); e.preventDefault(); }}
+  }});
+
+  applyStep(0);
+  {'startPlay();' if auto_play else ''}
+}})();
+</script>
+</div>"""
+
+    result = PlotSVG(svg_str, html)
+    if output:
+        result.save(output)
+    return result
