@@ -3705,7 +3705,10 @@ def render_steps(
 #{uid} .step-code-panel {{
   padding:12px 16px;
   border-bottom:1px solid {border};
-  min-height:60px;
+  height:130px;
+  box-sizing:border-box;
+  overflow:hidden;
+  position:relative;
 }}
 #{uid} .step-code-panel pre {{
   margin:0;
@@ -3729,6 +3732,76 @@ def render_steps(
   font-size:13px;
   color:{narr_fg};
   font-style:italic;
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  cursor:default;
+}}
+#{uid} .step-narration.truncated {{
+  cursor:pointer;
+}}
+#{uid} .step-note-text {{
+  margin:0;
+  font-size:14px;
+  line-height:1.6;
+  color:{fg};
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+}}
+#{uid} .step-note-text.truncated {{
+  cursor:pointer;
+}}
+#{uid} .step-more-link {{
+  font-style:normal;
+  font-size:11px;
+  color:{accent};
+  font-weight:500;
+  cursor:pointer;
+  margin-left:4px;
+}}
+#{uid} .step-modal-overlay {{
+  display:none;
+  position:fixed;
+  top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,{".6" if is_dark else ".4"});
+  z-index:9999;
+  align-items:center;
+  justify-content:center;
+}}
+#{uid} .step-modal-overlay.open {{
+  display:flex;
+}}
+#{uid} .step-modal {{
+  background:{bg};
+  border:1px solid {border};
+  border-radius:10px;
+  padding:20px 24px;
+  max-width:520px;
+  max-height:60vh;
+  overflow-y:auto;
+  width:90%;
+  box-shadow:0 8px 32px rgba(0,0,0,.25);
+}}
+#{uid} .step-modal-close {{
+  float:right;
+  background:none;
+  border:none;
+  font-size:18px;
+  color:{narr_fg};
+  cursor:pointer;
+  padding:0 4px;
+  line-height:1;
+}}
+#{uid} .step-modal-close:hover {{ color:{fg}; }}
+#{uid} .step-modal-body {{
+  font-size:14px;
+  line-height:1.7;
+  color:{fg};
+  white-space:pre-wrap;
+  margin-top:4px;
 }}
 #{uid} .step-controls {{
   display:flex;
@@ -3749,6 +3822,10 @@ def render_steps(
   min-width:32px;
 }}
 #{uid} .step-controls button:hover {{ opacity:0.85; }}
+#{uid} .step-controls .replay-btn {{
+  display:none;
+  background:{"#6b7280" if is_dark else "#9ca3af"};
+}}
 #{uid} .step-controls input[type=range] {{
   flex:1;
   accent-color:{accent};
@@ -3758,6 +3835,16 @@ def render_steps(
   color:{fg};
   min-width:80px;
   text-align:right;
+}}
+#{uid} .step-speed {{
+  border:1px solid {border};
+  border-radius:4px;
+  padding:2px 4px;
+  background:transparent;
+  color:{fg};
+  font-size:11.5px;
+  font-family:inherit;
+  cursor:pointer;
 }}
 #{uid} .step-kind-badge {{
   display:inline-block;
@@ -3808,16 +3895,30 @@ def render_steps(
   </div>
   <div class="step-code-panel" id="{uid}-code">
     <span class="step-kind-badge" id="{uid}-badge"></span>
-    <pre><code id="{uid}-codetext"></code></pre>
+    <pre id="{uid}-codewrap"><code id="{uid}-codetext"></code></pre>
+    <p class="step-note-text" id="{uid}-notetext" style="display:none"></p>
     <div class="step-narration" id="{uid}-narration"></div>
     <div class="step-delta" id="{uid}-delta"></div>
   </div>
   <div class="step-controls">
-    <button id="{uid}-prev" title="Previous step">&#9664;</button>
-    <button id="{uid}-play" title="Play / Pause">&#9654;</button>
-    <button id="{uid}-next" title="Next step">&#9654;</button>
+    <button id="{uid}-prev" title="Previous step (&#8592;)">&#9664;</button>
+    <button id="{uid}-play" title="Play / Pause (Space)">&#9654;</button>
+    <button id="{uid}-next" title="Next step (&#8594;)">&#9654;</button>
+    <button id="{uid}-replay" class="replay-btn" title="Replay from start (Home)">&#8634;</button>
     <input type="range" id="{uid}-slider" min="0" max="{len(step_data) - 1}" value="0" step="1"/>
     <span class="step-counter" id="{uid}-counter">Step 1 / {len(step_data)}</span>
+    <select id="{uid}-speed" class="step-speed" title="Playback speed">
+      <option value="2400"{"" if speed != 0.5 else " selected"}>0.5&times;</option>
+      <option value="1200"{"" if speed != 1.0 else " selected"}>1&times;</option>
+      <option value="600"{"" if speed != 2.0 else " selected"}>2&times;</option>
+      <option value="300"{"" if speed != 4.0 else " selected"}>4&times;</option>
+    </select>
+  </div>
+</div>
+<div class="step-modal-overlay" id="{uid}-modal">
+  <div class="step-modal">
+    <button class="step-modal-close" id="{uid}-modal-close">&times;</button>
+    <div class="step-modal-body" id="{uid}-modal-body"></div>
   </div>
 </div>
 
@@ -3825,7 +3926,6 @@ def render_steps(
 (function(){{
   var STEPS={steps_json};
   var cur=0, playing=false, timer=null;
-  var speed={speed};
   var directed={"true" if is_directed else "false"};
   var COL_DEFAULT='{node_color}';
   var COL_CURRENT='{trav_current}';
@@ -3836,6 +3936,8 @@ def render_steps(
 
   var svg=document.getElementById('{uid}-svg');
   var codeEl=document.getElementById('{uid}-codetext');
+  var codeWrap=document.getElementById('{uid}-codewrap');
+  var noteEl=document.getElementById('{uid}-notetext');
   var narrEl=document.getElementById('{uid}-narration');
   var badgeEl=document.getElementById('{uid}-badge');
   var deltaEl=document.getElementById('{uid}-delta');
@@ -3844,6 +3946,48 @@ def render_steps(
   var prevBtn=document.getElementById('{uid}-prev');
   var playBtn=document.getElementById('{uid}-play');
   var nextBtn=document.getElementById('{uid}-next');
+  var replayBtn=document.getElementById('{uid}-replay');
+  var speedSel=document.getElementById('{uid}-speed');
+  var modalOverlay=document.getElementById('{uid}-modal');
+  var modalBody=document.getElementById('{uid}-modal-body');
+  var modalClose=document.getElementById('{uid}-modal-close');
+
+  function isTruncated(el){{
+    return el.scrollHeight>el.clientHeight+1;
+  }}
+  function openModal(text){{
+    modalBody.textContent=text;
+    modalOverlay.classList.add('open');
+  }}
+  function closeModal(){{
+    modalOverlay.classList.remove('open');
+  }}
+  var moreLink=document.createElement('span');
+  moreLink.className='step-more-link';
+  moreLink.textContent='\\u2026more';
+  moreLink._text='';
+  moreLink.addEventListener('click',function(){{ openModal(moreLink._text); }});
+
+  function addMoreLink(el,text){{
+    if(moreLink.parentNode) moreLink.parentNode.removeChild(moreLink);
+    el.classList.remove('truncated');
+    el.onclick=null;
+    setTimeout(function(){{
+      if(isTruncated(el)){{
+        el.classList.add('truncated');
+        moreLink._text=text;
+        el.parentNode.insertBefore(moreLink,el.nextSibling);
+        el.onclick=function(){{ openModal(text); }};
+      }}
+    }},0);
+  }}
+  modalClose.addEventListener('click',closeModal);
+  modalOverlay.addEventListener('click',function(e){{
+    if(e.target===modalOverlay) closeModal();
+  }});
+  document.addEventListener('keydown',function(e){{
+    if(e.key==='Escape') closeModal();
+  }});
 
   var GLOW_ADD='url(#{uid}-glow-add)';
   var GLOW_RM='url(#{uid}-glow-rm)';
@@ -4072,8 +4216,20 @@ def render_steps(
 
     // Badge and text
     badgeEl.textContent=tv?s.method.toUpperCase()+' ('+tv.step_num+'/'+tv.total+')':s.kind;
-    codeEl.innerHTML=hlPy(s.code);
-    narrEl.textContent=s.narration;
+    if(s.kind==='annotate'){{
+      codeWrap.style.display='none';
+      noteEl.style.display='block';
+      noteEl.textContent=s.narration;
+      narrEl.style.display='none';
+      addMoreLink(noteEl,s.narration);
+    }} else {{
+      codeWrap.style.display='';
+      noteEl.style.display='none';
+      narrEl.style.display='';
+      codeEl.innerHTML=hlPy(s.code);
+      narrEl.textContent=s.narration;
+      addMoreLink(narrEl,s.narration);
+    }}
 
     // Delta detail chips
     var dh='';
@@ -4118,21 +4274,32 @@ def render_steps(
 
     slider.value=idx;
     counter.textContent='Step '+(idx+1)+' / '+STEPS.length;
+    var atEnd=idx>=STEPS.length-1;
+    replayBtn.style.display=atEnd&&!playing?'inline-block':'none';
+    nextBtn.style.display=atEnd?'none':'inline-block';
   }}
 
   function stopPlay(){{
     playing=false;
     playBtn.innerHTML='&#9654;';
     if(timer){{ clearInterval(timer); timer=null; }}
+    var atEnd=cur>=STEPS.length-1;
+    replayBtn.style.display=atEnd?'inline-block':'none';
+    nextBtn.style.display=atEnd?'none':'inline-block';
   }}
 
+  function getInterval(){{
+    return parseInt(speedSel.value)||1200;
+  }}
   function startPlay(){{
     playing=true;
     playBtn.innerHTML='&#9646;&#9646;';
+    replayBtn.style.display='none';
+    nextBtn.style.display='inline-block';
     timer=setInterval(function(){{
       if(cur<STEPS.length-1){{ cur++; applyStep(cur); }}
       else {{ stopPlay(); }}
-    }}, Math.round(1200/speed));
+    }}, getInterval());
   }}
 
   prevBtn.addEventListener('click',function(){{
@@ -4147,17 +4314,31 @@ def render_steps(
     if(playing){{ stopPlay(); }}
     else {{ if(cur>=STEPS.length-1){{ cur=0; }} startPlay(); }}
   }});
+  replayBtn.addEventListener('click',function(){{
+    stopPlay();
+    cur=0;
+    applyStep(cur);
+  }});
   slider.addEventListener('input',function(){{
     stopPlay();
     cur=parseInt(this.value);
     applyStep(cur);
   }});
+  speedSel.addEventListener('change',function(){{
+    if(playing){{ clearInterval(timer); timer=setInterval(function(){{
+      if(cur<STEPS.length-1){{ cur++; applyStep(cur); }}
+      else {{ stopPlay(); }}
+    }}, getInterval()); }}
+  }});
 
   document.addEventListener('keydown',function(e){{
     if(!document.getElementById('{uid}')) return;
+    if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
     if(e.key==='ArrowRight'){{ nextBtn.click(); e.preventDefault(); }}
     else if(e.key==='ArrowLeft'){{ prevBtn.click(); e.preventDefault(); }}
     else if(e.key===' '){{ playBtn.click(); e.preventDefault(); }}
+    else if(e.key==='Home'){{ stopPlay(); cur=0; applyStep(cur); e.preventDefault(); }}
+    else if(e.key==='End'){{ stopPlay(); cur=STEPS.length-1; applyStep(cur); e.preventDefault(); }}
   }});
 
   applyStep(0);
