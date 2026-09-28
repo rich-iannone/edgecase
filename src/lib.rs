@@ -187,7 +187,7 @@ mod tests {
         // Test that the module can be initialized
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let module = PyModule::new_bound(py, "_core").unwrap();
+            let module = PyModule::new(py, "_core").unwrap();
             assert!(_core(&module).is_ok());
         });
     }
