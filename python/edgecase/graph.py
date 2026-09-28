@@ -29043,7 +29043,7 @@ class Graph:
         self,
         which: str = "largest",
         k: int | None = None,
-    ) -> dict[str, list[float] | list[list[float]] | float | None]:
+    ) -> dict[str, list[float] | list[complex] | list[list[float]] | list[int] | float | None]:
         r"""
         Compute eigenvalues and eigenvectors of the adjacency matrix.
 
@@ -29053,30 +29053,43 @@ class Graph:
         spectrum reveals important structural properties including connectivity, bipartiteness, and
         graph regularity.
 
+        The adjacency matrix follows the same conventions as NetworkX: edge weights are used when
+        present (otherwise `1.0`), parallel edges sum their weights, and an undirected self-loop
+        adds its weight once to the diagonal.
+
         Parameters
         ----------
         which
-            Which eigenvalues to compute:
+            Which eigenvalues to return:
 
-            - `"all"`: All `n` eigenvalues (`O(n³)`, recommended for `n < 100`)
-            - `"largest"`: Largest k eigenvalues (default `k=6`)
-            - `"smallest"`: Smallest k eigenvalues
+            - `"all"`: all `n` eigenvalues
+            - `"largest"`: the largest `k` eigenvalues
+            - `"smallest"`: the smallest `k` eigenvalues
+
+            For directed graphs, "largest" and "smallest" are by real part.
         k
-            Number of eigenvalues to compute for "largest"/"smallest".
-            Default is `min(6, n-1)` where `n` is the number of nodes.
+            Number of eigenvalues to return for `"largest"`/`"smallest"`. Default is `min(6, n)`
+            where `n` is the number of nodes.
 
         Returns
         -------
         dict
             Dictionary with keys:
-            - `"values"`: List of eigenvalues (sorted descending)
-            - `"vectors"`: List of eigenvectors (each as list of floats)
-            - `"spectral_gap"`: λ₁ - λ₂ (difference between two largest eigenvalues)
+
+            - `"values"`: list of eigenvalues, sorted descending
+            - `"vectors"`: list of unit eigenvectors aligned with `"values"`; entry `j` of each
+            vector belongs to node `nodes[j]`
+            - `"nodes"`: node IDs, in creation order, giving the order of eigenvector entries
+            - `"spectral_gap"`: `λ₁ - λ₂` over the full spectrum (`None` for a single node)
+
+            For directed graphs the adjacency matrix is not symmetric, so `"values"` holds Python
+            `complex` numbers sorted by real part, and `"vectors"` and `"spectral_gap"` are `None`.
 
         Raises
         ------
         ValueError
-            If graph is empty or eigenvalue computation fails.
+            If the graph is empty, `which` is invalid, or the eigenvalue computation fails to
+            converge.
 
         Common Use Cases
         ----------------
@@ -29100,10 +29113,18 @@ class Graph:
         $C_n \to \{2\cos(2\pi k / n)\}_{k = 0}^{n - 1}$, and the star
         $S_n \to \{\sqrt{n - 1}, 0, \ldots, 0, -\sqrt{n - 1}\}$.
 
-        Computationally, the `"all"` mode runs a dense $O(n^3)$ eigendecomposition suitable
-        for graphs up to a few hundred nodes, while `"largest"` and `"smallest"` use
-        Lanczos-style iterative extraction at $O(k n^2)$ and remain practical for graphs
-        into the tens of thousands as long as $k$ stays modest.
+        For undirected graphs with at least 400 nodes, `"largest"` and `"smallest"` with a
+        small `k` use a sparse iterative solver (Chebyshev-filtered subspace iteration) that
+        touches only the graph's edges, so they scale to graphs with hundreds of thousands of
+        nodes (a few seconds for 200,000 nodes). It is a block method, so it resolves repeated
+        eigenvalues, which are common in graph spectra. Results match the dense solver to about
+        `1e-11` relative to the spectral radius. Convergence slows when the requested
+        eigenvalues are tightly clustered relative to the spread of the whole spectrum.
+
+        Everything else runs a dense $O(n^3)$ eigendecomposition: `"all"`, small graphs, and
+        directed graphs (Francis double-shift QR). This is practical up to a few thousand
+        nodes. Eigenvector signs are normalized so that the first non-negligible entry is
+        positive, making results reproducible.
 
         Examples
         --------
@@ -29156,6 +29177,25 @@ class Graph:
         # Returns True: the spectrum is symmetric about zero, a signature of bipartiteness
         abs(values[0] + values[-1]) < 0.01
         ```
+
+        **Directed Graphs Have Complex Spectra**
+
+        A directed cycle's adjacency matrix is a permutation matrix, so its eigenvalues are the
+        roots of unity. They are returned as complex numbers sorted by real part:
+
+        ```{python}
+        g = ec.Graph(directed=True)
+
+        for node in ["A", "B", "C", "D"]:
+            g.add_node(node)
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        g.add_edge("C", "D")
+        g.add_edge("D", "A")
+
+        # Returns 1, ±i, and -1 (the fourth roots of unity)
+        [complex(round(v.real, 6), round(v.imag, 6)) for v in g.get_spectrum(which="all")["values"]]
+        ```
         """
         return self._graph.spectrum(which, k)
 
@@ -29164,40 +29204,53 @@ class Graph:
         which: str = "smallest",
         k: int | None = None,
         normalized: bool = False,
-    ) -> dict[str, list[float] | list[list[float]] | float | None]:
+    ) -> dict[str, list[float] | list[complex] | list[list[float]] | list[int] | float | None]:
         r"""
         Compute eigenvalues and eigenvectors of the graph Laplacian.
 
         Returns the spectrum of the Laplacian matrix `L = D - A` (or normalized variant). The
         Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
 
+        `A` is the weighted adjacency matrix used by `get_spectrum()` and `D` is the diagonal
+        matrix of its row sums (out-degrees for directed graphs), matching
+        `networkx.laplacian_matrix()`. Parallel edges sum their weights and self-loops cancel out
+        of `L`, so its rows always sum to zero.
+
         Parameters
         ----------
         which
-            Which eigenvalues to compute. With `"all"`, this is all `n` eigenvalues (`O(n³)`,
-            recommended for `n < 100`). Using `"smallest"` works with the smallest `k` eigenvalues
-            (default `k=6`). The `"largest"` options works with the largest `k` eigenvalues.
+            Which eigenvalues to return: `"all"` for all `n` eigenvalues, `"smallest"` for the
+            smallest `k`, or `"largest"` for the largest `k`. For directed graphs, "largest" and
+            "smallest" are by real part.
         k
-            Number of eigenvalues to compute for `"largest"`/`"smallest"`. Default is `min(6, n-1)`
+            Number of eigenvalues to return for `"largest"`/`"smallest"`. Default is `min(6, n)`
             where `n` is the number of nodes.
         normalized
-            If `True`, use normalized Laplacian: `L_norm = D^(-1/2) L D^(-1/2)`. Normalized version
-            has eigenvalues in `[0, 2]` for undirected graphs.
+            If `True`, use the normalized Laplacian `L_norm = D^(-1/2) L D^(-1/2)`, where isolated
+            nodes get a zero row and column (as in `networkx.normalized_laplacian_matrix()`). Its
+            eigenvalues lie in `[0, 2]` for undirected graphs.
 
         Returns
         -------
         dict
             Dictionary with keys:
 
-            - `"values"`: list of eigenvalues (sorted ascending)
-            - `"vectors"`: list of eigenvectors (each as list of floats)
-            - `"algebraic_connectivity"`: `λ₂` (second-smallest eigenvalue, measures how
-            well-connected the graph is; `0` if disconnected)
+            - `"values"`: list of eigenvalues, sorted ascending
+            - `"vectors"`: list of unit eigenvectors aligned with `"values"`; entry `j` of each
+            vector belongs to node `nodes[j]`
+            - `"nodes"`: node IDs, in creation order, giving the order of eigenvector entries
+            - `"algebraic_connectivity"`: `λ₂` over the full spectrum (second-smallest eigenvalue;
+            `0` if disconnected, `None` for a single node)
+
+            For directed graphs the Laplacian is not symmetric, so `"values"` holds Python
+            `complex` numbers sorted by real part, and `"vectors"` and `"algebraic_connectivity"`
+            are `None`.
 
         Raises
         ------
         ValueError
-            If graph is empty or eigenvalue computation fails.
+            If the graph is empty, `which` is invalid, or the eigenvalue computation fails to
+            converge.
 
         Common Use Cases
         ----------------
@@ -29233,10 +29286,18 @@ class Graph:
         $K_n \to \{0, n, \ldots, n\}$, the path
         $P_n \to \{2 - 2\cos(\pi k / n)\}$, the cycle
         $C_n \to \{2 - 2\cos(2\pi k / n)\}$, and the star
-        $S_n \to \{0, 1, \ldots, 1, n\}$. Computationally, the "all" mode runs the dense
-        $O(n^3)$ eigendecomposition; the iterative $O(k n^2)$ paths for "smallest" or
-        "largest" (Lanczos with restart) are what make working with graphs of tens of
-        thousands of nodes tractable when only a handful of eigenvalues are needed.
+        $S_n \to \{0, 1, \ldots, 1, n\}$.
+
+        For undirected graphs with at least 400 nodes, `"smallest"` and `"largest"` with a
+        small `k` use a sparse block solver (Chebyshev-filtered subspace iteration) that
+        scales to very large graphs and resolves repeated eigenvalues, such as the many zero
+        eigenvalues of a disconnected graph. Results match the dense solver to about `1e-11`
+        relative to the spectral radius. Convergence depends on the requested eigenvalues'
+        gap relative to the width of the spectrum. The smallest eigenvalues of the
+        *unnormalized* Laplacian are the hard case on graphs with high-degree hubs, since
+        hub degrees stretch the spectrum: on a 200,000-node Barabási-Albert graph they take
+        minutes, while `normalized=True` takes seconds. `"all"`, small graphs, and directed
+        graphs use a dense $O(n^3)$ eigendecomposition, practical up to a few thousand nodes.
 
         Examples
         --------
@@ -29298,9 +29359,12 @@ class Graph:
         spec = g.get_laplacian_spectrum(which="smallest", k=3)
         fiedler_vector = spec['vectors'][1]  # Second eigenvector (λ₂)
 
+        # Entry j of the vector belongs to node spec['nodes'][j]
+        labels = [g.get_label_from_id(node_id) for node_id in spec['nodes']]
+
         # Partition based on sign of Fiedler vector
-        cluster_1 = [i for i, v in enumerate(fiedler_vector) if v < 0]
-        cluster_2 = [i for i, v in enumerate(fiedler_vector) if v >= 0]
+        cluster_1 = [lab for lab, v in zip(labels, fiedler_vector) if v < 0]
+        cluster_2 = [lab for lab, v in zip(labels, fiedler_vector) if v >= 0]
 
         # Returns the two clusters found via the Fiedler vector
         cluster_1, cluster_2
