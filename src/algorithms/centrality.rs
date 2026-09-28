@@ -684,30 +684,29 @@ pub fn pagerank(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::{Edge, Node};
 
     #[test]
     fn test_betweenness_centrality_empty_graph() {
-        let graph = Graph::new(false, false);
+        let graph = Graph::new_rust(false, false);
         let centrality = betweenness_centrality(&graph).unwrap();
         assert_eq!(centrality.len(), 0);
     }
 
     #[test]
     fn test_pagerank_empty_graph() {
-        let graph = Graph::new(false, false);
+        let graph = Graph::new_rust(false, false);
         let ranks = pagerank(&graph, 0.85, 100, 1e-6).unwrap();
         assert_eq!(ranks.len(), 0);
     }
 
     #[test]
     fn test_pagerank_single_node() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        let a = graph.add_test_node("A");
 
         let ranks = pagerank(&graph, 0.85, 100, 1e-6).unwrap();
         assert_eq!(ranks.len(), 1);
-        assert!((ranks["A"] - 1.0).abs() < 1e-6);
+        assert!((ranks[&a] - 1.0).abs() < 1e-6);
     }
 }
 

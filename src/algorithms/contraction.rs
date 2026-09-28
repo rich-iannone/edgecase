@@ -397,8 +397,15 @@ mod tests {
             assert!(!result.has_node_id(3)); // 3 is merged into 2
             assert!(result.has_node_id(4));
 
-            // Should have edge 1-2 and 2-4
-            assert_eq!(result.num_edges(), 2);
+            // Should have edges 1-2 and 2-4, plus the self-loop 2-2 from the
+            // contracted 2-3 edge (self_loops=true, the documented behavior)
+            assert_eq!(result.num_edges(), 3);
+            let self_loops = result
+                .get_edges_internal()
+                .iter()
+                .filter(|e| e.source == e.target)
+                .count();
+            assert_eq!(self_loops, 1);
         });
     }
 

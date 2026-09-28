@@ -140,7 +140,7 @@ mod tests {
                     id: 0,
                     source: s,
                     target: t,
-                    weight: 1.0,
+                    weight: Some(1.0),
                     attributes: None,
                 })
                 .unwrap();
@@ -197,7 +197,7 @@ mod tests {
                         id: 0,
                         source: i,
                         target: j,
-                        weight: 1.0,
+                        weight: Some(1.0),
                         attributes: None,
                     })
                     .unwrap();

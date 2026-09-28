@@ -713,47 +713,41 @@ fn dijkstra_path_with_distance(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::{Edge, Node};
 
     #[test]
     fn test_shortest_path_direct_connection() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        let a = graph.add_test_node("A");
+        let b = graph.add_test_node("B");
 
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
 
-        let path = shortest_path(&graph, "A", "B").unwrap();
-        assert_eq!(path, vec!["A", "B"]);
+        let path = shortest_path(&graph, a, b).unwrap();
+        assert_eq!(path, Some(vec![a, b]));
     }
 
     #[test]
     fn test_shortest_path_multiple_hops() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        let a = graph.add_test_node("A");
+        let b = graph.add_test_node("B");
+        let c = graph.add_test_node("C");
 
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
 
-        let path = shortest_path(&graph, "A", "C").unwrap();
-        assert_eq!(path, vec!["A", "B", "C"]);
+        let path = shortest_path(&graph, a, c).unwrap();
+        assert_eq!(path, Some(vec![a, b, c]));
     }
 
     #[test]
     fn test_shortest_path_no_connection() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        let a = graph.add_test_node("A");
+        let b = graph.add_test_node("B");
 
-        let result = shortest_path(&graph, "A", "B");
-        assert!(result.is_err());
+        // Unreachable target is reported as Ok(None) (older API returned Err)
+        let result = shortest_path(&graph, a, b).unwrap();
+        assert_eq!(result, None);
     }
 }

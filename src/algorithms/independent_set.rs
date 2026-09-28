@@ -296,15 +296,14 @@ mod tests {
     use super::*;
 
     fn create_test_graph() -> Graph {
-        // Create a simple graph: 0-1-2-3
-        let mut graph = Graph::new(false, false);
-        graph.add_node_internal(None, None);
-        graph.add_node_internal(None, None);
-        graph.add_node_internal(None, None);
-        graph.add_node_internal(None, None);
-        graph.add_edge_internal(0, 1, None, None).unwrap();
-        graph.add_edge_internal(1, 2, None, None).unwrap();
-        graph.add_edge_internal(2, 3, None, None).unwrap();
+        // Create a simple graph: 1-2-3-4
+        let mut graph = Graph::new_rust(false, false);
+        for i in 1..=4 {
+            graph.add_test_node_with_id(i);
+        }
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(3, 4, None);
         graph
     }
 
@@ -317,27 +316,27 @@ mod tests {
     #[test]
     fn test_is_independent_set_single() {
         let graph = create_test_graph();
-        assert!(is_independent_set(&graph, vec![0]).unwrap());
+        assert!(is_independent_set(&graph, vec![1]).unwrap());
     }
 
     #[test]
     fn test_is_independent_set_valid() {
         let graph = create_test_graph();
-        // 0 and 2 are not adjacent
-        assert!(is_independent_set(&graph, vec![0, 2]).unwrap());
-        // 0 and 3 are not adjacent
-        assert!(is_independent_set(&graph, vec![0, 3]).unwrap());
         // 1 and 3 are not adjacent
         assert!(is_independent_set(&graph, vec![1, 3]).unwrap());
+        // 1 and 4 are not adjacent
+        assert!(is_independent_set(&graph, vec![1, 4]).unwrap());
+        // 2 and 4 are not adjacent
+        assert!(is_independent_set(&graph, vec![2, 4]).unwrap());
     }
 
     #[test]
     fn test_is_independent_set_invalid() {
         let graph = create_test_graph();
-        // 0 and 1 are adjacent
-        assert!(!is_independent_set(&graph, vec![0, 1]).unwrap());
         // 1 and 2 are adjacent
         assert!(!is_independent_set(&graph, vec![1, 2]).unwrap());
+        // 2 and 3 are adjacent
+        assert!(!is_independent_set(&graph, vec![2, 3]).unwrap());
     }
 
     #[test]
@@ -349,7 +348,7 @@ mod tests {
         assert!(is_independent_set(&graph, mis.clone()).unwrap());
 
         // Should be maximal (can't add any more nodes)
-        // For path 0-1-2-3, maximal sets are {0,2}, {0,3}, {1,3}
+        // For path 1-2-3-4, maximal sets are {1,3}, {1,4}, {2,4}
         assert!(mis.len() == 2);
     }
 
@@ -361,7 +360,7 @@ mod tests {
         // Should be an independent set
         assert!(is_independent_set(&graph, mis.clone()).unwrap());
 
-        // For path 0-1-2-3, maximum independent set has size 2
+        // For path 1-2-3-4, maximum independent set has size 2
         assert!(mis.len() == 2);
     }
 
@@ -369,10 +368,10 @@ mod tests {
     fn test_maximal_with_seed_nodes() {
         let graph = create_test_graph();
 
-        // Start with node 0
-        let mis = maximal_independent_set(&graph, Some(vec![0]), Some(42)).unwrap();
+        // Start with node 1
+        let mis = maximal_independent_set(&graph, Some(vec![1]), Some(42)).unwrap();
 
-        assert!(mis.contains(&0));
+        assert!(mis.contains(&1));
         assert!(is_independent_set(&graph, mis).unwrap());
     }
 
@@ -381,7 +380,7 @@ mod tests {
         let graph = create_test_graph();
 
         // Starting with adjacent nodes should fail
-        let result = maximal_independent_set(&graph, Some(vec![0, 1]), Some(42));
+        let result = maximal_independent_set(&graph, Some(vec![1, 2]), Some(42));
         assert!(result.is_err());
     }
 }

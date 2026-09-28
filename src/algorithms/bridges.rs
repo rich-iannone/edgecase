@@ -298,22 +298,22 @@ mod tests {
 
     #[test]
     fn test_bridges_empty_graph() {
-        let graph = Graph::new(false, false);
+        let graph = Graph::new_rust(false, false);
         let result = bridges(&graph).unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn test_has_bridges_cycle() {
-        let mut graph = Graph::new(false, false);
+        let mut graph = Graph::new_rust(false, false);
         // Create a cycle - no bridges
-        let n1 = graph.add_node_simple();
-        let n2 = graph.add_node_simple();
-        let n3 = graph.add_node_simple();
+        let n1 = graph.add_test_node("n1");
+        let n2 = graph.add_test_node("n2");
+        let n3 = graph.add_test_node("n3");
 
-        graph.add_edge_simple(n1, n2);
-        graph.add_edge_simple(n2, n3);
-        graph.add_edge_simple(n3, n1);
+        graph.add_test_edge(n1, n2, None);
+        graph.add_test_edge(n2, n3, None);
+        graph.add_test_edge(n3, n1, None);
 
         assert!(!has_bridges(&graph).unwrap());
     }

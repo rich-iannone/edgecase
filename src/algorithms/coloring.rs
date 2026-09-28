@@ -422,23 +422,16 @@ pub fn chromatic_number_upper_bound(coloring: std::collections::HashMap<u64, i64
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::{Edge, Node};
 
     fn create_test_graph() -> Graph {
-        let mut graph = Graph::new(false, false);
+        let mut graph = Graph::new_rust(false, false);
         // Create a simple triangle
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("C".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
+        graph.add_test_edge_by_label("C", "A", None);
         graph
     }
 

@@ -505,18 +505,18 @@ mod tests {
 
     #[test]
     fn test_count_triangles_empty() {
-        let graph = Graph::new(false, false);
+        let graph = Graph::new_rust(false, false);
         let counts = count_triangles(&graph);
         assert_eq!(counts.len(), 0);
     }
 
     #[test]
     fn test_count_triangles_no_triangles() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(1, None, None).unwrap();
-        graph.add_node(2, None, None).unwrap();
-        graph.add_node(3, None, None).unwrap();
-        graph.add_edge(1, 2, None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node_with_id(1);
+        graph.add_test_node_with_id(2);
+        graph.add_test_node_with_id(3);
+        graph.add_test_edge(1, 2, None);
 
         let counts = count_triangles(&graph);
         assert_eq!(counts.get(&1), Some(&0));
@@ -526,13 +526,13 @@ mod tests {
 
     #[test]
     fn test_count_triangles_one_triangle() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(1, None, None).unwrap();
-        graph.add_node(2, None, None).unwrap();
-        graph.add_node(3, None, None).unwrap();
-        graph.add_edge(1, 2, None, None).unwrap();
-        graph.add_edge(2, 3, None, None).unwrap();
-        graph.add_edge(3, 1, None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node_with_id(1);
+        graph.add_test_node_with_id(2);
+        graph.add_test_node_with_id(3);
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(3, 1, None);
 
         let counts = count_triangles(&graph);
         assert_eq!(counts.get(&1), Some(&1));
@@ -542,13 +542,13 @@ mod tests {
 
     #[test]
     fn test_list_triangles() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(1, None, None).unwrap();
-        graph.add_node(2, None, None).unwrap();
-        graph.add_node(3, None, None).unwrap();
-        graph.add_edge(1, 2, None, None).unwrap();
-        graph.add_edge(2, 3, None, None).unwrap();
-        graph.add_edge(3, 1, None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node_with_id(1);
+        graph.add_test_node_with_id(2);
+        graph.add_test_node_with_id(3);
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(3, 1, None);
 
         let triangles = list_triangles(&graph);
         assert_eq!(triangles.len(), 1);
@@ -557,13 +557,13 @@ mod tests {
 
     #[test]
     fn test_transitivity() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(1, None, None).unwrap();
-        graph.add_node(2, None, None).unwrap();
-        graph.add_node(3, None, None).unwrap();
-        graph.add_edge(1, 2, None, None).unwrap();
-        graph.add_edge(2, 3, None, None).unwrap();
-        graph.add_edge(3, 1, None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node_with_id(1);
+        graph.add_test_node_with_id(2);
+        graph.add_test_node_with_id(3);
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(3, 1, None);
 
         let trans = transitivity(&graph);
         assert!(trans.is_some());
@@ -572,13 +572,13 @@ mod tests {
 
     #[test]
     fn test_local_clustering() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node(1, None, None).unwrap();
-        graph.add_node(2, None, None).unwrap();
-        graph.add_node(3, None, None).unwrap();
-        graph.add_edge(1, 2, None, None).unwrap();
-        graph.add_edge(2, 3, None, None).unwrap();
-        graph.add_edge(3, 1, None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node_with_id(1);
+        graph.add_test_node_with_id(2);
+        graph.add_test_node_with_id(3);
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(3, 1, None);
 
         let clustering = local_clustering_coefficient(&graph);
         assert!(clustering.get(&1).unwrap().is_some());

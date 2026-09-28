@@ -292,15 +292,15 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
 
         // Create a cycle: 1-2-3-4-1 (all nodes have degree 2)
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
-        let n4 = graph.add_node_rust(Some("4".to_string()), None);
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
+        let n4 = graph.add_test_node("4");
 
-        graph.add_edge_rust(n1, n2, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n2, n3, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n3, n4, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n4, n1, Some(1.0), None).unwrap();
+        graph.add_test_edge(n1, n2, Some(1.0));
+        graph.add_test_edge(n2, n3, Some(1.0));
+        graph.add_test_edge(n3, n4, Some(1.0));
+        graph.add_test_edge(n4, n1, Some(1.0));
 
         assert!(is_eulerian(&graph).unwrap());
         assert!(!is_semieulerian(&graph).unwrap());
@@ -311,12 +311,12 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
 
         // Create a path: 1-2-3 (endpoints have degree 1, middle has degree 2)
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
 
-        graph.add_edge_rust(n1, n2, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n2, n3, Some(1.0), None).unwrap();
+        graph.add_test_edge(n1, n2, Some(1.0));
+        graph.add_test_edge(n2, n3, Some(1.0));
 
         assert!(!is_eulerian(&graph).unwrap());
         assert!(is_semieulerian(&graph).unwrap());
@@ -327,14 +327,14 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
 
         // Create a star: center with 3 leaves (center has degree 3, odd)
-        let center = graph.add_node_rust(Some("center".to_string()), None);
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
+        let center = graph.add_test_node("center");
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
 
-        graph.add_edge_rust(center, n1, Some(1.0), None).unwrap();
-        graph.add_edge_rust(center, n2, Some(1.0), None).unwrap();
-        graph.add_edge_rust(center, n3, Some(1.0), None).unwrap();
+        graph.add_test_edge(center, n1, Some(1.0));
+        graph.add_test_edge(center, n2, Some(1.0));
+        graph.add_test_edge(center, n3, Some(1.0));
 
         assert!(!is_eulerian(&graph).unwrap());
         assert!(!is_semieulerian(&graph).unwrap());
@@ -345,13 +345,13 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
 
         // Simple cycle
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
 
-        graph.add_edge_rust(n1, n2, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n2, n3, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n3, n1, Some(1.0), None).unwrap();
+        graph.add_test_edge(n1, n2, Some(1.0));
+        graph.add_test_edge(n2, n3, Some(1.0));
+        graph.add_test_edge(n3, n1, Some(1.0));
 
         let circuit = eulerian_circuit(&graph).unwrap();
         assert!(circuit.is_some());

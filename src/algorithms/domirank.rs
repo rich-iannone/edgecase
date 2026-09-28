@@ -284,18 +284,18 @@ mod tests {
 
     #[test]
     fn test_domirank_empty_graph() {
-        let graph = Graph::new(false, false);
+        let graph = Graph::new_rust(false, false);
         let result = domirank(&graph, None, 0.95, 0.1, 1e-5, 1000, 10, 50);
         assert!(result.is_ok());
-        let (scores, sigma, converged) = result.unwrap();
+        let (scores, _sigma, converged) = result.unwrap();
         assert_eq!(scores.len(), 0);
         assert!(converged);
     }
 
     #[test]
     fn test_domirank_single_node() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node("A", None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node("A");
 
         let result = domirank(&graph, Some(0.5), 0.95, 0.1, 1e-5, 1000, 10, 50);
         assert!(result.is_ok());
@@ -306,8 +306,8 @@ mod tests {
 
     #[test]
     fn test_domirank_parameter_validation() {
-        let mut graph = Graph::new(false, false);
-        graph.add_node("A", None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node("A");
 
         // Negative alpha
         assert!(domirank(&graph, None, -0.5, 0.1, 1e-5, 1000, 10, 50).is_err());

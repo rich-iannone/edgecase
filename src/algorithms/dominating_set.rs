@@ -255,39 +255,39 @@ mod tests {
 
     #[test]
     fn test_is_dominating_set_empty() {
-        let graph = Graph::new(false);
+        let graph = Graph::new_rust(false, false);
         assert!(is_dominating_set(&graph, vec![]).unwrap());
     }
 
     #[test]
     fn test_is_dominating_set_path() {
-        let mut graph = Graph::new(false);
-        // Create path: 0-1-2-3
-        for i in 0..4 {
-            graph.add_node_with_id(i, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        // Create path: 1-2-3-4 (node id 0 is reserved for auto-assignment)
+        for i in 1..=4 {
+            graph.add_test_node_with_id(i);
         }
-        graph.add_edge_by_ids(0, 1, None, None).unwrap();
-        graph.add_edge_by_ids(1, 2, None, None).unwrap();
-        graph.add_edge_by_ids(2, 3, None, None).unwrap();
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(3, 4, None);
 
+        // {2, 4} dominates all
+        assert!(is_dominating_set(&graph, vec![2, 4]).unwrap());
         // {1, 3} dominates all
         assert!(is_dominating_set(&graph, vec![1, 3]).unwrap());
-        // {0, 2} dominates all
-        assert!(is_dominating_set(&graph, vec![0, 2]).unwrap());
-        // {1} doesn't dominate 3
-        assert!(!is_dominating_set(&graph, vec![1]).unwrap());
+        // {2} doesn't dominate 4
+        assert!(!is_dominating_set(&graph, vec![2]).unwrap());
     }
 
     #[test]
     fn test_dominating_set_complete() {
-        let mut graph = Graph::new(false);
+        let mut graph = Graph::new_rust(false, false);
         // Complete graph K4
-        for i in 0..4 {
-            graph.add_node_with_id(i, None).unwrap();
+        for i in 1..=4 {
+            graph.add_test_node_with_id(i);
         }
-        for i in 0..4 {
-            for j in (i + 1)..4 {
-                graph.add_edge_by_ids(i, j, None, None).unwrap();
+        for i in 1..=4 {
+            for j in (i + 1)..=4 {
+                graph.add_test_edge(i, j, None);
             }
         }
 
@@ -299,14 +299,14 @@ mod tests {
 
     #[test]
     fn test_dominating_set_path() {
-        let mut graph = Graph::new(false);
-        // Path: 0-1-2-3
-        for i in 0..4 {
-            graph.add_node_with_id(i, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        // Path: 1-2-3-4
+        for i in 1..=4 {
+            graph.add_test_node_with_id(i);
         }
-        graph.add_edge_by_ids(0, 1, None, None).unwrap();
-        graph.add_edge_by_ids(1, 2, None, None).unwrap();
-        graph.add_edge_by_ids(2, 3, None, None).unwrap();
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(3, 4, None);
 
         let dom = dominating_set(&graph, None).unwrap();
         assert!(is_dominating_set(&graph, dom).unwrap());
@@ -314,17 +314,17 @@ mod tests {
 
     #[test]
     fn test_dominating_set_star() {
-        let mut graph = Graph::new(false);
-        // Star with center 0
-        graph.add_node_with_id(0, None).unwrap();
-        for i in 1..6 {
-            graph.add_node_with_id(i, None).unwrap();
-            graph.add_edge_by_ids(0, i, None, None).unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        // Star with center 1
+        graph.add_test_node_with_id(1);
+        for i in 2..7 {
+            graph.add_test_node_with_id(i);
+            graph.add_test_edge(1, i, None);
         }
 
-        let dom = dominating_set(&graph, Some(0)).unwrap();
+        let dom = dominating_set(&graph, Some(1)).unwrap();
         // Center alone dominates entire star
         assert_eq!(dom.len(), 1);
-        assert!(dom.contains(&0));
+        assert!(dom.contains(&1));
     }
 }

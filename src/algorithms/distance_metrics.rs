@@ -661,11 +661,13 @@ mod tests {
     use super::*;
     use crate::graph::{Edge, Node};
 
+    // Helper graphs use node ids 1..=n (node id 0 is reserved for auto-assignment),
+    // so the conceptual node k in the comments below has id k + 1.
     fn create_path_graph(n: usize) -> Graph {
         let mut graph = Graph::new_rust(false, false);
         for i in 0..n {
             let node = Node {
-                id: i as u64,
+                id: i as u64 + 1,
                 label: None,
                 attributes: None,
             };
@@ -674,8 +676,8 @@ mod tests {
         for i in 0..(n - 1) {
             let edge = Edge {
                 id: 0,
-                source: i as u64,
-                target: (i + 1) as u64,
+                source: i as u64 + 1,
+                target: (i + 2) as u64,
                 weight: None,
                 attributes: None,
             };
@@ -688,7 +690,7 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
         for i in 0..n {
             let node = Node {
-                id: i as u64,
+                id: i as u64 + 1,
                 label: None,
                 attributes: None,
             };
@@ -698,8 +700,8 @@ mod tests {
             for j in (i + 1)..n {
                 let edge = Edge {
                     id: 0,
-                    source: i as u64,
-                    target: j as u64,
+                    source: i as u64 + 1,
+                    target: j as u64 + 1,
                     weight: None,
                     attributes: None,
                 };
@@ -713,7 +715,7 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
         for i in 0..n {
             let node = Node {
-                id: i as u64,
+                id: i as u64 + 1,
                 label: None,
                 attributes: None,
             };
@@ -722,8 +724,8 @@ mod tests {
         for i in 0..n {
             let edge = Edge {
                 id: 0,
-                source: i as u64,
-                target: ((i + 1) % n) as u64,
+                source: i as u64 + 1,
+                target: ((i + 1) % n) as u64 + 1,
                 weight: None,
                 attributes: None,
             };
@@ -913,7 +915,7 @@ mod tests {
     #[test]
     fn test_resistance_distance_same_node() {
         let graph = create_path_graph(3);
-        let result = resistance_distance(&graph, 0, 0).unwrap();
+        let result = resistance_distance(&graph, 1, 1).unwrap();
         assert_eq!(result, 0.0);
     }
 
@@ -921,7 +923,7 @@ mod tests {
     fn test_resistance_distance_adjacent_nodes() {
         // Two adjacent nodes: resistance = 1.0
         let graph = create_path_graph(2);
-        let result = resistance_distance(&graph, 0, 1).unwrap();
+        let result = resistance_distance(&graph, 1, 2).unwrap();
         assert!((result - 1.0).abs() < 1e-10);
     }
 
@@ -930,7 +932,7 @@ mod tests {
         // Path P3: 0-1-2
         // Ω(0,2) = 2.0 (two resistors in series)
         let graph = create_path_graph(3);
-        let result = resistance_distance(&graph, 0, 2).unwrap();
+        let result = resistance_distance(&graph, 1, 3).unwrap();
         assert!((result - 2.0).abs() < 1e-10);
     }
 
@@ -940,7 +942,7 @@ mod tests {
         // (n-1 parallel paths, each with resistance 2)
         // For Kn: Ω(i,j) = 2/n for all i≠j
         let graph = create_complete_graph(4);
-        let result = resistance_distance(&graph, 0, 1).unwrap();
+        let result = resistance_distance(&graph, 1, 2).unwrap();
         assert!((result - 0.5).abs() < 1e-10);
     }
 
@@ -948,7 +950,7 @@ mod tests {
     fn test_resistance_distance_triangle() {
         // Triangle K3: Ω(i,j) = 2/3 for all pairs
         let graph = create_complete_graph(3);
-        let result = resistance_distance(&graph, 0, 1).unwrap();
+        let result = resistance_distance(&graph, 1, 2).unwrap();
         assert!((result - 2.0 / 3.0).abs() < 1e-10);
     }
 
@@ -957,29 +959,29 @@ mod tests {
         // Cycle C4: 0-1-2-3-0
         // Ω(0,1) = 1 * 3 / (1 + 3) = 3/4 (parallel paths of length 1 and 3)
         let graph = create_cycle_graph(4);
-        let result = resistance_distance(&graph, 0, 1).unwrap();
+        let result = resistance_distance(&graph, 1, 2).unwrap();
         assert!((result - 0.75).abs() < 1e-10);
     }
 
     #[test]
     fn test_resistance_distance_symmetric() {
         let graph = create_path_graph(4);
-        let r01 = resistance_distance(&graph, 0, 1).unwrap();
-        let r10 = resistance_distance(&graph, 1, 0).unwrap();
+        let r01 = resistance_distance(&graph, 1, 2).unwrap();
+        let r10 = resistance_distance(&graph, 2, 1).unwrap();
         assert!((r01 - r10).abs() < 1e-10);
     }
 
     #[test]
     fn test_resistance_distance_directed_error() {
         let graph = Graph::new_rust(true, false);
-        let result = resistance_distance(&graph, 0, 1);
+        let result = resistance_distance(&graph, 1, 2);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_resistance_distance_node_not_found() {
         let graph = create_path_graph(3);
-        let result = resistance_distance(&graph, 0, 99);
+        let result = resistance_distance(&graph, 1, 99);
         assert!(result.is_err());
     }
 

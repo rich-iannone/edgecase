@@ -226,9 +226,9 @@ mod tests {
 
     #[test]
     fn test_node_vitality_single_node() {
-        let mut graph = Graph::new();
-        graph.add_node(Some("A".to_string()), None);
-        let node_id = graph.get_id_from_label("A").unwrap();
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node("A");
+        let node_id = graph.id_from_label("A").unwrap();
 
         let vitality = node_vitality(&graph, node_id).unwrap();
         assert_eq!(vitality, 0.0);
@@ -236,9 +236,8 @@ mod tests {
 
     #[test]
     fn test_node_vitality_path() {
-        let mut graph = Graph::new();
-        graph.add_path_graph(3, None, None, None);
-        let nodes = graph.get_node_ids();
+        let mut graph = Graph::new_rust(false, false);
+        let nodes = graph.add_test_path(3);
 
         // Middle node is most vital (connects the path)
         let middle_vitality = node_vitality(&graph, nodes[1]).unwrap();
@@ -251,9 +250,8 @@ mod tests {
 
     #[test]
     fn test_node_vitality_star() {
-        let mut graph = Graph::new();
-        graph.add_star_graph(4, None, None, None);
-        let nodes = graph.get_node_ids();
+        let mut graph = Graph::new_rust(false, false);
+        let nodes = graph.add_test_star(4);
 
         // First node is hub in star graph
         let hub_vitality = node_vitality(&graph, nodes[0]).unwrap();

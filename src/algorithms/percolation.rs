@@ -630,7 +630,7 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
         for i in 0..n {
             let node = Node {
-                id: i as u64,
+                id: i as u64 + 1,
                 label: None,
                 attributes: None,
             };
@@ -639,8 +639,8 @@ mod tests {
         for i in 0..(n - 1) {
             let edge = Edge {
                 id: 0,
-                source: i as u64,
-                target: (i + 1) as u64,
+                source: i as u64 + 1,
+                target: (i + 2) as u64,
                 weight: None,
                 attributes: None,
             };
@@ -653,7 +653,7 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
         for i in 0..n {
             let node = Node {
-                id: i as u64,
+                id: i as u64 + 1,
                 label: None,
                 attributes: None,
             };
@@ -663,8 +663,8 @@ mod tests {
             for j in (i + 1)..n {
                 let edge = Edge {
                     id: 0,
-                    source: i as u64,
-                    target: j as u64,
+                    source: i as u64 + 1,
+                    target: j as u64 + 1,
                     weight: None,
                     attributes: None,
                 };
@@ -676,10 +676,10 @@ mod tests {
 
     fn create_star_graph(n: usize) -> Graph {
         let mut graph = Graph::new_rust(false, false);
-        // Center node is 0
+        // Center node is 1 (node id 0 is reserved for auto-assignment)
         for i in 0..n {
             let node = Node {
-                id: i as u64,
+                id: i as u64 + 1,
                 label: None,
                 attributes: None,
             };
@@ -688,8 +688,8 @@ mod tests {
         for i in 1..n {
             let edge = Edge {
                 id: 0,
-                source: 0,
-                target: i as u64,
+                source: 1,
+                target: i as u64 + 1,
                 weight: None,
                 attributes: None,
             };
@@ -720,38 +720,38 @@ mod tests {
 
     #[test]
     fn test_percolation_centrality_path() {
-        // Path: 0 - 1 - 2 - 3
+        // Path: 1 - 2 - 3 - 4
         // All states = 1.0, so should equal betweenness
         let graph = create_path_graph(4);
         let result = percolation_centrality(&graph, None, None).unwrap();
 
         // In a path, middle nodes should have higher centrality
-        assert!(result[&1] > result[&0]);
-        assert!(result[&2] > result[&3]);
+        assert!(result[&2] > result[&1]);
+        assert!(result[&3] > result[&4]);
     }
 
     #[test]
     fn test_percolation_centrality_with_states() {
-        // Path: 0 - 1 - 2
+        // Path: 1 - 2 - 3
         let graph = create_path_graph(3);
 
         // Custom states
         let mut states: FxHashMap<u64, f64> = FxHashMap::default();
-        states.insert(0, 1.0);
-        states.insert(1, 0.5);
-        states.insert(2, 1.0);
+        states.insert(1, 1.0);
+        states.insert(2, 0.5);
+        states.insert(3, 1.0);
 
         let result = percolation_centrality(&graph, Some(states), None).unwrap();
 
         // Middle node should still have centrality
-        assert!(result[&1] > 0.0);
+        assert!(result[&2] > 0.0);
     }
 
     #[test]
     fn test_percolation_centrality_invalid_state() {
         let graph = create_path_graph(3);
         let mut states: FxHashMap<u64, f64> = FxHashMap::default();
-        states.insert(0, 1.5); // Invalid: > 1.0
+        states.insert(1, 1.5); // Invalid: > 1.0
 
         let result = percolation_centrality(&graph, Some(states), None);
         assert!(result.is_err());
@@ -790,7 +790,7 @@ mod tests {
 
     #[test]
     fn test_node_percolation_edges_removed() {
-        // Create a path: 0 - 1 - 2 - 3 - 4
+        // Create a path: 1 - 2 - 3 - 4 - 5
         let graph = create_path_graph(5);
 
         // Remove 60% of nodes (3 nodes)
@@ -861,7 +861,7 @@ mod tests {
     fn test_largest_component_size_disconnected() {
         let mut graph = Graph::new_rust(false, false);
         // Two triangles
-        for i in 0..3 {
+        for i in 1..=3 {
             let node = Node {
                 id: i,
                 label: None,
@@ -869,7 +869,7 @@ mod tests {
             };
             graph.add_node_rust(node).unwrap();
         }
-        let edges = [(0, 1), (1, 2), (2, 0)];
+        let edges = [(1, 2), (2, 3), (3, 1)];
         for (s, t) in edges {
             let edge = Edge {
                 id: 0,
@@ -881,7 +881,7 @@ mod tests {
             graph.add_edge_rust(edge).unwrap();
         }
 
-        for i in 3..7 {
+        for i in 4..=7 {
             let node = Node {
                 id: i,
                 label: None,
@@ -889,7 +889,7 @@ mod tests {
             };
             graph.add_node_rust(node).unwrap();
         }
-        let edges2 = [(3, 4), (4, 5), (5, 6), (6, 3)];
+        let edges2 = [(4, 5), (5, 6), (6, 7), (7, 4)];
         for (s, t) in edges2 {
             let edge = Edge {
                 id: 0,
@@ -926,7 +926,7 @@ mod tests {
         // Star graph is fragile - removing center destroys connectivity
         let graph = create_star_graph(6);
 
-        // Remove the center (node 0) by setting high q
+        // Remove the center (node 1) by setting high q
         // With seed 42 on a 6-node graph, removing 1 node (q~0.17)
         // may or may not hit the center
         let result_edge = edge_percolation(&graph, 0.8, Some(42)).unwrap();

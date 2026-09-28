@@ -1314,30 +1314,27 @@ fn sub_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::{Edge, Node};
 
     #[test]
     fn test_find_cycles_empty_graph() {
-        let graph = Graph::new(true, false);
+        let graph = Graph::new_rust(true, false);
         let cycles = find_cycles(&graph, None).unwrap();
         assert_eq!(cycles.len(), 0);
     }
 
     #[test]
     fn test_find_cycles_single_node_no_loop() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
         let cycles = find_cycles(&graph, None).unwrap();
         assert_eq!(cycles.len(), 0);
     }
 
     #[test]
     fn test_find_cycles_self_loop() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph
-            .add_edge(Edge::new("A".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_edge_by_label("A", "A", None);
 
         let cycles = find_cycles(&graph, Some(1.0)).unwrap();
         assert_eq!(cycles.len(), 1);
@@ -1346,20 +1343,14 @@ mod tests {
 
     #[test]
     fn test_find_cycles_simple_cycle() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
 
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("C".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
+        graph.add_test_edge_by_label("C", "A", None);
 
         let cycles = find_cycles(&graph, None).unwrap();
         assert_eq!(cycles.len(), 1);
@@ -1368,16 +1359,12 @@ mod tests {
 
     #[test]
     fn test_find_cycles_two_node_cycle() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
 
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "A", None);
 
         let cycles = find_cycles(&graph, None).unwrap();
         assert_eq!(cycles.len(), 1);
@@ -1386,28 +1373,20 @@ mod tests {
 
     #[test]
     fn test_find_cycles_multiple_cycles() {
-        let mut graph = Graph::new(true, false);
+        let mut graph = Graph::new_rust(true, false);
         // Create two separate cycles
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
-        graph.add_node(Node::new("D".to_string(), None)).unwrap();
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
+        graph.add_test_node("D");
 
         // First cycle: A -> B -> A
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "A", None);
 
         // Second cycle: C -> D -> C
-        graph
-            .add_edge(Edge::new("C".to_string(), "D".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("D".to_string(), "C".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("C", "D", None);
+        graph.add_test_edge_by_label("D", "C", None);
 
         let cycles = find_cycles(&graph, None).unwrap();
         assert_eq!(cycles.len(), 2);
@@ -1415,24 +1394,16 @@ mod tests {
 
     #[test]
     fn test_find_cycles_overlapping() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
 
         // Create overlapping cycles: A->B->A and A->B->C->A
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "A".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("C".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "A", None);
+        graph.add_test_edge_by_label("B", "C", None);
+        graph.add_test_edge_by_label("C", "A", None);
 
         let cycles = find_cycles(&graph, None).unwrap();
         assert_eq!(cycles.len(), 2);
@@ -1440,26 +1411,18 @@ mod tests {
 
     #[test]
     fn test_find_cycles_min_length() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
 
         // Two-node cycle
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "A", None);
 
         // Three-node cycle
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("C".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("B", "C", None);
+        graph.add_test_edge_by_label("C", "A", None);
 
         // All cycles
         let all_cycles = find_cycles(&graph, None).unwrap();
@@ -1473,17 +1436,13 @@ mod tests {
 
     #[test]
     fn test_find_cycles_dag() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
 
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
 
         let cycles = find_cycles(&graph, None).unwrap();
         assert_eq!(cycles.len(), 0);
@@ -1491,44 +1450,34 @@ mod tests {
 
     #[test]
     fn test_find_cycles_undirected_error() {
-        let graph = Graph::new(false, false);
+        let graph = Graph::new_rust(false, false);
         let result = find_cycles(&graph, None);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_has_cycle_acyclic_graph() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
 
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
 
         assert!(!has_cycle(&graph));
     }
 
     #[test]
     fn test_has_cycle_cyclic_graph() {
-        let mut graph = Graph::new(true, false);
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let mut graph = Graph::new_rust(true, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
 
-        graph
-            .add_edge(Edge::new("A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("B".to_string(), "C".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new("C".to_string(), "A".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
+        graph.add_test_edge_by_label("C", "A", None);
 
         assert!(has_cycle(&graph));
     }

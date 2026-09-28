@@ -199,52 +199,52 @@ mod tests {
 
     #[test]
     fn test_empty_graph_is_regular() {
-        let graph = Graph::new();
+        let graph = Graph::new_rust(false, false);
         assert!(is_regular(&graph).unwrap());
     }
 
     #[test]
     fn test_single_node_is_regular() {
-        let mut graph = Graph::new();
-        graph.add_node(Some("A".to_string()), None);
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node("A");
         assert!(is_regular(&graph).unwrap());
     }
 
     #[test]
     fn test_cycle_is_regular() {
-        let mut graph = Graph::new();
-        graph.add_cycle_graph(5, None, None, None);
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_cycle(5);
         assert!(is_regular(&graph).unwrap());
     }
 
     #[test]
     fn test_star_not_regular() {
-        let mut graph = Graph::new();
-        graph.add_star_graph(4, None, None, None);
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_star(4);
         assert!(!is_regular(&graph).unwrap());
     }
 
     #[test]
     fn test_empty_graph_is_0_regular() {
-        let graph = Graph::new();
+        let graph = Graph::new_rust(false, false);
         assert!(is_k_regular(&graph, 0).unwrap());
         assert!(!is_k_regular(&graph, 1).unwrap());
     }
 
     #[test]
     fn test_cycle_is_2_regular() {
-        let mut graph = Graph::new();
-        graph.add_cycle_graph(5, None, None, None);
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_cycle(5);
         assert!(is_k_regular(&graph, 2).unwrap());
         assert!(!is_k_regular(&graph, 3).unwrap());
     }
 
     #[test]
     fn test_isolated_nodes_are_0_regular() {
-        let mut graph = Graph::new();
-        graph.add_node(Some("A".to_string()), None);
-        graph.add_node(Some("B".to_string()), None);
-        graph.add_node(Some("C".to_string()), None);
+        let mut graph = Graph::new_rust(false, false);
+        graph.add_test_node("A");
+        graph.add_test_node("B");
+        graph.add_test_node("C");
 
         assert!(is_regular(&graph).unwrap());
         assert!(is_k_regular(&graph, 0).unwrap());

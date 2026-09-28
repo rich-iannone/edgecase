@@ -128,13 +128,13 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
 
         // Create a simple graph: 1-2, 3-4, 5-6
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
-        let n4 = graph.add_node_rust(Some("4".to_string()), None);
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
+        let n4 = graph.add_test_node("4");
 
-        let e1 = graph.add_edge_rust(n1, n2, Some(1.0), None).unwrap();
-        let e2 = graph.add_edge_rust(n3, n4, Some(1.0), None).unwrap();
+        let e1 = graph.add_test_edge(n1, n2, Some(1.0));
+        let e2 = graph.add_test_edge(n3, n4, Some(1.0));
 
         // These edges form a valid matching
         assert!(is_matching(&graph, vec![e1, e2]).unwrap());
@@ -145,12 +145,12 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
 
         // Create a simple graph with shared endpoint
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
 
-        let e1 = graph.add_edge_rust(n1, n2, Some(1.0), None).unwrap();
-        let e2 = graph.add_edge_rust(n2, n3, Some(1.0), None).unwrap();
+        let e1 = graph.add_test_edge(n1, n2, Some(1.0));
+        let e2 = graph.add_test_edge(n2, n3, Some(1.0));
 
         // These edges share node n2, not a valid matching
         assert!(!is_matching(&graph, vec![e1, e2]).unwrap());
@@ -161,14 +161,14 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
 
         // Create a path: 1-2-3-4
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
-        let n4 = graph.add_node_rust(Some("4".to_string()), None);
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
+        let n4 = graph.add_test_node("4");
 
-        graph.add_edge_rust(n1, n2, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n2, n3, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n3, n4, Some(1.0), None).unwrap();
+        graph.add_test_edge(n1, n2, Some(1.0));
+        graph.add_test_edge(n2, n3, Some(1.0));
+        graph.add_test_edge(n3, n4, Some(1.0));
 
         let matching = maximal_matching(&graph).unwrap();
 
@@ -182,16 +182,16 @@ mod tests {
         let mut graph = Graph::new_rust(false, true);
 
         // Create a simple weighted graph
-        let n1 = graph.add_node_rust(Some("1".to_string()), None);
-        let n2 = graph.add_node_rust(Some("2".to_string()), None);
-        let n3 = graph.add_node_rust(Some("3".to_string()), None);
-        let n4 = graph.add_node_rust(Some("4".to_string()), None);
+        let n1 = graph.add_test_node("1");
+        let n2 = graph.add_test_node("2");
+        let n3 = graph.add_test_node("3");
+        let n4 = graph.add_test_node("4");
 
         // Heavy edge
-        graph.add_edge_rust(n1, n2, Some(10.0), None).unwrap();
+        graph.add_test_edge(n1, n2, Some(10.0));
         // Light edges
-        graph.add_edge_rust(n2, n3, Some(1.0), None).unwrap();
-        graph.add_edge_rust(n3, n4, Some(1.0), None).unwrap();
+        graph.add_test_edge(n2, n3, Some(1.0));
+        graph.add_test_edge(n3, n4, Some(1.0));
 
         let matching = max_weight_matching(&graph).unwrap();
 

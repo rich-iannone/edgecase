@@ -318,22 +318,22 @@ mod tests {
 
     fn create_test_graph() -> Graph {
         // Create a simple test graph:
-        //   0 -- 1 -- 2
+        //   1 -- 2 -- 3
         //   |    |
-        //   3 -- 4
-        let mut g = Graph::new(false, false); // undirected, unweighted
+        //   4 -- 5
+        let mut g = Graph::new_rust(false, false); // undirected, unweighted
 
-        // Add nodes
-        for i in 0..5 {
-            g.add_node_internal(i, None, None).unwrap();
+        // Add nodes (ids start at 1; id 0 is reserved for auto-assignment)
+        for i in 1..=5 {
+            g.add_test_node_with_id(i);
         }
 
         // Add edges
-        g.add_edge_internal(0, 1, None, None).unwrap();
-        g.add_edge_internal(1, 2, None, None).unwrap();
-        g.add_edge_internal(0, 3, None, None).unwrap();
-        g.add_edge_internal(1, 4, None, None).unwrap();
-        g.add_edge_internal(3, 4, None, None).unwrap();
+        g.add_test_edge(1, 2, None);
+        g.add_test_edge(2, 3, None);
+        g.add_test_edge(1, 4, None);
+        g.add_test_edge(2, 5, None);
+        g.add_test_edge(4, 5, None);
 
         g
     }
@@ -341,8 +341,8 @@ mod tests {
     #[test]
     fn test_common_neighbors() {
         let g = create_test_graph();
-        // Nodes 0 and 4 have common neighbor 1 and 3
-        let result = common_neighbors(&g, Some(vec![(0, 4)])).unwrap();
+        // Nodes 1 and 5 have common neighbor 2 and 4
+        let result = common_neighbors(&g, Some(vec![(1, 5)])).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].2, 2); // 2 common neighbors
     }
@@ -350,10 +350,10 @@ mod tests {
     #[test]
     fn test_jaccard_coefficient() {
         let g = create_test_graph();
-        let result = jaccard_coefficient(&g, Some(vec![(0, 4)])).unwrap();
+        let result = jaccard_coefficient(&g, Some(vec![(1, 5)])).unwrap();
         assert_eq!(result.len(), 1);
-        // N(0) = {1, 3}, N(4) = {1, 3}
-        // Intersection = {1, 3}, Union = {1, 3}
+        // N(1) = {2, 4}, N(5) = {2, 4}
+        // Intersection = {2, 4}, Union = {2, 4}
         // Jaccard = 2/2 = 1.0
         assert!((result[0].2 - 1.0).abs() < 1e-10);
     }
@@ -361,18 +361,18 @@ mod tests {
     #[test]
     fn test_preferential_attachment() {
         let g = create_test_graph();
-        let result = preferential_attachment(&g, Some(vec![(0, 2)])).unwrap();
+        let result = preferential_attachment(&g, Some(vec![(1, 3)])).unwrap();
         assert_eq!(result.len(), 1);
-        // degree(0) = 2, degree(2) = 1
+        // degree(1) = 2, degree(3) = 1
         assert_eq!(result[0].2, 2);
     }
 
     #[test]
     fn test_resource_allocation() {
         let g = create_test_graph();
-        let result = resource_allocation_index(&g, Some(vec![(0, 2)])).unwrap();
+        let result = resource_allocation_index(&g, Some(vec![(1, 3)])).unwrap();
         assert_eq!(result.len(), 1);
-        // Common neighbor is 1, degree(1) = 3
+        // Common neighbor is 2, degree(2) = 3
         // RA = 1/3
         assert!((result[0].2 - 1.0 / 3.0).abs() < 1e-10);
     }
@@ -380,9 +380,9 @@ mod tests {
     #[test]
     fn test_adamic_adar() {
         let g = create_test_graph();
-        let result = adamic_adar_index(&g, Some(vec![(0, 2)])).unwrap();
+        let result = adamic_adar_index(&g, Some(vec![(1, 3)])).unwrap();
         assert_eq!(result.len(), 1);
-        // Common neighbor is 1, degree(1) = 3
+        // Common neighbor is 2, degree(2) = 3
         // AA = 1/ln(3)
         assert!((result[0].2 - 1.0 / 3.0_f64.ln()).abs() < 1e-10);
     }
