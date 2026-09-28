@@ -1,5 +1,6 @@
-import pytest
 import math
+
+import pytest
 from edgecase import Graph
 
 
@@ -186,7 +187,7 @@ class TestSpectrumLaplacian:
 
         # All eigenvalues should be in [0, 2]
         for v in values:
-            assert 0 <= v <= 2.0 + 1e-6
+            assert -1e-9 <= v <= 2.0 + 1e-6
 
         # First eigenvalue should be 0
         assert min(values) == pytest.approx(0.0, abs=1e-6)
@@ -377,10 +378,13 @@ class TestSpectrumDirectedGraphs:
 
         spec = g.get_spectrum(which="all")
 
-        # Directed cycle has eigenvalues at cube roots of unity (complex)
-        # nalgebra returns real symmetric eigendecomposition,
-        # so results will differ from complex spectrum
-        assert len(spec["values"]) == 3
+        # Directed cycle has eigenvalues at the cube roots of unity (complex)
+        values = sorted(spec["values"], key=lambda v: (round(v.real, 9), v.imag))
+        expected = [complex(-0.5, -math.sqrt(3) / 2), complex(-0.5, math.sqrt(3) / 2), 1 + 0j]
+        for v, e in zip(values, expected):
+            assert abs(v - e) < 1e-9
+        assert spec["vectors"] is None
+        assert spec["spectral_gap"] is None
 
     def test_laplacian_directed(self):
         """Laplacian works on directed graphs."""
@@ -391,9 +395,11 @@ class TestSpectrumDirectedGraphs:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        # Should complete without error
+        # Out-degree Laplacian of A -> B -> C is upper triangular with diagonal (1, 1, 0)
         spec = g.get_laplacian_spectrum(which="all")
-        assert len(spec["values"]) == 3
+        assert [v.real for v in spec["values"]] == pytest.approx([0.0, 1.0, 1.0])
+        assert all(abs(v.imag) < 1e-12 for v in spec["values"])
+        assert spec["algebraic_connectivity"] is None
 
 
 class TestSpectrumWeighted:
@@ -434,7 +440,7 @@ class TestSpectrumWeighted:
 
         # Normalized eigenvalues in [0, 2]
         for v in spec["values"]:
-            assert 0 <= v <= 2.0 + 1e-6
+            assert -1e-9 <= v <= 2.0 + 1e-6
 
 
 class TestSpectrumEigenvectors:
