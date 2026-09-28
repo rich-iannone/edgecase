@@ -12,7 +12,7 @@ help:
 	@echo "Testing:"
 	@echo "  make test          Run all tests (Python + Rust)"
 	@echo "  make test-python   Run Python tests with coverage"
-	@echo "  make test-rust     Run Rust tests"
+	@echo "  make test-rust     Run Rust unit tests (cargo test --lib, links the .venv Python)"
 	@echo "  make test-property Run property-based tests"
 	@echo "  make coverage      Generate coverage reports"
 	@echo ""
@@ -58,8 +58,15 @@ test-all: clean-pyc
 test-benchmarks:
 	python3 -m pytest tests/benchmarks/ --benchmark-only
 
+# Rust unit tests embed a Python interpreter (pyo3 `auto-initialize` dev-dependency),
+# so the test binary links libpython. PYO3_PYTHON selects which interpreter to link;
+# it defaults to the project venv (Xcode's /usr/bin/python3 links but fails to load at
+# runtime). Override with e.g. `make test-rust PYO3_PYTHON=/path/to/python3`.
+# `--no-default-features` keeps `extension-module` (which forbids linking libpython) off.
+PYO3_PYTHON ?= $(if $(wildcard .venv/bin/python),$(CURDIR)/.venv/bin/python,$(shell command -v python3))
+
 test-rust:
-	cargo test --all-features --verbose
+	PYO3_PYTHON=$(PYO3_PYTHON) cargo test --lib --no-default-features
 
 test-property: clean-pyc
 	python3 -m pytest tests/property/ -v --hypothesis-show-statistics
