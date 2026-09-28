@@ -29,6 +29,9 @@ rand_chacha = "0.3"  # ChaCha RNG for reproducibility
 nalgebra = "0.33"  # Linear algebra with eigensolvers
 
 [dev-dependencies]
+# Rust unit tests run without a host Python process, so let pyo3 start an
+# embedded interpreter on first use (e.g. in Node/Edge Clone impls).
+pyo3 = { version = "0.23", features = ["abi3-py39", "auto-initialize"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.4"  # Property-based testing
 quickcheck = "1.0"
