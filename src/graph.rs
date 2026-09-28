@@ -7,6 +7,7 @@ use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use nalgebra as na;
+use crate::algorithms::sparse_eigen::CsrMatrix;
 use std::collections::VecDeque;
 
 /// A node in the graph
@@ -7373,136 +7374,56 @@ impl Graph {
 
     /// Compute the spectrum of the adjacency matrix
     ///
-    /// Returns eigenvalues and eigenvectors of the graph's adjacency matrix,
-    /// along with the spectral gap (difference between largest and second-largest eigenvalues).
+    /// Matrix rows/columns follow node creation order, returned as "nodes" so that
+    /// `vectors[i][j]` is the entry of eigenvector `i` for node `nodes[j]`. Parallel edges
+    /// sum their weights and an undirected self-loop contributes its weight once to the
+    /// diagonal (the `networkx.to_scipy_sparse_array` convention).
+    ///
+    /// Undirected graphs use a symmetric eigensolver and return real eigenvalues with
+    /// eigenvectors. A directed graph's adjacency matrix is not symmetric, so its
+    /// eigenvalues come from a general (Francis QR) solver and are returned as complex numbers;
+    /// "vectors" and "spectral_gap" are None in that case.
     ///
     /// # Arguments
     /// * `which` - Which eigenvalues to compute:
-    ///   - "all": All eigenvalues (O(n³), for small graphs)
-    ///   - "largest": Largest k eigenvalues (default k=min(6, n-1))
-    ///   - "smallest": Smallest k eigenvalues
-    /// * `k` - Number of eigenvalues to compute (for "largest"/"smallest")
+    ///   - "all": All eigenvalues (dense O(n³))
+    ///   - "largest": Largest k eigenvalues (by real part)
+    ///   - "smallest": Smallest k eigenvalues (by real part)
+    /// * `k` - Number of eigenvalues for "largest"/"smallest" (default min(6, n))
     ///
     /// # Returns
     /// Dictionary with:
-    /// - "values": List of eigenvalues (sorted descending)
-    /// - "vectors": List of eigenvectors (as lists)
-    /// - "spectral_gap": λ₁ - λ₂ (for connected graphs)
+    /// - "values": Eigenvalues sorted descending (by real part for directed graphs)
+    /// - "vectors": Unit eigenvectors aligned with "values" (None for directed graphs)
+    /// - "nodes": Node IDs giving the order of eigenvector entries
+    /// - "spectral_gap": λ₁ - λ₂ over the full spectrum (None if n < 2 or directed)
     ///
     /// # Errors
     /// - Empty graph
-    /// - Failed eigenvalue computation
+    /// - Invalid `which`
+    /// - Eigenvalue computation failed to converge (directed graphs)
     #[pyo3(signature = (which="largest", k=None))]
-    pub fn spectrum(
-        &self,
-        py: Python,
-        which: &str,
-        k: Option<usize>,
-    ) -> PyResult<PyObject> {
-        use nalgebra::{DMatrix, SymmetricEigen};
-        use pyo3::types::PyDict;
+    pub fn spectrum(&self, py: Python, which: &str, k: Option<usize>) -> PyResult<PyObject> {
+        let count = spectral_count(which, k, self.nodes.len())?;
+        let (node_ids, adj) = self.spectral_adjacency("spectrum")?;
 
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let n = node_ids.len();
-
-        if n == 0 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "Cannot compute spectrum of empty graph",
-            ));
-        }
-
-        // Build adjacency matrix
-        let mut adj_matrix = DMatrix::<f64>::zeros(n, n);
-        let node_to_idx: FxHashMap<u64, usize> =
-            node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
-
-        for edge in &self.edges {
-            if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target)) {
-                adj_matrix[(i, j)] = edge.weight.unwrap_or(1.0);
-                if !self.directed {
-                    adj_matrix[(j, i)] = edge.weight.unwrap_or(1.0);
-                }
-            }
-        }
-
-        // Compute eigenvalues and eigenvectors
-        let eigen = SymmetricEigen::new(adj_matrix);
-        let mut eigenvalues: Vec<f64> = eigen.eigenvalues.iter().copied().collect();
-        let eigenvectors = eigen.eigenvectors;
-
-        // Sort eigenvalues in descending order with indices
-        let mut indexed_eigenvalues: Vec<(usize, f64)> =
-            eigenvalues.iter().enumerate().map(|(i, &v)| (i, v)).collect();
-        indexed_eigenvalues.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-        // Determine which eigenvalues to return
-        let num_to_return = match which {
-            "all" => n,
-            "largest" => k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1))),
-            "smallest" => {
-                let k_val = k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1)));
-                indexed_eigenvalues.reverse(); // Sort ascending for smallest
-                k_val
-            }
-            _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "Invalid 'which' parameter: '{}'. Use 'all', 'largest', or 'smallest'",
-                    which
-                )))
-            }
-        };
-
-        let num_to_return = std::cmp::min(num_to_return, n);
-
-        // Extract selected eigenvalues and corresponding eigenvectors
-        let selected_indices: Vec<usize> = indexed_eigenvalues
-            .iter()
-            .take(num_to_return)
-            .map(|(idx, _)| *idx)
-            .collect();
-
-        let selected_eigenvalues: Vec<f64> = indexed_eigenvalues
-            .iter()
-            .take(num_to_return)
-            .map(|(_, val)| *val)
-            .collect();
-
-        // For "smallest", reverse back to descending order for output
-        let (final_eigenvalues, final_indices) = if which == "smallest" {
-            let mut rev_vals = selected_eigenvalues.clone();
-            let mut rev_idx = selected_indices.clone();
-            rev_vals.reverse();
-            rev_idx.reverse();
-            (rev_vals, rev_idx)
-        } else {
-            (selected_eigenvalues, selected_indices)
-        };
-
-        // Extract corresponding eigenvectors
-        let selected_eigenvectors: Vec<Vec<f64>> = final_indices
-            .iter()
-            .map(|&idx| {
-                eigenvectors.column(idx).iter().copied().collect()
-            })
-            .collect();
-
-        // Compute spectral gap (λ₁ - λ₂)
-        let spectral_gap = if eigenvalues.len() >= 2 {
-            // Sort all eigenvalues to get true λ₁ and λ₂
-            eigenvalues.sort_by(|a, b| b.partial_cmp(a).unwrap());
-            Some(eigenvalues[0] - eigenvalues[1])
-        } else {
-            None
-        };
-
-        // Build result dictionary
         let result = PyDict::new(py);
-        result.set_item("values", final_eigenvalues)?;
-        result.set_item("vectors", selected_eigenvectors)?;
-        if let Some(gap) = spectral_gap {
-            result.set_item("spectral_gap", gap)?;
-        } else {
+        result.set_item("nodes", &node_ids)?;
+
+        if self.directed {
+            let mut values = spectral_complex_eigenvalues(adj.to_dense())?;
+            values.sort_by(|a, b| b.re.total_cmp(&a.re).then(b.im.total_cmp(&a.im)));
+            let selected = spectral_select(values, which, count, true);
+            result.set_item("values", spectral_complex_list(py, &selected)?)?;
+            result.set_item("vectors", py.None())?;
             result.set_item("spectral_gap", py.None())?;
+        } else {
+            let (pairs, top) = spectral_symmetric(&adj, which, count, true)?;
+            let gap = (top.len() >= 2).then(|| top[0] - top[1]);
+            let (values, vectors): (Vec<f64>, Vec<Vec<f64>>) = pairs.into_iter().unzip();
+            result.set_item("values", values)?;
+            result.set_item("vectors", vectors)?;
+            result.set_item("spectral_gap", gap)?;
         }
 
         Ok(result.into())
@@ -7510,26 +7431,34 @@ impl Graph {
 
     /// Compute the spectrum of the graph Laplacian
     ///
-    /// Returns eigenvalues and eigenvectors of the graph Laplacian matrix (L = D - A),
-    /// along with the algebraic connectivity (second-smallest eigenvalue).
+    /// Uses `L = D - A`, where `A` is built as in `spectrum()` and `D` holds the row sums of
+    /// `A` (out-degrees for directed graphs). Self-loops therefore cancel out of `L`. With
+    /// `normalized=true`, returns the spectrum of `D^(-1/2) L D^(-1/2)`, with isolated nodes
+    /// contributing a zero row and column. Both conventions match
+    /// `networkx.laplacian_matrix` / `networkx.normalized_laplacian_matrix`.
+    ///
+    /// Directed graphs give a non-symmetric Laplacian whose eigenvalues are returned as
+    /// complex numbers; "vectors" and "algebraic_connectivity" are None in that case.
     ///
     /// # Arguments
     /// * `which` - Which eigenvalues to compute:
-    ///   - "all": All eigenvalues (O(n³), for small graphs)
-    ///   - "largest": Largest k eigenvalues
-    ///   - "smallest": Smallest k eigenvalues (default k=min(6, n-1))
-    /// * `k` - Number of eigenvalues to compute
-    /// * `normalized` - If true, use normalized Laplacian L_norm = D^(-1/2) L D^(-1/2)
+    ///   - "all": All eigenvalues (dense O(n³))
+    ///   - "largest": Largest k eigenvalues (by real part)
+    ///   - "smallest": Smallest k eigenvalues (by real part)
+    /// * `k` - Number of eigenvalues for "largest"/"smallest" (default min(6, n))
+    /// * `normalized` - Use the symmetric normalized Laplacian
     ///
     /// # Returns
     /// Dictionary with:
-    /// - "values": List of eigenvalues (sorted ascending for Laplacian)
-    /// - "vectors": List of eigenvectors (as lists)
-    /// - "algebraic_connectivity": λ₂ (second-smallest eigenvalue, 0 for disconnected)
+    /// - "values": Eigenvalues sorted ascending (by real part for directed graphs)
+    /// - "vectors": Unit eigenvectors aligned with "values" (None for directed graphs)
+    /// - "nodes": Node IDs giving the order of eigenvector entries
+    /// - "algebraic_connectivity": λ₂ over the full spectrum (None if n < 2 or directed)
     ///
     /// # Errors
     /// - Empty graph
-    /// - Failed eigenvalue computation
+    /// - Invalid `which`
+    /// - Eigenvalue computation failed to converge (directed graphs)
     #[pyo3(signature = (which="smallest", k=None, normalized=false))]
     pub fn get_laplacian_spectrum(
         &self,
@@ -7538,149 +7467,27 @@ impl Graph {
         k: Option<usize>,
         normalized: bool,
     ) -> PyResult<PyObject> {
-        use nalgebra::{DMatrix, SymmetricEigen};
-        use pyo3::types::PyDict;
+        let count = spectral_count(which, k, self.nodes.len())?;
+        let (node_ids, adj) = self.spectral_adjacency("Laplacian spectrum")?;
+        let laplacian = spectral_laplacian(&adj, normalized);
 
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let n = node_ids.len();
-
-        if n == 0 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "Cannot compute Laplacian spectrum of empty graph",
-            ));
-        }
-
-        // Build degree and adjacency matrices
-        let node_to_idx: FxHashMap<u64, usize> =
-            node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
-
-        let mut adj_matrix = DMatrix::<f64>::zeros(n, n);
-        let mut degrees = vec![0.0_f64; n];
-
-        for edge in &self.edges {
-            if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target)) {
-                let weight = edge.weight.unwrap_or(1.0);
-                adj_matrix[(i, j)] = weight;
-                degrees[i] += weight;
-
-                if !self.directed {
-                    adj_matrix[(j, i)] = weight;
-                    degrees[j] += weight;
-                }
-            }
-        }
-
-        // Build Laplacian matrix
-        let laplacian = if normalized {
-            // Normalized Laplacian: L_norm = I - D^(-1/2) A D^(-1/2)
-            let mut l_norm = DMatrix::<f64>::identity(n, n);
-
-            for i in 0..n {
-                for j in 0..n {
-                    if i != j && adj_matrix[(i, j)] != 0.0 {
-                        let d_i_sqrt = degrees[i].sqrt();
-                        let d_j_sqrt = degrees[j].sqrt();
-
-                        if d_i_sqrt > 1e-10 && d_j_sqrt > 1e-10 {
-                            l_norm[(i, j)] = -adj_matrix[(i, j)] / (d_i_sqrt * d_j_sqrt);
-                        }
-                    }
-                }
-            }
-            l_norm
-        } else {
-            // Standard Laplacian: L = D - A
-            let mut laplacian = DMatrix::<f64>::zeros(n, n);
-
-            for i in 0..n {
-                laplacian[(i, i)] = degrees[i];
-                for j in 0..n {
-                    if i != j {
-                        laplacian[(i, j)] = -adj_matrix[(i, j)];
-                    }
-                }
-            }
-            laplacian
-        };
-
-        // Compute eigenvalues and eigenvectors
-        let eigen = SymmetricEigen::new(laplacian);
-        let mut eigenvalues: Vec<f64> = eigen.eigenvalues.iter().copied().collect();
-        let eigenvectors = eigen.eigenvectors;
-
-        // Sort eigenvalues in ASCENDING order for Laplacian (smallest first)
-        let mut indexed_eigenvalues: Vec<(usize, f64)> =
-            eigenvalues.iter().enumerate().map(|(i, &v)| (i, v)).collect();
-        indexed_eigenvalues.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-        // Determine which eigenvalues to return
-        let num_to_return = match which {
-            "all" => n,
-            "smallest" => k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1))),
-            "largest" => {
-                let k_val = k.unwrap_or_else(|| std::cmp::min(6, n.saturating_sub(1)));
-                indexed_eigenvalues.reverse(); // Sort descending for largest
-                k_val
-            }
-            _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "Invalid 'which' parameter: '{}'. Use 'all', 'largest', or 'smallest'",
-                    which
-                )))
-            }
-        };
-
-        let num_to_return = std::cmp::min(num_to_return, n);
-
-        // Extract selected eigenvalues and corresponding eigenvectors
-        let selected_indices: Vec<usize> = indexed_eigenvalues
-            .iter()
-            .take(num_to_return)
-            .map(|(idx, _)| *idx)
-            .collect();
-
-        let selected_eigenvalues: Vec<f64> = indexed_eigenvalues
-            .iter()
-            .take(num_to_return)
-            .map(|(_, val)| *val)
-            .collect();
-
-        // For "largest", reverse back to ascending order for output
-        let (final_eigenvalues, final_indices) = if which == "largest" {
-            let mut rev_vals = selected_eigenvalues.clone();
-            let mut rev_idx = selected_indices.clone();
-            rev_vals.reverse();
-            rev_idx.reverse();
-            (rev_vals, rev_idx)
-        } else {
-            (selected_eigenvalues, selected_indices)
-        };
-
-        // Extract corresponding eigenvectors
-        let selected_eigenvectors: Vec<Vec<f64>> = final_indices
-            .iter()
-            .map(|&idx| {
-                eigenvectors.column(idx).iter().copied().collect()
-            })
-            .collect();
-
-        // Compute algebraic connectivity (λ₂, second-smallest eigenvalue)
-        let algebraic_connectivity = if eigenvalues.len() >= 2 {
-            // Sort all eigenvalues ascending to get true λ₁ and λ₂
-            eigenvalues.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            Some(eigenvalues[1]) // Second smallest (λ₂)
-        } else {
-            None
-        };
-
-        // Build result dictionary
         let result = PyDict::new(py);
-        result.set_item("values", final_eigenvalues)?;
-        result.set_item("vectors", selected_eigenvectors)?;
-        if let Some(connectivity) = algebraic_connectivity {
-            result.set_item("algebraic_connectivity", connectivity)?;
-        } else {
+        result.set_item("nodes", &node_ids)?;
+
+        if self.directed {
+            let mut values = spectral_complex_eigenvalues(laplacian.to_dense())?;
+            values.sort_by(|a, b| a.re.total_cmp(&b.re).then(a.im.total_cmp(&b.im)));
+            let selected = spectral_select(values, which, count, false);
+            result.set_item("values", spectral_complex_list(py, &selected)?)?;
+            result.set_item("vectors", py.None())?;
             result.set_item("algebraic_connectivity", py.None())?;
+        } else {
+            let (pairs, bottom) = spectral_symmetric(&laplacian, which, count, false)?;
+            let connectivity = (bottom.len() >= 2).then(|| bottom[1]);
+            let (values, vectors): (Vec<f64>, Vec<Vec<f64>>) = pairs.into_iter().unzip();
+            result.set_item("values", values)?;
+            result.set_item("vectors", vectors)?;
+            result.set_item("algebraic_connectivity", connectivity)?;
         }
 
         Ok(result.into())
@@ -8608,6 +8415,64 @@ impl Graph {
 
 
 impl Graph {
+    // ========== Spectral Helpers ==========
+
+    /// Node IDs in creation order (the row/column order of spectral matrices)
+    ///
+    /// Any node missing from the creation log is appended in ascending ID order so the
+    /// ordering is always complete and deterministic.
+    fn spectral_node_order(&self) -> Vec<u64> {
+        let mut seen: FxHashSet<u64> = FxHashSet::default();
+        let mut order: Vec<u64> = self
+            .node_creation_order
+            .iter()
+            .copied()
+            .filter(|id| self.nodes.contains_key(id) && seen.insert(*id))
+            .collect();
+
+        if order.len() < self.nodes.len() {
+            let mut rest: Vec<u64> =
+                self.nodes.keys().copied().filter(|id| !seen.contains(id)).collect();
+            rest.sort_unstable();
+            order.extend(rest);
+        }
+        order
+    }
+
+    /// Weighted adjacency matrix for spectral methods
+    ///
+    /// Parallel edges sum their weights; an undirected self-loop adds its weight once
+    /// to the diagonal.
+    fn spectral_adjacency(&self, what: &str) -> PyResult<(Vec<u64>, CsrMatrix)> {
+        let node_ids = self.spectral_node_order();
+        let n = node_ids.len();
+
+        if n == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Cannot compute {} of empty graph",
+                what
+            )));
+        }
+
+        let node_to_idx: FxHashMap<u64, usize> =
+            node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+        let mut triplets = Vec::with_capacity(2 * self.edges.len());
+
+        for edge in &self.edges {
+            if let (Some(&i), Some(&j)) =
+                (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target))
+            {
+                let weight = edge.weight.unwrap_or(1.0);
+                triplets.push((i, j, weight));
+                if !self.directed && i != j {
+                    triplets.push((j, i, weight));
+                }
+            }
+        }
+
+        Ok((node_ids, CsrMatrix::from_triplets(n, triplets)))
+    }
+
     /// Bron-Kerbosch algorithm for finding maximal cliques (internal helper)
     ///
     /// # Arguments
@@ -10595,13 +10460,284 @@ impl Graph {
     }
 }
 
+// ========== Spectral Utilities ==========
+
+/// Validate `which` and resolve how many eigenvalues to return
+fn spectral_count(which: &str, k: Option<usize>, n: usize) -> PyResult<usize> {
+    match which {
+        "all" => Ok(n),
+        "largest" | "smallest" => Ok(k.unwrap_or(6).min(n)),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Invalid 'which' parameter: '{}'. Use 'all', 'largest', or 'smallest'",
+            which
+        ))),
+    }
+}
+
+/// Pick the requested eigenvalues from a fully sorted list, keeping its order
+///
+/// `descending` describes the sort order of `items`, which determines whether the
+/// largest values sit at the front or the back.
+fn spectral_select<T>(mut items: Vec<T>, which: &str, count: usize, descending: bool) -> Vec<T> {
+    let take_front = match which {
+        "all" => return items,
+        "largest" => descending,
+        _ => !descending,
+    };
+    let count = count.min(items.len());
+    if take_front {
+        items.truncate(count);
+        items
+    } else {
+        let start = items.len() - count;
+        items.split_off(start)
+    }
+}
+
+/// Laplacian `L = D - A` (or `D^(-1/2) L D^(-1/2)`), with `D` the row sums of `A`
+///
+/// Isolated nodes get a zero row and column in the normalized variant.
+fn spectral_laplacian(adj: &CsrMatrix, normalized: bool) -> CsrMatrix {
+    let n = adj.n();
+    let degrees = adj.row_sums();
+    let scale: Vec<f64> = if normalized {
+        degrees.iter().map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 }).collect()
+    } else {
+        vec![1.0; n]
+    };
+
+    let mut triplets = Vec::new();
+    for i in 0..n {
+        for (j, v) in adj.row(i) {
+            if j != i {
+                triplets.push((i, j, -v * scale[i] * scale[j]));
+            }
+        }
+        triplets.push((i, i, (degrees[i] - adj.diagonal(i)) * scale[i] * scale[i]));
+    }
+    CsrMatrix::from_triplets(n, triplets)
+}
+
+/// Smallest graph size for which `"largest"`/`"smallest"` use the sparse solver
+const SPARSE_SPECTRUM_MIN_NODES: usize = 400;
+
+/// Largest graph size for which a failed sparse solve falls back to the dense solver
+const DENSE_SPECTRUM_FALLBACK_MAX_NODES: usize = 3000;
+
+/// Flip an eigenvector so its first non-negligible entry is positive
+fn normalize_eigenvector_sign(vector: &mut [f64]) {
+    if let Some(&first) = vector.iter().find(|v| v.abs() > 1e-12) {
+        if first < 0.0 {
+            vector.iter_mut().for_each(|v| *v = -*v);
+        }
+    }
+}
+
+/// Selected eigenpairs of a symmetric matrix plus its two leading eigenvalues
+///
+/// Pairs are in output order (`descending` or ascending by eigenvalue). The second
+/// return value holds the first two eigenvalues of the *full* sorted spectrum (the
+/// two largest if `descending`, else the two smallest), for spectral gap and
+/// algebraic connectivity. Large sparse problems asking for a few extremal
+/// eigenvalues use Chebyshev-filtered subspace iteration; everything else, and any
+/// sparse solve that fails to converge on a moderately sized matrix, uses the dense
+/// symmetric solver.
+fn spectral_symmetric(
+    matrix: &CsrMatrix,
+    which: &str,
+    count: usize,
+    descending: bool,
+) -> PyResult<(Vec<(f64, Vec<f64>)>, Vec<f64>)> {
+    use crate::algorithms::sparse_eigen::{
+        block_size, iteration_budget, symmetric_extremal_eigenpairs, Extremal, SubspaceOptions,
+    };
+
+    let n = matrix.n();
+    let wanted = match which {
+        "largest" => Some(Extremal::Largest),
+        "smallest" => Some(Extremal::Smallest),
+        _ => None,
+    };
+    let mut options = SubspaceOptions::default();
+    let sparse_ok = |k: usize| n >= SPARSE_SPECTRUM_MIN_NODES && block_size(k, &options) * 8 <= n;
+
+    if let Some(end) = wanted.filter(|_| sparse_ok(count.max(2))) {
+        // With a dense fallback available, don't let a slow sparse solve cost more
+        if n <= DENSE_SPECTRUM_FALLBACK_MAX_NODES {
+            options.max_iter = iteration_budget(matrix, count.max(2), &options);
+        }
+        let leading_end = if descending { Extremal::Largest } else { Extremal::Smallest };
+        let solve = |k: usize, end: Extremal| {
+            symmetric_extremal_eigenpairs(matrix, k.min(n), end, &options)
+        };
+
+        let main = solve(if end == leading_end { count.max(2) } else { count }, end);
+        let leading: Option<Vec<f64>> = match &main {
+            Some(pairs) if end == leading_end => {
+                Some(pairs.iter().take(2).map(|p| p.0).collect())
+            }
+            Some(_) => solve(2, leading_end).map(|p| p.into_iter().map(|p| p.0).collect()),
+            None => None,
+        };
+
+        if let (Some(mut pairs), Some(leading)) = (main, leading) {
+            pairs.truncate(count);
+            // Solver output runs from the wanted end inwards
+            if (end == Extremal::Largest) != descending {
+                pairs.reverse();
+            }
+            pairs.iter_mut().for_each(|(_, v)| normalize_eigenvector_sign(v));
+            return Ok((pairs, leading));
+        }
+
+        if n > DENSE_SPECTRUM_FALLBACK_MAX_NODES {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Sparse eigenvalue computation failed to converge",
+            ));
+        }
+    }
+
+    let eigen = na::SymmetricEigen::new(matrix.to_dense());
+    let mut pairs: Vec<(f64, Vec<f64>)> = eigen
+        .eigenvalues
+        .iter()
+        .enumerate()
+        .map(|(idx, &value)| {
+            let mut vector: Vec<f64> = eigen.eigenvectors.column(idx).iter().copied().collect();
+            normalize_eigenvector_sign(&mut vector);
+            (value, vector)
+        })
+        .collect();
+
+    if descending {
+        pairs.sort_by(|a, b| b.0.total_cmp(&a.0));
+    } else {
+        pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
+    }
+    let leading = pairs.iter().take(2).map(|p| p.0).collect();
+    Ok((spectral_select(pairs, which, count, descending), leading))
+}
+
+/// Eigenvalues of a general (non-symmetric) real matrix
+fn spectral_complex_eigenvalues(matrix: na::DMatrix<f64>) -> PyResult<Vec<na::Complex<f64>>> {
+    crate::algorithms::eigen::general_eigenvalues(&matrix).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(
+            "Eigenvalue computation failed to converge for directed graph",
+        )
+    })
+}
+
+/// Convert complex eigenvalues into a list of Python `complex` objects
+fn spectral_complex_list<'py>(
+    py: Python<'py>,
+    values: &[na::Complex<f64>],
+) -> PyResult<Bound<'py, PyList>> {
+    PyList::new(
+        py,
+        values
+            .iter()
+            .map(|c| pyo3::types::PyComplex::from_doubles(py, c.re, c.im)),
+    )
+}
+
+// ============================================================================
+// Test-support helpers (compiled only for `cargo test`)
+// ============================================================================
+
+/// Small, panicking convenience wrappers around `add_node_rust` / `add_edge_rust`
+/// for use in Rust unit tests across the crate.
+#[cfg(test)]
+impl Graph {
+    /// Add a node with the given label (id auto-assigned); returns the new node id.
+    pub(crate) fn add_test_node(&mut self, label: impl Into<String>) -> u64 {
+        self.add_node_rust(Node {
+            id: 0,
+            label: Some(label.into()),
+            attributes: None,
+        })
+        .expect("add_test_node failed")
+    }
+
+    /// Add an unlabeled node with an explicit id (must be >= 1; id 0 means auto-assign).
+    pub(crate) fn add_test_node_with_id(&mut self, id: u64) -> u64 {
+        assert!(id != 0, "node id 0 is reserved for auto-assignment");
+        self.add_node_rust(Node {
+            id,
+            label: None,
+            attributes: None,
+        })
+        .expect("add_test_node_with_id failed")
+    }
+
+    /// Add an edge between two node ids; returns the new edge id.
+    pub(crate) fn add_test_edge(&mut self, source: u64, target: u64, weight: Option<f64>) -> u64 {
+        self.add_edge_rust(Edge {
+            id: 0,
+            source,
+            target,
+            weight,
+            attributes: None,
+        })
+        .expect("add_test_edge failed")
+    }
+
+    /// Add an edge between two nodes identified by label; returns the new edge id.
+    pub(crate) fn add_test_edge_by_label(
+        &mut self,
+        source: &str,
+        target: &str,
+        weight: Option<f64>,
+    ) -> u64 {
+        let s = self.id_from_label(source).expect("unknown source label");
+        let t = self.id_from_label(target).expect("unknown target label");
+        self.add_test_edge(s, t, weight)
+    }
+
+    /// Add a path of `n` unlabeled nodes; returns the node ids in path order.
+    pub(crate) fn add_test_path(&mut self, n: usize) -> Vec<u64> {
+        let ids: Vec<u64> = (0..n).map(|_| self.add_test_unlabeled_node()).collect();
+        for w in ids.windows(2) {
+            self.add_test_edge(w[0], w[1], None);
+        }
+        ids
+    }
+
+    /// Add a cycle of `n` unlabeled nodes; returns the node ids in cycle order.
+    pub(crate) fn add_test_cycle(&mut self, n: usize) -> Vec<u64> {
+        let ids = self.add_test_path(n);
+        if n > 2 {
+            self.add_test_edge(ids[n - 1], ids[0], None);
+        }
+        ids
+    }
+
+    /// Add a star of `n` unlabeled nodes in total (hub plus `n - 1` leaves);
+    /// returns the node ids with the hub first.
+    pub(crate) fn add_test_star(&mut self, n: usize) -> Vec<u64> {
+        let ids: Vec<u64> = (0..n).map(|_| self.add_test_unlabeled_node()).collect();
+        for &leaf in ids.iter().skip(1) {
+            self.add_test_edge(ids[0], leaf, None);
+        }
+        ids
+    }
+
+    fn add_test_unlabeled_node(&mut self) -> u64 {
+        self.add_node_rust(Node {
+            id: 0,
+            label: None,
+            attributes: None,
+        })
+        .expect("add_test_unlabeled_node failed")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_create_empty_graph() {
-        let graph = Graph::new(false, false);
+        let graph = Graph::new_rust(false, false);
         assert_eq!(graph.num_nodes(), 0);
         assert_eq!(graph.num_edges(), 0);
         assert!(!graph.is_directed());
@@ -10609,9 +10745,10 @@ mod tests {
 
     #[test]
     fn test_add_nodes() {
-        let mut graph = Graph::new(false, false);
-        let node1 = Node::new("A".to_string(), None);
-        let node2 = Node::new("B".to_string(), None);
+        let mut graph = Graph::new_rust(false, false);
+        // id 0 = auto-assign
+        let node1 = Node::new(0, Some("A".to_string()), None);
+        let node2 = Node::new(0, Some("B".to_string()), None);
 
         assert!(graph.add_node(node1).is_ok());
         assert!(graph.add_node(node2).is_ok());
@@ -10620,61 +10757,54 @@ mod tests {
 
     #[test]
     fn test_add_edges() {
-        let mut graph = Graph::new(false, false);
+        let mut graph = Graph::new_rust(false, false);
 
         // Add nodes first
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        let a = graph.add_test_node("A");
+        let b = graph.add_test_node("B");
 
         // Add edge (ID will be auto-assigned)
-        let edge = Edge::new(0, "A".to_string(), "B".to_string(), Some(1.0), None);
+        let edge = Edge::new(0, a, b, Some(1.0), None);
         assert!(graph.add_edge(edge).is_ok());
         assert_eq!(graph.num_edges(), 1);
 
         // Check edge ID was auto-assigned
-        let edge_ids = graph.get_edge_ids();
+        let edge_ids = graph.edge_ids();
         assert_eq!(edge_ids.len(), 1);
         assert_eq!(edge_ids[0], 1);
     }
 
     #[test]
     fn test_neighbors() {
-        let mut graph = Graph::new(false, false);
+        let mut graph = Graph::new_rust(false, false);
 
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
-        graph.add_node(Node::new("C".to_string(), None)).unwrap();
+        let a = graph.add_test_node("A");
+        let b = graph.add_test_node("B");
+        let c = graph.add_test_node("C");
 
-        graph
-            .add_edge(Edge::new(0, "A".to_string(), "B".to_string(), None, None))
-            .unwrap();
-        graph
-            .add_edge(Edge::new(0, "A".to_string(), "C".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("A", "C", None);
 
-        let neighbors = graph.neighbors("A").unwrap();
+        let neighbors = graph.neighbors(a).unwrap();
         assert_eq!(neighbors.len(), 2);
-        assert!(neighbors.contains(&"B".to_string()));
-        assert!(neighbors.contains(&"C".to_string()));
+        assert!(neighbors.contains(&b));
+        assert!(neighbors.contains(&c));
     }
 
     #[test]
     fn test_directed_graph() {
-        let mut graph = Graph::new(true, false);
+        let mut graph = Graph::new_rust(true, false);
 
-        graph.add_node(Node::new("A".to_string(), None)).unwrap();
-        graph.add_node(Node::new("B".to_string(), None)).unwrap();
+        let a = graph.add_test_node("A");
+        let b = graph.add_test_node("B");
 
-        graph
-            .add_edge(Edge::new(0, "A".to_string(), "B".to_string(), None, None))
-            .unwrap();
+        graph.add_test_edge_by_label("A", "B", None);
 
         // In directed graph, B should not have A as neighbor
-        let b_neighbors = graph.neighbors("B").unwrap();
+        let b_neighbors = graph.neighbors(b).unwrap();
         assert_eq!(b_neighbors.len(), 0);
 
-
-        let a_neighbors = graph.neighbors("A").unwrap();
+        let a_neighbors = graph.neighbors(a).unwrap();
         assert_eq!(a_neighbors.len(), 1);
     }
 }
