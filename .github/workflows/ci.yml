@@ -49,6 +49,13 @@ jobs:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
     
+    # Rust unit tests embed a Python interpreter (pyo3 `auto-initialize`), so the
+    # test binary links libpython from the interpreter pyo3 finds on PATH
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
     - name: Run Rust tests
       run: cargo test --verbose --no-default-features --features temporal,weighted,parallel
     
