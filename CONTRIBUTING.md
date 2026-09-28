@@ -49,15 +49,20 @@ pytest tests/python -m property --hypothesis-show-statistics
 ```
 
 **Rust tests:**
+
+The Rust unit tests embed a Python interpreter, so the test binary links libpython.
+`make test-rust` points `PYO3_PYTHON` at the project's `.venv` and disables the
+`extension-module` feature, which forbids linking libpython.
+
 ```bash
 # All tests
-cargo test --all-features
+make test-rust
 
-# Specific module
-cargo test graph::
+# Specific module (pass extra args through cargo directly)
+PYO3_PYTHON=.venv/bin/python cargo test --lib --no-default-features sparse_eigen
 
 # With output
-cargo test -- --nocapture
+PYO3_PYTHON=.venv/bin/python cargo test --lib --no-default-features -- --nocapture
 ```
 
 ### Test Coverage Standards
@@ -169,7 +174,7 @@ cargo clippy -- -D warnings
 
 3. **Ensure all tests pass**
    ```bash
-   cargo test --all-features
+   make test-rust
    pytest tests/python -v --cov=edgecase
    ```
 
