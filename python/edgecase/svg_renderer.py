@@ -3673,6 +3673,11 @@ def render_steps(
                 delta_obj["sn"] = list(step.delta.nodes_selected)
             if step.delta.edges_selected:
                 delta_obj["se"] = [list(e) for e in step.delta.edges_selected]
+            if step.delta.metric_values:
+                delta_obj["mv"] = {
+                    k: round(v, 4) if v is not None else 0.0
+                    for k, v in step.delta.metric_values.items()
+                }
             step_data.append(
                 {
                     "kind": step.kind,
@@ -3725,6 +3730,14 @@ def render_steps(
     num_color = "#fab387" if is_dark else "#fe640b"
     bool_color = "#fab387" if is_dark else "#fe640b"
     cmt_color = "#6c7086" if is_dark else "#9ca0b0"
+
+    # Metric color ramp (low → high)
+    if is_dark:
+        metric_lo_r, metric_lo_g, metric_lo_b = 51, 65, 85     # slate-700
+        metric_hi_r, metric_hi_g, metric_hi_b = 96, 165, 250   # blue-400
+    else:
+        metric_lo_r, metric_lo_g, metric_lo_b = 203, 213, 225   # slate-300
+        metric_hi_r, metric_hi_g, metric_hi_b = 37, 99, 235     # blue-600
 
     # Timeline segment colors by kind
     tl_colors = {
@@ -4234,6 +4247,10 @@ def render_steps(
     if((d.sn||[]).indexOf(lbl)!==-1) return 'Selected';
     if((d.nm||[]).indexOf(lbl)!==-1) return 'Mutated';
     if(d.ac && Object.keys(d.ac).length>0 && (d.nm||[]).length===0 && s.method.indexOf('node')!==-1) return 'Mutated';
+    if(d.mv && d.mv.hasOwnProperty(lbl)){{
+      var attrName=d.ac?Object.keys(d.ac)[0]:'value';
+      return attrName+' = '+d.mv[lbl].toFixed(3);
+    }}
     return '';
   }}
   function edgeState(src,tgt){{
@@ -4365,6 +4382,15 @@ def render_steps(
   var COL_MUT='#f59e0b';
   var COL_SEL='{sel_color}';
 
+  function metricColor(t){{
+    var lo=[{metric_lo_r},{metric_lo_g},{metric_lo_b}];
+    var hi=[{metric_hi_r},{metric_hi_g},{metric_hi_b}];
+    var r=Math.round(lo[0]+(hi[0]-lo[0])*t);
+    var g=Math.round(lo[1]+(hi[1]-lo[1])*t);
+    var b=Math.round(lo[2]+(hi[2]-lo[2])*t);
+    return 'rgb('+r+','+g+','+b+')';
+  }}
+
   function hlPy(c){{
     var h=c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return h.replace(/("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*')|(#[^\\n]*)|(\\b(?:import|from|as|def|class|return|if|elif|else|for|in|while|with|try|except|raise|pass|break|continue|and|or|not|is|lambda|yield|global|nonlocal|assert|del)\\b)|(\\b(?:True|False|None)\\b)|(\\b\\d+\\.?\\d*\\b)|([a-zA-Z_]\\w*(?=\\s*\\())/g,
@@ -4423,6 +4449,16 @@ def render_steps(
     }});
     var hasSel=selN.size>0||selE.size>0;
 
+    // Metric values — compute normalized [0,1] range
+    var mv=d.mv||null;
+    var mvMin=0,mvMax=1;
+    if(mv){{
+      var vals=Object.values(mv);
+      mvMin=Math.min.apply(null,vals);
+      mvMax=Math.max.apply(null,vals);
+      if(mvMax===mvMin) mvMax=mvMin+1;
+    }}
+
     // Nodes
     var circles=svg.querySelectorAll('.step-node');
     for(var i=0;i<circles.length;i++){{
@@ -4479,6 +4515,15 @@ def render_steps(
         el.setAttribute('fill',COL_DEFAULT);
         el.setAttribute('stroke',COL_MUT);
         el.setAttribute('r','{node_size:.1f}');
+      }} else if(mv && mv.hasOwnProperty(lbl)){{
+        var t=(mv[lbl]-mvMin)/(mvMax-mvMin);
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',metricColor(t));
+        el.setAttribute('r',''+(({node_size:.1f})*(0.8+0.5*t)).toFixed(1));
+      }} else if(mv){{
+        el.setAttribute('opacity','0.3');
+        el.setAttribute('fill',COL_DEFAULT);
+        el.setAttribute('r','{node_size:.1f}');
       }} else {{
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_DEFAULT);
@@ -4507,6 +4552,12 @@ def render_steps(
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_SEL);
       }} else if(hasSel && selN.size>0){{
+        el.setAttribute('opacity','0.3');
+        el.setAttribute('fill','{th.label_color}');
+      }} else if(mv && mv.hasOwnProperty(lbl)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill','{th.label_color}');
+      }} else if(mv){{
         el.setAttribute('opacity','0.3');
         el.setAttribute('fill','{th.label_color}');
       }} else {{
