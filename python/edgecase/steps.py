@@ -18,6 +18,7 @@ class StepDelta:
     edges_mutated: list[tuple[str, str]] = field(default_factory=list)
     nodes_selected: list[str] = field(default_factory=list)
     edges_selected: list[tuple[str, str]] = field(default_factory=list)
+    metric_values: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
