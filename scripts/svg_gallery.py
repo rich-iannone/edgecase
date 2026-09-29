@@ -3879,6 +3879,52 @@ def build_gallery_items() -> List[GalleryItem]:
         )
     )
 
+    # --- Edge selection: node-selected edges highlighted ---
+    def _step_player_edge_selection(graph_unused, **kwargs):
+        G = (
+            ec.Graph()
+            .note("Select nodes and see edges between them highlighted.")
+            .add_node("A").add_node("B").add_node("C")
+            .add_node("D").add_node("E")
+            .add_edge("A", "B").add_edge("B", "C").add_edge("A", "C")
+            .add_edge("C", "D").add_edge("D", "E")
+            .select_nodes_by_id([1, 2, 3])
+            .set_node_attrs_ws(color="#3b82f6")
+            .clear_selection()
+            .select_edges_by_node([4])
+            .clear_selection()
+        )
+        kw = {k: v for k, v in kwargs.items() if k in (
+            "theme", "width", "height", "node_size", "edge_width",
+            "show_labels", "auto_play", "speed", "layout",
+        )}
+        return G.play(**kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — edge selection",
+            description="Node selection dims unrelated edges; edge selection highlights specific edges",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "dark", "medium"],
+            render_fn=_step_player_edge_selection,
+            code=(
+                "G = (\n"
+                "    ec.Graph()\n"
+                "    .add_node('A')...add_node('E')\n"
+                "    .add_edge('A', 'B')...add_edge('D', 'E')\n"
+                "    .select_nodes_by_id([1, 2, 3])\n"
+                "    .set_node_attrs_ws(color='#3b82f6')\n"
+                "    .clear_selection()\n"
+                "    .select_edges_by_node([4])\n"
+                "    .clear_selection()\n"
+                ")\n"
+                "G.play(theme='dark')"
+            ),
+        )
+    )
+
     # --- Computation: clustering coefficient ---
     def _step_player_clustering(graph_unused, **kwargs):
         G = (
