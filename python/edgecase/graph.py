@@ -241,12 +241,54 @@ class Graph:
         self._recording_depth: int = 0
 
         # Initialize from DataFrames if provided
+        has_df = nodes_df is not None or edges_df is not None
+        if has_df:
+            self._recording_depth += 1
+
         id_to_label_map = {}
         if nodes_df is not None:
             id_to_label_map = self._init_from_nodes_df(nodes_df)
 
         if edges_df is not None:
             self._init_from_edges_df(edges_df, id_to_label_map)
+
+        if has_df:
+            self._recording_depth -= 1
+            node_labels = []
+            if nodes_df is not None:
+                node_labels = [
+                    str(row["label"]) if "label" in nodes_df.columns else str(row["id"])
+                    for row in nodes_df.iter_rows(named=True)
+                ]
+            edge_pairs = []
+            if edges_df is not None:
+                for row in edges_df.iter_rows(named=True):
+                    src = id_to_label_map.get(str(row["from"]), str(row["from"]))
+                    tgt = id_to_label_map.get(str(row["to"]), str(row["to"]))
+                    edge_pairs.append((src, tgt))
+            if not node_labels and edge_pairs:
+                seen = set()
+                for s, t in edge_pairs:
+                    if s not in seen:
+                        node_labels.append(s)
+                        seen.add(s)
+                    if t not in seen:
+                        node_labels.append(t)
+                        seen.add(t)
+            n_n = len(node_labels)
+            n_e = len(edge_pairs)
+            df_args = []
+            if nodes_df is not None:
+                df_args.append(f"nodes_df=<{n_n} row{'s' if n_n != 1 else ''}>")
+            if edges_df is not None:
+                df_args.append(f"edges_df=<{n_e} row{'s' if n_e != 1 else ''}>")
+            code = f"Graph({', '.join(df_args)})"
+            self._record_step(
+                KIND_BUILD_NODES,
+                "Graph",
+                code,
+                delta=StepDelta(nodes_added=node_labels, edges_added=edge_pairs),
+            )
 
     def __getattr__(self, name: str):
         if name in ("_steps", "_recording_depth", "_pending_note"):
@@ -12929,12 +12971,16 @@ class Graph:
 
         if self._recording_depth == 0:
             n = len(clustering_values)
+            mv = {}
+            for nid, val in clustering_values.items():
+                lbl = self.get_label_from_id(nid) or str(nid)
+                mv[lbl] = float(val) if val is not None else 0.0
             code = f"G.local_clustering_coefficient(attr_name={attr_name!r})"
             self._record_step(
                 KIND_METRIC,
                 "local_clustering_coefficient",
                 code,
-                delta=StepDelta(attrs_changed={attr_name: n}),
+                delta=StepDelta(attrs_changed={attr_name: n}, metric_values=mv),
             )
 
         return self
@@ -13044,12 +13090,16 @@ class Graph:
 
         if self._recording_depth == 0:
             n = len(clustering_values)
+            mv = {}
+            for nid, val in clustering_values.items():
+                lbl = self.get_label_from_id(nid) or str(nid)
+                mv[lbl] = float(val) if val is not None else 0.0
             code = f"G.clustering_coefficient(attr_name={attr_name!r})"
             self._record_step(
                 KIND_METRIC,
                 "clustering_coefficient",
                 code,
-                delta=StepDelta(attrs_changed={attr_name: n}),
+                delta=StepDelta(attrs_changed={attr_name: n}, metric_values=mv),
             )
 
         return self
@@ -18269,6 +18319,10 @@ class Graph:
 
         if self._recording_depth == 0:
             n = len(constraint_values)
+            mv = {}
+            for nid, val in constraint_values.items():
+                lbl = self.get_label_from_id(nid) or str(nid)
+                mv[lbl] = float(val) if val is not None else 0.0
             if weights is not None:
                 code = f"G.constraint(weights={weights!r}, attr_name={attr_name!r})"
             else:
@@ -18277,7 +18331,7 @@ class Graph:
                 KIND_METRIC,
                 "constraint",
                 code,
-                delta=StepDelta(attrs_changed={attr_name: n}),
+                delta=StepDelta(attrs_changed={attr_name: n}, metric_values=mv),
             )
 
         return self
@@ -21041,12 +21095,16 @@ class Graph:
 
         if self._recording_depth == 0:
             n = len(coreness_values)
+            mv = {}
+            for nid, val in coreness_values.items():
+                lbl = self.get_label_from_id(nid) or str(nid)
+                mv[lbl] = float(val) if val is not None else 0.0
             code = f"G.coreness(attr_name={attr_name!r})"
             self._record_step(
                 KIND_METRIC,
                 "coreness",
                 code,
-                delta=StepDelta(attrs_changed={attr_name: n}),
+                delta=StepDelta(attrs_changed={attr_name: n}, metric_values=mv),
             )
 
         return self
@@ -21809,12 +21867,16 @@ class Graph:
 
         if self._recording_depth == 0:
             n = len(eccentricity_values)
+            mv = {}
+            for nid, val in eccentricity_values.items():
+                lbl = self.get_label_from_id(nid) or str(nid)
+                mv[lbl] = float(val) if val is not None else 0.0
             code = f"G.eccentricity(attr_name={attr_name!r})"
             self._record_step(
                 KIND_METRIC,
                 "eccentricity",
                 code,
-                delta=StepDelta(attrs_changed={attr_name: n}),
+                delta=StepDelta(attrs_changed={attr_name: n}, metric_values=mv),
             )
 
         return self
@@ -21890,12 +21952,16 @@ class Graph:
 
         if self._recording_depth == 0:
             n = len(radiality_values)
+            mv = {}
+            for nid, val in radiality_values.items():
+                lbl = self.get_label_from_id(nid) or str(nid)
+                mv[lbl] = float(val) if val is not None else 0.0
             code = f"G.radiality(attr_name={attr_name!r})"
             self._record_step(
                 KIND_METRIC,
                 "radiality",
                 code,
-                delta=StepDelta(attrs_changed={attr_name: n}),
+                delta=StepDelta(attrs_changed={attr_name: n}, metric_values=mv),
             )
 
         return self
