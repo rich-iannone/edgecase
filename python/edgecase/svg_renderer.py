@@ -976,7 +976,7 @@ def _svg_node(
         f'fill="{fill}" stroke="{border}" stroke-width="1.5" '
         f'stroke-opacity="{border_opacity}" '
         f"data-node=\"{html_mod.escape(str(node_id))}\" data-attrs='{attrs_json}' "
-        f'style="cursor:pointer"/>'
+        f'/>'
     )
 
 
@@ -2037,7 +2037,7 @@ def render_traversal(
             f'<circle id="{uid}-fl-{s_nid}" cx="{x:.1f}" cy="{y:.1f}" '
             f'r="{r:.1f}" fill="{unvisited_fill}" stroke="{border}" '
             f'stroke-width="1.5" stroke-opacity="0.3" opacity="0.4" '
-            f'style="transition: fill 0.3s ease, opacity 0.3s ease; cursor:pointer"/>'
+            f'style="transition: fill 0.3s ease, opacity 0.3s ease;"/>'
         )
 
         # Step number text (inside node)
@@ -3503,18 +3503,27 @@ def render_steps(
     ]
 
     # Edges (all hidden initially; data-src/data-tgt use labels)
+    hit_width = max(12, edge_width * 6)
     for src_label, tgt_label in sorted(all_edges):
         src_id = label_to_id.get(src_label, src_label)
         tgt_id = label_to_id.get(tgt_label, tgt_label)
         x1, y1 = positions.get(src_id, (0, 0))
         x2, y2 = positions.get(tgt_id, (0, 0))
         svg_parts.append(
+            f'<line class="step-edge-hit" '
+            f'data-src="{html_mod.escape(src_label)}" '
+            f'data-tgt="{html_mod.escape(tgt_label)}" '
+            f'x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+            f'stroke="transparent" stroke-width="{hit_width:.1f}" '
+            f'fill="none" pointer-events="stroke"/>'
+        )
+        svg_parts.append(
             f'<line class="step-edge" '
             f'data-src="{html_mod.escape(src_label)}" '
             f'data-tgt="{html_mod.escape(tgt_label)}" '
             f'x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
             f'stroke="{th.edge_color}" stroke-width="{edge_width:.1f}" '
-            f'stroke-opacity="0.4" opacity="0" '
+            f'stroke-opacity="0.4" opacity="0" pointer-events="none" '
             f'style="transition:opacity 0.4s ease,stroke 0.3s ease,stroke-width 0.3s ease;"/>'
         )
         if is_directed:
@@ -3581,6 +3590,7 @@ def render_steps(
             "delta": {"na": [], "nr": [], "ea": [], "er": []},
         }
     ]
+    group_counter = 0
     for i, step in enumerate(steps):
         base_nodes = step_states[i]["nodes"]
         base_edges = step_states[i]["edges"]
@@ -3614,6 +3624,11 @@ def render_steps(
                 if len(parts) == 2:
                     tree_edge_for[lbl] = (parts[0], parts[1])
 
+            group_counter += 1
+            gid = group_counter
+            n_subs = len(step.sub_steps)
+            parent_code = step.code
+
             visited_so_far: set = set()
             visit_order: list = []
             tree_edges_so_far: list = []
@@ -3642,6 +3657,12 @@ def render_steps(
                         "narration": sub.narration,
                         "nodes": base_nodes,
                         "edges": base_edges,
+                        "group": {
+                            "id": gid,
+                            "pos": j,
+                            "total": n_subs,
+                            "parent_code": parent_code,
+                        },
                         "traverse": {
                             "current": lbl,
                             "visited": sorted(visited_so_far),
@@ -3757,34 +3778,85 @@ def render_steps(
     }
     tl_default = "#6b7280"
     tl_segs = []
+    # Track groups for bracket rendering
+    groups: dict = {}  # gid -> (start_idx, end_idx, color)
     for i, sd in enumerate(step_data):
         c = tl_colors.get(sd["kind"], tl_default)
         cls = "tl-seg active" if i == 0 else "tl-seg"
+        grp = sd.get("group")
+        grp_attr = ""
+        if grp:
+            gid = grp["id"]
+            grp_attr = f' data-group="{gid}"'
+            if gid not in groups:
+                groups[gid] = {"start": i, "end": i, "color": c}
+            else:
+                groups[gid]["end"] = i
         tl_segs.append(
-            f'<div class="{cls}" data-idx="{i}" '
+            f'<div class="{cls}" data-idx="{i}"{grp_attr} '
             f'style="background:{c}" title="{sd["kind"]}: {sd["method"]}()"></div>'
         )
     tl_html = "\n    ".join(tl_segs)
 
+    # Build group bracket data for JS
+    group_brackets = []
+    for gid, ginfo in sorted(groups.items()):
+        group_brackets.append(
+            {"id": gid, "start": ginfo["start"], "end": ginfo["end"], "color": ginfo["color"]}
+        )
+
     # --- Step list overlay items + notch indicators ---
     sl_items = []
     notch_items = []
+    emitted_group_headers: set = set()
     for i, sd in enumerate(step_data):
         c = tl_colors.get(sd["kind"], tl_default)
+        grp = sd.get("group")
+
+        # Emit group header before first sub-step
+        if grp and grp["id"] not in emitted_group_headers:
+            emitted_group_headers.add(grp["id"])
+            parent_code = grp["parent_code"]
+            sl_items.append(
+                f'<div class="sl-group-header" data-group="{grp["id"]}">'
+                f'<span class="sl-badge" style="background:{c}22;color:{c}">'
+                f'{sd["kind"]}</span>'
+                f'<span class="sl-method">{parent_code}</span>'
+                f'<span class="sl-group-count">{grp["total"]} steps</span>'
+                f"</div>"
+            )
+
         cls = "sl-item active" if i == 0 else "sl-item"
+        if grp:
+            cls += " sl-sub"
         method = sd["method"] + "()" if sd["kind"] != "annotate" else ""
         narr = sd.get("narration", "")
         narr_esc = narr.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
         if len(narr_esc) > 50:
             narr_esc = narr_esc[:47] + "..."
-        sl_items.append(
-            f'<div class="{cls}" data-idx="{i}" title="{narr_esc}">'
-            f'<span class="sl-num">{i + 1}</span>'
-            f'<span class="sl-badge" style="background:{c}22;color:{c}">'
-            f"{sd['kind']}</span>"
-            f'<span class="sl-method">{method}</span>'
-            f"</div>"
-        )
+
+        if grp:
+            sub_label = sd.get("narration", sd["code"])
+            if len(sub_label) > 40:
+                sub_label = sub_label[:37] + "..."
+            sub_label_esc = (
+                sub_label.replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
+            )
+            sl_items.append(
+                f'<div class="{cls}" data-idx="{i}" data-group="{grp["id"]}" title="{narr_esc}">'
+                f'<span class="sl-num">{grp["pos"] + 1}</span>'
+                f'<span class="sl-sub-label">{sub_label_esc}</span>'
+                f"</div>"
+            )
+        else:
+            sl_items.append(
+                f'<div class="{cls}" data-idx="{i}" title="{narr_esc}">'
+                f'<span class="sl-num">{i + 1}</span>'
+                f'<span class="sl-badge" style="background:{c}22;color:{c}">'
+                f"{sd['kind']}</span>"
+                f'<span class="sl-method">{method}</span>'
+                f"</div>"
+            )
         ncls = "step-notch active" if i == 0 else "step-notch"
         notch_items.append(f'<div class="{ncls}" data-idx="{i}" style="background:{c}"></div>')
     sl_html = "\n      ".join(sl_items)
@@ -3933,6 +4005,7 @@ def render_steps(
   padding:0 16px;
   background:{ctrl_bg};
   cursor:pointer;
+  position:relative;
 }}
 #{uid} .step-timeline .tl-seg {{
   flex:1;
@@ -4145,6 +4218,40 @@ def render_steps(
   text-overflow:ellipsis;
   white-space:nowrap;
 }}
+#{uid} .sl-group-header {{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px 2px 10px;
+  font-size:11px;
+  opacity:0.8;
+  border-top:1px solid {"rgba(255,255,255,0.06)" if is_dark else "rgba(0,0,0,0.06)"};
+  margin-top:2px;
+}}
+#{uid} .sl-group-count {{
+  color:{narr_fg};
+  font-size:9px;
+  margin-left:auto;
+  flex-shrink:0;
+}}
+#{uid} .sl-item.sl-sub {{
+  padding-left:28px;
+}}
+#{uid} .sl-sub-label {{
+  color:{fg};
+  font-size:10.5px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}}
+#{uid} .tl-bracket {{
+  position:absolute;
+  bottom:0;
+  height:2px;
+  border-radius:1px;
+  opacity:0.6;
+  pointer-events:none;
+}}
 </style>
 
 <div class="step-panel">
@@ -4230,6 +4337,35 @@ def render_steps(
   var tooltip=document.getElementById('{uid}-tooltip');
   var svgWrap=svg.parentElement;
 
+  // Render group brackets in the timeline
+  var GROUPS={json.dumps(group_brackets)};
+  (function(){{
+    if(!GROUPS.length) return;
+    for(var g=0;g<GROUPS.length;g++){{
+      var gi=GROUPS[g];
+      var first=tlSegs[gi.start], last=tlSegs[gi.end];
+      if(!first||!last) continue;
+      var br=document.createElement('div');
+      br.className='tl-bracket';
+      br.setAttribute('data-group',gi.id);
+      br.style.background=gi.color;
+      timeline.appendChild(br);
+      var posUpdate=function(bracket,s,e){{
+        return function(){{
+          var fs=tlSegs[s], fe=tlSegs[e];
+          if(!fs||!fe) return;
+          var tl=timeline.getBoundingClientRect();
+          var fl=fs.getBoundingClientRect();
+          var fr=fe.getBoundingClientRect();
+          bracket.style.left=(fl.left-tl.left)+'px';
+          bracket.style.width=(fr.right-fl.left)+'px';
+        }};
+      }}(br,gi.start,gi.end);
+      posUpdate();
+      window.addEventListener('resize',posUpdate);
+    }}
+  }})();
+
   function nodeState(lbl){{
     var s=STEPS[cur],d=s.delta||{{}},tv=s.traverse||null;
     if(tv){{
@@ -4271,6 +4407,10 @@ def render_steps(
     var se=new Set();
     (d.se||[]).forEach(function(e){{ se.add(e[0]+'\\0'+e[1]); se.add(e[1]+'\\0'+e[0]); }});
     if(se.has(src+'\\0'+tgt)) return 'Selected';
+    var em=new Set();
+    (d.em||[]).forEach(function(e){{ em.add(e[0]+'\\0'+e[1]); em.add(e[1]+'\\0'+e[0]); }});
+    if(em.has(src+'\\0'+tgt)) return 'Mutated';
+    if(d.ac && Object.keys(d.ac).length>0 && (d.em||[]).length===0 && s.method.indexOf('edge')!==-1) return 'Mutated';
     return '';
   }}
   function showTooltip(html,e){{
@@ -4301,10 +4441,11 @@ def render_steps(
       showTooltip(h,e);
       return;
     }}
-    var edge=e.target.closest('.step-edge');
+    var edge=e.target.closest('.step-edge,.step-edge-hit');
     if(edge){{
       var src=edge.getAttribute('data-src'), tgt=edge.getAttribute('data-tgt');
-      if(parseFloat(edge.getAttribute('opacity'))<0.01) return;
+      var visEdge=svg.querySelector('.step-edge[data-src="'+src+'"][data-tgt="'+tgt+'"]');
+      if(visEdge && parseFloat(visEdge.getAttribute('opacity'))<0.01) return;
       var st=edgeState(src,tgt);
       var h='<div class="tt-label">'+src+' \\u2192 '+tgt+'</div>';
       if(st) h+='<div class="tt-state">'+st+'</div>';
@@ -4441,6 +4582,11 @@ def render_steps(
     }});
     var hasMut=d.ac && Object.keys(d.ac).length>0;
     var mutN=new Set(d.nm||[]);
+    var mutE=new Set();
+    (d.em||[]).forEach(function(e){{
+      mutE.add(e[0]+'\\0'+e[1]);
+      if(!directed) mutE.add(e[1]+'\\0'+e[0]);
+    }});
     var selN=new Set(d.sn||[]);
     var selE=new Set();
     (d.se||[]).forEach(function(e){{
@@ -4632,13 +4778,33 @@ def render_steps(
         el.removeAttribute('stroke-dasharray');
         el.setAttribute('filter',GLOW_SEL);
         if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_SEL);
-      }} else if(hasSel && selE.size>0){{
-        el.setAttribute('opacity','0.15');
-        el.setAttribute('stroke',COL_EDGE);
-        el.setAttribute('stroke-width','{edge_width:.1f}');
+      }} else if(hasSel){{
+        var dimEdge=true;
+        if(selN.size>0 && selE.size===0){{
+          var eSrc=el.getAttribute('data-src');
+          var eTgt=el.getAttribute('data-tgt');
+          if(selN.has(eSrc)&&selN.has(eTgt)) dimEdge=false;
+        }}
+        if(dimEdge){{
+          el.setAttribute('opacity','0.15');
+          el.setAttribute('stroke',COL_EDGE);
+          el.setAttribute('stroke-width','{edge_width:.1f}');
+          el.removeAttribute('stroke-dasharray');
+          if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
+        }} else {{
+          el.setAttribute('opacity','1');
+          el.setAttribute('stroke',COL_SEL);
+          el.setAttribute('stroke-width','{edge_width * 1.8:.1f}');
+          el.removeAttribute('stroke-dasharray');
+          if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_SEL);
+        }}
+      }} else if(mutE.has(key)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('stroke',COL_MUT);
+        el.setAttribute('stroke-width','{edge_width * 2:.1f}');
         el.removeAttribute('stroke-dasharray');
-        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
-      }} else if(hasMut && s.method.indexOf('edge')!==-1){{
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_MUT);
+      }} else if(hasMut && mutE.size===0 && s.method.indexOf('edge')!==-1){{
         el.setAttribute('opacity','1');
         el.setAttribute('stroke',COL_MUT);
         el.setAttribute('stroke-width','{edge_width * 1.8:.1f}');
@@ -4724,6 +4890,19 @@ def render_steps(
     }}
     for(var t=0;t<notchEls.length;t++){{
       notchEls[t].classList.toggle('active',t===idx);
+    }}
+    // Highlight group bracket when a sub-step is active
+    var activeGroup=s.group?s.group.id:null;
+    var brackets=timeline.querySelectorAll('.tl-bracket');
+    for(var t=0;t<brackets.length;t++){{
+      var bg=parseInt(brackets[t].getAttribute('data-group'));
+      brackets[t].style.opacity=bg===activeGroup?'1':'0.4';
+    }}
+    // Highlight group header in step list
+    var grpHeaders=overlay.querySelectorAll('.sl-group-header');
+    for(var t=0;t<grpHeaders.length;t++){{
+      var hg=parseInt(grpHeaders[t].getAttribute('data-group'));
+      grpHeaders[t].style.opacity=hg===activeGroup?'1':'0.6';
     }}
     if(overlay.classList.contains('visible')&&slItems[idx]){{
       slItems[idx].scrollIntoView({{block:'nearest',behavior:'smooth'}});
