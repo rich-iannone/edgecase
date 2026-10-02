@@ -2881,7 +2881,7 @@ class Graph:
         show_labels: bool = True,
         auto_play: bool = False,
         speed: float = 1.0,
-        layout_mode: str = "stable",
+        layout_mode: str = "progressive",
         output: Optional[str] = None,
     ):
         """
@@ -2913,8 +2913,11 @@ class Graph:
         speed
             Playback speed multiplier (1.0 = normal).
         layout_mode
-            `"stable"` computes layout on the final graph state (positions don't jump).
-            `"progressive"` recomputes per step.
+            `"progressive"` (the default) lays out the graph as it exists at each step, starting
+            from the previous step's positions, and animates nodes between steps so the graph
+            visibly grows and reshapes. `"stable"` computes one layout over every node that ever
+            appears, so positions never change. Progressive applies to the `"force"` and
+            `"circular"` layouts; graphs with more than 300 nodes fall back to `"stable"`.
         output
             File path to save. If `None`, returns a `StepPlayer` for Jupyter display.
 
