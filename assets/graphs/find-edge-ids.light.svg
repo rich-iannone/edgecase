@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Find edge ids</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="582.2" y="68.0" width="83.7" height="60.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 142.01 96.26 L 144.31 95.87 L 146.60 95.45 L 148.87 94.99 L 151.12 94.50 L 153.36 93.97 L 155.58 93.41 L 157.78 92.81 L 159.96 92.18 L 162.13 91.51 L 164.28 90.81 L 166.42 90.08 L 168.53 89.31 L 170.63 88.51 L 172.71 87.67 L 174.78 86.80 L 176.82 85.90 L 178.85 84.96 L 180.87 83.98 L 182.86 82.97 L 184.84 81.93 L 186.80 80.85 L 188.75 79.74 L 190.67 78.60 L 192.58 77.42 L 194.48 76.20 L 196.35 74.95 L 198.21 73.67 L 200.05 72.35 L 201.87 71.00 L 203.68 69.61 L 205.47 68.19 L 207.24 66.74 L 209.00 65.25 L 210.74 63.72 L 212.46 62.17 L 214.16 60.57 L 215.01 59.76" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 140.31 105.16 L 211.69 140.84" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 226.00 64.00 L 226.00 132.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 240.31 55.16 L 311.69 90.84" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 240.31 140.84 L 311.69 105.16" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 136.99 86.24 L 138.69 84.63 L 140.40 83.05 L 142.13 81.51 L 143.88 80.00 L 145.64 78.53 L 147.42 77.09 L 149.22 75.69 L 151.04 74.32 L 152.87 72.99 L 154.72 71.69 L 156.58 70.42 L 158.47 69.19 L 160.37 67.99 L 162.29 66.83 L 164.22 65.70 L 166.18 64.60 L 168.15 63.54 L 170.13 62.52 L 172.14 61.53 L 174.16 60.57 L 176.20 59.65 L 178.25 58.76 L 180.33 57.90 L 182.42 57.08 L 184.52 56.30 L 186.65 55.55 L 188.79 54.83 L 190.95 54.15 L 193.13 53.50 L 195.32 52.89 L 197.53 52.31 L 199.76 51.76 L 202.00 51.25 L 204.26 50.78 L 206.54 50.33 L 208.84 49.93 L 209.99 49.74" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="126.0" cy="98.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="126.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="226.0" cy="48.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="48.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="226.0" cy="148.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="148.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="326.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="326.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.find_edge_ids(&quot;A&quot;, &quot;B&quot;)</text>
+<rect x="175.0" y="76.2" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="181.4" y="83.7" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1.0">1</text>
+<rect x="169.6" y="115.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="176.0" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<rect x="219.6" y="90.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="226.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<rect x="269.6" y="65.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="276.0" y="73.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">4</text>
+<rect x="269.6" y="115.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="276.0" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">5</text>
+<rect x="164.3" y="54.8" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="170.6" y="62.3" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1.0">6</text>
+<text x="596.2" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">edge ids</text>
+<text x="596.2" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">[1, 6]</text>
+</svg>

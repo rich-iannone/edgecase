@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Reverse edges</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<line x1="362.0" y1="98.0" x2="390.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="398.0,98.0 389.0,102.5 389.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 138.00 54.00 L 146.65 54.00 L 155.30 54.00 L 163.95 54.00 L 172.60 54.00 L 181.25 54.00 L 189.90 54.00 L 198.55 54.00 L 207.20 54.00 L 215.85 54.00 L 217.85 54.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="224.50,54.00 215.00,57.50 215.00,50.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 242.00 70.00 L 242.00 75.45 L 242.00 80.90 L 242.00 86.35 L 242.00 91.80 L 242.00 97.25 L 242.00 102.70 L 242.00 108.15 L 242.00 113.60 L 242.00 117.85" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="242.00,124.50 238.50,115.00 245.50,115.00" fill="#1f2328" fill-opacity="1"/>
+<path d="M 138.00 142.00 L 146.65 142.00 L 155.30 142.00 L 163.95 142.00 L 172.60 142.00 L 181.25 142.00 L 189.90 142.00 L 198.55 142.00 L 207.20 142.00 L 215.85 142.00 L 217.85 142.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="224.50,142.00 215.00,145.50 215.00,138.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 122.00 70.00 L 122.00 75.45 L 122.00 80.90 L 122.00 86.35 L 122.00 91.80 L 122.00 97.25 L 122.00 102.70 L 122.00 108.15 L 122.00 113.60 L 122.00 117.85" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="122.00,124.50 118.50,115.00 125.50,115.00" fill="#1f2328" fill-opacity="1"/>
+<path d="M 622.00 54.00 L 613.35 54.00 L 604.70 54.00 L 596.05 54.00 L 587.40 54.00 L 578.75 54.00 L 570.10 54.00 L 561.45 54.00 L 552.80 54.00 L 544.15 54.00 L 542.67 54.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="535.50,54.00 545.75,50.12 545.75,57.88" fill="#c2410c" fill-opacity="1"/>
+<path d="M 638.00 126.00 L 638.00 120.55 L 638.00 115.10 L 638.00 109.65 L 638.00 104.20 L 638.00 98.75 L 638.00 93.30 L 638.00 87.85 L 638.00 82.40 L 638.00 78.67" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="638.00,71.50 641.88,81.75 634.12,81.75" fill="#c2410c" fill-opacity="1"/>
+<path d="M 622.00 142.00 L 613.35 142.00 L 604.70 142.00 L 596.05 142.00 L 587.40 142.00 L 578.75 142.00 L 570.10 142.00 L 561.45 142.00 L 552.80 142.00 L 544.15 142.00 L 542.67 142.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="535.50,142.00 545.75,138.12 545.75,145.88" fill="#c2410c" fill-opacity="1"/>
+<path d="M 518.00 126.00 L 518.00 120.55 L 518.00 115.10 L 518.00 109.65 L 518.00 104.20 L 518.00 98.75 L 518.00 93.30 L 518.00 87.85 L 518.00 82.40 L 518.00 78.67" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="518.00,71.50 521.88,81.75 514.12,81.75" fill="#c2410c" fill-opacity="1"/>
+<circle cx="122.0" cy="54.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="122.0" y="54.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="242.0" cy="54.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="242.0" y="54.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="242.0" cy="142.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="242.0" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="122.0" cy="142.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="122.0" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<circle cx="518.0" cy="54.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="518.0" y="54.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="638.0" cy="54.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="638.0" y="54.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="638.0" cy="142.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="638.0" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="518.0" cy="142.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="518.0" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<text x="182.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="578.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.reverse()</text>
+</svg>

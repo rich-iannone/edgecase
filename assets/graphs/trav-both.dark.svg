@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Bidirectional traversal</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<line x1="362.0" y1="98.0" x2="390.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="398.0,98.0 389.0,102.5 389.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 60.33 56.50 L 64.38 59.59 L 68.44 62.68 L 72.49 65.77 L 76.55 68.86 L 80.60 71.95 L 84.66 75.04 L 88.71 78.12 L 92.77 81.21 L 95.59 83.36" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="100.88,87.39 91.20,84.42 95.44,78.85" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 102.07 107.70 L 98.02 110.79 L 93.96 113.88 L 89.91 116.97 L 85.85 120.06 L 81.80 123.15 L 77.74 126.24 L 73.69 129.32 L 69.63 132.41 L 66.81 134.56" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="61.52,138.59 66.96,130.05 71.20,135.62" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 127.53 88.30 L 131.58 85.21 L 135.64 82.12 L 139.69 79.03 L 143.75 75.94 L 147.80 72.85 L 151.86 69.76 L 155.91 66.68 L 159.97 63.59 L 162.79 61.44" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="168.08,57.41 162.64,65.95 158.40,60.38" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 169.27 139.50 L 165.22 136.41 L 161.16 133.32 L 157.11 130.23 L 153.05 127.14 L 149.00 124.05 L 144.94 120.96 L 140.89 117.88 L 136.83 114.79 L 134.01 112.64" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="128.72,108.61 138.40,111.58 134.16,117.15" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 194.73 56.50 L 198.78 59.59 L 202.84 62.68 L 206.89 65.77 L 210.95 68.86 L 215.00 71.95 L 219.06 75.04 L 223.11 78.12 L 227.17 81.21 L 229.99 83.36" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="235.28,87.39 225.60,84.42 229.84,78.85" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 236.47 107.70 L 232.42 110.79 L 228.36 113.88 L 224.31 116.97 L 220.25 120.06 L 216.20 123.15 L 212.14 126.24 L 208.09 129.32 L 204.03 132.41 L 201.21 134.56" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="195.92,138.59 201.36,130.05 205.60,135.62" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 265.20 98.00 L 268.57 98.00 L 271.94 98.00 L 275.31 98.00 L 278.68 98.00 L 282.05 98.00 L 285.42 98.00 L 288.79 98.00 L 292.16 98.00 L 292.25 98.00" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="298.90,98.00 289.40,101.50 289.40,94.50" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 456.33 56.50 L 460.38 59.59 L 464.44 62.68 L 468.49 65.77 L 472.55 68.86 L 476.60 71.95 L 480.66 75.04 L 484.71 78.12 L 488.77 81.21 L 491.59 83.36" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="496.88,87.39 487.20,84.42 491.44,78.85" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 498.07 107.70 L 494.02 110.79 L 489.96 113.88 L 485.91 116.97 L 481.85 120.06 L 477.80 123.15 L 473.74 126.24 L 469.69 129.32 L 465.63 132.41 L 462.81 134.56" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="457.52,138.59 462.96,130.05 467.20,135.62" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 523.53 88.30 L 527.58 85.21 L 531.64 82.12 L 535.69 79.03 L 539.75 75.94 L 543.80 72.85 L 547.86 69.76 L 551.91 66.68 L 555.97 63.59 L 558.79 61.44" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="564.08,57.41 558.64,65.95 554.40,60.38" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 565.27 139.50 L 561.22 136.41 L 557.16 133.32 L 553.11 130.23 L 549.05 127.14 L 545.00 124.05 L 540.94 120.96 L 536.89 117.88 L 532.83 114.79 L 530.01 112.64" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="524.72,108.61 534.40,111.58 530.16,117.15" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 590.73 56.50 L 594.78 59.59 L 598.84 62.68 L 602.89 65.77 L 606.95 68.86 L 611.00 71.95 L 615.06 75.04 L 619.11 78.12 L 623.17 81.21 L 625.99 83.36" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="631.28,87.39 621.60,84.42 625.84,78.85" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 632.47 107.70 L 628.42 110.79 L 624.36 113.88 L 620.31 116.97 L 616.25 120.06 L 612.20 123.15 L 608.14 126.24 L 604.09 129.32 L 600.03 132.41 L 597.21 134.56" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="591.92,138.59 597.36,130.05 601.60,135.62" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 661.20 98.00 L 664.57 98.00 L 667.94 98.00 L 671.31 98.00 L 674.68 98.00 L 678.05 98.00 L 681.42 98.00 L 684.79 98.00 L 688.16 98.00 L 688.25 98.00" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="694.90,98.00 685.40,101.50 685.40,94.50" fill="#e6edf3" fill-opacity="1"/>
+<circle cx="47.6" cy="46.8" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="47.6" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">A</text>
+<circle cx="47.6" cy="149.2" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="47.6" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">B</text>
+<circle cx="114.8" cy="98.0" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="114.8" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">C</text>
+<circle cx="182.0" cy="46.8" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="182.0" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">D</text>
+<circle cx="182.0" cy="149.2" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="182.0" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">E</text>
+<circle cx="249.2" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="249.2" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">F</text>
+<circle cx="316.4" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="316.4" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">G</text>
+<circle cx="443.6" cy="46.8" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="443.6" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">A</text>
+<circle cx="443.6" cy="149.2" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="443.6" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">B</text>
+<circle cx="510.8" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="510.8" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">C</text>
+<circle cx="578.0" cy="46.8" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="578.0" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">D</text>
+<circle cx="578.0" cy="149.2" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="578.0" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">E</text>
+<circle cx="645.2" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="645.2" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">F</text>
+<circle cx="712.4" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="712.4" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">G</text>
+<text x="182.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="578.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.trav_both()</text>
+</svg>

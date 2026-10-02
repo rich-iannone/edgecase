@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>All connected nodes</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="562.0" y="68.0" width="123.9" height="60.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 107.60 46.80 L 113.21 46.80 L 118.82 46.80 L 124.43 46.80 L 130.04 46.80 L 135.65 46.80 L 141.26 46.80 L 146.87 46.80 L 152.48 46.80 L 156.52 46.80" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="163.70,46.80 153.45,50.67 153.45,42.92" fill="#c2410c" fill-opacity="1"/>
+<path d="M 181.20 133.20 L 181.20 126.31 L 181.20 119.42 L 181.20 112.53 L 181.20 105.64 L 181.20 98.75 L 181.20 91.86 L 181.20 84.97 L 181.20 78.08 L 181.20 71.47" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="181.20,64.30 185.07,74.55 177.32,74.55" fill="#c2410c" fill-opacity="1"/>
+<path d="M 197.20 149.20 L 202.81 149.20 L 208.42 149.20 L 214.03 149.20 L 219.64 149.20 L 225.25 149.20 L 230.86 149.20 L 236.47 149.20 L 242.08 149.20 L 246.12 149.20" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="253.30,149.20 243.05,153.07 243.05,145.32" fill="#c2410c" fill-opacity="1"/>
+<path d="M 360.40 62.80 L 360.40 69.69 L 360.40 76.58 L 360.40 83.47 L 360.40 90.36 L 360.40 97.25 L 360.40 104.14 L 360.40 111.03 L 360.40 117.92 L 360.40 124.81 L 360.40 125.05" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="360.40,131.70 356.90,122.20 363.90,122.20" fill="#1f2328" fill-opacity="1"/>
+<circle cx="91.6" cy="46.8" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="91.6" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="181.2" cy="46.8" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="181.2" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="181.2" cy="149.2" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="181.2" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">C</text>
+<circle cx="270.8" cy="149.2" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="270.8" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">D</text>
+<circle cx="360.4" cy="46.8" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="360.4" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
+<circle cx="360.4" cy="149.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="360.4" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">F</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.get_all_connected_nodes(&quot;A&quot;)</text>
+<text x="576.0" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">connected to A</text>
+<text x="576.0" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">B  C  D</text>
+</svg>
