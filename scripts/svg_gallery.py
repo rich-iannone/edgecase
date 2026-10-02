@@ -4213,6 +4213,146 @@ def build_gallery_items() -> List[GalleryItem]:
         )
     )
 
+    # --- Progressive layout: the graph grows and reshapes as you step ---
+    _play_kw = (
+        "theme", "width", "height", "node_size", "edge_width",
+        "show_labels", "auto_play", "speed", "layout",
+    )
+
+    def _step_player_progressive_build(graph_unused, **kwargs):
+        G = ec.Graph()
+        for n in "ABCDEFGH":
+            G.add_node(n)
+        for s, t in [
+            ("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"),
+            ("C", "E"), ("E", "F"), ("F", "G"), ("G", "E"), ("G", "H"),
+        ]:
+            G.add_edge(s, t)
+        kw = {k: v for k, v in kwargs.items() if k in _play_kw}
+        return G.play(layout_mode="progressive", **kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — progressive layout",
+            description="Isolated nodes drift into place as edges connect them",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "progressive", "light", "medium"],
+            render_fn=_step_player_progressive_build,
+            code=(
+                "G = ec.Graph()\n"
+                "for n in 'ABCDEFGH':\n"
+                "    G.add_node(n)\n"
+                "for s, t in [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A'),\n"
+                "             ('C', 'E'), ('E', 'F'), ('F', 'G'), ('G', 'E'), ('G', 'H')]:\n"
+                "    G.add_edge(s, t)\n"
+                "G.play(layout_mode='progressive')"
+            ),
+        )
+    )
+
+    def _step_player_progressive_remove(graph_unused, **kwargs):
+        G = ec.Graph()
+        for n in ["hub", "a", "b", "c", "d", "e", "f"]:
+            G.add_node(n)
+        for s, t in [
+            ("hub", "a"), ("hub", "b"), ("hub", "c"), ("a", "b"),
+            ("c", "d"), ("d", "e"), ("e", "f"), ("f", "c"),
+        ]:
+            G.add_edge(s, t)
+        G.delete_node("hub")
+        G.delete_node("e")
+        kw = {k: v for k, v in kwargs.items() if k in _play_kw}
+        return G.play(layout_mode="progressive", **kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — progressive build and remove",
+            description="Removing a hub lets the remaining pieces relax apart",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="dark"),
+            tags=["step_player", "progressive", "dark", "medium"],
+            render_fn=_step_player_progressive_remove,
+            code=(
+                "G = ec.Graph()\n"
+                "# ... add nodes and edges around 'hub' ...\n"
+                "G.delete_node('hub')\n"
+                "G.delete_node('e')\n"
+                "G.play(layout_mode='progressive', theme='dark')"
+            ),
+        )
+    )
+
+    def _step_player_progressive_generators(graph_unused, **kwargs):
+        G = ec.Graph().add_cycle_graph(10).add_star_graph(7).add_path_graph(6)
+        kw = {k: v for k, v in kwargs.items() if k in _play_kw}
+        return G.play(layout_mode="progressive", **kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — progressive generators",
+            description="Each generator call adds a component; the camera widens to fit",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "progressive", "light", "medium"],
+            render_fn=_step_player_progressive_generators,
+            code=(
+                "G = ec.Graph().add_cycle_graph(10).add_star_graph(7).add_path_graph(6)\n"
+                "G.play(layout_mode='progressive')"
+            ),
+        )
+    )
+
+    def _step_player_progressive_bfs(graph_unused, **kwargs):
+        G = ec.Graph()
+        for n in "ABCDEFG":
+            G.add_node(n)
+        for s, t in [
+            ("A", "B"), ("A", "C"), ("B", "D"), ("B", "E"),
+            ("C", "F"), ("C", "G"), ("E", "F"),
+        ]:
+            G.add_edge(s, t)
+        G.bfs(start="A")
+        kw = {k: v for k, v in kwargs.items() if k in _play_kw}
+        return G.play(layout_mode="progressive", **kw)
+
+    items.append(
+        GalleryItem(
+            title="Step player — progressive build then BFS",
+            description="Graph grows into shape, then BFS runs on the settled layout",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="force",
+                               theme="light"),
+            tags=["step_player", "progressive", "bfs", "light", "medium"],
+            render_fn=_step_player_progressive_bfs,
+            code=(
+                "G = ec.Graph()\n"
+                "# ... add nodes A–G and edges ...\n"
+                "G.bfs(start='A')\n"
+                "G.play(layout_mode='progressive')"
+            ),
+        )
+    )
+
+    items.append(
+        GalleryItem(
+            title="Step player — progressive circular",
+            description="Circular layout re-spaces the ring as each node joins",
+            graph_fn=_graph_tiny,
+            render_kwargs=dict(width=600, height=450, show_labels=True, layout="circular",
+                               theme="dark"),
+            tags=["step_player", "progressive", "circular", "dark", "medium"],
+            render_fn=_step_player_progressive_build,
+            code=(
+                "# same graph as 'progressive layout'\n"
+                "G.play(layout='circular', layout_mode='progressive', theme='dark')"
+            ),
+        )
+    )
+
     return items
 
 
@@ -4243,6 +4383,7 @@ FILTER_AXES = {
         "bfs",
         "dfs",
         "multi_edge",
+        "progressive",
     ],
 }
 
