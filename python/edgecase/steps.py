@@ -158,6 +158,7 @@ class StepList(list):
         show_labels: bool = True,
         auto_play: bool = False,
         speed: float = 1.0,
+        layout_mode: str = "progressive",
         output: Optional[str] = None,
     ):
         """Replay this subset of steps as an interactive visualization."""
@@ -184,6 +185,7 @@ class StepList(list):
             show_labels=show_labels,
             auto_play=auto_play,
             speed=speed,
+            layout_mode=layout_mode,
             output=output,
         )
 
