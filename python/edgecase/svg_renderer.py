@@ -164,7 +164,7 @@ def _fruchterman_reingold_python(
     temp = area * 0.15
     cool = temp / (iterations + 1)
     # Weak gravity pulls toward center, preventing drift while allowing separation
-    gravity = 0.3
+    gravity = 0.6
 
     for it in range(iterations):
         disp_x = [0.0] * n
@@ -3334,6 +3334,269 @@ def _delta_val_repr(v):
     return v
 
 
+_PROGRESSIVE_MAX_NODES = 300
+_PROGRESSIVE_PAIR_BUDGET = 2_500_000
+
+
+def _relax_layout(
+    labels: List[str],
+    edges: List[Tuple[str, str]],
+    pos: Dict[str, List[float]],
+    k: float,
+    iterations: int,
+    temp_start: float,
+    mobility: Dict[str, float],
+) -> None:
+    """Warm-started Fruchterman-Reingold relaxation, updating `pos` in place."""
+    n = len(labels)
+    if n < 2 or iterations <= 0:
+        return
+    idx = {lbl: i for i, lbl in enumerate(labels)}
+    xs = [pos[lbl][0] for lbl in labels]
+    ys = [pos[lbl][1] for lbl in labels]
+    mob = [mobility.get(lbl, 1.0) for lbl in labels]
+    pairs = [(idx[s], idx[t]) for s, t in edges if s in idx and t in idx and s != t]
+    k2 = k * k
+    gravity = 0.6
+    temp_end = k * 0.01
+    for it in range(iterations):
+        cx = sum(xs) / n
+        cy = sum(ys) / n
+        temp = temp_start + (temp_end - temp_start) * it / max(iterations - 1, 1)
+        dx_acc = [0.0] * n
+        dy_acc = [0.0] * n
+        for i in range(n):
+            xi, yi = xs[i], ys[i]
+            for j in range(i + 1, n):
+                dx = xi - xs[j]
+                dy = yi - ys[j]
+                d2 = dx * dx + dy * dy
+                if d2 < 0.01:
+                    dx, dy, d2 = 0.1 * ((i - j) % 3 - 1) + 0.05, 0.1, 0.0225
+                f = k2 / d2
+                dx_acc[i] += dx * f
+                dy_acc[i] += dy * f
+                dx_acc[j] -= dx * f
+                dy_acc[j] -= dy * f
+        for a, b in pairs:
+            dx = xs[a] - xs[b]
+            dy = ys[a] - ys[b]
+            d = math.sqrt(dx * dx + dy * dy) or 0.01
+            f = d / k
+            dx_acc[a] -= dx * f
+            dy_acc[a] -= dy * f
+            dx_acc[b] += dx * f
+            dy_acc[b] += dy * f
+        for i in range(n):
+            dx = dx_acc[i] - (xs[i] - cx) * gravity
+            dy = dy_acc[i] - (ys[i] - cy) * gravity
+            d = math.sqrt(dx * dx + dy * dy)
+            if d > 0:
+                step = min(d, temp * mob[i])
+                xs[i] += dx / d * step
+                ys[i] += dy / d * step
+    for i, lbl in enumerate(labels):
+        pos[lbl] = [xs[i], ys[i]]
+
+
+def _align_to_previous(
+    pos: Dict[str, List[float]],
+    before: Dict[str, Tuple[float, float]],
+) -> None:
+    """Remove rigid rotation/translation of `pos` relative to the shared nodes in `before`."""
+    shared = [lbl for lbl in before if lbl in pos]
+    if not shared:
+        return
+    m = len(shared)
+    ax = sum(pos[lbl][0] for lbl in shared) / m
+    ay = sum(pos[lbl][1] for lbl in shared) / m
+    bx = sum(before[lbl][0] for lbl in shared) / m
+    by = sum(before[lbl][1] for lbl in shared) / m
+    theta = 0.0
+    if m >= 2:
+        num = den = 0.0
+        for lbl in shared:
+            px, py = pos[lbl][0] - ax, pos[lbl][1] - ay
+            qx, qy = before[lbl][0] - bx, before[lbl][1] - by
+            num += px * qy - py * qx
+            den += px * qx + py * qy
+        theta = math.atan2(num, den)
+    c, s = math.cos(theta), math.sin(theta)
+    for lbl, p in pos.items():
+        px, py = p[0] - ax, p[1] - ay
+        pos[lbl] = [bx + c * px - s * py, by + s * px + c * py]
+
+
+def _progressive_layouts(
+    states: List[Dict[str, list]],
+    final_order: List[str],
+    node_size: float,
+    layout: str,
+    width: float,
+    height: float,
+) -> Optional[Tuple[List[Dict[str, Tuple[float, float]]], List[int], List[List[str]]]]:
+    """
+    Compute one layout frame per structurally distinct graph state.
+
+    Returns `(frames, state_frame, present)` where each frame maps every label that ever appears
+    to a position (nodes not yet added sit where they will first appear; removed nodes keep their
+    last position), `state_frame[i]` is the frame index for `states[i]`, and `present[f]` lists
+    the nodes actually in the graph for frame `f`. Returns `None` when the
+    graph is too large to lay out progressively.
+    """
+    if not final_order or len(final_order) > _PROGRESSIVE_MAX_NODES:
+        return None
+
+    # Collapse consecutive states with identical structure into one frame
+    frame_states: List[Tuple[List[str], List[Tuple[str, str]]]] = []
+    state_frame: List[int] = []
+    prev_key = None
+    for st in states:
+        key = (tuple(st["nodes"]), tuple(st["edges"]))
+        if key != prev_key:
+            frame_states.append((list(st["nodes"]), list(st["edges"])))
+            prev_key = key
+        state_frame.append(max(len(frame_states) - 1, 0))
+    if not frame_states:
+        return None
+
+    cx, cy = width / 2.0, height / 2.0
+    raw_frames: List[Dict[str, Tuple[float, float]]] = []
+
+    if layout == "circular":
+        order_idx = {lbl: i for i, lbl in enumerate(final_order)}
+        for nodes, _ in frame_states:
+            present = sorted(nodes, key=lambda lbl: order_idx.get(lbl, 0))
+            raw_frames.append(_circular_layout(present, width, height))
+    else:
+        pad = 60.0
+        k = math.sqrt(max((width - 2 * pad) * (height - 2 * pad), 1.0) / len(final_order)) * 0.55
+        iters_base = 50
+        total_pairs = sum(len(nodes) ** 2 / 2 * iters_base for nodes, _ in frame_states)
+        scale = min(1.0, _PROGRESSIVE_PAIR_BUDGET / max(total_pairs, 1.0))
+        golden = math.pi * (3 - math.sqrt(5))
+        rng = random.Random(7)
+        pos: Dict[str, List[float]] = {}
+        placed_count = 0
+        prev_edges: set = set()
+
+        for nodes, edges in frame_states:
+            node_set = set(nodes)
+            edge_set = set(edges)
+            # Nodes whose surroundings changed this frame are free to move
+            touched: set = set()
+            for s, t in edge_set ^ prev_edges:
+                touched.add(s)
+                touched.add(t)
+            prev_edges = edge_set
+            for lbl in list(pos):
+                if lbl not in node_set:
+                    del pos[lbl]
+            adj: Dict[str, List[str]] = {lbl: [] for lbl in nodes}
+            for s, t in edges:
+                if s in adj and t in adj:
+                    adj[s].append(t)
+                    adj[t].append(s)
+
+            new_nodes = [lbl for lbl in nodes if lbl not in pos]
+            pending = list(new_nodes)
+            while pending:
+                # Prefer nodes that already have a placed neighbor, so new structure grows
+                # outward from the existing graph
+                pick = None
+                for lbl in pending:
+                    if any(nb in pos for nb in adj[lbl]):
+                        pick = lbl
+                        break
+                if pick is None:
+                    pick = pending[0]
+                pending.remove(pick)
+
+                if pos:
+                    gx = sum(p[0] for p in pos.values()) / len(pos)
+                    gy = sum(p[1] for p in pos.values()) / len(pos)
+                else:
+                    gx, gy = cx, cy
+                placed_nbs = [pos[nb] for nb in adj[pick] if nb in pos]
+                angle = golden * placed_count + rng.uniform(-0.4, 0.4)
+                placed_count += 1
+                if placed_nbs:
+                    nx = sum(p[0] for p in placed_nbs) / len(placed_nbs)
+                    ny = sum(p[1] for p in placed_nbs) / len(placed_nbs)
+                    ox, oy = nx - gx, ny - gy
+                    norm = math.hypot(ox, oy)
+                    if norm > 1e-6:
+                        base = math.atan2(oy, ox)
+                        angle = base + rng.uniform(-0.6, 0.6)
+                    pos[pick] = [nx + math.cos(angle) * k * 0.8, ny + math.sin(angle) * k * 0.8]
+                elif not pos:
+                    pos[pick] = [cx, cy]
+                else:
+                    # Unconnected node: next slot on a sunflower spiral around the centroid
+                    radius = k * 0.9 * math.sqrt(len(pos) + 0.5)
+                    pos[pick] = [gx + math.cos(angle) * radius, gy + math.sin(angle) * radius]
+
+            new_set = set(new_nodes)
+            frac_changed = len(new_set | (touched & node_set)) / max(len(nodes), 1)
+            iters = max(int((15 + iters_base * min(1.0, frac_changed * 2 + 0.3)) * scale), 6)
+            temp_start = k * (0.15 + 0.45 * min(1.0, frac_changed * 2))
+            mobility = {
+                lbl: 1.0 if lbl in new_set else (0.6 if lbl in touched else 0.15)
+                for lbl in nodes
+            }
+            before = {lbl: (pos[lbl][0], pos[lbl][1]) for lbl in nodes if lbl not in new_set}
+            _relax_layout(nodes, edges, pos, k, iters, temp_start, mobility)
+            _align_to_previous(pos, before)
+            raw_frames.append({lbl: (p[0], p[1]) for lbl, p in pos.items()})
+
+        # One uniform transform for all frames. Scale so the final frame's median edge length is
+        # a comfortable multiple of the node radius; with no edges, fit the canvas instead.
+        all_x = [p[0] for fr in raw_frames for p in fr.values()]
+        all_y = [p[1] for fr in raw_frames for p in fr.values()]
+        if all_x:
+            bw = max(max(all_x) - min(all_x), 1.0)
+            bh = max(max(all_y) - min(all_y), 1.0)
+            s = min((width - 2 * pad) / bw, (height - 2 * pad) / bh, 1.5)
+            last_frame = raw_frames[-1]
+            lens = sorted(
+                math.dist(last_frame[a], last_frame[b])
+                for a, b in frame_states[-1][1]
+                if a in last_frame and b in last_frame and a != b
+            )
+            if lens and lens[len(lens) // 2] > 1e-6:
+                s = node_size * 4.5 / lens[len(lens) // 2]
+            mx = (max(all_x) + min(all_x)) / 2
+            my = (max(all_y) + min(all_y)) / 2
+            raw_frames = [
+                {lbl: (cx + (x - mx) * s, cy + (y - my) * s) for lbl, (x, y) in fr.items()}
+                for fr in raw_frames
+            ]
+
+    # Fill each frame so every label has a position: before first appearance use the first
+    # position, after removal keep the last known position
+    all_labels = list(final_order)
+    first_pos: Dict[str, Tuple[float, float]] = {}
+    for fr in raw_frames:
+        for lbl, p in fr.items():
+            first_pos.setdefault(lbl, p)
+    frames: List[Dict[str, Tuple[float, float]]] = []
+    last_pos: Dict[str, Tuple[float, float]] = {}
+    for fr in raw_frames:
+        last_pos.update(fr)
+        full = {}
+        for lbl in all_labels:
+            if lbl in fr:
+                full[lbl] = fr[lbl]
+            elif lbl in last_pos:
+                full[lbl] = last_pos[lbl]
+            elif lbl in first_pos:
+                full[lbl] = first_pos[lbl]
+            else:
+                full[lbl] = (cx, cy)
+        frames.append(full)
+    return frames, state_frame, [nodes for nodes, _ in frame_states]
+
+
 def render_steps(
     graph,
     steps: list,
@@ -3347,7 +3610,7 @@ def render_steps(
     show_labels: bool = True,
     auto_play: bool = False,
     speed: float = 1.0,
-    layout_mode: str = "stable",
+    layout_mode: str = "progressive",
     output: Optional[str] = None,
 ) -> "StepPlayer":
     """Render an interactive step-through visualization of recorded graph steps."""
@@ -3384,6 +3647,8 @@ def render_steps(
     visible_indices = {id(s) for s in steps} if full_steps is not None else None
 
     step_states = []
+    all_states = []
+    visible_state_idx = []
     cum_nodes: set = set()
     cum_edges: set = set()
     all_nodes: set = set()
@@ -3402,13 +3667,14 @@ def render_steps(
             cum_edges.discard(pair)
         all_nodes.update(cum_nodes)
         all_edges.update(cum_edges)
+        state = {
+            "nodes": sorted(cum_nodes),
+            "edges": [(s, t) for s, t in sorted(cum_edges)],
+        }
+        all_states.append(state)
         if visible_indices is None or id(step) in visible_indices:
-            step_states.append(
-                {
-                    "nodes": sorted(cum_nodes),
-                    "edges": [(s, t) for s, t in sorted(cum_edges)],
-                }
-            )
+            visible_state_idx.append(len(all_states) - 1)
+            step_states.append(state)
 
     # --- Build label <-> id maps from graph (for nodes still in graph) ---
     node_ids = list(graph.get_node_ids(limit=None))
@@ -3459,12 +3725,64 @@ def render_steps(
     if layout not in ("circular",) and n >= 2:
         positions = _remove_overlaps(positions, radii, padding=2.0)
 
-    # ViewBox
+    # Progressive layout: one frame per structurally distinct state, animated between steps.
+    # `step_frames[i]` is the frame index for visible step i; frames are keyed by label.
+    layout_frames: List[Dict[str, List[float]]] = []
+    step_frames: List[int] = []
+    if layout_mode == "progressive" and layout in ("force", "circular"):
+        final_order = [id_to_label.get(nid, nid) for nid in all_label_ids]
+        prog = _progressive_layouts(
+            all_states, final_order, node_size, layout, float(width), float(height)
+        )
+        if prog is not None:
+            frames, state_frame, frame_present = prog
+            used = sorted({state_frame[i] for i in visible_state_idx})
+            used_present = [frame_present[f] for f in used]
+            remap = {f: j for j, f in enumerate(used)}
+            layout_frames = [
+                {lbl: [round(x, 1), round(y, 1)] for lbl, (x, y) in frames[f].items()}
+                for f in used
+            ]
+            step_frames = [remap[state_frame[i]] for i in visible_state_idx]
+            positions = {
+                label_to_id.get(lbl, lbl): (xy[0], xy[1])
+                for lbl, xy in layout_frames[0].items()
+            }
+
+    # ViewBox. For progressive layouts each frame gets a camera: the final framing, widened only
+    # when that frame's nodes extend past it. `bg_box` covers every camera position.
     label_map = {}
     if show_labels:
         for nid in all_label_ids:
             label_map[nid] = id_to_label.get(nid, nid)
-    vb = _compute_viewbox(positions, radii, labels=label_map if show_labels else None)
+    frame_viewboxes: List[List[float]] = []
+    if layout_frames:
+        fitted = []
+        prev_present: List[str] = []
+        for fr, present in zip(layout_frames, used_present):
+            # Include the previous frame's nodes so just-removed nodes stay in view
+            in_view = set(present) | set(prev_present)
+            prev_present = present
+            fr_pos = {label_to_id.get(lbl, lbl): (fr[lbl][0], fr[lbl][1]) for lbl in in_view}
+            fitted.append(_compute_viewbox(fr_pos, radii, labels=label_map if show_labels else None))
+        final_vb = fitted[-1]
+        for fv in fitted:
+            if fv == (0, 0, 100, 100):
+                fv = final_vb
+            x0 = min(fv[0], final_vb[0])
+            y0 = min(fv[1], final_vb[1])
+            x1 = max(fv[0] + fv[2], final_vb[0] + final_vb[2])
+            y1 = max(fv[1] + fv[3], final_vb[1] + final_vb[3])
+            frame_viewboxes.append([round(x0, 1), round(y0, 1), round(x1 - x0, 1), round(y1 - y0, 1)])
+        vb = tuple(frame_viewboxes[step_frames[0]])
+        bx0 = min(v[0] for v in frame_viewboxes)
+        by0 = min(v[1] for v in frame_viewboxes)
+        bx1 = max(v[0] + v[2] for v in frame_viewboxes)
+        by1 = max(v[1] + v[3] for v in frame_viewboxes)
+        bg_box = (bx0, by0, bx1 - bx0, by1 - by0)
+    else:
+        vb = _compute_viewbox(positions, radii, labels=label_map if show_labels else None)
+        bg_box = vb
     vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
 
     # --- Build SVG ---
@@ -3498,8 +3816,8 @@ def render_steps(
         f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
         f"</filter>"
         f"</defs>",
-        f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" '
-        f'height="{vb[3]:.1f}" fill="{th.bg}"/>',
+        f'<rect x="{bg_box[0]:.1f}" y="{bg_box[1]:.1f}" width="{bg_box[2]:.1f}" '
+        f'height="{bg_box[3]:.1f}" fill="{th.bg}"/>',
     ]
 
     # Edges (all hidden initially; data-src/data-tgt use labels)
@@ -3594,6 +3912,7 @@ def render_steps(
     for i, step in enumerate(steps):
         base_nodes = step_states[i]["nodes"]
         base_edges = step_states[i]["edges"]
+        step_data_mark = len(step_data)
 
         if step.kind == "traverse" and step.sub_steps:
             # Build adjacency from the graph for frontier computation
@@ -3710,6 +4029,9 @@ def render_steps(
                     "delta": delta_obj,
                 }
             )
+        if step_frames:
+            for sd in step_data[step_data_mark:]:
+                sd["lf"] = step_frames[i]
 
     # Append a final step showing the settled graph state
     final_nodes = step_states[-1]["nodes"] if step_states else []
@@ -3727,6 +4049,9 @@ def render_steps(
             "delta": {"na": [], "nr": [], "ea": [], "er": []},
         }
     )
+    if step_frames:
+        step_data[0]["lf"] = step_frames[0]
+        step_data[-1]["lf"] = step_frames[-1]
 
     steps_json = json.dumps(step_data)
 
@@ -4366,6 +4691,99 @@ def render_steps(
     }}
   }})();
 
+  // Progressive layout: per-step position frames, animated between steps
+  var LAYOUTS={json.dumps(layout_frames)};
+  var VIEWBOXES={json.dumps(frame_viewboxes)};
+  var NODE_R={node_size:.2f}, ARROW_SZ={max(4, edge_width * 2.5):.2f};
+  var curFrame=(STEPS[0].lf!==undefined)?STEPS[0].lf:-1;
+  var curPos={{}}, posEls={{}}, edgeEls=[], animId=null;
+  var reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(LAYOUTS.length){{
+    svg.querySelectorAll('.step-node,.step-order,.step-label').forEach(function(el){{
+      var l=el.getAttribute('data-label');
+      (posEls[l]=posEls[l]||[]).push(el);
+    }});
+    svg.querySelectorAll('.step-edge,.step-edge-hit').forEach(function(el){{
+      edgeEls.push({{el:el,s:el.getAttribute('data-src'),t:el.getAttribute('data-tgt')}});
+    }});
+    var f0=LAYOUTS[curFrame];
+    for(var l0 in f0) curPos[l0]=[f0[l0][0],f0[l0][1]];
+    var curVB=VIEWBOXES[curFrame].slice();
+  }}
+  function setViewBox(v){{
+    svg.setAttribute('viewBox',v[0].toFixed(1)+' '+v[1].toFixed(1)+' '+v[2].toFixed(1)+' '+v[3].toFixed(1));
+  }}
+  function setPositions(P){{
+    for(var l in posEls){{
+      var p=P[l];
+      if(!p) continue;
+      var els=posEls[l];
+      for(var i=0;i<els.length;i++){{
+        var el=els[i];
+        if(el.classList.contains('step-node')){{
+          el.setAttribute('cx',p[0].toFixed(1));
+          el.setAttribute('cy',p[1].toFixed(1));
+        }} else {{
+          var dy=el.classList.contains('step-order')?4:NODE_R+12;
+          el.setAttribute('x',p[0].toFixed(1));
+          el.setAttribute('y',(p[1]+dy).toFixed(1));
+        }}
+      }}
+    }}
+    for(var i=0;i<edgeEls.length;i++){{
+      var e=edgeEls[i], a=P[e.s], b=P[e.t];
+      if(!a||!b) continue;
+      if(e.el.tagName==='polygon'){{
+        var dx=b[0]-a[0], dy=b[1]-a[1];
+        var ln=Math.sqrt(dx*dx+dy*dy)||1, ux=dx/ln, uy=dy/ln;
+        var ax=b[0]-ux*(NODE_R+2), ay=b[1]-uy*(NODE_R+2);
+        var px=-uy, py=ux, sz=ARROW_SZ;
+        e.el.setAttribute('points',
+          (ax+ux*sz).toFixed(1)+','+(ay+uy*sz).toFixed(1)+' '+
+          (ax+px*sz*0.5).toFixed(1)+','+(ay+py*sz*0.5).toFixed(1)+' '+
+          (ax-px*sz*0.5).toFixed(1)+','+(ay-py*sz*0.5).toFixed(1));
+      }} else {{
+        e.el.setAttribute('x1',a[0].toFixed(1));
+        e.el.setAttribute('y1',a[1].toFixed(1));
+        e.el.setAttribute('x2',b[0].toFixed(1));
+        e.el.setAttribute('y2',b[1].toFixed(1));
+      }}
+    }}
+  }}
+  function animateTo(fi){{
+    var target=LAYOUTS[fi];
+    if(!target) return;
+    curFrame=fi;
+    if(animId){{ cancelAnimationFrame(animId); animId=null; }}
+    var dur=reduceMotion?0:Math.min(550,getInterval()*0.6);
+    var vbTo=VIEWBOXES[fi];
+    if(dur<=0){{
+      for(var l in target) curPos[l]=[target[l][0],target[l][1]];
+      setPositions(curPos);
+      curVB=vbTo.slice();
+      setViewBox(curVB);
+      return;
+    }}
+    var from={{}};
+    for(var l in curPos) from[l]=[curPos[l][0],curPos[l][1]];
+    var vbFrom=curVB.slice();
+    var t0=null;
+    function tick(ts){{
+      if(t0===null) t0=ts;
+      var u=Math.min(1,(ts-t0)/dur);
+      var k=u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+      for(var l in target){{
+        var a=from[l]||target[l], b=target[l];
+        curPos[l]=[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k];
+      }}
+      setPositions(curPos);
+      for(var q=0;q<4;q++) curVB[q]=vbFrom[q]+(vbTo[q]-vbFrom[q])*k;
+      setViewBox(curVB);
+      animId=u<1?requestAnimationFrame(tick):null;
+    }}
+    animId=requestAnimationFrame(tick);
+  }}
+
   function nodeState(lbl){{
     var s=STEPS[cur],d=s.delta||{{}},tv=s.traverse||null;
     if(tv){{
@@ -4548,6 +4966,7 @@ def render_steps(
 
   function applyStep(idx){{
     var s=STEPS[idx];
+    if(LAYOUTS.length && s.lf!==undefined && s.lf!==curFrame) animateTo(s.lf);
     var vn=new Set(s.nodes);
     var ve=new Set();
     s.edges.forEach(function(e){{
