@@ -160,15 +160,17 @@ pub fn degree_preserving_rewire(
             continue;
         }
 
-        let new_e1 = if directed { (a, d) } else { if a <= d { (a, d) } else { (d, a) } };
-        let new_e2 = if directed { (c, b) } else { if c <= b { (c, b) } else { (b, c) } };
+        // Undirected edges are stored with the smaller endpoint first
+        let key = |x: u64, y: u64| if directed || x <= y { (x, y) } else { (y, x) };
+        let new_e1 = key(a, d);
+        let new_e2 = key(c, b);
 
         if edge_set.contains(&new_e1) || edge_set.contains(&new_e2) {
             continue;
         }
 
-        let old_e1 = if directed { (a, b) } else { if a <= b { (a, b) } else { (b, a) } };
-        let old_e2 = if directed { (c, d) } else { if c <= d { (c, d) } else { (d, c) } };
+        let old_e1 = key(a, b);
+        let old_e2 = key(c, d);
 
         edge_set.remove(&old_e1);
         edge_set.remove(&old_e2);
@@ -301,7 +303,7 @@ pub fn generate_stochastic_block_model(
     let mut blocks: Vec<Vec<u64>> = Vec::with_capacity(k);
     let mut node_idx = 0;
 
-    for (_block_id, &size) in sizes.iter().enumerate() {
+    for &size in sizes.iter() {
         let mut block_nodes = Vec::with_capacity(size);
         for _ in 0..size {
             let node = Node { id: 0, label: Some(format!("{}", node_idx)), attributes: None };
