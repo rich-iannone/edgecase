@@ -35,10 +35,10 @@ pub enum ColoringStrategy {
 impl ColoringStrategy {
     fn from_str(s: &str) -> PyResult<Self> {
         match s.to_lowercase().as_str() {
-            "arbitrary" | "random_sequential" => Ok(ColoringStrategy::Arbitrary),
+            "arbitrary" => Ok(ColoringStrategy::Arbitrary),
             "largest_first" => Ok(ColoringStrategy::LargestFirst),
             "smallest_last" => Ok(ColoringStrategy::SmallestLast),
-            "random" => Ok(ColoringStrategy::Random),
+            "random" | "random_sequential" => Ok(ColoringStrategy::Random),
             "saturation_largest_first" | "dsatur" => Ok(ColoringStrategy::SaturationLargestFirst),
             "independent_set" => Ok(ColoringStrategy::IndependentSet),
             _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -66,7 +66,10 @@ impl ColoringStrategy {
 ///   - "random": Random ordering
 ///   - "saturation_largest_first" / "dsatur": Prioritize nodes with most colored neighbors
 ///   - "independent_set": Color independent sets iteratively
-/// * `interchange` - Whether to use color interchange optimization (not yet implemented)
+/// * `interchange` - Whether to use the color interchange optimization: before opening a new
+///   color for a node, try to free an existing one by swapping two colors along Kempe chains.
+///   Not available with "saturation_largest_first"/"dsatur" or "independent_set".
+/// * `seed` - Seed for the "random" strategy. If None, the order is drawn from system entropy.
 ///
 /// # Returns
 /// A dictionary mapping node IDs to their assigned color (0-indexed integers)
@@ -77,19 +80,30 @@ impl ColoringStrategy {
 /// - For directed graphs, treats edges as undirected for coloring purposes
 /// - The number of colors used is at most max_degree + 1
 #[pyfunction]
-#[pyo3(signature = (graph, strategy=None, interchange=None))]
+#[pyo3(signature = (graph, strategy=None, interchange=None, seed=None))]
 pub fn greedy_color(
     graph: &Graph,
     strategy: Option<String>,
     interchange: Option<bool>,
+    seed: Option<u64>,
 ) -> PyResult<Py<PyDict>> {
     let strat = match strategy {
         Some(s) => ColoringStrategy::from_str(&s)?,
         None => ColoringStrategy::Arbitrary,
     };
 
-    let _use_interchange = interchange.unwrap_or(false);
-    // Note: interchange optimization not yet implemented
+    let use_interchange = interchange.unwrap_or(false);
+    if use_interchange
+        && matches!(
+            strat,
+            ColoringStrategy::SaturationLargestFirst | ColoringStrategy::IndependentSet
+        )
+    {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "interchange=True cannot be used with the 'saturation_largest_first' (DSATUR) or \
+             'independent_set' strategies, which choose their own coloring order",
+        ));
+    }
 
     let node_ids: Vec<u64> = graph.get_node_ids();
     let n = node_ids.len();
@@ -123,7 +137,7 @@ pub fn greedy_color(
     }
 
     // Get ordered list of nodes based on strategy
-    let ordered_nodes = order_nodes_by_strategy(&node_ids, &adj_list, strat)?;
+    let ordered_nodes = order_nodes_by_strategy(&node_ids, &adj_list, strat, seed)?;
 
     // Perform greedy coloring
     let coloring = match strat {
@@ -133,6 +147,7 @@ pub fn greedy_color(
         ColoringStrategy::IndependentSet => {
             independent_set_coloring(&node_ids, &adj_list)?
         }
+        _ if use_interchange => interchange_coloring(&ordered_nodes, &adj_list),
         _ => {
             greedy_sequential_coloring(&ordered_nodes, &adj_list)?
         }
@@ -153,6 +168,7 @@ fn order_nodes_by_strategy(
     node_ids: &[u64],
     adj_list: &FxHashMap<u64, FxHashSet<u64>>,
     strategy: ColoringStrategy,
+    seed: Option<u64>,
 ) -> PyResult<Vec<u64>> {
     let mut ordered = node_ids.to_vec();
 
@@ -171,10 +187,15 @@ fn order_nodes_by_strategy(
             ordered = smallest_last_ordering(node_ids, adj_list);
         }
         ColoringStrategy::Random => {
-            // Shuffle randomly
+            // Shuffle randomly; sort first so a given seed gives the same order regardless of
+            // the graph's internal (hash) storage order
             use rand::seq::SliceRandom;
             use rand::SeedableRng;
-            let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
+            ordered.sort_unstable();
+            let mut rng = match seed {
+                Some(s) => rand_chacha::ChaCha8Rng::seed_from_u64(s),
+                None => rand_chacha::ChaCha8Rng::from_entropy(),
+            };
             ordered.shuffle(&mut rng);
         }
         ColoringStrategy::SaturationLargestFirst | ColoringStrategy::IndependentSet => {
@@ -260,6 +281,101 @@ fn greedy_sequential_coloring(
     }
 
     Ok(coloring)
+}
+
+/// Greedy sequential coloring with color interchange (Kempe chain swaps)
+///
+/// Nodes are colored in `ordered_nodes` order with the smallest free color. When a node would
+/// need a brand-new color, try each pair of existing colors (a, b): take the Kempe chains, the
+/// connected components of the subgraph induced by nodes colored a or b, that contain the
+/// node's a-colored neighbors. If none of those chains contains a b-colored neighbor of the
+/// node, swapping a and b inside them keeps the coloring valid and leaves no neighbor with
+/// color a, so the node takes a and no new color is opened.
+fn interchange_coloring(
+    ordered_nodes: &[u64],
+    adj_list: &FxHashMap<u64, FxHashSet<u64>>,
+) -> FxHashMap<u64, usize> {
+    let mut coloring: FxHashMap<u64, usize> = FxHashMap::default();
+    let mut num_colors = 0;
+
+    for &node in ordered_nodes {
+        let neighbors = adj_list.get(&node);
+        let neighbor_colors: FxHashSet<usize> = neighbors
+            .into_iter()
+            .flatten()
+            .filter_map(|nb| coloring.get(nb).copied())
+            .collect();
+
+        let mut color = 0;
+        while neighbor_colors.contains(&color) {
+            color += 1;
+        }
+
+        if color == num_colors && num_colors >= 2 {
+            if let Some(freed) = try_interchange(node, adj_list, &mut coloring, num_colors) {
+                color = freed;
+            }
+        }
+
+        if color == num_colors {
+            num_colors += 1;
+        }
+        coloring.insert(node, color);
+    }
+
+    coloring
+}
+
+/// Try to free a color for `node` by swapping two colors along Kempe chains.
+/// Returns the freed color (already vacated around `node`), or None if no swap works.
+fn try_interchange(
+    node: u64,
+    adj_list: &FxHashMap<u64, FxHashSet<u64>>,
+    coloring: &mut FxHashMap<u64, usize>,
+    num_colors: usize,
+) -> Option<usize> {
+    let neighbors: Vec<u64> = adj_list.get(&node)?.iter().copied().collect();
+
+    for a in 0..num_colors {
+        for b in 0..num_colors {
+            if a == b {
+                continue;
+            }
+
+            // Kempe chains through the node's a-colored neighbors, in the {a, b} subgraph
+            let mut chain: FxHashSet<u64> = FxHashSet::default();
+            let mut stack: Vec<u64> = neighbors
+                .iter()
+                .copied()
+                .filter(|nb| coloring.get(nb) == Some(&a))
+                .collect();
+            chain.extend(stack.iter().copied());
+            while let Some(current) = stack.pop() {
+                for &next in adj_list.get(&current).into_iter().flatten() {
+                    let next_color = coloring.get(&next).copied();
+                    if (next_color == Some(a) || next_color == Some(b)) && chain.insert(next) {
+                        stack.push(next);
+                    }
+                }
+            }
+
+            // Swapping is only useful if no b-colored neighbor would turn into a
+            let blocked = neighbors
+                .iter()
+                .any(|nb| coloring.get(nb) == Some(&b) && chain.contains(nb));
+            if blocked {
+                continue;
+            }
+
+            for member in chain {
+                let c = coloring.get_mut(&member).expect("chain members are colored");
+                *c = if *c == a { b } else { a };
+            }
+            return Some(a);
+        }
+    }
+
+    None
 }
 
 /// DSATUR (Degree of Saturation) algorithm
@@ -440,7 +556,7 @@ mod tests {
         pyo3::prepare_freethreaded_python();
 
         let graph = create_test_graph();
-        let result = greedy_color(&graph, None, None);
+        let result = greedy_color(&graph, None, None, None);
         assert!(result.is_ok());
 
         Python::with_gil(|py| {

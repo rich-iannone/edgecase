@@ -35533,6 +35533,7 @@ class Graph:
         self,
         strategy: str = "largest_first",
         interchange: bool = False,
+        seed: int | None = None,
     ) -> dict[int, int]:
         r"""
         Color the graph using a greedy algorithm.
@@ -35562,13 +35563,23 @@ class Graph:
         strategy
             The strategy for ordering nodes during coloring. Options are: `"largest_first"` (the
             default), `"smallest_last"`, `"saturation_largest_first"` (alias `"dsatur"`),
-            `"independent_set"`, `"random"`, and `"arbitrary"` (alias `"random_sequential"`).
+            `"independent_set"`, `"random"` (alias `"random_sequential"`, as in NetworkX), and
+            `"arbitrary"`.
             Matching is case-insensitive. See the *Strategy Types* section for how each one
             works. An unrecognized name raises a `ValueError`.
         interchange
-            Whether to apply the color-interchange optimization. This option is accepted for API
-            compatibility but is not yet implemented, so it currently has no effect. Default is
-            `False`.
+            Whether to apply the color-interchange optimization. When a node would otherwise need
+            a brand-new color, the algorithm first tries to free an existing color by swapping
+            two colors along a *Kempe chain* (a connected run of nodes using just those two
+            colors), which keeps the coloring valid. This usually saves colors at a modest extra
+            cost, though as a heuristic it can occasionally use one more. It works with the
+            `"largest_first"`, `"smallest_last"`, `"random"`, and `"arbitrary"` orderings; DSATUR
+            and `"independent_set"` choose their own order and raise a `ValueError` when combined
+            with it. Default is `False`.
+        seed
+            Random seed for the `"random"` strategy. The same seed always gives the same coloring
+            of the same graph; if `None` (the default), the order is drawn from system entropy,
+            so repeated calls can differ. Ignored by the other strategies.
 
         Returns
         -------
@@ -35579,7 +35590,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `strategy=` is not one of the recognized names.
+            If `strategy=` is not one of the recognized names, or if `interchange=True` is
+            combined with `"saturation_largest_first"`/`"dsatur"` or `"independent_set"`.
 
         Strategy Types
         --------------
@@ -35594,8 +35606,8 @@ class Graph:
         the fewest colors
         - `"independent_set"`: repeatedly extract a maximal independent set from the uncolored
         nodes (favoring high-degree nodes) and give the whole set one color
-        - `"random"`: shuffled node ordering; the shuffle uses a fixed internal seed, so the
-        result is the same on every call
+        - `"random"` or `"random_sequential"`: shuffled node ordering; pass `seed=` for a
+        reproducible result, or leave it unset to get a different ordering on each call
         - `"arbitrary"`: process nodes in the graph's internal storage order
 
         Technical Notes
@@ -35673,10 +35685,29 @@ class Graph:
         strategies = ["largest_first", "smallest_last", "dsatur", "independent_set", "arbitrary"]
         {s: len(set(graph.greedy_color(strategy=s).values())) for s in strategies}
         ```
+
+        Color interchange can rescue a weaker ordering. On the same graph, `"largest_first"`
+        needs one color fewer once it may swap colors along Kempe chains instead of opening a
+        new color:
+
+        ```{python}
+        (
+            len(set(graph.greedy_color().values())),
+            len(set(graph.greedy_color(interchange=True).values())),
+        )
+        ```
+
+        The `"random"` strategy draws a fresh ordering on every call unless `seed=` is given.
+        Running it with several seeds and keeping the best result is a cheap way to search for a
+        coloring with fewer colors:
+
+        ```{python}
+        min(len(set(graph.greedy_color(strategy="random", seed=s).values())) for s in range(20))
+        ```
         """
         from edgecase._core import greedy_color as rust_greedy_color
 
-        return dict(rust_greedy_color(self._graph, strategy, interchange))
+        return dict(rust_greedy_color(self._graph, strategy, interchange, seed))
 
     def is_valid_coloring(self, coloring: dict[int, int]) -> bool:
         """

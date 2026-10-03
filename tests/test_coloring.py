@@ -376,3 +376,69 @@ class TestSelfLoops:
 
         assert g.is_valid_coloring(coloring)
         assert len(set(coloring.values())) == 2
+
+
+class TestGreedyColorInterchangeAndSeed:
+    """interchange= swaps colors along Kempe chains; strategy="random" honours seed=."""
+
+    @staticmethod
+    def _is_proper(g, coloring):
+        for edge_id in g.get_edge_ids():
+            edge = g.get_edge(edge_id)
+            if edge.source != edge.target and coloring[edge.source] == coloring[edge.target]:
+                return False
+        return True
+
+    @staticmethod
+    def _gnm(seed):
+        g = Graph()
+        g.add_gnm_graph(n=30, m=80, seed=seed)
+        return g
+
+    def test_interchange_saves_a_color(self):
+        g = self._gnm(23)
+        plain = g.greedy_color()
+        swapped = g.greedy_color(interchange=True)
+
+        assert len(set(plain.values())) == 5
+        assert len(set(swapped.values())) == 4
+        assert self._is_proper(g, swapped)
+
+    @pytest.mark.parametrize("strategy", ["largest_first", "smallest_last", "random", "arbitrary"])
+    def test_interchange_is_always_proper_and_gap_free(self, strategy):
+        import random
+
+        rng = random.Random(3)
+        for seed in range(40):
+            g = Graph()
+            g.add_gnp_graph(n=rng.randint(5, 30), p=rng.random() * 0.5, seed=seed)
+            coloring = g.greedy_color(strategy=strategy, interchange=True, seed=seed)
+
+            assert set(coloring) == set(g.get_node_ids())
+            assert self._is_proper(g, coloring)
+            assert set(coloring.values()) == set(range(len(set(coloring.values()))))
+
+    @pytest.mark.parametrize("strategy", ["dsatur", "saturation_largest_first", "independent_set"])
+    def test_interchange_rejected_for_self_ordering_strategies(self, strategy):
+        with pytest.raises(ValueError, match="interchange"):
+            self._gnm(1).greedy_color(strategy=strategy, interchange=True)
+
+    def test_random_seed_is_reproducible(self):
+        g = self._gnm(5)
+        assert g.greedy_color(strategy="random", seed=7) == g.greedy_color(
+            strategy="random", seed=7
+        )
+
+    def test_random_varies_across_seeds_and_without_seed(self):
+        g = self._gnm(5)
+        seeded = {tuple(sorted(g.greedy_color(strategy="random", seed=s).items())) for s in range(8)}
+        unseeded = {tuple(sorted(g.greedy_color(strategy="random").items())) for _ in range(8)}
+
+        assert len(seeded) > 1
+        assert len(unseeded) > 1
+
+    def test_random_sequential_is_random_ordering(self):
+        g = self._gnm(5)
+        assert g.greedy_color(strategy="random_sequential", seed=3) == g.greedy_color(
+            strategy="random", seed=3
+        )
