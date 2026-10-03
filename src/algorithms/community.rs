@@ -126,14 +126,22 @@ pub fn girvan_newman(
             break;
         }
 
-        // Find edge with max betweenness across all components
+        // Find edge with max betweenness across all components. Ties (within a
+        // relative 1e-9, since the parallel sums carry rounding noise) go to the
+        // smallest canonical edge, so the dendrogram doesn't depend on hash-map
+        // iteration order.
         let mut max_val = f64::NEG_INFINITY;
         let mut max_edge: Option<(u64, u64)> = None;
 
         for eb in comp_betweenness.values() {
             for (&edge, &val) in eb {
-                if val > max_val {
-                    max_val = val;
+                let tol = 1e-9 * max_val.abs().max(1.0);
+                let better = val > max_val + tol
+                    || ((val - max_val).abs() <= tol && Some(edge) < max_edge);
+                if max_edge.is_none() || better {
+                    if val > max_val {
+                        max_val = val;
+                    }
                     max_edge = Some(edge);
                 }
             }
