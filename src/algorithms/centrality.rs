@@ -623,8 +623,7 @@ pub fn pagerank(
 
                 // Sum contributions from all incoming edges
                 let mut rank_sum = 0.0;
-                for i in start..end {
-                    let source_idx = incoming_data[i];
+                for &source_idx in &incoming_data[start..end] {
                     rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
                 }
 
@@ -639,8 +638,7 @@ pub fn pagerank(
                 let end = incoming_offsets[target_idx + 1];
 
                 let mut rank_sum = 0.0;
-                for i in start..end {
-                    let source_idx = incoming_data[i];
+                for &source_idx in &incoming_data[start..end] {
                     rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
                 }
 
@@ -873,9 +871,7 @@ pub fn second_order_centrality(
     let mut result = FxHashMap::default();
     let n_f64 = n as f64;
 
-    for i in 0..n {
-        let node_id = node_ids[i];
-
+    for (i, &node_id) in node_ids.iter().enumerate().take(n) {
         let m_sum: f64 = m_matrix.column(i).iter().sum();
         let centrality = (2.0 * m_sum - n_f64 * (n_f64 + 1.0)).sqrt();
 
@@ -1216,13 +1212,9 @@ fn kc_score(
     }
 
     let mut edge_count: usize = 0;
-    for i in 0..ns {
-        if let Some(neighbors) = adj.get(&subset[i]) {
-            for j in (i + 1)..ns {
-                if neighbors.contains(&subset[j]) {
-                    edge_count += 1;
-                }
-            }
+    for (i, node) in subset.iter().enumerate() {
+        if let Some(neighbors) = adj.get(node) {
+            edge_count += subset[i + 1..].iter().filter(|v| neighbors.contains(v)).count();
         }
     }
 
