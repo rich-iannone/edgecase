@@ -148,7 +148,7 @@ Number of connected components : 1
 Tree                           : False
 Bipartite                      : False
 
-Computations on nodes:
+Computations:
   - cmty_louvain() -> attr: 'cmty_louvain' (34 of 34 nodes)
   - eigen_centrality() -> attr: 'eigen_centrality' (34 of 34 nodes)
 
