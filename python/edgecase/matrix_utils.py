@@ -163,8 +163,7 @@ def from_adjacency_matrix(
     rust_graph = _ec.from_adjacency_matrix(matrix_list, labels_list, directed, weighted)
 
     # Wrap in Python Graph
-    graph = Graph.__new__(Graph)
-    graph._graph = rust_graph
+    graph = Graph._from_rust(rust_graph)
 
     return graph
 
