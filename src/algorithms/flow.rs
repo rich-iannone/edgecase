@@ -74,7 +74,7 @@ pub fn max_flow(
         }
 
         // Determine capacity for this edge
-        let edge_cap = get_edge_capacity(&edge, capacity, graph.is_weighted())?;
+        let edge_cap = get_edge_capacity(edge, capacity, graph.is_weighted())?;
 
         // Add to capacity map
         let key = (edge.source, edge.target);
@@ -207,7 +207,7 @@ pub fn max_flow_value(
             continue;
         }
 
-        let edge_cap = get_edge_capacity(&edge, capacity, graph.is_weighted())?;
+        let edge_cap = get_edge_capacity(edge, capacity, graph.is_weighted())?;
 
         let key = (edge.source, edge.target);
         *cap.entry(key).or_insert(0.0) += edge_cap;
@@ -469,12 +469,8 @@ fn get_edge_cost(edge: &crate::graph::Edge, cost: Option<&str>) -> PyResult<f64>
     let get_attr = |attr_name: &str| -> Option<f64> {
         if let Some(attrs) = &edge.attributes {
             Python::with_gil(|py| {
-                if let Ok(val) = attrs.bind(py).get_item(attr_name) {
-                    if let Some(v) = val {
-                        v.extract::<f64>().ok()
-                    } else {
-                        None
-                    }
+                if let Ok(Some(v)) = attrs.bind(py).get_item(attr_name) {
+                    v.extract::<f64>().ok()
                 } else {
                     None
                 }
@@ -589,12 +585,8 @@ fn get_edge_capacity(
     let get_attr = |attr_name: &str| -> Option<f64> {
         if let Some(attrs) = &edge.attributes {
             Python::with_gil(|py| {
-                if let Ok(val) = attrs.bind(py).get_item(attr_name) {
-                    if let Some(v) = val {
-                        v.extract::<f64>().ok()
-                    } else {
-                        None
-                    }
+                if let Ok(Some(v)) = attrs.bind(py).get_item(attr_name) {
+                    v.extract::<f64>().ok()
                 } else {
                     None
                 }
@@ -669,8 +661,8 @@ fn bfs_augmenting_path(
 
         if let Some(neighbors) = adj.get(&current) {
             for &neighbor in neighbors {
-                if !visited.contains_key(&neighbor) {
-                    visited.insert(neighbor, current);
+                if let std::collections::hash_map::Entry::Vacant(e) = visited.entry(neighbor) {
+                    e.insert(current);
                     queue.push_back(neighbor);
                 }
             }
