@@ -399,8 +399,8 @@ fn brandes_single_source(
                     if !members.contains(&nbr) {
                         continue;
                     }
-                    if !dist.contains_key(&nbr) {
-                        dist.insert(nbr, node_dist + 1.0);
+                    if let std::collections::hash_map::Entry::Vacant(e) = dist.entry(nbr) {
+                        e.insert(node_dist + 1.0);
                         queue.push_back(nbr);
                     }
                     if (dist[&nbr] - (node_dist + 1.0)).abs() < 1e-12 {
