@@ -15,8 +15,8 @@ fn bfs_distances(graph: &Graph, start: u64) -> Result<FxHashMap<u64, u64>, PyErr
         let current_dist = distances[&current];
 
         for neighbor in graph.neighbors(current)? {
-            if !distances.contains_key(&neighbor) {
-                distances.insert(neighbor, current_dist + 1);
+            if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
+                e.insert(current_dist + 1);
                 queue.push_back(neighbor);
             }
         }
@@ -130,8 +130,7 @@ pub fn local_efficiency(graph: &Graph) -> PyResult<f64> {
             }
 
             // Calculate efficiency from u to other neighbors
-            for j in (i + 1)..neighbor_count {
-                let v = neighbors[j];
+            for &v in &neighbors[i + 1..neighbor_count] {
                 if let Some(&d) = distances.get(&v) {
                     if d > 0 {
                         subgraph_efficiency += 1.0 / (d as f64);
