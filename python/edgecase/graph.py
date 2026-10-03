@@ -132,6 +132,79 @@ graph
 """
 
 
+def _is_number(value: Any) -> bool:
+    """True for real numbers (including NumPy scalars), but not for bools."""
+    import numbers
+
+    return isinstance(value, numbers.Real) and not isinstance(value, bool)
+
+
+def _parse_edge_item(item: Any) -> tuple[Any, Any, Optional[float], dict]:
+    """
+    Split one `add_edges()` item into `(source, target, weight, attrs)`.
+
+    Accepted shapes are `(s, t)`, `(s, t, weight)`, `(s, t, attrs)` and
+    `(s, t, weight, attrs)`; anything else raises instead of being silently truncated.
+    """
+    if isinstance(item, (str, bytes)) or not isinstance(item, (tuple, list)):
+        raise TypeError(
+            f"each edge must be a tuple like (source, target), (source, target, weight), "
+            f"(source, target, attrs) or (source, target, weight, attrs); got {item!r}"
+        )
+    if len(item) == 2:
+        return item[0], item[1], None, {}
+    if len(item) == 3:
+        third = item[2]
+        if isinstance(third, dict):
+            return item[0], item[1], None, third
+        if _is_number(third):
+            return item[0], item[1], float(third), {}
+        raise TypeError(
+            f"the third element of an edge must be a numeric weight or an attribute dict; "
+            f"got {third!r} in {item!r}"
+        )
+    if len(item) == 4:
+        weight, attrs = item[2], item[3]
+        if not _is_number(weight) or not isinstance(attrs, dict):
+            raise TypeError(
+                f"a 4-element edge must be (source, target, weight, attrs) with a numeric weight "
+                f"and an attribute dict; got {item!r}"
+            )
+        if "weight" in attrs:
+            raise ValueError(
+                f"edge {item!r} gives its weight twice, as the third element and in the dict"
+            )
+        return item[0], item[1], float(weight), attrs
+    raise TypeError(
+        f"each edge must have 2 to 4 elements (source, target[, weight][, attrs]); got {item!r}"
+    )
+
+
+def _node_attrs(label: Any, attrs: Any) -> dict:
+    """Validate the per-node attribute dict given for `label` (None means no attributes)."""
+    if attrs is None:
+        return {}
+    if not isinstance(attrs, dict):
+        raise TypeError(f"attributes for node {label!r} must be a dict; got {attrs!r}")
+    return attrs
+
+
+def _parse_node_item(item: Any) -> tuple[Any, dict]:
+    """Split one `add_nodes()` item into `(label, attrs)`: a bare label or `(label, attrs)`."""
+    if isinstance(item, (tuple, list)):
+        if len(item) == 2 and isinstance(item[1], dict):
+            return item[0], item[1]
+        raise TypeError(
+            f"a node given as a tuple must be (label, attrs_dict); got {item!r}"
+        )
+    if isinstance(item, dict):
+        raise TypeError(
+            f"a node can't be a dict; pass (label, attrs_dict), or a dict mapping each label "
+            f"to its attributes as the whole nodes= argument; got {item!r}"
+        )
+    return item, {}
+
+
 class Graph:
     """
     A high-performance graph data structure with optional direction and weights.
