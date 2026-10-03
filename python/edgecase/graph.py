@@ -9955,7 +9955,7 @@ class Graph:
         Or grouping to count how many edges fall into each relationship type:
 
         ```{python}
-        df.group_by("rel").count()
+        df.group_by("rel").len()
         ```
 
         Aggregating `weight` per group works the same way as with any Polars DataFrame:
