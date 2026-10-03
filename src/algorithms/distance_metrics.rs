@@ -82,8 +82,7 @@ pub fn wiener_index(graph: &Graph, weight: Option<&str>) -> PyResult<f64> {
             }
         } else {
             // For undirected graphs, only count pairs where i < j to avoid double counting
-            for j in (i + 1)..n {
-                let dist = distances[j];
+            for &dist in &distances[i + 1..n] {
                 if dist.is_infinite() {
                     return Ok(f64::INFINITY);
                 }
