@@ -138,6 +138,7 @@ pub fn percolation_centrality(
 
 /// Helper: Compute percolation centrality contribution from a single source node.
 #[inline]
+#[allow(clippy::too_many_arguments)] // shared read-only context for one parallel source pass
 fn compute_percolation_from_source(
     graph: &Graph,
     source: u64,
