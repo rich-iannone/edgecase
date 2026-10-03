@@ -67,8 +67,7 @@ pub fn dispersion(
             .filter(|&n| n != u && n != v)
             .collect();
 
-        for j in (i + 1)..n {
-            let t = common[j];
+        for &t in &common[i + 1..n] {
 
             // Check if s and t are directly connected
             if !s_nbrs.contains(&t) {
