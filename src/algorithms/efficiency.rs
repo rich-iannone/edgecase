@@ -28,8 +28,9 @@ fn bfs_distances(graph: &Graph, start: u64) -> Result<FxHashMap<u64, u64>, PyErr
 /// Compute global efficiency of a graph.
 ///
 /// The efficiency of a pair of nodes is the multiplicative inverse of the
-/// shortest path distance between them. Global efficiency is the average
-/// efficiency over all pairs of nodes.
+/// shortest path distance between them (0 if the second node is unreachable).
+/// Global efficiency is the average efficiency over all n(n-1) ordered pairs of
+/// distinct nodes (Latora & Marchiori, 2001), so disconnected graphs score lower.
 ///
 /// # Arguments
 ///
@@ -48,25 +49,20 @@ pub fn global_efficiency(graph: &Graph) -> PyResult<f64> {
     }
 
     let mut total_efficiency = 0.0;
-    let mut pair_count = 0;
 
-    // Compute shortest paths from each node
+    // Compute shortest paths from each node; unreachable pairs contribute 0
     for &u in &nodes {
         let distances = bfs_distances(graph, u)?;
 
         for (&v, &dist) in &distances {
             if u != v && dist > 0 {
                 total_efficiency += 1.0 / (dist as f64);
-                pair_count += 1;
             }
         }
     }
 
-    if pair_count > 0 {
-        Ok(total_efficiency / (pair_count as f64))
-    } else {
-        Ok(0.0)
-    }
+    // Average over all ordered pairs of distinct nodes, not just the reachable ones
+    Ok(total_efficiency / ((n * (n - 1)) as f64))
 }
 
 /// Compute local efficiency of a graph.

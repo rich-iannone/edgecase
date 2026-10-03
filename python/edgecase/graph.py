@@ -39156,11 +39156,10 @@ class Graph:
         considered separately. Every node is used as a source, so the cost is one BFS per node,
         which can be slow on very large graphs.
 
-        Unreachable pairs are left out of the average rather than counted as `0`. As a result,
-        a disconnected graph can still score highly (two separate edges score `1.0`), and the
-        value describes efficiency *within* the reachable parts of the graph. If you want the
-        textbook definition, where unreachable pairs pull the average down, multiply the result
-        by the fraction of ordered node pairs that are reachable.
+        Unreachable pairs count as efficiency `0` (their distance is infinite), and the average
+        is taken over all `n(n-1)` ordered pairs of distinct nodes, so splitting a graph into
+        disconnected pieces lowers its efficiency. This matches the standard definition and
+        NetworkX's `global_efficiency()`.
 
         Returns
         -------
@@ -39171,12 +39170,10 @@ class Graph:
         Technical Notes
         ---------------
         Latora and Marchiori (2001) introduced global efficiency as an information-flow
-        measure on a comparable $[0, 1]$ scale across any topology. This implementation
-        computes $\dfrac{1}{|P|} \sum_{(i, j) \in P} \dfrac{1}{d(i, j)}$, where $P$ is the
-        set of ordered pairs $i \ne j$ with $j$ reachable from $i$. On a connected
-        undirected graph (or a strongly connected directed graph) $|P| = n(n-1)$ and this
-        equals the standard definition; on other graphs it is larger than the standard
-        value, which also counts unreachable pairs (with $1/d = 0$) in the denominator. A
+        measure on a comparable $[0, 1]$ scale across any topology:
+        $E = \dfrac{1}{n(n-1)} \sum_{i \ne j} \dfrac{1}{d(i, j)}$, with $1/d(i, j) = 0$
+        when $j$ is unreachable from $i$. Using $1/d$ rather than $d$ is what keeps the
+        measure finite on disconnected graphs, where the mean shortest path is undefined. A
         complete graph achieves the maximum of $1$. The computation runs an unweighted BFS
         from every node, so cost is $O(V(V + E))$ time and $O(V)$ extra space per source.
 
@@ -39210,8 +39207,9 @@ class Graph:
         (path.global_efficiency(), star.global_efficiency())
         ```
 
-        Because unreachable pairs are excluded from the average, two disconnected edges score
-        a perfect `1.0`: every pair that *can* communicate is only one hop apart:
+        Unreachable pairs count as `0`. With two separate edges, only 4 of the 12 ordered node
+        pairs can reach each other (each at distance 1), so the efficiency is `4 / 12`, about
+        `0.333`, rather than `1.0`:
 
         ```{python}
         split = (

@@ -241,8 +241,54 @@ class TestGlobalEfficiency:
         # but unreachable pairs contribute 0, so overall < 1.0
         # Actually, NetworkX counts unreachable pairs as distance infinity (efficiency 0)
         # So: 6 pairs within triangles (efficiency 1.0) + 9 cross-component pairs (efficiency 0)
-        # = 6/15 = 0.4
-        assert 0.0 < eff <= 1.0
+        # = 6/15 = 0.4 (the old implementation dropped unreachable pairs and returned 1.0)
+        assert eff == pytest.approx(0.4)
+
+    def test_two_separate_edges(self):
+        """Only 2 of the 6 node pairs can reach each other, so efficiency is 1/3, not 1.0."""
+        graph = Graph()
+        for label in "ABCD":
+            graph.add_node(label=label)
+        graph.add_edge("A", "B")
+        graph.add_edge("C", "D")
+
+        assert graph.global_efficiency() == pytest.approx(1 / 3)
+
+    def test_isolated_node_lowers_efficiency(self):
+        """Adding an isolated node to a triangle: 6 of 12 ordered pairs remain reachable."""
+        graph = Graph()
+        for label in "ABCD":
+            graph.add_node(label=label)
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+        graph.add_edge("C", "A")
+
+        assert graph.global_efficiency() == pytest.approx(0.5)
+
+    def test_matches_networkx_including_disconnected(self):
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(5)
+        for seed in range(60):
+            reference = nx.gnp_random_graph(rng.randint(2, 15), rng.random() * 0.4, seed=seed)
+            graph = Graph()
+            for node in reference:
+                graph.add_node(label=str(node))
+            for u, v in reference.edges():
+                graph.add_edge(str(u), str(v))
+
+            assert graph.global_efficiency() == pytest.approx(nx.global_efficiency(reference))
+
+    def test_directed_averages_over_ordered_pairs(self):
+        """A -> B -> C: reachable ordered pairs give 1 + 1/2 + 1 = 2.5 over 6 pairs."""
+        graph = Graph(directed=True)
+        for label in "ABC":
+            graph.add_node(label=label)
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "C")
+
+        assert graph.global_efficiency() == pytest.approx(2.5 / 6)
 
     def test_efficiency_ordering(self):
         """Complete > Random > Path in efficiency."""
