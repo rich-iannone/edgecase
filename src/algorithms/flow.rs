@@ -322,12 +322,20 @@ pub fn min_cost_flow(
 
     let edges = graph.get_edges_internal();
 
-    // Build capacity and cost maps: (source, target) -> (total_capacity, cost_per_unit)
-    // For parallel edges, we sum capacities but keep the minimum cost
-    let mut cap: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-    let mut edge_cost: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-    // Map from (source, target) to original edge id (for output)
-    let mut edge_id_map: FxHashMap<(u64, u64), u64> = FxHashMap::default();
+    // Residual network with one forward arc per edge, each paired with its own reverse
+    // (cancellation) arc. Keeping arcs per edge, rather than per (source, target) pair,
+    // means parallel edges keep their own costs and capacities, and a real v -> u edge
+    // never shares capacity or cost with the reverse arc of u -> v.
+    let mut node_index: FxHashMap<u64, usize> = FxHashMap::default();
+    for node_id in graph.get_node_ids() {
+        let next = node_index.len();
+        node_index.insert(node_id, next);
+    }
+
+    let mut arcs: Vec<ResidualArc> = Vec::with_capacity(edges.len() * 2);
+    let mut out_arcs: Vec<Vec<usize>> = vec![Vec::new(); node_index.len()];
+    // (edge id, index of its forward arc, original capacity)
+    let mut edge_arcs: Vec<(u64, usize, f64)> = Vec::with_capacity(edges.len());
 
     for edge in edges {
         // Skip self-loops
@@ -337,36 +345,17 @@ pub fn min_cost_flow(
 
         let edge_cap = get_edge_capacity(edge, capacity, graph.is_weighted())?;
         let unit_cost = get_edge_cost(edge, cost)?;
+        let (u, v) = (node_index[&edge.source], node_index[&edge.target]);
 
-        let key = (edge.source, edge.target);
-        *cap.entry(key).or_insert(0.0) += edge_cap;
-
-        // For parallel edges, use minimum cost
-        edge_cost
-            .entry(key)
-            .and_modify(|c| *c = c.min(unit_cost))
-            .or_insert(unit_cost);
-
-        // Store edge ID (first one wins for parallel edges)
-        edge_id_map.entry(key).or_insert(edge.id);
+        let forward = arcs.len();
+        arcs.push(ResidualArc { to: v, residual: edge_cap, cost: unit_cost, rev: forward + 1 });
+        arcs.push(ResidualArc { to: u, residual: 0.0, cost: -unit_cost, rev: forward });
+        out_arcs[u].push(forward);
+        out_arcs[v].push(forward + 1);
+        edge_arcs.push((edge.id, forward, edge_cap));
     }
 
-    // Initialize residual graph = capacity
-    let mut residual = cap.clone();
-
-    // For the residual graph, we need reverse edges with negative cost
-    // Initialize reverse edges with 0 capacity (for flow cancellation)
-    // Collect edges first to avoid borrow issues
-    let forward_edges: Vec<((u64, u64), f64)> = edge_cost.iter().map(|(&k, &v)| (k, v)).collect();
-    for ((u, v), c) in forward_edges {
-        residual.entry((v, u)).or_insert(0.0);
-        // Reverse edge has negative cost (canceling flow refunds cost)
-        edge_cost.entry((v, u)).or_insert(-c);
-    }
-
-    // Track flow on each directed edge pair
-    let mut flow: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-
+    let (source_idx, sink_idx) = (node_index[&source], node_index[&sink]);
     let mut total_flow = 0.0;
     let mut total_cost = 0.0;
 
@@ -379,56 +368,30 @@ pub fn min_cost_flow(
             break; // Satisfied demand
         }
 
-        // Find shortest path (by cost) using Bellman-Ford
-        let path_result = bellman_ford_shortest_path(source, sink, &residual, &edge_cost);
-
-        let (path, path_cost) = match path_result {
+        // Find the cheapest augmenting path (as arc indices) using Bellman-Ford
+        let (path, path_cost) = match cheapest_residual_path(source_idx, sink_idx, &arcs, &out_arcs)? {
             Some(p) => p,
             None => break, // No more augmenting paths
         };
 
-        if path.is_empty() {
-            break;
-        }
-
         // Find minimum residual capacity along the path (bottleneck)
-        let mut path_flow = f64::INFINITY;
-        for i in 0..path.len() - 1 {
-            let edge_key = (path[i], path[i + 1]);
-            let res_cap = residual.get(&edge_key).copied().unwrap_or(0.0);
-            path_flow = path_flow.min(res_cap);
-        }
+        let mut path_flow = path
+            .iter()
+            .map(|&a| arcs[a].residual)
+            .fold(f64::INFINITY, f64::min);
 
         // Limit flow to remaining demand
-        let remaining = target_flow - total_flow;
-        path_flow = path_flow.min(remaining);
+        path_flow = path_flow.min(target_flow - total_flow);
 
         if path_flow < 1e-10 {
             break;
         }
 
-        // Update residual capacities and flow
-        for i in 0..path.len() - 1 {
-            let forward_key = (path[i], path[i + 1]);
-            let backward_key = (path[i + 1], path[i]);
-
-            // Decrease forward residual capacity
-            if let Some(res) = residual.get_mut(&forward_key) {
-                *res -= path_flow;
-            }
-
-            // Increase backward residual capacity (for flow cancellation)
-            *residual.entry(backward_key).or_insert(0.0) += path_flow;
-
-            // Update flow
-            *flow.entry(forward_key).or_insert(0.0) += path_flow;
-            // Decrease reverse flow if it exists
-            if let Some(rev_flow) = flow.get_mut(&backward_key) {
-                if *rev_flow > 0.0 {
-                    let cancel = path_flow.min(*rev_flow);
-                    *rev_flow -= cancel;
-                }
-            }
+        // Push flow: shrink each arc's residual and grow its paired reverse arc
+        for &a in &path {
+            arcs[a].residual -= path_flow;
+            let rev = arcs[a].rev;
+            arcs[rev].residual += path_flow;
         }
 
         total_flow += path_flow;
@@ -445,18 +408,14 @@ pub fn min_cost_flow(
         }
     }
 
-    // Build flow dict mapping edge_id -> flow
+    // Build flow dict mapping edge_id -> flow: each edge's flow is how much of its own
+    // capacity has been used
     let mut flow_dict: FxHashMap<u64, f64> = FxHashMap::default();
 
-    for edge in edges {
-        if edge.source == edge.target {
-            continue; // Skip self-loops
-        }
-
-        let forward_flow = flow.get(&(edge.source, edge.target)).copied().unwrap_or(0.0);
-
-        if forward_flow > 1e-10 {
-            flow_dict.insert(edge.id, forward_flow);
+    for &(edge_id, forward, edge_cap) in &edge_arcs {
+        let edge_flow = edge_cap - arcs[forward].residual;
+        if edge_flow > 1e-10 {
+            flow_dict.insert(edge_id, edge_flow);
         }
     }
 
@@ -491,88 +450,78 @@ fn get_edge_cost(edge: &crate::graph::Edge, cost: Option<&str>) -> PyResult<f64>
     Ok(unit_cost)
 }
 
-/// Bellman-Ford shortest path algorithm for finding minimum cost path.
-/// Returns (path, total_cost) or None if no path exists.
-/// Handles negative edge costs.
-fn bellman_ford_shortest_path(
-    source: u64,
-    sink: u64,
-    residual: &FxHashMap<(u64, u64), f64>,
-    edge_cost: &FxHashMap<(u64, u64), f64>,
-) -> Option<(Vec<u64>, f64)> {
-    // Collect all nodes that appear in residual graph
-    let mut nodes: Vec<u64> = Vec::new();
-    for &(u, v) in residual.keys() {
-        if !nodes.contains(&u) {
-            nodes.push(u);
-        }
-        if !nodes.contains(&v) {
-            nodes.push(v);
-        }
-    }
+/// An arc of the min-cost-flow residual network
+#[derive(Clone, Copy)]
+struct ResidualArc {
+    /// Index of the node the arc points to
+    to: usize,
+    /// Remaining capacity on this arc
+    residual: f64,
+    /// Cost per unit of flow (negated on reverse arcs, so cancelling flow refunds its cost)
+    cost: f64,
+    /// Index of the paired arc in the opposite direction
+    rev: usize,
+}
 
-    if nodes.is_empty() {
-        return None;
-    }
+/// Bellman-Ford search for the cheapest source -> sink path over arcs with residual capacity.
+/// Returns (arc indices along the path, total cost per unit), or None if the sink is
+/// unreachable. Handles negative arc costs; errors if a negative-cost cycle is reachable,
+/// since the cheapest path is then undefined.
+fn cheapest_residual_path(
+    source: usize,
+    sink: usize,
+    arcs: &[ResidualArc],
+    out_arcs: &[Vec<usize>],
+) -> PyResult<Option<(Vec<usize>, f64)>> {
+    let n = out_arcs.len();
+    let mut dist = vec![f64::INFINITY; n];
+    // Arc used to reach each node on the current cheapest path
+    let mut parent_arc: Vec<Option<usize>> = vec![None; n];
+    dist[source] = 0.0;
 
-    // Distance and parent maps
-    let mut dist: FxHashMap<u64, f64> = FxHashMap::default();
-    let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
-
-    for &node in &nodes {
-        dist.insert(node, f64::INFINITY);
-    }
-    dist.insert(source, 0.0);
-
-    // Build edge list for Bellman-Ford
-    let mut edge_list: Vec<(u64, u64, f64)> = Vec::new();
-    for (&(u, v), &cap) in residual.iter() {
-        if cap > 1e-10 {
-            let cost = edge_cost.get(&(u, v)).copied().unwrap_or(1.0);
-            edge_list.push((u, v, cost));
-        }
-    }
-
-    // Bellman-Ford relaxation
-    let n = nodes.len();
-    for _ in 0..n - 1 {
+    // Bellman-Ford relaxation; an n-th round that still improves something means a
+    // negative-cost cycle is reachable from the source
+    for round in 0..n {
         let mut updated = false;
-        for &(u, v, cost) in &edge_list {
-            let du = dist.get(&u).copied().unwrap_or(f64::INFINITY);
-            let dv = dist.get(&v).copied().unwrap_or(f64::INFINITY);
-            if du < f64::INFINITY && du + cost < dv - 1e-10 {
-                dist.insert(v, du + cost);
-                parent.insert(v, u);
-                updated = true;
+        for u in 0..n {
+            if dist[u] == f64::INFINITY {
+                continue;
+            }
+            for &a in &out_arcs[u] {
+                let arc = &arcs[a];
+                if arc.residual > 1e-10 && dist[u] + arc.cost < dist[arc.to] - 1e-10 {
+                    dist[arc.to] = dist[u] + arc.cost;
+                    parent_arc[arc.to] = Some(a);
+                    updated = true;
+                }
             }
         }
         if !updated {
             break; // Early termination if no updates
         }
-    }
-
-    // Check if sink is reachable
-    let sink_dist = dist.get(&sink).copied().unwrap_or(f64::INFINITY);
-    if sink_dist == f64::INFINITY {
-        return None;
-    }
-
-    // Reconstruct path
-    let mut path = Vec::new();
-    let mut current = sink;
-    path.push(current);
-
-    while current != source {
-        if let Some(&p) = parent.get(&current) {
-            current = p;
-            path.push(current);
-        } else {
-            return None; // Path broken
+        if round == n - 1 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Graph contains a negative-cost cycle, so the minimum cost flow is undefined",
+            ));
         }
     }
 
+    // Check if sink is reachable
+    if dist[sink] == f64::INFINITY {
+        return Ok(None);
+    }
+
+    // Reconstruct path by walking parent arcs back from the sink
+    let mut path = Vec::new();
+    let mut current = sink;
+    while current != source {
+        let a = parent_arc[current].expect("reachable node has a parent arc");
+        path.push(a);
+        current = arcs[arcs[a].rev].to;
+    }
+
     path.reverse();
-    Some((path, sink_dist))
+    Ok(Some((path, dist[sink])))
 }
 
 /// Helper function to get edge capacity

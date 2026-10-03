@@ -34916,10 +34916,10 @@ class Graph:
         in the residual network (using Bellman-Ford, so negative per-unit costs are allowed) and
         pushes as much flow along it as the bottleneck capacity permits.
 
-        The graph must be directed. Self-loops are ignored. Parallel edges between the same pair
-        of nodes are merged into a single arc whose capacity is the sum of their capacities and
-        whose per-unit cost is the *smallest* of their costs, so give parallel edges equal costs
-        (or combine them yourself) if you need exact costing.
+        The graph must be directed. Self-loops are ignored. Every edge is routed on its own, so
+        parallel edges between the same pair of nodes each keep their own capacity and cost (the
+        cheaper one fills first) and `flow_dict` reports each one's flow separately. Edges in
+        opposite directions between two nodes are also independent of each other.
 
         Parameters
         ----------
@@ -34957,13 +34957,15 @@ class Graph:
         ------
         ValueError
             If the graph is undirected, `source=` or `sink=` doesn't exist, they're the same node,
-            `demand=` is negative, or `demand=` cannot be satisfied.
+            `demand=` is negative, `demand=` cannot be satisfied, or a cycle whose per-unit costs
+            sum to a negative number is reachable from `source=` (the cheapest flow is then
+            undefined).
 
         Technical Notes
         ---------------
         Uses the Successive Shortest Path algorithm with Bellman-Ford relaxation, so
-        negative per-unit costs are permitted alongside the usual non-negative case (avoid
-        negative-cost cycles, for which a cheapest path is undefined). The algorithm runs in
+        negative per-unit costs are permitted alongside the usual non-negative case (a reachable
+        negative-cost cycle raises `ValueError`, since a cheapest path is then undefined). The algorithm runs in
         $O(V \cdot E \cdot F)$ time in the worst case, where $F$ is the number of augmenting
         steps. Because it always routes along the *cheapest* residual path from source to
         sink, the final flow is optimal in total cost for the amount sent. The graph must be

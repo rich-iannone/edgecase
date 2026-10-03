@@ -310,20 +310,123 @@ class TestMinCostFlowIntegration:
         assert cost == 50.0
 
     def test_parallel_edges(self):
-        """Parallel edges should have capacities summed."""
+        """Parallel edges each keep their own capacity and cost."""
         graph = ec.Graph(directed=True, weighted=True)
         graph.add_node(label="S")
         graph.add_node(label="T")
         graph.add_edge("S", "T", weight=10.0, cost=5.0)
         graph.add_edge("S", "T", weight=10.0, cost=3.0)  # Cheaper parallel edge
+        expensive_id, cheap_id = graph.find_edge_ids("S", "T")
 
         flow, cost, flow_dict = graph.min_cost_flow("S", "T")
 
         # Total capacity is 20
         assert flow == 20.0
 
-        # Uses cheaper edge cost (3) for the flow
-        assert cost == 60.0  # 20 * 3
+        # Each edge fills to its own capacity at its own cost: 10 * 3 + 10 * 5
+        assert cost == 80.0
+        assert flow_dict == {cheap_id: 10.0, expensive_id: 10.0}
+
+    def test_parallel_edges_prefer_cheaper_edge(self):
+        """With spare capacity, flow goes on the cheaper of two parallel edges only."""
+        graph = ec.Graph(directed=True, weighted=True)
+        graph.add_node(label="S")
+        graph.add_node(label="T")
+        graph.add_edge("S", "T", weight=10.0, cost=5.0)
+        graph.add_edge("S", "T", weight=10.0, cost=3.0)
+        _, cheap_id = graph.find_edge_ids("S", "T")
+
+        flow, cost, flow_dict = graph.min_cost_flow("S", "T", demand=6.0)
+
+        assert (flow, cost) == (6.0, 18.0)
+        assert flow_dict == {cheap_id: 6.0}
+
+    def test_antiparallel_edges(self):
+        """A real B -> A edge doesn't share capacity or cost with A -> B's cancellation arc."""
+        graph = ec.Graph(directed=True)
+        for label in ["S", "A", "B", "T"]:
+            graph.add_node(label=label)
+        graph.add_edge("S", "A", capacity=2, cost=1)
+        graph.add_edge("S", "B", capacity=2, cost=1)
+        graph.add_edge("A", "B", capacity=2, cost=1)
+        graph.add_edge("B", "A", capacity=2, cost=1)
+        graph.add_edge("A", "T", capacity=1, cost=1)
+        graph.add_edge("B", "T", capacity=3, cost=1)
+
+        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+
+        # Max flow is 4: S->A->T (1), S->B->T (2), S->A->B->T (1)
+        assert flow == 4.0
+        assert cost == 9.0
+        b_to_a = graph.find_edge_ids("B", "A")[0]
+        assert b_to_a not in flow_dict
+
+    def test_negative_cost_cycle_raises(self):
+        """A reachable negative-cost cycle makes the cheapest flow undefined."""
+        graph = ec.Graph(directed=True)
+        for label in ["S", "A", "B", "T"]:
+            graph.add_node(label=label)
+        graph.add_edge("S", "A", capacity=1, cost=1)
+        graph.add_edge("A", "B", capacity=5, cost=-3)
+        graph.add_edge("B", "A", capacity=5, cost=1)
+        graph.add_edge("A", "T", capacity=1, cost=1)
+
+        with pytest.raises(ValueError, match="negative-cost cycle"):
+            graph.min_cost_flow("S", "T")
+
+    def test_matches_networkx_on_multigraphs(self):
+        """Flow value, cost, and a feasible per-edge flow match NetworkX's network simplex."""
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(11)
+        for _ in range(60):
+            n = rng.randint(3, 7)
+            reference = nx.MultiDiGraph()
+            reference.add_nodes_from(range(n))
+            graph = ec.Graph(directed=True)
+            for i in range(n):
+                graph.add_node(label=str(i))
+            for _ in range(rng.randint(n, 3 * n)):
+                u, v = rng.sample(range(n), 2)
+                cap, unit_cost = rng.randint(1, 6), rng.randint(0, 9)
+                reference.add_edge(u, v, capacity=cap, weight=unit_cost)
+                graph.add_edge(str(u), str(v), capacity=cap, cost=unit_cost)
+
+            collapsed = nx.DiGraph()
+            collapsed.add_nodes_from(range(n))
+            for u, v, data in reference.edges(data=True):
+                prior = collapsed[u][v]["capacity"] if collapsed.has_edge(u, v) else 0
+                collapsed.add_edge(u, v, capacity=prior + data["capacity"])
+            max_value = nx.maximum_flow_value(collapsed, 0, n - 1)
+            if max_value == 0:
+                continue
+
+            nx.set_node_attributes(reference, 0, "demand")
+            reference.nodes[0]["demand"] = -max_value
+            reference.nodes[n - 1]["demand"] = max_value
+            expected_cost, _ = nx.network_simplex(reference)
+
+            flow, cost, flow_dict = graph.min_cost_flow("0", str(n - 1))
+            assert flow == pytest.approx(max_value)
+            assert cost == pytest.approx(expected_cost)
+
+            net = {node_id: 0.0 for node_id in graph.get_node_ids()}
+            edge_cost_sum = 0.0
+            for edge_id, edge_flow in flow_dict.items():
+                edge = graph.get_edge(edge_id)
+                assert edge_flow <= edge.attributes["capacity"] + 1e-9
+                net[edge.source] -= edge_flow
+                net[edge.target] += edge_flow
+                edge_cost_sum += edge_flow * edge.attributes["cost"]
+            assert edge_cost_sum == pytest.approx(cost)
+            source_id, sink_id = graph.get_id_from_label("0"), graph.get_id_from_label(str(n - 1))
+            assert net[sink_id] == pytest.approx(max_value)
+            assert all(
+                net[node_id] == pytest.approx(0.0)
+                for node_id in net
+                if node_id not in (source_id, sink_id)
+            )
 
     def test_flow_dict_has_positive_flows(self):
         """Flow dict should only contain edges with positive flow."""
