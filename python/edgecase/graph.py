@@ -1135,7 +1135,8 @@ class Graph:
 
         A bulk version of `add_node()` that accepts a list of node labels and applies shared
         attributes to all of them. Individual nodes can override shared attributes by passing a
-        tuple of `(label, dict)` instead of a bare label.
+        tuple of `(label, dict)` instead of a bare label, or the whole argument can be a dict
+        mapping each label to its attributes.
 
         Nodes are added in the order given, each receiving the next auto-assigned ID, and every
         label is converted to a string (so `range(1, 4)` produces the labels `"1"`, `"2"`, `"3"`).
@@ -1155,12 +1156,18 @@ class Graph:
         Parameters
         ----------
         nodes
-            Node labels to add, as a list (or any iterable such as a `range`). Each element can be:
+            Node labels to add, as a list (or any iterable such as a `range` or a generator).
+            Each element can be:
 
             - A string or int label (e.g., `'Alice'`, `42`), converted to a string label.
             - A tuple of `(label, attrs_dict)` to override shared attributes for that node. The
               dict is merged on top of `**shared_attrs=`, and may contain a `"type"` key to
               override `type=` for that node.
+
+            Alternatively, pass a dict mapping each label to its attribute dict (or `None` for
+            none), e.g. `{'Alice': {'team': 'red'}, 'Bob': None}`. A tuple that isn't
+            `(label, dict)`, or a non-dict attribute value, raises a `TypeError`; the input is
+            checked before any node is added.
         type
             Optional type applied to every node (unless overridden per-node with a `"type"` key in
             the attributes dict). Stored in the first-class `type` column of the node DataFrame.
@@ -1173,6 +1180,12 @@ class Graph:
         -------
         Graph
             Returns self to enable method chaining.
+
+        Raises
+        ------
+        TypeError
+            If an element is a tuple other than `(label, attrs_dict)`, is itself a dict, or (with
+            the dict form) a node's attributes aren't a dict or `None`.
 
         Examples
         --------
@@ -1202,6 +1215,18 @@ class Graph:
             ],
             type='person',
             team='red',
+        )
+
+        graph.get_node_df()
+        ```
+
+        A dict maps each label to its own attributes, which reads naturally when every node has
+        different values:
+
+        ```{python}
+        graph = ec.Graph().add_nodes(
+            {'Alice': {'age': 34}, 'Bob': {'age': 27}, 'Carol': None},
+            type='person',
         )
 
         graph.get_node_df()
@@ -1471,8 +1496,9 @@ class Graph:
         ![Add several edges](/assets/graphs/add-edges.light.svg){.lightbox fig-alt="Before: four nodes with two edges, B to A to C. After: two new edges, B to D and C to D, appear in the accent color in one call and close the cycle; no nodes are added." width="100%"}
 
         A bulk version of `add_edge()` that accepts a list of `(source, target)` pairs and applies
-        shared attributes to all of them. Individual edges can override shared attributes by passing
-        a third element as a dict in the tuple.
+        shared attributes to all of them. A third element sets that edge's weight (a number) or
+        overrides the shared attributes (a dict), so a weighted edge list reads like NetworkX's
+        `add_weighted_edges_from()`: `[("A", "B", 2.0), ("B", "C", 0.5)]`.
 
         Endpoints are resolved exactly as in `add_edge()`: integers are node IDs and strings are
         node labels. Edges are added in list order, each with its own auto-assigned edge ID, and
@@ -1485,18 +1511,28 @@ class Graph:
         - building a graph directly from an edge list with `auto_create_nodes=True`
         - tagging a batch of edges with a common `rel=`, `weight=` or other attribute
 
-        Edges are added one at a time, so if an endpoint can't be resolved part-way through the
-        list, the edges before it have already been added when the error is raised.
+        Every item's shape is checked before any edge is added, so a malformed item leaves the
+        graph unchanged. Endpoints are only resolved while adding, though: if one can't be
+        resolved part-way through the list, the edges before it have already been added when the
+        error is raised.
 
         Parameters
         ----------
         edges
             Edge definitions to add. Each element can be:
 
-            - A tuple of `(source, target)` with shared attributes applied.
-            - A tuple of `(source, target, attrs_dict)` to override shared attributes for that edge.
-              The dict is merged on top of `**shared_attrs=` and may also contain `"rel"` and
-              `"weight"` keys to override `rel=` and `weight=` for that edge.
+            - `(source, target)`: shared attributes and `weight=` apply.
+            - `(source, target, weight)`: a number (int, float or NumPy scalar) that sets this
+              edge's weight, overriding `weight=`.
+            - `(source, target, attrs_dict)`: the dict is merged on top of `**shared_attrs=` and
+              may also contain `"rel"` and `"weight"` keys to override `rel=` and `weight=` for
+              that edge.
+            - `(source, target, weight, attrs_dict)`: both of the above. The dict must not also
+              contain `"weight"`.
+
+            Lists work in place of tuples. Any other shape (a bare string, a non-numeric,
+            non-dict third element, or a different length) raises an error rather than being
+            silently truncated.
         rel
             Optional relationship type applied to every edge (unless overridden per-edge). Stored
             in the first-class `rel` column of the edge DataFrame. Default is `None`.
@@ -1519,9 +1555,12 @@ class Graph:
 
         Raises
         ------
+        TypeError
+            If an item isn't one of the accepted shapes (checked before any edge is added).
         ValueError
-            If a source or target can't be resolved to an existing node (and
-            `auto_create_nodes=` is `False`).
+            If an item gives its weight both as the third element and in its dict, or if a
+            source or target can't be resolved to an existing node (and `auto_create_nodes=` is
+            `False`).
 
         Examples
         --------
@@ -1552,6 +1591,19 @@ class Graph:
         )
 
         graph.get_edge_df()
+        ```
+
+        A number as the third element is that edge's weight, which makes weighted edge lists
+        compact:
+
+        ```{python}
+        graph = (
+            ec.Graph(weighted=True)
+            .add_nodes(['A', 'B', 'C'])
+            .add_edges([('A', 'B', 2.0), ('B', 'C', 0.5), ('A', 'C', 3.0)])
+        )
+
+        graph.get_edge_df().select(['source', 'target', 'weight'])
         ```
 
         A dict as the third tuple element overrides the shared values for that edge only. Here the
@@ -2069,11 +2121,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.count_nodes(), graph.count_edges()
@@ -2188,11 +2237,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
             .delete_edge(source="A", target="B")
         )
 
@@ -2232,10 +2278,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="A", target="B", weight=2.0)
+            .add_nodes(["A", "B"])
+            .add_edges([("A", "B", 1.0), ("A", "B", 2.0)])
             .delete_edge(source="A", target="B")
         )
 
@@ -2448,11 +2492,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A", value=10)
-            .add_node(label="B", value=25)
-            .add_node(label="C", value=30)
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes([("A", {"value": 10}), ("B", {"value": 25}), ("C", {"value": 30})])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.select_nodes(lambda n: n.attributes.get("value", 0) > 20)
@@ -2549,13 +2590,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="B", target="C", weight=5.0)
-            .add_edge(source="C", target="D", weight=2.0)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 1.0), ("B", "C", 5.0), ("C", "D", 2.0)])
         )
 
         graph.select_edges(lambda e: e.weight is not None and e.weight < 2.0)
@@ -2639,11 +2675,14 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="A")  # self-loop
-            .add_edge(source="B", target="B")  # self-loop
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("A", "A"),  # self-loop
+                    ("B", "B"),  # self-loop
+                ]
+            )
         )
 
         g.count_edges(), g.which_loops()
@@ -2664,12 +2703,14 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_node(label="Z")
-            .add_edge(source="X", target="Y")
-            .add_edge(source="Y", target="Z")
-            .add_edge(source="X", target="X")  # self-loop
+            .add_nodes(["X", "Y", "Z"])
+            .add_edges(
+                [
+                    ("X", "Y"),
+                    ("Y", "Z"),
+                    ("X", "X"),  # self-loop
+                ]
+            )
             .remove_selfloops()
         )
 
@@ -2682,11 +2723,14 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge(source="X", target="Y")
-            .add_edge(source="X", target="Y")  # parallel edge
-            .add_edge(source="Y", target="Y")  # self-loop
+            .add_nodes(["X", "Y"])
+            .add_edges(
+                [
+                    ("X", "Y"),
+                    ("X", "Y"),  # parallel edge
+                    ("Y", "Y"),  # self-loop
+                ]
+            )
             .remove_selfloops()
         )
 
@@ -2763,11 +2807,8 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="A", target="B", weight=2.0)
-            .add_edge(source="A", target="B", weight=3.0)
+            .add_nodes(["A", "B"])
+            .add_edges([("A", "B", 1.0), ("A", "B", 2.0), ("A", "B", 3.0)])
         )
 
         g.count_edges()
@@ -2779,11 +2820,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="A", target="B", weight=2.0)
-            .add_edge(source="A", target="B", weight=3.0)
+            .add_nodes(["A", "B"])
+            .add_edges([("A", "B", 1.0), ("A", "B", 2.0), ("A", "B", 3.0)])
             .remove_duplicate_edges()
         )
 
@@ -2797,11 +2835,14 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", rel="friend")
-            .add_edge(source="A", target="B", rel="colleague")
-            .add_edge(source="A", target="B", rel="friend")  # true duplicate of the first edge
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B", {"rel": "friend"}),
+                    ("A", "B", {"rel": "colleague"}),
+                    ("A", "B", {"rel": "friend"}),  # true duplicate of the first edge
+                ]
+            )
             .remove_duplicate_edges(keep_distinct_attributes=True)
         )
 
@@ -2815,11 +2856,14 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge(source="X", target="Y", type="email")
-            .add_edge(source="X", target="Y", type="message")
-            .add_edge(source="X", target="Y", type="call")
+            .add_nodes(["X", "Y"])
+            .add_edges(
+                [
+                    ("X", "Y", {"type": "email"}),
+                    ("X", "Y", {"type": "message"}),
+                    ("X", "Y", {"type": "call"}),
+                ]
+            )
             .remove_duplicate_edges()
         )
 
@@ -2876,12 +2920,15 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="A", target="B", weight=2.0)  # duplicate
-            .add_edge(source="A", target="A")  # self-loop
-            .add_edge(source="B", target="B")  # self-loop
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B", 1.0),
+                    ("A", "B", 2.0),  # duplicate
+                    ("A", "A"),  # self-loop
+                    ("B", "B"),  # self-loop
+                ]
+            )
         )
 
         g.count_edges(), g.is_simple()
@@ -2893,12 +2940,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="A", target="B", weight=2.0)
-            .add_edge(source="A", target="A")
-            .add_edge(source="B", target="B")
+            .add_nodes(["A", "B"])
+            .add_edges([("A", "B", 1.0), ("A", "B", 2.0), ("A", "A"), ("B", "B")])
             .simplify()
         )
 
@@ -2911,13 +2954,15 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_node(label="Z")
-            .add_edge(source="X", target="Y")
-            .add_edge(source="X", target="Y")  # duplicate
-            .add_edge(source="Y", target="Z")
-            .add_edge(source="Z", target="Z")  # self-loop
+            .add_nodes(["X", "Y", "Z"])
+            .add_edges(
+                [
+                    ("X", "Y"),
+                    ("X", "Y"),  # duplicate
+                    ("Y", "Z"),
+                    ("Z", "Z"),  # self-loop
+                ]
+            )
             .simplify()
         )
 
@@ -3026,11 +3071,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.describe()
@@ -3313,11 +3355,8 @@ class Graph:
         import edgecase as ec
 
         G = ec.Graph()
-        G.add_node(label="A")
-        G.add_node(label="B")
-        G.add_node(label="C")
-        G.add_edge(source="A", target="B")
-        G.add_edge(source="B", target="C")
+        G.add_nodes(["A", "B", "C"])
+        G.add_edges([("A", "B"), ("B", "C")])
 
         # G.plot_vis()  # Auto-detects notebook vs browser
         # G.plot_vis(target="browser")  # Open in a browser tab (outside notebooks)
@@ -3632,12 +3671,14 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node("a", name="Ana")
-            .add_node("b", name="Ben")
-            .add_node("c", name="Cy")
-            .add_edge("a", "b", rel="manages")
-            .add_edge("a", "c", rel="manages")
-            .add_edge("b", "c", rel="mentors")
+            .add_nodes([("a", {"name": "Ana"}), ("b", {"name": "Ben"}), ("c", {"name": "Cy"})])
+            .add_edges(
+                [
+                    ("a", "b", {"rel": "manages"}),
+                    ("a", "c", {"rel": "manages"}),
+                    ("b", "c", {"rel": "mentors"}),
+                ]
+            )
         )
 
         graph.plot(label_by="name", edge_label_by="rel", layout="circular")
@@ -4041,8 +4082,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node("A").add_node("B").add_node("C")
-        graph.add_edge("A", "B").add_edge("B", "C")
+        graph.add_nodes(["A", "B", "C"])
+        graph.add_edges([("A", "B"), ("B", "C")])
 
         node_a = graph.get_id_from_label("A")
         rec = graph.record_traversal()
@@ -6044,19 +6085,10 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("A", "D")
-            .add_edge("B", "E")
-            .add_edge("C", "F")
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges(
+                [("A", "B"), ("B", "C"), ("D", "E"), ("E", "F"), ("A", "D"), ("B", "E"), ("C", "F")]
+            )
         )
 
         graph.get_edges_str_repr(use_labels=True)
@@ -6090,8 +6122,7 @@ class Graph:
         observed = ec.Graph()
         for _ in range(10):
             observed.add_full_graph(n=6)
-        for c in range(10):
-            observed.add_edge(str(c * 6 + 1), str((c + 1) % 10 * 6 + 2))
+        observed.add_edges([(str(c * 6 + 1), str((c + 1) % 10 * 6 + 2)) for c in range(10)])
 
         null = observed.degree_preserving_rewire(seed=23)
 
@@ -6507,11 +6538,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("C", "B", rel="road")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("C", "B", {"rel": "road"})])
         )
 
         edge_id = graph.find_edge_ids("B", "C")[0]
@@ -6575,9 +6603,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
+            .add_nodes(["A", "B", "C"])
         )
 
         ids = graph.get_node_ids()
@@ -6596,8 +6622,7 @@ class Graph:
 
         ```{python}
         graph = ec.Graph()
-        for i in range(100):
-            graph.add_node(label=f"Node_{i}")
+        graph.add_nodes([f"Node_{i}" for i in range(100)])
 
         graph.get_node_ids(limit=10)
         ```
@@ -6660,11 +6685,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         ids = graph.get_edge_ids()
@@ -6681,10 +6703,8 @@ class Graph:
 
         ```{python}
         graph = ec.Graph()
-        for i in range(20):
-            graph.add_node(label=f"Node_{i}")
-        for i in range(19):
-            graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
+        graph.add_nodes([f"Node_{i}" for i in range(20)])
+        graph.add_edges([(f"Node_{i}", f"Node_{i+1}") for i in range(19)])
 
         graph.get_edge_ids(limit=10)
         ```
@@ -6773,11 +6793,8 @@ class Graph:
         ```{python}
         directed = (
             ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Carol")
-            .add_edge("Alice", "Bob")
-            .add_edge("Carol", "Alice")
+            .add_nodes(["Alice", "Bob", "Carol"])
+            .add_edges([("Alice", "Bob"), ("Carol", "Alice")])
         )
 
         source, target = directed.get_node_ids_by_edge_id(2)
@@ -6827,11 +6844,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Carol")
-            .add_edge("Alice", "Bob")
-            .add_edge("Bob", "Carol")
+            .add_nodes(["Alice", "Bob", "Carol"])
+            .add_edges([("Alice", "Bob"), ("Bob", "Carol")])
         )
 
         graph.get_id_from_label("Alice")
@@ -6902,11 +6916,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Carol")
-            .add_edge("Alice", "Bob")
-            .add_edge("Bob", "Carol")
+            .add_nodes(["Alice", "Bob", "Carol"])
+            .add_edges([("Alice", "Bob"), ("Bob", "Carol")])
         )
 
         graph.get_label_from_id(1)
@@ -6984,9 +6995,7 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph()
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
+        graph.add_nodes(["A", "B", "C"])
 
         creation_order = graph.get_node_creation_order()
         creation_order, graph.get_node_ids()
@@ -7062,12 +7071,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         creation_order = graph.get_edge_creation_order()
@@ -7148,13 +7153,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "C")
-            .add_edge("C", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "C")])
         )
 
         graph.get_edges_as_tuples()
@@ -7233,11 +7233,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.get_edges_str_repr()
@@ -7284,10 +7281,8 @@ class Graph:
 
         ```{python}
         graph = ec.Graph(directed=True)
-        for i in range(5):
-            graph.add_node(label=f"Node_{i}")
-        for i in range(4):
-            graph.add_edge(source=f"Node_{i}", target=f"Node_{i+1}")
+        graph.add_nodes([f"Node_{i}" for i in range(5)])
+        graph.add_edges([(f"Node_{i}", f"Node_{i+1}") for i in range(4)])
 
         (
             graph.get_edges_str_repr(limit=2, use_labels=True),
@@ -7531,11 +7526,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         edge_id = graph.get_edge_ids()[0]
@@ -7608,10 +7600,13 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph()
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_edge(source="A", target="B")
-        graph.add_edge(source="A", target="B")  # a second, parallel edge
+        graph.add_nodes(["A", "B"])
+        graph.add_edges(
+            [
+                ("A", "B"),
+                ("A", "B"),  # a second, parallel edge
+            ]
+        )
 
         graph.find_edge_ids(source="A", target="B")
         ```
@@ -7622,12 +7617,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("A", "B"), ("B", "A")])
         )
 
         (
@@ -7682,9 +7673,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
+            .add_nodes(["A", "B", "C"])
         )
 
         graph.count_nodes()
@@ -7734,11 +7723,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.count_edges()
@@ -7772,11 +7758,14 @@ class Graph:
         ```{python}
         multi = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="B")  # parallel edge
-            .add_edge(source="A", target="A")  # self-loop
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("A", "B"),  # parallel edge
+                    ("A", "A"),  # self-loop
+                ]
+            )
         )
 
         multi.count_edges()
@@ -7787,11 +7776,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
             .delete_edge(source="A", target="B")
         )
 
@@ -7995,8 +7981,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
+            .add_nodes(["A", "B"])
             .add_edge("A", "B")
         )
 
@@ -8016,10 +8001,13 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-            .add_edge("A", "B")  # parallel edge, auto-assigned a distinct ID
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("A", "B"),  # parallel edge, auto-assigned a distinct ID
+                ]
+            )
         )
 
         graph.is_simple()
@@ -8031,18 +8019,14 @@ class Graph:
         ```{python}
         directed = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-            .add_edge("B", "A")
+            .add_nodes(["A", "B"])
+            .add_edges([("A", "B"), ("B", "A")])
         )
 
         undirected = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-            .add_edge("B", "A")
+            .add_nodes(["A", "B"])
+            .add_edges([("A", "B"), ("B", "A")])
         )
 
         directed.is_simple(), undirected.is_simple()
@@ -8093,11 +8077,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.is_dag()
@@ -8119,14 +8100,15 @@ class Graph:
         ```{python}
         pipeline = (
             ec.Graph(directed=True)
-            .add_node(label="compile")
-            .add_node(label="test")
-            .add_node(label="docs")
-            .add_node(label="release")
-            .add_edge("compile", "test")
-            .add_edge("compile", "docs")
-            .add_edge("test", "release")
-            .add_edge("docs", "release")
+            .add_nodes(["compile", "test", "docs", "release"])
+            .add_edges(
+                [
+                    ("compile", "test"),
+                    ("compile", "docs"),
+                    ("test", "release"),
+                    ("docs", "release"),
+                ]
+            )
         )
 
         pipeline.is_dag()
@@ -8173,11 +8155,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.is_connected()
@@ -8198,11 +8177,8 @@ class Graph:
         ```{python}
         directed = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("C", "B")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("C", "B")])
         )
 
         directed.is_connected(), directed.is_strongly_connected()
@@ -8237,11 +8213,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.is_bipartite()
@@ -8253,12 +8226,14 @@ class Graph:
         ```{python}
         triangle = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # closes an odd-length cycle
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "A"),  # closes an odd-length cycle
+                ]
+            )
         )
 
         triangle.is_bipartite()
@@ -8322,13 +8297,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Gene1")
-            .add_node(label="Gene2")
-            .add_node(label="Disease1")
-            .add_node(label="Disease2")
-            .add_edge("Gene1", "Disease1")
-            .add_edge("Gene1", "Disease2")
-            .add_edge("Gene2", "Disease1")
+            .add_nodes(["Gene1", "Gene2", "Disease1", "Disease2"])
+            .add_edges([("Gene1", "Disease1"), ("Gene1", "Disease2"), ("Gene2", "Disease1")])
         )
 
         set_a, set_b = graph.bipartite_sets()
@@ -8345,13 +8315,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("C", "D")])
         )
 
         set_a, set_b = graph.bipartite_sets()
@@ -8436,15 +8401,15 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Gene1")
-            .add_node(label="Gene2")
-            .add_node(label="Gene3")
-            .add_node(label="Disease1")
-            .add_node(label="Disease2")
-            .add_edge("Gene1", "Disease1")
-            .add_edge("Gene2", "Disease1")
-            .add_edge("Gene2", "Disease2")
-            .add_edge("Gene3", "Disease2")
+            .add_nodes(["Gene1", "Gene2", "Gene3", "Disease1", "Disease2"])
+            .add_edges(
+                [
+                    ("Gene1", "Disease1"),
+                    ("Gene2", "Disease1"),
+                    ("Gene2", "Disease2"),
+                    ("Gene3", "Disease2"),
+                ]
+            )
         )
 
         set_a, set_b = graph.bipartite_sets()
@@ -8464,19 +8429,18 @@ class Graph:
         ```{python}
         events = (
             ec.Graph()
-            .add_node(label="Ann")
-            .add_node(label="Bob")
-            .add_node(label="Cal")
-            .add_node(label="Gala")
-            .add_node(label="Expo")
-            .add_node(label="Fair")
-            .add_edge("Ann", "Gala")
-            .add_edge("Bob", "Gala")
-            .add_edge("Ann", "Expo")
-            .add_edge("Bob", "Expo")
-            .add_edge("Cal", "Fair")
-            .add_edge("Ann", "Fair")
-            .add_edge("Bob", "Fair")
+            .add_nodes(["Ann", "Bob", "Cal", "Gala", "Expo", "Fair"])
+            .add_edges(
+                [
+                    ("Ann", "Gala"),
+                    ("Bob", "Gala"),
+                    ("Ann", "Expo"),
+                    ("Bob", "Expo"),
+                    ("Cal", "Fair"),
+                    ("Ann", "Fair"),
+                    ("Bob", "Fair"),
+                ]
+            )
         )
 
         people = events.bipartite_projection(which=0)
@@ -8587,19 +8551,17 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Ann")
-            .add_node(label="Bob")
-            .add_node(label="Cal")
-            .add_node(label="Dee")
-            .add_node(label="Film1")
-            .add_node(label="Film2")
-            .add_node(label="Film3")
-            .add_edge("Ann", "Film1")
-            .add_edge("Bob", "Film1")
-            .add_edge("Bob", "Film2")
-            .add_edge("Cal", "Film2")
-            .add_edge("Cal", "Film3")
-            .add_edge("Dee", "Film2")
+            .add_nodes(["Ann", "Bob", "Cal", "Dee", "Film1", "Film2", "Film3"])
+            .add_edges(
+                [
+                    ("Ann", "Film1"),
+                    ("Bob", "Film1"),
+                    ("Bob", "Film2"),
+                    ("Cal", "Film2"),
+                    ("Cal", "Film3"),
+                    ("Dee", "Film2"),
+                ]
+            )
         )
 
         scores = graph.bipartite_degree_centrality(which=1, return_dict=True)
@@ -8707,19 +8669,17 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Ann")
-            .add_node(label="Bob")
-            .add_node(label="Cal")
-            .add_node(label="Dee")
-            .add_node(label="Film1")
-            .add_node(label="Film2")
-            .add_node(label="Film3")
-            .add_edge("Ann", "Film1")
-            .add_edge("Bob", "Film1")
-            .add_edge("Bob", "Film2")
-            .add_edge("Cal", "Film2")
-            .add_edge("Cal", "Film3")
-            .add_edge("Dee", "Film2")
+            .add_nodes(["Ann", "Bob", "Cal", "Dee", "Film1", "Film2", "Film3"])
+            .add_edges(
+                [
+                    ("Ann", "Film1"),
+                    ("Bob", "Film1"),
+                    ("Bob", "Film2"),
+                    ("Cal", "Film2"),
+                    ("Cal", "Film3"),
+                    ("Dee", "Film2"),
+                ]
+            )
         )
 
         scores = graph.bipartite_closeness_centrality(which=1, return_dict=True)
@@ -8835,19 +8795,17 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Ann")
-            .add_node(label="Bob")
-            .add_node(label="Cal")
-            .add_node(label="Dee")
-            .add_node(label="Film1")
-            .add_node(label="Film2")
-            .add_node(label="Film3")
-            .add_edge("Ann", "Film1")
-            .add_edge("Bob", "Film1")
-            .add_edge("Bob", "Film2")
-            .add_edge("Cal", "Film2")
-            .add_edge("Cal", "Film3")
-            .add_edge("Dee", "Film2")
+            .add_nodes(["Ann", "Bob", "Cal", "Dee", "Film1", "Film2", "Film3"])
+            .add_edges(
+                [
+                    ("Ann", "Film1"),
+                    ("Bob", "Film1"),
+                    ("Bob", "Film2"),
+                    ("Cal", "Film2"),
+                    ("Cal", "Film3"),
+                    ("Dee", "Film2"),
+                ]
+            )
         )
 
         scores = graph.bipartite_betweenness_centrality(which=1, return_dict=True)
@@ -8934,11 +8892,8 @@ class Graph:
 
         tree = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         tree.is_tree()
@@ -8949,12 +8904,8 @@ class Graph:
         ```{python}
         cycle = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         cycle.is_tree()
@@ -8965,9 +8916,7 @@ class Graph:
         ```{python}
         disconnected = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")  # isolated -- no edge connects it
+            .add_nodes(["A", "B", "C"])  # C is isolated -- no edge connects it
             .add_edge("A", "B")
         )
 
@@ -9042,11 +8991,8 @@ class Graph:
 
         tree = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         tree.is_forest()
@@ -9058,12 +9004,13 @@ class Graph:
         ```{python}
         forest = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")  # first tree
-            .add_edge("C", "D")  # second, disjoint tree
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B"),  # first tree
+                    ("C", "D"),  # second, disjoint tree
+                ]
+            )
         )
 
         forest.is_forest(), forest.is_tree()
@@ -9074,12 +9021,8 @@ class Graph:
         ```{python}
         cycle = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         cycle.is_forest()
@@ -9144,13 +9087,8 @@ class Graph:
 
         arb = (
             ec.Graph(directed=True)
-            .add_node(label="root")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("root", "A")
-            .add_edge("root", "B")
-            .add_edge("A", "C")
+            .add_nodes(["root", "A", "B", "C"])
+            .add_edges([("root", "A"), ("root", "B"), ("A", "C")])
         )
 
         arb.is_arborescence()
@@ -9162,11 +9100,8 @@ class Graph:
         ```{python}
         multi_root = (
             ec.Graph(directed=True)
-            .add_node(label="root1")
-            .add_node(label="root2")
-            .add_node(label="A")
-            .add_edge("root1", "A")
-            .add_edge("root2", "A")
+            .add_nodes(["root1", "root2", "A"])
+            .add_edges([("root1", "A"), ("root2", "A")])
         )
 
         multi_root.is_arborescence()
@@ -9177,12 +9112,8 @@ class Graph:
         ```{python}
         cycle = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         cycle.is_arborescence()
@@ -9239,11 +9170,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.is_planar()
@@ -9355,20 +9283,14 @@ class Graph:
 
         g1 = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         g2 = (
             ec.Graph(directed=False)
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_node(label="Z")
-            .add_edge("X", "Y")
-            .add_edge("Y", "Z")
+            .add_nodes(["X", "Y", "Z"])
+            .add_edges([("X", "Y"), ("Y", "Z")])
         )
 
         g1.is_isomorphic(g2)
@@ -9587,9 +9509,7 @@ class Graph:
 
         ```{python}
         graph = ec.Graph()
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
+        graph.add_nodes(["A", "B", "C"])
 
         graph.is_k_regular(0), graph.is_k_regular(1)
         ```
@@ -9640,11 +9560,14 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-            .add_edge("A", "A")  # self-loop
-            .add_edge("B", "B")  # self-loop
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("A", "A"),  # self-loop
+                    ("B", "B"),  # self-loop
+                ]
+            )
         )
 
         graph.count_all_loops()
@@ -9708,12 +9631,15 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-            .add_edge("A", "B")  # multi-edge
-            .add_edge("A", "B")  # another multi-edge
-            .add_edge("B", "A")  # different direction, not a duplicate
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("A", "B"),  # multi-edge
+                    ("A", "B"),  # another multi-edge
+                    ("B", "A"),  # different direction, not a duplicate
+                ]
+            )
         )
 
         graph.count_multi_edges()
@@ -9725,14 +9651,10 @@ class Graph:
         ```{python}
         flights = (
             ec.Graph(directed=True)
-            .add_node(label="NYC")
-            .add_node(label="LAX")
-            .add_node(label="SFO")
-            .add_edge("NYC", "LAX")
-            .add_edge("NYC", "LAX")
-            .add_edge("NYC", "LAX")
-            .add_edge("LAX", "SFO")
-            .add_edge("SFO", "NYC")
+            .add_nodes(["NYC", "LAX", "SFO"])
+            .add_edges(
+                [("NYC", "LAX"), ("NYC", "LAX"), ("NYC", "LAX"), ("LAX", "SFO"), ("SFO", "NYC")]
+            )
         )
 
         extras = flights.count_multi_edges()
@@ -9789,12 +9711,14 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # mutual with A -> B
-            .add_edge("A", "C")  # one-way only
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "A"),  # mutual with A -> B
+                    ("A", "C"),  # one-way only
+                ]
+            )
         )
 
         graph.count_mutual_node_pairs()
@@ -9807,16 +9731,17 @@ class Graph:
         ```{python}
         follows = (
             ec.Graph(directed=True)
-            .add_node(label="Ana")
-            .add_node(label="Ben")
-            .add_node(label="Cy")
-            .add_node(label="Di")
-            .add_edge("Ana", "Ben")
-            .add_edge("Ben", "Ana")
-            .add_edge("Cy", "Di")
-            .add_edge("Di", "Cy")
-            .add_edge("Ana", "Cy")
-            .add_edge("Di", "Ben")
+            .add_nodes(["Ana", "Ben", "Cy", "Di"])
+            .add_edges(
+                [
+                    ("Ana", "Ben"),
+                    ("Ben", "Ana"),
+                    ("Cy", "Di"),
+                    ("Di", "Cy"),
+                    ("Ana", "Cy"),
+                    ("Di", "Ben"),
+                ]
+            )
         )
 
         mutual = follows.count_mutual_node_pairs()
@@ -9867,12 +9792,14 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # mutual, not counted
-            .add_edge("A", "C")  # asymmetric
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "A"),  # mutual, not counted
+                    ("A", "C"),  # asymmetric
+                ]
+            )
         )
 
         graph.count_asymmetric_node_pairs()
@@ -9885,13 +9812,8 @@ class Graph:
         ```{python}
         org = (
             ec.Graph(directed=True)
-            .add_node(label="CEO")
-            .add_node(label="VP1")
-            .add_node(label="VP2")
-            .add_node(label="Mgr")
-            .add_edge("CEO", "VP1")
-            .add_edge("CEO", "VP2")
-            .add_edge("VP1", "Mgr")
+            .add_nodes(["CEO", "VP1", "VP2", "Mgr"])
+            .add_edges([("CEO", "VP1"), ("CEO", "VP2"), ("VP1", "Mgr")])
         )
 
         org.count_asymmetric_node_pairs(), org.count_mutual_node_pairs()
@@ -9975,11 +9897,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("C", "A")])
         )
 
         out_neighbors = graph.neighbors("A", mode="out")
@@ -10013,12 +9932,14 @@ class Graph:
         ```{python}
         friends = (
             ec.Graph(directed=False)
-            .add_node(label="Ann")
-            .add_node(label="Bob")
-            .add_node(label="Cat")
-            .add_edge("Ann", "Bob")
-            .add_edge("Cat", "Ann")
-            .add_edge("Ann", "Bob")  # parallel edge
+            .add_nodes(["Ann", "Bob", "Cat"])
+            .add_edges(
+                [
+                    ("Ann", "Bob"),
+                    ("Cat", "Ann"),
+                    ("Ann", "Bob"),  # parallel edge
+                ]
+            )
         )
 
         nbrs = friends.neighbors("Ann")
@@ -10101,13 +10022,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node("A")
-        graph.add_node("B")
-        graph.add_node("C")
-        graph.add_node("D")
-        graph.add_edge("A", "C")
-        graph.add_edge("B", "C")
-        graph.add_edge("C", "D")
+        graph.add_nodes(["A", "B", "C", "D"])
+        graph.add_edges([("A", "C"), ("B", "C"), ("C", "D")])
 
         predecessors = graph.get_predecessors("C")
 
@@ -10121,13 +10037,8 @@ class Graph:
         ```{python}
         tasks = (
             ec.Graph(directed=True)
-            .add_node(label="compile")
-            .add_node(label="test")
-            .add_node(label="build_docs")
-            .add_node(label="deploy")
-            .add_edge("compile", "test")
-            .add_edge("test", "deploy")
-            .add_edge("build_docs", "deploy")
+            .add_nodes(["compile", "test", "build_docs", "deploy"])
+            .add_edges([("compile", "test"), ("test", "deploy"), ("build_docs", "deploy")])
         )
 
         [tasks.get_label_from_id(nid) for nid in tasks.get_predecessors("deploy")]
@@ -10186,13 +10097,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node("A")
-        graph.add_node("B")
-        graph.add_node("C")
-        graph.add_node("D")
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "C")
-        graph.add_edge("D", "A")
+        graph.add_nodes(["A", "B", "C", "D"])
+        graph.add_edges([("A", "B"), ("A", "C"), ("D", "A")])
 
         successors = graph.get_successors("A")
 
@@ -10269,12 +10175,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         candidates = graph.get_non_neighbors("A")
@@ -10344,16 +10246,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False)
-        graph.add_node("A")
-        graph.add_node("B")
-        graph.add_node("C")
-        graph.add_node("D")
-        graph.add_node("E")
-        graph.add_edge("A", "C")
-        graph.add_edge("B", "C")
-        graph.add_edge("A", "D")
-        graph.add_edge("B", "D")
-        graph.add_edge("A", "E")
+        graph.add_nodes(["A", "B", "C", "D", "E"])
+        graph.add_edges([("A", "C"), ("B", "C"), ("A", "D"), ("B", "D"), ("A", "E")])
 
         common = graph.get_common_neighbors("A", "B")
 
@@ -10366,11 +10260,8 @@ class Graph:
         ```{python}
         digraph = (
             ec.Graph(directed=True)
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_node(label="M")
-            .add_edge("X", "M")
-            .add_edge("M", "Y")
+            .add_nodes(["X", "Y", "M"])
+            .add_edges([("X", "M"), ("M", "Y")])
         )
 
         [digraph.get_label_from_id(nid) for nid in digraph.get_common_neighbors("X", "Y")]
@@ -10383,14 +10274,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="C")
-            .add_edge(source="B", target="C")
-            .add_edge(source="A", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("A", "D")])
         )
 
         a_id = graph.get_id_from_label(label="A")
@@ -10497,11 +10382,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph()
-        graph.add_node("A", value=5.0)
-        graph.add_node("B", value=5.5)
-        graph.add_node("C", value=10.0)
-        graph.add_edge("A", "B")
-        graph.add_edge("A", "C")
+        graph.add_nodes([("A", {"value": 5.0}), ("B", {"value": 5.5}), ("C", {"value": 10.0})])
+        graph.add_edges([("A", "B"), ("A", "C")])
 
         similar = graph.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
         [graph.get_label_from_id(nid) for nid in similar]
@@ -10514,11 +10396,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A", value=5.0)
-            .add_node(label="B", value=4.5)
-            .add_node(label="C", value=10.0)
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="C")
+            .add_nodes([("A", {"value": 5.0}), ("B", {"value": 4.5}), ("C", {"value": 10.0})])
+            .add_edges([("A", "B"), ("A", "C")])
         )
 
         similar_pct = graph.get_similar_neighbors("A", "value", tol_pct=(20, 20))
@@ -10537,9 +10416,7 @@ class Graph:
             .add_node(label="Small", revenue=60)
             .add_node(label="Big", revenue=140)
             .add_node(label="Twin", revenue=100)
-            .add_edge("Acme", "Small")
-            .add_edge("Acme", "Big")
-            .add_edge("Acme", "Twin")
+            .add_edges([("Acme", "Small"), ("Acme", "Big"), ("Acme", "Twin")])
         )
 
         up = trade.get_similar_neighbors("Acme", "revenue", tol_abs=(0, 50))
@@ -10683,9 +10560,7 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A", score=3)
-            .add_node(label="B", score=9)
-            .add_node(label="C")
+            .add_nodes([("A", {"score": 3}), ("B", {"score": 9}), "C"])
             .select_nodes(lambda n: n.attributes is not None and n.attributes.get("score", 0) > 5)
             .set_node_attrs_ws(flag=True)
         )
@@ -10760,13 +10635,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_node("D")
-            .add_edge("A", "B", weight=0.3)
-            .add_edge("B", "C", weight=0.8)
-            .add_edge("C", "D", weight=0.6)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 0.3), ("B", "C", 0.8), ("C", "D", 0.6)])
             .select_edges(lambda e: e.weight is not None and e.weight > 0.5)
         )
 
@@ -10779,11 +10649,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_edge("A", "B", rel="friend")
-            .add_edge("B", "C", rel="colleague")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", {"rel": "friend"}), ("B", "C", {"rel": "colleague"})])
             .select_edges(lambda e: (e.attributes or {}).get("rel") == "friend")
         )
 
@@ -10796,12 +10663,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C")])
         )
 
         a_id = graph.get_id_from_label("A")
@@ -10875,11 +10738,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         id_a = graph.get_id_from_label("A")
@@ -10904,13 +10764,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         (
@@ -10981,12 +10836,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         edge_ids = graph.get_edge_ids()
@@ -11004,12 +10855,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", weight=0.5)
-            .add_edge("B", "C", weight=2.0)
-            .add_edge("C", "A", weight=3.5)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 0.5), ("B", "C", 2.0), ("C", "A", 3.5)])
         )
 
         heavy = graph.get_edge_df().filter(pl.col("weight") > 1.0)["id"].to_list()
@@ -11079,13 +10926,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         b_id = graph.get_id_from_label("B")
@@ -11110,13 +10952,8 @@ class Graph:
         ```{python}
         digraph = (
             ec.Graph(directed=True)
-            .add_node(label="hub")
-            .add_node(label="x")
-            .add_node(label="y")
-            .add_node(label="z")
-            .add_edge("x", "hub")
-            .add_edge("hub", "y")
-            .add_edge("y", "z")
+            .add_nodes(["hub", "x", "y", "z"])
+            .add_edges([("x", "hub"), ("hub", "y"), ("y", "z")])
             .select_edges_by_node(["hub"])
             .delete_edges_ws()
         )
@@ -11180,10 +11017,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
+            .add_nodes(["A", "B", "C", "D"])
             .select_last_nodes_created(2)
         )
 
@@ -11261,15 +11095,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
             .select_last_edges_created(n=2)
         )
 
@@ -11380,13 +11207,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         graph.select_nodes_in_neighborhood(nodes="A", k=2, mode="out")
@@ -11410,15 +11232,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "E")])
         )
 
         graph.select_nodes_in_neighborhood(nodes=["A", "B"], k=1, mode="all")
@@ -11528,13 +11343,8 @@ class Graph:
         ```{python}
         pipeline = (
             ec.Graph(directed=True)
-            .add_node(label="raw_a")
-            .add_node(label="raw_b")
-            .add_node(label="clean")
-            .add_node(label="report")
-            .add_edge("raw_a", "clean")
-            .add_edge("raw_b", "clean")
-            .add_edge("clean", "report")
+            .add_nodes(["raw_a", "raw_b", "clean", "report"])
+            .add_edges([("raw_a", "clean"), ("raw_b", "clean"), ("clean", "report")])
             .select_nodes_by_degree(max_degree=0, degree_type="in")
         )
 
@@ -11641,14 +11451,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C")])
             .select_nodes_by_centrality("degree", k=2)
         )
 
@@ -11671,14 +11475,8 @@ class Graph:
         ```{python}
         web = (
             ec.Graph(directed=True)
-            .add_node(label="hub")
-            .add_node(label="p1")
-            .add_node(label="p2")
-            .add_node(label="p3")
-            .add_edge("p1", "hub")
-            .add_edge("p2", "hub")
-            .add_edge("p3", "hub")
-            .add_edge("hub", "p1")
+            .add_nodes(["hub", "p1", "p2", "p3"])
+            .add_edges([("p1", "hub"), ("p2", "hub"), ("p3", "hub"), ("hub", "p1")])
             .select_nodes_by_centrality("pagerank", k=1, damping=0.85)
         )
 
@@ -11799,13 +11597,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
             .select_nodes_in_neighborhood("B", k=1)
             .deselect_nodes(["B"])
         )
@@ -11877,13 +11670,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
             .select_edges_by_node(["B"])
         )
 
@@ -12028,15 +11816,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("C", "D"), ("D", "E")])
             .select_nodes_in_neighborhood("A", k=1)
             .invert_node_selection()
             .delete_nodes_ws()
@@ -12098,14 +11879,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", weight=0.9)
-            .add_edge("B", "C", weight=0.2)
-            .add_edge("C", "D", weight=0.7)
-            .add_edge("D", "A", weight=0.1)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 0.9), ("B", "C", 0.2), ("C", "D", 0.7), ("D", "A", 0.1)])
             .select_edges(lambda e: e.weight >= 0.5)
             .invert_edge_selection()
             .delete_edges_ws()
@@ -12169,10 +11944,7 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A", score=2)
-            .add_node(label="B", score=8)
-            .add_node(label="C", score=4)
-            .add_node(label="D", score=7)
+            .add_nodes({"A": {"score": 2}, "B": {"score": 8}, "C": {"score": 4}, "D": {"score": 7}})
             .select_nodes(lambda n: n.attributes["score"] > 5)
         )
 
@@ -12214,13 +11986,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", weight=0.3)
-            .add_edge("B", "C", weight=0.8)
-            .add_edge("C", "D", weight=0.6)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 0.3), ("B", "C", 0.8), ("C", "D", 0.6)])
             .select_edges(lambda e: e.weight > 0.5)
         )
 
@@ -12339,14 +12106,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", weight=0.9)
-            .add_edge("B", "C", weight=0.4)
-            .add_edge("C", "D", weight=0.7)
-            .add_edge("D", "A", weight=0.6)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 0.9), ("B", "C", 0.4), ("C", "D", 0.7), ("D", "A", 0.6)])
             .select_edges(lambda e: e.weight > 0.5)
         )
 
@@ -12400,9 +12161,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node("A").add_node("B").add_node("C")
-        graph.add_edge("A", "B")
-        graph.add_edge("B", "C")
+        graph.add_nodes(["A", "B", "C"])
+        graph.add_edges([("A", "B"), ("B", "C")])
 
         node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out()
@@ -12447,9 +12207,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node("A").add_node("B").add_node("C")
-        graph.add_edge("A", "B")
-        graph.add_edge("B", "C")
+        graph.add_nodes(["A", "B", "C"])
+        graph.add_edges([("A", "B"), ("B", "C")])
 
         node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in()
@@ -12509,11 +12268,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
-        graph.add_edge(source="A", target="B")
-        graph.add_edge(source="C", target="B")
+        graph.add_nodes(["A", "B", "C"])
+        graph.add_edges([("A", "B"), ("C", "B")])
 
         node_b_id = graph.get_id_from_label("B")
         graph.select_nodes_by_id([node_b_id]).trav_both()
@@ -12529,13 +12285,8 @@ class Graph:
         ```{python}
         path = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         seeds = [path.get_id_from_label("A"), path.get_id_from_label("B")]
@@ -12580,11 +12331,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
-        graph.add_edge(source="A", target="B")
-        graph.add_edge(source="A", target="C")
+        graph.add_nodes(["A", "B", "C"])
+        graph.add_edges([("A", "B"), ("A", "C")])
 
         node_a_id = graph.get_id_from_label("A")
         graph.select_nodes_by_id([node_a_id]).trav_out_edge()
@@ -12628,11 +12376,8 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=True)
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
-        graph.add_edge(source="A", target="C")
-        graph.add_edge(source="B", target="C")
+        graph.add_nodes(["A", "B", "C"])
+        graph.add_edges([("A", "C"), ("B", "C")])
 
         node_c_id = graph.get_id_from_label("C")
         graph.select_nodes_by_id([node_c_id]).trav_in_edge()
@@ -12699,12 +12444,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="Ann")
-            .add_node(label="Bob")
-            .add_node(label="Cat")
-            .add_edge(source="Ann", target="Bob")
-            .add_edge(source="Bob", target="Ann")
-            .add_edge(source="Cat", target="Ann")
+            .add_nodes(["Ann", "Bob", "Cat"])
+            .add_edges([("Ann", "Bob"), ("Bob", "Ann"), ("Cat", "Ann")])
         )
 
         ann_to_bob = graph.find_edge_ids(source="Ann", target="Bob")
@@ -12819,8 +12560,7 @@ class Graph:
         for label, value in [("A", 1), ("B", 2), ("C", 3), ("D", 9), ("E", 7), ("F", 8)]:
             graph.add_node(label=label, value=value)
 
-        for source, target in [("A", "B"), ("B", "C"), ("B", "E"), ("C", "D"), ("E", "F")]:
-            graph.add_edge(source, target)
+        graph.add_edges([("A", "B"), ("B", "C"), ("B", "E"), ("C", "D"), ("E", "F")])
 
         def is_big(node_id):
             return graph.get_node(node_id).attributes["value"] >= 5
@@ -13021,8 +12761,7 @@ class Graph:
         for label, value in [("A", 1), ("B", 2), ("C", 3), ("D", 9), ("E", 7), ("F", 8)]:
             graph.add_node(label=label, value=value)
 
-        for source, target in [("A", "B"), ("B", "C"), ("B", "E"), ("C", "D"), ("E", "F")]:
-            graph.add_edge(source, target)
+        graph.add_edges([("A", "B"), ("B", "C"), ("B", "E"), ("C", "D"), ("E", "F")])
 
         def is_small(node_id):
             return graph.get_node(node_id).attributes["value"] < 3
@@ -13214,9 +12953,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
+            .add_nodes(["A", "B", "C"])
         )
 
         a_id = graph.get_id_from_label("A")
@@ -13342,9 +13079,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A", value=10)
-            .add_node(label="B", value=20)
-            .add_node(label="C", value=30)
+            .add_nodes([("A", {"value": 10}), ("B", {"value": 20}), ("C", {"value": 30})])
         )
 
         id_a = graph.get_id_from_label("A")
@@ -13492,13 +13227,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_node("D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         edge_ids = list(graph.get_edge_ids())[:2]
@@ -13532,13 +13262,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node("Hub")
-            .add_node("X")
-            .add_node("Y")
-            .add_node("Z")
-            .add_edge("X", "Hub")
-            .add_edge("Hub", "Y")
-            .add_edge("Hub", "Z")
+            .add_nodes(["Hub", "X", "Y", "Z"])
+            .add_edges([("X", "Hub"), ("Hub", "Y"), ("Hub", "Z")])
         )
 
         graph.set_edge_attrs("outbound", True, sources=["Hub"])
@@ -13759,9 +13484,13 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A", type="user", score=95)
-            .add_node(label="B", type="admin", score=88)
-            .add_node(label="C", type="user")
+            .add_nodes(
+                [
+                    ("A", {"type": "user", "score": 95}),
+                    ("B", {"type": "admin", "score": 88}),
+                    ("C", {"type": "user"}),
+                ]
+            )
         )
 
         graph.get_node_attrs("score")
@@ -13866,13 +13595,14 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_node("D")
-            .add_edge("A", "B", weight=1.5, type="friend")
-            .add_edge("B", "C", weight=2.0, type="colleague")
-            .add_edge("C", "D", weight=1.0, type="friend")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B", 1.5, {"type": "friend"}),
+                    ("B", "C", 2.0, {"type": "colleague"}),
+                    ("C", "D", 1.0, {"type": "friend"}),
+                ]
+            )
         )
 
         graph.get_edge_attrs("weight")
@@ -13960,11 +13690,13 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_edge("A", "B", weight=1.5, type="friend")
-            .add_edge("B", "C", weight=2.0, type="colleague")
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B", 1.5, {"type": "friend"}),
+                    ("B", "C", 2.0, {"type": "colleague"}),
+                ]
+            )
         )
 
         edge_ids = graph.get_edge_ids()
@@ -14038,9 +13770,13 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A", type="user", score=95)
-            .add_node(label="B", type="admin", score=88)
-            .add_node(label="C", type="user", score=92)
+            .add_nodes(
+                [
+                    ("A", {"type": "user", "score": 95}),
+                    ("B", {"type": "admin", "score": 88}),
+                    ("C", {"type": "user", "score": 92}),
+                ]
+            )
         )
 
         df = graph.get_node_df()
@@ -14160,11 +13896,14 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Ann", age=34, team="red")
-            .add_node(label="Bob", age=41, team="blue")
-            .add_node(label="Cat", age=27, team="red")
-            .add_edge("Ann", "Bob")
-            .add_edge("Bob", "Cat")
+            .add_nodes(
+                [
+                    ("Ann", {"age": 34, "team": "red"}),
+                    ("Bob", {"age": 41, "team": "blue"}),
+                    ("Cat", {"age": 27, "team": "red"}),
+                ]
+            )
+            .add_edges([("Ann", "Bob"), ("Bob", "Cat")])
             .select_nodes(lambda n: n.attributes.get("age", 0) > 30)
         )
 
@@ -14273,13 +14012,14 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_node("D")
-            .add_edge("A", "B", weight=1.5, rel="friend")
-            .add_edge("B", "C", weight=2.0, rel="colleague")
-            .add_edge("C", "D", weight=1.0, rel="friend")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B", 1.5, {"rel": "friend"}),
+                    ("B", "C", 2.0, {"rel": "colleague"}),
+                    ("C", "D", 1.0, {"rel": "friend"}),
+                ]
+            )
         )
 
         df = graph.get_edge_df()
@@ -14413,13 +14153,14 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B", weight=1.5, rel="friend")
-            .add_edge(source="B", target="C", weight=0.5, rel="colleague")
-            .add_edge(source="C", target="D", weight=2.0, rel="friend")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B", 1.5, {"rel": "friend"}),
+                    ("B", "C", 0.5, {"rel": "colleague"}),
+                    ("C", "D", 2.0, {"rel": "friend"}),
+                ]
+            )
             .select_edges(lambda e: e.attributes and e.attributes.get("rel") == "friend")
         )
 
@@ -14544,9 +14285,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A", score=10)
-            .add_node(label="B", score=20)
-            .add_node(label="C", score=30)
+            .add_nodes({"A": {"score": 10}, "B": {"score": 20}, "C": {"score": 30}})
         )
 
         id_a = graph.get_id_from_label("A")
@@ -14566,9 +14305,7 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A", price=80)
-            .add_node(label="B", price=120)
-            .add_node(label="C", price=150)
+            .add_nodes({"A": {"price": 80}, "B": {"price": 120}, "C": {"price": 150}})
         )
 
         (
@@ -14671,11 +14408,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B", weight=1.5)
-            .add_edge(source="B", target="C", weight=2.0)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 1.5), ("B", "C", 2.0)])
         )
 
         edge_ids = list(graph.get_edge_ids())
@@ -14694,11 +14428,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B", weight=1.5)
-            .add_edge(source="B", target="C", weight=3.0)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 1.5), ("B", "C", 3.0)])
         )
         max_weight = max(graph.get_edge_attrs("weight").values())
 
@@ -14717,11 +14448,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B", rel="friend")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", {"rel": "friend"}), ("B", "C")])
             .select_edges(lambda e: True)
             .mutate_edge_attrs_ws("rel", str.upper)
         )
@@ -14843,11 +14571,10 @@ class Graph:
 
         G = (
             ec.Graph()
-            .add_node(label="A", type="person")
-            .add_node(label="B", type="person")
-            .add_node(label="C", type="organization")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(
+                {"A": {"type": "person"}, "B": {"type": "person"}, "C": {"type": "organization"}}
+            )
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         G.colorize_node_attrs(node_attr_from="type", palette="tableau")
@@ -14860,12 +14587,10 @@ class Graph:
         ```{python}
         G = ec.Graph(directed=False)
 
-        for i in range(6):
-            G.add_node(label=str(i))
+        G.add_nodes(range(6))
 
         # Two separate triangles
-        for s, t in [("0", "1"), ("1", "2"), ("0", "2"), ("3", "4"), ("4", "5"), ("3", "5")]:
-            G.add_edge(source=s, target=t)
+        G.add_edges([("0", "1"), ("1", "2"), ("0", "2"), ("3", "4"), ("4", "5"), ("3", "5")])
 
         G.cmty_louvain(attr_name="community")
         G.colorize_node_attrs(node_attr_from="community", palette="Set1")
@@ -14898,7 +14623,7 @@ class Graph:
         labels, and nodes not in the dict (here `B`) are left uncolored:
 
         ```{python}
-        G = ec.Graph().add_node(label="A").add_node(label="B").add_node(label="C")
+        G = ec.Graph().add_nodes(["A", "B", "C"])
 
         G.colorize_node_attrs(values={"A": "north", "C": "south"}, palette="Dark2")
         G.get_node_attrs("color")
@@ -15044,9 +14769,7 @@ class Graph:
 
         G = (
             ec.Graph()
-            .add_node(label="A", score=6)
-            .add_node(label="B", score=2)
-            .add_node(label="C", score=10)
+            .add_nodes({"A": {"score": 6}, "B": {"score": 2}, "C": {"score": 10}})
         )
 
         G.rescale_node_attrs(node_attr_from="score")
@@ -15061,13 +14784,9 @@ class Graph:
         ```{python}
         G = ec.Graph()
 
-        for i in range(5):
-            G.add_node(label=str(i))
+        G.add_nodes(range(5))
 
-        G.add_edge(source="0", target="1")
-        G.add_edge(source="1", target="2")
-        G.add_edge(source="2", target="3")
-        G.add_edge(source="3", target="4")
+        G.add_edges([("0", "1"), ("1", "2"), ("2", "3"), ("3", "4")])
 
         betweenness = G.betweenness_centrality(return_dict=True)
 
@@ -15082,12 +14801,9 @@ class Graph:
         ```{python}
         G = ec.Graph()
 
-        for i in range(4):
-            G.add_node(label=str(i))
+        G.add_nodes(range(4))
 
-        G.add_edge(source="0", target="1")
-        G.add_edge(source="0", target="2")
-        G.add_edge(source="0", target="3")
+        G.add_edges([("0", "1"), ("0", "2"), ("0", "3")])
 
         degrees = {n: len(G.neighbors(node=n)) for n in G.get_node_ids(limit=None)}
 
@@ -15300,14 +15016,14 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False)
-        for label in ["U", "V", "A", "B", "C"]:
-            graph.add_node(label=label)
+        graph.add_nodes(["U", "V", "A", "B", "C"])
 
-        for s, t in [
-            ("U", "V"), ("U", "A"), ("U", "B"), ("U", "C"),
-            ("V", "A"), ("V", "B"), ("V", "C"), ("A", "B"),
-        ]:
-            graph.add_edge(s, t)
+        graph.add_edges(
+            [
+                ("U", "V"), ("U", "A"), ("U", "B"), ("U", "C"),
+                ("V", "A"), ("V", "B"), ("V", "C"), ("A", "B"),
+            ]
+        )
 
         round(graph.dispersion("U", "V"), 3)
         ```
@@ -15415,14 +15131,14 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False)
-        for name in ["Ann", "Bob", "Cat", "Dan", "Eve"]:
-            graph.add_node(label=name)
+        graph.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
 
-        for s, t in [
-            ("Ann", "Bob"), ("Ann", "Cat"), ("Bob", "Cat"),
-            ("Bob", "Dan"), ("Cat", "Dan"), ("Dan", "Eve"),
-        ]:
-            graph.add_edge(s, t)
+        graph.add_edges(
+            [
+                ("Ann", "Bob"), ("Ann", "Cat"), ("Bob", "Cat"),
+                ("Bob", "Dan"), ("Cat", "Dan"), ("Dan", "Eve"),
+            ]
+        )
 
         scores = graph.common_neighbors()
         sorted(
@@ -15528,15 +15244,15 @@ class Graph:
 
         ```{python}
         graph = ec.Graph(directed=False)
-        for name in ["Hub1", "Hub2", "A", "B", "C", "D", "E", "F", "Lee", "Max"]:
-            graph.add_node(label=name)
+        graph.add_nodes(["Hub1", "Hub2", "A", "B", "C", "D", "E", "F", "Lee", "Max"])
 
-        for s, t in [
-            ("Hub1", "A"), ("Hub1", "B"), ("Hub1", "C"), ("Hub1", "D"),
-            ("Hub2", "A"), ("Hub2", "B"), ("Hub2", "E"), ("Hub2", "F"),
-            ("Lee", "C"), ("Max", "C"),
-        ]:
-            graph.add_edge(s, t)
+        graph.add_edges(
+            [
+                ("Hub1", "A"), ("Hub1", "B"), ("Hub1", "C"), ("Hub1", "D"),
+                ("Hub2", "A"), ("Hub2", "B"), ("Hub2", "E"), ("Hub2", "F"),
+                ("Lee", "C"), ("Max", "C"),
+            ]
+        )
 
         pairs = [("Hub1", "Hub2"), ("Lee", "Max")]
         [
@@ -15638,10 +15354,8 @@ class Graph:
 
         ```{python}
         graph = ec.Graph(directed=False)
-        for name in ["Ann", "Bob", "Kim", "Cat", "Dan", "H1", "H2"]:
-            graph.add_node(label=name)
-        for i in range(12):
-            graph.add_node(label=f"x{i}")
+        graph.add_nodes(["Ann", "Bob", "Kim", "Cat", "Dan", "H1", "H2"])
+        graph.add_nodes([f"x{i}" for i in range(12)])
 
         graph.add_edge("Ann", "Kim").add_edge("Bob", "Kim")
         for hub in ["H1", "H2"]:
@@ -15748,10 +15462,8 @@ class Graph:
 
         ```{python}
         graph = ec.Graph(directed=False)
-        for name in ["Ann", "Bob", "Kim", "Cat", "Dan", "H1", "H2"]:
-            graph.add_node(label=name)
-        for i in range(12):
-            graph.add_node(label=f"x{i}")
+        graph.add_nodes(["Ann", "Bob", "Kim", "Cat", "Dan", "H1", "H2"])
+        graph.add_nodes([f"x{i}" for i in range(12)])
 
         graph.add_edge("Ann", "Kim").add_edge("Bob", "Kim")
         for hub in ["H1", "H2"]:
@@ -15968,11 +15680,9 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False)
-        for label in ["A", "B", "C", "D", "E"]:
-            graph.add_node(label=label)
+        graph.add_nodes(["A", "B", "C", "D", "E"])
 
-        for s, t in [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "E")]:
-            graph.add_edge(s, t)
+        graph.add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "E")])
 
         sims = graph.simrank_star_similarity(return_dict=True)
         a_id = graph.get_id_from_label("A")
@@ -16117,11 +15827,9 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False)
-        for label in ["A", "B", "C", "D", "E"]:
-            graph.add_node(label=label)
+        graph.add_nodes(["A", "B", "C", "D", "E"])
 
-        for s, t in [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "E")]:
-            graph.add_edge(s, t)
+        graph.add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "E")])
 
         (
             round(graph.simrank_star_similarity_pair("A", "B"), 3),
@@ -16259,13 +15967,9 @@ class Graph:
 
         g = ec.Graph(directed=False)
 
-        for name in ["A", "B", "X", "Y"]:
-            g.add_node(label=name)
+        g.add_nodes(["A", "B", "X", "Y"])
 
-        g.add_edge(source="A", target="X")
-        g.add_edge(source="A", target="Y")
-        g.add_edge(source="B", target="X")
-        g.add_edge(source="B", target="Y")
+        g.add_edges([("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")])
 
         [
             g.get_pairwise_similarity(["A", "B"], method=m)[0][1]
@@ -16289,13 +15993,9 @@ class Graph:
         ```{python}
         g = ec.Graph(directed=False)
 
-        for name in ["P1", "P2", "Hub", "P3", "P4"]:
-            g.add_node(label=name)
+        g.add_nodes(["P1", "P2", "Hub", "P3", "P4"])
 
-        g.add_edge(source="P1", target="Hub")
-        g.add_edge(source="P2", target="Hub")
-        g.add_edge(source="Hub", target="P3")
-        g.add_edge(source="Hub", target="P4")
+        g.add_edges([("P1", "Hub"), ("P2", "Hub"), ("Hub", "P3"), ("Hub", "P4")])
 
         g.get_pairwise_similarity(["P1", "P2"], method="invlogweighted")[0][1]
         ```
@@ -16316,12 +16016,9 @@ class Graph:
         ```{python}
         dg = ec.Graph(directed=True)
 
-        for name in ["A", "B", "X", "Y"]:
-            dg.add_node(label=name)
+        dg.add_nodes(["A", "B", "X", "Y"])
 
-        dg.add_edge(source="A", target="X")
-        dg.add_edge(source="B", target="X")
-        dg.add_edge(source="X", target="Y")
+        dg.add_edges([("A", "X"), ("B", "X"), ("X", "Y")])
 
         dg.get_pairwise_similarity(["A", "B", "X"])
         ```
@@ -16335,11 +16032,8 @@ class Graph:
         ```{python}
         g = ec.Graph(directed=False)
 
-        for i in range(5):
-            g.add_node(label=f"C1_{i}")
-        for i in range(5):
-            for j in range(i + 1, 5):
-                g.add_edge(source=f"C1_{i}", target=f"C1_{j}")
+        g.add_nodes([f"C1_{i}" for i in range(5)])
+        g.add_edges([(f"C1_{i}", f"C1_{j}") for i in range(5) for j in range(i + 1, 5)])
 
         g.get_pairwise_similarity(method="jaccard")
         ```
@@ -16384,14 +16078,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("D", "B")
-            .add_edge("D", "C")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("D", "B"), ("D", "C")])
         )
 
         sim = graph.get_dice_similarity()
@@ -16454,13 +16142,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         sim = graph.get_jaccard_similarity()
@@ -16485,11 +16168,9 @@ class Graph:
         ```{python}
         graph = ec.Graph()
 
-        for name in ["P", "Q", "W", "X", "Y", "Z"]:
-            graph.add_node(label=name)
+        graph.add_nodes(["P", "Q", "W", "X", "Y", "Z"])
 
-        graph.add_edge("P", "W").add_edge("P", "X").add_edge("P", "Y")
-        graph.add_edge("Q", "X").add_edge("Q", "Y").add_edge("Q", "Z")
+        graph.add_edges([("P", "W"), ("P", "X"), ("P", "Y"), ("Q", "X"), ("Q", "Y"), ("Q", "Z")])
 
         sim = graph.get_jaccard_similarity()
         sim[graph.get_id_from_label("P")][graph.get_id_from_label("Q")]
@@ -16538,12 +16219,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         sim = graph.get_cosine_similarity()
@@ -16592,13 +16269,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="spoke")
-            .add_node(label="extended")
-            .add_node(label="extra")
-            .add_edge(source="hub", target="spoke")
-            .add_edge(source="hub", target="extended")
-            .add_edge(source="spoke", target="extra")
+            .add_nodes(["hub", "spoke", "extended", "extra"])
+            .add_edges([("hub", "spoke"), ("hub", "extended"), ("spoke", "extra")])
         )
 
         sim = graph.get_overlap_similarity()
@@ -16651,14 +16323,8 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="A", target="C")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
         )
 
         tom = g.topological_overlap(return_dict=True)
@@ -16721,11 +16387,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.has_cycles()
@@ -16792,13 +16455,15 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # closes A -> B -> C -> A
-            .add_edge(source="B", target="A")  # closes A -> B -> A
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "A"),  # closes A -> B -> C -> A
+                    ("B", "A"),  # closes A -> B -> A
+                ]
+            )
         )
 
         graph.get_cycles()
@@ -16809,12 +16474,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         graph.get_cycles(min_length=3)
@@ -16873,13 +16534,15 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # closes A -> B -> C -> A
-            .add_edge(source="B", target="A")  # closes A -> B -> A
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "A"),  # closes A -> B -> C -> A
+                    ("B", "A"),  # closes A -> B -> A
+                ]
+            )
         )
 
         len(graph.simple_cycles())
@@ -16891,12 +16554,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         len(graph.simple_cycles())
@@ -16908,15 +16567,16 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="A")  # 2-cycle
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="A")  # 4-cycle
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "A"),  # 2-cycle
+                    ("B", "C"),
+                    ("C", "D"),
+                    ("D", "A"),  # 4-cycle
+                ]
+            )
         )
 
         graph.simple_cycles(length_bound=3)
@@ -16980,15 +16640,16 @@ class Graph:
         # Square with diagonal
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
-            .add_edge("A", "C")  # diagonal
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "D"),
+                    ("D", "A"),
+                    ("A", "C"),  # diagonal
+                ]
+            )
         )
 
         basis = graph.cycle_basis()
@@ -17001,12 +16662,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         node_ids = graph.get_node_ids()
@@ -17069,12 +16726,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         cycles = graph.directed_cycle_basis()
@@ -17086,15 +16739,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("A", "D")
-            .add_edge("D", "A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "D"), ("D", "A")])
         )
 
         cycles = graph.directed_cycle_basis()
@@ -17159,15 +16805,8 @@ class Graph:
         # Two triangles sharing an edge
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("B", "D")
-            .add_edge("D", "C")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "C")])
         )
 
         basis = graph.minimum_cycle_basis()
@@ -17180,12 +16819,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", weight=1.0)
-            .add_edge("B", "C", weight=2.0)
-            .add_edge("C", "A", weight=3.0)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "A", 3.0)])
         )
 
         graph.minimum_cycle_basis(weight="weight")
@@ -17243,12 +16878,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         cliques = graph.find_cliques()
@@ -17265,13 +16896,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         len(graph.find_cliques())
@@ -17342,12 +16968,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         graph.max_clique()
@@ -17359,13 +16981,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         graph.max_clique()
@@ -17378,15 +16995,15 @@ class Graph:
         ```{python}
         graph = ec.Graph(directed=False)
 
-        for name in ["Ann", "Bob", "Cat", "Dan", "Eve"]:
-            graph.add_node(label=name)
+        graph.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
 
-        for a, b in [
-            ("Ann", "Bob"), ("Ann", "Cat"), ("Ann", "Dan"),
-            ("Bob", "Cat"), ("Bob", "Dan"), ("Cat", "Dan"),
-            ("Eve", "Ann"), ("Eve", "Bob"),
-        ]:
-            graph.add_edge(a, b)
+        graph.add_edges(
+            [
+                ("Ann", "Bob"), ("Ann", "Cat"), ("Ann", "Dan"),
+                ("Bob", "Cat"), ("Bob", "Dan"), ("Cat", "Dan"),
+                ("Eve", "Ann"), ("Eve", "Bob"),
+            ]
+        )
 
         [graph.get_label_from_id(nid) for nid in graph.max_clique()]
         ```
@@ -17460,12 +17077,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         graph.clique_number()
@@ -17477,11 +17090,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.clique_number()
@@ -17508,14 +17118,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D")])
         )
 
         graph.clique_number()
@@ -17556,12 +17160,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         counts = graph.count_triangles()
@@ -17575,15 +17175,16 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Triangle 1
-            .add_edge(source="B", target="D")
-            .add_edge(source="D", target="C")  # Triangle 2, shares edge B-C
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "A"),  # Triangle 1
+                    ("B", "D"),
+                    ("D", "C"),  # Triangle 2, shares edge B-C
+                ]
+            )
         )
 
         counts = graph.count_triangles()
@@ -17620,15 +17221,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # One triangle
-            .add_edge(source="A", target="D")
-            .add_edge(source="D", target="B")  # Another triangle
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # One triangle
+                        ("A", "D"), ("D", "B")])  # Another triangle
         )
 
         triangles = graph.list_triangles()
@@ -17642,15 +17237,9 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-            .add_node(label="David")
-            .add_edge(source="Alice", target="Bob")
-            .add_edge(source="Bob", target="Charlie")
-            .add_edge(source="Charlie", target="Alice")
-            .add_edge(source="Alice", target="David")
-            .add_edge(source="David", target="Bob")
+            .add_nodes(["Alice", "Bob", "Charlie", "David"])
+            .add_edges([("Alice", "Bob"), ("Bob", "Charlie"), ("Charlie", "Alice"),
+                        ("Alice", "David"), ("David", "Bob")])
         )
 
         [tuple(graph.get_label_from_id(nid) for nid in tri) for tri in graph.list_triangles()]
@@ -17699,12 +17288,8 @@ class Graph:
 
         triangle = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         # Returns 1.0 (all triples are closed)
@@ -17716,13 +17301,8 @@ class Graph:
         ```{python}
         chain = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         # Returns 0.0 (no triangles, only open triples)
@@ -17734,15 +17314,9 @@ class Graph:
         ```{python}
         social_network = (
             ec.Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-            .add_node(label="David")
-            .add_edge(source="Alice", target="Bob")
-            .add_edge(source="Bob", target="Charlie")
-            .add_edge(source="Charlie", target="David")
-            .add_edge(source="David", target="Alice")
-            .add_edge(source="Alice", target="Charlie")  # Creates some triangles
+            .add_nodes(["Alice", "Bob", "Charlie", "David"])
+            .add_edges([("Alice", "Bob"), ("Bob", "Charlie"), ("Charlie", "David"),
+                        ("David", "Alice"), ("Alice", "Charlie")])  # Creates some triangles
         )
 
         trans = social_network.get_transitivity()
@@ -17757,25 +17331,14 @@ class Graph:
         ```{python}
         cycle = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         both_ways = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="A")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="B")
-            .add_edge(source="C", target="A")
-            .add_edge(source="A", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "A"), ("B", "C"), ("C", "B"), ("C", "A"), ("A", "C")])
         )
 
         cycle.get_transitivity(), both_ways.get_transitivity()
@@ -17860,14 +17423,8 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="A", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
         )
 
         g.motif_census(size=3, return_dict=True)
@@ -17890,14 +17447,8 @@ class Graph:
         ```{python}
         dg = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="A", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
         )
 
         dg.motif_census(size=3, return_dict=True)
@@ -18002,17 +17553,13 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-
-        for name in ["A", "B", "C", "D", "E", "F", "G", "H", "I"]:
-            g.add_node(label=name)
-
-        for a, b in [
+        g.add_nodes(["A", "B", "C", "D", "E", "F", "G", "H", "I"])
+        g.add_edges([
             ("A", "B"), ("B", "C"), ("C", "A"),  # triangle 1
             ("D", "E"), ("E", "F"), ("F", "D"),  # triangle 2
             ("G", "H"), ("H", "I"), ("I", "G"),  # triangle 3
             ("C", "D"), ("F", "G"), ("I", "A"),  # ring links
-        ]:
-            g.add_edge(a, b)
+        ])
 
         result = g.motif_significance(size=3, n_random=200, seed=1, return_dict=True)
         {motif: round(stats["z_score"], 2) for motif, stats in result.items()}
@@ -18033,14 +17580,8 @@ class Graph:
         ```{python}
         small = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="A", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
         )
 
         small.motif_significance(size=3, n_random=10, seed=23, return_dict=True)
@@ -18121,16 +17662,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Triangle: A,B,C
-            .add_edge(source="A", target="D")
-            .add_edge(source="A", target="E")  # A has additional neighbors
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle: A,B,C
+                        ("A", "D"), ("A", "E")])  # A has additional neighbors
         )
 
         clustering = graph.local_clustering_coefficient(return_dict=True)
@@ -18159,12 +17693,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
             .local_clustering_coefficient()  # Stores as 'local_clustering_coefficient' attribute
         )
 
@@ -18180,12 +17710,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         clustering = graph.local_clustering_coefficient(return_dict=True)
@@ -18288,12 +17814,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
             .clustering_coefficient()
         )
 
@@ -18306,13 +17828,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="center")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("center", "A")
-            .add_edge("center", "B")
-            .add_edge("center", "C")
+            .add_nodes(["center", "A", "B", "C"])
+            .add_edges([("center", "A"), ("center", "B"), ("center", "C")])
         )
 
         clustering = graph.clustering_coefficient(return_dict=True)
@@ -18453,12 +17970,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         graph.get_edge_clustering_coefficient(k=3, normalize=True, offset=True)
@@ -18477,13 +17990,9 @@ class Graph:
 
         ```{python}
         graph = ec.Graph(directed=False)
-
-        for name in ["A", "B", "C", "D", "E", "F"]:
-            graph.add_node(label=name)
-
-        for a, b in [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                     ("D", "E"), ("E", "F"), ("F", "D")]:
-            graph.add_edge(a, b)
+        graph.add_nodes(["A", "B", "C", "D", "E", "F"])
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                         ("D", "E"), ("E", "F"), ("F", "D")])
 
         graph.get_edge_clustering_coefficient()
         ```
@@ -18502,14 +18011,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
         )
 
         graph.get_edge_clustering_coefficient(k=3, offset=False)
@@ -18588,12 +18091,8 @@ class Graph:
 
         triangle = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("A", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("A", "C")])
         )
 
         triangle.get_avg_clustering_coefficient()
@@ -18605,13 +18104,8 @@ class Graph:
         ```{python}
         star = (
             ec.Graph()
-            .add_node(label="center")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("center", "A")
-            .add_edge("center", "B")
-            .add_edge("center", "C")
+            .add_nodes(["center", "A", "B", "C"])
+            .add_edges([("center", "A"), ("center", "B"), ("center", "C")])
         )
 
         star.get_avg_clustering_coefficient()
@@ -18624,14 +18118,8 @@ class Graph:
         ```{python}
         tailed = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("A", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
         )
 
         tailed.get_avg_clustering_coefficient()
@@ -18704,15 +18192,9 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Clique 1
-            .add_edge("D", "E")  # Clique 2
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Clique 1
+                        ("D", "E")])  # Clique 2
         )
 
         communities = graph.cmty_fast_greedy(return_dict=True)
@@ -18725,15 +18207,9 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Clique 1
-            .add_edge(source="D", target="E")  # Clique 2
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Clique 1
+                        ("D", "E")])  # Clique 2
         )
 
         (
@@ -18825,19 +18301,10 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Triangle 1
-            .add_edge("C", "D")  # Bridge edge
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "D")  # Triangle 2
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
+                        ("C", "D"),  # Bridge edge
+                        ("D", "E"), ("E", "F"), ("F", "D")])  # Triangle 2
         )
 
         communities = graph.cmty_edge_btwns(return_dict=True)
@@ -18850,19 +18317,10 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")  # Triangle 1
-            .add_edge(source="C", target="D")  # Bridge edge
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")  # Triangle 2
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
+                        ("C", "D"),  # Bridge edge
+                        ("D", "E"), ("E", "F"), ("F", "D")])  # Triangle 2
         )
 
         (
@@ -18946,19 +18404,10 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Triangle 1
-            .add_edge("C", "D")  # Bridge edge
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "D")  # Triangle 2
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
+                        ("C", "D"),  # Bridge edge
+                        ("D", "E"), ("E", "F"), ("F", "D")])  # Triangle 2
         )
 
         communities = graph.cmty_girvan_newman(return_dict=True)
@@ -19062,24 +18511,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-        )
+        graph = ec.Graph(directed=False).add_nodes(["A", "B", "C", "D", "E", "F"])
 
         # Build two complete triangles
-        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
-            graph.add_edge(i, j)
-
-        graph.add_edge("C", "D")  # Bridge
-
-        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
-            graph.add_edge(i, j)
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"),
+                         ("C", "D"),  # Bridge
+                         ("D", "E"), ("E", "F"), ("F", "D")])
 
         communities = graph.cmty_l_eigenvec(return_dict=True)
         {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
@@ -19091,19 +18528,9 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
         )
 
         (
@@ -19206,24 +18633,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-        )
+        graph = ec.Graph(directed=False).add_nodes(["A", "B", "C", "D", "E", "F"])
 
         # Build two complete triangles connected by bridge
-        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
-            graph.add_edge(i, j)
-
-        graph.add_edge("C", "D")  # Bridge
-
-        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
-            graph.add_edge(i, j)
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"),
+                         ("C", "D"),  # Bridge
+                         ("D", "E"), ("E", "F"), ("F", "D")])
 
         communities = graph.cmty_louvain(return_dict=True)
         {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
@@ -19245,19 +18660,9 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
         )
 
         (
@@ -19353,24 +18758,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-        )
+        graph = ec.Graph(directed=False).add_nodes(["A", "B", "C", "D", "E", "F"])
 
         # Two cliques connected by a bridge
-        for i, j in [("A", "B"), ("B", "C"), ("C", "A")]:
-            graph.add_edge(i, j)
-
-        for i, j in [("D", "E"), ("E", "F"), ("F", "D")]:
-            graph.add_edge(i, j)
-
-        graph.add_edge("C", "D")  # Bridge
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"),
+                         ("D", "E"), ("E", "F"), ("F", "D"),
+                         ("C", "D")])  # Bridge
 
         communities = graph.cmty_walktrap(return_dict=True)
         {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
@@ -19393,19 +18786,9 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
-            .add_edge(source="E", target="F")
-            .add_edge(source="F", target="D")
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
         )
 
         (
@@ -19526,17 +18909,13 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph(directed=False)
-
-        for name in ["A", "B", "C", "D", "E", "F", "G"]:
-            graph.add_node(label=name)
-
-        for a, b in [
+        graph.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+        graph.add_edges([
             ("A", "B"), ("B", "C"), ("C", "A"),  # triangle
             ("C", "D"),                          # bridge
             ("D", "E"), ("D", "F"), ("D", "G"),  # four-node clique
             ("E", "F"), ("E", "G"), ("F", "G"),
-        ]:
-            graph.add_edge(a, b)
+        ])
 
         blocks = graph.cmty_stochastic_block_model(k=2, seed=7, return_dict=True)
         {graph.get_label_from_id(nid): block for nid, block in blocks.items()}
@@ -19754,16 +19133,12 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=False)
-
-        for name in ["A", "B", "C", "D", "E", "F", "G"]:
-            g.add_node(label=name)
-
-        for a, b in [
+        g.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+        g.add_edges([
             ("A", "B"), ("B", "C"), ("C", "A"),
             ("C", "D"),
             ("D", "E"), ("D", "F"), ("D", "G"), ("E", "F"), ("E", "G"), ("F", "G"),
-        ]:
-            g.add_edge(a, b)
+        ])
 
         seeds = {g.get_id_from_label("A"): 0, g.get_id_from_label("G"): 1}
 
@@ -19777,12 +19152,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-
-        for name in ["Alice", "Bob", "Xena", "Zed"]:
-            g.add_node(label=name)
-
-        g.add_edge("Xena", "Alice", weight=3.0)
-        g.add_edge("Xena", "Bob", weight=1.0)
+        g.add_nodes(["Alice", "Bob", "Xena", "Zed"])
+        g.add_edges([("Xena", "Alice", 3.0), ("Xena", "Bob", 1.0)])
 
         seeds = {g.get_id_from_label("Alice"): 0, g.get_id_from_label("Bob"): 1}
 
@@ -19902,18 +19273,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="G1")
-            .add_node(label="G2")
-            .add_node(label="G3")
-            .add_node(label="G4")
-            .add_node(label="G5")
-            .add_node(label="G6")
-            .add_edge("G1", "G2")
-            .add_edge("G2", "G3")
-            .add_edge("G3", "G1")
-            .add_edge("G4", "G5")
-            .add_edge("G5", "G6")
-            .add_edge("G6", "G4")
+            .add_nodes(["G1", "G2", "G3", "G4", "G5", "G6"])
+            .add_edges([("G1", "G2"), ("G2", "G3"), ("G3", "G1"),
+                        ("G4", "G5"), ("G5", "G6"), ("G6", "G4")])
         )
 
         pathways = {"G1": "apoptosis", "G2": "apoptosis", "G3": "apoptosis",
@@ -20081,16 +19443,12 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph()
-
-        for i in range(1, 9):
-            graph.add_node(label=f"G{i}")
-
-        for a, b in [
+        graph.add_nodes([f"G{i}" for i in range(1, 9)])
+        graph.add_edges([
             ("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G1", "G4"), ("G2", "G4"),
             ("G4", "G5"),
             ("G5", "G6"), ("G6", "G7"), ("G7", "G8"), ("G8", "G5"), ("G5", "G7"), ("G6", "G8"),
-        ]:
-            graph.add_edge(a, b)
+        ])
 
         gene_sets = {"G1": "X", "G2": "X", "G3": "X", "G6": "Y", "G7": "Y", "G8": "Y"}
         graph.set_node_attrs(
@@ -20226,12 +19584,8 @@ class Graph:
 
         directed = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         undirected = directed.to_undirected()
@@ -20252,12 +19606,8 @@ class Graph:
         ```{python}
         followers = (
             ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-            .add_edge("Alice", "Bob")
-            .add_edge("Bob", "Alice")
-            .add_edge("Bob", "Charlie")
+            .add_nodes(["Alice", "Bob", "Charlie"])
+            .add_edges([("Alice", "Bob"), ("Bob", "Alice"), ("Bob", "Charlie")])
         )
 
         connections = followers.to_undirected()
@@ -20326,11 +19676,8 @@ class Graph:
 
         undirected = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         directed = undirected.to_directed()
@@ -20349,11 +19696,8 @@ class Graph:
 
         ```{python}
         roads = ec.Graph(directed=False)
-        roads.add_node(label="A")
-        roads.add_node(label="B")
-        roads.add_node(label="C")
-        roads.add_edge("A", "B", weight=5)
-        roads.add_edge("B", "C", weight=3)
+        roads.add_nodes(["A", "B", "C"])
+        roads.add_edges([("A", "B", 5), ("B", "C", 3)])
 
         traffic = roads.to_directed()
         traffic.get_edge_df()
@@ -20365,11 +19709,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="X")
-        g.add_node(label="Y")
-        g.add_node(label="Z")
-        g.add_edge("X", "Y")
-        g.add_edge("Y", "Z")
+        g.add_nodes(["X", "Y", "Z"])
+        g.add_edges([("X", "Y"), ("Y", "Z")])
 
         g_dir = g.to_directed()
         g_dir.get_cycles()
@@ -20419,11 +19760,8 @@ class Graph:
 
         original = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         reversed_graph = original.reverse()
@@ -20443,11 +19781,8 @@ class Graph:
         ```{python}
         deps = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", label="provides")
-            .add_edge("B", "C", label="provides")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")], label="provides")
         )
 
         dependents = deps.reverse()
@@ -20459,11 +19794,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=True)
-        g.add_node(label="X")
-        g.add_node(label="Y")
-        g.add_node(label="Z")
-        g.add_edge("X", "Y")
-        g.add_edge("Y", "Z")
+        g.add_nodes(["X", "Y", "Z"])
+        g.add_edges([("X", "Y"), ("Y", "Z")])
 
         g_transpose = g.reverse()
         g_transpose.get_edges_str_repr(use_labels=True)
@@ -20515,9 +19847,7 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
+            .add_nodes(["A", "B", "C"])
             .add_edge("A", "B")
         )
 
@@ -20537,12 +19867,8 @@ class Graph:
         ```{python}
         friends = (
             ec.Graph(directed=False)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-            .add_node(label="Diana")
-            .add_edge("Alice", "Bob")
-            .add_edge("Bob", "Charlie")
+            .add_nodes(["Alice", "Bob", "Charlie", "Diana"])
+            .add_edges([("Alice", "Bob"), ("Bob", "Charlie")])
         )
 
         non_friends = friends.complement()
@@ -20554,12 +19880,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_node(label="D")
-        g.add_edge("A", "B")
-        g.add_edge("C", "D")
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("C", "D")])
 
         comp = g.complement()
         comp.get_edges_str_repr(use_labels=True)
@@ -20571,9 +19893,7 @@ class Graph:
         ```{python}
         g = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
+            .add_nodes(["A", "B", "C"])
             .add_edge("A", "B")
         )
 
@@ -20674,11 +19994,8 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("B", "C")])
 
         lg = g.line_graph()
         lg.count_nodes(), lg.count_edges()
@@ -20689,12 +20006,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
-        g.add_edge("C", "A")
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
         lg = g.line_graph()
         lg.count_nodes(), lg.count_edges()
@@ -20706,11 +20019,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=True)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("B", "C")])
 
         lg = g.line_graph()
         lg.get_edges_str_repr(use_labels=True)
@@ -20721,11 +20031,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="X")
-        g.add_node(label="Y")
-        g.add_node(label="Z")
-        g.add_edge("X", "Y", weight=2.0)
-        g.add_edge("Y", "Z", weight=3.0)
+        g.add_nodes(["X", "Y", "Z"])
+        g.add_edges([("X", "Y", 2.0), ("Y", "Z", 3.0)])
 
         lg = g.line_graph()
         lg.get_node_df().select(
@@ -20738,10 +20045,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="C")
-        for i in range(4):
-            g.add_node(label=f"L{i}")
-            g.add_edge("C", f"L{i}")
+        g.add_nodes(["C", "L0", "L1", "L2", "L3"])
+        g.add_edges([("C", "L0"), ("C", "L1"), ("C", "L2"), ("C", "L3")])
 
         lg = g.line_graph()
         lg.count_nodes(), lg.count_edges()
@@ -20810,13 +20115,8 @@ class Graph:
         # Create a path: A -- B -- C -- D
         g = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         result = g.contract_nodes("A", "B")
@@ -20836,12 +20136,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         with_loop = g.contract_nodes("A", "B", self_loops=True)
@@ -20946,11 +20242,8 @@ class Graph:
 
         g = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         result = g.contracted_edge("A", "B")
@@ -20976,11 +20269,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         result = g.contracted_edge("A", "B")
@@ -21089,12 +20379,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-
-        for name in ["A", "B", "C", "D"]:
-            g.add_node(label=name)
-
-        for a, b in [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]:
-            g.add_edge(a, b)
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
 
         g.contract_nodes_multi(["A", "B", "C"]).get_edges_str_repr(use_labels=True)
         ```
@@ -21113,13 +20399,9 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-
-        for name in ["A", "B", "C", "D", "E", "F"]:
-            g.add_node(label=name)
-
-        for a, b in [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                     ("D", "E"), ("E", "F"), ("F", "D")]:
-            g.add_edge(a, b)
+        g.add_nodes(["A", "B", "C", "D", "E", "F"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                     ("D", "E"), ("E", "F"), ("F", "D")])
 
         membership = g.cmty_louvain(return_dict=True)
         community = sorted(n for n, c in membership.items() if c == membership[1])
@@ -21231,13 +20513,9 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-
-        for name in ["A", "B", "C", "D", "E", "F"]:
-            g.add_node(label=name)
-
-        for a, b in [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("B", "D"),
-                     ("D", "E"), ("E", "F"), ("C", "F")]:
-            g.add_edge(a, b)
+        g.add_nodes(["A", "B", "C", "D", "E", "F"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("B", "D"),
+                     ("D", "E"), ("E", "F"), ("C", "F")])
 
         quotient = g.quotient_graph([["A", "B", "C"], ["D", "E"], ["F"]])
         quotient.get_edges_str_repr(use_labels=True)
@@ -21349,15 +20627,11 @@ class Graph:
         import edgecase as ec
 
         g1 = ec.Graph(directed=False)
-        g1.add_node(label="A")
-        g1.add_node(label="B")
-        g1.add_node(label="C")
+        g1.add_nodes(["A", "B", "C"])
         g1.add_edge("A", "B")
 
         g2 = ec.Graph(directed=False)
-        g2.add_node(label="A")
-        g2.add_node(label="B")
-        g2.add_node(label="C")
+        g2.add_nodes(["A", "B", "C"])
         g2.add_edge("B", "C")
 
         result = g1.union(g2)
@@ -21510,10 +20784,8 @@ class Graph:
         ```{python}
         def snapshot(friendships):
             g = ec.Graph(directed=False)
-            for name in ["Ann", "Bob", "Cat", "Dan", "Eve"]:
-                g.add_node(label=name)
-            for a, b in friendships:
-                g.add_edge(a, b)
+            g.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
+            g.add_edges(friendships)
             return g
 
         year1 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Cat", "Dan"), ("Dan", "Eve")])
@@ -21600,16 +20872,13 @@ class Graph:
         g1 = ec.Graph(directed=False)
         for i in range(1, 5):
             g1.add_node()
-        g1.add_edge(1, 2)
-        g1.add_edge(2, 3)
-        g1.add_edge(3, 4)
+        g1.add_edges([(1, 2), (2, 3), (3, 4)])
 
         # Subset network
         g2 = ec.Graph(directed=False)
         for i in range(1, 4):
             g2.add_node()
-        g2.add_edge(1, 2)
-        g2.add_edge(2, 3)
+        g2.add_edges([(1, 2), (2, 3)])
 
         diff = g1.difference(g2)
         diff.count_edges()
@@ -21628,10 +20897,8 @@ class Graph:
         ```{python}
         def snapshot(friendships):
             g = ec.Graph(directed=False)
-            for name in ["Ann", "Bob", "Cat", "Dan", "Eve"]:
-                g.add_node(label=name)
-            for a, b in friendships:
-                g.add_edge(a, b)
+            g.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
+            g.add_edges(friendships)
             return g
 
         year1 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Cat", "Dan"), ("Dan", "Eve")])
@@ -21718,16 +20985,13 @@ class Graph:
         g1 = ec.Graph(directed=False)
         for i in range(1, 4):
             g1.add_node()
-        g1.add_edge(1, 2)
-        g1.add_edge(2, 3)
-        g1.add_edge(3, 1)
+        g1.add_edges([(1, 2), (2, 3), (3, 1)])
 
         # Path
         g2 = ec.Graph(directed=False)
         for i in range(1, 4):
             g2.add_node()
-        g2.add_edge(1, 2)
-        g2.add_edge(2, 3)
+        g2.add_edges([(1, 2), (2, 3)])
 
         sym_diff = g1.symmetric_difference(g2)
         sym_diff.count_edges()
@@ -21741,10 +21005,8 @@ class Graph:
         ```{python}
         def snapshot(friendships):
             g = ec.Graph(directed=False)
-            for name in ["Ann", "Bob", "Cat", "Dan", "Eve"]:
-                g.add_node(label=name)
-            for a, b in friendships:
-                g.add_edge(a, b)
+            g.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
+            g.add_edges(friendships)
             return g
 
         year1 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Cat", "Dan"), ("Dan", "Eve")])
@@ -21846,16 +21108,12 @@ class Graph:
 
         ```{python}
         g1 = ec.Graph(directed=False)
-        g1.add_node(label="A", team="red", rank=1)
-        g1.add_node(label="B")
+        g1.add_nodes([("A", {"team": "red", "rank": 1}), "B"])
         g1.add_edge("A", "B", weight=1.0)
 
         g2 = ec.Graph(directed=False)
-        g2.add_node(label="A", team="blue")
-        g2.add_node(label="B")
-        g2.add_node(label="C")
-        g2.add_edge("A", "B", weight=5.0)
-        g2.add_edge("B", "C")
+        g2.add_nodes([("A", {"team": "blue"}), "B", "C"])
+        g2.add_edges([("A", "B", 5.0), ("B", "C")])
 
         updated = g1.compose(g2)
         updated.get_node_df().select("label", "team", "rank")
@@ -21943,16 +21201,12 @@ class Graph:
         t1 = ec.Graph(directed=False)
         for i in range(1, 4):
             t1.add_node()
-        t1.add_edge(1, 2)
-        t1.add_edge(2, 3)
-        t1.add_edge(3, 1)
+        t1.add_edges([(1, 2), (2, 3), (3, 1)])
 
         t2 = ec.Graph(directed=False)
         for i in range(1, 4):
             t2.add_node()
-        t2.add_edge(1, 2)
-        t2.add_edge(2, 3)
-        t2.add_edge(3, 1)
+        t2.add_edges([(1, 2), (2, 3), (3, 1)])
 
         combined = t1.disjoint_union(t2)
         combined.count_nodes()
@@ -22054,24 +21308,14 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "D")])
         )
 
         h = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("B", "A")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("B", "A"), ("B", "D"), ("C", "D")])
         )
 
         g.edge_overlap(h)
@@ -22152,17 +21396,12 @@ class Graph:
         ring = [("G1", "G2"), ("G2", "G3"), ("G3", "G4"), ("G4", "G5"), ("G5", "G1"), ("G1", "G3")]
 
         healthy = ec.Graph()
-        for gene in genes:
-            healthy.add_node(label=gene)
-        for s, t in ring:
-            healthy.add_edge(s, t)
+        healthy.add_nodes(genes)
+        healthy.add_edges(ring)
 
         disease = ec.Graph()
-        for gene in genes:
-            disease.add_node(label=gene)
-        for s, t in ring:
-            if (s, t) != ("G4", "G5"):
-                disease.add_edge(s, t)
+        disease.add_nodes(genes)
+        disease.add_edges([(s, t) for s, t in ring if (s, t) != ("G4", "G5")])
         disease.add_edge("G5", "G3")
 
         healthy.differential_edges(disease)
@@ -22255,24 +21494,14 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "D")
-            .add_edge("A", "C")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "D"), ("A", "C")])
         )
 
         h = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "D", "E"])
+            .add_edges([("A", "B"), ("B", "D"), ("D", "E")])
         )
 
         g.graph_edit_distance(h)
@@ -22367,15 +21596,8 @@ class Graph:
 
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
         )
 
         a_id = g.get_id_from_label("A")
@@ -22490,10 +21712,13 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-        for label in "ABCDEFG":
-            g.add_node(label=label)
-        for s, t in ["AB", "AC", "BD", "CD", "DE", "DF", "EG", "FG"]:
-            g.add_edge(source=s, target=t)
+        g.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+        g.add_edges(
+            [
+                ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
+                ("D", "E"), ("D", "F"), ("E", "G"), ("F", "G"),
+            ]
+        )
 
         curve = g.network_robustness(strategy="degree", return_dict=True)
         [(round(removed, 2), round(lcc, 2)) for removed, lcc in curve]
@@ -22618,11 +21843,10 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-        for label in ["Hub", "A", "B", "C", "D", "E", "F", "G"]:
-            g.add_node(label=label)
-        for spoke in ["A", "B", "C", "D"]:
-            g.add_edge("Hub", spoke)
-        g.add_edge("E", "F").add_edge("F", "G")
+        g.add_nodes(["Hub", "A", "B", "C", "D", "E", "F", "G"])
+        g.add_edges(
+            [("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D"), ("E", "F"), ("F", "G")]
+        )
 
         seeds = g.influence_maximization(
             k=2, probability=0.5, n_simulations=500, seed=42, return_dict=True
@@ -22635,9 +21859,8 @@ class Graph:
 
         ```{python}
         d = ec.Graph(directed=True)
-        for label in "ABCD":
-            d.add_node(label=label)
-        d.add_edge("A", "B").add_edge("B", "C").add_edge("C", "D")
+        d.add_nodes(["A", "B", "C", "D"])
+        d.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
         seeds = d.influence_maximization(k=1, probability=1.0, seed=1, return_dict=True)
         [(d.get_label_from_id(node_id), gain) for node_id, gain in seeds]
@@ -22755,10 +21978,8 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-        for label in "ABCDE":
-            g.add_node(label=label)
-        for s, t in ["AB", "BC", "CD", "DE"]:
-            g.add_edge(source=s, target=t)
+        g.add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
 
         scores = {g.get_id_from_label("A"): 1.0}
         smoothed = g.network_smooth(scores, alpha=0.5, return_dict=True)
@@ -22837,8 +22058,7 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(weighted=True)
-        for i in range(20):
-            g.add_node(label=str(i))
+        g.add_nodes(range(20))
         import random
         random.seed(23)
         for i in range(20):
@@ -22974,8 +22194,7 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-        for i in range(12):
-            g.add_node(label=f"g{i}")
+        g.add_nodes([f"g{i}" for i in range(12)])
         for block in [range(0, 4), range(4, 8), range(8, 12)]:
             for x in block:
                 for y in block:
@@ -23129,12 +22348,10 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-        for i in range(5):
-            g.add_node(label=str(i))
+        g.add_nodes(range(5))
 
         # Create a cycle
-        for i in range(5):
-            g.add_edge(source=str(i), target=str((i+1) % 5))
+        g.add_edges([(str(i), str((i+1) % 5)) for i in range(5)])
 
         spanner = g.transform_with_spanner(stretch=2.0)
         spanner.count_edges() < g.count_edges()
@@ -23145,12 +22362,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(weighted=True)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B", weight=1.0)
-        g.add_edge(source="B", target="C", weight=1.0)
-        g.add_edge(source="A", target="C", weight=5.0)
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)])
 
         spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
         spanner.count_edges()
@@ -23417,10 +22630,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(weighted=True)
-        for label in "ABCD":
-            g.add_node(label=label, kind="gene")
-        g.add_edge("A", "B", weight=1.0).add_edge("B", "C", weight=2.0)
-        g.add_edge("C", "D", weight=3.0).add_edge("A", "C", weight=4.0)
+        g.add_nodes(["A", "B", "C", "D"], kind="gene")
+        g.add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0), ("A", "C", 4.0)])
 
         ids = [g.get_id_from_label(label) for label in ["A", "C", "D"]]
         sub = g.subgraph(ids)
@@ -23529,10 +22740,15 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=True)
-        for label in "ABCD":
-            g.add_node(label=label)
-        g.add_edge("A", "B", rel="activates").add_edge("B", "C", rel="inhibits")
-        g.add_edge("C", "D", rel="activates").add_edge("A", "D", rel="inhibits")
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [
+                ("A", "B", {"rel": "activates"}),
+                ("B", "C", {"rel": "inhibits"}),
+                ("C", "D", {"rel": "activates"}),
+                ("A", "D", {"rel": "inhibits"}),
+            ]
+        )
 
         edf = g.get_edge_df()
         inhibitory = edf.filter(edf["rel"] == "inhibits")["id"].to_list()
@@ -23607,9 +22823,7 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph()
-        graph.add_node('A')
-        graph.add_node('B')
-        graph.add_node('C')
+        graph.add_nodes(['A', 'B', 'C'])
 
         # Create clique among selected nodes
         id_a = graph.get_id_from_label('A')
@@ -23632,9 +22846,8 @@ class Graph:
 
         ```{python}
         graph = ec.Graph()
-        for label in "ABCDE":
-            graph.add_node(label=label)
-        graph.add_edge("A", "B").add_edge("B", "C").add_edge("C", "D").add_edge("D", "E")
+        graph.add_nodes(["A", "B", "C", "D", "E"])
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
 
         (
             graph
@@ -23777,11 +22990,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label='A')
-            .add_node(label='B')
-            .add_node(label='C')
-            .add_edge(source='A', target='B', weight=10.0)
-            .add_edge(source='B', target='C', weight=3.0)
+            .add_nodes(['A', 'B', 'C'])
+            .add_edges([('A', 'B', 10.0), ('B', 'C', 3.0)])
         )
 
         (
@@ -24008,11 +23218,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("A", "C")])
             .degrees(return_dict=False)
         )
 
@@ -24026,12 +23233,8 @@ class Graph:
         ```{python}
         directed = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C")])
         )
 
         degs = directed.degrees(return_dict=True)
@@ -24122,11 +23325,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("A", "C")])
         )
 
         graph.get_degree("A")
@@ -24145,11 +23345,13 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")  # out for A, in for B
-            .add_edge("C", "A")  # in for A
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),  # out for A, in for B
+                    ("C", "A"),  # in for A
+                ]
+            )
         )
 
         graph.get_degree("A")
@@ -24215,11 +23417,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("C", "B")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("C", "B")])
         )
 
         graph.get_in_degree("B")
@@ -24296,11 +23495,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("A", "C")])
         )
 
         graph.get_out_degree("A")
@@ -24369,15 +23565,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="Hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("Hub", "A")
-            .add_edge("Hub", "B")
-            .add_edge("Hub", "C")
-            .add_edge("Hub", "D")
+            .add_nodes(["Hub", "A", "B", "C", "D"])
+            .add_edges([("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D")])
         )
 
         graph.get_degree_distribution()
@@ -24435,14 +23624,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
         )
 
         graph.get_average_degree()
@@ -24908,19 +24091,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-        )
+        graph = ec.Graph(directed=True).add_nodes(["Alice", "Bob", "Charlie"])
         alice_id = graph.get_id_from_label("Alice")
         bob_id = graph.get_id_from_label("Bob")
         charlie_id = graph.get_id_from_label("Charlie")
 
-        graph.add_edge(alice_id, bob_id)
-        graph.add_edge(alice_id, charlie_id)
-        graph.add_edge(bob_id, charlie_id)
+        graph.add_edges([(alice_id, bob_id), (alice_id, charlie_id), (bob_id, charlie_id)])
 
         scores = graph.pagerank(return_dict=True)
         scores
@@ -24936,15 +24112,8 @@ class Graph:
         graph structure, which tends to pull every node's score closer together:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-        )
-        graph.add_edge(source="Alice", target="Bob")
-        graph.add_edge(source="Alice", target="Charlie")
-        graph.add_edge(source="Bob", target="Charlie")
+        graph = ec.Graph(directed=True).add_nodes(["Alice", "Bob", "Charlie"])
+        graph.add_edges([("Alice", "Bob"), ("Alice", "Charlie"), ("Bob", "Charlie")])
 
         graph.pagerank(damping=0.5, return_dict=True)
         ```
@@ -24952,15 +24121,8 @@ class Graph:
         Sorting the results surfaces the most influential nodes first:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-        )
-        graph.add_edge(source="Alice", target="Bob")
-        graph.add_edge(source="Alice", target="Charlie")
-        graph.add_edge(source="Bob", target="Charlie")
+        graph = ec.Graph(directed=True).add_nodes(["Alice", "Bob", "Charlie"])
+        graph.add_edges([("Alice", "Bob"), ("Alice", "Charlie"), ("Bob", "Charlie")])
 
         scores = graph.pagerank(return_dict=True)
         sorted(
@@ -25084,14 +24246,10 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="GeneA")
-            .add_node(label="GeneB")
-            .add_node(label="GeneC")
-            .add_node(label="GeneD")
-            .add_edge("GeneA", "GeneB")
-            .add_edge("GeneB", "GeneC")
-            .add_edge("GeneC", "GeneD")
-            .add_edge("GeneA", "GeneD")
+            .add_nodes(["GeneA", "GeneB", "GeneC", "GeneD"])
+            .add_edges(
+                [("GeneA", "GeneB"), ("GeneB", "GeneC"), ("GeneC", "GeneD"), ("GeneA", "GeneD")]
+            )
         )
 
         seed_id = graph.get_id_from_label("GeneA")
@@ -25120,10 +24278,13 @@ class Graph:
 
         ```{python}
         g = ec.Graph()
-        for label in "ABCDEFG":
-            g.add_node(label=label)
-        for s, t in ["AB", "AC", "BC", "CD", "DE", "EF", "EG", "FG"]:
-            g.add_edge(s, t)
+        g.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+        g.add_edges(
+            [
+                ("A", "B"), ("A", "C"), ("B", "C"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("E", "G"), ("F", "G"),
+            ]
+        )
 
         seeds = {g.get_id_from_label("A"): 1.0, g.get_id_from_label("G"): 3.0}
         g.personalized_pagerank(seeds, attr_name="ppr")
@@ -25248,14 +24409,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="BRCA1")
-            .add_node(label="TP53")
-            .add_node(label="ATM")
-            .add_node(label="CHEK2")
-            .add_edge("BRCA1", "TP53")
-            .add_edge("TP53", "ATM")
-            .add_edge("ATM", "CHEK2")
-            .add_edge("BRCA1", "CHEK2")
+            .add_nodes(["BRCA1", "TP53", "ATM", "CHEK2"])
+            .add_edges([("BRCA1", "TP53"), ("TP53", "ATM"), ("ATM", "CHEK2"), ("BRCA1", "CHEK2")])
         )
 
         seed_id = graph.get_id_from_label("BRCA1")
@@ -25403,21 +24558,13 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("E", "G")
-            .add_edge("F", "G")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges(
+                [
+                    ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
+                    ("D", "E"), ("E", "F"), ("E", "G"), ("F", "G"),
+                ]
+            )
         )
 
         a_id = graph.get_id_from_label("A")
@@ -25556,13 +24703,8 @@ class Graph:
         # Simple network with a broker (B)
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")  # Broker
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
+            .add_nodes(["A", "B", "C", "D"])  # B is the broker
+            .add_edges([("A", "B"), ("B", "C"), ("B", "D")])
             # Note: C and D are not connected
         )
 
@@ -25581,17 +24723,13 @@ class Graph:
         # Compare dense vs. sparse ego networks
         g = ec.Graph()
 
-        for i in range(6):
-            g.add_node(label=str(i))
+        g.add_nodes(range(6))
 
         # Node 0: connects to 1,2 which are connected (no structural hole)
-        g.add_edge(source="0", target="1")
-        g.add_edge(source="0", target="2")
-        g.add_edge(source="1", target="2")
+        g.add_edges([("0", "1"), ("0", "2"), ("1", "2")])
 
         # Node 3: connects to 4,5 which are NOT connected (structural hole)
-        g.add_edge(source="3", target="4")
-        g.add_edge(source="3", target="5")
+        g.add_edges([("3", "4"), ("3", "5")])
 
         constraints = g.constraint(return_dict=True)
         node_0_id = g.get_id_from_label("0")
@@ -25704,15 +24842,8 @@ class Graph:
         # Create two clusters connected by a bridge node
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="Bridge")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "Bridge")
-            .add_edge("Bridge", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "Bridge", "C", "D"])
+            .add_edges([("A", "B"), ("B", "Bridge"), ("Bridge", "C"), ("C", "D")])
         )
 
         scores = graph.betweenness_centrality(return_dict=True)
@@ -25725,15 +24856,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
         )
 
         scores = graph.betweenness_centrality(return_dict=True)
@@ -25808,19 +24932,10 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
             .add_edge("C", "D")  # Bridge
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "D")
+            .add_edges([("D", "E"), ("E", "F"), ("F", "D")])
         )
 
         score, core = graph.knotty_centrality()
@@ -25888,15 +25003,8 @@ class Graph:
         # Create a network with a central bridge
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="Bridge")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "Bridge")
-            .add_edge("Bridge", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "Bridge", "C", "D"])
+            .add_edges([("A", "B"), ("B", "Bridge"), ("Bridge", "C"), ("C", "D")])
         )
 
         scores = graph.load_centrality(return_dict=True)
@@ -25911,13 +25019,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         load = graph.load_centrality(return_dict=True)
@@ -25938,10 +25041,8 @@ class Graph:
         ```{python}
         graph = ec.Graph()
 
-        for i in range(5):
-            graph.add_node(label=str(i))
-        for i in range(4):
-            graph.add_edge(str(i), str(i+1))
+        graph.add_nodes(["0", "1", "2", "3", "4"])
+        graph.add_edges([("0", "1"), ("1", "2"), ("2", "3"), ("3", "4")])
 
         graph.load_centrality(attr_name="load")
         graph.get_node_attrs("load")
@@ -26035,10 +25136,8 @@ class Graph:
         # Create a simple path: 0 - 1 - 2 - 3 - 4
         graph = ec.Graph()
 
-        for i in range(5):
-            graph.add_node(label=str(i))
-        for i in range(4):
-            graph.add_edge(str(i), str(i+1))
+        graph.add_nodes(['0', '1', '2', '3', '4'])
+        graph.add_edges([('0', '1'), ('1', '2'), ('2', '3'), ('3', '4')])
 
         soc = graph.second_order_centrality(return_dict=True)
 
@@ -26060,9 +25159,8 @@ class Graph:
         star = ec.Graph()
         star.add_node(label='center')
 
-        for i in range(5):
-            star.add_node(label=f'leaf_{i}')
-            star.add_edge('center', f'leaf_{i}')
+        star.add_nodes([f'leaf_{i}' for i in range(5)])
+        star.add_edges([('center', f'leaf_{i}') for i in range(5)])
 
         star_soc = star.second_order_centrality(return_dict=True)
         center_id = star.get_id_from_label('center')
@@ -26076,11 +25174,8 @@ class Graph:
 
         ```{python}
         complete = ec.Graph()
-        for i in range(4):
-            complete.add_node(label=str(i))
-        for i in range(4):
-            for j in range(i+1, 4):
-                complete.add_edge(str(i), str(j))
+        complete.add_nodes(['0', '1', '2', '3'])
+        complete.add_edges([(str(i), str(j)) for i in range(4) for j in range(i+1, 4)])
 
         complete_soc = complete.second_order_centrality(return_dict=True)
         vals = list(complete_soc.values())
@@ -26094,13 +25189,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label='A')
-            .add_node(label='B')
-            .add_node(label='C')
-            .add_node(label='D')
-            .add_edge('A', 'B')
-            .add_edge('B', 'C')
-            .add_edge('C', 'D')
+            .add_nodes(['A', 'B', 'C', 'D'])
+            .add_edges([('A', 'B'), ('B', 'C'), ('C', 'D')])
         )
 
         graph.second_order_centrality(attr_name='soc')
@@ -26197,11 +25287,8 @@ class Graph:
 
         # Create a path graph: 1 -- 2 -- 3
         graph = ec.Graph(directed=False)
-        graph.add_node(label="1")
-        graph.add_node(label="2")
-        graph.add_node(label="3")
-        graph.add_edge("1", "2")
-        graph.add_edge("2", "3")
+        graph.add_nodes(["1", "2", "3"])
+        graph.add_edges([("1", "2"), ("2", "3")])
 
         comm = graph.communicability()
         id1 = graph.get_id_from_label("1")
@@ -26216,13 +25303,8 @@ class Graph:
 
         ```{python}
         graph = ec.Graph(directed=False)
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
-        graph.add_node(label="D")
-        graph.add_edge("A", "B")
-        graph.add_edge("B", "C")
-        graph.add_edge("B", "D")
+        graph.add_nodes(["A", "B", "C", "D"])
+        graph.add_edges([("A", "B"), ("B", "C"), ("B", "D")])
 
         comm = graph.communicability()
         b_id = graph.get_id_from_label("B")
@@ -26301,13 +25383,8 @@ class Graph:
 
         # Create a simple network
         graph = ec.Graph(directed=False)
-        graph.add_node(label="A")
-        graph.add_node(label="B")
-        graph.add_node(label="C")
-        graph.add_node(label="D")
-        graph.add_edge("A", "B")
-        graph.add_edge("B", "C")
-        graph.add_edge("C", "D")
+        graph.add_nodes(["A", "B", "C", "D"])
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
         cbc = graph.communicability_betweenness_centrality(return_dict=True)
 
@@ -26327,11 +25404,8 @@ class Graph:
 
         ```{python}
         graph = ec.Graph(directed=False)
-        graph.add_node(label="1")
-        graph.add_node(label="2")
-        graph.add_node(label="3")
-        graph.add_edge("1", "2")
-        graph.add_edge("2", "3")
+        graph.add_nodes(["1", "2", "3"])
+        graph.add_edges([("1", "2"), ("2", "3")])
 
         graph.communicability_betweenness_centrality(attr_name="cbc")
         graph.get_node_attrs("cbc")
@@ -26343,9 +25417,8 @@ class Graph:
         # Star graph
         star = ec.Graph(directed=False)
         star.add_node(label="center")
-        for i in range(4):
-            star.add_node(label=f"leaf_{i}")
-            star.add_edge("center", f"leaf_{i}")
+        star.add_nodes([f"leaf_{i}" for i in range(4)])
+        star.add_edges([("center", f"leaf_{i}") for i in range(4)])
 
         cbc = star.communicability_betweenness_centrality(return_dict=True)
 
@@ -26465,19 +25538,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("C", "F")
-            .add_edge("F", "G")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("C", "F"), ("F", "G")])
         )
 
         graph.percolation_centrality(return_dict=True)
@@ -26606,23 +25668,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("D", "F")
-            .add_edge("E", "F")
-            .add_edge("E", "G")
-            .add_edge("F", "G")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("D", "E"),
+                        ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G")])
         )
 
         percolated = graph.node_percolation(q=0.3, seed=9)
@@ -26720,23 +25768,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("D", "F")
-            .add_edge("E", "F")
-            .add_edge("E", "G")
-            .add_edge("F", "G")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("D", "E"),
+                        ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G")])
         )
 
         percolated = graph.edge_percolation(q=0.3, seed=14)
@@ -26804,16 +25838,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("E", "F")
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("E", "F")])
         )
 
         (graph.count_nodes(), graph.largest_component_size())
@@ -26825,11 +25851,8 @@ class Graph:
         ```{python}
         directed = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("B", "A")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("B", "A"), ("C", "A")])
         )
 
         directed.largest_component_size()
@@ -27045,10 +26068,8 @@ class Graph:
 
         g = ec.Graph(directed=False)
 
-        for i in range(5):
-            g.add_node(label=str(i))
-        for i in range(4):
-            g.add_edge(str(i), str(i+1))
+        g.add_nodes(['0', '1', '2', '3', '4'])
+        g.add_edges([('0', '1'), ('1', '2'), ('2', '3'), ('3', '4')])
 
         g.average_neighbor_degree(return_dict=True)
         ```
@@ -27061,12 +26082,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=True)
-        g.add_node(label='A')
-        g.add_node(label='B')
-        g.add_node(label='C')
-        g.add_edge('A', 'B')
-        g.add_edge('B', 'C')
-        g.add_edge('C', 'A')
+        g.add_nodes(['A', 'B', 'C'])
+        g.add_edges([('A', 'B'), ('B', 'C'), ('C', 'A')])
 
         g.average_neighbor_degree(source="out", target="out", return_dict=True)
         ```
@@ -27080,11 +26097,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph(directed=False)
-            .add_node(label='A')
-            .add_node(label='B')
-            .add_node(label='C')
-            .add_edge('A', 'B')
-            .add_edge('B', 'C')
+            .add_nodes(['A', 'B', 'C'])
+            .add_edges([('A', 'B'), ('B', 'C')])
             .average_neighbor_degree(attr_name='knn')
         )
 
@@ -27190,13 +26204,8 @@ class Graph:
         # Create a star network
         graph = (
             ec.Graph()
-            .add_node(label="Center")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("Center", "A")
-            .add_edge("Center", "B")
-            .add_edge("Center", "C")
+            .add_nodes(["Center", "A", "B", "C"])
+            .add_edges([("Center", "A"), ("Center", "B"), ("Center", "C")])
         )
 
         scores = graph.harmonic_centrality(return_dict=True)
@@ -27211,13 +26220,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         graph.harmonic_centrality(return_dict=True)
@@ -27234,15 +26238,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
         )
 
         # Only consider paths of length 2 or less
@@ -27254,11 +26251,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
             .harmonic_centrality(attr_name="harmonic", normalized=True)
         )
 
@@ -27274,11 +26268,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.harmonic_centrality(mode="out", return_dict=True)
@@ -27401,11 +26392,13 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="Paper1")
-            .add_node(label="Paper2")
-            .add_node(label="Paper3")
-            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
-            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
+            .add_nodes(["Paper1", "Paper2", "Paper3"])
+            .add_edges(
+                [
+                    ("Paper1", "Paper2"),  # Paper1 cites Paper2
+                    ("Paper1", "Paper3"),  # Paper1 cites Paper3
+                ]
+            )
         )
 
         scores = graph.authority_centrality(return_dict=True)
@@ -27419,17 +26412,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"), ("D", "E")])
         )
 
         scores = graph.authority_centrality(return_dict=True)
@@ -27556,11 +26540,13 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="Paper1")
-            .add_node(label="Paper2")
-            .add_node(label="Paper3")
-            .add_edge("Paper1", "Paper2")  # Paper1 cites Paper2
-            .add_edge("Paper1", "Paper3")  # Paper1 cites Paper3
+            .add_nodes(["Paper1", "Paper2", "Paper3"])
+            .add_edges(
+                [
+                    ("Paper1", "Paper2"),  # Paper1 cites Paper2
+                    ("Paper1", "Paper3"),  # Paper1 cites Paper3
+                ]
+            )
         )
 
         scores = graph.hub_centrality(return_dict=True)
@@ -27575,17 +26561,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"), ("D", "E")])
         )
 
         scores = graph.hub_centrality(return_dict=True)
@@ -27722,14 +26699,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
         )
 
         scores = graph.eigen_centrality(return_dict=True)
@@ -27743,13 +26714,8 @@ class Graph:
         ```{python}
         star = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         scores = star.eigen_centrality(return_dict=True)
@@ -27890,13 +26856,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         low = graph.alpha_centrality(alpha=0.05, return_dict=True)
@@ -27916,17 +26877,8 @@ class Graph:
         ```{python}
         dag = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"), ("D", "E")])
         )
 
         scores = dag.alpha_centrality(alpha=0.8, return_dict=True)
@@ -28079,13 +27031,8 @@ class Graph:
         # Create star: center connected to 3 leaves
         g = (
             ec.Graph(directed=True)
-            .add_node(label="center")
-            .add_node(label="leaf1")
-            .add_node(label="leaf2")
-            .add_node(label="leaf3")
-            .add_edge(source="center", target="leaf1")
-            .add_edge(source="center", target="leaf2")
-            .add_edge(source="center", target="leaf3")
+            .add_nodes(["center", "leaf1", "leaf2", "leaf3"])
+            .add_edges([("center", "leaf1"), ("center", "leaf2"), ("center", "leaf3")])
         )
 
         g.bonacich_power_centrality(return_dict=True, beta=0.1)
@@ -28098,13 +27045,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_node(label="D")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="B", target="C")
-        g.add_edge(source="C", target="D")
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
         g.bonacich_power_centrality(return_dict=True, beta=-0.2)
         ```
@@ -28115,13 +27057,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_node(label="D")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="B", target="C")
-        g.add_edge(source="B", target="D")
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("B", "D")])
 
         max_deg = max(g.get_degree(node=nid) for nid in g.get_node_ids())
         g.bonacich_power_centrality(return_dict=True, beta=0.9/max_deg)
@@ -28273,14 +27210,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("A", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("A", "D")])
         )
 
         scores = graph.katz_centrality(return_dict=True)
@@ -28435,13 +27366,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         graph.leverage_centrality(return_dict=True)
@@ -28453,19 +27379,16 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="hub", target="A")
-            .add_edge(source="hub", target="B")
-            .add_edge(source="hub", target="C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         (
             graph
             .leverage_centrality(attr_name="leverage")
-            .colorize_node_attrs(node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu")
+            .colorize_node_attrs(
+                node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu"
+            )
             .describe()
         )
         ```
@@ -28555,8 +27478,7 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph()
-        for label in ["A", "B", "C", "D", "E", "F", "G", "H", "X"]:
-            graph.add_node(label=label)
+        graph.add_nodes(["A", "B", "C", "D", "E", "F", "G", "H", "X"])
 
         for clique in (["A", "B", "C", "D"], ["E", "F", "G", "H"]):
             for i, u in enumerate(clique):
@@ -28651,10 +27573,8 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=False)
-        g.add_node(label="hub")
-        for i in range(1, 6):
-            g.add_node(label=str(i))
-            g.add_edge("hub", str(i))
+        g.add_nodes(["hub", "1", "2", "3", "4", "5"])
+        g.add_edges([("hub", "1"), ("hub", "2"), ("hub", "3"), ("hub", "4"), ("hub", "5")])
 
         g.laplacian_centrality(return_dict=True)
         ```
@@ -28830,22 +27750,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="H1")
-            .add_node(label="a1")
-            .add_node(label="a2")
-            .add_node(label="a3")
-            .add_node(label="H2")
-            .add_node(label="b1")
-            .add_node(label="b2")
-            .add_node(label="M")
-            .add_edge("H1", "a1")
-            .add_edge("H1", "a2")
-            .add_edge("H1", "a3")
-            .add_edge("a1", "a2")
-            .add_edge("H2", "b1")
-            .add_edge("H2", "b2")
-            .add_edge("H1", "M")
-            .add_edge("M", "H2")
+            .add_nodes(["H1", "a1", "a2", "a3", "H2", "b1", "b2", "M"])
+            .add_edges([("H1", "a1"), ("H1", "a2"), ("H1", "a3"), ("a1", "a2"), ("H2", "b1"),
+                        ("H2", "b2"), ("H1", "M"), ("M", "H2")])
         )
 
         scores = graph.domirank_centrality(return_dict=True)
@@ -28991,13 +27898,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         vitality = graph.closeness_vitality(return_dict=True)
@@ -29061,16 +27963,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D")])
         )
 
         graph.coreness(return_dict=True)
@@ -29162,26 +28056,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_node(label="H")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("C", "E")
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "G")
-            .add_edge("G", "D")
-            .add_edge("G", "H")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
         )
 
         core_2 = graph.k_core(2)
@@ -29263,26 +28140,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_node(label="H")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("C", "E")
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "G")
-            .add_edge("G", "D")
-            .add_edge("G", "H")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
         )
 
         {
@@ -29354,26 +28214,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_node(label="H")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("C", "E")
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "G")
-            .add_edge("G", "D")
-            .add_edge("G", "H")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
         )
 
         crust_2 = graph.k_crust(2)
@@ -29460,26 +28303,9 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_node(label="H")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("B", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("C", "E")
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "G")
-            .add_edge("G", "D")
-            .add_edge("G", "H")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
         )
 
         truss_3 = graph.k_truss(3)
@@ -29546,18 +28372,12 @@ class Graph:
         g = ec.Graph()
 
         # Dense core: nodes 1, 2, 3 form a triangle
-        g.add_node(label="1")
-        g.add_node(label="2")
-        g.add_node(label="3")
-        g.add_edge("1", "2")
-        g.add_edge("2", "3")
-        g.add_edge("3", "1")
+        g.add_nodes(["1", "2", "3"])
+        g.add_edges([("1", "2"), ("2", "3"), ("3", "1")])
 
         # Add peripheral nodes
-        g.add_node(label="4")
-        g.add_node(label="5")
-        g.add_edge("1", "4")
-        g.add_edge("2", "5")
+        g.add_nodes(["4", "5"])
+        g.add_edges([("1", "4"), ("2", "5")])
 
         # The 2-corona contains nodes in the 2-core with exactly 2 neighbors in 2-core
         corona_2 = g.k_corona(2)
@@ -29636,20 +28456,19 @@ class Graph:
         # Create a network with clear hub structure
         graph = (
             ec.Graph()
-            .add_node(label="hub1")
-            .add_node(label="hub2")
-            .add_node(label="hub3")
-            .add_node(label="spoke1")
-            .add_node(label="spoke2")
-            .add_node(label="spoke3")
-            # Connect hubs to each other (rich club)
-            .add_edge("hub1", "hub2")
-            .add_edge("hub2", "hub3")
-            .add_edge("hub3", "hub1")
-            # Connect spokes to hubs
-            .add_edge("hub1", "spoke1")
-            .add_edge("hub2", "spoke2")
-            .add_edge("hub3", "spoke3")
+            .add_nodes(["hub1", "hub2", "hub3", "spoke1", "spoke2", "spoke3"])
+            .add_edges(
+                [
+                    # Connect hubs to each other (rich club)
+                    ("hub1", "hub2"),
+                    ("hub2", "hub3"),
+                    ("hub3", "hub1"),
+                    # Connect spokes to hubs
+                    ("hub1", "spoke1"),
+                    ("hub2", "spoke2"),
+                    ("hub3", "spoke3"),
+                ]
+            )
         )
 
         rc = graph.rich_club_coefficient()
@@ -29742,13 +28561,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         graph.get_mean_distance()
@@ -29769,14 +28583,8 @@ class Graph:
         ```{python}
         split = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("D", "E")])
         )
 
         (split.get_mean_distance(), split.get_mean_distance(unconnected=False))
@@ -29940,13 +28748,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         graph.get_diameter()
@@ -29967,14 +28770,8 @@ class Graph:
         ```{python}
         split = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("D", "E")])
         )
 
         (split.get_diameter(), split.get_diameter(unconnected=False))
@@ -30033,13 +28830,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         graph.get_radius()
@@ -30097,14 +28889,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
         )
 
         # Returns 4 (cycle length)
@@ -30125,12 +28911,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         # Returns 3
@@ -30187,15 +28969,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
         )
 
         graph.eccentricity(return_dict=True)
@@ -30274,13 +29049,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="hub")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("hub", "A")
-            .add_edge("hub", "B")
-            .add_edge("hub", "C")
+            .add_nodes(["hub", "A", "B", "C"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
         )
 
         graph.radiality(return_dict=True)
@@ -30409,14 +29179,15 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", weight=4.0)
-            .add_edge("A", "C", weight=2.0)
-            .add_edge("C", "B", weight=-3.0)  # Negative weight
-            .add_edge("B", "D", weight=1.0)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B", 4.0),
+                    ("A", "C", 2.0),
+                    ("C", "B", -3.0),  # Negative weight
+                    ("B", "D", 1.0),
+                ]
+            )
         )
 
         path = graph.bellman_ford_shortest_path("A", "D", return_list=True)
@@ -30445,12 +29216,14 @@ class Graph:
         ```{python}
         bad_graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", weight=1.0)
-            .add_edge("B", "C", weight=-3.0)
-            .add_edge("C", "A", weight=1.0)  # Creates negative cycle
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B", 1.0),
+                    ("B", "C", -3.0),
+                    ("C", "A", 1.0),  # Creates negative cycle
+                ]
+            )
         )
 
         error_message = None
@@ -30576,19 +29349,18 @@ class Graph:
         def build_routes(weighted):
             return (
                 ec.Graph(directed=True, weighted=weighted)
-                .add_node(label="A")
-                .add_node(label="B")
-                .add_node(label="C")
-                .add_node(label="D")
-                .add_node(label="E")
-                .add_node(label="F")
-                .add_edge("A", "B", weight=1.0)
-                .add_edge("B", "C", weight=2.0)
-                .add_edge("C", "F", weight=1.0)
-                .add_edge("A", "D", weight=3.0)
-                .add_edge("D", "F", weight=3.0)
-                .add_edge("A", "E", weight=2.0)
-                .add_edge("E", "F", weight=3.0)
+                .add_nodes(["A", "B", "C", "D", "E", "F"])
+                .add_edges(
+                    [
+                        ("A", "B", 1.0),
+                        ("B", "C", 2.0),
+                        ("C", "F", 1.0),
+                        ("A", "D", 3.0),
+                        ("D", "F", 3.0),
+                        ("A", "E", 2.0),
+                        ("E", "F", 3.0),
+                    ]
+                )
             )
 
         graph = build_routes(weighted=False)
@@ -30777,15 +29549,23 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A", x=0.0, y=0.0)
-            .add_node(label="B", x=1.0, y=0.0)
-            .add_node(label="C", x=1.0, y=2.0)
-            .add_node(label="D", x=2.0, y=2.0)
-            .add_edge("A", "B", weight=1.0)
-            .add_edge("A", "C", weight=4.0)
-            .add_edge("B", "C", weight=2.0)
-            .add_edge("C", "D", weight=1.0)
-            .add_edge("B", "D", weight=5.0)
+            .add_nodes(
+                [
+                    ("A", {"x": 0.0, "y": 0.0}),
+                    ("B", {"x": 1.0, "y": 0.0}),
+                    ("C", {"x": 1.0, "y": 2.0}),
+                    ("D", {"x": 2.0, "y": 2.0}),
+                ]
+            )
+            .add_edges(
+                [
+                    ("A", "B", 1.0),
+                    ("A", "C", 4.0),
+                    ("B", "C", 2.0),
+                    ("C", "D", 1.0),
+                    ("B", "D", 5.0),
+                ]
+            )
         )
 
         path = graph.ada_star_search("A", "D")
@@ -30837,15 +29617,16 @@ class Graph:
         ```{python}
         costs = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", cost=1.0)
-            .add_edge("A", "C", cost=4.0)
-            .add_edge("B", "C", cost=2.0)
-            .add_edge("C", "D", cost=1.0)
-            .add_edge("B", "D", cost=5.0)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B", {"cost": 1.0}),
+                    ("A", "C", {"cost": 4.0}),
+                    ("B", "C", {"cost": 2.0}),
+                    ("C", "D", {"cost": 1.0}),
+                    ("B", "D", {"cost": 5.0}),
+                ]
+            )
         )
 
         (
@@ -30949,12 +29730,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="B", target="C", weight=2.0)
-            .add_edge(source="A", target="C", weight=5.0)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("A", "C", 5.0)])
         )
 
         distances = graph.all_pairs_shortest_path_length()
@@ -30971,11 +29748,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         label = graph.get_label_from_id
@@ -31070,14 +29844,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="B", target="D", weight=1.0)
-            .add_edge(source="A", target="C", weight=1.0)
-            .add_edge(source="C", target="D", weight=5.0)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 1.0), ("B", "D", 1.0), ("A", "C", 1.0), ("C", "D", 5.0)])
         )
 
         paths = graph.all_pairs_shortest_path()
@@ -31204,15 +29972,16 @@ class Graph:
 
         graph = (
             ec.Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="B", target="D", weight=1.0)  # Route 1: A->B->D (cost 2.0)
-            .add_edge(source="A", target="C", weight=1.5)
-            .add_edge(source="C", target="D", weight=1.0)  # Route 2: A->C->D (cost 2.5)
-            .add_edge(source="A", target="D", weight=4.0)  # Route 3: A->D (cost 4.0)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B", 1.0),
+                    ("B", "D", 1.0),  # Route 1: A->B->D (cost 2.0)
+                    ("A", "C", 1.5),
+                    ("C", "D", 1.0),  # Route 2: A->C->D (cost 2.5)
+                    ("A", "D", 4.0),  # Route 3: A->D (cost 4.0)
+                ]
+            )
         )
 
         paths = graph.k_shortest_paths("A", "D", k=3)
@@ -31252,11 +30021,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(weighted=True)
-            .add_node(label="start")
-            .add_node(label="mid")
-            .add_node(label="end")
-            .add_edge(source="start", target="mid", weight=1.0)
-            .add_edge(source="mid", target="end", weight=1.0)
+            .add_nodes(["start", "mid", "end"])
+            .add_edges([("start", "mid"), ("mid", "end")], weight=1.0)
         )
 
         paths = graph.k_shortest_paths("start", "end", k=2)
@@ -31377,13 +30143,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         order = graph.bfs(start="B", return_list=True)
@@ -31512,13 +30273,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         order = graph.dfs(start="B", return_list=True)
@@ -31645,14 +30401,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
         )
 
         graph.get_all_simple_paths("A", "D")
@@ -31671,16 +30421,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("A", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("A", "E")])
         )
 
         graph.get_all_simple_paths("A", "E", cutoff=2)
@@ -31698,14 +30440,15 @@ class Graph:
         ```{python}
         network = (
             ec.Graph()
-            .add_node(label="Server1")
-            .add_node(label="Router1")
-            .add_node(label="Router2")
-            .add_node(label="Server2")
-            .add_edge("Server1", "Router1")
-            .add_edge("Server1", "Router2")
-            .add_edge("Router1", "Server2")
-            .add_edge("Router2", "Server2")
+            .add_nodes(["Server1", "Router1", "Router2", "Server2"])
+            .add_edges(
+                [
+                    ("Server1", "Router1"),
+                    ("Server1", "Router2"),
+                    ("Router1", "Server2"),
+                    ("Router2", "Server2"),
+                ]
+            )
         )
 
         routes = network.get_all_simple_paths("Server1", "Server2")
@@ -31789,11 +30532,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         # Returns True
@@ -31811,12 +30551,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         # Returns True
@@ -31849,13 +30585,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         paths = graph.get_all_simple_paths("A", "D")
@@ -32039,14 +30770,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="D")
-            .add_edge(source="D", target="A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
         )
 
         path = graph.random_walk("A", steps=6, seed=23, return_list=True)
@@ -32068,11 +30793,13 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")  # C has no outgoing edges
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),  # C has no outgoing edges
+                ]
+            )
         )
 
         graph.random_walk("A", steps=10, return_list=True)
@@ -32204,12 +30931,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         graph.random_edge_walk("A", steps=5, seed=23, return_list=True)
@@ -32253,12 +30976,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         edges = graph.random_edge_walk(start="A", steps=1000, seed=23, return_list=True)
@@ -32350,14 +31069,15 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="main.cpp")
-            .add_node(label="utils.cpp")
-            .add_node(label="utils.h")
-            .add_node(label="config.h")
-            .add_edge("main.cpp", "utils.h")     # main depends on utils.h
-            .add_edge("main.cpp", "config.h")    # main depends on config.h
-            .add_edge("utils.cpp", "utils.h")    # utils.cpp depends on utils.h
-            .add_edge("utils.h", "config.h")     # utils.h depends on config.h
+            .add_nodes(["main.cpp", "utils.cpp", "utils.h", "config.h"])
+            .add_edges(
+                [
+                    ("main.cpp", "utils.h"),  # main depends on utils.h
+                    ("main.cpp", "config.h"),  # main depends on config.h
+                    ("utils.cpp", "utils.h"),  # utils.cpp depends on utils.h
+                    ("utils.h", "config.h"),  # utils.h depends on config.h
+                ]
+            )
         )
 
         order_ids = graph.get_topological_sort_order()
@@ -32372,13 +31092,14 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="Intro CS")
-            .add_node(label="Data Structures")
-            .add_node(label="Algorithms")
-            .add_node(label="Machine Learning")
-            .add_edge("Intro CS", "Data Structures")
-            .add_edge("Data Structures", "Algorithms")
-            .add_edge("Algorithms", "Machine Learning")
+            .add_nodes(["Intro CS", "Data Structures", "Algorithms", "Machine Learning"])
+            .add_edges(
+                [
+                    ("Intro CS", "Data Structures"),
+                    ("Data Structures", "Algorithms"),
+                    ("Algorithms", "Machine Learning"),
+                ]
+            )
         )
 
         curriculum_ids = graph.get_topological_sort_order()
@@ -32393,12 +31114,14 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Creates a cycle
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "A"),  # Creates a cycle
+                ]
+            )
         )
 
         error_message = None
@@ -32416,11 +31139,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "C")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "C"), ("B", "C")])
         )
 
         # Both [A, B, C] and [B, A, C] are valid; C always comes last
@@ -32487,11 +31207,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         closure = graph.transitive_closure()
@@ -32506,14 +31223,10 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="main")
-            .add_node(label="utils")
-            .add_node(label="config")
-            .add_node(label="base")
-            .add_edge("main", "utils")
-            .add_edge("main", "config")
-            .add_edge("utils", "base")
-            .add_edge("config", "base")
+            .add_nodes(["main", "utils", "config", "base"])
+            .add_edges(
+                [("main", "utils"), ("main", "config"), ("utils", "base"), ("config", "base")]
+            )
         )
 
         closure = graph.transitive_closure()
@@ -32586,12 +31299,14 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("A", "C")  # Redundant: A can reach C via B
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("A", "C"),  # Redundant: A can reach C via B
+                ]
+            )
         )
 
         reduction = graph.transitive_reduction()
@@ -32606,15 +31321,16 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="app")
-            .add_node(label="lib")
-            .add_node(label="utils")
-            .add_node(label="core")
-            .add_edge("app", "lib")
-            .add_edge("lib", "utils")
-            .add_edge("utils", "core")
-            .add_edge("app", "core")   # Redundant (app -> lib -> utils -> core)
-            .add_edge("lib", "core")   # Redundant (lib -> utils -> core)
+            .add_nodes(["app", "lib", "utils", "core"])
+            .add_edges(
+                [
+                    ("app", "lib"),
+                    ("lib", "utils"),
+                    ("utils", "core"),
+                    ("app", "core"),  # Redundant (app -> lib -> utils -> core)
+                    ("lib", "core"),  # Redundant (lib -> utils -> core)
+                ]
+            )
         )
 
         reduction = graph.transitive_reduction()
@@ -32629,10 +31345,13 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # Creates a cycle
+            .add_nodes(["A", "B"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "A"),  # Creates a cycle
+                ]
+            )
         )
 
         error_message = None
@@ -32717,11 +31436,8 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-        g.add_node(label="0")
-        g.add_node(label="1")
-        g.add_node(label="2")
-        g.add_edge("0", "1")
-        g.add_edge("1", "2")
+        g.add_nodes(["0", "1", "2"])
+        g.add_edges([("0", "1"), ("1", "2")])
 
         walks = g.count_walks(2)
         node_0 = g.get_id_from_label("0")
@@ -32742,11 +31458,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph()
-        for i in range(3):
-            g.add_node(label=str(i))
-        g.add_edge("0", "1")
-        g.add_edge("1", "2")
-        g.add_edge("2", "0")
+        g.add_nodes(["0", "1", "2"])
+        g.add_edges([("0", "1"), ("1", "2"), ("2", "0")])
 
         walks = g.count_walks(3)
         node_0 = g.get_id_from_label("0")
@@ -32860,12 +31573,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         graph.count_trails("A", "C")
@@ -32878,18 +31587,17 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("B", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "B")  # Loop back to B
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "D"),
+                    ("B", "E"),
+                    ("E", "F"),
+                    ("F", "B"),  # Loop back to B
+                ]
+            )
         )
 
         graph.count_trails("A", "D"), len(graph.get_all_simple_paths("A", "D"))
@@ -32912,12 +31620,8 @@ class Graph:
         ```{python}
         triangle = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         triangle.count_trails("A", "C", max_trails=5), triangle.count_trails("A", "C", max_trails=2)
@@ -33006,12 +31710,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         graph.enumerate_trails("A", "C")
@@ -33023,18 +31723,17 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("B", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "B")  # Loop back to B
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "D"),
+                    ("B", "E"),
+                    ("E", "F"),
+                    ("F", "B"),  # Loop back to B
+                ]
+            )
         )
 
         graph.enumerate_trails("A", "D")
@@ -33287,17 +31986,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("E", "C")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
         )
 
         [graph.get_label_from_id(nid) for nid in graph.eulerian_circuit()]
@@ -33599,11 +32289,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.get_node_vitality("B")
@@ -33615,11 +32302,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.get_node_vitality("B")
@@ -33711,11 +32395,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         [graph.get_label_from_id(nid) for nid in graph.get_all_connected_nodes("C")]
@@ -33794,19 +32475,10 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("E", "F")
-            .add_edge("F", "D")
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges(
+                [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+            )
         )
 
         sorted(graph.get_label_from_id(nid) for nid in graph.get_articulation_points())
@@ -33884,15 +32556,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("A", "D")
-            .add_edge("D", "E")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("D", "E")])
         )
 
         sorted(graph.get_label_from_id(nid) for nid in graph.get_periphery())
@@ -34043,21 +32708,13 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_node(label="F")
-            .add_node(label="G")
-            .add_edge("A", "B")
-            .add_edge("A", "C")
-            .add_edge("B", "D")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("D", "F")
-            .add_edge("E", "G")
-            .add_edge("F", "G")
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges(
+                [
+                    ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
+                    ("D", "E"), ("D", "F"), ("E", "G"), ("F", "G"),
+                ]
+            )
         )
 
         graph.get_node_connectivity_between("B", "E")
@@ -34090,11 +32747,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.get_node_connectivity_between("A", "C"), graph.get_node_connectivity_between("C", "A")
@@ -34205,14 +32859,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
         )
 
         graph.get_adhesion()
@@ -34284,14 +32932,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
         )
 
         graph.get_cohesion()
@@ -34303,17 +32945,8 @@ class Graph:
         ```{python}
         bowtie = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_node(label="E")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("C", "D")
-            .add_edge("D", "E")
-            .add_edge("E", "C")
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
         )
 
         bowtie.get_cohesion(), bowtie.get_adhesion()
@@ -34347,11 +32980,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         # 2 edges, 3 nodes: 2 / (3 x 2 / 2) = 0.667
@@ -34364,12 +32994,8 @@ class Graph:
         ```{python}
         complete = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("A", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("A", "C")])
         )
 
         f"{complete.get_density():.3f}"
@@ -34429,13 +33055,8 @@ class Graph:
             for j in range(i + 1, 5):
                 graph.add_edge(str(i), str(j))
 
-        graph.add_node(label="5")
-        graph.add_node(label="6")
-        graph.add_edge("1", "5")
-        graph.add_edge("2", "5")
-        graph.add_edge("5", "6")
-        graph.add_edge("6", "1")
-        graph.add_edge("6", "2")
+        graph.add_nodes(["5", "6"])
+        graph.add_edges([("1", "5"), ("2", "5"), ("5", "6"), ("6", "1"), ("6", "2")])
 
         blocks, cohesions, parents = graph.find_cohesive_blocks()
 
@@ -34496,14 +33117,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
         )
 
         kc = graph.k_components()
@@ -34581,13 +33196,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         graph.get_min_cut_between("A", "D")
@@ -34608,11 +33218,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         graph.get_min_cut_between("A", "C"), graph.get_min_cut_between("C", "A")
@@ -34690,11 +33297,10 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("A", "C", auto_create_nodes=True)
-            .add_edge("B", "D", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-            .add_edge("D", "E", auto_create_nodes=True)
+            .add_edges(
+                [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")],
+                auto_create_nodes=True,
+            )
         )
 
         cut_nodes = graph.minimum_node_cut("A", "E")
@@ -34707,11 +33313,16 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_edge("Client", "Gateway", auto_create_nodes=True)
-            .add_edge("Gateway", "Server1", auto_create_nodes=True)
-            .add_edge("Gateway", "Server2", auto_create_nodes=True)
-            .add_edge("Server1", "Database", auto_create_nodes=True)
-            .add_edge("Server2", "Database", auto_create_nodes=True)
+            .add_edges(
+                [
+                    ("Client", "Gateway"),
+                    ("Gateway", "Server1"),
+                    ("Gateway", "Server2"),
+                    ("Server1", "Database"),
+                    ("Server2", "Database"),
+                ],
+                auto_create_nodes=True,
+            )
         )
 
         critical_nodes = graph.minimum_node_cut("Client", "Database")
@@ -34724,10 +33335,10 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_edge("Alice", "Bob", auto_create_nodes=True)
-            .add_edge("Bob", "Carol", auto_create_nodes=True)
-            .add_edge("Alice", "Dave", auto_create_nodes=True)
-            .add_edge("Dave", "Carol", auto_create_nodes=True)
+            .add_edges(
+                [("Alice", "Bob"), ("Bob", "Carol"), ("Alice", "Dave"), ("Dave", "Carol")],
+                auto_create_nodes=True,
+            )
         )
 
         intermediaries = graph.minimum_node_cut("Alice", "Carol")
@@ -34798,10 +33409,7 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_edge("A", "B", auto_create_nodes=True)
-            .add_edge("B", "C", auto_create_nodes=True)
-            .add_edge("C", "D", auto_create_nodes=True)
-            .add_edge("A", "D", auto_create_nodes=True)
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("A", "D")], auto_create_nodes=True)
         )
 
         cut_edges = graph.minimum_edge_cut("A", "C")
@@ -34817,11 +33425,16 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_edge("Server1", "Router1", auto_create_nodes=True)
-            .add_edge("Router1", "Router2", auto_create_nodes=True)
-            .add_edge("Router2", "Server2", auto_create_nodes=True)
-            .add_edge("Router1", "Router3", auto_create_nodes=True)
-            .add_edge("Router3", "Server2", auto_create_nodes=True)
+            .add_edges(
+                [
+                    ("Server1", "Router1"),
+                    ("Router1", "Router2"),
+                    ("Router2", "Server2"),
+                    ("Router1", "Router3"),
+                    ("Router3", "Server2"),
+                ],
+                auto_create_nodes=True,
+            )
         )
 
         critical_links = graph.minimum_edge_cut("Server1", "Server2")
@@ -34916,15 +33529,23 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True, weighted=True)
-            .add_node(label="S")  # source
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="T")  # sink
-            .add_edge("S", "A", weight=10.0)
-            .add_edge("S", "B", weight=5.0)
-            .add_edge("A", "B", weight=15.0)
-            .add_edge("A", "T", weight=10.0)
-            .add_edge("B", "T", weight=10.0)
+            .add_nodes(
+                [
+                    "S",  # source
+                    "A",
+                    "B",
+                    "T",  # sink
+                ]
+            )
+            .add_edges(
+                [
+                    ("S", "A", 10.0),
+                    ("S", "B", 5.0),
+                    ("A", "B", 15.0),
+                    ("A", "T", 10.0),
+                    ("B", "T", 10.0),
+                ]
+            )
         )
 
         flow = graph.max_flow("S", "T")
@@ -34952,12 +33573,14 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", bandwidth=100)
-            .add_edge("B", "C", bandwidth=50)
-            .add_edge("A", "C", bandwidth=30)
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B", {"bandwidth": 100}),
+                    ("B", "C", {"bandwidth": 50}),
+                    ("A", "C", {"bandwidth": 30}),
+                ]
+            )
         )
 
         graph.max_flow("A", "C", capacity="bandwidth")
@@ -34970,10 +33593,7 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_edge("S", "A", auto_create_nodes=True)
-            .add_edge("S", "B", auto_create_nodes=True)
-            .add_edge("A", "T", auto_create_nodes=True)
-            .add_edge("B", "T", auto_create_nodes=True)
+            .add_edges([("S", "A"), ("S", "B"), ("A", "T"), ("B", "T")], auto_create_nodes=True)
         )
 
         graph.max_flow("S", "T")
@@ -35045,11 +33665,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True, weighted=True)
-            .add_node(label="S")
-            .add_node(label="T")
-            .add_node(label="A")
-            .add_edge("S", "A", weight=10.0)
-            .add_edge("A", "T", weight=5.0)
+            .add_nodes(["S", "T", "A"])
+            .add_edges([("S", "A", 10.0), ("A", "T", 5.0)])
         )
 
         graph.max_flow_value("S", "T")
@@ -35070,11 +33687,8 @@ class Graph:
         ```{python}
         roads = (
             ec.Graph(directed=True)
-            .add_node(label="Depot")
-            .add_node(label="Bridge")
-            .add_node(label="Town")
-            .add_edge("Depot", "Bridge", lanes=4)
-            .add_edge("Bridge", "Town", lanes=2)
+            .add_nodes(["Depot", "Bridge", "Town"])
+            .add_edges([("Depot", "Bridge", {"lanes": 4}), ("Bridge", "Town", {"lanes": 2})])
         )
 
         roads.max_flow_value("Depot", "Town", capacity="lanes")
@@ -35186,14 +33800,16 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True, weighted=True)
-            .add_node(label="S")
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="T")
-            .add_edge("S", "A", weight=10.0, cost=1.0)   # capacity 10, cost 1
-            .add_edge("S", "B", weight=10.0, cost=2.0)   # capacity 10, cost 2
-            .add_edge("A", "T", weight=10.0, cost=1.0)   # capacity 10, cost 1
-            .add_edge("B", "T", weight=10.0, cost=1.0)   # capacity 10, cost 1
+            .add_nodes(["S", "A", "B", "T"])
+            .add_edges(
+                [
+                    ("S", "A", {"cost": 1.0}),  # capacity 10, cost 1
+                    ("S", "B", {"cost": 2.0}),  # capacity 10, cost 2
+                    ("A", "T", {"cost": 1.0}),  # capacity 10, cost 1
+                    ("B", "T", {"cost": 1.0}),  # capacity 10, cost 1
+                ],
+                weight=10.0,
+            )
         )
 
         total_flow, total_cost, flow_dict = graph.min_cost_flow("S", "T")
@@ -35219,11 +33835,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True, weighted=True)
-            .add_node(label="S")
-            .add_node(label="A")
-            .add_node(label="T")
-            .add_edge("S", "A", weight=20.0, cost=5.0)
-            .add_edge("A", "T", weight=20.0, cost=3.0)
+            .add_nodes(["S", "A", "T"])
+            .add_edges([("S", "A", {"cost": 5.0}), ("A", "T", {"cost": 3.0})], weight=20.0)
         )
 
         # Send exactly 10 units of flow
@@ -35240,12 +33853,14 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", bandwidth=100, price=5)
-            .add_edge("B", "C", bandwidth=50, price=3)
-            .add_edge("A", "C", bandwidth=30, price=10)
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B", {"bandwidth": 100, "price": 5}),
+                    ("B", "C", {"bandwidth": 50, "price": 3}),
+                    ("A", "C", {"bandwidth": 30, "price": 10}),
+                ]
+            )
         )
 
         total_flow, total_cost, flow_dict = graph.min_cost_flow(
@@ -35263,23 +33878,31 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True, weighted=True)
-            .add_node(label="Source")
-            .add_node(label="W1")  # Warehouse 1
-            .add_node(label="W2")  # Warehouse 2
-            .add_node(label="S1")  # Store 1
-            .add_node(label="S2")  # Store 2
-            .add_node(label="Sink")
-            # Source to warehouses (supply)
-            .add_edge("Source", "W1", weight=50.0, cost=0.0)
-            .add_edge("Source", "W2", weight=60.0, cost=0.0)
-            # Warehouses to stores (shipping costs)
-            .add_edge("W1", "S1", weight=100.0, cost=8.0)
-            .add_edge("W1", "S2", weight=100.0, cost=5.0)
-            .add_edge("W2", "S1", weight=100.0, cost=4.0)
-            .add_edge("W2", "S2", weight=100.0, cost=7.0)
-            # Stores to sink (demand)
-            .add_edge("S1", "Sink", weight=40.0, cost=0.0)
-            .add_edge("S2", "Sink", weight=50.0, cost=0.0)
+            .add_nodes(
+                [
+                    "Source",
+                    "W1",  # Warehouse 1
+                    "W2",  # Warehouse 2
+                    "S1",  # Store 1
+                    "S2",  # Store 2
+                    "Sink",
+                ]
+            )
+            .add_edges(
+                [
+                    # Source to warehouses (supply)
+                    ("Source", "W1", 50.0, {"cost": 0.0}),
+                    ("Source", "W2", 60.0, {"cost": 0.0}),
+                    # Warehouses to stores (shipping costs)
+                    ("W1", "S1", 100.0, {"cost": 8.0}),
+                    ("W1", "S2", 100.0, {"cost": 5.0}),
+                    ("W2", "S1", 100.0, {"cost": 4.0}),
+                    ("W2", "S2", 100.0, {"cost": 7.0}),
+                    # Stores to sink (demand)
+                    ("S1", "Sink", 40.0, {"cost": 0.0}),
+                    ("S2", "Sink", 50.0, {"cost": 0.0}),
+                ]
+            )
         )
 
         flow, cost, assignment = graph.min_cost_flow("Source", "Sink", demand=90.0)
@@ -35325,12 +33948,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("X", "Y")
+            .add_nodes(["A", "B", "X", "Y"])
+            .add_edges([("A", "B"), ("X", "Y")])
         )
 
         # Returns 2
@@ -35368,15 +33987,15 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Cycle: all in same component
-            .add_edge("X", "Y")  # Separate component
+            .add_nodes(["A", "B", "C", "X", "Y"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "A"),  # Cycle: all in same component
+                    ("X", "Y"),  # Separate component
+                ]
+            )
         )
 
         # Returns 2
@@ -35389,10 +34008,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_edge("A", "B")
+            .add_nodes(["A", "B", "X"])
+            .add_edges([("A", "B")])
         )
 
         # Returns 2
@@ -35434,12 +34051,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("X", "Y")
+            .add_nodes(["A", "B", "X", "Y"])
+            .add_edges([("A", "B"), ("X", "Y")])
         )
 
         components = graph.weakly_connected_components()
@@ -35507,14 +34120,15 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")  # Creates a cycle -> SCC {A, B, C}
-            .add_edge("C", "D")  # D is reachable but can't reach back
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "C"),
+                    ("C", "A"),  # Creates a cycle -> SCC {A, B, C}
+                    ("C", "D"),  # D is reachable but can't reach back
+                ]
+            )
         )
 
         sccs = graph.strongly_connected_components()
@@ -35529,10 +34143,13 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A").add_node(label="B")
-            .add_node(label="C").add_node(label="D")
-            .add_edge("A", "B").add_edge("B", "C").add_edge("C", "A")  # SCC of 3
-            .add_edge("C", "D")  # D is a separate SCC
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges(
+                [
+                    ("A", "B"), ("B", "C"), ("C", "A"),  # SCC of 3
+                    ("C", "D"),  # D is a separate SCC
+                ]
+            )
         )
 
         sccs = graph.strongly_connected_components()
@@ -35583,12 +34200,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         # Returns True
@@ -35645,11 +34258,13 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("C", "B")  # All connected when ignoring direction
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("C", "B"),  # All connected when ignoring direction
+                ]
+            )
         )
 
         # Returns True
@@ -35667,12 +34282,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_edge("A", "B")
-            .add_edge("X", "Y")
+            .add_nodes(["A", "B", "X", "Y"])
+            .add_edges([("A", "B"), ("X", "Y")])
         )
 
         # Returns False
@@ -35799,14 +34410,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
-            .add_edge("D", "A")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
         )
 
         coloring = graph.greedy_color()
@@ -35821,12 +34426,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         coloring = graph.greedy_color(strategy="dsatur")
@@ -35916,11 +34517,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         a, b, c = (graph.get_id_from_label(x) for x in ["A", "B", "C"])
@@ -36000,12 +34598,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         # Get upper bound using a default greedy coloring
@@ -36080,12 +34674,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("C", "D")])
         )
 
         edge_ids = graph.get_edge_ids()
@@ -36099,11 +34689,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
         )
 
         edge_ids = graph.get_edge_ids()
@@ -36253,14 +34840,8 @@ class Graph:
 
         graph = (
             ec.Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B", weight=10.0)
-            .add_edge("B", "C", weight=1.0)
-            .add_edge("C", "D", weight=1.0)
-            .add_edge("A", "C", weight=2.0)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 10.0), ("B", "C", 1.0), ("C", "D", 1.0), ("A", "C", 2.0)])
         )
 
         matching = graph.max_weight_matching()
@@ -36290,12 +34871,8 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", weight=5.0)
-            .add_edge("B", "C", weight=3.0)
-            .add_edge("A", "C", weight=2.0)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 5.0), ("B", "C", 3.0), ("A", "C", 2.0)])
         )
 
         matching = graph.max_weight_matching()
@@ -36373,13 +34950,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         a_id = graph.get_id_from_label("A")
@@ -36526,13 +35098,14 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="Job_A")
-            .add_node(label="Job_B")
-            .add_node(label="Job_C")
-            .add_node(label="Job_D")
-            .add_edge("Job_A", "Job_B")  # A conflicts with B
-            .add_edge("Job_B", "Job_C")  # B conflicts with C
-            .add_edge("Job_C", "Job_D")  # C conflicts with D
+            .add_nodes(["Job_A", "Job_B", "Job_C", "Job_D"])
+            .add_edges(
+                [
+                    ("Job_A", "Job_B"),  # A conflicts with B
+                    ("Job_B", "Job_C"),  # B conflicts with C
+                    ("Job_C", "Job_D"),  # C conflicts with D
+                ]
+            )
         )
 
         parallel_jobs = graph.maximal_independent_set(seed=23)
@@ -36797,13 +35370,8 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         b_id = graph.get_id_from_label("B")
@@ -36989,12 +35557,8 @@ class Graph:
         graph = (
             ec.Graph()
             .add_node(label="hub", cost=10)
-            .add_node(label="leaf1", cost=1)
-            .add_node(label="leaf2", cost=1)
-            .add_node(label="leaf3", cost=1)
-            .add_edge("hub", "leaf1")
-            .add_edge("hub", "leaf2")
-            .add_edge("hub", "leaf3")
+            .add_nodes(["leaf1", "leaf2", "leaf3"], cost=1)
+            .add_edges([("hub", "leaf1"), ("hub", "leaf2"), ("hub", "leaf3")])
         )
 
         dom = graph.min_weighted_dominating_set(weight_attr="cost")
@@ -37127,15 +35691,10 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(weighted=True)
-        g.add_node("A")
-        g.add_node("B")
-        g.add_node("C")
-        g.add_node("D")
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=2.0)
-        g.add_edge("C", "D", weight=3.0)
-        g.add_edge("D", "A", weight=4.0)
-        g.add_edge("A", "C", weight=5.0)
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0), ("D", "A", 4.0), ("A", "C", 5.0)]
+        )
 
         mst = g.minimum_spanning_tree()
 
@@ -37171,12 +35730,14 @@ class Graph:
         ```{python}
         roads = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", length=4.0)
-            .add_edge("B", "C", length=1.0)
-            .add_edge("A", "C", length=2.0)
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B", {"length": 4.0}),
+                    ("B", "C", {"length": 1.0}),
+                    ("A", "C", {"length": 2.0}),
+                ]
+            )
         )
 
         ids = roads.minimum_spanning_tree(weight_attr="length", return_subgraph=False)
@@ -37291,12 +35852,8 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(weighted=True)
-        g.add_node("A")
-        g.add_node("B")
-        g.add_node("C")
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=3.0)
-        g.add_edge("C", "A", weight=2.0)
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 3.0), ("C", "A", 2.0)])
 
         max_st = g.maximum_spanning_tree()
 
@@ -37312,15 +35869,16 @@ class Graph:
         ```{python}
         sim = (
             ec.Graph(weighted=True)
-            .add_node(label="cat")
-            .add_node(label="dog")
-            .add_node(label="car")
-            .add_node(label="truck")
-            .add_edge("cat", "dog", weight=0.9)
-            .add_edge("car", "truck", weight=0.8)
-            .add_edge("dog", "car", weight=0.2)
-            .add_edge("cat", "car", weight=0.1)
-            .add_edge("dog", "truck", weight=0.15)
+            .add_nodes(["cat", "dog", "car", "truck"])
+            .add_edges(
+                [
+                    ("cat", "dog", 0.9),
+                    ("car", "truck", 0.8),
+                    ("dog", "car", 0.2),
+                    ("cat", "car", 0.1),
+                    ("dog", "truck", 0.15),
+                ]
+            )
         )
 
         ids = sim.maximum_spanning_tree(return_subgraph=False)
@@ -37427,15 +35985,18 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(weighted=True)
-        for node in ["DC1", "DC2", "DC3", "Router1", "Router2", "Router3"]:
-            g.add_node(node)
+        g.add_nodes(["DC1", "DC2", "DC3", "Router1", "Router2", "Router3"])
 
-        g.add_edge("DC1", "Router1", weight=10.0)
-        g.add_edge("DC2", "Router1", weight=15.0)
-        g.add_edge("DC3", "Router2", weight=12.0)
-        g.add_edge("Router1", "Router2", weight=5.0)
-        g.add_edge("Router2", "Router3", weight=8.0)
-        g.add_edge("Router1", "Router3", weight=20.0)
+        g.add_edges(
+            [
+                ("DC1", "Router1", 10.0),
+                ("DC2", "Router1", 15.0),
+                ("DC3", "Router2", 12.0),
+                ("Router1", "Router2", 5.0),
+                ("Router2", "Router3", 8.0),
+                ("Router1", "Router3", 20.0),
+            ]
+        )
 
         terminals = ["DC1", "DC2", "DC3"]
         steiner = g.steiner_tree(terminals)
@@ -37453,14 +36014,17 @@ class Graph:
         ```{python}
         g = ec.Graph(weighted=True)
         species = ["Human", "Chimp", "Gorilla", "Mouse", "CommonAncestor1", "CommonAncestor2"]
-        for s in species:
-            g.add_node(s)
+        g.add_nodes(species)
 
-        g.add_edge("Human", "CommonAncestor1", weight=1.0)
-        g.add_edge("Chimp", "CommonAncestor1", weight=1.2)
-        g.add_edge("CommonAncestor1", "CommonAncestor2", weight=3.0)
-        g.add_edge("Gorilla", "CommonAncestor2", weight=2.5)
-        g.add_edge("Mouse", "CommonAncestor2", weight=10.0)
+        g.add_edges(
+            [
+                ("Human", "CommonAncestor1", 1.0),
+                ("Chimp", "CommonAncestor1", 1.2),
+                ("CommonAncestor1", "CommonAncestor2", 3.0),
+                ("Gorilla", "CommonAncestor2", 2.5),
+                ("Mouse", "CommonAncestor2", 10.0),
+            ]
+        )
 
         primates = ["Human", "Chimp", "Gorilla"]
         tree = g.steiner_tree(primates)
@@ -37577,13 +36141,10 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=True, weighted=True)
-        for n in ["R", "A", "B", "C", "D"]:
-            g.add_node(label=n)
-        g.add_edge("R", "A", weight=1.0)
-        g.add_edge("A", "B", weight=2.0)
-        g.add_edge("R", "C", weight=5.0)
-        g.add_edge("A", "C", weight=1.0)
-        g.add_edge("C", "D", weight=1.0)
+        g.add_nodes(["R", "A", "B", "C", "D"])
+        g.add_edges(
+            [("R", "A", 1.0), ("A", "B", 2.0), ("R", "C", 5.0), ("A", "C", 1.0), ("C", "D", 1.0)]
+        )
 
         tree = g.directed_steiner_tree("R", ["B", "D"])
         tree.count_edges()
@@ -37686,15 +36247,15 @@ class Graph:
 
         graph = (
             ec.Graph(weighted=True)
-            .add_node(label="BRCA1")
-            .add_node(label="TP53")
-            .add_node(label="ATM")
-            .add_node(label="CHEK2")
-            .add_node(label="MDM2")
-            .add_edge("BRCA1", "ATM", weight=1.0)
-            .add_edge("ATM", "CHEK2", weight=1.0)
-            .add_edge("TP53", "MDM2", weight=1.0)
-            .add_edge("ATM", "TP53", weight=2.0)
+            .add_nodes(["BRCA1", "TP53", "ATM", "CHEK2", "MDM2"])
+            .add_edges(
+                [
+                    ("BRCA1", "ATM", 1.0),
+                    ("ATM", "CHEK2", 1.0),
+                    ("TP53", "MDM2", 1.0),
+                    ("ATM", "TP53", 2.0),
+                ]
+            )
         )
 
         tree = graph.prize_collecting_steiner_tree(
@@ -37803,20 +36364,18 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="S1")
-            .add_node(label="S2")
-            .add_node(label="T")
-            .add_node(label="Hub")
-            .add_node(label="X")
-            .add_node(label="Y")
-            .add_node(label="Z")
-            .add_edge("S1", "S2")
-            .add_edge("S1", "T")
-            .add_edge("S2", "T")
-            .add_edge("S1", "Hub")
-            .add_edge("Hub", "X")
-            .add_edge("Hub", "Y")
-            .add_edge("Hub", "Z")
+            .add_nodes(["S1", "S2", "T", "Hub", "X", "Y", "Z"])
+            .add_edges(
+                [
+                    ("S1", "S2"),
+                    ("S1", "T"),
+                    ("S2", "T"),
+                    ("S1", "Hub"),
+                    ("Hub", "X"),
+                    ("Hub", "Y"),
+                    ("Hub", "Z"),
+                ]
+            )
         )
 
         module = graph.expand_seed_set(seeds=["S1", "S2"], min_score=0.3)
@@ -37935,14 +36494,9 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph()
-        for node in ["A", "B", "C", "D"]:
-            g.add_node(node)
+        g.add_nodes(["A", "B", "C", "D"])
 
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
-        g.add_edge("C", "D")
-        g.add_edge("D", "A")
-        g.add_edge("A", "C")
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
 
         trees = g.all_spanning_trees()
 
@@ -37963,12 +36517,9 @@ class Graph:
         ```{python}
         g = ec.Graph()
         nodes = ["A", "B", "C", "D"]
-        for n in nodes:
-            g.add_node(n)
+        g.add_nodes(nodes)
 
-        for i, n1 in enumerate(nodes):
-            for n2 in nodes[i + 1:]:
-                g.add_edge(n1, n2)
+        g.add_edges([(n1, n2) for i, n1 in enumerate(nodes) for n2 in nodes[i + 1:]])
 
         trees = g.all_spanning_trees()
 
@@ -37992,12 +36543,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(weighted=True)
-        g.add_node("A")
-        g.add_node("B")
-        g.add_node("C")
-        g.add_edge("A", "B", weight=1.0)
-        g.add_edge("B", "C", weight=2.0)
-        g.add_edge("C", "A", weight=3.0)
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "A", 3.0)])
 
         tree_edges = g.all_spanning_trees(return_subgraphs=False)
 
@@ -38089,13 +36636,15 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=True)
-        g.add_node(label="Alice")
-        g.add_node(label="Bob")
-        g.add_node(label="Carol")
-        g.add_edge(source="Alice", target="Bob", weight=1.0)
-        g.add_edge(source="Alice", target="Bob", weight=2.0)  # Duplicate connection
-        g.add_edge(source="Alice", target="Bob", weight=3.0)  # Another duplicate
-        g.add_edge(source="Bob", target="Carol", weight=1.0)  # Single edge
+        g.add_nodes(["Alice", "Bob", "Carol"])
+        g.add_edges(
+            [
+                ("Alice", "Bob", 1.0),
+                ("Alice", "Bob", 2.0),  # Duplicate connection
+                ("Alice", "Bob", 3.0),  # Another duplicate
+                ("Bob", "Carol", 1.0),  # Single edge
+            ]
+        )
 
         # Returns 3 (all Alice -> Bob edges)
         len(g.which_multiple())
@@ -38107,12 +36656,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph(directed=False)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
         )
 
         # Returns True: no duplicate edges
@@ -38173,14 +36718,16 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=True)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="A", target="B")  # Duplicate
-        g.add_edge(source="A", target="B")  # Another duplicate
-        g.add_edge(source="B", target="C")
-        g.add_edge(source="B", target="C")  # Duplicate
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges(
+            [
+                ("A", "B"),
+                ("A", "B"),  # Duplicate
+                ("A", "B"),  # Another duplicate
+                ("B", "C"),
+                ("B", "C"),  # Duplicate
+            ]
+        )
 
         counts = g.count_multiple()
 
@@ -38206,13 +36753,15 @@ class Graph:
         ```{python}
         transport = (
             ec.Graph(directed=False)
-            .add_node(label="CityA")
-            .add_node(label="CityB")
-            .add_node(label="CityC")
-            .add_edge(source="CityA", target="CityB", route="highway")
-            .add_edge(source="CityA", target="CityB", route="railway")
-            .add_edge(source="CityA", target="CityB", route="airline")
-            .add_edge(source="CityB", target="CityC", route="highway")
+            .add_nodes(["CityA", "CityB", "CityC"])
+            .add_edges(
+                [
+                    ("CityA", "CityB", {"route": "highway"}),
+                    ("CityA", "CityB", {"route": "railway"}),
+                    ("CityA", "CityB", {"route": "airline"}),
+                    ("CityB", "CityC", {"route": "highway"}),
+                ]
+            )
         )
 
         # Returns {('CityA', 'CityB'): 3} -- 3 routes to consolidate
@@ -38270,13 +36819,15 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=True)
-        g.add_node(label="Alice")
-        g.add_node(label="Bob")
-        g.add_node(label="Carol")
-        g.add_edge(source="Alice", target="Bob")
-        g.add_edge(source="Alice", target="Alice")  # Self-loop
-        g.add_edge(source="Bob", target="Carol")
-        g.add_edge(source="Carol", target="Carol")  # Self-loop
+        g.add_nodes(["Alice", "Bob", "Carol"])
+        g.add_edges(
+            [
+                ("Alice", "Bob"),
+                ("Alice", "Alice"),  # Self-loop
+                ("Bob", "Carol"),
+                ("Carol", "Carol"),  # Self-loop
+            ]
+        )
 
         # Returns 2 (Alice->Alice and Carol->Carol)
         len(g.which_loops())
@@ -38295,13 +36846,15 @@ class Graph:
         ```{python}
         fsm = (
             ec.Graph(directed=True)
-            .add_node(label="Idle")
-            .add_node(label="Processing")
-            .add_node(label="Complete")
-            .add_edge(source="Idle", target="Processing")
-            .add_edge(source="Processing", target="Processing")  # Wait state
-            .add_edge(source="Processing", target="Complete")
-            .add_edge(source="Complete", target="Idle")
+            .add_nodes(["Idle", "Processing", "Complete"])
+            .add_edges(
+                [
+                    ("Idle", "Processing"),
+                    ("Processing", "Processing"),  # Wait state
+                    ("Processing", "Complete"),
+                    ("Complete", "Idle"),
+                ]
+            )
         )
 
         # Returns 1 (the Processing -> Processing wait state)
@@ -38356,15 +36909,16 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=True)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_node(label="D")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="A", target="A")  # Self-loop
-        g.add_edge(source="A", target="A")  # Another self-loop
-        g.add_edge(source="B", target="B")  # Self-loop
-        g.add_edge(source="C", target="D")  # No self-loop
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [
+                ("A", "B"),
+                ("A", "A"),  # Self-loop
+                ("A", "A"),  # Another self-loop
+                ("B", "B"),  # Self-loop
+                ("C", "D"),  # No self-loop
+            ]
+        )
 
         loop_counts = g.count_loops()
 
@@ -38378,13 +36932,15 @@ class Graph:
         ```{python}
         rxn = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="B")  # B catalyzes itself
-            .add_edge(source="B", target="B")  # Multiple pathways
-            .add_edge(source="C", target="C")  # C is autocatalytic
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "B"),  # B catalyzes itself
+                    ("B", "B"),  # Multiple pathways
+                    ("C", "C"),  # C is autocatalytic
+                ]
+            )
         )
 
         autocatalytic = rxn.count_loops()
@@ -38433,12 +36989,14 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Carol")
-            .add_edge("Alice", "Bob")   # Edge 1
-            .add_edge("Bob", "Alice")   # Edge 2: mutual with 1
-            .add_edge("Alice", "Carol") # Edge 3: no reciprocal
+            .add_nodes(["Alice", "Bob", "Carol"])
+            .add_edges(
+                [
+                    ("Alice", "Bob"),  # Edge 1
+                    ("Bob", "Alice"),  # Edge 2: mutual with 1
+                    ("Alice", "Carol"),  # Edge 3: no reciprocal
+                ]
+            )
         )
 
         # Returns [(1, 2)]: the only mutual pair
@@ -38451,14 +37009,16 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Carol")
-            .add_edge(source="Alice", target="Bob")   # Edge 1
-            .add_edge(source="Bob", target="Alice")   # Edge 2: mutual with 1
-            .add_edge(source="Alice", target="Carol") # Edge 3: no reciprocal
-            .add_edge(source="Bob", target="Carol")   # Edge 4
-            .add_edge(source="Carol", target="Bob")   # Edge 5: mutual with 4
+            .add_nodes(["Alice", "Bob", "Carol"])
+            .add_edges(
+                [
+                    ("Alice", "Bob"),  # Edge 1
+                    ("Bob", "Alice"),  # Edge 2: mutual with 1
+                    ("Alice", "Carol"),  # Edge 3: no reciprocal
+                    ("Bob", "Carol"),  # Edge 4
+                    ("Carol", "Bob"),  # Edge 5: mutual with 4
+                ]
+            )
         )
 
         # Returns 2 bidirectional connections
@@ -38507,12 +37067,14 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")  # Mutual with above
-            .add_edge("A", "C")  # No reciprocal
+            .add_nodes(["A", "B", "C"])
+            .add_edges(
+                [
+                    ("A", "B"),
+                    ("B", "A"),  # Mutual with above
+                    ("A", "C"),  # No reciprocal
+                ]
+            )
         )
 
         # Returns 0.667 (2 mutual out of 3 edges)
@@ -38525,15 +37087,8 @@ class Graph:
         ```{python}
         friendship = (
             ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge(source="A", target="B")
-            .add_edge(source="B", target="A")
-            .add_edge(source="B", target="C")
-            .add_edge(source="C", target="B")
-            .add_edge(source="A", target="C")
-            .add_edge(source="C", target="A")
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "A"), ("B", "C"), ("C", "B"), ("A", "C"), ("C", "A")])
         )
 
         # Returns 1.0: every edge has a reciprocal counterpart
@@ -38596,13 +37151,18 @@ class Graph:
         import edgecase as ec
 
         g = ec.Graph(directed=False)
-        for label in ["Influencer1", "Influencer2", "Influencer3", "User1", "User2", "User3", "User4"]:
-            g.add_node(label=label)
-        g.add_edge(source="Influencer1", target="Influencer2")
-        g.add_edge(source="Influencer1", target="Influencer3")
-        g.add_edge(source="Influencer2", target="Influencer3")
-        g.add_edge(source="User1", target="User2")
-        g.add_edge(source="User3", target="User4")
+        g.add_nodes(
+            ["Influencer1", "Influencer2", "Influencer3", "User1", "User2", "User3", "User4"]
+        )
+        g.add_edges(
+            [
+                ("Influencer1", "Influencer2"),
+                ("Influencer1", "Influencer3"),
+                ("Influencer2", "Influencer3"),
+                ("User1", "User2"),
+                ("User3", "User4"),
+            ]
+        )
 
         # Returns a positive value: hubs connect to hubs, periphery to periphery
         g.get_assortativity_degree()
@@ -38613,13 +37173,16 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        for label in ["Server1", "Server2", "Client1", "Client2", "Client3", "Client4", "Client5"]:
-            g.add_node(label=label)
-        g.add_edge(source="Server1", target="Client1")
-        g.add_edge(source="Server1", target="Client2")
-        g.add_edge(source="Server1", target="Client3")
-        g.add_edge(source="Server2", target="Client4")
-        g.add_edge(source="Server2", target="Client5")
+        g.add_nodes(["Server1", "Server2", "Client1", "Client2", "Client3", "Client4", "Client5"])
+        g.add_edges(
+            [
+                ("Server1", "Client1"),
+                ("Server1", "Client2"),
+                ("Server1", "Client3"),
+                ("Server2", "Client4"),
+                ("Server2", "Client5"),
+            ]
+        )
 
         # Returns a negative value: high-degree nodes connect to low-degree nodes
         g.get_assortativity_degree()
@@ -38704,15 +37267,16 @@ class Graph:
 
         g = (
             ec.Graph(directed=False)
-            .add_node("Alice", group="students")
-            .add_node("Bob", group="students")
-            .add_node("Carol", group="students")
-            .add_node("Prof1", group="faculty")
-            .add_node("Prof2", group="faculty")
-            .add_edge("Alice", "Bob")
-            .add_edge("Bob", "Carol")
-            .add_edge("Prof1", "Prof2")
-            .add_edge("Alice", "Prof1")  # One cross-group edge
+            .add_nodes(["Alice", "Bob", "Carol"], group="students")
+            .add_nodes(["Prof1", "Prof2"], group="faculty")
+            .add_edges(
+                [
+                    ("Alice", "Bob"),
+                    ("Bob", "Carol"),
+                    ("Prof1", "Prof2"),
+                    ("Alice", "Prof1"),  # One cross-group edge
+                ]
+            )
         )
 
         # Returns a positive value: mostly within-group connections
@@ -38726,13 +37290,9 @@ class Graph:
         ```{python}
         g = (
             ec.Graph(directed=False)
-            .add_node("Wolf", type="predator")
-            .add_node("Lion", type="predator")
-            .add_node("Deer", type="prey")
-            .add_node("Rabbit", type="prey")
-            .add_edge("Wolf", "Deer")
-            .add_edge("Wolf", "Rabbit")
-            .add_edge("Lion", "Deer")
+            .add_nodes(["Wolf", "Lion"], type="predator")
+            .add_nodes(["Deer", "Rabbit"], type="prey")
+            .add_edges([("Wolf", "Deer"), ("Wolf", "Rabbit"), ("Lion", "Deer")])
         )
 
         # Returns -1.0: every edge joins a predator and a prey
@@ -38746,13 +37306,9 @@ class Graph:
         ```{python}
         g_dir = (
             ec.Graph(directed=True)
-            .add_node("Wolf", type="predator")
-            .add_node("Lion", type="predator")
-            .add_node("Deer", type="prey")
-            .add_node("Rabbit", type="prey")
-            .add_edge("Wolf", "Deer")
-            .add_edge("Wolf", "Rabbit")
-            .add_edge("Lion", "Deer")
+            .add_nodes(["Wolf", "Lion"], type="predator")
+            .add_nodes(["Deer", "Rabbit"], type="prey")
+            .add_edges([("Wolf", "Deer"), ("Wolf", "Rabbit"), ("Lion", "Deer")])
         )
 
         # Returns 0.0, not a negative value
@@ -38836,10 +37392,14 @@ class Graph:
             .add_node("Carol", age=26)
             .add_node("Dave", age=55)
             .add_node("Eve", age=53)
-            .add_edge("Alice", "Bob")     # Similar ages (25-27)
-            .add_edge("Bob", "Carol")     # Similar ages (27-26)
-            .add_edge("Dave", "Eve")      # Similar ages (55-53)
-            .add_edge("Alice", "Carol")   # Similar ages (25-26)
+            .add_edges(
+                [
+                    ("Alice", "Bob"),  # Similar ages (25-27)
+                    ("Bob", "Carol"),  # Similar ages (27-26)
+                    ("Dave", "Eve"),  # Similar ages (55-53)
+                    ("Alice", "Carol"),  # Similar ages (25-26)
+                ]
+            )
         )
 
         # Returns a positive value: similar-aged people tend to connect
@@ -38856,9 +37416,7 @@ class Graph:
             .add_node("Junior2", papers=7)
             .add_node("Senior1", papers=50)
             .add_node("Senior2", papers=45)
-            .add_edge("Senior1", "Junior1")
-            .add_edge("Senior1", "Junior2")
-            .add_edge("Senior2", "Junior1")
+            .add_edges([("Senior1", "Junior1"), ("Senior1", "Junior2"), ("Senior2", "Junior1")])
         )
 
         # Returns a negative value: experienced researchers connect to juniors
@@ -38984,11 +37542,8 @@ class Graph:
 
         g = ec.Graph(directed=False)
 
-        for i in range(5):
-            g.add_node(f"v{i}")
-        for i in range(5):
-            for j in range(i+1, 5):
-                g.add_edge(f"v{i}", f"v{j}")
+        g.add_nodes([f"v{i}" for i in range(5)])
+        g.add_edges([(f"v{i}", f"v{j}") for i in range(5) for j in range(i+1, 5)])
 
         spec = g.get_spectrum(which="all")
 
@@ -39010,12 +37565,8 @@ class Graph:
         g = ec.Graph(directed=False)
 
         # Left partition: A, B; right partition: X, Y, Z
-        for node in ["A", "B", "X", "Y", "Z"]:
-            g.add_node(node)
-        g.add_edge("A", "X")
-        g.add_edge("A", "Y")
-        g.add_edge("B", "Y")
-        g.add_edge("B", "Z")
+        g.add_nodes(["A", "B", "X", "Y", "Z"])
+        g.add_edges([("A", "X"), ("A", "Y"), ("B", "Y"), ("B", "Z")])
 
         spec = g.get_spectrum(which="all")
         values = spec['values']
@@ -39032,12 +37583,8 @@ class Graph:
         ```{python}
         g = ec.Graph(directed=True)
 
-        for node in ["A", "B", "C", "D"]:
-            g.add_node(node)
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
-        g.add_edge("C", "D")
-        g.add_edge("D", "A")
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
 
         # Returns 1, ±i, and -1 (the fourth roots of unity)
         [complex(round(v.real, 6), round(v.imag, 6)) for v in g.get_spectrum(which="all")["values"]]
@@ -39161,15 +37708,9 @@ class Graph:
         # Graph with 2 components
         g = ec.Graph(directed=False)
         # Component 1
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B")
-        g.add_edge(source="B", target="C")
+        g.add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
         # Component 2
-        g.add_node(label="X")
-        g.add_node(label="Y")
-        g.add_edge(source="X", target="Y")
+        g.add_nodes(["X", "Y"]).add_edge(source="X", target="Y")
 
         spec = g.get_laplacian_spectrum(which="smallest", k=3)
 
@@ -39193,14 +37734,10 @@ class Graph:
         # Two-way spectral clustering
         g = ec.Graph(directed=False)
         # Create graph with two communities...
-        for i in range(6):
-            g.add_node(label=f"n{i}")
+        g.add_nodes([f"n{i}" for i in range(6)])
 
         # Dense intra-community edges
-        g.add_edge(source="n0", target="n1")
-        g.add_edge(source="n1", target="n2")
-        g.add_edge(source="n3", target="n4")
-        g.add_edge(source="n4", target="n5")
+        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n3", "n4"), ("n4", "n5")])
         # Sparse inter-community edge
         g.add_edge(source="n2", target="n3")
 
@@ -39226,13 +37763,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        for i in range(6):
-            g.add_node(label=f"n{i}")
-        g.add_edge(source="n0", target="n1")
-        g.add_edge(source="n1", target="n2")
-        g.add_edge(source="n3", target="n4")
-        g.add_edge(source="n4", target="n5")
-        g.add_edge(source="n2", target="n3")
+        g.add_nodes([f"n{i}" for i in range(6)])
+        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n3", "n4"), ("n4", "n5"), ("n2", "n3")])
 
         # Algebraic connectivity measures expansion
         spec = g.get_laplacian_spectrum(which="smallest", k=2)
@@ -39250,12 +37782,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge(source="A", target="B", weight=1.0)
-        g.add_edge(source="B", target="C", weight=2.0)
-        g.add_edge(source="C", target="A", weight=0.5)
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "A", 0.5)])
 
         # Normalized Laplacian accounts for degree variations
         spec = g.get_laplacian_spectrum(which="all", normalized=True)
@@ -39272,13 +37800,8 @@ class Graph:
 
         ```{python}
         g = ec.Graph(directed=False)
-        for i in range(6):
-            g.add_node(label=f"n{i}")
-        g.add_edge(source="n0", target="n1")
-        g.add_edge(source="n1", target="n2")
-        g.add_edge(source="n3", target="n4")
-        g.add_edge(source="n4", target="n5")
-        g.add_edge(source="n2", target="n3")
+        g.add_nodes([f"n{i}" for i in range(6)])
+        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n3", "n4"), ("n4", "n5"), ("n2", "n3")])
 
         # Laplacian eigenvalues determine diffusion speed
         spec = g.get_laplacian_spectrum(which="smallest", k=5)
@@ -39376,12 +37899,8 @@ class Graph:
         ```{python}
         split = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("C", "D")])
         )
 
         split.global_efficiency()
@@ -39463,12 +37982,10 @@ class Graph:
         leaves = ["L1", "L2", "L3", "L4", "L5"]
 
         def hub_and_leaves(ring):
-            g = ec.Graph().add_node(label="hub")
-            for leaf in leaves:
-                g.add_node(label=leaf).add_edge("hub", leaf)
+            g = ec.Graph().add_nodes(["hub"] + leaves)
+            g.add_edges([("hub", leaf) for leaf in leaves])
             if ring:
-                for a, b in zip(leaves, leaves[1:] + leaves[:1]):
-                    g.add_edge(a, b)
+                g.add_edges(list(zip(leaves, leaves[1:] + leaves[:1])))
             return g
 
         star = hub_and_leaves(ring=False)
@@ -39759,16 +38276,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C1")
-            .add_node(label="C2")
-            .add_node(label="D")
-            .add_edge("A", "C1")
-            .add_edge("C1", "B")
-            .add_edge("A", "C2")
-            .add_edge("C2", "B")
-            .add_edge("B", "D")
+            .add_nodes(["A", "B", "C1", "C2", "D"])
+            .add_edges([("A", "C1"), ("C1", "B"), ("A", "C2"), ("C2", "B"), ("B", "D")])
         )
 
         (g.get_resistance_distance("A", "B"), g.get_resistance_distance("C1", "D"))
@@ -39860,14 +38369,8 @@ class Graph:
         ```{python}
         g = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_node(label="D")
-            .add_edge("A", "B")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-            .add_edge("C", "D")
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
         )
 
         matrix = g.resistance_distance_matrix()
