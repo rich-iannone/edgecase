@@ -450,6 +450,49 @@ class TestDirectedGraphs:
         assert all(count == 0 for count in counts.values())
 
 
+class TestDirectedTransitivity:
+    """Directed transitivity: closed fraction of directed 2-paths through distinct nodes."""
+
+    @staticmethod
+    def _build(n, edges):
+        g = ec.Graph(directed=True)
+        for i in range(n):
+            g.add_node(label=str(i))
+        for u, v in edges:
+            g.add_edge(str(u), str(v))
+        return g
+
+    def test_reciprocated_triangle_is_fully_transitive(self):
+        """Paths that return to their start (u -> v -> u) aren't triples."""
+        edges = [(u, v) for u in range(3) for v in range(3) if u != v]
+        assert self._build(3, edges).get_transitivity() == pytest.approx(1.0)
+
+    def test_reciprocal_pair_has_no_triples(self):
+        """A lone A <-> B pair has no triple through three distinct nodes."""
+        assert self._build(2, [(0, 1), (1, 0)]).get_transitivity() is None
+
+    def test_matches_brute_force(self):
+        """Matches a direct count of closed / all distinct-node directed 2-paths."""
+        import random
+
+        rng = random.Random(3)
+        for _ in range(50):
+            n = rng.randint(3, 10)
+            edges = {
+                (u, v) for u in range(n) for v in range(n) if u != v and rng.random() < 0.35
+            }
+            paths = [(u, v, w) for (u, v) in edges for (x, w) in edges if x == v and w != u]
+            expected = (
+                sum((w, u) in edges for u, v, w in paths) / len(paths) if paths else None
+            )
+
+            result = self._build(n, sorted(edges)).get_transitivity()
+            if expected is None:
+                assert result is None
+            else:
+                assert result == pytest.approx(expected)
+
+
 class TestParallelEdgesAndSelfLoops:
     """Triangle-based measures are computed on the simple graph."""
 
