@@ -431,3 +431,69 @@ class TestMaxFlowErrors:
         flow_value = g.max_flow_value(source="A", sink="B")
 
         assert flow_value == 0.0
+
+
+class TestMaxFlowMultiEdges:
+    """Parallel and antiparallel edges each keep their own capacity and flow."""
+
+    def test_parallel_directed_edges_report_own_flow(self):
+        """Two parallel edges with capacities 2 and 3 carry 2 and 3, not 5 each."""
+        g = Graph(directed=True)
+        g.add_node(label="S")
+        g.add_node(label="T")
+        g.add_edge("S", "T", capacity=2)
+        g.add_edge("S", "T", capacity=3)
+        small, large = g.find_edge_ids("S", "T")
+
+        assert g.max_flow("S", "T") == {small: 2.0, large: 3.0}
+        assert g.max_flow_value("S", "T") == 5.0
+
+    def test_parallel_undirected_edges_report_own_flow(self):
+        """Parallel undirected edges (stored either way round) split the flow by capacity."""
+        g = Graph()
+        g.add_node(label="S")
+        g.add_node(label="T")
+        g.add_edge("S", "T", capacity=2)
+        g.add_edge("T", "S", capacity=3)
+        first, second = g.find_edge_ids("S", "T")  # both orientations, in creation order
+
+        assert g.max_flow("S", "T") == {first: 2.0, second: 3.0}
+
+    def test_flow_dict_respects_capacity_and_conservation(self):
+        """On random directed multigraphs the per-edge flows form a valid maximum flow."""
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(5)
+        for _ in range(60):
+            n = rng.randint(3, 8)
+            g = Graph(directed=True)
+            for i in range(n):
+                g.add_node(label=str(i))
+            reference = nx.DiGraph()
+            reference.add_nodes_from(range(n))
+            for _ in range(rng.randint(n, 3 * n)):
+                u, v = rng.sample(range(n), 2)
+                cap = rng.randint(1, 6)
+                g.add_edge(str(u), str(v), capacity=cap)
+                prior = reference[u][v]["capacity"] if reference.has_edge(u, v) else 0
+                reference.add_edge(u, v, capacity=prior + cap)
+
+            expected = nx.maximum_flow_value(reference, 0, n - 1)
+            flow = g.max_flow("0", str(n - 1))
+            assert g.max_flow_value("0", str(n - 1)) == pytest.approx(expected)
+
+            net = {node_id: 0.0 for node_id in g.get_node_ids()}
+            for edge_id, amount in flow.items():
+                edge = g.get_edge(edge_id)
+                assert amount <= edge.attributes["capacity"] + 1e-9
+                net[edge.source] -= amount
+                net[edge.target] += amount
+            source_id = g.get_id_from_label("0")
+            sink_id = g.get_id_from_label(str(n - 1))
+            assert net[sink_id] == pytest.approx(expected)
+            assert all(
+                net[node_id] == pytest.approx(0.0)
+                for node_id in net
+                if node_id not in (source_id, sink_id)
+            )

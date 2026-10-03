@@ -34654,8 +34654,9 @@ class Graph:
         Each edge has a capacity, the most flow it can carry. With the default `capacity=None`,
         an edge's capacity is taken from its `capacity` attribute if it has one, otherwise from
         its weight on a weighted graph, and otherwise it is `1.0`. You can also name a custom
-        capacity attribute. Parallel edges between the same two nodes pool their capacities, and
-        self-loops carry no flow.
+        capacity attribute. Parallel edges between the same two nodes add to the total capacity
+        between them, but each keeps its own capacity and reports its own flow. Self-loops carry
+        no flow.
 
         Maximum flow models how much of something can move through a network with limited link
         capacities, for example:
