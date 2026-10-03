@@ -60,111 +60,10 @@ pub fn max_flow(
         ));
     }
 
-    let edges = graph.get_edges_internal();
-    let is_directed = graph.is_directed();
+    let (_, edge_flows) = edmonds_karp(graph, source, sink, capacity)?;
 
-    // Build capacity map: (source, target) -> total capacity
-    // For multigraphs, sum capacities of parallel edges
-    let mut cap: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-
-    for edge in edges {
-        // Skip self-loops
-        if edge.source == edge.target {
-            continue;
-        }
-
-        // Determine capacity for this edge
-        let edge_cap = get_edge_capacity(edge, capacity, graph.is_weighted())?;
-
-        // Add to capacity map
-        let key = (edge.source, edge.target);
-        *cap.entry(key).or_insert(0.0) += edge_cap;
-
-        // For undirected graphs, add reverse capacity
-        if !is_directed {
-            let rev_key = (edge.target, edge.source);
-            *cap.entry(rev_key).or_insert(0.0) += edge_cap;
-        }
-    }
-
-    // Initialize residual graph = capacity
-    let mut residual = cap.clone();
-
-    // Track flow on each directed edge pair
-    let mut flow: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-    for &key in cap.keys() {
-        flow.insert(key, 0.0);
-    }
-
-    // Edmonds-Karp: BFS to find augmenting paths
-    loop {
-        // BFS to find augmenting path
-        let path = bfs_augmenting_path(source, sink, &residual);
-
-        if path.is_empty() {
-            break; // No more augmenting paths
-        }
-
-        // Find minimum residual capacity along the path (bottleneck)
-        let mut path_flow = f64::INFINITY;
-        for i in 0..path.len() - 1 {
-            let edge_key = (path[i], path[i + 1]);
-            let res_cap = residual.get(&edge_key).copied().unwrap_or(0.0);
-            path_flow = path_flow.min(res_cap);
-        }
-
-        // Update residual capacities and flow
-        for i in 0..path.len() - 1 {
-            let forward_key = (path[i], path[i + 1]);
-            let backward_key = (path[i + 1], path[i]);
-
-            // Decrease forward residual capacity
-            if let Some(res) = residual.get_mut(&forward_key) {
-                *res -= path_flow;
-            }
-
-            // Increase backward residual capacity (for flow cancellation)
-            *residual.entry(backward_key).or_insert(0.0) += path_flow;
-
-            // Update flow
-            *flow.entry(forward_key).or_insert(0.0) += path_flow;
-            // Decrease reverse flow if it exists
-            if let Some(rev_flow) = flow.get_mut(&backward_key) {
-                if *rev_flow > 0.0 {
-                    let cancel = path_flow.min(*rev_flow);
-                    *rev_flow -= cancel;
-                }
-            }
-        }
-    }
-
-    // Build flow dict mapping edge_id -> flow
-    let mut flow_dict: FxHashMap<u64, f64> = FxHashMap::default();
-
-    for edge in edges {
-        if edge.source == edge.target {
-            continue; // Skip self-loops
-        }
-
-        let forward_flow = flow.get(&(edge.source, edge.target)).copied().unwrap_or(0.0);
-
-        if is_directed {
-            // Directed: flow is in edge direction
-            if forward_flow > 1e-10 {
-                flow_dict.insert(edge.id, forward_flow);
-            }
-        } else {
-            // Undirected: flow could be in either direction
-            let backward_flow = flow.get(&(edge.target, edge.source)).copied().unwrap_or(0.0);
-            // Net flow on this edge
-            let net_flow = (forward_flow - backward_flow).abs();
-            if net_flow > 1e-10 {
-                flow_dict.insert(edge.id, net_flow);
-            }
-        }
-    }
-
-    Ok(flow_dict)
+    // Only report edges that carry flow
+    Ok(edge_flows.into_iter().filter(|&(_, flow)| flow > 1e-10).collect())
 }
 
 /// Compute the maximum flow value only (without flow assignment).
@@ -196,58 +95,7 @@ pub fn max_flow_value(
         ));
     }
 
-    let edges = graph.get_edges_internal();
-    let is_directed = graph.is_directed();
-
-    // Build capacity map
-    let mut cap: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-
-    for edge in edges {
-        if edge.source == edge.target {
-            continue;
-        }
-
-        let edge_cap = get_edge_capacity(edge, capacity, graph.is_weighted())?;
-
-        let key = (edge.source, edge.target);
-        *cap.entry(key).or_insert(0.0) += edge_cap;
-
-        if !is_directed {
-            let rev_key = (edge.target, edge.source);
-            *cap.entry(rev_key).or_insert(0.0) += edge_cap;
-        }
-    }
-
-    let mut residual = cap;
-    let mut total_flow = 0.0;
-
-    loop {
-        let path = bfs_augmenting_path(source, sink, &residual);
-
-        if path.is_empty() {
-            break;
-        }
-
-        let mut path_flow = f64::INFINITY;
-        for i in 0..path.len() - 1 {
-            let edge_key = (path[i], path[i + 1]);
-            let res_cap = residual.get(&edge_key).copied().unwrap_or(0.0);
-            path_flow = path_flow.min(res_cap);
-        }
-
-        for i in 0..path.len() - 1 {
-            let forward_key = (path[i], path[i + 1]);
-            let backward_key = (path[i + 1], path[i]);
-
-            if let Some(res) = residual.get_mut(&forward_key) {
-                *res -= path_flow;
-            }
-            *residual.entry(backward_key).or_insert(0.0) += path_flow;
-        }
-
-        total_flow += path_flow;
-    }
-
+    let (total_flow, _) = edmonds_karp(graph, source, sink, capacity)?;
     Ok(total_flow)
 }
 
@@ -572,79 +420,163 @@ fn get_edge_capacity(
     Ok(edge_cap)
 }
 
-/// BFS to find an augmenting path from source to sink in the residual graph.
-/// Returns the path as a vector of node IDs, or empty vector if no path exists.
-fn bfs_augmenting_path(
+/// Run Edmonds-Karp from `source` to `sink`.
+///
+/// Returns the maximum flow value and the flow on every non-self-loop edge, as
+/// (edge_id, flow) pairs. The residual network has one forward arc per edge, paired with
+/// its own reverse arc, so parallel edges keep separate capacities and flows and a real
+/// v -> u edge never shares capacity with the cancellation arc of u -> v. On directed
+/// graphs the reverse arc starts empty (it only cancels flow); on undirected graphs it
+/// starts with the full capacity, so the edge can carry flow either way, and the edge's
+/// reported flow is the magnitude of its net flow.
+fn edmonds_karp(
+    graph: &Graph,
     source: u64,
     sink: u64,
-    residual: &FxHashMap<(u64, u64), f64>,
-) -> Vec<u64> {
-    let mut visited: FxHashMap<u64, u64> = FxHashMap::default(); // node -> parent
-    let mut queue: VecDeque<u64> = VecDeque::new();
+    capacity: Option<&str>,
+) -> PyResult<(f64, Vec<(u64, f64)>)> {
+    let edges = graph.get_edges_internal();
+    let is_directed = graph.is_directed();
 
-    queue.push_back(source);
-    visited.insert(source, source); // Source is its own parent
-
-    // Build adjacency list from residual graph for faster lookup
-    let mut adj: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
-    for (&(u, v), &cap) in residual.iter() {
-        if cap > 1e-10 {
-            // Only edges with positive residual capacity
-            adj.entry(u).or_default().push(v);
-        }
+    let mut node_index: FxHashMap<u64, usize> = FxHashMap::default();
+    for node_id in graph.get_node_ids() {
+        let next = node_index.len();
+        node_index.insert(node_id, next);
     }
+
+    let mut arcs: Vec<ResidualArc> = Vec::with_capacity(edges.len() * 2);
+    let mut out_arcs: Vec<Vec<usize>> = vec![Vec::new(); node_index.len()];
+    // (edge id, index of its forward arc, original capacity)
+    let mut edge_arcs: Vec<(u64, usize, f64)> = Vec::with_capacity(edges.len());
+
+    for edge in edges {
+        // Skip self-loops
+        if edge.source == edge.target {
+            continue;
+        }
+
+        let edge_cap = get_edge_capacity(edge, capacity, graph.is_weighted())?;
+        let (u, v) = (node_index[&edge.source], node_index[&edge.target]);
+        let reverse_cap = if is_directed { 0.0 } else { edge_cap };
+
+        let forward = arcs.len();
+        arcs.push(ResidualArc { to: v, residual: edge_cap, cost: 0.0, rev: forward + 1 });
+        arcs.push(ResidualArc { to: u, residual: reverse_cap, cost: 0.0, rev: forward });
+        out_arcs[u].push(forward);
+        out_arcs[v].push(forward + 1);
+        edge_arcs.push((edge.id, forward, edge_cap));
+    }
+
+    let (source_idx, sink_idx) = (node_index[&source], node_index[&sink]);
+    let mut total_flow = 0.0;
+
+    // Augment along shortest (fewest-arc) paths until the sink is unreachable
+    while let Some(path) = bfs_augmenting_path(source_idx, sink_idx, &arcs, &out_arcs) {
+        // Find minimum residual capacity along the path (bottleneck)
+        let path_flow = path
+            .iter()
+            .map(|&a| arcs[a].residual)
+            .fold(f64::INFINITY, f64::min);
+
+        // Push flow: shrink each arc's residual and grow its paired reverse arc
+        for &a in &path {
+            arcs[a].residual -= path_flow;
+            let rev = arcs[a].rev;
+            arcs[rev].residual += path_flow;
+        }
+
+        total_flow += path_flow;
+    }
+
+    let edge_flows = edge_arcs
+        .into_iter()
+        .map(|(edge_id, forward, edge_cap)| (edge_id, (edge_cap - arcs[forward].residual).abs()))
+        .collect();
+
+    Ok((total_flow, edge_flows))
+}
+
+/// BFS for a shortest augmenting path over arcs with positive residual capacity.
+/// Returns the arc indices from source to sink, or None if the sink is unreachable.
+fn bfs_augmenting_path(
+    source: usize,
+    sink: usize,
+    arcs: &[ResidualArc],
+    out_arcs: &[Vec<usize>],
+) -> Option<Vec<usize>> {
+    // Arc used to reach each node (source is marked visited with no arc)
+    let mut parent_arc: Vec<Option<usize>> = vec![None; out_arcs.len()];
+    let mut visited = vec![false; out_arcs.len()];
+    let mut queue: VecDeque<usize> = VecDeque::new();
+
+    visited[source] = true;
+    queue.push_back(source);
 
     while let Some(current) = queue.pop_front() {
         if current == sink {
-            // Reconstruct path
+            // Reconstruct path by walking parent arcs back from the sink
             let mut path = Vec::new();
             let mut node = sink;
             while node != source {
-                path.push(node);
-                node = *visited.get(&node).unwrap();
+                let a = parent_arc[node].expect("visited node has a parent arc");
+                path.push(a);
+                node = arcs[arcs[a].rev].to;
             }
-            path.push(source);
             path.reverse();
-            return path;
+            return Some(path);
         }
 
-        if let Some(neighbors) = adj.get(&current) {
-            for &neighbor in neighbors {
-                if let std::collections::hash_map::Entry::Vacant(e) = visited.entry(neighbor) {
-                    e.insert(current);
-                    queue.push_back(neighbor);
-                }
+        for &a in &out_arcs[current] {
+            let arc = &arcs[a];
+            if arc.residual > 1e-10 && !visited[arc.to] {
+                visited[arc.to] = true;
+                parent_arc[arc.to] = Some(a);
+                queue.push_back(arc.to);
             }
         }
     }
 
-    Vec::new() // No path found
+    None // No path found
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Build arcs/out_arcs for a directed network given (u, v, capacity) triples
+    fn network(n: usize, edges: &[(usize, usize, f64)]) -> (Vec<ResidualArc>, Vec<Vec<usize>>) {
+        let mut arcs = Vec::new();
+        let mut out_arcs = vec![Vec::new(); n];
+        for &(u, v, cap) in edges {
+            let forward = arcs.len();
+            arcs.push(ResidualArc { to: v, residual: cap, cost: 0.0, rev: forward + 1 });
+            arcs.push(ResidualArc { to: u, residual: 0.0, cost: 0.0, rev: forward });
+            out_arcs[u].push(forward);
+            out_arcs[v].push(forward + 1);
+        }
+        (arcs, out_arcs)
+    }
+
     #[test]
     fn test_bfs_augmenting_path() {
-        let mut residual: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-        residual.insert((1, 2), 10.0);
-        residual.insert((2, 3), 5.0);
-        residual.insert((1, 3), 3.0);
+        let (arcs, out_arcs) = network(3, &[(0, 1, 10.0), (1, 2, 5.0), (0, 2, 3.0)]);
 
-        let path = bfs_augmenting_path(1, 3, &residual);
-        assert!(!path.is_empty());
-        assert_eq!(path[0], 1);
-        assert_eq!(*path.last().unwrap(), 3);
+        // The direct arc 0 -> 2 is the shortest path
+        let path = bfs_augmenting_path(0, 2, &arcs, &out_arcs).unwrap();
+        assert_eq!(path, vec![4]);
     }
 
     #[test]
     fn test_no_path() {
-        let mut residual: FxHashMap<(u64, u64), f64> = FxHashMap::default();
-        residual.insert((1, 2), 10.0);
-        // No path from 1 to 3
+        let (arcs, out_arcs) = network(3, &[(0, 1, 10.0)]);
+        assert!(bfs_augmenting_path(0, 2, &arcs, &out_arcs).is_none());
+    }
 
-        let path = bfs_augmenting_path(1, 3, &residual);
-        assert!(path.is_empty());
+    #[test]
+    fn test_saturated_arc_is_skipped() {
+        let (arcs, out_arcs) = network(3, &[(0, 2, 0.0), (0, 1, 1.0), (1, 2, 1.0)]);
+
+        let path = bfs_augmenting_path(0, 2, &arcs, &out_arcs).unwrap();
+        assert_eq!(path, vec![2, 4]);
     }
 }
