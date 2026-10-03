@@ -1,7 +1,6 @@
 use crate::algorithms::paths::single_source_dijkstra_distances;
 use crate::graph::Graph;
 use pyo3::prelude::*;
-use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 
 /// Compute pairwise shortest path distances between two node sets.
@@ -11,7 +10,6 @@ fn pairwise_distances(
     set_a: &[u64],
     set_b: &[u64],
 ) -> PyResult<Vec<(u64, u64, f64)>> {
-    let set_b_lookup: rustc_hash::FxHashSet<u64> = set_b.iter().copied().collect();
     let mut pairs = Vec::new();
 
     for &a in set_a {
