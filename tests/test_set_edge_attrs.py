@@ -78,7 +78,6 @@ class TestSetEdgeAttrsBasic:
         G.add_edge("B", "C")
         G.add_edge("C", "D")
 
-        edge_ids = G.get_edge_ids()
         G.set_edge_attrs("priority", [1, 2, 3], edges=[("A", "B"), ("B", "C"), ("C", "D")])
 
         result = G.get_edge_attrs("priority")
