@@ -1008,10 +1008,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `directed_cycle_basis()` — Directed cycle basis
 
-<img src="directed-cycle-basis.light.svg" alt="The house-shaped graph with directed edges, one strongly connected component. With 6 edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal." width="570">
+<img src="directed-cycle-basis.light.svg" alt="The house-shaped graph with directed edges, one strongly connected component. With 6 edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the triangle A, B, C in the accent color and the outer loop A, B, D, E, C in teal, each listed from its lowest node." width="570">
 
 ```markdown
-![Directed cycle basis](/assets/graphs/directed-cycle-basis.light.svg){.lightbox fig-alt="The house-shaped graph with directed edges, one strongly connected component. With 6 edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal." width="100%"}
+![Directed cycle basis](/assets/graphs/directed-cycle-basis.light.svg){.lightbox fig-alt="The house-shaped graph with directed edges, one strongly connected component. With 6 edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the triangle A, B, C in the accent color and the outer loop A, B, D, E, C in teal, each listed from its lowest node." width="100%"}
 ```
 
 ### `enumerate_trails()` — Enumerate trails
@@ -1114,10 +1114,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `alpha_centrality()` — Alpha centrality
 
-<img src="alpha-centrality.light.svg" alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, which reaches every other node, scores 0.25, then B and C 0.20, D 0.19, and the sink E 0.17; every node also gets the same exogenous share, so the spread stays narrow." width="570">
+<img src="alpha-centrality.light.svg" alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, whose arcs reach every other node, scores 0.45, then B and C 0.17, D 0.13, and the sink E, which reaches nothing, only its exogenous share, 0.07." width="570">
 
 ```markdown
-![Alpha centrality](/assets/graphs/alpha-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, which reaches every other node, scores 0.25, then B and C 0.20, D 0.19, and the sink E 0.17; every node also gets the same exogenous share, so the spread stays narrow." width="100%"}
+![Alpha centrality](/assets/graphs/alpha-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, whose arcs reach every other node, scores 0.45, then B and C 0.17, D 0.13, and the sink E, which reaches nothing, only its exogenous share, 0.07." width="100%"}
 ```
 
 ### `authority_centrality()` — HITS authority scores
@@ -1162,10 +1162,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `bipartite_degree_centrality()` — Bipartite degree centrality
 
-<img src="bipartite-degree-centrality.light.svg" alt="A bipartite graph drawn as two rows: side 1, A to D, on top and side 0, E to G, below, which the default which=0 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="570">
+<img src="bipartite-degree-centrality.light.svg" alt="A bipartite graph drawn as two rows: side 0, A to D, on top and side 1, E to G, below, which which=1 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="570">
 
 ```markdown
-![Bipartite degree centrality](/assets/graphs/bipartite-degree-centrality.light.svg){.lightbox fig-alt="A bipartite graph drawn as two rows: side 1, A to D, on top and side 0, E to G, below, which the default which=0 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="100%"}
+![Bipartite degree centrality](/assets/graphs/bipartite-degree-centrality.light.svg){.lightbox fig-alt="A bipartite graph drawn as two rows: side 0, A to D, on top and side 1, E to G, below, which which=1 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="100%"}
 ```
 
 ### `bonacich_power_centrality()` — Bonacich power centrality
@@ -1370,10 +1370,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `percolation_centrality()` — Percolation centrality
 
-<img src="percolation-centrality.light.svg" alt="The shared seven-node graph with the two percolated nodes, A and G, outlined; every other node has state 0. Only paths that start or end at A or G count, so the tail node F, the sole way to G, tops the table at 12.00, ahead of C 9.50 and E 8.00." width="570">
+<img src="percolation-centrality.light.svg" alt="The shared seven-node graph with the two percolated nodes, A and G, outlined; every other node has state 0. Only paths that start at A or G count, so the nodes linking A to G matter most: E and F share the top at 0.60, then C 0.50, with B and D 0.05 and the endpoints A and G 0." width="570">
 
 ```markdown
-![Percolation centrality](/assets/graphs/percolation-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with the two percolated nodes, A and G, outlined; every other node has state 0. Only paths that start or end at A or G count, so the tail node F, the sole way to G, tops the table at 12.00, ahead of C 9.50 and E 8.00." width="100%"}
+![Percolation centrality](/assets/graphs/percolation-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with the two percolated nodes, A and G, outlined; every other node has state 0. Only paths that start at A or G count, so the nodes linking A to G matter most: E and F share the top at 0.60, then C 0.50, with B and D 0.05 and the endpoints A and G 0." width="100%"}
 ```
 
 ### `personalized_pagerank()` — Personalized PageRank
@@ -1980,10 +1980,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `cmty_edge_btwns()` — Edge-betweenness communities
 
-<img src="cmty-edge-btwns.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because every path between the clusters crosses it, so it has the highest betweenness and is the first edge Girvan-Newman cuts. The remaining pieces are the communities: 0 is D, E, F, G and 1 is A, B, C." width="570">
+<img src="cmty-edge-btwns.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because every path between the clusters crosses it, so it has the highest betweenness and is the first edge Girvan-Newman cuts. The remaining pieces are the communities: 0 is A, B, C and 1 is D, E, F, G." width="570">
 
 ```markdown
-![Edge-betweenness communities](/assets/graphs/cmty-edge-btwns.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because every path between the clusters crosses it, so it has the highest betweenness and is the first edge Girvan-Newman cuts. The remaining pieces are the communities: 0 is D, E, F, G and 1 is A, B, C." width="100%"}
+![Edge-betweenness communities](/assets/graphs/cmty-edge-btwns.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because every path between the clusters crosses it, so it has the highest betweenness and is the first edge Girvan-Newman cuts. The remaining pieces are the communities: 0 is A, B, C and 1 is D, E, F, G." width="100%"}
 ```
 
 ### `cmty_fast_greedy()` — Fast greedy communities
@@ -1996,10 +1996,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `cmty_girvan_newman()` — Girvan-Newman communities
 
-<img src="cmty-girvan-newman.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. The partition matches cmty_edge_btwns() but the numbering differs: here community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="570">
+<img src="cmty-girvan-newman.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. It shares cmty_edge_btwns()&#x27;s implementation, so the result is identical: community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="570">
 
 ```markdown
-![Girvan-Newman communities](/assets/graphs/cmty-girvan-newman.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. The partition matches cmty_edge_btwns() but the numbering differs: here community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="100%"}
+![Girvan-Newman communities](/assets/graphs/cmty-girvan-newman.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. It shares cmty_edge_btwns()'s implementation, so the result is identical: community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="100%"}
 ```
 
 ### `cmty_l_eigenvec()` — Leading eigenvector communities
@@ -2076,10 +2076,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `k_components()` — k-components
 
-<img src="k-components.light.svg" alt="A seven-node graph: a dense cluster A, B, C, D with a ring through E, F, G. Every pair of nodes stays connected after removing any one node, so A to G is the 1- and 2-component (teal), and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="570">
+<img src="k-components.light.svg" alt="The shared eight-node core graph: a dense cluster A, B, C, D, a ring through E, F, G, and a pendant H. The whole graph is the 1-component (gray); dropping H, which hangs on a single cut vertex, leaves A to G, the 2-component (teal); and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="570">
 
 ```markdown
-![k-components](/assets/graphs/k-components.light.svg){.lightbox fig-alt="A seven-node graph: a dense cluster A, B, C, D with a ring through E, F, G. Every pair of nodes stays connected after removing any one node, so A to G is the 1- and 2-component (teal), and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="100%"}
+![k-components](/assets/graphs/k-components.light.svg){.lightbox fig-alt="The shared eight-node core graph: a dense cluster A, B, C, D, a ring through E, F, G, and a pendant H. The whole graph is the 1-component (gray); dropping H, which hangs on a single cut vertex, leaves A to G, the 2-component (teal); and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="100%"}
 ```
 
 ### `k_core()` — k-core
@@ -2174,10 +2174,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `dominating_set()` — Dominating set
 
-<img src="dominating-set.light.svg" alt="A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. Nodes 1, 3, and 7 form the dominating set (accent); an accent edge links each other node to a set member that dominates it. The card shows the result [1, 3, 7], size 3." width="570">
+<img src="dominating-set.light.svg" alt="A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. Nodes 1, 3, and 5 form the dominating set (accent); an accent edge links each other node to a set member that dominates it. The card shows the result [1, 3, 5], size 3." width="570">
 
 ```markdown
-![Dominating set](/assets/graphs/dominating-set.light.svg){.lightbox fig-alt="A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. Nodes 1, 3, and 7 form the dominating set (accent); an accent edge links each other node to a set member that dominates it. The card shows the result [1, 3, 7], size 3." width="100%"}
+![Dominating set](/assets/graphs/dominating-set.light.svg){.lightbox fig-alt="A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. Nodes 1, 3, and 5 form the dominating set (accent); an accent edge links each other node to a set member that dominates it. The card shows the result [1, 3, 5], size 3." width="100%"}
 ```
 
 ### `find_cliques()` — Find maximal cliques

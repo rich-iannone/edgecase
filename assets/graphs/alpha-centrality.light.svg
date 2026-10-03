@@ -25,24 +25,24 @@
 <polygon points="352.50,98.00 343.00,101.50 343.00,94.50" fill="#1f2328" fill-opacity="1"/>
 <circle cx="82.0" cy="98.0" r="16" fill="#dd9679" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
 <text x="82.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
-<circle cx="178.0" cy="50.0" r="16" fill="#e5ad96" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="178.0" cy="50.0" r="16" fill="#f2d7cc" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
 <text x="178.0" y="50.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
-<circle cx="178.0" cy="146.0" r="16" fill="#e5ad96" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="178.0" cy="146.0" r="16" fill="#f2d7cc" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
 <text x="178.0" y="146.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
-<circle cx="274.0" cy="98.0" r="16" fill="#e5ae98" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="274.0" cy="98.0" r="16" fill="#f5e1d9" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
 <text x="274.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
-<circle cx="370.0" cy="98.0" r="16" fill="#e8b8a4" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="370.0" cy="98.0" r="16" fill="#faefea" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
 <text x="370.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
 <text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
 <text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.alpha_centrality(alpha=0.8)</text>
 <text x="592.0" y="58.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">node</text>
 <text x="656.0" y="58.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">score</text>
 <text x="592.0" y="78.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
-<text x="656.0" y="78.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">0.25</text>
+<text x="656.0" y="78.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">0.45</text>
 <text x="592.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">B, C</text>
-<text x="656.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.20</text>
+<text x="656.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.17</text>
 <text x="592.0" y="118.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">D</text>
-<text x="656.0" y="118.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.19</text>
+<text x="656.0" y="118.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.13</text>
 <text x="592.0" y="138.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">E</text>
-<text x="656.0" y="138.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.17</text>
+<text x="656.0" y="138.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.07</text>
 </svg>
