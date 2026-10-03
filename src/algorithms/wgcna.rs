@@ -42,7 +42,7 @@ fn scale_free_fit(degrees: &[f64]) -> (f64, f64, f64) {
     }
 
     let n = degrees.len() as f64;
-    let num_bins = ((max_k.sqrt()).ceil() as usize).max(10).min(50);
+    let num_bins = ((max_k.sqrt()).ceil() as usize).clamp(10, 50);
     let bin_width = max_k / num_bins as f64;
 
     let mut counts = vec![0usize; num_bins];
