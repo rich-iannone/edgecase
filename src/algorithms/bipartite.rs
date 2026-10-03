@@ -24,7 +24,11 @@ pub fn bipartite_sets(graph: &Graph) -> PyResult<(Vec<u64>, Vec<u64>)> {
         return Ok((Vec::new(), Vec::new()));
     }
 
-    let node_ids = graph.get_node_ids();
+    // Color in ascending ID order so the numbering is deterministic: in every
+    // connected component, partition 0 is the side holding its lowest node ID.
+    // (get_node_ids() is hash-ordered, which made `which=0` effectively arbitrary.)
+    let mut node_ids = graph.get_node_ids();
+    node_ids.sort_unstable();
     let mut color: FxHashMap<u64, u8> =
         FxHashMap::with_capacity_and_hasher(n, Default::default());
 
