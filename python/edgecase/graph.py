@@ -290,6 +290,19 @@ class Graph:
                 delta=StepDelta(nodes_added=node_labels, edges_added=edge_pairs),
             )
 
+    @classmethod
+    def _from_rust(cls, rust_graph: "rust.Graph") -> "Graph":
+        """
+        Wrap an existing Rust graph in a fully initialized `Graph`.
+
+        Methods that build a new graph in Rust (transformations, set operations, generators,
+        subgraphs) must use this rather than `Graph.__new__()`, so the result gets every
+        attribute `__init__()` sets up (name, computation log, step recording, ...).
+        """
+        graph = cls(directed=rust_graph.is_directed, weighted=rust_graph.is_weighted)
+        graph._graph = rust_graph
+        return graph
+
     def __getattr__(self, name: str):
         if name in ("_steps", "_recording_depth", "_pending_note"):
             import weakref
@@ -3113,7 +3126,7 @@ class Graph:
 
         # Degree statistics: compute for all nodes
         node_ids = self.get_node_ids(limit=None)
-        degrees = [self.get_degree(self.get_label_from_id(nid) or str(nid)) for nid in node_ids]
+        degrees = [self.get_degree(nid) for nid in node_ids]
 
         if degrees:
             avg_degree = sum(degrees) / len(degrees)
@@ -5883,8 +5896,7 @@ class Graph:
         """
         from edgecase._core import configuration_model as _configuration_model
 
-        result = Graph.__new__(Graph)
-        result._graph = _configuration_model(degree_sequence, directed, seed)
+        result = Graph._from_rust(_configuration_model(degree_sequence, directed, seed))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -6019,8 +6031,7 @@ class Graph:
         """
         from edgecase._core import degree_preserving_rewire as _degree_preserving_rewire
 
-        result = Graph.__new__(Graph)
-        result._graph = _degree_preserving_rewire(self._graph, n_swaps, seed)
+        result = Graph._from_rust(_degree_preserving_rewire(self._graph, n_swaps, seed))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -6132,8 +6143,7 @@ class Graph:
         """
         from edgecase._core import expected_degree_graph as _expected_degree_graph
 
-        result = Graph.__new__(Graph)
-        result._graph = _expected_degree_graph(weights, seed)
+        result = Graph._from_rust(_expected_degree_graph(weights, seed))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -6253,8 +6263,7 @@ class Graph:
         """
         from edgecase._core import generate_stochastic_block_model as _generate_sbm
 
-        result = Graph.__new__(Graph)
-        result._graph = _generate_sbm(sizes, p_matrix, seed)
+        result = Graph._from_rust(_generate_sbm(sizes, p_matrix, seed))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -20177,8 +20186,7 @@ class Graph:
         weighted.to_undirected().get_edge_df()
         ```
         """
-        result = Graph.__new__(Graph)
-        result._graph = self._graph.to_undirected()
+        result = Graph._from_rust(self._graph.to_undirected())
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "to_undirected", "G.to_undirected()")
@@ -20274,8 +20282,7 @@ class Graph:
         g_dir.get_cycles()
         ```
         """
-        result = Graph.__new__(Graph)
-        result._graph = self._graph.to_directed()
+        result = Graph._from_rust(self._graph.to_directed())
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "to_directed", "G.to_directed()")
@@ -20383,8 +20390,7 @@ class Graph:
         weighted.reverse().get_edge_df()
         ```
         """
-        result = Graph.__new__(Graph)
-        result._graph = self._graph.reverse()
+        result = Graph._from_rust(self._graph.reverse())
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "reverse", "G.reverse()")
@@ -20482,8 +20488,7 @@ class Graph:
         comp.get_edges_str_repr(use_labels=True)
         ```
         """
-        result = Graph.__new__(Graph)
-        result._graph = self._graph.complement()
+        result = Graph._from_rust(self._graph.complement())
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "complement", "G.complement()")
@@ -20649,8 +20654,7 @@ class Graph:
         lg.count_nodes(), lg.count_edges()
         ```
         """
-        result = Graph.__new__(Graph)
-        result._graph = rust.line_graph(self._graph, create_using_directed)
+        result = Graph._from_rust(rust.line_graph(self._graph, create_using_directed))
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "line_graph", "G.line_graph()")
@@ -20770,8 +20774,7 @@ class Graph:
         u_id = self._resolve_node_id(u)
         v_id = self._resolve_node_id(v)
 
-        result = Graph.__new__(Graph)
-        result._graph = _contract_nodes(self._graph, u_id, v_id, self_loops)
+        result = Graph._from_rust(_contract_nodes(self._graph, u_id, v_id, self_loops))
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "contract_nodes", f"G.contract_nodes({u!r}, {v!r})")
@@ -20906,8 +20909,7 @@ class Graph:
         u_id = self._resolve_node_id(u)
         v_id = self._resolve_node_id(v)
 
-        result = Graph.__new__(Graph)
-        result._graph = _contracted_edge(self._graph, u_id, v_id, self_loops)
+        result = Graph._from_rust(_contracted_edge(self._graph, u_id, v_id, self_loops))
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "contracted_edge", f"G.contracted_edge({u!r}, {v!r})")
@@ -21037,8 +21039,7 @@ class Graph:
 
         resolved_nodes = [self._resolve_node_id(n) for n in nodes]
 
-        result = Graph.__new__(Graph)
-        result._graph = _contract_nodes_multi(self._graph, resolved_nodes, self_loops)
+        result = Graph._from_rust(_contract_nodes_multi(self._graph, resolved_nodes, self_loops))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -21176,8 +21177,7 @@ class Graph:
 
         resolved_partition = [[self._resolve_node_id(n) for n in block] for block in partition]
 
-        result = Graph.__new__(Graph)
-        result._graph = _quotient_graph(self._graph, resolved_partition)
+        result = Graph._from_rust(_quotient_graph(self._graph, resolved_partition))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -21318,8 +21318,7 @@ class Graph:
         """
         from edgecase._core import graph_union
 
-        result = Graph.__new__(Graph)
-        result._graph = graph_union(self._graph, other._graph)
+        result = Graph._from_rust(graph_union(self._graph, other._graph))
         return result
 
     def intersection(self, other: "Graph") -> "Graph":
@@ -21442,8 +21441,7 @@ class Graph:
         """
         from edgecase._core import graph_intersection
 
-        result = Graph.__new__(Graph)
-        result._graph = graph_intersection(self._graph, other._graph)
+        result = Graph._from_rust(graph_intersection(self._graph, other._graph))
         return result
 
     def difference(self, other: "Graph") -> "Graph":
@@ -21557,8 +21555,7 @@ class Graph:
         """
         from edgecase._core import graph_difference
 
-        result = Graph.__new__(Graph)
-        result._graph = graph_difference(self._graph, other._graph)
+        result = Graph._from_rust(graph_difference(self._graph, other._graph))
         return result
 
     def symmetric_difference(self, other: "Graph") -> "Graph":
@@ -21672,8 +21669,7 @@ class Graph:
         """
         from edgecase._core import graph_symmetric_difference
 
-        result = Graph.__new__(Graph)
-        result._graph = graph_symmetric_difference(self._graph, other._graph)
+        result = Graph._from_rust(graph_symmetric_difference(self._graph, other._graph))
         return result
 
     def compose(self, other: "Graph") -> "Graph":
@@ -21784,8 +21780,7 @@ class Graph:
         """
         from edgecase._core import graph_compose
 
-        result = Graph.__new__(Graph)
-        result._graph = graph_compose(self._graph, other._graph)
+        result = Graph._from_rust(graph_compose(self._graph, other._graph))
         return result
 
     def disjoint_union(self, other: "Graph") -> "Graph":
@@ -21900,8 +21895,7 @@ class Graph:
         """
         from edgecase._core import graph_disjoint_union
 
-        result = Graph.__new__(Graph)
-        result._graph = graph_disjoint_union(self._graph, other._graph)
+        result = Graph._from_rust(graph_disjoint_union(self._graph, other._graph))
         return result
 
     def edge_overlap(self, other: "Graph") -> dict:
@@ -23324,8 +23318,7 @@ class Graph:
         """
         from edgecase._core import subgraph
 
-        result = Graph.__new__(Graph)
-        result._graph = subgraph(self._graph, nodes)
+        result = Graph._from_rust(subgraph(self._graph, nodes))
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "subgraph", f"G.subgraph(...)  # {len(nodes)} nodes")
@@ -23434,8 +23427,7 @@ class Graph:
         """
         from edgecase._core import edge_subgraph
 
-        result = Graph.__new__(Graph)
-        result._graph = edge_subgraph(self._graph, edges)
+        result = Graph._from_rust(edge_subgraph(self._graph, edges))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -26534,9 +26526,7 @@ class Graph:
         result_graph = rust_np(self._graph, q, seed)
 
         # Wrap the result in a new Graph object
-        new_graph = Graph.__new__(Graph)
-        new_graph._graph = result_graph
-        new_graph._computations = []
+        new_graph = Graph._from_rust(result_graph)
 
         return new_graph
 
@@ -26646,9 +26636,7 @@ class Graph:
         result_graph = rust_ep(self._graph, q, seed)
 
         # Wrap the result in a new Graph object
-        new_graph = Graph.__new__(Graph)
-        new_graph._graph = result_graph
-        new_graph._computations = []
+        new_graph = Graph._from_rust(result_graph)
 
         return new_graph
 
@@ -29013,8 +29001,7 @@ class Graph:
         """
         from edgecase._core import k_core
 
-        result = Graph.__new__(Graph)
-        result._graph = k_core(self._graph, k)
+        result = Graph._from_rust(k_core(self._graph, k))
         return result
 
     def k_shell(self, k: int) -> "Graph":
@@ -29106,8 +29093,7 @@ class Graph:
         """
         from edgecase._core import k_shell
 
-        result = Graph.__new__(Graph)
-        result._graph = k_shell(self._graph, k)
+        result = Graph._from_rust(k_shell(self._graph, k))
         return result
 
     def k_crust(self, k: int) -> "Graph":
@@ -29202,8 +29188,7 @@ class Graph:
         """
         from edgecase._core import k_crust
 
-        result = Graph.__new__(Graph)
-        result._graph = k_crust(self._graph, k)
+        result = Graph._from_rust(k_crust(self._graph, k))
         return result
 
     def k_truss(self, k: int) -> "Graph":
@@ -29303,8 +29288,7 @@ class Graph:
         """
         from edgecase._core import k_truss
 
-        result = Graph.__new__(Graph)
-        result._graph = k_truss(self._graph, k)
+        result = Graph._from_rust(k_truss(self._graph, k))
         return result
 
     def k_corona(self, k: int) -> "Graph":
@@ -29390,8 +29374,7 @@ class Graph:
         """
         from edgecase._core import k_corona
 
-        result = Graph.__new__(Graph)
-        result._graph = k_corona(self._graph, k)
+        result = Graph._from_rust(k_corona(self._graph, k))
         return result
 
     def rich_club_coefficient(self) -> dict[int, float]:
@@ -32322,8 +32305,7 @@ class Graph:
         """
         from edgecase._core import transitive_closure
 
-        result = Graph.__new__(Graph)
-        result._graph = transitive_closure(self._graph)
+        result = Graph._from_rust(transitive_closure(self._graph))
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "transitive_closure", "G.transitive_closure()")
@@ -32446,8 +32428,7 @@ class Graph:
         """
         from edgecase._core import transitive_reduction
 
-        result = Graph.__new__(Graph)
-        result._graph = transitive_reduction(self._graph)
+        result = Graph._from_rust(transitive_reduction(self._graph))
 
         if self._recording_depth == 0:
             self._record_step(KIND_TRANSFORM, "transitive_reduction", "G.transitive_reduction()")
