@@ -38,7 +38,8 @@ pub fn is_matching(graph: &Graph, edges: Vec<u64>) -> PyResult<bool> {
 /// Find a maximal matching in the graph.
 ///
 /// A maximal matching is a matching that cannot be extended by adding another edge.
-/// Uses a greedy algorithm that processes edges in arbitrary order.
+/// Uses a greedy algorithm that processes edges in creation (edge ID) order, so the
+/// result is deterministic for a given graph but depends on the order edges were added.
 ///
 /// # Arguments
 /// * `graph` - The input graph
