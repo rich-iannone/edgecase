@@ -830,6 +830,8 @@ class Graph:
         """
         Add multiple nodes to the graph in a single call.
 
+        ![Add several nodes](/assets/graphs/add-nodes.light.svg){.lightbox fig-alt="Before: a four-node cycle A, B, D, C. After: two new nodes, E and F, appear in the accent color beside it in one call, with no edges; nothing else changes." width="100%"}
+
         A bulk version of `add_node()` that accepts a list of node labels and applies shared
         attributes to all of them. Individual nodes can override shared attributes by passing a
         tuple of `(label, dict)` instead of a bare label.
@@ -1127,6 +1129,8 @@ class Graph:
         """
         Add multiple edges to the graph in a single call.
 
+        ![Add several edges](/assets/graphs/add-edges.light.svg){.lightbox fig-alt="Before: four nodes with two edges, B to A to C. After: two new edges, B to D and C to D, appear in the accent color in one call and close the cycle; no nodes are added." width="100%"}
+
         A bulk version of `add_edge()` that accepts a list of `(source, target)` pairs and applies
         shared attributes to all of them. Individual edges can override shared attributes by passing
         a third element as a dict in the tuple.
@@ -1280,6 +1284,8 @@ class Graph:
         """
         Add an edge between two nodes using their integer IDs.
 
+        ![Add edge by ID](/assets/graphs/add-edge-by-id.light.svg){.lightbox fig-alt="Before: four nodes tagged with their integer ids, A 1, B 2, C 3, D 4, joined by three edges; the ids 3 and 4 are highlighted. After: a new accent edge joins node 3 (C) and node 4 (D), closing the cycle; no nodes are added." width="100%"}
+
         A strict version of `add_edge()` that only accepts integer node IDs — no label
         resolution. Both source and target must be valid node IDs that already exist in the
         graph.
@@ -1380,6 +1386,8 @@ class Graph:
     ) -> "Graph":
         """
         Add multiple edges using integer node IDs.
+
+        ![Add several edges by ID](/assets/graphs/add-edges-by-id.light.svg){.lightbox fig-alt="Before: four nodes tagged with their integer ids, A 1, B 2, C 3, D 4, with two edges, B to A to C; the ids 2, 3, and 4 are highlighted. After: the id pairs (2, 4) and (3, 4) become two new accent edges, B to D and C to D, closing the cycle." width="100%"}
 
         A strict bulk version of `add_edge_by_id()` that only accepts integer node IDs — no
         label resolution. All referenced nodes must already exist in the graph.
@@ -4225,6 +4233,8 @@ class Graph:
         """
         Generate a random graph matching a given degree sequence (configuration model).
 
+        ![Configuration model](/assets/graphs/configuration-model.light.svg){.lightbox fig-alt="Three random graphs built to match a degree sequence, each node's target degree in a pill: 1, 1, 1, 1 gives two separate edges; 2, 2, 2, 2 gives a four-cycle; and 3, 2, 2, 2, 1 on five nodes includes a doubled edge, because the model pairs edge stubs at random and may create multi-edges. Every node ends with exactly the degree in its pill." width="100%"}
+
         Creates a new graph where each node has the specified degree. Stubs are created
         for each node (one per degree unit) and then randomly paired. The resulting graph
         may contain self-loops and multi-edges.
@@ -4267,6 +4277,8 @@ class Graph:
         """
         Randomly rewire edges while preserving the degree of every node.
 
+        ![Degree-preserving rewire](/assets/graphs/degree-preserving-rewire.light.svg){.lightbox fig-alt="A six-node ladder with each node's degree in a pill: 2 for A, C, D, F and 3 for B and E. One swap takes the accent edges A-B and D-E and rewires them as the accent diagonals A-E and B-D, with the old edges shown dashed; every degree pill on the right matches the left." width="100%"}
+
         Performs edge-swap operations: picks two edges (a-b, c-d) and replaces them
         with (a-d, c-b), ensuring no self-loops or duplicate edges are introduced.
 
@@ -4303,6 +4315,8 @@ class Graph:
     ) -> "Graph":
         """
         Generate a random graph with a given expected degree sequence (Chung-Lu model).
+
+        ![Expected degree graph](/assets/graphs/expected-degree-graph.light.svg){.lightbox fig-alt="Three Chung-Lu random graphs on a ring of six nodes, each node's weight, its expected degree, in a pill. All weights 1 give 2 edges and all weights 2 give 7; with weights 4, 2, 2, 1, 1, 1 the heavy top node gets 4 links. Degrees match the weights only on average, so individual nodes can land above or below their pill." width="100%"}
 
         Each edge (i, j) is included independently with probability
         w_i * w_j / sum(w), where w is the weight vector. This produces a graph
@@ -4342,6 +4356,8 @@ class Graph:
     ) -> "Graph":
         """
         Generate a graph from a stochastic block model (SBM).
+
+        ![Stochastic block model](/assets/graphs/generate-stochastic-block-model.light.svg){.lightbox fig-alt="Three stochastic block models with two blocks of four nodes, block one in the accent color on the left and block two in teal on the right, with edge probability 0.9 inside a block and 0, 0.1, and 0.5 between blocks. Both blocks come out fully connected in every panel while the plain cross-block edges grow from none to 2 to 7, blurring the split." width="100%"}
 
         Creates a graph with nodes divided into blocks of the given sizes, where
         edges are added independently with probabilities specified by the block
@@ -5221,6 +5237,8 @@ class Graph:
         """
         Count the total number of nodes in the graph.
 
+        ![Count nodes](/assets/graphs/count-nodes.light.svg){.lightbox fig-alt="The shared four-node graph with every node, A to D, in the accent color and its id, 1 to 4, in a pill. The card returns the node count, 4." width="100%"}
+
         Returns the current number of nodes (vertices) in the graph. This count includes all nodes
         that have been added and not deleted.
 
@@ -5257,6 +5275,8 @@ class Graph:
     def count_edges(self) -> int:
         """
         Count the total number of edges in the graph.
+
+        ![Count edges](/assets/graphs/count-edges.light.svg){.lightbox fig-alt="The shared graph, directed, with edge ids on every edge; all six edges are in the accent color, including the reverse edge 6 from B back to A. In a directed graph A to B and B to A are separate edges, so the card returns 6." width="100%"}
 
         Returns the current number of edges (links/connections) in the graph. For undirected graphs,
         each edge is counted once. For directed graphs, each directed edge is counted separately
@@ -5672,6 +5692,8 @@ class Graph:
         """
         Return the two node partitions of a bipartite graph.
 
+        ![Bipartite sets](/assets/graphs/bipartite-sets.light.svg){.lightbox fig-alt="A two-by-three ladder whose nodes alternate between two sides, A, C, E in the accent color and B, D, F in teal, with every edge joining the two sides. The card lists the two returned sets, 0 as A, C, E and 1 as B, D, F." width="100%"}
+
         Uses BFS 2-coloring to partition nodes into two independent sets such that every
         edge connects nodes from different sets.
 
@@ -5713,6 +5735,8 @@ class Graph:
     ) -> "Graph":
         """
         Project a bipartite graph onto one of its partitions.
+
+        ![Bipartite projection](/assets/graphs/bipartite-projection.light.svg){.lightbox fig-alt="A bipartite graph with A, B, C, D on top and E, F below; E, in the accent color, is joined to A, B, C and F, in teal, to B, C, D. Projecting onto the top side joins two nodes when they share a neighbor below, weighted by how many they share: A-B and A-C share only E (accent), B-D and C-D share only F (teal), and B-C shares both, so it is a plain edge of weight 2." width="100%"}
 
         Two nodes in the chosen partition become connected if they share at least one
         neighbor in the other partition. Edge weights equal the number of shared neighbors.
@@ -5796,6 +5820,8 @@ class Graph:
         """
         Degree centrality for nodes in one partition of a bipartite graph.
 
+        ![Bipartite degree centrality](/assets/graphs/bipartite-degree-centrality.light.svg){.lightbox fig-alt="A bipartite graph drawn as two rows: side 1, A to D, on top and side 0, E to G, below, which the default which=0 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="100%"}
+
         Normalized by the size of the opposite partition (the maximum possible degree
         for any node in the target partition).
 
@@ -5835,6 +5861,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         """
         Closeness centrality for nodes in one partition of a bipartite graph.
+
+        ![Bipartite closeness centrality](/assets/graphs/bipartite-closeness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by closeness to the top side A to D. F reaches B, C and D in one hop and A in three, so it scores 0.67, ahead of E 0.50 and G 0.33." width="100%"}
 
         Closeness is the reciprocal of the average shortest path distance to all
         nodes in the opposite partition.
@@ -5878,6 +5906,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         """
         Betweenness centrality for nodes in one partition of a bipartite graph.
+
+        ![Bipartite betweenness centrality](/assets/graphs/bipartite-betweenness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by how often each lies on shortest paths between top-side nodes. F joins B, C and D and scores 2.50, E, the only way out of A, scores 1.33, and G, which only touches D, scores 0." width="100%"}
 
         Measures how often a node lies on shortest paths between pairs of nodes
         in the opposite partition.
@@ -8908,6 +8938,8 @@ class Graph:
         """
         Set attribute values for one or more nodes.
 
+        ![Set node attributes](/assets/graphs/set-node-attrs.light.svg){.lightbox fig-alt="Every node of a six-node graph carries a value x in a badge (A 3, B 5, C 2, D 4, E 6, F 1). The call names nodes B and F, outlined in the accent color; after it both read 7, while the other four nodes keep their values." width="100%"}
+
         Updates a specific attribute on nodes. Can set the same value for all nodes, or provide
         different values via a list or dictionary. Creates the attribute if it doesn't exist,
         overwrites if it does.
@@ -9148,6 +9180,8 @@ class Graph:
     ) -> "Graph":
         """
         Set attribute values for one or more edges.
+
+        ![Set edge attributes](/assets/graphs/set-edge-attrs.light.svg){.lightbox fig-alt="Every edge of a six-node graph carries a value w on its label. The call names the edge B to E, drawn in a light accent stroke, which holds 4; after it that edge reads 5, in the accent color, while the other four edges keep their values." width="100%"}
 
         Updates a specific attribute on edges. Can target edges by edge IDs, explicit (source,
         target) pairs, by filtering via source/target node lists, or apply to all edges. Supports
@@ -9391,6 +9425,8 @@ class Graph:
         """
         Get attribute values for nodes.
 
+        ![Get node attributes](/assets/graphs/get-node-attrs.light.svg){.lightbox fig-alt="The shared four-node graph with node ids in pills. Nodes A, B, and D have an attribute x and their ids 1, 2, 4 are highlighted; node C has no x and is faded. The card maps node id to value, in storage order, for the three nodes that have it: 1 is 3, 4 is 4, 2 is 5." width="100%"}
+
         Extracts a specific attribute from one or more nodes. Only returns entries for nodes that
         have the specified attribute set. Useful for collecting properties across the graph.
 
@@ -9468,6 +9504,8 @@ class Graph:
     ) -> dict[int, any]:
         """
         Get edge attribute values.
+
+        ![Get edge attributes](/assets/graphs/get-edge-attrs.light.svg){.lightbox fig-alt="The shared four-node graph with edge ids on the edges. Edges 1, 3, and 5 have an attribute w and are in the accent color; edges 2 and 4 have no w and are faded. The card maps edge id to value for the three edges that have it: 1 is 2, 3 is 5, 5 is 1." width="100%"}
 
         Extracts a specific attribute from edges. Can optionally filter by source and/or target
         nodes. Returns a dictionary keyed by edge IDs.
@@ -9550,6 +9588,8 @@ class Graph:
     ) -> dict[int, any]:
         """
         Get attribute values for edges by edge ID.
+
+        ![Get edge attributes by id](/assets/graphs/get-edge-attrs-by-id.light.svg){.lightbox fig-alt="The shared four-node graph with edge ids on the edges; every edge has an attribute w. The queried edges 2 (A to C) and 5 (C to D) are outlined in the accent color with their ids highlighted. The card maps just those two ids to their values: 2 is 4 and 5 is 1." width="100%"}
 
         Similar to `get_edge_attrs()` but uses internal edge IDs instead of node pairs. Returns a
         dictionary keyed by integer edge IDs. Useful when working directly with edge ID references.
@@ -11105,6 +11145,8 @@ class Graph:
         r"""
         Compute SimRank* similarity between all node pairs.
 
+        ![SimRank* similarity](/assets/graphs/simrank-star-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.36." width="100%"}
+
         SimRank* fixes the "zero-similarity problem" of the original SimRank, where most node pairs
         receive a score of 0.0 on real-world graphs, by considering asymmetric in-link paths. The
         result is a similarity matrix where each entry `s(a, b)` is in `[0, 1]`, with
@@ -11188,6 +11230,8 @@ class Graph:
     ) -> float:
         r"""
         Compute SimRank* similarity between a specific pair of nodes.
+
+        ![SimRank* similarity for one pair](/assets/graphs/simrank-star-similarity-pair.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.356 for the pair." width="100%"}
 
         This is more efficient than computing the full similarity matrix when only one pair is
         needed, though internally it still computes the full matrix.
@@ -11616,6 +11660,8 @@ class Graph:
         """
         Compute the topological overlap matrix (TOM).
 
+        ![Topological overlap matrix](/assets/graphs/topological-overlap.light.svg){.lightbox fig-alt="A five-gene network: a diamond G1 to G4 with G5 hanging off G4. G1 and G4 are not linked but share the two neighbors G2 and G3, drawn in the accent color, so their topological overlap is 2 over min(2, 3) + 1, that is 0.67. The table is the full symmetric matrix with 1 on the diagonal and the G1, G4 entries highlighted." width="100%"}
+
         For each pair of nodes `(i, j)`, the topological overlap measures how much they share the
         same neighbors, normalized by the less-connected node's degree:
 
@@ -12012,6 +12058,8 @@ class Graph:
     def directed_cycle_basis(self) -> list[list[int]]:
         """
         Find a fundamental cycle basis for a directed graph.
+
+        ![Directed cycle basis](/assets/graphs/directed-cycle-basis.light.svg){.lightbox fig-alt="The house-shaped graph with directed edges, one strongly connected component. With 6 edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal." width="100%"}
 
         For a directed graph, the cycle space operates over the rationals (not GF(2) as in
         the undirected case). A fundamental cycle basis is computed by finding the strongly
@@ -12697,6 +12745,8 @@ class Graph:
         """
         Count occurrences of all non-isomorphic connected subgraphs of a given size.
 
+        ![Motif census](/assets/graphs/motif-census.light.svg){.lightbox fig-alt="Left: the seven-node graph from the dominating set figures, a pendant 1, triangle 2, 3, 4, a bridge 4–5, and triangle 5, 6, 7. Right: the two connected three-node motifs with their counts: 2 triangles and 6 induced paths, where a path is a triangle with its third edge missing (dashed)." width="100%"}
+
         Enumerates every connected induced subgraph of `size=` nodes, classifies each by its
         isomorphism class, and returns the counts. This is the standard *motif census* used in
         network biology to characterize local connectivity patterns.
@@ -12763,6 +12813,8 @@ class Graph:
     ) -> Union[dict[str, dict[str, float]], "Graph"]:
         """
         Test motif significance against degree-preserving random graphs.
+
+        ![Motif significance](/assets/graphs/motif-significance.light.svg){.lightbox fig-alt="The same seven-node graph. Against 100 degree-preserving rewirings (seed 1), its 2 triangles are more than expected, z = +1.77 with p = 0.15, shown in the accent color; its 6 induced paths are fewer than expected, z = -1.77 with p = 1.00, shown in plain ink." width="100%"}
 
         Computes the motif census for this graph and for `n_random=` degree-preserving rewirings,
         then reports a z-score and empirical p-value for each motif class.
@@ -12840,6 +12892,8 @@ class Graph:
     ) -> Union[dict[int, Optional[float]], "Graph"]:
         """
         Compute local clustering coefficient for each node.
+
+        ![Local clustering coefficient](/assets/graphs/local-clustering-coefficient.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by local clustering, the fraction of each node's neighbor pairs that are linked. A's two neighbors are linked, so A scores 1.00, down to F at 0; the pendant G has a single neighbor, so its value is undefined, drawn faded and listed as None." width="100%"}
 
         The local clustering coefficient measures how close a node's neighbors are to being a
         complete subgraph (clique). For a node with k neighbors, it's the fraction of possible edges
@@ -12993,6 +13047,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Calculate local clustering coefficient for each node.
+
+        ![Clustering coefficient](/assets/graphs/clustering-coefficient.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by each node's clustering coefficient. A's two neighbors are linked, so A scores 1.00, then B and D 0.67, C 0.50 and E 0.33. Nodes with fewer than two neighbors get 0 rather than None, so the pendant G ties with F at 0." width="100%"}
 
         The clustering coefficient measures the degree to which a node's neighbors are connected to
         each other. For a node `v`:
@@ -13319,6 +13375,8 @@ class Graph:
         r"""
         Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
 
+        ![Fast greedy communities](/assets/graphs/cmty-fast-greedy.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Greedily merging the pairs that raise modularity most stops at the two clusters, drawn as tinted regions in the accent color and teal. The card lists community 0 as D, E, F, G and community 1 as A, B, C." width="100%"}
+
         This is a greedy modularity optimization algorithm that merges communities to maximize
         modularity. It's efficient for medium to large graphs and provides good quality communities.
         Only works with undirected graphs.
@@ -13565,6 +13623,8 @@ class Graph:
         """
         Detect communities using an optimized Girvan-Newman algorithm.
 
+        ![Girvan-Newman communities](/assets/graphs/cmty-girvan-newman.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. The partition matches cmty_edge_btwns() but the numbering differs: here community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="100%"}
+
         Iteratively removes the edge with highest betweenness centrality to reveal hierarchical
         community structure, returning the partition that maximizes Newman-Girvan modularity. Faster
         than `cmty_edge_btwns()` on graphs with clear community structure thanks to per-component
@@ -13652,6 +13712,8 @@ class Graph:
     ) -> Union[dict[int, int], "Graph"]:
         r"""
         Detect communities using Leading Eigenvector (Newman) algorithm.
+
+        ![Leading eigenvector communities](/assets/graphs/cmty-l-eigenvec.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. The leading eigenvector of the modularity matrix splits the nodes by sign at that edge, and neither side splits further, giving two communities drawn in the accent color and teal: 0 is D, E, F, G and 1 is A, B, C." width="100%"}
 
         Spectral optimization method using recursive bisection based on the leading eigenvector of
         the modularity matrix. Splits communities hierarchically when modularity improves. Best for
@@ -14072,6 +14134,8 @@ class Graph:
         """
         Fit a stochastic block model to this graph using expectation-maximization.
 
+        ![Stochastic block model](/assets/graphs/cmty-stochastic-block-model.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. A two-block model fitted with seed 7 puts each cluster in its own block, dense inside and sparse between, drawn in the accent color and teal. The card lists block 0 as D, E, F, G and block 1 as A, B, C." width="100%"}
+
         Partitions nodes into `k` blocks by iteratively estimating block membership
         probabilities and the block interaction matrix, then assigns each node to its
         most probable block.
@@ -14218,6 +14282,8 @@ class Graph:
         """
         Semi-supervised label propagation for node classification.
 
+        ![Label propagation](/assets/graphs/label-propagation.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the edge C to D. Only A (id 1) and G (id 7) are given labels, 0 and 1, shown as badges; every other node adopts the label most common among its neighbors, so the triangle ends with label 0 (accent) and D, E, F, G with label 1 (teal)." width="100%"}
+
         Spreads known labels through the network: at each iteration every unlabeled node adopts the
         most common label among its neighbors (weighted by edge weight). Nodes whose labels are
         provided in `known_labels=` are held fixed throughout.
@@ -14292,6 +14358,8 @@ class Graph:
     ) -> dict:
         """
         Test whether a subgraph is enriched for a categorical node attribute.
+
+        ![Subgraph enrichment](/assets/graphs/subgraph-enrichment.light.svg){.lightbox fig-alt="An eight-gene network of two modules joined by the bridge G4 to G5; genes G1, G2, G3 belong to gene set X (teal) and G6, G7, G8 to set Y (violet). The tested module G1 to G4 sits in a tinted region and holds 3 of its 4 genes in set X, which has only 3 members among all 8 genes. The card gives k = 3 of n = 4, K = 3 of N = 8, fold enrichment 2.0 and hypergeometric p-value 0.071." width="100%"}
 
         Given a set of nodes (e.g., a detected community), tests whether they contain
         more nodes with a particular attribute value than expected by chance compared
@@ -14424,6 +14492,8 @@ class Graph:
     ) -> dict[int, dict]:
         """
         Run enrichment testing across all detected communities at once.
+
+        ![Module annotation enrichment](/assets/graphs/module-annotation-enrichment.light.svg){.lightbox fig-alt="The eight-gene network split into its two Louvain modules, G1 to G4 (module 1) and G5 to G8 (module 0), each in a tinted region, with gene set X in teal and set Y in violet. Every module is tested against every set: module 1 holds all 3 X genes and module 0 all 3 Y genes, each a 2.0-fold enrichment with Bonferroni-adjusted p-value 0.29 over the four tests, while the other two pairs have fold 0 and p 1." width="100%"}
 
         For each community and each distinct value of the given attribute, tests whether
         that community is enriched for that value, with multiple-testing correction applied
@@ -15879,6 +15949,8 @@ class Graph:
         """
         Compute edge overlap (Jaccard similarity) between this graph and another.
 
+        ![Edge overlap](/assets/graphs/edge-overlap.light.svg){.lightbox fig-alt="Two graphs on nodes A to D. G and H share edges A–B and B–D, drawn in accent; A–C is only in G and C–D only in H. The card counts 2 shared edges out of 4 in the union, one unique to each side, for a Jaccard index of 0.5." width="100%"}
+
         Edges are compared by node labels. Returns a dictionary with overlap metrics.
 
         Parameters
@@ -15899,6 +15971,8 @@ class Graph:
     def differential_edges(self, other: "Graph") -> dict:
         """
         Find edges present in one graph but not the other.
+
+        ![Differential edges](/assets/graphs/differential-edges.light.svg){.lightbox fig-alt="The same five genes in two conditions. g has a five-gene ring with the chord G1 to G3; in other, the edge G4 to G5 (accent) is gone, drawn dashed, and a new edge G3 to G5 (teal) appears. The card lists G3, G5 as added and G4, G5 as removed, in the same colors." width="100%"}
 
         Edges are compared by node labels.
 
@@ -15926,6 +16000,8 @@ class Graph:
     ) -> dict:
         """
         Compute the approximate graph edit distance between this graph and another.
+
+        ![Graph edit distance](/assets/graphs/graph-edit-distance.light.svg){.lightbox fig-alt="Graph G has nodes A, B, C, D and H has A, B, D, E; both share edges A–B and B–D. Turning G into H deletes node C and edge A–C (accent in G) and inserts node E and edge D–E (accent in H): four edits at cost 1 each, so the distance is 4." width="100%"}
 
         Counts the minimum number of node insertions, node deletions, edge insertions, and edge
         deletions to transform this graph into the other. Uses label-based matching (exact label
@@ -15958,6 +16034,8 @@ class Graph:
     ) -> dict:
         """
         Compute network proximity between two sets of nodes.
+
+        ![Network proximity](/assets/graphs/network-proximity.light.svg){.lightbox fig-alt="The eight-gene network with gene set A = G1, G2 in teal and set B = G6, G8 in violet. The closest pair is G2 and G6, three steps apart through the bridge G4 to G5, drawn in the accent color. The card reports that all 4 cross-set pairs are reachable and the closest-pair proximity is 3." width="100%"}
 
         Measures how close two groups of nodes are in the network using shortest-path distances.
         Useful for drug-target vs. disease-gene proximity analysis and network-based drug
@@ -16025,6 +16103,8 @@ class Graph:
     ) -> "Graph | list[tuple[float, float]]":
         """
         Simulate progressive node removal and measure network degradation.
+
+        ![Network robustness](/assets/graphs/network-robustness.light.svg){.lightbox fig-alt="The two diamonds sharing hub D, with filled badges giving the degree-based removal order: D first (degree 4), then B, C, E, F, A, G. The chart plots the largest component as a fraction of the 7 nodes after each removal: 1.0, then 0.43 once D is gone, falling to 0.29, 0.14, and 0." width="100%"}
 
         Removes nodes one at a time according to a strategy and records the fraction of nodes in the
         largest connected component at each step. Useful for studying essential genes and network
@@ -16097,6 +16177,8 @@ class Graph:
         """
         Find the k most influential nodes for information spread.
 
+        ![Influence maximization](/assets/graphs/influence-maximization.light.svg){.lightbox fig-alt="The shared seven-node graph with the two nodes chosen by the greedy search, D and G, filled in accent: one seed in each cluster. The table lists their marginal gains in expected spread under the independent cascade model, 1.37 for D and 1.17 for G, for an expected spread of 2.54." width="100%"}
+
         Uses a greedy algorithm to select seed nodes that maximize the expected spread in an
         Independent Cascade model. Useful for identifying key regulatory genes or optimal drug
         targets in signaling networks.
@@ -16167,6 +16249,8 @@ class Graph:
         """
         Smooth node scores over the network topology.
 
+        ![Smooth node scores over the network](/assets/graphs/network-smooth.light.svg){.lightbox fig-alt="Before: the shared seven-node graph with raw scores as badges, 1 on A, B and D and 0 elsewhere, the scored nodes outlined. After: the smoothed scores, shaded as heat. C, a 0 surrounded by scored neighbors, rises to 0.45, while the far triangle E, F, G stays near 0." width="100%"}
+
         Propagates noisy per-node scores (e.g., differential expression values) through the network
         to produce denoised estimates that incorporate neighborhood information. Uses iterative
         label spreading: `f(t+1) = alpha * W_norm * f(t) + (1 - alpha) * f(0)`.
@@ -16228,6 +16312,8 @@ class Graph:
     ) -> "Graph | dict":
         """
         Evaluate soft-thresholding powers for WGCNA network construction.
+
+        ![Soft-threshold power](/assets/graphs/soft-threshold-power.light.svg){.lightbox fig-alt="The eight-gene network with a co-expression weight on every edge. Each candidate power raises the weights to that power and fits a scale-free line to the degree distribution; the table lists the signed fit R squared and mean connectivity for powers 1 to 6, rising from -0.35 to 0.93. Power 4 is the first with R squared at least 0.8 (0.90), so it is the recommended power, highlighted in the accent color." width="100%"}
 
         For each candidate power β, raises edge weights to |w|^β and checks whether the resulting
         degree distribution follows a scale-free topology by fitting log(p(k)) ~ log(k). Returns
@@ -16301,6 +16387,8 @@ class Graph:
     ) -> dict:
         """
         Run a GWAS-style network analysis pipeline.
+
+        ![GWAS network pipeline](/assets/graphs/gwas-pipeline.light.svg){.lightbox fig-alt="The eight-gene network after the pipeline: raw scores of 4.0 on G1, G2, G3 and 0.5 elsewhere are smoothed over the network, so every gene is shaded by its smoothed score and the signal leaks onto G4. Louvain then splits the network into module 1, G1 to G4, and module 0, G5 to G8, drawn as gray regions. The table ranks the modules by mean smoothed score, 3.05 for module 1 and 0.57 for module 0." width="100%"}
 
         Chains three steps:
 
@@ -17914,6 +18002,8 @@ class Graph:
         """
         Calculate Personalized PageRank with a custom restart distribution.
 
+        ![Personalized PageRank](/assets/graphs/personalized-pagerank.light.svg){.lightbox fig-alt="The shared seven-node graph with the seed A (node id 1) outlined, every node shaded by PageRank whose random surfer always restarts at A. Rank stays near the seed, A 0.26, C 0.23 and B 0.20, and fades along the strip to F 0.05 and G 0.02." width="100%"}
+
         Unlike standard PageRank where the random surfer teleports uniformly to any node,
         Personalized PageRank teleports back to seed nodes with probabilities given by
         `personalization`. This makes it the primary method for gene prioritization in
@@ -18012,6 +18102,8 @@ class Graph:
         """
         Random walk with restart (RWR) from a set of seed nodes.
 
+        ![Random walk with restart](/assets/graphs/random-walk-with-restart.light.svg){.lightbox fig-alt="The same seven-node two-cluster graph with the seed A (node id 1) outlined and every node shaded by its steady-state visit probability for a walker that jumps back to A with probability 0.15 at each step. The table reads A 0.27, B and C 0.22, D 0.14, E 0.07, and F and G 0.03." width="100%"}
+
         At each step the walker either follows a random outgoing edge (with probability
         `1 - restart_prob`) or teleports back to one of the seed nodes (with probability
         `restart_prob`). Returns the steady-state visitation probability for every node.
@@ -18102,6 +18194,8 @@ class Graph:
         """
         Diffuse heat from seed nodes through the network.
 
+        ![Heat diffusion from seed nodes](/assets/graphs/heat-diffusion.light.svg){.lightbox fig-alt="A seven-node graph, a diamond A to D joined by the bridge D-E to the triangle E, F, G, with the seed A (node id 1) outlined and every node shaded by the heat it holds after diffusing for time 1. The table reads A 0.31, B and C 0.24, D 0.15, E 0.04, and F and G 0.01: heat fades with distance from the seed and barely crosses the bridge." width="100%"}
+
         Places initial heat on seed nodes and lets it diffuse along edges using the
         heat equation on the graph Laplacian. The parameter `t` controls diffusion time:
         small values keep heat localized near seeds, large values spread it across the
@@ -18173,6 +18267,8 @@ class Graph:
     ) -> Union[dict[int, float | None], "Graph"]:
         r"""
         Calculate Burt's constraint for each node.
+
+        ![Burt's constraint](/assets/graphs/constraint.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by Burt's constraint. Hub C, whose contacts are all linked to each other, is the most constrained at 1.20; the tail node F, the only link between E and G, sits in a structural hole and has the lowest constraint, 0.50." width="100%"}
 
         Burt's constraint measures the extent to which ego's contacts are redundant, that is,
         connected to each other. Higher constraint indicates fewer structural holes and less
@@ -18449,6 +18545,8 @@ class Graph:
         """
         Find the connective core of the network using knotty centrality.
 
+        ![Knotty centrality](/assets/graphs/knotty-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with its connective core, the hub C and the bridge E, in accent inside a shaded hull, joined by the accent edge C-E. The pair is fully connected (density 1) and holds 0.25 and 0.40 of all betweenness, so the card reads a knotty score of 0.325." width="100%"}
+
         Knotty centrality identifies the subset of nodes that are both densely
         interconnected *and* collectively high in betweenness centrality. The result is
         the tightest "knot" of important connectors in the graph.
@@ -18522,6 +18620,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         """
         Calculate load centrality scores for all nodes.
+
+        ![Load centrality](/assets/graphs/load-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by load centrality, the share of shortest-path traffic routed through each node. Bridge node E carries the most load at 0.53, then C and F at 0.33; on this graph the scores match betweenness centrality exactly." width="100%"}
 
         Load centrality measures the fraction of shortest paths that pass through each node. It is
         similar to betweenness centrality but uses a different accumulation formula that counts the
@@ -18654,6 +18754,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Compute the second order centrality for nodes in the graph.
+
+        ![Second-order centrality](/assets/graphs/second-order-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by second-order centrality, the spread of a random walker's return times, where lower means more central. The table runs low to high: the bridge E has the steadiest return times at 8.59, then C 9.04, while the pendant G is least central at 22.84." width="100%"}
 
         Second order centrality measures the standard deviation of return times to a node in a
         perpetual random walk on the graph. Lower values indicate higher centrality, as nodes with
@@ -18819,6 +18921,8 @@ class Graph:
         r"""
         Compute communicability between all pairs of nodes.
 
+        ![Communicability](/assets/graphs/communicability.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color, and the two walks of length 2 between them, through C and D, are in accent. Communicability sums the walks of every length k divided by k factorial, 2/2! + 1/3! + 15/4! and so on, giving 2.069 for B and E." width="100%"}
+
         Communicability measures the "amount of communication" between pairs of nodes based on all
         walks between them, with shorter walks weighted more heavily. It uses the matrix exponential
         of the adjacency matrix: `exp(A)`.
@@ -18917,6 +19021,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Compute communicability betweenness centrality for all nodes.
+
+        ![Communicability betweenness centrality](/assets/graphs/communicability-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by communicability betweenness, the share of walk-based communication between other pairs that runs through each node. The bridge E scores 0.63 and the hub C 0.56, while A 0.12 and the pendant G 0.02 carry almost nothing." width="100%"}
 
         This centrality measure quantifies the contribution of each node to the communicability
         between all other pairs of nodes. A node with high communicability betweenness is important
@@ -19065,6 +19171,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         """
         Compute percolation centrality for all nodes.
+
+        ![Percolation centrality](/assets/graphs/percolation-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with the two percolated nodes, A and G, outlined; every other node has state 0. Only paths that start or end at A or G count, so the tail node F, the sole way to G, tops the table at 12.00, ahead of C 9.50 and E 8.00." width="100%"}
 
         Percolation centrality measures the importance of nodes based on the proportion of
         'percolated paths' that pass through them. This is particularly useful for analyzing
@@ -19218,6 +19326,8 @@ class Graph:
         """
         Simulate edge percolation by randomly removing edges.
 
+        ![Edge percolation](/assets/graphs/edge-percolation.light.svg){.lightbox fig-alt="Before: the two diamonds sharing hub D. After removing 30 percent of the edges at random (here B–D, C–D, and D–E, drawn dashed), every node survives but the graph has split into the triangle A, B, C and the four nodes D, E, F, G." width="100%"}
+
         Creates a new graph with a fraction of edges randomly removed. All nodes are preserved.
         This is useful for analyzing network robustness under random edge failures or communication
         link failures.
@@ -19314,6 +19424,8 @@ class Graph:
     ) -> list[tuple[float, float]]:
         r"""
         Perform percolation threshold analysis.
+
+        ![Percolation threshold analysis](/assets/graphs/percolation-threshold-analysis.light.svg){.lightbox fig-alt="The two diamonds sharing hub D. The chart plots, for removal fractions q of 0, 0.25, 0.5, 0.75, and 1, the giant component's share of the surviving nodes, averaged over 10 random trials: 1.0, 0.82, 0.55, 0.75, 0. It dips at q = 0.5, where the graph tends to split, and is 0 once every node is gone." width="100%"}
 
         Systematically removes nodes at different fractions and measures the relative size of the
         giant connected component (GCC) at each step. This helps identify the critical percolation
@@ -19746,6 +19858,8 @@ class Graph:
         """
         Get HITS authority scores for each node (directed graphs only).
 
+        ![HITS authority scores](/assets/graphs/authority-centrality.light.svg){.lightbox fig-alt="A five-node directed graph: A points to B, C and D, B and C point to D, and D points to E. Each node is shaded by its authority score. D is pointed to by all three hubs and scores 0.82, B and C 0.41, while the source A and E, fed only by D, score 0." width="100%"}
+
         HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
         directed graph. Authority score measures how much a node is pointed to by good hubs:
 
@@ -19852,6 +19966,8 @@ class Graph:
         """
         Get HITS hub scores for each node (directed graphs only).
 
+        ![HITS hub scores](/assets/graphs/hub-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by hub score. A points to B, C and the top authority D and scores 0.82; B and C each point to D and score 0.41; D and E point to no authority and score 0." width="100%"}
+
         HITS (Hyperlink-Induced Topic Search) computes authority and hub scores for nodes in a
         directed graph. Hub score measures how much a node points to good authorities:
 
@@ -19956,6 +20072,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         """
         Get eigenvector centrality for each node.
+
+        ![Eigenvector centrality](/assets/graphs/eigen-centrality.light.svg){.lightbox fig-alt="The shared seven-node strip of three triangles with a tail, each node shaded by eigenvector centrality. Hub C sits among the best-connected nodes and scores 0.55, ahead of D 0.46 and B 0.45, while the tail fades from F 0.15 to G 0.05." width="100%"}
 
         Eigenvector centrality measures node importance based on connections to other important
         nodes. It's the principal eigenvector of the adjacency matrix, computed via power iteration:
@@ -20066,6 +20184,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         """
         Get alpha centrality for each node.
+
+        ![Alpha centrality](/assets/graphs/alpha-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, which reaches every other node, scores 0.25, then B and C 0.20, D 0.19, and the sink E 0.17; every node also gets the same exogenous share, so the spread stays narrow." width="100%"}
 
         Alpha centrality is a generalization of eigenvector centrality that adds an exogenous
         factor:
@@ -20180,6 +20300,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Get Bonacich power centrality for each node.
+
+        ![Bonacich power centrality](/assets/graphs/bonacich-power-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by Bonacich power centrality with the default beta 0.1, where ties to powerful neighbors add power. Hub C scores 1.45, then D 1.14, B 1.11 and E 1.10, down to the pendant node G at 0.32." width="100%"}
 
         Bonacich power centrality generalizes eigenvector centrality to capture both cooperative and
         competitive network dynamics. The key innovation is the β parameter, which controls whether
@@ -20359,6 +20481,8 @@ class Graph:
         r"""
         Get Katz centrality for each node.
 
+        ![Katz centrality](/assets/graphs/katz-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by Katz centrality with alpha 0.5, which counts incoming walks. D receives walks from A, B and C and scores 0.32, E, fed through D, 0.26, B and C 0.16, and the source A, which nothing reaches, 0.11." width="100%"}
+
         Katz centrality measures node influence based on the number of walks of all lengths reaching
         the node, with walks weighted by `α^length`:
 
@@ -20494,6 +20618,8 @@ class Graph:
         """
         Get leverage centrality for each node.
 
+        ![Leverage centrality](/assets/graphs/leverage-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by leverage centrality, which compares each node's degree with its neighbors' degrees. Hub C out-connects its neighbors and tops the table at 0.19, while A and the pendant G have better-connected neighbors and score negative, -0.27 and -0.33." width="100%"}
+
         Leverage centrality measures the degree connectivity of a node relative to its neighbors:
 
         `leverage(v) = (1/k_v) · Σ[(k_v - k_n) / (k_v + k_n)]`
@@ -20592,6 +20718,8 @@ class Graph:
         r"""
         Compute bridging centrality for each node.
 
+        ![Bridging centrality](/assets/graphs/bridging-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by bridging centrality, betweenness weighted by how much a node links otherwise separate parts. Bridge node E scores 1.00 after normalizing, the tail node F 0.76 and the hub C only 0.34, while A and G score 0." width="100%"}
+
         Bridging centrality identifies nodes that act as bridges between densely connected
         communities. It combines the *bridging coefficient* (a local measure of how much a node
         links to otherwise-separated groups) with *betweenness centrality* (global importance for
@@ -20675,6 +20803,8 @@ class Graph:
         r"""
         Compute Laplacian centrality for each node.
 
+        ![Laplacian centrality](/assets/graphs/laplacian-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph's Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.24, then D 0.18, B and E 0.17, while the pendant node G costs only 0.03." width="100%"}
+
         Laplacian centrality measures how much the overall connectivity of the network is disrupted
         by removing a node. It uses a closed-form expression based on the Laplacian energy of the
         graph:
@@ -20752,6 +20882,8 @@ class Graph:
     ) -> Union[dict[int, float], tuple[dict[int, float], float], "Graph", tuple["Graph", float]]:
         r"""
         Get DomiRank centrality for each node.
+
+        ![DomiRank centrality](/assets/graphs/domirank-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by DomiRank, which rewards nodes that dominate their neighborhood. Hub C dominates at 1.17, and the tail node F, whose neighbors E and G it outranks, comes second at 0.71, ahead of B 0.60; A ends lowest at 0.10." width="100%"}
 
         DomiRank centrality quantifies node dominance in their neighborhoods. The competition
         parameter sigma (or alpha) provides a tunable trade-off between local and global topological
@@ -20950,6 +21082,8 @@ class Graph:
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Get closeness vitality centrality for each node.
+
+        ![Closeness vitality](/assets/graphs/closeness-vitality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by closeness vitality, how much the total pairwise distance drops when a node is removed. Removing the bridge E cuts off the tail, so E tops the table at 66, while the hub C, which the others can route around, scores only 12." width="100%"}
 
         Closeness vitality measures a node's importance by computing the change in total graph
         distances when the node is removed:
@@ -22158,6 +22292,8 @@ class Graph:
         """
         Find shortest path between two nodes.
 
+        ![Shortest path (fewest hops)](/assets/graphs/shortest-path.light.svg){.lightbox fig-alt="The same directed weighted graph with three routes from A to F. shortest_path runs a breadth-first search, so it ignores the weights and returns the two-hop path A, D, F in the accent color, with filled badges giving each node's position 0, 1, 2." width="100%"}
+
         Uses breadth-first search (BFS) to find the shortest path by number of hops. Can return the
         path as a list, or store the position of each node along the path as a node attribute for
         visualization.
@@ -23295,6 +23431,8 @@ class Graph:
         """
         Perform a random walk on the graph.
 
+        ![Random walk](/assets/graphs/random-walk.light.svg){.lightbox fig-alt="A directed house-shaped graph walked from A for 6 steps with a fixed seed. Filled badges give each node's positions in the walk, 0 for the start; A and B are visited twice. The card lists the 7 visited nodes, A, B, C, A, B, D, E; edge E to C is unused." width="100%"}
+
         Takes a random walk starting from a given node, choosing neighbors uniformly at random at
         each step. Can return the visit order as a list of node IDs, or store the position of each
         node in the walk as a node attribute for visualization.
@@ -23478,6 +23616,8 @@ class Graph:
     ) -> Union[list[tuple[int, int, int]], "Graph"]:
         """
         Perform a random walk and track the edges traversed.
+
+        ![Random edge walk](/assets/graphs/random-edge-walk.light.svg){.lightbox fig-alt="The same directed house walked from A for 6 steps with the same seed, recording edges. Each traversed edge, in the accent color, is labeled with its step numbers from 0; A to B is taken twice, at steps 0 and 3. The card lists the 6 edges in order." width="100%"}
 
         Like `random_walk()`, but operates on edges instead of nodes. Can return the sequence of
         edges as a list, or store the traversal order as an edge attribute for visualization.
@@ -25481,6 +25621,8 @@ class Graph:
         """
         Find the k-component structure of the graph.
 
+        ![k-components](/assets/graphs/k-components.light.svg){.lightbox fig-alt="A seven-node graph: a dense cluster A, B, C, D with a ring through E, F, G. Every pair of nodes stays connected after removing any one node, so A to G is the 1- and 2-component (teal), and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="100%"}
+
         A k-component is a maximal subset of nodes such that every pair of nodes in the subset has
         node connectivity at least k. The result is a dictionary mapping each connectivity level k
         to the list of k-components at that level.
@@ -25928,6 +26070,8 @@ class Graph:
         """
         Compute only the maximum flow value from source to sink.
 
+        ![Maximum flow value](/assets/graphs/max-flow-value.light.svg){.lightbox fig-alt="The directed network from the max_flow figure, each edge labeled with its capacity. The accent edges A→T and B→T form a minimum cut separating source S from sink T, with capacity 2 + 3. The card shows that cut and the returned maximum flow value 5.0." width="100%"}
+
         This is a faster variant of `max_flow()` when you only need the flow value and not the flow
         assignment on each edge.
 
@@ -25983,6 +26127,8 @@ class Graph:
     ) -> tuple[float, float, dict[int, float]]:
         r"""
         Compute minimum cost flow from source to sink.
+
+        ![Minimum cost flow](/assets/graphs/min-cost-flow.light.svg){.lightbox fig-alt="The max_flow network with a per-unit cost on each edge, labeled flow/capacity then cost. Sending a demand of 4 from S to T at the lowest cost fills S→A, then splits at A between the cheap detour A→B→T and the direct A→T; the costly S→B stays unused and faded. The card lists flow times cost per edge and the totals: flow 4, cost 14." width="100%"}
 
         Finds the flow that minimizes total cost. Can either send a specified amount of flow
         (demand) or find the maximum flow at minimum cost.
@@ -28000,6 +28146,8 @@ class Graph:
         r"""
         Find an approximate directed Steiner tree (Steiner arborescence).
 
+        ![Directed Steiner tree](/assets/graphs/directed-steiner-tree.light.svg){.lightbox fig-alt="A directed version of the steiner_tree graph, rooted at B with terminals C and E outlined. The edge between C and D now points from C to D, so C cannot be reached through D: the arborescence B→D→E→C (accent) reaches E through the non-terminal D and then C from E. The card lists the three edges and their total weight 2 + 1 + 4 = 7." width="100%"}
+
         Given a root node and a set of terminal nodes, finds an approximate minimum-weight
         arborescence rooted at `root` containing a directed path from `root` to every terminal.
 
@@ -28091,6 +28239,8 @@ class Graph:
         """
         Find a prize-collecting Steiner tree.
 
+        ![Prize-collecting Steiner tree](/assets/graphs/prize-collecting-steiner-tree.light.svg){.lightbox fig-alt="The weighted graph from the steiner_tree figure, with a prize p in a badge on nodes A (1), B (5), C (5), and E (4); edge weights are costs. The tree B–D, D–C, D–E (accent) collects B, C, and E through the prize-less node D, while A is left out and faded because its prize of 1 does not pay for any edge costing 3. The card lists the tree edges and its prize 14 against cost 5." width="100%"}
+
         A variant of the Steiner tree where each node has a *prize* (benefit of inclusion) and each
         edge has a *cost* (penalty for inclusion). The algorithm finds a connected subtree that
         maximizes total prize minus total edge cost. Unlike the standard Steiner tree, not all prize
@@ -28180,6 +28330,8 @@ class Graph:
     ) -> list[int]:
         """
         Expand a seed set to a connected module using neighborhood scoring.
+
+        ![Expand a seed set into a module](/assets/graphs/expand-seed-set.light.svg){.lightbox fig-alt="The shared seven-node graph with the seeds A and B outlined and the two nodes the expansion adds, C and D, filled in accent, all four inside a shaded module. Each joins with 2 of its 3 edges into the module, a score of 2/3, and the size cap of 4 stops the growth before E. The card returns A, B, C, D." width="100%"}
 
         Starting from seed nodes, greedily adds neighbors that are densely connected to the current
         module. The score for each candidate is the ratio of its edges to the module over its total
@@ -29277,6 +29429,8 @@ class Graph:
     ) -> dict[str, list[float] | list[complex] | list[list[float]] | list[int] | float | None]:
         r"""
         Compute eigenvalues and eigenvectors of the graph Laplacian.
+
+        ![Laplacian spectrum](/assets/graphs/get-laplacian-spectrum.light.svg){.lightbox fig-alt="A five-node graph, two triangles sharing an edge plus a pendant, and a bar chart of the five eigenvalues of its Laplacian D minus A, sorted from smallest to largest: 0.000, 0.830, 2.689, 4.000, and 4.481. The single zero means the graph is connected, and the second-smallest eigenvalue, the algebraic connectivity 0.830, is in the accent color." width="100%"}
 
         Returns the spectrum of the Laplacian matrix `L = D - A` (or normalized variant). The
         Laplacian spectrum provides insights into graph connectivity, cuts, and diffusion processes.
