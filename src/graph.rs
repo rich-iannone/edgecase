@@ -5180,11 +5180,23 @@ impl Graph {
     /// For directed graphs, uses transpose to count incoming paths
     ///
     /// OPTIMIZED: Pre-computes transpose graph to avoid O(n²) iteration
+    ///
+    /// `beta` maps every node to its baseline (exogenous) score; nodes missing from it get 0.
+    /// With `normalized`, the scores are rescaled to sum to 1 (which cancels a constant beta);
+    /// otherwise the raw fixed point is returned. Also reports whether the iteration converged
+    /// within `max_iter` rounds (it can't when alpha >= 1 / lambda_max).
     #[inline]
-    fn get_katz_centrality(&self, alpha: f64, beta: f64, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
+    fn get_katz_centrality(
+        &self,
+        alpha: f64,
+        beta: FxHashMap<u64, f64>,
+        max_iter: usize,
+        tol: f64,
+        normalized: bool,
+    ) -> (FxHashMap<u64, f64>, bool) {
         let n = self.num_nodes();
         if n == 0 {
-            return FxHashMap::default();
+            return (FxHashMap::default(), true);
         }
 
         // Pre-compute transpose adjacency list (incoming edges)
@@ -5211,9 +5223,13 @@ impl Graph {
             node_to_idx.insert(id, idx);
         }
 
+        // Per-node baseline, aligned with node_ids
+        let beta: Vec<f64> = node_ids.iter().map(|id| beta.get(id).copied().unwrap_or(0.0)).collect();
+
         // Initialize centrality arrays
-        let mut centrality = vec![beta; n];
-        let mut new_centrality = vec![beta; n];
+        let mut centrality = beta.clone();
+        let mut new_centrality = beta.clone();
+        let mut converged = false;
 
         for _ in 0..max_iter {
             // Compute new centrality for each node
@@ -5230,7 +5246,7 @@ impl Graph {
                     .unwrap_or(0.0);
 
                 // x_new = alpha * (incoming sum) + beta
-                new_centrality[idx] = alpha * incoming_sum + beta;
+                new_centrality[idx] = alpha * incoming_sum + beta[idx];
             }
 
             // Check convergence using vectorized L1 norm
@@ -5243,36 +5259,46 @@ impl Graph {
             std::mem::swap(&mut centrality, &mut new_centrality);
 
             if max_change < tol {
+                converged = true;
                 break;
+            }
+            if centrality.iter().any(|v| !v.is_finite()) {
+                break; // Diverged (alpha too large); no point iterating further
             }
         }
 
         // Normalize by the sum using multiplication (faster than division)
-        let total: f64 = centrality.iter().sum();
-        if total > 0.0 {
-            let inv_total = 1.0 / total;
-            for val in centrality.iter_mut() {
-                *val *= inv_total;
+        if normalized {
+            let total: f64 = centrality.iter().sum();
+            if total.is_finite() && total != 0.0 {
+                let inv_total = 1.0 / total;
+                for val in centrality.iter_mut() {
+                    *val *= inv_total;
+                }
             }
         }
 
         // Convert back to HashMap with node IDs
-        node_ids
+        let scores = node_ids
             .iter()
             .enumerate()
             .map(|(idx, &node_id)| (node_id, centrality[idx]))
-            .collect()
+            .collect();
+        (scores, converged)
     }
 
     /// Get alpha centrality
     /// Generalization of eigenvector centrality with attenuation factor
     /// x = alpha * A * x + e
     /// where alpha is attenuation, A is adjacency matrix, e is exogenous factor
+    ///
+    /// Also reports whether the iteration converged within `max_iter` rounds (it can't when
+    /// alpha >= 1 / lambda_max).
     #[inline]
-    fn get_alpha_centrality(&self, alpha: f64, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
+    fn get_alpha_centrality(&self, alpha: f64, max_iter: usize, tol: f64) -> (FxHashMap<u64, f64>, bool) {
         let n = self.num_nodes();
         if n == 0 {
-            return FxHashMap::default();
+            return (FxHashMap::default(), true);
         }
 
         // Initialize centrality to 1.0 for all nodes
@@ -5281,6 +5307,7 @@ impl Graph {
             centrality.insert(id, 1.0);
         }
         let mut prev_centrality: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut converged = false;
 
         for _ in 0..max_iter {
             // Swap instead of clone
@@ -5309,7 +5336,11 @@ impl Graph {
                 max_change = max_change.max(change);
             }
 
-            if max_change < tol || centrality.values().any(|v| !v.is_finite()) {
+            if max_change < tol {
+                converged = true;
+                break;
+            }
+            if centrality.values().any(|v| !v.is_finite()) {
                 break;
             }
         }
@@ -5323,7 +5354,7 @@ impl Graph {
             }
         }
 
-        centrality
+        (centrality, converged)
     }
 
     /// Get leverage centrality for each node

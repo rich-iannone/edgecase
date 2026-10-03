@@ -27763,9 +27763,10 @@ class Graph:
         In a directed graph the sum runs over each node's successors, so the score reflects
         outgoing reach (see `katz_centrality()` for the incoming-edge counterpart). Edge weights
         are ignored. The fixed point is found by simple iteration starting from all-ones; if `α`
-        is at or above `1 / λ_max` the values grow without bound and, after `max_iter=` rounds,
-        the normalized result is returned without a warning, so check `α` against the graph's
-        spectrum when using large values.
+        is at or above `1 / λ_max` the values grow without bound; the method then emits a
+        `RuntimeWarning` after `max_iter=` rounds (or as soon as the values overflow), and the
+        returned scores are meaningless, so check `α` against the graph's spectrum when using
+        large values.
 
         Parameters
         ----------
@@ -27868,7 +27869,18 @@ class Graph:
         )
         ```
         """
-        centrality = self._graph.get_alpha_centrality(alpha, max_iter, tol)
+        centrality, converged = self._graph.get_alpha_centrality(alpha, max_iter, tol)
+        if not converged:
+            import warnings
+
+            warnings.warn(
+                f"alpha_centrality() did not converge within max_iter={max_iter} iterations "
+                f"(alpha={alpha}, tol={tol}). If alpha= is at or above 1 / lambda_max (the "
+                f"reciprocal of the largest adjacency eigenvalue) the iteration diverges and the "
+                f"scores are meaningless; otherwise increase max_iter=.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         if return_dict:
             return centrality
@@ -28072,11 +28084,12 @@ class Graph:
     def katz_centrality(
         self,
         alpha: float = 0.1,
-        beta: float = 1.0,
+        beta: float | dict[int | str, float] = 1.0,
         max_iter: int = 100,
         tol: float = 1e-6,
         attr_name: str | None = None,
         return_dict: bool = False,
+        normalized: bool = True,
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Get Katz centrality for each node.
@@ -28088,9 +28101,10 @@ class Graph:
 
         `x = α · Aᵀ · x + β`
 
-        where α is the attenuation factor, `Aᵀ` is the transpose of the adjacency matrix, and `β` is
-        a bias vector (constant for all nodes). For directed graphs, this counts incoming paths,
-        making it suitable for measuring "prestige" or "influence received".
+        where α is the attenuation factor, `Aᵀ` is the transpose of the adjacency matrix, and
+        `β` is a bias vector: by default the same baseline for every node, but `beta=` can also
+        give each node its own. For directed graphs, this counts incoming paths, making it suitable
+        for measuring "prestige" or "influence received".
 
         Key differences from other centralities:
 
@@ -28107,11 +28121,12 @@ class Graph:
         - measuring prestige in follower or endorsement networks
         - scoring nodes when short chains of influence should count more than long ones
 
-        The scores are found by fixed-point iteration starting from `β` for every node, then
-        rescaled to sum to `1`. Edge weights are ignored. For undirected graphs `Aᵀ = A`, so the
-        result is identical to `alpha_centrality()` with the same `alpha=`. If `alpha=` is at or
-        above `1 / λ_max` the iteration diverges; after `max_iter=` iterations the normalized
-        values are returned without a warning, so keep `alpha=` comfortably small.
+        The scores are found by fixed-point iteration starting from `β`, then (by default)
+        rescaled to sum to `1`. Edge weights are ignored. For undirected graphs `Aᵀ = A`, so with
+        the default `beta=` the result is identical to `alpha_centrality()` with the same
+        `alpha=`. If `alpha=` is at or above `1 / λ_max` the iteration diverges and a
+        `RuntimeWarning` is emitted (the scores are then meaningless), so keep `alpha=`
+        comfortably small.
 
         Parameters
         ----------
@@ -28121,14 +28136,17 @@ class Graph:
             paths. Defaults to `0.1`. For a directed acyclic graph the largest eigenvalue is `0`,
             so any positive value converges.
         beta
-            Baseline score that every node contributes. Defaults to `1.0`. Because the final
-            scores are rescaled to sum to `1`, any positive value gives exactly the same result;
-            `beta=0` makes every score `0` and a negative value returns unnormalized negative
-            scores. In practice, leave it at the default.
+            Baseline score each node contributes, as a single number for all nodes (default
+            `1.0`) or as a dictionary mapping every node (by ID or label) to its own baseline.
+            Per-node baselines let some nodes matter more as sources of influence, for example
+            to weight citations by the citing paper's venue. A single number only scales the
+            raw scores, so with the default `normalized=True` every positive value gives the
+            same result; it matters with `normalized=False`. A dictionary that leaves out a node
+            raises a `ValueError`.
         max_iter
             Maximum number of iterations. Defaults to `100`. If the scores have not converged by
-            then, the values from the last iteration are normalized and returned without a
-            warning. Convergence slows as `alpha=` approaches `1 / λ_max`.
+            then, the values from the last iteration are returned and a `RuntimeWarning` is
+            emitted. Convergence slows as `alpha=` approaches `1 / λ_max`.
         tol
             Convergence threshold. Iteration stops once the largest absolute change of any node's
             (unnormalized) score between two iterations falls below `tol=`. Defaults to `1e-6`.
@@ -28140,26 +28158,32 @@ class Graph:
             If `True`, return the scores as a dictionary and leave the node DataFrame untouched.
             If `False` (default), store the scores under `attr_name=` and return the graph for
             method chaining.
+        normalized
+            If `True` (default), rescale the scores to sum to `1` so they can be compared across
+            graphs. If `False`, return the raw solution of `x = α · Aᵀ · x + β`, whose scale
+            follows `beta=` (this matches NetworkX's `normalized=False`).
 
         Returns
         -------
         Union[dict[int, float], Graph]
-            If `return_dict=` is `True`: dictionary mapping node IDs to normalized Katz centrality
-            scores. If `return_dict=` is `False`: returns self for method chaining. Scores sum to
-            `1.0`.
+            If `return_dict=` is `True`: dictionary mapping node IDs to Katz centrality scores.
+            If `return_dict=` is `False`: returns self for method chaining. With the default
+            `normalized=True` the scores sum to `1.0`.
 
         Technical Notes
         ---------------
         Katz centrality (Katz, 1953) generalizes eigenvector centrality by giving every node
         a baseline contribution and geometrically discounting influence with distance. The
         iteration converges to the closed-form solution
-        $c = (I - \alpha A^\top)^{-1} \beta \mathbf{1}$, which exists only when
+        $c = (I - \alpha A^\top)^{-1} \beta$ (with $\beta$ the vector of baselines, $\beta
+        \mathbf{1}$ for a single number), which exists only when
         $\alpha < 1/\lambda_{\max}(A)$; sensible defaults sit around $\alpha \approx 0.1$ and
         rarely above $0.2$. For directed graphs the transpose matters: high Katz signals
         prestige (many incoming paths, weighted toward short ones), while for undirected graphs
         $A^\top = A$ and the metric coincides with alpha centrality. Final scores are normalized
-        to sum to $1$ so they can be compared across graphs of different sizes; this also means
-        the constant $\beta$ cancels out of the result.
+        to sum to $1$ by default so they can be compared across graphs of different sizes; this
+        also means a constant $\beta$ cancels out of the result, while a per-node $\beta$ (or
+        `normalized=False`) does not.
 
         Examples
         --------
@@ -28200,6 +28224,25 @@ class Graph:
         }
         ```
 
+        Passing `beta=` as a dictionary gives each node its own baseline. Making "C" a stronger
+        source of influence (baseline `5` instead of `1`) lifts "C" to the top and keeps its
+        successor "D" high, while "A" and "B" fall back:
+
+        ```{python}
+        baselines = {"A": 1, "B": 1, "C": 5, "D": 1}
+        scores = graph.katz_centrality(alpha=0.5, beta=baselines, return_dict=True)
+        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
+        ```
+
+        With `normalized=False` the raw fixed point is returned instead. Each score is the
+        node's baseline plus `alpha=` times the scores of the nodes pointing at it, so "D" gets
+        `1 + 0.5 * (1 + 1.75) = 2.375`:
+
+        ```{python}
+        raw = graph.katz_centrality(alpha=0.5, normalized=False, return_dict=True)
+        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(raw.items())}
+        ```
+
         With `return_dict=False` (the default) the scores are stored in the node DataFrame under
         `attr_name=` and the graph is returned for chaining:
 
@@ -28212,7 +28255,37 @@ class Graph:
         )
         ```
         """
-        scores_by_id = self._graph.get_katz_centrality(alpha, beta, max_iter, tol)
+        # Expand beta to a baseline for every node: a scalar applies to all of them, a dict
+        # (keyed by node ID or label) must give one for each node
+        node_ids = self.get_node_ids(limit=None)
+        if isinstance(beta, dict):
+            beta_by_id = {
+                self._resolve_node_id(node, auto_create=False): float(value)
+                for node, value in beta.items()
+            }
+            missing = [node_id for node_id in node_ids if node_id not in beta_by_id]
+            if missing:
+                raise ValueError(
+                    f"beta= dict has no value for {len(missing)} node(s), e.g. node ID "
+                    f"{missing[0]}; give a baseline for every node or pass a single number"
+                )
+        else:
+            beta_by_id = {node_id: float(beta) for node_id in node_ids}
+
+        scores_by_id, converged = self._graph.get_katz_centrality(
+            alpha, beta_by_id, max_iter, tol, normalized
+        )
+        if not converged:
+            import warnings
+
+            warnings.warn(
+                f"katz_centrality() did not converge within max_iter={max_iter} iterations "
+                f"(alpha={alpha}, tol={tol}). If alpha= is at or above 1 / lambda_max (the "
+                f"reciprocal of the largest adjacency eigenvalue) the iteration diverges and the "
+                f"scores are meaningless; otherwise increase max_iter=.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         if return_dict:
             return scores_by_id
@@ -28227,8 +28300,10 @@ class Graph:
         params = {}
         if alpha != 0.1:
             params["alpha"] = alpha
-        if beta != 1.0:
-            params["beta"] = beta
+        if isinstance(beta, dict) or beta != 1.0:
+            params["beta"] = "per-node" if isinstance(beta, dict) else beta
+        if not normalized:
+            params["normalized"] = False
         if max_iter != 100:
             params["max_iter"] = max_iter
         if tol != 1e-6:

@@ -218,9 +218,9 @@ class TestEigenVsAlphaCentrality:
         G.add_star_graph(5)
 
         eigen = G.eigen_centrality(return_dict=True)
-        alpha = G.alpha_centrality(
-            return_dict=True, alpha=0.9, max_iter=200
-        )  # High alpha -> eigenvector
+        # High alpha -> eigenvector. lambda_max of this star (hub + 4 leaves) is 2, so alpha must
+        # stay below 1/2; 0.9 used to diverge silently
+        alpha = G.alpha_centrality(return_dict=True, alpha=0.45, max_iter=500)
 
         # With high alpha and no exogenous factor dominance,
         # alpha centrality approaches eigenvector centrality pattern

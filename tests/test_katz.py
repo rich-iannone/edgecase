@@ -318,9 +318,108 @@ class TestKatzLargeGraph:
             for j in range(i + 1, len(nodes)):
                 g.add_edge(nodes[i], nodes[j])
 
-        result = g.katz_centrality(
-            return_dict=True,
-        )
+        # lambda_max of K10 is 9, so alpha=0.1 is just under 1/9 and convergence is slow
+        # (error shrinks by 0.9 per round); 100 rounds aren't enough without a warning
+        result = g.katz_centrality(return_dict=True, max_iter=500)
         scores = list(result.values())
         # All should be equal (within tolerance)
         assert all(abs(s - scores[0]) < 1e-6 for s in scores)
+
+
+class TestKatzBetaAndConvergence:
+    """beta= accepts per-node baselines, normalized=False keeps its scale, divergence warns."""
+
+    @staticmethod
+    def _chain():
+        g = Graph(directed=True)
+        for label in "ABCD":
+            g.add_node(label=label)
+        g.add_edge("A", "B").add_edge("B", "C").add_edge("C", "D").add_edge("A", "D")
+        return g
+
+    def test_raw_scores_follow_beta_scale(self):
+        g = self._chain()
+        one = g.katz_centrality(alpha=0.5, normalized=False, return_dict=True)
+        two = g.katz_centrality(alpha=0.5, beta=2.0, normalized=False, return_dict=True)
+
+        d = g.get_id_from_label("D")
+        assert one[d] == pytest.approx(2.375)
+        for node_id in one:
+            assert two[node_id] == pytest.approx(2 * one[node_id])
+
+    def test_scalar_beta_cancels_when_normalized(self):
+        g = self._chain()
+        assert g.katz_centrality(alpha=0.5, return_dict=True) == pytest.approx(
+            g.katz_centrality(alpha=0.5, beta=7.0, return_dict=True)
+        )
+
+    def test_per_node_beta_changes_ranking(self):
+        g = self._chain()
+        scores = g.katz_centrality(
+            alpha=0.5, beta={"A": 1, "B": 1, "C": 5, "D": 1}, return_dict=True
+        )
+        best = max(scores, key=scores.get)
+        assert g.get_label_from_id(best) == "C"
+        assert sum(scores.values()) == pytest.approx(1.0)
+
+    def test_per_node_beta_accepts_ids(self):
+        g = self._chain()
+        baselines = {"A": 2, "B": 1, "C": 1, "D": 1}
+        by_label = g.katz_centrality(alpha=0.5, beta=baselines, return_dict=True)
+        by_id = g.katz_centrality(
+            alpha=0.5,
+            beta={g.get_id_from_label(k): v for k, v in baselines.items()},
+            return_dict=True,
+        )
+        assert by_label == pytest.approx(by_id)
+
+    def test_incomplete_beta_dict_raises(self):
+        with pytest.raises(ValueError, match="beta="):
+            self._chain().katz_centrality(beta={"A": 1.0})
+
+    def test_matches_networkx(self):
+        nx = pytest.importorskip("networkx")
+        np = pytest.importorskip("numpy")
+        import random
+
+        rng = random.Random(4)
+        for seed in range(40):
+            directed = seed % 2 == 0
+            reference = nx.gnp_random_graph(rng.randint(3, 15), 0.25, seed=seed, directed=directed)
+            if reference.number_of_edges() == 0:
+                continue
+            lam = max(abs(np.linalg.eigvals(nx.to_numpy_array(reference))))
+            alpha = 0.5 / lam if lam > 0 else 0.3
+
+            g = Graph(directed=directed)
+            for node in reference:
+                g.add_node(label=str(node))
+            for u, v in reference.edges():
+                g.add_edge(str(u), str(v))
+
+            baselines = {node: rng.uniform(0.1, 3.0) for node in reference}
+            expected = nx.katz_centrality_numpy(
+                reference, alpha=alpha, beta=baselines, normalized=False
+            )
+            got = g.katz_centrality(
+                alpha=alpha,
+                beta={str(node): b for node, b in baselines.items()},
+                normalized=False,
+                max_iter=5000,
+                tol=1e-13,
+                return_dict=True,
+            )
+            for node in reference:
+                node_id = g.get_id_from_label(str(node))
+                assert got[node_id] == pytest.approx(expected[node], abs=1e-9)
+
+    @pytest.mark.parametrize("method", ["katz_centrality", "alpha_centrality"])
+    def test_alpha_above_spectral_limit_warns(self, method):
+        """A directed 3-cycle has lambda_max = 1, so alpha=1.5 diverges."""
+        g = Graph(directed=True)
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B").add_edge("B", "C").add_edge("C", "A")
+
+        with pytest.warns(RuntimeWarning, match="did not converge"):
+            getattr(g, method)(alpha=1.5, return_dict=True)
