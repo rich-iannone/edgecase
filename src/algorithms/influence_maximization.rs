@@ -46,7 +46,7 @@ pub fn influence_maximization(
     if k == 0 {
         return Ok(Vec::new());
     }
-    if probability < 0.0 || probability > 1.0 {
+    if !(0.0..=1.0).contains(&probability) {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
             "Probability must be between 0.0 and 1.0.",
         ));
