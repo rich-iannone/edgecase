@@ -291,6 +291,17 @@ class TestSelectLastEdgesCreated:
         assert 5 in selected_nodes  # E
         assert 6 in selected_nodes  # F
 
+    def test_never_selects_deleted_edges(self):
+        """A deleted edge is not selected, even if it was among the last created."""
+        g = Graph()
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B")
+        g.add_edge("B", "C")
+        g.delete_edge("A", "B")
+        g.select_last_edges_created(2)
+        assert g.get_selected_edge_ids() == g.get_edge_ids()
+
 
 class TestCreationOrderHelpers:
     """Test get_node_creation_order() and get_edge_creation_order()."""
@@ -343,6 +354,17 @@ class TestCreationOrderHelpers:
 
         order = G.get_edge_creation_order()
         assert order == [1, 2, 3]
+
+    def test_creation_order_skips_deleted_nodes_and_edges(self):
+        """Deleted nodes and edges drop out of the creation logs."""
+        g = Graph()
+        for label in "ABC":
+            g.add_node(label=label)
+        for u, v in [("A", "B"), ("B", "C"), ("A", "C")]:
+            g.add_edge(u, v)
+        g.delete_node("B")
+        assert g.get_node_creation_order() == [1, 3]
+        assert g.get_edge_creation_order() == [3]
 
 
 class TestCombinedWorkflows:

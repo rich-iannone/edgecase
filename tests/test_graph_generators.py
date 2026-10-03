@@ -177,6 +177,14 @@ class TestRandomGenerators:
         with pytest.raises(ValueError, match="k must be less than n"):
             G.add_smallworld_graph(10, k=20, p=0.1)
 
+    @pytest.mark.parametrize("seed", range(40))
+    def test_smallworld_has_no_duplicate_edges(self, seed):
+        """Rewiring never creates an edge that already exists (or is still to be visited)."""
+        g = ec.Graph()
+        g.add_smallworld_graph(n=8, k=4, p=0.2, seed=seed)
+        pairs = [tuple(sorted((s, t))) for _, s, t in g.get_edges_as_tuples()]
+        assert len(pairs) == len(set(pairs)) == 16
+
 
 class TestMethodChaining:
     """Test that generators support method chaining."""

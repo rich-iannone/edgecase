@@ -1,4 +1,6 @@
 from edgecase import Graph
+import networkx as nx
+import pytest
 
 
 class TestAllPairsShortestPathLength:
@@ -125,6 +127,30 @@ class TestAllPairsShortestPathLength:
         assert 1 not in distances[2]
         assert 1 not in distances[3]
         assert 2 not in distances[3]
+
+    def test_undirected_weight_is_symmetric(self):
+        """An undirected edge has the same weight whichever way it is walked."""
+        G_ = Graph(weighted=True)
+        G_.add_node(label="A")
+        G_.add_node(label="B")
+        G_.add_edge("A", "B", weight=5.0)
+        d = G_.all_pairs_shortest_path_length()
+        a, b = G_.get_id_from_label("A"), G_.get_id_from_label("B")
+        assert d[a][b] == 5.0
+        assert d[b][a] == 5.0
+
+    def test_undirected_weighted_matches_networkx(self):
+        """Weighted undirected distances match NetworkX's Dijkstra in both directions."""
+        edges = [("A", "B", 4.0), ("B", "C", 1.0), ("A", "C", 7.0), ("C", "D", 2.0), ("B", "D", 6.0)]
+        G_ = Graph(weighted=True)
+        for label in "ABCD":
+            G_.add_node(label=label)
+        for u, v, w in edges:
+            G_.add_edge(u, v, weight=w)
+        ref = dict(nx.all_pairs_dijkstra_path_length(nx.Graph([(u, v, {"weight": w}) for u, v, w in edges])))
+        for s, row in G_.all_pairs_shortest_path_length().items():
+            for t, dist in row.items():
+                assert dist == pytest.approx(ref[G_.get_label_from_id(s)][G_.get_label_from_id(t)])
 
 
 class TestAllPairsShortestPath:

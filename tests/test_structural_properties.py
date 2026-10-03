@@ -362,6 +362,15 @@ class TestAverageDegree:
         G.add_full_graph(5)  # Each node has degree 4
         assert G.get_average_degree() == 4.0
 
+    def test_average_degree_directed_counts_in_and_out(self):
+        """For directed graphs the average is of in-degree + out-degree (2E/N)."""
+        G_ = ec.Graph(directed=True)
+        for label in "ABC":
+            G_.add_node(label=label)
+        for u, v in [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")]:
+            G_.add_edge(u, v)
+        assert G_.get_average_degree() == pytest.approx(2 * 4 / 3)
+
 
 class TestStructuralPropertiesIntegration:
     """Integration tests combining multiple property checks."""
@@ -413,3 +422,33 @@ class TestStructuralPropertiesIntegration:
         assert not G.is_connected()
         assert G.is_simple()
         assert G.get_density() < 0.5  # Sparse
+
+
+class TestHasCycles:
+    """Test has_cycles() method."""
+
+    @staticmethod
+    def _graph(edges, directed=False):
+        g = ec.Graph(directed=directed)
+        for label in dict.fromkeys(x for e in edges for x in e):
+            g.add_node(label=label)
+        for u, v in edges:
+            g.add_edge(u, v)
+        return g
+
+    def test_undirected_path_and_tree_are_acyclic(self):
+        """Walking an edge and straight back is not a cycle."""
+        assert not self._graph([("A", "B"), ("B", "C")]).has_cycles()
+        assert not self._graph([("A", "B"), ("A", "C"), ("C", "D"), ("C", "E")]).has_cycles()
+
+    def test_undirected_cycles_detected(self):
+        """A triangle, or two parallel edges, is a cycle."""
+        assert self._graph([("A", "B"), ("B", "C"), ("C", "A")]).has_cycles()
+        g = self._graph([("A", "B")])
+        g.add_edge("A", "B")
+        assert g.has_cycles()
+
+    def test_directed(self):
+        """Directed graphs: a path is acyclic, a directed triangle is not."""
+        assert not self._graph([("A", "B"), ("B", "C")], directed=True).has_cycles()
+        assert self._graph([("A", "B"), ("B", "C"), ("C", "A")], directed=True).has_cycles()

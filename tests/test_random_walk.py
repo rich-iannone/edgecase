@@ -343,6 +343,27 @@ class TestRandomEdgeWalk:
 
         assert edges1 == edges2
 
+    def test_undirected_does_not_stall(self):
+        """On an undirected cycle the walk never gets stuck, whatever the stored orientation."""
+        g = Graph()
+        for label in "ABCD":
+            g.add_node(label=label)
+        for u, v in [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]:
+            g.add_edge(u, v)
+        assert len(g.random_edge_walk("A", steps=12, seed=3, return_list=True)) == 12
+
+    def test_undirected_tuples_follow_walk(self):
+        """Undirected tuples are oriented in the direction actually walked."""
+        g = Graph()
+        for label in "ABCD":
+            g.add_node(label=label)
+        for u, v in [("A", "B"), ("C", "B"), ("C", "D")]:
+            g.add_edge(u, v)
+        current = g.get_id_from_label("A")
+        for _, src, tgt in g.random_edge_walk("A", steps=8, seed=1, mode="all", return_list=True):
+            assert src == current
+            current = tgt
+
 
 class TestRandomWalkIntegration:
     """Integration tests for random walks."""

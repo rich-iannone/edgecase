@@ -60,6 +60,20 @@ class TestSubgraphBasic:
         assert sub.count_nodes() == 3
         assert sub.count_edges() == 2  # 2-3 and 3-4
 
+    def test_subgraph_keeps_attributes_and_ids(self):
+        """Attributes carry over; IDs are renumbered in ascending order, whatever the argument order."""
+        graph = Graph(directed=True)
+        for label in "ABC":
+            graph.add_node(label=label)
+        for u, v in [("A", "B"), ("B", "C"), ("A", "C")]:
+            graph.add_edge(u, v)
+        graph.set_node_attrs("x", {1: 10, 2: 20, 3: 30})
+        graph.set_edge_attrs("w", 7)
+        result = graph.subgraph([3, 1, 2])
+        assert {i: result.get_label_from_id(i) for i in result.get_node_ids()} == {1: "A", 2: "B", 3: "C"}
+        assert result.get_node_attrs("x") == {1: 10, 2: 20, 3: 30}
+        assert set(result.get_edge_attrs("w").values()) == {7}
+
 
 class TestSubgraphCompleteGraph:
     """Tests with complete graphs."""
@@ -245,6 +259,20 @@ class TestEdgeSubgraphBasic:
 
         # Should have 4 nodes if edges don't share endpoints
         assert sub.count_edges() == 2
+
+    def test_edge_subgraph_keeps_attributes_and_ids(self):
+        """Attributes carry over and node IDs are renumbered in ascending order."""
+        graph = Graph(directed=True)
+        for label in "ABC":
+            graph.add_node(label=label)
+        for u, v in [("A", "B"), ("B", "C"), ("A", "C")]:
+            graph.add_edge(u, v)
+        graph.set_node_attrs("x", {1: 10, 2: 20, 3: 30})
+        graph.set_edge_attrs("w", 7)
+        result = graph.edge_subgraph([1, 2, 3])
+        assert {i: result.get_label_from_id(i) for i in result.get_node_ids()} == {1: "A", 2: "B", 3: "C"}
+        assert result.get_node_attrs("x") == {1: 10, 2: 20, 3: 30}
+        assert set(result.get_edge_attrs("w").values()) == {7}
 
 
 class TestEdgeSubgraphDirected:

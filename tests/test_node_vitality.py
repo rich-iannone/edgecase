@@ -263,6 +263,18 @@ class TestNodeVitalityIntegration:
 
         assert vitality_b >= vitality_a
 
+    def test_vitality_is_finite_for_cut_vertices(self):
+        """Cut vertices get a finite vitality equal to closeness_vitality()."""
+        graph = Graph()
+        graph.add_path_graph(5)
+        nodes = sorted(graph.get_node_ids())
+        all_vitalities = graph.closeness_vitality(return_dict=True)
+        for n in nodes:
+            v = graph.get_node_vitality(n)
+            assert math.isfinite(v)
+            assert v == pytest.approx(all_vitalities[n])
+        assert graph.get_node_vitality(nodes[2]) == 36
+
 
 class TestNodeVitalityPerformance:
     """Test node vitality performance and edge cases."""

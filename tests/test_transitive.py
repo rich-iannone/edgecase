@@ -151,6 +151,20 @@ class TestTransitiveClosure:
         # Number of edges = sum of (n-1) + (n-2) + ... + 1 = n(n-1)/2 = 5*4/2 = 10
         assert closure.count_edges() == 10
 
+    def test_closure_keeps_attributes_and_ids(self):
+        """Node attributes and original arcs' attributes carry over; IDs keep their order."""
+        graph = ec.Graph(directed=True)
+        for label in "ABC":
+            graph.add_node(label=label)
+        for u, v in [("A", "B"), ("B", "C"), ("A", "C")]:
+            graph.add_edge(u, v)
+        graph.set_node_attrs("x", {1: 10, 2: 20, 3: 30})
+        graph.set_edge_attrs("w", 7)
+        result = graph.transitive_closure()
+        assert {i: result.get_label_from_id(i) for i in result.get_node_ids()} == {1: "A", 2: "B", 3: "C"}
+        assert result.get_node_attrs("x") == {1: 10, 2: 20, 3: 30}
+        assert set(result.get_edge_attrs("w").values()) == {7}
+
 
 class TestTransitiveReduction:
     """Test transitive_reduction() method."""
@@ -329,6 +343,20 @@ class TestTransitiveReduction:
 
         assert reduction.count_nodes() == 5
         assert reduction.count_edges() == 3  # A->B, B->C, D->E
+
+    def test_reduction_keeps_attributes_and_ids(self):
+        """Node attributes and surviving arcs' attributes carry over; IDs keep their order."""
+        graph = ec.Graph(directed=True)
+        for label in "ABC":
+            graph.add_node(label=label)
+        for u, v in [("A", "B"), ("B", "C"), ("A", "C")]:
+            graph.add_edge(u, v)
+        graph.set_node_attrs("x", {1: 10, 2: 20, 3: 30})
+        graph.set_edge_attrs("w", 7)
+        result = graph.transitive_reduction()
+        assert {i: result.get_label_from_id(i) for i in result.get_node_ids()} == {1: "A", 2: "B", 3: "C"}
+        assert result.get_node_attrs("x") == {1: 10, 2: 20, 3: 30}
+        assert set(result.get_edge_attrs("w").values()) == {7}
 
 
 class TestTransitiveRoundTrip:

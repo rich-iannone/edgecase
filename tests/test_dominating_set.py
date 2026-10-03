@@ -223,6 +223,19 @@ class TestDominatingSet:
 
         assert dom == sorted(dom)
 
+    def test_deterministic_smallest_id_first(self):
+        """The greedy sweep starts at the smallest ID, so edge order doesn't matter."""
+        edges = [("1", "2"), ("2", "3"), ("2", "4"), ("3", "4"), ("4", "5"), ("5", "6"), ("5", "7"), ("6", "7")]
+        results = set()
+        for order in (edges, list(reversed(edges))):
+            g = Graph()
+            for i in range(1, 8):
+                g.add_node(label=str(i))
+            for u, v in order:
+                g.add_edge(u, v)
+            results.add(tuple(g.dominating_set()))
+        assert results == {(1, 3, 5)}
+
 
 class TestMinWeightedDominatingSet:
     """Tests for min_weighted_dominating_set() method."""

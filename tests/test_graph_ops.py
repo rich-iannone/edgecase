@@ -102,6 +102,41 @@ class TestGraphUnion:
         with pytest.raises(ValueError):
             g1.union(g2)
 
+    def test_union_keeps_node_attributes_calling_graph_wins(self):
+        """Union merges node attributes; on a clash the calling graph wins."""
+        g1 = Graph()
+        g2 = Graph()
+        for g in (g1, g2):
+            for label in "ABC":
+                g.add_node(label=label)
+            g.add_edge("A", "B")
+        g2.add_edge("B", "C")
+        g1.set_node_attrs("x", {1: 1})
+        g1.set_node_attrs("shared", {1: "g1"})
+        g2.set_node_attrs("y", {1: 2})
+        g2.set_node_attrs("shared", {1: "g2"})
+        result = g1.union(g2)
+        assert result.get_node_attrs("x") == {1: 1}
+        assert result.get_node_attrs("y") == {1: 2}
+        assert result.get_node_attrs("shared") == {1: "g1"}
+
+    def test_union_result_does_not_share_attribute_dicts(self):
+        """Changing the result's attributes leaves the inputs untouched."""
+        g1 = Graph()
+        g2 = Graph()
+        for g in (g1, g2):
+            for label in "ABC":
+                g.add_node(label=label)
+            g.add_edge("A", "B")
+        g2.add_edge("B", "C")
+        g1.set_node_attrs("x", {1: 1})
+        g1.set_node_attrs("shared", {1: "g1"})
+        g2.set_node_attrs("y", {1: 2})
+        g2.set_node_attrs("shared", {1: "g2"})
+        result = g1.union(g2)
+        result.set_node_attrs("x", {1: 99})
+        assert g1.get_node_attrs("x") == {1: 1}
+
 
 class TestGraphIntersection:
     """Tests for graph intersection operation."""
@@ -181,6 +216,27 @@ class TestGraphIntersection:
         # Only A->B is common
         assert result.count_edges() == 1
 
+    def test_intersection_keeps_attributes_calling_graph_wins(self):
+        """Intersection merges attributes from both graphs; the calling graph wins clashes."""
+        g1 = Graph()
+        for label in "ABC":
+            g1.add_node(label=label)
+        g1.add_edge("A", "B")
+        g1.add_edge("B", "C")
+        g2 = Graph()
+        for label in "ABCD":
+            g2.add_node(label=label)
+        g2.add_edge("A", "B")
+        g2.add_edge("C", "D")
+        for g, tag in ((g1, "g1"), (g2, "g2")):
+            g.set_node_attrs("src", {nid: tag for nid in g.get_node_ids()})
+            g.set_edge_attrs("tag", tag)
+        g2.set_node_attrs("only2", {1: True})
+        result = g1.intersection(g2)
+        assert set(result.get_node_attrs("src").values()) == {"g1"}
+        assert result.get_node_attrs("only2") == {1: True}
+        assert set(result.get_edge_attrs("tag").values()) == {"g1"}
+
 
 class TestGraphDifference:
     """Tests for graph difference operation."""
@@ -257,6 +313,26 @@ class TestGraphDifference:
         # Only B->A is in g1 but not g2
         assert result.count_edges() == 1
 
+    def test_difference_keeps_calling_graph_attributes(self):
+        """Difference keeps the calling graph's node and edge attributes."""
+        g1 = Graph()
+        for label in "ABC":
+            g1.add_node(label=label)
+        g1.add_edge("A", "B")
+        g1.add_edge("B", "C")
+        g2 = Graph()
+        for label in "ABCD":
+            g2.add_node(label=label)
+        g2.add_edge("A", "B")
+        g2.add_edge("C", "D")
+        for g, tag in ((g1, "g1"), (g2, "g2")):
+            g.set_node_attrs("src", {nid: tag for nid in g.get_node_ids()})
+            g.set_edge_attrs("tag", tag)
+        g2.set_node_attrs("only2", {1: True})
+        result = g1.difference(g2)
+        assert set(result.get_edge_attrs("tag").values()) == {"g1"}
+        assert set(result.get_node_attrs("src").values()) == {"g1"}
+
 
 class TestGraphSymmetricDifference:
     """Tests for graph symmetric difference operation."""
@@ -319,6 +395,30 @@ class TestGraphSymmetricDifference:
 
         assert result.count_edges() == 0
 
+    def test_symmetric_difference_edges_keep_their_own_attributes(self):
+        """Each surviving edge keeps the attributes it had in its own graph."""
+        g1 = Graph()
+        for label in "ABC":
+            g1.add_node(label=label)
+        g1.add_edge("A", "B")
+        g1.add_edge("B", "C")
+        g2 = Graph()
+        for label in "ABCD":
+            g2.add_node(label=label)
+        g2.add_edge("A", "B")
+        g2.add_edge("C", "D")
+        for g, tag in ((g1, "g1"), (g2, "g2")):
+            g.set_node_attrs("src", {nid: tag for nid in g.get_node_ids()})
+            g.set_edge_attrs("tag", tag)
+        g2.set_node_attrs("only2", {1: True})
+        result = g1.symmetric_difference(g2)
+        lab = result.get_label_from_id
+        tags = {
+            tuple(sorted((lab(s), lab(t)))): result.get_edge_attrs("tag")[e]
+            for e, s, t in result.get_edges_as_tuples()
+        }
+        assert tags == {("B", "C"): "g1", ("C", "D"): "g2"}
+
 
 class TestGraphCompose:
     """Tests for graph compose operation."""
@@ -359,6 +459,23 @@ class TestGraphCompose:
 
         # Original 2 edges + new edge
         assert result.count_edges() == 3
+
+    def test_compose_keeps_node_attributes_other_graph_wins(self):
+        """Compose merges node attributes; on a clash the other graph wins."""
+        g1 = Graph()
+        g2 = Graph()
+        for g in (g1, g2):
+            for label in "ABC":
+                g.add_node(label=label)
+            g.add_edge("A", "B")
+        g2.add_edge("B", "C")
+        g1.set_node_attrs("x", {1: 1})
+        g1.set_node_attrs("shared", {1: "g1"})
+        g2.set_node_attrs("y", {1: 2})
+        g2.set_node_attrs("shared", {1: "g2"})
+        result = g1.compose(g2)
+        assert result.get_node_attrs("x") == {1: 1}
+        assert result.get_node_attrs("shared") == {1: "g2"}
 
 
 class TestGraphDisjointUnion:
@@ -445,6 +562,23 @@ class TestGraphDisjointUnion:
 
         assert result.is_directed
         assert result.count_edges() == 2
+
+    def test_disjoint_union_keeps_attributes(self):
+        """Disjoint union carries node attributes from both graphs."""
+        g1 = Graph()
+        g2 = Graph()
+        for g in (g1, g2):
+            for label in "ABC":
+                g.add_node(label=label)
+            g.add_edge("A", "B")
+        g2.add_edge("B", "C")
+        g1.set_node_attrs("x", {1: 1})
+        g1.set_node_attrs("shared", {1: "g1"})
+        g2.set_node_attrs("y", {1: 2})
+        g2.set_node_attrs("shared", {1: "g2"})
+        result = g1.disjoint_union(g2)
+        assert result.get_node_attrs("x") == {1: 1}
+        assert sorted(result.get_node_attrs("y").values()) == [2]
 
 
 class TestGraphAlgebraWeighted:

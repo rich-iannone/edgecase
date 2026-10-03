@@ -11,6 +11,7 @@ Tests cover:
 
 import pytest
 from edgecase import Graph
+import networkx as nx
 
 
 class TestPercolationCentrality:
@@ -98,6 +99,38 @@ class TestPercolationCentrality:
         # All values should be non-negative
         for node_id, value in pc_values.items():
             assert value >= 0
+
+    @staticmethod
+    def _two_diamonds():
+        g = Graph()
+        for label in "ABCDEFG":
+            g.add_node(label=label)
+        for u, v in [
+            ("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+            ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G"),
+        ]:
+            g.add_edge(u, v)
+        return g
+
+    def test_default_states_equal_betweenness(self):
+        """With every state equal, percolation centrality is normalized betweenness."""
+        g = self._two_diamonds()
+        pc = g.percolation_centrality(return_dict=True)  # keyed by label
+        bc = g.betweenness_centrality(return_dict=True)  # keyed by id
+        for node_id, value in bc.items():
+            assert pc[g.get_label_from_id(node_id)] == pytest.approx(value)
+
+    def test_matches_networkx_with_states(self):
+        """Percolation centrality matches NetworkX for non-uniform states."""
+        g = self._two_diamonds()
+        states = {n: (1.0 if n in "AG" else 0.0) for n in "ABCDEFG"}
+        want = nx.percolation_centrality(nx.Graph([
+            ("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+            ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G"),
+        ]), states=states)
+        got = g.percolation_centrality(states=states, return_dict=True)
+        for n in want:
+            assert got[n] == pytest.approx(want[n])
 
 
 class TestNodePercolation:

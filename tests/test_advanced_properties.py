@@ -343,6 +343,18 @@ class TestAdhesion:
         with pytest.raises(ValueError):
             G.get_adhesion()
 
+    def test_adhesion_is_exact_edge_connectivity(self):
+        """Adhesion is the edge connectivity, not the minimum degree."""
+        G_ = ec.Graph()
+        for label in "ABCDEFG":
+            G_.add_node(label)
+        for u, v in [
+            ("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+            ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G"),
+        ]:
+            G_.add_edge(u, v)
+        assert G_.get_adhesion() == G_.get_edge_connectivity() == 2
+
 
 class TestCohesion:
     """Test get_cohesion() method."""
@@ -398,6 +410,18 @@ class TestCohesion:
 
         with pytest.raises(ValueError):
             G.get_cohesion()
+
+    def test_cohesion_is_exact_node_connectivity(self):
+        """Cohesion is the node connectivity (1 here), not the minimum degree (2)."""
+        G_ = ec.Graph()
+        for label in "ABCDEFG":
+            G_.add_node(label)
+        for u, v in [
+            ("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+            ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G"),
+        ]:
+            G_.add_edge(u, v)
+        assert G_.get_cohesion() == G_.get_node_connectivity() == 1
 
 
 class TestAdvancedPropertiesIntegration:

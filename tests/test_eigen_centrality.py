@@ -245,3 +245,25 @@ class TestEigenVsAlphaCentrality:
 
         # Check all values are non-negative
         assert all(v >= 0 for v in eigen.values())
+
+
+class TestAlphaCentrality:
+    """Test alpha_centrality() against its documented equation."""
+
+    def test_solves_documented_fixed_point(self):
+        """Scores are the fixed point of x = alpha * A x + 1, scaled to sum to 1."""
+        edges = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"), ("D", "E")]
+        g = ec.Graph(directed=True)
+        for label in "ABCDE":
+            g.add_node(label=label)
+        for u, v in edges:
+            g.add_edge(u, v)
+        alpha = 0.5
+        result = g.alpha_centrality(alpha=alpha, return_dict=True, tol=1e-12, max_iter=1000)
+        got = {g.get_label_from_id(k): v for k, v in result.items()}
+        x = dict.fromkeys("ABCDE", 1.0)
+        for _ in range(200):
+            x = {n: alpha * sum(x[v] for u, v in edges if u == n) + 1.0 for n in "ABCDE"}
+        total = sum(x.values())
+        for n in "ABCDE":
+            assert got[n] == pytest.approx(x[n] / total, rel=1e-6)

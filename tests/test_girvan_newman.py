@@ -2,6 +2,7 @@
 
 import pytest
 import edgecase as ec
+import networkx as nx
 
 
 @pytest.fixture
@@ -118,6 +119,35 @@ class TestCmtyGirvanNewman:
         two_triangles.cmty_girvan_newman(return_dict=True)
         assert two_triangles.count_edges() == edges_before
         assert two_triangles.count_nodes() == nodes_before
+
+    def test_always_agrees_with_cmty_edge_btwns(self):
+        """Both names run one implementation with deterministic tie-breaking."""
+        import random
+
+        rng = random.Random(5)
+        for _ in range(60):
+            n = rng.randint(6, 11)
+            ref = nx.gnp_random_graph(n, 0.35, seed=rng.randint(0, 10**6))
+            if not nx.is_connected(ref):
+                continue
+            g = ec.Graph()
+            for v in range(n):
+                g.add_node(label=str(v))
+            for u, v in ref.edges():
+                g.add_edge(str(u), str(v))
+            assert g.cmty_girvan_newman(return_dict=True) == g.cmty_edge_btwns(return_dict=True)
+
+    def test_communities_numbered_by_smallest_node(self):
+        """Community 0 is the one holding the smallest node ID."""
+        g = ec.Graph()
+        for label in "ABCDEFG":
+            g.add_node(label=label)
+        for u, v in [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"), ("D", "F"),
+                     ("E", "F"), ("E", "G"), ("F", "G")]:
+            g.add_edge(u, v)
+        d = g.cmty_girvan_newman(return_dict=True)
+        assert d[g.get_id_from_label("A")] == 0
+        assert d[g.get_id_from_label("G")] == 1
 
 
 class TestGirvanNewmanDendrogram:

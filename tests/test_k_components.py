@@ -2,6 +2,7 @@
 
 import pytest
 import edgecase as ec
+import networkx as nx
 
 
 @pytest.fixture
@@ -254,3 +255,35 @@ class TestKComponentsHierarchy:
                         found_parent = True
                         break
                 assert found_parent
+
+    @staticmethod
+    def _labels(g):
+        return {
+            k: sorted(sorted(g.get_label_from_id(n) for n in comp) for comp in comps)
+            for k, comps in g.k_components().items()
+        }
+
+    def test_recurses_past_cut_vertex(self):
+        """A K4 with a pendant is only 1-connected, but the K4 is still a 3-component."""
+        g = ec.Graph()
+        for label in "ABCDE":
+            g.add_node(label=label)
+        for u, v in [(a, b) for a in "ABCD" for b in "ABCD" if a < b] + [("D", "E")]:
+            g.add_edge(u, v)
+        got = self._labels(g)
+        assert got[1] == [["A", "B", "C", "D", "E"]]
+        assert got[3] == [["A", "B", "C", "D"]]
+
+    def test_barbell_matches_networkx(self):
+        """Barbell graph: k-components match NetworkX at every level."""
+        ref = nx.barbell_graph(4, 1)
+        g = ec.Graph()
+        for n in ref.nodes:
+            g.add_node(label=str(n))
+        for u, v in ref.edges:
+            g.add_edge(str(u), str(v))
+        want = {
+            k: sorted(sorted(str(n) for n in comp) for comp in comps)
+            for k, comps in nx.k_components(ref).items()
+        }
+        assert self._labels(g) == want

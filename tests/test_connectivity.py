@@ -1,5 +1,6 @@
 import pytest
 import edgecase as ec
+import networkx as nx
 
 
 class TestNodeConnectivity:
@@ -272,3 +273,34 @@ class TestNodeConnectivityBetween:
         # Path: Alice-Bob-Charlie-Dave
         conn = G.get_node_connectivity_between("Alice", "Dave")
         assert conn == 1  # Removing Bob or Charlie disconnects them
+
+    @staticmethod
+    def _two_diamonds():
+        """Two diamonds sharing the hub D (node connectivity 1)."""
+        g = ec.Graph()
+        for label in "ABCDEFG":
+            g.add_node(label=label)
+        for u, v in [
+            ("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+            ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G"),
+        ]:
+            g.add_edge(u, v)
+        return g
+
+    @pytest.mark.parametrize("pair", [("A", "G"), ("B", "F"), ("B", "E"), ("A", "E")])
+    def test_split_node_ids_do_not_collide(self, pair):
+        """Node IDs 2v / 2v+1 used for node splitting never collide with source/target IDs."""
+        g = self._two_diamonds()
+        i = g.get_id_from_label
+        assert g.get_node_connectivity_between(i(pair[0]), i(pair[1])) == 1
+
+    def test_matches_networkx(self):
+        """Pairwise node connectivity matches NetworkX for non-adjacent pairs."""
+        g = self._two_diamonds()
+        ref = nx.Graph([
+            ("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+            ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G"),
+        ])
+        i = g.get_id_from_label
+        for s, t in [("A", "F"), ("B", "G"), ("C", "E")]:
+            assert g.get_node_connectivity_between(i(s), i(t)) == nx.node_connectivity(ref, s, t)

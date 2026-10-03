@@ -385,3 +385,30 @@ class TestSetEdgeAttrsOverwrite:
         assert result[edge_ids[0]] == "new"
         assert result[edge_ids[1]] == "old"  # Unchanged
         assert result[edge_ids[2]] == "new"
+
+
+class TestSetEdgeAttrsSourceTargetFilters:
+    """Test sources= / targets= filtering when only one of them is given."""
+
+    def test_sources_alone_only_touches_those_edges(self):
+        """sources= on its own updates only edges leaving those nodes."""
+        G_ = ec.Graph(directed=True)
+        for label in "ABCD":
+            G_.add_node(label=label)
+        for u, v in [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D")]:
+            G_.add_edge(u, v)
+        G_.set_edge_attrs("w", 0)
+        G_.set_edge_attrs("w", 5, sources=["B"])
+        changed = {e for e, v in G_.get_edge_attrs("w").items() if v == 5}
+        assert changed == set(G_.get_edge_attrs("w", sources=["B"]))
+        assert len(changed) == 2
+
+    def test_undirected_matches_either_orientation(self):
+        """For undirected graphs an edge matches a filter in either orientation."""
+        G_ = ec.Graph()
+        for label in "ABC":
+            G_.add_node(label=label)
+        G_.add_edge("A", "B")
+        G_.add_edge("C", "A")
+        G_.set_edge_attrs("w", 1, sources=["A"])
+        assert len(G_.get_edge_attrs("w")) == 2

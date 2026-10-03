@@ -116,6 +116,18 @@ class TestBipartiteSets:
 # Bipartite Projection
 # =============================================================================
 
+    def test_partition_zero_holds_lowest_id(self):
+        """Partition 0 is the side containing the lowest node ID, on every call."""
+        g = ec.Graph()
+        for label in "ABCDEFG":
+            g.add_node(label=label)
+        for u, v in [("A", "E"), ("B", "E"), ("B", "F"), ("C", "F"), ("D", "F"), ("D", "G")]:
+            g.add_edge(u, v)
+        for _ in range(3):
+            s0, s1 = g.bipartite_sets()
+            assert min(s0 + s1) in s0
+            assert sorted(g.get_label_from_id(n) for n in s0) == ["A", "B", "C", "D"]
+
 
 class TestBipartiteProjection:
     def test_gene_projection_node_count(self, simple_bipartite):

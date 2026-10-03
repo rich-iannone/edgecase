@@ -190,6 +190,21 @@ class TestDirectedCycleBasisValidity:
                 v = cycle[(i + 1) % len(cycle)]
                 assert v in adj[u], f"Edge {u}->{v} does not exist"
 
+    def test_cycles_follow_arcs(self):
+        """Every basis cycle is a closed directed walk (no arc traversed backwards)."""
+        edges = [("A", "B"), ("B", "C"), ("C", "A"), ("C", "E"), ("E", "D"), ("D", "B")]
+        g = ec.Graph(directed=True)
+        for label in "ABCDE":
+            g.add_node(label=label)
+        for u, v in edges:
+            g.add_edge(u, v)
+        arcs = {(g.get_id_from_label(u), g.get_id_from_label(v)) for u, v in edges}
+        basis = g.directed_cycle_basis()
+        assert len(basis) == 2  # m - n + p
+        for cycle in basis:
+            for a, b in zip(cycle, cycle[1:] + cycle[:1]):
+                assert (a, b) in arcs
+
 
 class TestDirectedCycleBasisEdgeCases:
     def test_empty_graph(self):

@@ -163,6 +163,32 @@ class TestGetEdgeAttrs:
         assert filtered_weights[edge_ids[0]] == 1.5
         assert filtered_weights[edge_ids[2]] == 0.8
 
+    @staticmethod
+    def _directed_diamond():
+        G_ = ec.Graph(directed=True)
+        for label in "ABCD":
+            G_.add_node(label=label)
+        for u, v in [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D")]:
+            G_.add_edge(u, v)
+        G_.set_edge_attrs("w", 0)
+        return G_
+
+    def test_get_edge_attrs_sources_alone_filters(self):
+        """sources= on its own keeps only edges leaving those nodes."""
+        G_ = self._directed_diamond()
+        got = G_.get_edge_attrs("w", sources=["B"])
+        assert sorted(G_.get_edge(e).target for e in got) == sorted(
+            [G_.get_id_from_label("C"), G_.get_id_from_label("D")]
+        )
+
+    def test_get_edge_attrs_targets_alone_filters(self):
+        """targets= on its own keeps only edges entering those nodes."""
+        G_ = self._directed_diamond()
+        got = G_.get_edge_attrs("w", targets=["D"])
+        assert sorted(G_.get_edge(e).source for e in got) == sorted(
+            [G_.get_id_from_label("B"), G_.get_id_from_label("C")]
+        )
+
 
 class TestGetNodeDF:
     """Tests for get_node_df()."""
