@@ -152,8 +152,8 @@ fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
 
         if let Ok(neighbors) = graph.neighbors(current) {
             for neighbor in neighbors {
-                if !visited.contains_key(&neighbor) {
-                    visited.insert(neighbor, true);
+                if let std::collections::hash_map::Entry::Vacant(e) = visited.entry(neighbor) {
+                    e.insert(true);
                     parent.insert(neighbor, current);
                     queue.push_back(neighbor);
                 }
@@ -535,11 +535,10 @@ pub fn k_shortest_paths(
 
             // Remove edges that are part of previous paths with the same root path
             for (p_path, _) in &k_paths {
-                if p_path.len() > i && &p_path[0..=i] == root_path {
-                    if i + 1 < p_path.len() {
+                if p_path.len() > i && &p_path[0..=i] == root_path
+                    && i + 1 < p_path.len() {
                         removed_edges.push((p_path[i], p_path[i + 1]));
                     }
-                }
             }
 
             // Remove nodes in the root path except the spur node
