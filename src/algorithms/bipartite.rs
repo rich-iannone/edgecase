@@ -9,8 +9,6 @@
 use crate::graph::Graph;
 use pyo3::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::BinaryHeap;
-use std::cmp::Ordering;
 
 /// Return the two partitions of a bipartite graph using BFS 2-coloring.
 ///
@@ -107,7 +105,6 @@ pub fn bipartite_projection(
     };
 
     let project_members: FxHashSet<u64> = project_set.iter().copied().collect();
-    let other_members: FxHashSet<u64> = other_set.iter().copied().collect();
 
     // For each node in the other partition, collect its neighbors in the project partition
     // then create edges between all pairs of those neighbors
@@ -179,35 +176,6 @@ pub fn bipartite_degree_centrality(
     Ok(result)
 }
 
-#[derive(Clone)]
-struct DijkEntry {
-    dist: f64,
-    node: u64,
-}
-
-impl PartialEq for DijkEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.dist == other.dist && self.node == other.node
-    }
-}
-impl Eq for DijkEntry {}
-
-impl Ord for DijkEntry {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .dist
-            .partial_cmp(&self.dist)
-            .unwrap_or(Ordering::Equal)
-            .then_with(|| self.node.cmp(&other.node))
-    }
-}
-
-impl PartialOrd for DijkEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 fn bfs_distances(graph: &Graph, source: u64) -> FxHashMap<u64, f64> {
     let mut dist: FxHashMap<u64, f64> = FxHashMap::default();
     dist.insert(source, 0.0);
@@ -217,8 +185,8 @@ fn bfs_distances(graph: &Graph, source: u64) -> FxHashMap<u64, f64> {
         let current_dist = dist[&current];
         if let Ok(neighbors) = graph.neighbors(current) {
             for &neighbor in &neighbors {
-                if !dist.contains_key(&neighbor) {
-                    dist.insert(neighbor, current_dist + 1.0);
+                if let std::collections::hash_map::Entry::Vacant(e) = dist.entry(neighbor) {
+                    e.insert(current_dist + 1.0);
                     queue.push(neighbor);
                 }
             }
@@ -332,8 +300,8 @@ pub fn bipartite_betweenness_centrality(
 
             if let Ok(neighbors) = graph.neighbors(v) {
                 for &w in &neighbors {
-                    if !dist.contains_key(&w) {
-                        dist.insert(w, v_dist + 1);
+                    if let std::collections::hash_map::Entry::Vacant(e) = dist.entry(w) {
+                        e.insert(v_dist + 1);
                         queue.push_back(w);
                     }
                     if dist[&w] == v_dist + 1 {
