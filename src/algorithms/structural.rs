@@ -344,13 +344,15 @@ fn transitivity_directed(graph: &Graph) -> Option<f64> {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 
-    // Directed paths of length 2 (u -> v -> w) starting at a node, over distinct neighbors
+    // Directed paths of length 2 (u -> v -> w) starting at a node, over distinct neighbors.
+    // A path that returns to its start (u -> v -> u) can never close a triangle, so it isn't
+    // a connected triple; counting it would lower the score whenever edges are reciprocated
     let paths_from = |node_id: &u64| -> usize {
         adj.get(node_id)
             .map(|neighbors| {
                 neighbors.iter()
                     .filter_map(|neighbor| adj.get(neighbor))
-                    .map(|second| second.len())
+                    .map(|second| second.len() - usize::from(second.binary_search(node_id).is_ok()))
                     .sum()
             })
             .unwrap_or(0)
