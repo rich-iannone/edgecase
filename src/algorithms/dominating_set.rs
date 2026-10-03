@@ -59,13 +59,13 @@ pub fn is_dominating_set(graph: &Graph, nodes: Vec<u64>) -> PyResult<bool> {
 /// not necessarily the smallest one.
 ///
 /// # Algorithm
-/// 1. Start with an arbitrary node (or specified start_with)
-/// 2. Add undominated nodes and mark their neighbors as dominated
+/// 1. Start with the smallest node ID (or specified start_with)
+/// 2. Repeatedly add the smallest undominated node and mark its neighbors as dominated
 /// 3. Repeat until all nodes are dominated
 ///
 /// # Arguments
 /// * `graph` - The input graph
-/// * `start_with` - Optional starting node ID. If None, an arbitrary node is chosen.
+/// * `start_with` - Optional starting node ID. If None, the smallest node ID is used.
 ///
 /// # Returns
 /// Set of node IDs forming a dominating set
@@ -93,7 +93,8 @@ pub fn dominating_set(graph: &Graph, start_with: Option<u64>) -> PyResult<Vec<u6
             }
             node
         }
-        None => *all_nodes.iter().next().unwrap(),
+        // Smallest ID, not hash order, so the result is the same on every run
+        None => *all_nodes.iter().min().unwrap(),
     };
 
     let mut dom_set: FxHashSet<u64> = FxHashSet::default();
@@ -102,15 +103,16 @@ pub fn dominating_set(graph: &Graph, start_with: Option<u64>) -> PyResult<Vec<u6
     // Track dominated nodes (nodes adjacent to someone in dom_set)
     let mut dominated: FxHashSet<u64> = graph.neighbors(start)?.into_iter().collect();
 
-    // Track remaining undominated nodes not in dom_set
-    let mut remaining: FxHashSet<u64> = all_nodes
+    // Track remaining undominated nodes not in dom_set (ordered, so the greedy
+    // pass always takes the smallest undominated ID next)
+    let mut remaining: std::collections::BTreeSet<u64> = all_nodes
         .iter()
         .filter(|n| !dominated.contains(n) && !dom_set.contains(n))
         .copied()
         .collect();
 
     while !remaining.is_empty() {
-        // Pick an arbitrary undominated node
+        // Pick the smallest undominated node
         let v = *remaining.iter().next().unwrap();
         remaining.remove(&v);
 
@@ -214,9 +216,11 @@ pub fn min_weighted_dominating_set(
                     f64::INFINITY
                 };
 
+                // ties go to the smaller node ID (not hash order)
                 cost_a
                     .partial_cmp(&cost_b)
                     .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(node_a.cmp(node_b))
             })
             .map(|(node, _)| *node);
 
