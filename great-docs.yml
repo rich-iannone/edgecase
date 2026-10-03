@@ -300,6 +300,9 @@ reference:
         - Graph.katz_centrality
         - Graph.leverage_centrality
         - Graph.domirank_centrality
+        - Graph.bridging_centrality
+        - Graph.laplacian_centrality
+        - Graph.knotty_centrality
 
     - title: Core Decomposition
       desc: Methods for k-core, k-shell, and related decompositions
@@ -361,6 +364,7 @@ reference:
         - Graph.get_cycles
         - Graph.simple_cycles
         - Graph.cycle_basis
+        - Graph.directed_cycle_basis
         - Graph.minimum_cycle_basis
 
     - title: Clustering
@@ -396,6 +400,7 @@ reference:
       contents:
         - Graph.cmty_fast_greedy
         - Graph.cmty_edge_btwns
+        - Graph.cmty_girvan_newman
         - Graph.cmty_l_eigenvec
         - Graph.cmty_louvain
         - Graph.cmty_walktrap
@@ -498,6 +503,8 @@ reference:
         - Graph.get_jaccard_similarity
         - Graph.get_cosine_similarity
         - Graph.get_overlap_similarity
+        - Graph.simrank_star_similarity
+        - Graph.simrank_star_similarity_pair
 
     - title: Bridges and Connectivity
       desc: Methods for finding bridges and articulation points
@@ -519,6 +526,7 @@ reference:
         - Graph.get_cohesion
         - Graph.get_density
         - Graph.find_cohesive_blocks
+        - Graph.k_components
         - Graph.get_min_cut_between
         - Graph.minimum_node_cut
         - Graph.minimum_edge_cut
@@ -605,6 +613,7 @@ reference:
         - Graph.minimum_spanning_tree
         - Graph.maximum_spanning_tree
         - Graph.steiner_tree
+        - Graph.directed_steiner_tree
         - Graph.all_spanning_trees
 
     - title: Edge Analysis
