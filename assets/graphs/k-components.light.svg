@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>k-components</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<g opacity="0.13"><path d="M 114.4 98.0 L 208.0 44.0 L 337.6 83.6 L 290.8 144.8 L 208.0 152.0 Z" fill="#0e7490" stroke="#0e7490" stroke-width="60.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<g opacity="0.13"><path d="M 114.4 98.0 L 208.0 44.0 L 208.0 152.0 Z" fill="#c2410c" stroke="#c2410c" stroke-width="46.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<rect x="559.0" y="58.0" width="130.0" height="80.0" rx="4" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<rect x="560.0" y="79.0" width="28.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="590.0" y="79.0" width="98.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="560.0" y="99.0" width="28.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="590.0" y="99.0" width="98.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="560.0" y="119.0" width="28.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="590.0" y="119.0" width="98.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="559.0" y1="78.0" x2="689.0" y2="78.0" stroke="#1f2328" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>
+<line x1="559.0" y1="98.0" x2="689.0" y2="98.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="559.0" y1="118.0" x2="689.0" y2="118.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="589.0" y1="58.0" x2="589.0" y2="138.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<path d="M 130.40 98.00 L 161.00 98.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 128.26 90.00 L 194.14 52.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 128.26 106.00 L 194.14 144.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 184.97 84.12 L 200.03 57.88" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 184.97 111.88 L 200.03 138.12" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 208.00 60.00 L 208.00 136.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 222.62 50.50 L 258.18 66.30" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 218.13 139.62 L 262.67 85.18" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 288.58 75.43 L 321.82 80.97" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 327.88 96.31 L 300.52 132.09" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 223.94 150.61 L 274.86 146.19" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="114.4" cy="98.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="114.4" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="177.0" cy="98.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="177.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="208.0" cy="44.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="208.0" y="44.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">C</text>
+<circle cx="208.0" cy="152.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="208.0" y="152.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">D</text>
+<circle cx="272.8" cy="72.8" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="272.8" y="72.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">E</text>
+<circle cx="337.6" cy="83.6" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="337.6" y="83.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">F</text>
+<circle cx="290.8" cy="144.8" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="290.8" y="144.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">G</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.k_components()</text>
+<text x="574.0" y="68.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">k</text>
+<text x="639.0" y="68.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">components</text>
+<text x="574.0" y="88.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">1</text>
+<text x="639.0" y="88.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">[A … G]</text>
+<text x="574.0" y="108.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">2</text>
+<text x="639.0" y="108.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">[A … G]</text>
+<text x="574.0" y="128.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">3</text>
+<text x="639.0" y="128.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">[A B C D]</text>
+</svg>

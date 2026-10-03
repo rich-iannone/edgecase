@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Get edge attributes</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="537.6" y="68.0" width="172.7" height="60.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 140.31 90.84 L 211.69 55.16" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 140.31 105.16 L 211.69 140.84" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 226.00 64.00 L 226.00 132.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 240.31 55.16 L 311.69 90.84" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 240.31 140.84 L 311.69 105.16" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="126.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="126.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="226.0" cy="48.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="48.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="226.0" cy="148.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="148.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="326.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="326.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.get_edge_attrs(&quot;w&quot;)</text>
+<rect x="169.6" y="65.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="176.0" y="73.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1.0">1</text>
+<rect x="169.6" y="115.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="176.0" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<rect x="219.6" y="90.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="226.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1.0">3</text>
+<rect x="269.6" y="65.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="276.0" y="73.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">4</text>
+<rect x="269.6" y="115.5" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="276.0" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1.0">5</text>
+<text x="551.6" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">edge id → w</text>
+<text x="551.6" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">{1: 2, 3: 5, 5: 1}</text>
+</svg>

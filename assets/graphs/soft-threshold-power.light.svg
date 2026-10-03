@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Soft-threshold power</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="536.0" y="18.0" width="176.0" height="160.0" rx="4" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<rect x="537.0" y="99.0" width="54.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="593.0" y="99.0" width="54.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="649.0" y="99.0" width="62.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="536.0" y1="38.0" x2="712.0" y2="38.0" stroke="#1f2328" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>
+<line x1="536.0" y1="58.0" x2="712.0" y2="58.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="536.0" y1="78.0" x2="712.0" y2="78.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="536.0" y1="98.0" x2="712.0" y2="98.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="536.0" y1="118.0" x2="712.0" y2="118.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="536.0" y1="138.0" x2="712.0" y2="138.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="536.0" y1="158.0" x2="712.0" y2="158.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="592.0" y1="18.0" x2="592.0" y2="178.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="648.0" y1="18.0" x2="648.0" y2="178.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<path d="M 70.42 87.91 L 109.58 56.09" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="76.94" y="64.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="90.00" y="72.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.4</text>
+<path d="M 70.42 108.09 L 109.58 139.91" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="76.94" y="116.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="90.00" y="124.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.2</text>
+<path d="M 122.00 62.00 L 122.00 134.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="108.94" y="90.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="122.00" y="98.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.8</text>
+<path d="M 134.42 56.09 L 173.58 87.91" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="140.94" y="64.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="154.00" y="72.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.5</text>
+<path d="M 134.42 139.91 L 173.58 108.09" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="140.94" y="116.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="154.00" y="124.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.8</text>
+<path d="M 202.00 98.00 L 250.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="212.94" y="90.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="226.00" y="98.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.5</text>
+<path d="M 278.42 87.91 L 317.58 56.09" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="284.94" y="64.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="298.00" y="72.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.2</text>
+<path d="M 278.42 108.09 L 317.58 139.91" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="284.94" y="116.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="298.00" y="124.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.3</text>
+<path d="M 330.00 62.00 L 330.00 134.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="316.94" y="90.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="330.00" y="98.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.3</text>
+<path d="M 342.42 56.09 L 381.58 87.91" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="348.94" y="64.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="362.00" y="72.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.2</text>
+<path d="M 342.42 139.91 L 381.58 108.09" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="348.94" y="116.00" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="362.00" y="124.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">0.2</text>
+<circle cx="58.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="58.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G1</text>
+<circle cx="122.0" cy="46.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="122.0" y="46.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G2</text>
+<circle cx="122.0" cy="150.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="122.0" y="150.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G3</text>
+<circle cx="186.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="186.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G4</text>
+<circle cx="266.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="266.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G5</text>
+<circle cx="330.0" cy="46.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="330.0" y="46.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G6</text>
+<circle cx="330.0" cy="150.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="330.0" y="150.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G7</text>
+<circle cx="394.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="394.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">G8</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="601.6" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.soft_threshold_power(return_dict=True)</text>
+<text x="564.0" y="28.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">power</text>
+<text x="620.0" y="28.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">R²</text>
+<text x="680.0" y="28.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">mean k</text>
+<text x="564.0" y="48.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">1</text>
+<text x="620.0" y="48.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">-0.35</text>
+<text x="680.0" y="48.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">1.10</text>
+<text x="564.0" y="68.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">2</text>
+<text x="620.0" y="68.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.10</text>
+<text x="680.0" y="68.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.57</text>
+<text x="564.0" y="88.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">3</text>
+<text x="620.0" y="88.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.67</text>
+<text x="680.0" y="88.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.36</text>
+<text x="564.0" y="108.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">4</text>
+<text x="620.0" y="108.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">0.90</text>
+<text x="680.0" y="108.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">0.25</text>
+<text x="564.0" y="128.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">5</text>
+<text x="620.0" y="128.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.93</text>
+<text x="680.0" y="128.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.18</text>
+<text x="564.0" y="148.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">6</text>
+<text x="620.0" y="148.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.93</text>
+<text x="680.0" y="148.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.14</text>
+<text x="564.0" y="168.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">…</text>
+<text x="620.0" y="168.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">…</text>
+<text x="680.0" y="168.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">…</text>
+</svg>

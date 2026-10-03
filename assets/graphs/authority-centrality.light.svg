@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>HITS authority scores</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="560.0" y="58.0" width="128.0" height="80.0" rx="4" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<rect x="561.0" y="79.0" width="62.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="625.0" y="79.0" width="62.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="560.0" y1="78.0" x2="688.0" y2="78.0" stroke="#1f2328" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>
+<line x1="560.0" y1="98.0" x2="688.0" y2="98.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="560.0" y1="118.0" x2="688.0" y2="118.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="624.0" y1="58.0" x2="624.0" y2="138.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<path d="M 96.31 90.84 L 102.91 87.54 L 109.52 84.24 L 116.12 80.94 L 122.73 77.64 L 129.33 74.34 L 135.93 71.03 L 142.54 67.73 L 149.14 64.43 L 155.74 61.13 L 156.40 60.80" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="162.35,57.83 155.42,65.21 152.29,58.94" fill="#1f2328" fill-opacity="1"/>
+<path d="M 96.31 105.16 L 102.91 108.46 L 109.52 111.76 L 116.12 115.06 L 122.73 118.36 L 129.33 121.66 L 135.93 124.97 L 142.54 128.27 L 149.14 131.57 L 155.74 134.87 L 156.40 135.20" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="162.35,138.17 152.29,137.06 155.42,130.79" fill="#1f2328" fill-opacity="1"/>
+<path d="M 98.00 98.00 L 113.85 98.00 L 129.70 98.00 L 145.55 98.00 L 161.40 98.00 L 177.25 98.00 L 193.10 98.00 L 208.95 98.00 L 224.80 98.00 L 240.65 98.00 L 249.85 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="256.50,98.00 247.00,101.50 247.00,94.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 192.31 57.16 L 198.91 60.46 L 205.52 63.76 L 212.12 67.06 L 218.73 70.36 L 225.33 73.66 L 231.93 76.97 L 238.54 80.27 L 245.14 83.57 L 251.74 86.87 L 252.40 87.20" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="258.35,90.17 248.29,89.06 251.42,82.79" fill="#1f2328" fill-opacity="1"/>
+<path d="M 192.31 138.84 L 198.91 135.54 L 205.52 132.24 L 212.12 128.94 L 218.73 125.64 L 225.33 122.34 L 231.93 119.03 L 238.54 115.73 L 245.14 112.43 L 251.74 109.13 L 252.40 108.80" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="258.35,105.83 251.42,113.21 248.29,106.94" fill="#1f2328" fill-opacity="1"/>
+<path d="M 290.00 98.00 L 296.25 98.00 L 302.50 98.00 L 308.75 98.00 L 315.00 98.00 L 321.25 98.00 L 327.50 98.00 L 333.75 98.00 L 340.00 98.00 L 345.85 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="352.50,98.00 343.00,101.50 343.00,94.50" fill="#1f2328" fill-opacity="1"/>
+<circle cx="82.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="82.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="178.0" cy="50.0" r="16" fill="#eecbbc" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="178.0" y="50.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="178.0" cy="146.0" r="16" fill="#eecbbc" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="178.0" y="146.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="274.0" cy="98.0" r="16" fill="#dd9679" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="274.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<circle cx="370.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="370.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.authority_centrality()</text>
+<text x="592.0" y="68.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">node</text>
+<text x="656.0" y="68.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">auth</text>
+<text x="592.0" y="88.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">D</text>
+<text x="656.0" y="88.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">0.82</text>
+<text x="592.0" y="108.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">B, C</text>
+<text x="656.0" y="108.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.41</text>
+<text x="592.0" y="128.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">A, E</text>
+<text x="656.0" y="128.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0.00</text>
+</svg>

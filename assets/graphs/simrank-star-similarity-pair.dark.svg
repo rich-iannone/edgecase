@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>SimRank* similarity for one pair</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<rect x="512.0" y="48.0" width="224.0" height="100.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 122.00 98.00 L 150.00 98.00" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 177.31 86.69 L 214.69 49.31" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 177.31 109.31 L 214.69 146.69" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 237.31 49.31 L 274.69 86.69" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 237.31 146.69 L 274.69 109.31" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 297.31 86.69 L 334.69 49.31" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 297.31 109.31 L 334.69 146.69" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 242.00 38.00 L 330.00 38.00" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="106.0" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="106.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">A</text>
+<circle cx="166.0" cy="98.0" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="166.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">B</text>
+<circle cx="226.0" cy="38.0" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">C</text>
+<circle cx="226.0" cy="158.0" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="158.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">D</text>
+<circle cx="286.0" cy="98.0" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="286.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">E</text>
+<circle cx="346.0" cy="38.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="346.0" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">F</text>
+<circle cx="346.0" cy="158.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="346.0" y="158.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">G</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="605.3" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.simrank_star_similarity_pair(&quot;B&quot;,&quot;E&quot;)</text>
+<text x="526.0" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">importance_factor C = 0.8</text>
+<text x="526.0" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">in-link paths via C, D, …</text>
+<text x="526.0" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">each step decays by C</text>
+<text x="526.0" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">s*(B, E) = 0.356</text>
+</svg>

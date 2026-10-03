@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Random edge walk</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="511.7" y="58.0" width="224.6" height="80.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 215.41 47.00 L 212.23 50.61 L 209.05 54.21 L 205.86 57.82 L 202.68 61.43 L 199.50 65.04 L 196.31 68.65 L 193.13 72.25 L 189.95 75.86 L 188.33 77.70" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="183.58,83.08 187.45,72.83 193.27,77.96" fill="#c2410c" fill-opacity="1"/>
+<rect x="186.43" y="57.04" width="26.13" height="16" rx="3" fill="#ffffff"/>
+<text x="199.50" y="65.04" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">0,3</text>
+<path d="M 188.00 96.20 L 195.45 96.20 L 202.90 96.20 L 210.35 96.20 L 217.80 96.20 L 225.25 96.20 L 232.70 96.20 L 240.15 96.20 L 247.60 96.20 L 255.05 96.20 L 255.32 96.20" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="262.50,96.20 252.25,100.08 252.25,92.33" fill="#c2410c" fill-opacity="1"/>
+<rect x="218.90" y="88.20" width="12.71" height="16" rx="3" fill="#ffffff"/>
+<text x="225.25" y="96.20" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">1</text>
+<path d="M 269.41 84.20 L 266.23 80.59 L 263.05 76.99 L 259.86 73.38 L 256.68 69.77 L 253.50 66.16 L 250.31 62.55 L 247.13 58.95 L 243.95 55.34 L 242.33 53.50" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="237.58,48.12 247.27,53.24 241.45,58.37" fill="#c2410c" fill-opacity="1"/>
+<rect x="247.14" y="58.16" width="12.71" height="16" rx="3" fill="#ffffff"/>
+<text x="253.50" y="66.16" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">2</text>
+<path d="M 172.00 112.20 L 172.00 115.33 L 172.00 118.46 L 172.00 121.59 L 172.00 124.72 L 172.00 127.85 L 172.00 130.98 L 172.00 134.11 L 172.00 136.32" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="172.00,143.50 168.12,133.25 175.88,133.25" fill="#c2410c" fill-opacity="1"/>
+<rect x="165.65" y="119.85" width="12.71" height="16" rx="3" fill="#ffffff"/>
+<text x="172.00" y="127.85" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">4</text>
+<path d="M 188.00 161.00 L 195.45 161.00 L 202.90 161.00 L 210.35 161.00 L 217.80 161.00 L 225.25 161.00 L 232.70 161.00 L 240.15 161.00 L 247.60 161.00 L 255.05 161.00 L 255.32 161.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="262.50,161.00 252.25,164.88 252.25,157.12" fill="#c2410c" fill-opacity="1"/>
+<rect x="218.90" y="153.00" width="12.71" height="16" rx="3" fill="#ffffff"/>
+<text x="225.25" y="161.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">5</text>
+<path d="M 280.00 145.00 L 280.00 141.87 L 280.00 138.74 L 280.00 135.61 L 280.00 132.48 L 280.00 129.35 L 280.00 126.22 L 280.00 123.09 L 280.00 120.35" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="280.00,113.70 283.50,123.20 276.50,123.20" fill="#1f2328" fill-opacity="0.35"/>
+<circle cx="226.0" cy="35.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="35.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="172.0" cy="96.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="172.0" y="96.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="280.0" cy="96.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="280.0" y="96.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="172.0" cy="161.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="172.0" y="161.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<circle cx="280.0" cy="161.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="280.0" y="161.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="601.6" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.random_edge_walk(&quot;A&quot;, steps=6, seed=8)</text>
+<text x="525.7" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">(edge_id, source, target) × 6</text>
+<text x="525.7" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">A→B  B→C  C→A</text>
+<text x="525.7" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">A→B  B→D  D→E</text>
+</svg>
