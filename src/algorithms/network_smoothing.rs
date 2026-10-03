@@ -11,7 +11,7 @@ pub fn network_smooth(
     max_iter: usize,
     tol: f64,
 ) -> PyResult<FxHashMap<u64, f64>> {
-    if alpha < 0.0 || alpha > 1.0 {
+    if !(0.0..=1.0).contains(&alpha) {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
             "alpha must be between 0.0 and 1.0.",
         ));
