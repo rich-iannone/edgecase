@@ -1550,6 +1550,44 @@ class Graph:
         else:
             raise TypeError(f"Node identifier must be int or str, got {type(node)}")
 
+
+    def _edge_ids_by_endpoints(
+        self,
+        sources: list[Union[int, str]] | None,
+        targets: list[Union[int, str]] | None,
+        strict: bool = True,
+    ) -> list[int]:
+        """
+        Edge IDs whose source is in `sources` and target is in `targets`.
+
+        Either filter may be `None`, meaning "any node". For undirected graphs an edge matches in
+        either orientation (as `find_edge_ids()` does). With `strict=False`, unknown nodes are
+        skipped instead of raising. Edges are returned in storage order.
+        """
+
+        def resolve(nodes):
+            if nodes is None:
+                return None
+            ids = set()
+            for n in nodes:
+                try:
+                    ids.add(self._resolve_node_id(n))
+                except ValueError:
+                    if strict:
+                        raise
+            return ids
+
+        src, tgt = resolve(sources), resolve(targets)
+
+        def match(u, v):
+            return (src is None or u in src) and (tgt is None or v in tgt)
+
+        directed = self._graph.is_directed
+        return [
+            eid
+            for eid, u, v in self._graph.edges()
+            if match(u, v) or (not directed and match(v, u))
+        ]
     def delete_node(self, node: Union[int, str]) -> "Graph":
         """
         Delete a node from the graph.
@@ -5695,12 +5733,14 @@ class Graph:
         ![Bipartite sets](/assets/graphs/bipartite-sets.light.svg){.lightbox fig-alt="A two-by-three ladder whose nodes alternate between two sides, A, C, E in the accent color and B, D, F in teal, with every edge joining the two sides. The card lists the two returned sets, 0 as A, C, E and 1 as B, D, F." width="100%"}
 
         Uses BFS 2-coloring to partition nodes into two independent sets such that every
-        edge connects nodes from different sets.
+        edge connects nodes from different sets. The numbering is deterministic: in each
+        connected component, the side containing the component's lowest node ID goes into the
+        first set.
 
         Returns
         -------
         tuple[list[int], list[int]]
-            A pair of lists containing the node IDs of each partition.
+            A pair of sorted lists containing the node IDs of each partition.
 
         Raises
         ------
@@ -5820,7 +5860,7 @@ class Graph:
         """
         Degree centrality for nodes in one partition of a bipartite graph.
 
-        ![Bipartite degree centrality](/assets/graphs/bipartite-degree-centrality.light.svg){.lightbox fig-alt="A bipartite graph drawn as two rows: side 1, A to D, on top and side 0, E to G, below, which the default which=0 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="100%"}
+        ![Bipartite degree centrality](/assets/graphs/bipartite-degree-centrality.light.svg){.lightbox fig-alt="A bipartite graph drawn as two rows: side 0, A to D, on top and side 1, E to G, below, which which=1 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="100%"}
 
         Normalized by the size of the opposite partition (the maximum possible degree
         for any node in the target partition).
@@ -5828,7 +5868,9 @@ class Graph:
         Parameters
         ----------
         which
-            Which partition to compute centrality for: `0` or `1`.
+            Which partition to compute centrality for: `0` or `1`. Partitions are numbered as in
+            `bipartite_sets()`: in each connected component, partition `0` is the side that
+            contains the component's lowest node ID.
         attr_name
             Column name for the node DataFrame. Defaults to `"bipartite_degree_centrality"`.
         return_dict
@@ -5870,7 +5912,9 @@ class Graph:
         Parameters
         ----------
         which
-            Which partition to compute centrality for: `0` or `1`.
+            Which partition to compute centrality for: `0` or `1`. Partitions are numbered as in
+            `bipartite_sets()`: in each connected component, partition `0` is the side that
+            contains the component's lowest node ID.
         attr_name
             Column name for the node DataFrame. Defaults to
             `"bipartite_closeness_centrality"`.
@@ -5915,7 +5959,9 @@ class Graph:
         Parameters
         ----------
         which
-            Which partition to compute centrality for: `0` or `1`.
+            Which partition to compute centrality for: `0` or `1`. Partitions are numbered as in
+            `bipartite_sets()`: in each connected component, partition `0` is the side that
+            contains the component's lowest node ID.
         attr_name
             Column name for the node DataFrame. Defaults to
             `"bipartite_betweenness_centrality"`.
@@ -5925,7 +5971,8 @@ class Graph:
         Returns
         -------
         Union[dict[int, float], Graph]
-            Betweenness centrality scores.
+            Betweenness centrality scores. These are raw (unnormalized) sums of pair
+            dependencies, so they are not limited to the range `0` to `1`.
         """
         result_ids = rust.bipartite_betweenness_centrality(self._graph, which)
 
@@ -7658,9 +7705,9 @@ class Graph:
 
         ![Select nodes in neighborhood](/assets/graphs/select-nodes-in-neighborhood.light.svg){.lightbox fig-alt="A six-node grid with no selection. After select_nodes_in_neighborhood from seed A with k=2, badges give each node's hop distance from A, and every node within two hops is selected in the accent color: A itself, B and D at one hop, and C and E at two. F, three hops away, is not selected." width="100%"}
 
-        Uses breadth-first search to find neighbors at distance up to k from the seed nodes. Does
-        not include the seed nodes themselves in the selection. Useful for extracting local
-        neighborhoods.
+        Uses breadth-first search to find every node at distance at most `k` from the seed nodes.
+        The seed nodes themselves (distance 0) are included in the selection. Useful for
+        extracting local neighborhoods.
 
         Parameters
         ----------
@@ -7680,21 +7727,21 @@ class Graph:
 
         Examples
         --------
-        On a 5-node star, a 1-hop selection from the hub reaches every spoke, but not the
-        hub itself, since seed nodes are excluded from the result:
+        On a 5-node star, a 1-hop selection from the hub reaches every spoke; together with the
+        hub itself that is all 5 nodes. The hub is the first node the generator creates:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_star_graph(n=5)
-        center_id = list(graph.get_node_ids(limit=None))[0]
+        center_id = graph.get_node_creation_order()[0]
 
         graph.select_nodes_in_neighborhood(nodes=center_id, k=1, mode="all")
         graph.count_selected_nodes()
         ```
 
         Increasing `k` extends the reach further along the graph. Starting from "A" with
-        `k=2` and following outgoing edges reaches "B" and "C", but not "D", which is
+        `k=2` and following outgoing edges selects "A" plus "B" and "C", but not "D", which is
         three hops away:
 
         ```{python}
@@ -7714,7 +7761,7 @@ class Graph:
         ```
 
         Multiple seed nodes are unioned together -- here, the 1-hop neighborhoods of both
-        "A" and "B" combine, without including "A" or "B" themselves:
+        "A" and "B" combine with the seeds themselves:
 
         ```{python}
         graph = (
@@ -9200,9 +9247,12 @@ class Graph:
         edges
             Optional list of (source, target) tuples specifying edges to update.
         sources
-            Optional list of source node IDs/labels to filter edges (use with targets).
+            Optional list of source node IDs/labels; only edges leaving these nodes are updated.
+            Can be combined with `targets=` or used alone.
         targets
-            Optional list of target node IDs/labels to filter edges (use with sources).
+            Optional list of target node IDs/labels; only edges entering these nodes are updated.
+            Can be combined with `sources=` or used alone. For undirected graphs, an edge matches
+            in either orientation.
 
         Returns
         -------
@@ -9285,21 +9335,9 @@ class Graph:
                 except ValueError:
                     # Node doesn't exist so silently skip
                     pass
-        elif sources is not None and targets is not None:
-            # Filter by source/target node lists
-            for source in sources:
-                try:
-                    source_id = self._resolve_node_id(source)
-                except ValueError:
-                    continue
-                for target in targets:
-                    try:
-                        target_id = self._resolve_node_id(target)
-                        edge_ids = self._graph.find_edge_ids(source_id, target_id)
-                        target_edge_ids.extend(edge_ids)
-                    except ValueError:
-                        # Node doesn't exist so silently skip
-                        pass
+        elif sources is not None or targets is not None:
+            # Filter by source and/or target node lists (unknown nodes are skipped)
+            target_edge_ids = self._edge_ids_by_endpoints(sources, targets, strict=False)
         else:
             # All edges
             target_edge_ids = self.get_edge_ids()
@@ -9552,34 +9590,21 @@ class Graph:
         """
         result = {}
 
-        # Determine which edges to check
-        if sources is not None and targets is not None:
-            # Filter by specific source/target pairs
-            for source in sources:
-                source_id = self._resolve_node_id(source)
-                for target in targets:
-                    target_id = self._resolve_node_id(target)
-                    edge_ids = self._graph.find_edge_ids(source_id, target_id)
-                    for edge_id in edge_ids:
-                        edge = self.get_edge(edge_id)
-                        if edge:
-                            # Check special weight attribute first
-                            if edge_attr == "weight" and edge.weight is not None:
-                                result[edge_id] = edge.weight
-                            # Then check attributes dict
-                            elif edge.attributes and edge_attr in edge.attributes:
-                                result[edge_id] = edge.attributes[edge_attr]
+        # Determine which edges to check (sources and/or targets may filter)
+        if sources is not None or targets is not None:
+            edge_ids = self._edge_ids_by_endpoints(sources, targets)
         else:
-            # Get all edges
-            for edge_id in self.get_edge_ids():
-                edge = self.get_edge(edge_id)
-                if edge:
-                    # Check special weight attribute first
-                    if edge_attr == "weight" and edge.weight is not None:
-                        result[edge_id] = edge.weight
-                    # Then check attributes dict
-                    elif edge.attributes and edge_attr in edge.attributes:
-                        result[edge_id] = edge.attributes[edge_attr]
+            edge_ids = self.get_edge_ids()
+
+        for edge_id in edge_ids:
+            edge = self.get_edge(edge_id)
+            if edge:
+                # Check special weight attribute first
+                if edge_attr == "weight" and edge.weight is not None:
+                    result[edge_id] = edge.weight
+                # Then check attributes dict
+                elif edge.attributes and edge_attr in edge.attributes:
+                    result[edge_id] = edge.attributes[edge_attr]
 
         return result
 
@@ -11743,8 +11768,10 @@ class Graph:
 
         ![Has cycles](/assets/graphs/has-cycles.light.svg){.lightbox fig-alt="Left: a directed graph on five nodes containing the cycle B, E, C, B (shown in the accent color), so has_cycles() returns True. Right: the same graph with the edge between B and C pointing the other way (shown in the accent color); no path returns to its start any more, so has_cycles() returns False." width="100%"}
 
-        Uses depth-first search to detect cycles. For directed graphs, looks for back edges. For
-        undirected graphs, checks for cycles excluding trivial two-node back-and-forth paths.
+        For directed graphs, uses depth-first search to look for back edges. For undirected graphs,
+        walking an edge and straight back does not count: a cycle needs three or more distinct
+        nodes, a self-loop, or two parallel edges between the same pair of nodes. Trees and paths
+        are therefore acyclic.
 
         Returns
         -------
@@ -12059,7 +12086,7 @@ class Graph:
         """
         Find a fundamental cycle basis for a directed graph.
 
-        ![Directed cycle basis](/assets/graphs/directed-cycle-basis.light.svg){.lightbox fig-alt="The house-shaped graph with directed edges, one strongly connected component. With 6 edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal." width="100%"}
+        ![Directed cycle basis](/assets/graphs/directed-cycle-basis.light.svg){.lightbox fig-alt="The house-shaped graph with directed edges, one strongly connected component. With 6 edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the triangle A, B, C in the accent color and the outer loop A, B, D, E, C in teal, each listed from its lowest node." width="100%"}
 
         For a directed graph, the cycle space operates over the rationals (not GF(2) as in
         the undirected case). A fundamental cycle basis is computed by finding the strongly
@@ -13494,11 +13521,14 @@ class Graph:
         """
         Detect communities using Edge Betweenness (Girvan-Newman) algorithm.
 
-        ![Edge-betweenness communities](/assets/graphs/cmty-edge-btwns.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because every path between the clusters crosses it, so it has the highest betweenness and is the first edge Girvan-Newman cuts. The remaining pieces are the communities: 0 is D, E, F, G and 1 is A, B, C." width="100%"}
+        ![Edge-betweenness communities](/assets/graphs/cmty-edge-btwns.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because every path between the clusters crosses it, so it has the highest betweenness and is the first edge Girvan-Newman cuts. The remaining pieces are the communities: 0 is A, B, C and 1 is D, E, F, G." width="100%"}
 
         Iteratively removes edges with highest betweenness centrality to reveal community structure.
         Uses Brandes' algorithm for efficient betweenness calculation. More accurate than Fast
-        Greedy but significantly slower (`O(m²n)` complexity).
+        Greedy but significantly slower (`O(m²n)` complexity). Shares its implementation with
+        `cmty_girvan_newman()`, so the two always return the same partition: ties for the highest
+        betweenness go to the edge with the smallest endpoint IDs, and communities are numbered
+        by their smallest node ID.
 
         Best for small to medium graphs (< 5K nodes) with hierarchical community structure and clear
         "bridge" edges between communities. When accuracy is more important than speed.
@@ -13623,12 +13653,18 @@ class Graph:
         """
         Detect communities using an optimized Girvan-Newman algorithm.
 
-        ![Girvan-Newman communities](/assets/graphs/cmty-girvan-newman.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. The partition matches cmty_edge_btwns() but the numbering differs: here community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="100%"}
+        ![Girvan-Newman communities](/assets/graphs/cmty-girvan-newman.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. It shares cmty_edge_btwns()'s implementation, so the result is identical: community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="100%"}
 
         Iteratively removes the edge with highest betweenness centrality to reveal hierarchical
-        community structure, returning the partition that maximizes Newman-Girvan modularity. Faster
-        than `cmty_edge_btwns()` on graphs with clear community structure thanks to per-component
-        betweenness recomputation and parallel BFS.
+        community structure, returning the partition that maximizes Newman-Girvan modularity.
+        Betweenness is recomputed only for the component that changed, with parallel BFS.
+        `cmty_edge_btwns()` runs the same implementation and returns the same partition; this
+        method also offers weighted betweenness via `most_valuable_edge="weight"`.
+
+        When several edges tie for the highest betweenness, the one with the smallest endpoint
+        IDs is removed first, so results are deterministic. (Other tools may break ties
+        differently and so end up with a different, equally valid dendrogram.) Communities are
+        numbered by their smallest node ID.
 
         Parameters
         ----------
@@ -15519,7 +15555,9 @@ class Graph:
         ![Union](/assets/graphs/union.light.svg){.lightbox fig-alt="G has edges A–B and B–D, which H shares, plus A–C (only in G, accent). H adds C–D (only in H, teal). The union keeps all four nodes and all four edges, each in the color of the graph it came from." width="100%"}
 
         Returns a new graph containing all nodes and edges from both graphs. Nodes with the same ID
-        are merged (this graph's attributes take precedence). Duplicate edges are not added.
+        are merged, whatever their labels; where both graphs give the same node (or edge) a label,
+        attribute, or weight, this graph's value takes precedence and the other graph fills in the
+        rest. Duplicate edges are not added.
 
         Parameters
         ----------
@@ -15546,8 +15584,9 @@ class Graph:
 
         Examples
         --------
-        Nodes and edges from both graphs are combined -- "B" appears in both, so it's
-        merged rather than duplicated:
+        Nodes are matched by **ID**, not by label. Here both graphs number their nodes 1, 2, 3; `g2`
+        adds an edge between nodes 2 and 3 that `g1` lacks, so the union has all three nodes and
+        both edges:
 
         ```{python}
         import edgecase as ec
@@ -15555,9 +15594,11 @@ class Graph:
         g1 = ec.Graph(directed=False)
         g1.add_node(label="A")
         g1.add_node(label="B")
+        g1.add_node(label="C")
         g1.add_edge("A", "B")
 
         g2 = ec.Graph(directed=False)
+        g2.add_node(label="A")
         g2.add_node(label="B")
         g2.add_node(label="C")
         g2.add_edge("B", "C")
@@ -15621,8 +15662,9 @@ class Graph:
         Intersection keeps only edges present in both graphs and drops any node that would
         end up isolated as a result, matching the algebraic identity
         $E(G_1 \cap G_2) = E_1 \cap E_2$ followed by node pruning. Both operands must share
-        the same directedness. Edge weights and attributes are taken from the calling
-        graph, which is worth knowing when weights differ between the two inputs. A common
+        the same directedness. Where both graphs carry a weight, label, or attribute for the
+        same edge or node, the calling graph's value wins and the other graph fills in only
+        what the calling graph lacks, which is worth knowing when weights differ. A common
         use is identifying the stable core of a network observed at multiple time points.
 
         Examples
@@ -15694,7 +15736,7 @@ class Graph:
         suppresses any node that becomes edge-isolated as a result. It is asymmetric:
         `g1.difference(g2)` and `g2.difference(g1)` capture different sides of what
         changed, which is why change-detection workflows typically call both. Both operands
-        must have the same directedness. Edge attributes come from the calling graph.
+        must have the same directedness. Node and edge attributes come from the calling graph.
 
         Examples
         --------
@@ -15762,8 +15804,10 @@ class Graph:
         Symmetric difference keeps edges present in exactly one of the two graphs, dropping
         any node that ends up edge-isolated. Unlike `difference()` it is symmetric: the
         same set comes back regardless of which graph makes the call. Both operands must
-        agree on directedness. This is the go-to operation for surveying all changes
-        between two network snapshots without having to reason about direction.
+        agree on directedness. Each surviving edge keeps the weight and attributes it had in
+        its own graph; node attributes are merged, with the calling graph winning ties. This
+        is the go-to operation for surveying all changes between two network snapshots
+        without having to reason about direction.
 
         Examples
         --------
@@ -15890,7 +15934,9 @@ class Graph:
         ---------------
         Rather than merging on shared node IDs the way `union()` does, `disjoint_union()`
         renumbers the incoming graph so its IDs sit strictly above the highest ID in the
-        calling graph. Labels and edge attributes carry through unchanged; only IDs shift.
+        calling graph. Node and edge attributes carry through unchanged. Labels do too, unless
+        one clashes with a label already in the calling graph: labels must be unique, so the
+        incoming one gets a numeric suffix (`"A"` becomes `"A_2"`).
         The result is a graph with two provably disjoint components, or more when several
         calls are chained, which is a handy way to assemble a multi-component graph out of
         independent pieces.
@@ -16795,7 +16841,8 @@ class Graph:
         -------
         Graph
             New graph containing only the specified nodes and edges between them. Preserves
-            directedness, weightedness, and node labels. Edge weights are preserved.
+            directedness, weightedness, node labels and attributes, and edge weights and
+            attributes. Node IDs are renumbered from 1 in ascending order of the original IDs.
 
         Raises
         ------
@@ -16870,7 +16917,8 @@ class Graph:
         -------
         Graph
             New graph containing only the specified edges and their endpoint nodes. Preserves
-            directedness, weightedness, and node labels. Edge weights are preserved.
+            directedness, weightedness, node labels and attributes, and edge weights and
+            attributes. Node IDs are renumbered from 1 in ascending order of the original IDs.
 
         Raises
         ------
@@ -19172,7 +19220,7 @@ class Graph:
         """
         Compute percolation centrality for all nodes.
 
-        ![Percolation centrality](/assets/graphs/percolation-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with the two percolated nodes, A and G, outlined; every other node has state 0. Only paths that start or end at A or G count, so the tail node F, the sole way to G, tops the table at 12.00, ahead of C 9.50 and E 8.00." width="100%"}
+        ![Percolation centrality](/assets/graphs/percolation-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with the two percolated nodes, A and G, outlined; every other node has state 0. Only paths that start at A or G count, so the nodes linking A to G matter most: E and F share the top at 0.60, then C 0.50, with B and D 0.05 and the endpoints A and G 0." width="100%"}
 
         Percolation centrality measures the importance of nodes based on the proportion of
         'percolated paths' that pass through them. This is particularly useful for analyzing
@@ -20185,7 +20233,7 @@ class Graph:
         """
         Get alpha centrality for each node.
 
-        ![Alpha centrality](/assets/graphs/alpha-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, which reaches every other node, scores 0.25, then B and C 0.20, D 0.19, and the sink E 0.17; every node also gets the same exogenous share, so the spread stays narrow." width="100%"}
+        ![Alpha centrality](/assets/graphs/alpha-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, whose arcs reach every other node, scores 0.45, then B and C 0.17, D 0.13, and the sink E, which reaches nothing, only its exogenous share, 0.07." width="100%"}
 
         Alpha centrality is a generalization of eigenvector centrality that adds an exogenous
         factor:
@@ -20194,7 +20242,9 @@ class Graph:
 
         where `α` is the attenuation factor, `A` is the adjacency matrix, and `e` is the exogenous
         factor (set to `1` for all nodes). Lower `α` emphasizes local neighborhood structure, while
-        higher `α` considers more global structure.
+        higher `α` considers more global structure. The returned scores are the fixed point of
+        this equation, scaled to sum to `1`. The iteration converges only when `α` is below
+        `1 / λ_max`, the reciprocal of the largest eigenvalue of `A`.
 
         Parameters
         ----------
@@ -23632,7 +23682,8 @@ class Graph:
             Number of steps to take in the walk.
         mode
             Direction to follow edges: (1) `"out"` to follow outgoing edges, (2) `"in"` to follow
-            incoming edges, and (3) `"all"` to ignore edge direction.
+            incoming edges, and (3) `"all"` to ignore edge direction. For undirected graphs every
+            mode follows any incident edge.
         stuck
             What to do if the walk gets stuck. Use `"return"` to return the partial walk and use
             `"error"` to raise an error.
@@ -23648,9 +23699,10 @@ class Graph:
         Returns
         -------
         list[tuple[int, int, int]] | Graph
-            If `return_list=True`: List of (edge_id, source_id, target_id) tuples. If
-            `return_list=False`: Self for method chaining, with edge traversal order stored as edge
-            attributes.
+            If `return_list=True`: List of (edge_id, source_id, target_id) tuples. For undirected
+            graphs each pair is oriented in the direction walked; for directed graphs it is the
+            edge's own source and target. If `return_list=False`: Self for method chaining, with
+            edge traversal order stored as edge attributes.
 
         Raises
         ------
@@ -24917,9 +24969,10 @@ class Graph:
 
         vitality(v) = sum_distances(G) - sum_distances(G - v)
 
-        Higher values indicate more important nodes whose removal would significantly increase
-        average path lengths or disconnect the graph. Infinite values indicate the node's removal
-        disconnects the graph.
+        Higher values indicate more important nodes. Only finite distances are summed: if removing
+        the node leaves some pairs unable to reach each other, those pairs simply drop out of
+        `sum_distances(G - v)`, so the result is always finite. This matches
+        `closeness_vitality()`, which computes the same value for every node at once.
 
         Parameters
         ----------
@@ -24929,8 +24982,8 @@ class Graph:
         Returns
         -------
         float
-            The vitality score for the node. Higher values indicate more vital nodes. Returns `inf`
-            if removing the node disconnects the graph.
+            The vitality score for the node. Higher values indicate more vital nodes. Always
+            finite, even when removing the node disconnects the graph.
 
         Raises
         ------
@@ -24941,17 +24994,19 @@ class Graph:
         ---------------
         Vitality is defined as the increase in the network's total pairwise distance caused
         by removing a single node: $\mathrm{vit}(v) = W(G) - W(G - v)$, where
-        $W(G) = \sum_{u \ne w} d(u, w)$ is the Wiener index. Positive values flag nodes
-        whose absence stretches out communication paths; $+\infty$ specifically flags cut
-        vertices whose removal disconnects the graph and leaves some distances undefined.
+        $W(G) = \sum_{u \ne w} d(u, w)$ is the Wiener index, summed over reachable pairs
+        only. Removing a cut vertex makes some distances infinite; those pairs are left out
+        rather than making the result infinite, so cut vertices tend to score high because
+        many long paths disappear along with them.
         Because computing $W$ requires an all-pairs shortest-path pass, the cost is
         $O(V \cdot E)$ per node, so for many nodes it is dramatically cheaper to call
         `closeness_vitality()` once and read every value out of the same shared BFS pass.
 
         Examples
         --------
-        On a path graph, removing a middle node splits the graph in two, which drives its
-        vitality to infinity, while removing an endpoint barely changes anything:
+        On a 5-node path, the middle node has the highest vitality (36): removing it splits the
+        path in two, and every long distance across the middle drops out of the total. An
+        endpoint scores lower (20):
 
         ```{python}
         import edgecase as ec
@@ -24960,29 +25015,29 @@ class Graph:
         graph.add_path_graph(5)
         nodes = sorted(graph.get_node_ids())
 
-        # Removing a middle node disconnects the graph
+        # The middle node: removing it splits the path in two
         graph.get_node_vitality(nodes[2])
         ```
 
         ```{python}
-        # Removing an endpoint has a small, finite effect
+        # An endpoint
         graph.get_node_vitality(nodes[0])
         ```
 
-        The same pattern shows up in a star graph: the hub is critical to every path between
-        leaves, while any individual leaf is comparatively unimportant:
+        The same pattern shows up in a star graph: the hub lies on every path between leaves,
+        so it outscores any individual leaf:
 
         ```{python}
         graph = ec.Graph()
         graph.add_star_graph(4)
         nodes = sorted(graph.get_node_ids())
 
-        # Removing the hub disconnects all leaves from each other
+        # The hub
         graph.get_node_vitality(nodes[0])
         ```
 
         ```{python}
-        # Removing a leaf barely changes total distances
+        # A leaf
         graph.get_node_vitality(nodes[1])
         ```
 
@@ -24998,7 +25053,7 @@ class Graph:
             .add_edge("B", "C")
         )
 
-        # B connects A and C, so removing it disconnects the graph
+        # B connects A and C, so it is the most vital node here
         graph.get_node_vitality("B")
         ```
         """
@@ -25406,8 +25461,7 @@ class Graph:
         called edge connectivity. Only defined for undirected graphs. Returns `0` if already
         disconnected.
 
-        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
-        computation requires max-flow algorithms.
+        This is an alias for `get_edge_connectivity()` that additionally rejects directed graphs.
 
         Returns
         -------
@@ -25455,8 +25509,7 @@ class Graph:
         called node connectivity. Only defined for undirected graphs. Returns `0` if already
         disconnected.
 
-        Note: Current implementation provides an upper bound (minimum degree) for efficiency. Exact
-        computation requires sophisticated algorithms.
+        This is an alias for `get_node_connectivity()` that additionally rejects directed graphs.
 
         Returns
         -------
@@ -25470,7 +25523,8 @@ class Graph:
 
         Examples
         --------
-        This 4-cycle has minimum degree 2, so its cohesion (upper bound) is 2:
+        A 4-cycle stays connected after removing any one node, but removing two opposite nodes
+        disconnects it, so its cohesion is 2:
 
         ```{python}
         import edgecase as ec
@@ -25621,7 +25675,7 @@ class Graph:
         """
         Find the k-component structure of the graph.
 
-        ![k-components](/assets/graphs/k-components.light.svg){.lightbox fig-alt="A seven-node graph: a dense cluster A, B, C, D with a ring through E, F, G. Every pair of nodes stays connected after removing any one node, so A to G is the 1- and 2-component (teal), and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="100%"}
+        ![k-components](/assets/graphs/k-components.light.svg){.lightbox fig-alt="The shared eight-node core graph: a dense cluster A, B, C, D, a ring through E, F, G, and a pendant H. The whole graph is the 1-component (gray); dropping H, which hangs on a single cut vertex, leaves A to G, the 2-component (teal); and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="100%"}
 
         A k-component is a maximal subset of nodes such that every pair of nodes in the subset has
         node connectivity at least k. The result is a dictionary mapping each connectivity level k
@@ -25660,7 +25714,8 @@ class Graph:
 
         Examples
         --------
-        A barbell graph has bridge nodes at connectivity 1 but the cliques at higher k:
+        A triangle with one pendant node: the whole graph is a 1-component, and the triangle on
+        its own is a 2-component:
 
         ```{python}
         import edgecase as ec
@@ -26984,7 +27039,9 @@ class Graph:
         ![Maximal matching](/assets/graphs/maximal-matching.light.svg){.lightbox fig-alt="A five-node graph: a triangle 2, 3, 5 with pendant nodes 1 and 4. The greedy maximal matching takes edge 2–3 first (accent); every other edge touches 2 or 3, so nothing more can be added, even though the larger matching 1–2, 3–4 exists. The card shows the returned edge id 1, the pair 2–3, and size 1." width="100%"}
 
         A maximal matching is a matching (set of edges with no shared endpoints) that cannot be
-        extended by adding any other edge. Uses a greedy algorithm.
+        extended by adding any other edge. Uses a greedy algorithm that scans edges in creation
+        (edge ID) order, so the result is deterministic for a given graph but can change if the
+        same edges are added in a different order.
 
         Note that a maximal matching is not necessarily a maximum matching (largest possible). For
         weighted graphs, use `max_weight_matching()`.
@@ -27603,7 +27660,7 @@ class Graph:
         r"""
         Find a dominating set for the graph.
 
-        ![Dominating set](/assets/graphs/dominating-set.light.svg){.lightbox fig-alt="A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. Nodes 1, 3, and 7 form the dominating set (accent); an accent edge links each other node to a set member that dominates it. The card shows the result [1, 3, 7], size 3." width="100%"}
+        ![Dominating set](/assets/graphs/dominating-set.light.svg){.lightbox fig-alt="A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. Nodes 1, 3, and 5 form the dominating set (accent); an accent edge links each other node to a set member that dominates it. The card shows the result [1, 3, 5], size 3." width="100%"}
 
         A dominating set `D` of a graph `G = (V, E)` is a subset of V such that every vertex not in
         `D` is adjacent to at least one member of `D`. This method uses a greedy algorithm that
@@ -27612,7 +27669,7 @@ class Graph:
         Parameters
         ----------
         start_with
-            Optional node ID to start the algorithm from. If `None`, an arbitrary node is chosen.
+            Optional node ID to start the algorithm from. If `None`, the smallest node ID is used.
 
         Returns
         -------
@@ -27626,9 +27683,10 @@ class Graph:
 
         Technical Notes
         ---------------
-        A simple greedy sweep in $O(V + E)$ that starts from `start_with=` (or an arbitrary
-        node if unset), repeatedly adds an unmarked node, and marks it and its neighbors as
-        dominated until every node is covered. The result is *some* dominating set but not
+        A simple greedy sweep in $O(V + E)$ that starts from `start_with=` (or the smallest
+        node ID if unset), repeatedly adds the smallest-ID unmarked node, and marks it and its
+        neighbors as dominated until every node is covered. The result is deterministic for a
+        given graph. The result is *some* dominating set but not
         the smallest one possible; the minimum dominating set problem is $\mathsf{NP}$-hard,
         so this heuristic mainly earns its keep as a fast baseline. Any maximal independent
         set is automatically a dominating set, since every excluded vertex must be adjacent
