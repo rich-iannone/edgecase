@@ -24,7 +24,7 @@ fn canonical_key(nodes: &[u64], adj: &FxHashMap<u64, FxHashSet<u64>>, directed: 
     let mut mat = vec![vec![false; k]; k];
     for i in 0..k {
         for j in 0..k {
-            if i != j && adj.get(&nodes[i]).map_or(false, |s| s.contains(&nodes[j])) {
+            if i != j && adj.get(&nodes[i]).is_some_and(|s| s.contains(&nodes[j])) {
                 mat[i][j] = true;
             }
         }
@@ -116,7 +116,7 @@ fn is_connected_subgraph(
         if directed {
             // For connectivity check on directed graphs, also follow reverse edges
             for &u in nodes {
-                if adj.get(&u).map_or(false, |s| s.contains(&v))
+                if adj.get(&u).is_some_and(|s| s.contains(&v))
                     && node_set.contains(&u)
                     && visited.insert(u)
                 {
@@ -147,6 +147,7 @@ fn enumerate_connected_subgraphs(
     result
 }
 
+#[allow(clippy::too_many_arguments)] // recursive helper threading its search state
 fn enumerate_combos(
     node_ids: &[u64],
     adj: &FxHashMap<u64, FxHashSet<u64>>,
@@ -209,7 +210,7 @@ pub fn motif_census(
     graph: &Graph,
     size: usize,
 ) -> PyResult<HashMap<String, u64>> {
-    if size < 3 || size > 4 {
+    if !(3..=4).contains(&size) {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Motif size must be 3 or 4",
         ));
@@ -256,7 +257,7 @@ pub fn motif_significance(
 ) -> PyResult<HashMap<String, HashMap<String, f64>>> {
     use crate::algorithms::null_models::degree_preserving_rewire;
 
-    if size < 3 || size > 4 {
+    if !(3..=4).contains(&size) {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Motif size must be 3 or 4",
         ));
@@ -308,9 +309,7 @@ pub fn motif_significance(
             (obs - mean) / std_dev
         } else if (obs - mean).abs() < 1e-10 {
             0.0
-        } else {
-            if obs > mean { f64::INFINITY } else { f64::NEG_INFINITY }
-        };
+        } else if obs > mean { f64::INFINITY } else { f64::NEG_INFINITY };
 
         // p-value: fraction of random graphs with count >= observed
         let p_value = rand_vals.iter().filter(|&&v| v >= obs).count() as f64 / n_f;
