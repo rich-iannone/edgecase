@@ -160,3 +160,27 @@ def test_all_pairs_weighted_400_nodes(benchmark):
 
     result = benchmark(G.all_pairs_shortest_path_length)
     assert len(result) == 400
+
+
+def test_ada_star_search_80x80_grid(benchmark):
+    """Benchmark ADA* across an 80x80 weighted grid (6,320 edges).
+
+    Edge weights and predecessors come from the graph's edge index; scanning every edge for
+    each weight and every node for each predecessor made this ~50x slower (~0.95s vs ~0.02s).
+    """
+    rng = random.Random(80)
+    k = 80
+    G = Graph(weighted=True)
+    for r in range(k):
+        for c in range(k):
+            G.add_node(f"{r},{c}")
+    for r in range(k):
+        for c in range(k):
+            if c + 1 < k:
+                G.add_edge(f"{r},{c}", f"{r},{c + 1}", weight=rng.uniform(1, 5))
+            if r + 1 < k:
+                G.add_edge(f"{r},{c}", f"{r + 1},{c}", weight=rng.uniform(1, 5))
+
+    path = benchmark(G.ada_star_search, "0,0", f"{k - 1},{k - 1}")
+    assert path[0] == G.get_id_from_label("0,0")
+    assert path[-1] == G.get_id_from_label(f"{k - 1},{k - 1}")

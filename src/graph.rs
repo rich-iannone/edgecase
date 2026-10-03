@@ -226,6 +226,11 @@ struct EdgeIndex {
     weight_by_pair: FxHashMap<(u64, u64), f64>,
     /// edge ID -> position in `edges`
     position_by_id: FxHashMap<u64, usize>,
+    /// (source, target) -> position of the first edge stored in exactly that orientation
+    /// (used by AdaStar, which prefers a stored `from -> to` edge over a reversed one)
+    first_position_by_pair: FxHashMap<(u64, u64), usize>,
+    /// node -> distinct nodes with an edge into it (both endpoints for undirected edges)
+    predecessors: FxHashMap<u64, Vec<u64>>,
 }
 
 impl EdgeIndex {
@@ -233,6 +238,11 @@ impl EdgeIndex {
         let mut index = EdgeIndex {
             weight_by_pair: FxHashMap::with_capacity_and_hasher(edges.len() * 2, Default::default()),
             position_by_id: FxHashMap::with_capacity_and_hasher(edges.len(), Default::default()),
+            first_position_by_pair: FxHashMap::with_capacity_and_hasher(
+                edges.len(),
+                Default::default(),
+            ),
+            predecessors: FxHashMap::default(),
         };
         for (position, edge) in edges.iter().enumerate() {
             index.add(edge, position, directed);
@@ -249,6 +259,20 @@ impl EdgeIndex {
             self.weight_by_pair.entry((edge.target, edge.source)).or_insert(weight);
         }
         self.position_by_id.insert(edge.id, position);
+        self.first_position_by_pair
+            .entry((edge.source, edge.target))
+            .or_insert(position);
+        Self::add_predecessor(&mut self.predecessors, edge.target, edge.source);
+        if !directed {
+            Self::add_predecessor(&mut self.predecessors, edge.source, edge.target);
+        }
+    }
+
+    fn add_predecessor(predecessors: &mut FxHashMap<u64, Vec<u64>>, node: u64, pred: u64) {
+        let preds = predecessors.entry(node).or_default();
+        if !preds.contains(&pred) {
+            preds.push(pred);
+        }
     }
 }
 
@@ -10800,10 +10824,8 @@ impl AdaStar {
                     self.closed.insert(u);
 
                     // Update predecessors
-                    for &pred in graph.adjacency_list.keys() {
-                        if graph.adjacency_list.get(&pred).is_some_and(|neighbors| neighbors.contains(&u)) {
-                            self.update_state(py, pred, graph)?;
-                        }
+                    for pred in Self::predecessors_of(u, graph) {
+                        self.update_state(py, pred, graph)?;
                     }
                 } else {
                     // Underconsistent: set g to infinity and update
@@ -10811,10 +10833,8 @@ impl AdaStar {
 
                     // Update u and its predecessors
                     self.update_state(py, u, graph)?;
-                    for &pred in graph.adjacency_list.keys() {
-                        if graph.adjacency_list.get(&pred).is_some_and(|neighbors| neighbors.contains(&u)) {
-                            self.update_state(py, pred, graph)?;
-                        }
+                    for pred in Self::predecessors_of(u, graph) {
+                        self.update_state(py, pred, graph)?;
                     }
                 }
             } else {
@@ -10962,6 +10982,12 @@ impl AdaStar {
         Ok(())
     }
 
+    /// Nodes with an edge into `u`, from the graph's edge index. This used to scan every
+    /// node's adjacency list on each expansion, which made the search O(V²) on its own.
+    fn predecessors_of(u: u64, graph: &Graph) -> Vec<u64> {
+        graph.edge_index().predecessors.get(&u).cloned().unwrap_or_default()
+    }
+
     /// Compute priority key for a node
     #[inline]
     fn compute_key(&self, n: u64, _graph: &Graph) -> (f64, f64) {
@@ -10994,55 +11020,43 @@ impl AdaStar {
     /// Get edge weight from graph
     #[inline]
     fn get_edge_weight(&self, from: u64, to: u64, graph: &Graph) -> f64 {
-        // Find edge and get weight
-        for edge in &graph.edges {
-            if edge.source == from && edge.target == to {
-                // First try the weight field
-                if let Some(w) = edge.weight {
-                    return w;
+        // The first edge stored as `from -> to`; on an undirected graph, otherwise the first one
+        // stored as `to -> from`. Looked up in the graph's edge index (this used to scan every
+        // edge on every expansion, making a search O(E) per step)
+        let index = graph.edge_index();
+        let position = index
+            .first_position_by_pair
+            .get(&(from, to))
+            .or_else(|| {
+                if graph.directed {
+                    None
+                } else {
+                    index.first_position_by_pair.get(&(to, from))
                 }
-                // Fall back to attributes
-                if let Some(ref attrs) = edge.attributes {
-                    return Python::with_gil(|py| {
-                        let dict = attrs.bind(py);
-                        if let Ok(Some(weight)) = dict.get_item(&self.weight_attr) {
-                            if let Ok(w) = weight.extract::<f64>() {
-                                return w;
-                            }
-                        }
-                        1.0  // Default weight
-                    });
-                }
-                return 1.0;
-            }
-        }
+            });
 
-        // For undirected graphs, check reverse direction
-        if !graph.directed {
-            for edge in &graph.edges {
-                if edge.source == to && edge.target == from {
-                    // First try the weight field
-                    if let Some(w) = edge.weight {
+        let Some(&position) = position else {
+            return f64::INFINITY; // No edge exists
+        };
+        let edge = &graph.edges[position];
+
+        // First try the weight field
+        if let Some(w) = edge.weight {
+            return w;
+        }
+        // Fall back to attributes
+        if let Some(ref attrs) = edge.attributes {
+            return Python::with_gil(|py| {
+                let dict = attrs.bind(py);
+                if let Ok(Some(weight)) = dict.get_item(&self.weight_attr) {
+                    if let Ok(w) = weight.extract::<f64>() {
                         return w;
                     }
-                    // Fall back to attributes
-                    if let Some(ref attrs) = edge.attributes {
-                        return Python::with_gil(|py| {
-                            let dict = attrs.bind(py);
-                            if let Ok(Some(weight)) = dict.get_item(&self.weight_attr) {
-                                if let Ok(w) = weight.extract::<f64>() {
-                                    return w;
-                                }
-                            }
-                            1.0
-                        });
-                    }
-                    return 1.0;
                 }
-            }
+                1.0 // Default weight
+            });
         }
-
-        f64::INFINITY  // No edge exists
+        1.0
     }
 }
 
