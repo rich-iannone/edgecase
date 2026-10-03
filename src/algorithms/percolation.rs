@@ -40,11 +40,9 @@ use std::collections::VecDeque;
 /// A dictionary mapping node IDs to their percolation centrality values.
 ///
 /// # Algorithm
-/// Uses a modified Brandes algorithm where pair dependencies are weighted by:
-/// `(state[s] + state[t]) / (n_percolated - 1)`
-///
-/// where s is source, t is target, and n_percolated is the total percolation
-/// (sum of all states).
+/// Uses Brandes' algorithm; the dependency of node v on source s is weighted by
+/// `state[s] / (sum_of_states - state[v])`, and the total is scaled by `1 / (n - 2)`.
+/// With all states equal this equals normalized betweenness centrality.
 #[pyfunction]
 #[pyo3(signature = (graph, states=None, weight=None))]
 pub fn percolation_centrality(
@@ -125,10 +123,14 @@ pub fn percolation_centrality(
             },
         );
 
+    // Normalize by the number of possible (s, t) pairs per node, 1 / (n - 2): with
+    // all states equal this is exactly normalized betweenness centrality.
+    let scale = if n > 2 { 1.0 / (n as f64 - 2.0) } else { 1.0 };
+
     // Convert to HashMap
     let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
     for (idx, &node_id) in node_ids.iter().enumerate() {
-        result.insert(node_id, centrality[idx]);
+        result.insert(node_id, centrality[idx] * scale);
     }
 
     Ok(result)
@@ -257,8 +259,10 @@ fn compute_percolation_from_source(
         }
     }
 
-    // Accumulation: back-propagation of dependencies
-    // Weighted by percolation states
+    // Accumulation: standard Brandes back-propagation of the (unweighted) pair
+    // dependencies delta_s(w) = sum_t sigma_st(w) / sigma_st, then each is weighted
+    // by x_s / (sum_x - x_w) (Piraveenan et al.; NetworkX's definition). Weighting
+    // inside the recursion, as this used to, re-applied the factor at every hop.
     let mut centrality = vec![0.0; n];
 
     while let Some(w_idx) = stack.pop() {
@@ -266,24 +270,15 @@ fn compute_percolation_from_source(
             continue;
         }
 
-        let w = node_ids[w_idx];
-        let target_state = node_states[&w];
-
-        // Weight factor: (x_s + x_t) / (sum_x - 1)
-        // where x_s is source state, x_t is target state
-        let weight_factor = (source_state + target_state) / (percolation_sum - 1.0);
-
-        // Percolation adjustment for delta
-        let coeff = weight_factor / sigma[w_idx];
-
+        let coeff = (1.0 + delta[w_idx]) / sigma[w_idx];
         for &v_idx in &predecessors[w_idx] {
-            let contrib = sigma[v_idx] * coeff * (1.0 + delta[w_idx]);
-            delta[v_idx] += contrib;
+            delta[v_idx] += sigma[v_idx] * coeff;
         }
 
-        // Add to centrality for intermediate nodes
-        if w_idx != source_idx {
-            centrality[w_idx] += delta[w_idx];
+        let w = node_ids[w_idx];
+        let denom = percolation_sum - node_states[&w];
+        if denom > 0.0 {
+            centrality[w_idx] += delta[w_idx] * source_state / denom;
         }
     }
 
