@@ -498,3 +498,73 @@ class TestAllPairsNegativeWeights:
 
         a, c = g.get_id_from_label("A"), g.get_id_from_label("C")
         assert g.all_pairs_shortest_path_length()[a][c] == pytest.approx(2.0)
+
+
+class TestEdgeWeightLookupAfterMutation:
+    """Weighted Dijkstra reads weights through a cached edge index; edits must refresh it."""
+
+    @staticmethod
+    def _dist(g, a, b):
+        ids = {g.get_label_from_id(n): n for n in g.get_node_ids()}
+        return g.all_pairs_shortest_path_length()[ids[a]].get(ids[b])
+
+    def _triangle(self, directed=False):
+        g = Graph(directed=directed, weighted=True)
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B", weight=1.0)
+        g.add_edge("B", "C", weight=1.0)
+        g.add_edge("A", "C", weight=5.0)
+        return g
+
+    def test_added_edge_is_seen(self):
+        g = self._triangle()
+        assert self._dist(g, "A", "C") == pytest.approx(2.0)  # builds the index
+        g.add_node(label="D")
+        g.add_edge("A", "D", weight=0.5)
+        g.add_edge("D", "C", weight=0.5)
+        assert self._dist(g, "A", "C") == pytest.approx(1.0)
+
+    def test_first_parallel_edge_keeps_its_weight(self):
+        """A later parallel edge doesn't replace the first edge's weight (first match wins)."""
+        g = self._triangle()
+        assert self._dist(g, "A", "C") == pytest.approx(2.0)
+        g.add_edge("C", "A", weight=0.1)  # undirected parallel to A-C, added later
+        assert self._dist(g, "A", "C") == pytest.approx(2.0)
+
+    def test_deleted_edge_is_forgotten(self):
+        g = self._triangle()
+        assert self._dist(g, "A", "C") == pytest.approx(2.0)
+        b_c = g.find_edge_ids("B", "C")[0]
+        g.delete_edge_by_id(b_c)
+        assert self._dist(g, "A", "C") == pytest.approx(5.0)
+
+    def test_deleted_node_is_forgotten(self):
+        g = self._triangle()
+        assert self._dist(g, "A", "C") == pytest.approx(2.0)
+        g.delete_node("B")
+        assert self._dist(g, "A", "C") == pytest.approx(5.0)
+
+    def test_weight_update_is_seen(self):
+        g = self._triangle()
+        assert self._dist(g, "A", "C") == pytest.approx(2.0)
+        g.set_edge_attrs("weight", {g.find_edge_ids("A", "C")[0]: 0.5})
+        assert self._dist(g, "A", "C") == pytest.approx(0.5)
+        assert g.get_edge(g.find_edge_ids("A", "C")[0]).weight == pytest.approx(0.5)
+
+    def test_reversed_edge_is_seen(self):
+        g = self._triangle(directed=True)
+        assert self._dist(g, "A", "C") == pytest.approx(2.0)
+        g.select_edges_by_id([g.find_edge_ids("B", "C")[0]])
+        g.rev_edge_dir_ws()
+        assert self._dist(g, "A", "C") == pytest.approx(5.0)
+        assert self._dist(g, "C", "B") == pytest.approx(1.0)
+
+    def test_get_edge_by_id_after_deletions(self):
+        g = self._triangle()
+        ids = g.get_edge_ids()
+        g.get_edge(ids[0])  # builds the index
+        g.delete_edge_by_id(ids[0])
+        assert g.get_edge(ids[0]) is None
+        for edge_id in ids[1:]:
+            assert g.get_edge(edge_id).id == edge_id

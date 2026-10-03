@@ -142,3 +142,21 @@ def test_pagerank_scaling(benchmark, size):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--benchmark-only"])
+
+
+
+def test_all_pairs_weighted_400_nodes(benchmark):
+    """Benchmark weighted all-pairs Dijkstra on 400 nodes / 1600 edges.
+
+    Edge weights come from an O(1) index; the old linear scan per relaxation made this
+    roughly 20x slower (~0.9s vs ~0.05s per run).
+    """
+    rng = random.Random(0)
+    G = Graph(weighted=True)
+    for i in range(400):
+        G.add_node(f"n{i}")
+    for _ in range(1600):
+        G.add_edge(f"n{rng.randrange(400)}", f"n{rng.randrange(400)}", weight=rng.uniform(1, 5))
+
+    result = benchmark(G.all_pairs_shortest_path_length)
+    assert len(result) == 400

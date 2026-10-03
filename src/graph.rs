@@ -211,10 +211,72 @@ pub struct Graph {
     // Creation order tracking
     node_creation_order: Vec<u64>,
     edge_creation_order: Vec<u64>,
+    // Lazily built lookup tables over `edges` (see `EdgeIndex`); reset whenever edges are
+    // removed or edited, and extended in place when edges are added
+    edge_index: std::sync::OnceLock<EdgeIndex>,
 }
 
-// SAFETY: Graph uses Send + Sync types (FxHashMap, Vec, primitives)
-// and has no interior mutability or non-thread-safe types
+/// O(1) lookups over `Graph::edges`, built on first use.
+///
+/// `get_edge_weight()` and `get_edge()` used to scan the whole edge list, and Dijkstra calls
+/// `get_edge_weight()` on every relaxation, so all-pairs shortest paths cost O(V·E²).
+struct EdgeIndex {
+    /// (from, to) -> weight of the first edge (in insertion order) joining them; undirected
+    /// edges are entered in both orientations. Missing weights are stored as 1.0.
+    weight_by_pair: FxHashMap<(u64, u64), f64>,
+    /// edge ID -> position in `edges`
+    position_by_id: FxHashMap<u64, usize>,
+}
+
+impl EdgeIndex {
+    fn build(edges: &[Edge], directed: bool) -> Self {
+        let mut index = EdgeIndex {
+            weight_by_pair: FxHashMap::with_capacity_and_hasher(edges.len() * 2, Default::default()),
+            position_by_id: FxHashMap::with_capacity_and_hasher(edges.len(), Default::default()),
+        };
+        for (position, edge) in edges.iter().enumerate() {
+            index.add(edge, position, directed);
+        }
+        index
+    }
+
+    /// Record an edge stored at `position`. Earlier edges win for a given pair, matching the
+    /// first-match semantics of a front-to-back scan.
+    fn add(&mut self, edge: &Edge, position: usize, directed: bool) {
+        let weight = edge.weight.unwrap_or(1.0);
+        self.weight_by_pair.entry((edge.source, edge.target)).or_insert(weight);
+        if !directed {
+            self.weight_by_pair.entry((edge.target, edge.source)).or_insert(weight);
+        }
+        self.position_by_id.insert(edge.id, position);
+    }
+}
+
+// Edge-index helpers (outside #[pymethods], so they aren't exposed to Python)
+impl Graph {
+    /// The edge lookup index, built from `edges` on first use
+    fn edge_index(&self) -> &EdgeIndex {
+        self.edge_index.get_or_init(|| EdgeIndex::build(&self.edges, self.directed))
+    }
+
+    /// Drop the edge lookup index after edges are removed or edited
+    fn invalidate_edge_index(&mut self) {
+        self.edge_index.take();
+    }
+
+    /// Append an edge, keeping an already-built index up to date
+    fn push_edge(&mut self, edge: Edge) {
+        let position = self.edges.len();
+        let directed = self.directed;
+        if let Some(index) = self.edge_index.get_mut() {
+            index.add(&edge, position, directed);
+        }
+        self.edges.push(edge);
+    }
+}
+
+// SAFETY: Graph uses Send + Sync types (FxHashMap, Vec, primitives, OnceLock)
+// and has no interior mutability beyond the thread-safe OnceLock cache
 unsafe impl Send for Graph {}
 unsafe impl Sync for Graph {}
 
@@ -238,6 +300,7 @@ impl Graph {
             selected_edges: FxHashSet::default(),
             node_creation_order: Vec::new(),
             edge_creation_order: Vec::new(),
+            edge_index: std::sync::OnceLock::new(),
         }
     }
 
@@ -321,7 +384,7 @@ impl Graph {
         // Store the edge ID before moving the edge
         let edge_id = edge.id;
 
-        self.edges.push(edge);
+        self.push_edge(edge);
         Ok(edge_id)  // Return the edge ID
     }
 
@@ -516,16 +579,15 @@ impl Graph {
     #[inline]
     pub(crate) fn get_edge_weight(&self, from: u64, to: u64) -> f64 {
         // Undirected edges are stored once, in insertion order, so traversing
-        // one "backwards" must still find it (and its weight).
-        self.edges
-            .iter()
-            .find(|e| {
-                (e.source == from && e.target == to)
-                    || (!self.directed && e.source == to && e.target == from)
-            })
-            .and_then(|e| e.weight)
+        // one "backwards" must still find it (and its weight). The index holds both
+        // orientations, first edge wins, and a missing edge or weight counts as 1.0.
+        self.edge_index()
+            .weight_by_pair
+            .get(&(from, to))
+            .copied()
             .unwrap_or(1.0)
     }
+
 
     /// Delete edge by ID
     pub fn delete_edge_by_id(&mut self, edge_id: u64) -> PyResult<()> {
@@ -550,6 +612,7 @@ impl Graph {
             }
 
             self.edges.remove(idx);
+            self.invalidate_edge_index();
 
             // Remove from selection if selected
             self.selected_edges.remove(&edge_id);
@@ -589,6 +652,7 @@ impl Graph {
 
         // Remove all incident edges
         self.edges.retain(|e| e.source != node_id && e.target != node_id);
+        self.invalidate_edge_index();
 
         // Clean up selection state
         self.selected_nodes.remove(&node_id);
@@ -618,6 +682,8 @@ impl Graph {
 
     /// Set or update an attribute on an edge (including weight)
     pub fn set_edge_attr(&mut self, py: Python, edge_id: u64, key: &str, value: PyObject) -> PyResult<()> {
+        // The weight may change; the index is rebuilt on next use
+        self.invalidate_edge_index();
         let edge = self.edges.iter_mut().find(|e| e.id == edge_id).ok_or_else(|| {
             pyo3::exceptions::PyKeyError::new_err(format!("Edge with ID {} does not exist", edge_id))
         })?;
@@ -657,6 +723,8 @@ impl Graph {
             ));
         }
 
+        // Endpoints change; the index is rebuilt on next use
+        self.invalidate_edge_index();
         let edge = self.edges.iter_mut().find(|e| e.id == edge_id).ok_or_else(|| {
             pyo3::exceptions::PyKeyError::new_err(format!("Edge with ID {} does not exist", edge_id))
         })?;
@@ -912,7 +980,8 @@ impl Graph {
 
     /// Get an edge object by ID (for use with selection predicates)
     pub fn get_edge(&self, edge_id: u64) -> Option<Edge> {
-        self.edges.iter().find(|e| e.id == edge_id).cloned()
+        let position = *self.edge_index().position_by_id.get(&edge_id)?;
+        self.edges.get(position).cloned()
     }
 
     /// Select the last N nodes that were created
@@ -6480,6 +6549,7 @@ impl Graph {
 
                 // Remove edge
                 self.edges.remove(idx);
+                self.invalidate_edge_index();
             }
         }
 
@@ -6610,6 +6680,7 @@ impl Graph {
 
                 // Remove edge
                 self.edges.remove(idx);
+                self.invalidate_edge_index();
             }
         }
 
@@ -8463,6 +8534,7 @@ impl Graph {
             selected_edges: FxHashSet::default(),
             node_creation_order: Vec::new(),
             edge_creation_order: Vec::new(),
+            edge_index: std::sync::OnceLock::new(),
         }
     }
 
@@ -8544,7 +8616,7 @@ impl Graph {
                 .push(edge.source);
         }
 
-        self.edges.push(edge);
+        self.push_edge(edge);
         self.edge_creation_order.push(edge_id);
 
         Ok(edge_id)
@@ -8572,6 +8644,7 @@ impl Graph {
 
             // Remove edge
             self.edges.remove(idx);
+            self.invalidate_edge_index();
             self.deleted_edge_ids.insert(edge_id);
 
             Ok(())
