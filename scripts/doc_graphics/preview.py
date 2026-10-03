@@ -59,6 +59,9 @@ def _sheet(out: str, items: list[tuple[str, list[str]]]) -> list[str]:
 
 
 def main() -> None:
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        return
     out, *names = sys.argv[1:]
     os.makedirs(out, exist_ok=True)
     items = []

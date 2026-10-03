@@ -452,3 +452,20 @@ def get_assortativity_nominal(s: Scene) -> None:
             styles=grp)
     s.card_centered(right, ["same tag   6 edges", "cross tag  1 edge",
                             ("r          0.714", "accent")])
+
+
+# --- Laplacian spectrum ---------------------------------------------------------
+
+TRI_LAP = [0.0, 0.830, 2.689, 4.0, 4.481]  # L = D − A, ascending
+
+
+@figure("get_laplacian_spectrum", "graph-metrics", "Laplacian spectrum",
+        "A five-node graph, two triangles sharing an edge plus a pendant, and a bar chart "
+        "of the five eigenvalues of its Laplacian D minus A, sorted from smallest to largest: 0.000, 0.830, 2.689, 4.000, and 4.481. "
+        "The single zero means the graph is connected, and the second-smallest eigenvalue, "
+        "the algebraic connectivity 0.830, is in the accent color.")
+def get_laplacian_spectrum(s: Scene) -> None:
+    left, right = compute(s, "g", "g.get_laplacian_spectrum()")
+    _undirected(s, TRI, TRI_EDGES, left)
+    _bars(s, right, TRI_LAP, [f"{v:.3f}" for v in TRI_LAP], [f"λ{i}" for i in range(1, 6)],
+          accent={1}, bar_w=30, gap=14, scale=26, base_y=160)

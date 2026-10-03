@@ -7,7 +7,10 @@ unlabeled nodes (`R_SMALL`) at one density (`UNIT`), and new nodes are drawn
 carry the point of the method: Johnson nodes are labeled with their subsets,
 preferential-attachment hubs are `accent`, rewired small-world shortcuts are
 `accent`, and the geometric graph shows its connection radius around one
-`soft` node.
+`soft` node. The degree-driven models (configuration model, expected degree)
+put each node's requested degree or weight in a pill, and the stochastic block
+model colors its two blocks `accent` / `g2`. Those three return a new Graph
+rather than adding to `g`, so their captions give just the argument.
 
 Shared layouts so siblings can be compared directly:
 
@@ -17,6 +20,8 @@ Shared layouts so siblings can be compared directly:
 - Random generators are drawn from real seeded edgecase output (seed noted
   next to each edge list); the seed is left out of the captions as plumbing.
 """
+
+import math
 
 from core import R_SMALL, Box, Scene, figure, multiples, place, ring
 
@@ -298,3 +303,99 @@ def add_random_geometric_graph(s: Scene) -> None:
                width=1, dash="4 4")
         s.graph(pos, [(str(a), str(b)) for a, b in edges], labels=False, prefix=f"r{i}.",
                 r=R_SMALL, styles={GEO_HUB: "soft"})
+
+
+# --- degree-driven and block models ------------------------------------------
+# These three return a new Graph instead of adding to `g`. The ring is a bit
+# smaller (BADGE_RING) so a value pill fits outside every node; pills sit on
+# the side facing away from the ring's center.
+
+BADGE_RING = 0.8
+
+
+def _ring_badges(s: Scene, pos: dict, prefix: str, values: dict[str, str]) -> None:
+    """Put `values[k]` in a pill on the outward side of each ring node."""
+    cx = sum(x for x, _ in pos.values()) / len(pos)
+    cy = sum(y for _, y in pos.values()) / len(pos)
+    dirs = ["e", "se", "s", "sw", "w", "nw", "n", "ne"]
+    for k, (x, y) in pos.items():
+        ang = math.degrees(math.atan2(y - cy, x - cx)) % 360
+        s.badge(prefix + k, values[k], where=dirs[round(ang / 45) % 8])
+
+
+CONFIG = {  # g.configuration_model(degree_sequence=..., seed=3)
+    (1, 1, 1, 1): [(1, 4), (2, 3)],
+    (2, 2, 2, 2): [(1, 3), (1, 4), (2, 3), (2, 4)],
+    (3, 2, 2, 2, 1): [(1, 3), (1, 3), (1, 4), (2, 4), (2, 5)],  # a real multi-edge 1-3
+}
+
+
+@figure("configuration_model", "generators", "Configuration model",
+        "Three random graphs built to match a degree sequence, each node's target degree in a "
+        "pill: 1, 1, 1, 1 gives two separate edges; 2, 2, 2, 2 gives a four-cycle; and 3, 2, 2, "
+        "2, 1 on five nodes includes a doubled edge, because the model pairs edge stubs at "
+        "random and may create multi-edges. Every node ends with exactly the degree in its pill.")
+def configuration_model(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"degree_sequence=[{', '.join(map(str, d))}]" for d in CONFIG))
+    for i, (box, (seq, edges)) in enumerate(zip(boxes, CONFIG.items())):
+        coords = _ring_xy(len(seq), BADGE_RING)
+        pos = place(coords, box, unit=UNIT, r=R_SMALL)
+        es, seen = [], set()
+        for a, b in edges:
+            a, b = str(a), str(b)
+            if (a, b) in seen:  # second copy of a multi-edge: bow both copies apart
+                es = [e for e in es if (e[0], e[1]) != (a, b)]
+                es += [(a, b, {"bend": 10}), (b, a, {"bend": 10})]
+            else:
+                es.append((a, b))
+            seen.add((a, b))
+        s.graph(pos, es, labels=False, prefix=f"c{i}.", r=R_SMALL)
+        _ring_badges(s, pos, f"c{i}.", {str(k): str(d) for k, d in enumerate(seq, 1)})
+
+
+CHUNG_LU = {  # g.expected_degree_graph(weights=..., seed=3)
+    (1, 1, 1, 1, 1, 1): [(1, 3), (1, 5)],
+    (2, 2, 2, 2, 2, 2): [(1, 3), (1, 4), (1, 5), (2, 4), (2, 5), (2, 6), (3, 4)],
+    (4, 2, 2, 1, 1, 1): [(1, 2), (1, 3), (1, 4), (1, 5)],
+}
+
+
+@figure("expected_degree_graph", "generators", "Expected degree graph",
+        "Three Chung-Lu random graphs on a ring of six nodes, each node's weight, its expected "
+        "degree, in a pill. All weights 1 give 2 edges and all weights 2 give 7; with weights "
+        "4, 2, 2, 1, 1, 1 the heavy top node gets 4 links. Degrees match the weights only on "
+        "average, so individual nodes can land above or below their pill.")
+def expected_degree_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"weights=[{', '.join(map(str, w))}]" for w in CHUNG_LU))
+    for i, (box, (w, edges)) in enumerate(zip(boxes, CHUNG_LU.items())):
+        pos = _draw(s, box, _ring_xy(len(w), BADGE_RING), edges, prefix=f"w{i}.")
+        _ring_badges(s, pos, f"w{i}.", {str(k): str(x) for k, x in enumerate(w, 1)})
+
+
+# g.generate_stochastic_block_model(sizes=[4, 4], p_matrix=..., seed=16). Both
+# blocks come out complete in all three panels; only the cross edges change.
+SBM_K4 = [(a, b) for blk in ((1, 2, 3, 4), (5, 6, 7, 8)) for i, a in enumerate(blk) for b in blk[i + 1:]]
+SBM = {
+    "0": [],
+    "0.1": [(4, 5), (4, 8)],
+    "0.5": [(1, 7), (2, 6), (2, 7), (2, 8), (3, 6), (4, 5), (4, 8)],
+}
+
+
+@figure("generate_stochastic_block_model", "generators", "Stochastic block model",
+        "Three stochastic block models with two blocks of four nodes, block one in the accent "
+        "color on the left and block two in teal on the right, with edge probability 0.9 inside "
+        "a block and 0, 0.1, and 0.5 between blocks. Both blocks come out fully connected in every "
+        "panel while the plain cross-block edges grow from none to 2 to 7, blurring the split.")
+def generate_stochastic_block_model(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"p_matrix=[0.9, {p}, {p}, 0.9]" for p in SBM))
+    # ids 1..8 clockwise on a slightly wide ring: block 1 fills the left half
+    # (bottom to top), block 2 the right half (top to bottom)
+    coords = {k: (x * 1.25, y) for k, (x, y) in
+              ring([str(i) for i in range(1, 9)], start_deg=112.5).items()}
+    block = {str(i): "accent" if i <= 4 else "g2" for i in range(1, 9)}
+    for i, (box, cross) in enumerate(zip(boxes, SBM.values())):
+        pos = place(coords, box, unit=UNIT, r=R_SMALL)
+        es = [(str(a), str(b), {"style": block[str(a)]}) for a, b in SBM_K4]
+        s.graph(pos, es + [(str(a), str(b)) for a, b in cross], labels=False, prefix=f"b{i}.",
+                r=R_SMALL, styles=block)

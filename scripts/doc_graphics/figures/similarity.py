@@ -10,10 +10,12 @@ Every neighbor-based measure uses the SAME 7-node graph and the same pair
 (B, E), so the reader can compare formulas on identical inputs:
 N(B) = {A, C, D}, N(E) = {C, D, F, G}; the two shared neighbors have different
 degrees (C: 3, D: 2), which is what separates Adamic-Adar and resource
-allocation from the plain count.
+allocation from the plain count. SimRank* and communicability reuse it too.
+The two graph-vs-graph comparisons (edge overlap, edit distance) draw G and H
+side by side in the input panel, with the matched or edited parts in accent.
 """
 
-from core import Scene, compute, figure, place
+from core import SIZE_NOTE, Box, Scene, compute, figure, place
 
 UNIT = 60  # one graph scale for the whole family
 
@@ -258,3 +260,99 @@ def resistance_distance_matrix(s: Scene) -> None:
     rows = [[""] + ids] + [[a] + [val(a, b) for b in ids] for a in ids]
     s.table_centered(right, rows, [28, 38, 38, 38, 38, 38],
                      highlight={(1, 2): "accent", (2, 1): "accent"})
+
+
+# --- SimRank* and communicability: every walk, not just shared neighbors -----
+
+
+def _sub_table(s: Scene, box, vals: dict, note: str) -> None:
+    """4 × 4 table over B, C, D, E (like get_pairwise_similarity), B–E highlighted."""
+    ids = list("BCDE")
+    val = lambda a, b: "1" if a == b else vals.get((a, b)) or vals[(b, a)]  # noqa: E731
+    rows = [[""] + ids] + [[a] + [val(a, b) for b in ids] for a in ids]
+    x0, y0, _, _ = s.table_centered(box, rows, [30, 42, 42, 42, 42],
+                                    highlight={(1, 4): "accent", (4, 1): "accent"})
+    s.text(box.cx, y0 - 12, note, size=SIZE_NOTE, opacity=0.6)
+
+
+SIMRANK = {("B", "C"): "0.46", ("B", "D"): "0.47", ("B", "E"): "0.36", ("C", "D"): "0.32",
+           ("C", "E"): "0.54", ("D", "E"): "0.45"}
+
+
+@figure("simrank_star_similarity", "similarity", "SimRank* similarity",
+        "Nodes B and E are outlined in the accent color, with shared neighbors C and D in "
+        "accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for "
+        "B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.36.")
+def simrank_star_similarity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.simrank_star_similarity()")
+    _shared(s, left)
+    _sub_table(s, right, SIMRANK, "simrank_star[u][v], C = 0.8")
+
+
+@figure("simrank_star_similarity_pair", "similarity", "SimRank* similarity for one pair",
+        "Nodes B and E are outlined in the accent color; the short paths between them through "
+        "C and D are in accent. SimRank* counts paths of every length, decayed by the factor "
+        "C = 0.8 per step, and the card returns a score of 0.356 for the pair.")
+def simrank_star_similarity_pair(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.simrank_star_similarity_pair("B","E")')
+    _shared(s, left)
+    s.card_centered(right, ["in-link paths via C, D, …", "each step decays by C",
+                            ("s*(B, E) = 0.356", "accent")], w=CARD_W, title="importance_factor C = 0.8")
+
+
+@figure("communicability", "similarity", "Communicability",
+        "Nodes B and E are outlined in the accent color, and the two walks of length 2 between "
+        "them, through C and D, are in accent. Communicability sums the walks of every length k "
+        "divided by k factorial, 2/2! + 1/3! + 15/4! and so on, giving 2.069 for B and E.")
+def communicability(s: Scene) -> None:
+    left, right = compute(s, "g", "g.communicability()")
+    _shared(s, left)
+    s.card_centered(right, ["Σ (k-step walks) / k!", "2/2! + 1/3! + 15/4! + …",
+                            ("C[B][E] = 2.069", "accent")], w=CARD_W, title="result[B][E]")
+
+
+# --- comparing two graphs --------------------------------------------------
+
+# G and H on the same four node labels (as in set-ops): both have A–B and B–D.
+SQ = {"A": (0, 0), "B": (1.5, 0), "C": (0, 1.5), "D": (1.5, 1.5)}
+
+
+def _pair(s: Scene, left, g_edges: list, h_edges: list, *, g_styles: dict | None = None,
+          h_styles: dict | None = None, h_pos: dict | None = None) -> None:
+    """G in the left half of the input panel, H in the right half, each captioned."""
+    mid = left.cx
+    gbox = Box(left.x0, left.y0, mid, left.y1)
+    hbox = Box(mid, left.y0, left.x1, left.y1)
+    s.graph(place(SQ, gbox, unit=UNIT), g_edges, styles=g_styles, prefix="g.")
+    s.graph(place(h_pos or SQ, hbox, unit=UNIT), h_edges, styles=h_styles, prefix="h.")
+    # the template's left caption ("G") moves under G; H gets its own
+    cap = next(t for t in s.texts if t.role == "caption" and t.text == "G")
+    cap.x = gbox.cx
+    s.caption(hbox.cx, "H", max_w=hbox.w)
+
+
+@figure("edge_overlap", "similarity", "Edge overlap",
+        "Two graphs on nodes A to D. G and H share edges A–B and B–D, drawn in accent; A–C is "
+        "only in G and C–D only in H. The card counts 2 shared edges out of 4 in the union, "
+        "one unique to each side, for a Jaccard index of 0.5.")
+def edge_overlap(s: Scene) -> None:
+    left, right = compute(s, "G", "G.edge_overlap(H)")
+    hot = {"style": "accent"}
+    _pair(s, left, [("A", "B", hot), ("B", "D", hot), ("A", "C")],
+          [("A", "B", hot), ("B", "D", hot), ("C", "D")])
+    s.card_centered(right, ["overlap = 2   union = 4", "g1_only = 1   g2_only = 1",
+                            ("jaccard = 2 / 4 = 0.5", "accent")], w=CARD_W, title="edges matched by label")
+
+
+@figure("graph_edit_distance", "similarity", "Graph edit distance",
+        "Graph G has nodes A, B, C, D and H has A, B, D, E; both share edges A–B and B–D. "
+        "Turning G into H deletes node C and edge A–C (accent in G) and inserts node E and "
+        "edge D–E (accent in H): four edits at cost 1 each, so the distance is 4.")
+def graph_edit_distance(s: Scene) -> None:
+    left, right = compute(s, "G", "G.graph_edit_distance(H)")
+    hot = {"style": "accent"}
+    _pair(s, left, [("A", "B"), ("B", "D"), ("A", "C", hot)], [("A", "B"), ("B", "D"), ("D", "E", hot)],
+          g_styles={"C": "accent"}, h_styles={"E": "accent"},
+          h_pos={"A": (0, 0), "B": (1.5, 0), "E": (0, 1.5), "D": (1.5, 1.5)})
+    s.card_centered(right, ["delete  node C, edge A–C", "insert  node E, edge D–E",
+                            ("distance = 2 + 2 = 4", "accent")], w=CARD_W, title="cost 1 per edit")

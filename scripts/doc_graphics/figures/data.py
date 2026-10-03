@@ -11,7 +11,9 @@ are ink when they are context and accent when they are what the call is
 about. The query (a node, an edge, an id) is `soft`; what comes back is
 `accent`. The counting methods use a row of four nodes (self-loops and
 parallel edges) or the directed diamond (reciprocal pairs), with the counted
-edges in `accent` and the count or list in the card.
+edges in `accent` and the count or list in the card. The attribute getters
+keep the id pills / edge-id boxes (the result is keyed by id) and show the
+values only in the card; elements lacking the attribute are `muted`.
 """
 
 import math
@@ -435,3 +437,72 @@ def count_asymmetric_node_pairs(s: Scene) -> None:
     left, right = compute(s, "g", "g.count_asymmetric_node_pairs()")
     _mutual_graph(s, left, mutual="muted", oneway="accent")
     s.card_centered(right, ["A → C", "B → C", "B → D", ("count  3", "accent")])
+
+
+# -- attribute getters --------------------------------------------------------
+#
+# The returned dict is keyed by id, so the diamond keeps its id pills / edge-id
+# boxes and the values appear in the card. Elements that lack the attribute are
+# `muted` and missing from the result; ids that come back are accent.
+
+
+@figure("get_node_attrs", "data", "Get node attributes",
+        "The shared four-node graph with node ids in pills. Nodes A, B, and D have an attribute "
+        "x and their ids 1, 2, 4 are highlighted; node C has no x and is faded. The card maps "
+        "node id to value, in storage order, for the three nodes that have it: 1 is 3, 4 is 4, "
+        "2 is 5.")
+def get_node_attrs(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.get_node_attrs("x")')
+    _diamond(s, left, styles={"C": "muted"})
+    _ids(s, accent="ABD")
+    s.card_centered(right, [("{1: 3, 4: 4, 2: 5}", "accent")], title="node id → x")
+
+
+@figure("get_edge_attrs", "data", "Get edge attributes",
+        "The shared four-node graph with edge ids on the edges. Edges 1, 3, and 5 have an "
+        "attribute w and are in the accent color; edges 2 and 4 have no w and are faded. The "
+        "card maps edge id to value for the three edges that have it: 1 is 2, 3 is 5, 5 is 1.")
+def get_edge_attrs(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.get_edge_attrs("w")')
+    _diamond(s, left, edge_styles={e: "muted" if e in (("A", "C"), ("B", "D")) else "accent"
+                                   for e in D_EDGES})
+    _edge_ids(s, accent={1, 3, 5})
+    s.card_centered(right, [("{1: 2, 3: 5, 5: 1}", "accent")], title="edge id → w")
+
+
+@figure("get_edge_attrs_by_id", "data", "Get edge attributes by id",
+        "The shared four-node graph with edge ids on the edges; every edge has an attribute w. "
+        "The queried edges 2 (A to C) and 5 (C to D) are outlined in the accent color with "
+        "their ids highlighted. The card maps just those two ids to their values: 2 is 4 and "
+        "5 is 1.")
+def get_edge_attrs_by_id(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.get_edge_attrs_by_id("w", [2, 5])')
+    _diamond(s, left, edge_styles={("A", "C"): "soft", ("C", "D"): "soft"})
+    _edge_ids(s, accent={2, 5})
+    s.card_centered(right, [("{2: 4, 5: 1}", "accent")], title="edge id → w")
+
+
+# -- totals -------------------------------------------------------------------
+
+
+@figure("count_nodes", "data", "Count nodes",
+        "The shared four-node graph with every node, A to D, in the accent color and its id, "
+        "1 to 4, in a pill. The card returns the node count, 4.")
+def count_nodes(s: Scene) -> None:
+    left, right = compute(s, "g", "g.count_nodes()")
+    _diamond(s, left, styles={k: "accent" for k in DIAMOND})
+    _ids(s, accent="ABCD")
+    s.card_centered(right, [("4", "accent")], title="nodes")
+
+
+@figure("count_edges", "data", "Count edges",
+        "The shared graph, directed, with edge ids on every edge; all six edges are in the "
+        "accent color, including the reverse edge 6 from B back to A. In a directed graph A to "
+        "B and B to A are separate edges, so the card returns 6.")
+def count_edges(s: Scene) -> None:
+    left, right = compute(s, "g", "g.count_edges()")
+    _diamond(s, left, directed=True, edge_styles={e: "accent" for e in D_EDGES},
+             extra=[("B", "A", {"style": "accent", "bend": 14})])
+    s.edges[0].bend = 14  # A→B bows away from its reverse
+    _edge_ids(s, accent={1, 2, 3, 4, 5, 6})
+    s.card_centered(right, [("6", "accent")], title="edges")

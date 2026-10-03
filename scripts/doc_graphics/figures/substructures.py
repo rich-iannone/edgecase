@@ -15,10 +15,15 @@ graph for both spanning trees; one five-node "bull" for matchings,
 independent sets, and cliques; one seven-node graph for dominating sets.
 Methods that return node or edge ids label nodes with their ids (edgecase
 ids start at 1); label-based methods use letters.
+
+The Steiner variants (prize-collecting, directed) reuse the steiner_tree
+graph, with prizes as node badges. The motif methods use the dominating-set
+graph and stack one small motif shape per class on the right (the
+all_spanning_trees rows), with its count (and z-score) beside it.
 """
 
-from core import (R_SMALL, SIZE_CARD, Box, Scene, compute, figure, place,
-                  text_width)
+from core import (R_SMALL, SIZE_CARD, SIZE_NOTE, Box, Scene, compute, figure,
+                  place, text_width)
 
 UNIT = 84  # family-wide grid step for the main graph
 MINI_UNIT = 36  # grid step inside the small multiples (max that keeps rows apart)
@@ -292,3 +297,107 @@ def list_triangles(s: Scene) -> None:
              (a, b, {"style": "g2"}) if (a, b) in t2 else (a, b) for a, b in edges],
             styles={"3": "accent", "6": "accent", "2": "g2", "4": "g2"})
     s.card_centered(right, [("(3, 5, 6)", "accent"), ("(2, 4, 5)", "g2")], title="triangles")
+
+
+# --- later additions: Steiner variants -------------------------------------
+
+# The steiner_tree graph: A on top, the hub D in the middle, E below.
+STEINER = {"A": (1.5, 0), "B": (0, 0.8), "C": (3, 0.8), "D": (1.5, 0.8), "E": (1.5, 1.6)}
+STEINER_EDGES = [("A", "B", 3), ("A", "C", 3), ("B", "E", 4), ("C", "E", 4), ("B", "D", 2),
+                 ("C", "D", 2), ("D", "E", 1)]
+
+
+@figure("prize_collecting_steiner_tree", "substructures", "Prize-collecting Steiner tree",
+        "The weighted graph from the steiner_tree figure, with a prize p in a badge on "
+        "nodes A (1), B (5), C (5), and E (4); edge weights are costs. The tree B–D, D–C, "
+        "D–E (accent) collects B, C, and E through the prize-less node D, while A is left "
+        "out and faded because its prize of 1 does not pay for any edge costing 3. The card "
+        "lists the tree edges and its prize 14 against cost 5.")
+def prize_collecting_steiner_tree(s: Scene) -> None:
+    left, right = compute(s, "g", "g.prize_collecting_steiner_tree(prizes)")
+    tree = {("B", "D"), ("C", "D"), ("D", "E")}
+    s.graph(place(STEINER, left, unit=UNIT), _edges(STEINER_EDGES, tree),
+            styles={"B": "soft", "C": "soft", "E": "soft", "D": "accent", "A": "muted"})
+    prizes = {"A": 1, "B": 5, "C": 5, "E": 4}
+    where = {"A": "e", "B": "n", "C": "n", "E": "e"}
+    for k, v in prizes.items():
+        s.badge(k, f"p={v}", where=where[k], color="ink")
+    s.card_centered(right, ["B–D D–C D–E", ("prize 14, cost 5", "accent")], title="tree edges")
+
+
+@figure("directed_steiner_tree", "substructures", "Directed Steiner tree",
+        "A directed version of the steiner_tree graph, rooted at B with terminals C and E "
+        "outlined. The edge between C and D now points from C to D, so C cannot be reached "
+        "through D: the arborescence B→D→E→C (accent) reaches E through the non-terminal D "
+        "and then C from E. The card lists the three edges and their total weight "
+        "2 + 1 + 4 = 7.")
+def directed_steiner_tree(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.directed_steiner_tree("B", ["C", "E"])')
+    arcs = [("B", "A", 3), ("A", "C", 3), ("B", "E", 4), ("E", "C", 4), ("B", "D", 2),
+            ("C", "D", 2), ("D", "E", 1)]
+    tree = {("B", "D"), ("D", "E"), ("E", "C")}
+    s.graph(place(STEINER, left, unit=UNIT),
+            [(a, b, {"style": "accent" if (a, b) in tree else "muted", "weight": w})
+             for a, b, w in arcs],
+            directed=True,
+            styles={"B": "soft", "C": "soft", "E": "soft", "D": "accent", "A": "muted"})
+    s.card_centered(right, ["B→D D→E E→C", ("2 + 1 + 4 = 7", "accent")], title="tree edges")
+
+
+# --- later additions: motifs -----------------------------------------------
+
+# The two connected 3-node motifs, drawn on one footprint so they compare:
+# the path is the triangle minus its base (drawn dashed, absent).
+MOTIF = {"a": (0, 1), "b": (1, 0), "c": (2, 1)}
+
+
+def _motif_rows(s: Scene, right: Box, rows: list[tuple[bool, str, list[str]]]) -> None:
+    """One motif shape per row in `right`, its numbers beside it.
+
+    `rows` items are (is_triangle, style of the row, text lines); the first
+    line is in card type, any second one is a note under it.
+    """
+    gw = 2 * MINI_UNIT + 2 * R_SMALL
+    tw = max(text_width(t, SIZE_CARD if j == 0 else SIZE_NOTE)
+             for _, _, lines in rows for j, t in enumerate(lines))
+    gap = 18
+    x0 = right.cx - (gw + gap + tw) / 2
+    row_h = right.h / len(rows)
+    for i, (closed, style, lines) in enumerate(rows):
+        cell = Box(x0, right.y0 + i * row_h, x0 + gw, right.y0 + (i + 1) * row_h)
+        pos = place(MOTIF, cell, unit=MINI_UNIT, r=R_SMALL, pad=0)
+        edge = {} if style == "default" else {"style": style}
+        edges = [("a", "b", edge), ("b", "c", edge),
+                 ("a", "c", edge if closed else {"style": "removed"})]
+        s.graph(pos, edges, styles={k: style for k in MOTIF}, labels=False, r=R_SMALL,
+                prefix=f"m{i}.")
+        color = "accent" if style == "accent" else "ink"
+        n = len(lines)
+        for j, t in enumerate(lines):
+            y = cell.cy + (j - (n - 1) / 2) * 19
+            s.text(x0 + gw + gap, y, t, size=SIZE_CARD if j == 0 else SIZE_NOTE,
+                   anchor="start", color=color, weight=600 if j == 0 else 400,
+                   opacity=1 if j == 0 else 0.75, role="card")
+
+
+@figure("motif_census", "substructures", "Motif census",
+        "Left: the seven-node graph from the dominating set figures, a pendant 1, triangle "
+        "2, 3, 4, a bridge 4–5, and triangle 5, 6, 7. Right: the two connected three-node "
+        "motifs with their counts: 2 triangles and 6 induced paths, where a path is a "
+        "triangle with its third edge missing (dashed).")
+def motif_census(s: Scene) -> None:
+    left, right = compute(s, "g", "g.motif_census(size=3)")
+    s.graph(place(DOM, left, unit=UNIT), DOM_EDGES)
+    _motif_rows(s, right, [(True, "accent", ["triangle  2"]), (False, "accent", ["path      6"])])
+
+
+@figure("motif_significance", "substructures", "Motif significance",
+        "The same seven-node graph. Against 100 degree-preserving rewirings (seed 1), its 2 "
+        "triangles are more than expected, z = +1.77 with p = 0.15, shown in the accent "
+        "color; its 6 induced paths are fewer than expected, z = -1.77 with p = 1.00, shown "
+        "in plain ink.")
+def motif_significance(s: Scene) -> None:
+    left, right = compute(s, "g", "g.motif_significance(seed=1)")
+    s.graph(place(DOM, left, unit=UNIT), DOM_EDGES)
+    _motif_rows(s, right, [(True, "accent", ["triangle  2", "z +1.77  p 0.15"]),
+                           (False, "default", ["path      6", "z −1.77  p 1.00"])])

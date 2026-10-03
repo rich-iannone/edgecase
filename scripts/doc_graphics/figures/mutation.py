@@ -9,10 +9,12 @@ so nothing moves except the thing that changed.
 Two base layouts on one grid (columns 1.2 apart, rows 1 apart) keep siblings
 comparable:
 
-- `SQUARE` (A–D, a 4-cycle) for node/edge add/delete and the clean-up trio
-  (`simplify`, `remove_selfloops`, `remove_duplicate_edges`), which all start
-  from the same multigraph: a self-loop on B and a doubled C–D edge.
-- `H` (A–F, two rows joined by the B–E rung) for contractions and the two
+- `SQUARE` (A–D, a 4-cycle) for node/edge add/delete (single, bulk, and by
+  id; the by-id figures add node-id pills at the outer corners) and the
+  clean-up trio (`simplify`, `remove_selfloops`, `remove_duplicate_edges`),
+  which all start from the same multigraph: a self-loop on B and a doubled
+  C–D edge.
+- `H` (A–F, two rows joined by the B–E rung) for contractions and the
   attribute mutations. In contractions the surviving node `u` is `soft` in
   both panels; the absorbed node and its edges are `accent` → `removed`; the
   rerouted edges (and any self-loop the merge creates) are `accent` on the
@@ -20,7 +22,10 @@ comparable:
 
 Attribute mutations keep the structure fixed and change node appearance:
 the left panel shows the source values as ink badges, the right panel the
-written result (colors / sizes) with the badges in the result colors.
+written result (colors / sizes) with the badges in the result colors. The
+plain setters (`set_node_attrs`, `set_edge_attrs`) mirror the selection
+family's `*_ws` setters: the elements named in the call are `soft` in both
+panels and only their values (badges / edge labels) change, turning accent.
 """
 
 from core import Box, Scene, figure, place, transform
@@ -242,3 +247,114 @@ def rescale_node_attrs(s: Scene) -> None:
     for k in H:
         s.badge("l." + k, str(SCORE[k]), color="ink")
         s.badge("r." + k, f"{SIZE[k]:.1f}")
+
+
+# --- bulk and by-id adders -------------------------------------------------------
+#
+# Same SQUARE as add_node/add_edge. The by-id variants tag every node with its
+# integer id (A=1 … D=4, insertion order) in a pill at the outer corner; the
+# ids passed to the call are accent pills in both panels.
+
+ID_AT = {"A": ("1", "nw"), "B": ("2", "ne"), "C": ("3", "sw"), "D": ("4", "se")}
+
+
+def _node_ids(s: Scene, prefix: str, accent: str) -> None:
+    for k, (i, where) in ID_AT.items():
+        s.badge(prefix + k, i, where=where, color="accent" if k in accent else "ink")
+
+
+@figure("add_nodes", "mutation", "Add several nodes",
+        "Before: a four-node cycle A, B, D, C. After: two new nodes, E and F, appear in the "
+        "accent color beside it in one call, with no edges; nothing else changes.")
+def add_nodes(s: Scene) -> None:
+    left, right = transform(s, "g", 'g.add_nodes(["E", "F"])')
+    coords = {**SQUARE, "E": (2.4, 0), "F": (2.4, 1)}
+    before = _place(coords, left)  # place with E, F so A–D line up across panels
+    del before["E"], before["F"]
+    s.graph(before, SQUARE_EDGES, prefix="l.")
+    s.graph(_place(coords, right), SQUARE_EDGES, styles={"E": "accent", "F": "accent"},
+            prefix="r.")
+
+
+@figure("add_edges", "mutation", "Add several edges",
+        "Before: four nodes with two edges, B to A to C. After: two new edges, B to D and C to "
+        "D, appear in the accent color in one call and close the cycle; no nodes are added.")
+def add_edges(s: Scene) -> None:
+    left, right = transform(s, "g", 'g.add_edges([("B", "D"), ("C", "D")])')
+    s.graph(_place(SQUARE, left), SQUARE_EDGES[:2], prefix="l.")
+    s.graph(_place(SQUARE, right),
+            SQUARE_EDGES[:2] + [(a, b, {"style": "accent"}) for a, b in SQUARE_EDGES[2:]],
+            prefix="r.")
+
+
+@figure("add_edge_by_id", "mutation", "Add edge by ID",
+        "Before: four nodes tagged with their integer ids, A 1, B 2, C 3, D 4, joined by three "
+        "edges; the ids 3 and 4 are highlighted. After: a new accent edge joins node 3 (C) and "
+        "node 4 (D), closing the cycle; no nodes are added.")
+def add_edge_by_id(s: Scene) -> None:
+    left, right = transform(s, "g", "g.add_edge_by_id(3, 4)")
+    s.graph(_place(SQUARE, left), SQUARE_EDGES[:3], prefix="l.")
+    s.graph(_place(SQUARE, right), SQUARE_EDGES[:3] + [("C", "D", {"style": "accent"})],
+            prefix="r.")
+    for p in ("l.", "r."):
+        _node_ids(s, p, "CD")
+
+
+@figure("add_edges_by_id", "mutation", "Add several edges by ID",
+        "Before: four nodes tagged with their integer ids, A 1, B 2, C 3, D 4, with two edges, "
+        "B to A to C; the ids 2, 3, and 4 are highlighted. After: the id pairs (2, 4) and (3, 4) "
+        "become two new accent edges, B to D and C to D, closing the cycle.")
+def add_edges_by_id(s: Scene) -> None:
+    left, right = transform(s, "g", "g.add_edges_by_id([(2, 4), (3, 4)])")
+    s.graph(_place(SQUARE, left), SQUARE_EDGES[:2], prefix="l.")
+    s.graph(_place(SQUARE, right),
+            SQUARE_EDGES[:2] + [(a, b, {"style": "accent"}) for a, b in SQUARE_EDGES[2:]],
+            prefix="r.")
+    for p in ("l.", "r."):
+        _node_ids(s, p, "BCD")
+
+
+# --- attribute setters -----------------------------------------------------------
+#
+# H layout, structure fixed. Values sit in ink badges (nodes) or edge labels;
+# the elements named in the call are `soft` in both panels and their written
+# values turn accent on the right. Same values as set_*_attrs_ws, so the
+# selection versions read as the same operation.
+
+X = {"A": 3, "B": 5, "C": 2, "D": 4, "E": 6, "F": 1}
+W = dict(zip(H_EDGES, [3, 1, 4, 2, 6]))
+
+
+def _x_badges(s: Scene, prefix: str, values: dict, changed) -> None:
+    for k, v in values.items():
+        s.badge(prefix + k, str(v), where="n" if H[k][1] == 0 else "s",
+                color="accent" if k in changed else "ink")
+
+
+@figure("set_node_attrs", "mutation", "Set node attributes",
+        "Every node of a six-node graph carries a value x in a badge (A 3, B 5, C 2, D 4, E 6, "
+        "F 1). The call names nodes B and F, outlined in the accent color; after it both read "
+        "7, while the other four nodes keep their values.")
+def set_node_attrs(s: Scene) -> None:
+    left, right = transform(s, "g", 'g.set_node_attrs("x", 7, nodes=["B", "F"])')
+    named = ("B", "F")
+    styles = {k: "soft" for k in named}
+    s.graph(_place(H, left), H_EDGES, styles=styles, prefix="l.")
+    s.graph(_place(H, right), H_EDGES, styles=styles, prefix="r.")
+    _x_badges(s, "l.", X, ())
+    _x_badges(s, "r.", {k: 7 if k in named else v for k, v in X.items()}, named)
+
+
+@figure("set_edge_attrs", "mutation", "Set edge attributes",
+        "Every edge of a six-node graph carries a value w on its label. The call names the "
+        "edge B to E, drawn in a light accent stroke, which holds 4; after it that edge reads "
+        "5, in the accent color, while the other four edges keep their values.")
+def set_edge_attrs(s: Scene) -> None:
+    left, right = transform(s, "g", 'g.set_edge_attrs("w", 5, edges=[("B", "E")])')
+    named = ("B", "E")
+    s.graph(_place(H, left),
+            [(a, b, {"weight": v, **({"style": "soft"} if (a, b) == named else {})})
+             for (a, b), v in W.items()], prefix="l.")
+    s.graph(_place(H, right),
+            [(a, b, {"weight": 5, "style": "accent"}) if (a, b) == named
+             else (a, b, {"weight": v}) for (a, b), v in W.items()], prefix="r.")

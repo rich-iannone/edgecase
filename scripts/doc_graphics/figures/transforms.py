@@ -196,3 +196,57 @@ def transform_with_spanner(s: Scene) -> None:
     diag = [("A", "E"), ("B", "F")]
     s.graph(lp, ladder + [(a, b, {"style": "accent"}) for a, b in diag], prefix="l.")
     s.graph(rp, ladder + [(a, b, {"style": "removed"}) for a, b in diag], prefix="r.")
+
+
+# Bipartite input: the partition projected onto (which=0) on top, the other
+# side underneath; each bottom node gets its own color so every projected
+# edge can be traced to the shared neighbor that created it.
+BIPARTITE = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0), "E": (1, 1.2), "F": (2, 1.2)}
+BIPARTITE_EDGES = [("A", "E"), ("B", "E"), ("C", "E"), ("B", "F"), ("C", "F"), ("D", "F")]
+
+
+@figure("bipartite_projection", "transforms", "Bipartite projection",
+        "A bipartite graph with A, B, C, D on top and E, F below; E, in the accent color, is "
+        "joined to A, B, C and F, in teal, to B, C, D. Projecting onto the top side joins two "
+        "nodes when they share a neighbor below, weighted by how many they share: A-B and A-C "
+        "share only E (accent), B-D and C-D share only F (teal), and B-C shares both, so it "
+        "is a plain edge of weight 2.")
+def bipartite_projection(s: Scene) -> None:
+    left, right = transform(s, "g", "g.bipartite_projection(which=0)")
+    side = {"E": "accent", "F": "g2"}
+    s.graph(place(BIPARTITE, left, unit=UNIT),
+            [(a, b, {"style": side[b]}) for a, b in BIPARTITE_EDGES], styles=side, prefix="l.")
+    # edgecase: weights A-B 1, A-C 1, B-C 2, B-D 1, C-D 1; one-witness edges take
+    # their witness's color, the two-witness edge stays ink.
+    rp = place({"A": (0, 0.6), "B": (1, 0), "C": (1, 1.2), "D": (2, 0.6)}, right, unit=UNIT)
+    s.graph(rp, [("A", "B", {"style": "accent", "weight": 1}),
+                 ("A", "C", {"style": "accent", "weight": 1}),
+                 ("B", "C", {"weight": 2}),
+                 ("B", "D", {"style": "g2", "weight": 1}),
+                 ("C", "D", {"style": "g2", "weight": 1})], prefix="r.")
+
+
+# g.degree_preserving_rewire(n_swaps=1, seed=3) on the GRID ladder: the swap
+# takes A-B and D-E and rewires them as A-E and B-D.
+REWIRE_OUT = [("A", "B"), ("D", "E")]
+REWIRE_IN = [("A", "E"), ("B", "D")]
+
+
+@figure("degree_preserving_rewire", "transforms", "Degree-preserving rewire",
+        "A six-node ladder with each node's degree in a pill: 2 for A, C, D, F and 3 for B "
+        "and E. One swap takes the accent edges A-B and D-E and rewires them as the accent "
+        "diagonals A-E and B-D, with the old edges shown dashed; every degree pill on the "
+        "right matches the left.")
+def degree_preserving_rewire(s: Scene) -> None:
+    left, right = transform(s, "g", "g.degree_preserving_rewire(n_swaps=1)")
+    lp, rp = _both(GRID, left, right)
+    out = {frozenset(e) for e in REWIRE_OUT}
+    s.graph(lp, [(a, b, {"style": "accent"}) if frozenset((a, b)) in out else (a, b)
+                 for a, b in GRID_EDGES], prefix="l.")
+    s.graph(rp, [(a, b, {"style": "removed"}) if frozenset((a, b)) in out else (a, b)
+                 for a, b in GRID_EDGES] + [(a, b, {"style": "accent"}) for a, b in REWIRE_IN],
+            prefix="r.")
+    degree = {k: sum(k in e for e in GRID_EDGES) for k in GRID}
+    for p in ("l.", "r."):
+        for k in GRID:  # same pill spot on both sides: above the top row, below the bottom
+            s.badge(p + k, str(degree[k]), where="n" if k in "ABC" else "s")

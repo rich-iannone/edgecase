@@ -11,9 +11,12 @@ start node, read `[A, B, C]`.
 
 Shared layouts keep siblings comparable:
 - SP: one directed, weighted 6-node graph (A to F by three disjoint routes)
-  for Bellman-Ford, ADA*, k-shortest, simple paths, and the AdaStar planner.
+  for Bellman-Ford, ADA*, k-shortest, simple paths, the AdaStar planner, and
+  the hop-count BFS shortest_path.
 - SQUARE: a 4-node graph for the all-pairs matrices and walk counts.
-- HOUSE: a 5-node graph (a triangle on a square) for every cycle method.
+- HOUSE: a 5-node graph (a triangle on a square) for every cycle method; its
+  directed version (DHOUSE_EDGES) also hosts both random walks, whose visit
+  positions (0 = start) are filled badges on nodes or labels on edges.
 - TRAIL: a spine A-B-C-D with a directed loop at B, where trails, paths,
   and walks differ.
 """
@@ -359,3 +362,84 @@ def get_girth(s: Scene) -> None:
     left, right = compute(s, "g", "g.get_girth()")
     _house(s, left, [list("ABC")])
     s.card_centered(right, ["shortest  [A, B, C]", ("girth     3", "accent")])
+
+
+# The house with directed edges, as in get_cycles (one strongly connected component).
+DHOUSE_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "E"), ("E", "C")]
+
+
+@figure("directed_cycle_basis", "paths", "Directed cycle basis",
+        "The house-shaped graph with directed edges, one strongly connected component. With 6 "
+        "edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the "
+        "triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal.")
+def directed_cycle_basis(s: Scene) -> None:
+    left, right = compute(s, "g", "g.directed_cycle_basis()")
+    _house(s, left, [list("CAB"), list("CABDE")], directed=True, edges=DHOUSE_EDGES)
+    s.card_centered(right, [(bracket(list("CAB")), "accent"), (bracket(list("CABDE")), "g2")],
+                    title="E − V + SCCs = 2 cycles")
+
+
+# --- shortest path by hops -----------------------------------------------------
+
+
+@figure("shortest_path", "paths", "Shortest path (fewest hops)",
+        "The same directed weighted graph with three routes from A to F. shortest_path runs a "
+        "breadth-first search, so it ignores the weights and returns the two-hop path A, D, F "
+        "in the accent color, with filled badges giving each node's position 0, 1, 2.")
+def shortest_path(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.shortest_path("A", "F")')
+    sp_panel(s, left, [MID])
+    for i, k in enumerate(MID):
+        s.badge(k, str(i), filled=True)
+    s.card_centered(right, [("A → D → F", "accent"), "2 hops, weights ignored"],
+                    title="shortest_path_order")
+
+
+# --- random walks ----------------------------------------------------------------
+
+# random_walk("A", steps=6, seed=8) on DHOUSE_EDGES; random_edge_walk with the
+# same seed draws from the same random stream, so it takes the same route.
+WALK = list("ABCABDE")  # random_walk("A", steps=6, seed=8)
+
+
+def _walk_panel(s: Scene, box: Box, *, step_labels: bool) -> None:
+    steps = list(zip(WALK, WALK[1:]))
+    order: dict[tuple[str, str], list[int]] = {}
+    for i, e in enumerate(steps):
+        order.setdefault(e, []).append(i)
+    edges = []
+    for a, b in DHOUSE_EDGES:
+        kw = {"directed": True, "style": "accent" if (a, b) in order else "muted"}
+        if step_labels and (a, b) in order:
+            kw["weight"] = ",".join(map(str, order[(a, b)]))
+        edges.append((a, b, kw))
+    styles = {k: "accent" for k in WALK} if not step_labels else {}
+    styles["A"] = "soft"
+    s.graph(place(HOUSE, box, unit=UNIT), edges, styles=styles)
+
+
+@figure("random_walk", "paths", "Random walk",
+        "A directed house-shaped graph walked from A for 6 steps with a fixed seed. Filled "
+        "badges give each node's positions in the walk, 0 for the start; A and B are visited "
+        "twice. The card lists the 7 visited nodes, A, B, C, A, B, D, E; edge E to C is unused.")
+def random_walk(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.random_walk("A", steps=6, seed=8)')
+    _walk_panel(s, left, step_labels=False)
+    pos: dict[str, list[int]] = {}
+    for i, k in enumerate(WALK):
+        pos.setdefault(k, []).append(i)
+    for k, v in pos.items():
+        s.badge(k, ",".join(map(str, v)), filled=True)
+    s.card_centered(right, [(" → ".join(WALK), "accent")], title="steps + 1 = 7 nodes")
+
+
+@figure("random_edge_walk", "paths", "Random edge walk",
+        "The same directed house walked from A for 6 steps with the same seed, recording edges. "
+        "Each traversed edge, in the accent color, is labeled with its step numbers from 0; "
+        "A to B is taken twice, at steps 0 and 3. The card lists the 6 edges in order.")
+def random_edge_walk(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.random_edge_walk("A", steps=6, seed=8)')
+    _walk_panel(s, left, step_labels=True)
+    hops = [f"{a}→{b}" for a, b in zip(WALK, WALK[1:])]
+    s.card_centered(right, [("  ".join(hops[:3]), "accent"), ("  ".join(hops[3:]), "accent")],
+                    title="(edge_id, source, target) × 6")

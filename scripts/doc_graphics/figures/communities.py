@@ -291,3 +291,117 @@ def find_cohesive_blocks(s: Scene) -> None:
     s.table_centered(right, rows, [44, 26, 50, 66],
                      highlight={**{(2, j): "g2" for j in range(4)},
                                 **{(3, j): "accent" for j in range(4)}})
+
+
+# --- more community detection on the shared CMTY graph ---------------------
+
+
+@figure("cmty_fast_greedy", "communities", "Fast greedy communities",
+        "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
+        "the single edge C to D. Greedily merging the pairs that raise modularity most stops "
+        "at the two clusters, drawn as tinted regions in the accent color and teal. The card "
+        "lists community 0 as D, E, F, G and community 1 as A, B, C.")
+def cmty_fast_greedy(s: Scene) -> None:
+    _cmty(s, "g.cmty_fast_greedy()")
+
+
+@figure("cmty_l_eigenvec", "communities", "Leading eigenvector communities",
+        "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
+        "the single edge C to D. The leading eigenvector of the modularity matrix splits the "
+        "nodes by sign at that edge, and neither side splits further, giving two communities "
+        "drawn in the accent color and teal: 0 is D, E, F, G and 1 is A, B, C.")
+def cmty_l_eigenvec(s: Scene) -> None:
+    _cmty(s, "g.cmty_l_eigenvec()")
+
+
+@figure("cmty_girvan_newman", "communities", "Girvan-Newman communities",
+        "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
+        "the bridge C to D, drawn dashed because it has the highest betweenness and is cut "
+        "first. The partition matches cmty_edge_btwns() but the numbering differs: here "
+        "community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal).")
+def cmty_girvan_newman(s: Scene) -> None:
+    # same partition as cmty_edge_btwns() on CMTY, opposite community ids (edgecase)
+    left, right = compute(s, "g", "g.cmty_girvan_newman()")
+    _partition(s, place(CMTY, left, unit=UNIT), CMTY_EDGES, [list("ABC"), list("DEFG")],
+               edge_kw={("C", "D"): {"style": "removed"}})
+    s.card_centered(right, [("0 → A, B, C", "accent"), ("1 → D, E, F, G", "g2")],
+                    title="community")
+
+
+@figure("cmty_stochastic_block_model", "communities", "Stochastic block model",
+        "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
+        "the single edge C to D. A two-block model fitted with seed 7 puts each cluster in its "
+        "own block, dense inside and sparse between, drawn in the accent color and teal. The "
+        "card lists block 0 as D, E, F, G and block 1 as A, B, C.")
+def cmty_stochastic_block_model(s: Scene) -> None:
+    # EM from a random start: seed=7 reaches the two clusters (other seeds may not)
+    left, right = compute(s, "g", "g.cmty_stochastic_block_model(seed=7)")
+    _partition(s, place(CMTY, left, unit=UNIT), CMTY_EDGES, CMTY_GROUPS)
+    s.card_centered(right, CMTY_CARD, title="block")
+
+
+@figure("label_propagation", "communities", "Label propagation",
+        "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
+        "the edge C to D. Only A (id 1) and G (id 7) are given labels, 0 and 1, shown as "
+        "badges; every other node adopts the label most common among its neighbors, so the "
+        "triangle ends with label 0 (accent) and D, E, F, G with label 1 (teal).")
+def label_propagation(s: Scene) -> None:
+    left, right = compute(s, "g", "g.label_propagation({1: 0, 7: 1})")
+    _partition(s, place(CMTY, left, unit=UNIT), CMTY_EDGES, [list("ABC"), list("DEFG")])
+    # the seeds you pass in carry their fixed label as a badge
+    s.badge("A", "0", where="w")
+    s.badge("G", "1", where="e", color="g2")
+    s.card_centered(right, [("0 → A, B, C", "accent"), ("1 → D, E, F, G", "g2")],
+                    title="label")
+
+
+# --- k-components (CORE without its pendant) -------------------------------
+
+# edgecase's k_components() does not recurse past a cut vertex, so on the full
+# CORE graph (pendant H) it reports only k = 1. Without H the graph is
+# 2-connected and the nesting is reported correctly.
+KCOMP = {k: v for k, v in CORE.items() if k != "H"}
+KCOMP_EDGES = [(a, b) for a, b in CORE_EDGES if "H" not in (a, b)]
+
+
+@figure("k_components", "communities", "k-components",
+        "A seven-node graph: a dense cluster A, B, C, D with a ring through E, F, G. Every "
+        "pair of nodes stays connected after removing any one node, so A to G is the 1- and "
+        "2-component (teal), and the cluster A, B, C, D survives the loss of any two nodes, "
+        "so it is the 3-component (accent). The table lists the components at each level k.")
+def k_components(s: Scene) -> None:
+    left, right = compute(s, "g", "g.k_components()")
+    pos = place(KCOMP, left, unit=UNIT, pad=16)  # room for the outer hull
+    inner, outer = list("ABCD"), list("ABCDEFG")
+    grp = {**{k: "g2" for k in outer}, **{k: "accent" for k in inner}}
+
+    def style(a, b):  # innermost component holding both ends
+        return {"style": "accent"} if a in inner and b in inner else {"style": "g2"}
+    s.graph(pos, [(a, b, style(a, b)) for a, b in KCOMP_EDGES], styles=grp)
+    s.hull(outer, "g2", pad=14)
+    s.hull(inner, "accent", pad=7)
+    rows = [["k", "components"], ["1", "[A … G]"], ["2", "[A … G]"], ["3", "[A B C D]"]]
+    s.table_centered(right, rows, [30, 100],
+                     highlight={**{(i, j): "g2" for i in (1, 2) for j in (0, 1)},
+                                **{(3, j): "accent" for j in (0, 1)}})
+
+
+# --- bipartite sets (the ladder from is_bipartite) -------------------------
+
+LADDER = {"A": (0, 0), "B": (1.4, 0), "C": (2.8, 0), "D": (0, 1.4), "E": (1.4, 1.4),
+          "F": (2.8, 1.4)}
+LADDER_EDGES = [("A", "B"), ("B", "C"), ("A", "D"), ("B", "E"), ("C", "F"), ("D", "E"),
+                ("E", "F")]
+
+
+@figure("bipartite_sets", "communities", "Bipartite sets",
+        "A two-by-three ladder whose nodes alternate between two sides, A, C, E in the accent "
+        "color and B, D, F in teal, with every edge joining the two sides. The card lists the "
+        "two returned sets, 0 as A, C, E and 1 as B, D, F.")
+def bipartite_sets(s: Scene) -> None:
+    left, right = compute(s, "g", "g.bipartite_sets()")
+    # no hulls: the sides interleave, so regions would overlap; color alone (as in
+    # greedy_color and is_bipartite) shows the split
+    _partition(s, place(LADDER, left, unit=UNIT), LADDER_EDGES, [list("ACE"), list("BDF")],
+               hulls=False)
+    s.card_centered(right, [("0 → A, C, E", "accent"), ("1 → B, D, F", "g2")], title="set")
