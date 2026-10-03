@@ -126,8 +126,7 @@ pub fn personalized_pagerank(
                     let end = incoming_offsets_ref[target_idx + 1];
 
                     let mut rank_sum = 0.0;
-                    for i in start..end {
-                        let source_idx = incoming_data_ref[i];
+                    for &source_idx in &incoming_data_ref[start..end] {
                         rank_sum += ranks_ref[source_idx] * inv_out_degree_ref[source_idx];
                     }
 
@@ -140,8 +139,7 @@ pub fn personalized_pagerank(
                 let end = incoming_offsets[target_idx + 1];
 
                 let mut rank_sum = 0.0;
-                for i in start..end {
-                    let source_idx = incoming_data[i];
+                for &source_idx in &incoming_data[start..end] {
                     rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
                 }
 
