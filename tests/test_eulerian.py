@@ -1,3 +1,4 @@
+import pytest
 from edgecase import Graph
 
 
@@ -363,3 +364,61 @@ class TestEulerianEdgeCases:
 
         # Not weakly connected -> not Eulerian
         assert not graph.is_eulerian()
+
+
+class TestEulerianCircuitIsolatedNodes:
+    """Isolated nodes must not be picked as the start (that returned just [node])."""
+
+    @staticmethod
+    def _is_valid_circuit(g, circuit, directed):
+        import collections
+
+        edges = [g.get_edge(e) for e in g.get_edge_ids()]
+        if len(circuit) != len(edges) + 1 or circuit[0] != circuit[-1]:
+            return False
+        remaining = collections.Counter(
+            (e.source, e.target) if directed else frozenset((e.source, e.target)) for e in edges
+        )
+        for a, b in zip(circuit, circuit[1:]):
+            key = (a, b) if directed else frozenset((a, b))
+            if remaining[key] == 0:
+                return False
+            remaining[key] -= 1
+        return True
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_isolated_node_stored_first(self, directed):
+        """With node IDs 1-4, ID 3 comes first in storage (hash) order, so the isolated node
+        is created third to make it the old start node."""
+        g = Graph(directed=directed)
+        for label in ["A", "B", "lonely", "C"]:
+            g.add_node(label=label)
+        g.add_edge("A", "B").add_edge("B", "C").add_edge("C", "A")
+        assert g.get_label_from_id(g.get_node_ids()[0]) == "lonely"  # the case under test
+
+        circuit = g.eulerian_circuit()
+        assert self._is_valid_circuit(g, circuit, directed)
+        assert {g.get_label_from_id(n) for n in circuit} == {"A", "B", "C"}
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_random_eulerian_graphs_with_isolated_nodes(self, directed):
+        import random
+
+        rng = random.Random(3 if directed else 4)
+        for _ in range(100):
+            n = rng.randint(3, 8)
+            labels = [f"iso{i}" for i in range(rng.randint(1, 3))] + [str(i) for i in range(n)]
+            rng.shuffle(labels)
+            g = Graph(directed=directed)
+            for label in labels:
+                g.add_node(label=label)
+            # A union of cycles through node "0" is connected and Eulerian
+            for _ in range(rng.randint(1, 3)):
+                k = rng.randint(2 if directed else 3, n)
+                cycle = ["0"] + [str(x) for x in rng.sample(range(1, n), k - 1)]
+                for a, b in zip(cycle, cycle[1:] + cycle[:1]):
+                    g.add_edge(a, b)
+
+            circuit = g.eulerian_circuit()
+            assert circuit is not None
+            assert self._is_valid_circuit(g, circuit, directed)

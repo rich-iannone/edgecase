@@ -170,8 +170,17 @@ fn hierholzer_circuit(graph: &Graph) -> PyResult<Vec<u64>> {
         }
     }
 
-    // Start from any node with edges
-    let start_node = *graph.get_nodes().keys().next().unwrap();
+    // Start from the first node (in storage order) that has an edge to leave by. Taking the
+    // first node regardless of degree returned just [node] whenever it was isolated; isolated
+    // nodes don't affect the existence check, so they can be present here. In a graph that
+    // passes that check every node with edges has an outgoing one (in = out when directed).
+    // With no edges at all, any node gives the one-node circuit.
+    let start_node = graph
+        .get_nodes()
+        .keys()
+        .copied()
+        .find(|node| adj.get(node).is_some_and(|out| !out.is_empty()))
+        .unwrap_or_else(|| *graph.get_nodes().keys().next().unwrap());
 
     let mut stack = vec![start_node];
     let mut circuit = Vec::new();

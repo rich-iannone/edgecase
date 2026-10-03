@@ -33174,10 +33174,9 @@ class Graph:
         - sequencing problems that reduce to walking every edge of a graph (e.g. de Bruijn
           graphs in genome assembly)
 
-        The circuit starts at an arbitrary node, and when several valid circuits exist only one
-        is returned. Isolated nodes are ignored by the existence check but can interfere with
-        choosing the starting node, so remove them before calling. The method does not modify
-        the graph.
+        The circuit starts at an arbitrary node that has edges, and when several valid circuits
+        exist only one is returned. Isolated nodes are ignored: they don't affect the existence
+        check and never appear in the circuit. The method does not modify the graph.
 
         Returns
         -------
