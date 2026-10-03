@@ -386,7 +386,7 @@ impl QuadTree {
         }
 
         if let Some(ref mut children) = self.children {
-            for (_i, child) in children.iter_mut().enumerate() {
+            for child in children.iter_mut() {
                 if child.bounds.contains(pos) {
                     child.insert(node_index, pos);
                     return;
