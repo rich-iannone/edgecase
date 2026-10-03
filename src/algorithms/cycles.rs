@@ -76,7 +76,7 @@ fn simple_cycles_directed(graph: &Graph, length_bound: Option<usize>) -> PyResul
         let scc = find_scc_containing_node(start_node, &adj_list, &subgraph_nodes);
 
         if scc.len() > 1 || (scc.len() == 1 && adj_list.get(&start_node)
-            .map_or(false, |neighbors| neighbors.contains(&start_node))) {
+            .is_some_and(|neighbors| neighbors.contains(&start_node))) {
             let mut blocked: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
             let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
             let mut path = Vec::with_capacity(scc.len());
@@ -162,15 +162,13 @@ fn simple_cycles_from_node_directed(
 
     if found_cycle {
         unblock(current, blocked, blocked_map);
-    } else {
-        if let Some(neighbors) = adj_list.get(&current) {
-            for &neighbor in neighbors {
-                if scc.contains(&neighbor) {
-                    blocked_map
-                        .entry(neighbor)
-                        .or_insert_with(FxHashSet::default)
-                        .insert(current);
-                }
+    } else if let Some(neighbors) = adj_list.get(&current) {
+        for &neighbor in neighbors {
+            if scc.contains(&neighbor) {
+                blocked_map
+                    .entry(neighbor)
+                    .or_default()
+                    .insert(current);
             }
         }
     }
@@ -931,7 +929,7 @@ pub fn find_cycles(graph: &Graph, min_amount: Option<f64>) -> PyResult<Vec<Vec<u
         let scc = find_scc_containing_node(start_node, &adj_list, &subgraph_nodes);
 
         if scc.len() > 1 || (scc.len() == 1 && adj_list.get(&start_node)
-            .map_or(false, |neighbors| neighbors.contains(&start_node))) {
+            .is_some_and(|neighbors| neighbors.contains(&start_node))) {
             // There might be cycles in this SCC
             let mut blocked: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
             let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
@@ -1099,7 +1097,7 @@ fn find_cycles_from_node(
                 if scc.contains(&neighbor) {
                     blocked_map
                         .entry(neighbor)
-                        .or_insert_with(FxHashSet::default)
+                        .or_default()
                         .insert(current);
                 }
             }
@@ -1239,7 +1237,7 @@ pub fn directed_cycle_basis(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
     }
 
     let sccs = crate::algorithms::connectivity::strongly_connected_components(graph)
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
     let all_edges = graph.edges(); // (id, source, target)
     let mut cycles: Vec<Vec<u64>> = Vec::new();
 
