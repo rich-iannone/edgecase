@@ -58,8 +58,8 @@ impl UnionFind {
     }
 
     fn find(&mut self, mut x: u64) -> u64 {
-        if !self.parent.contains_key(&x) {
-            self.parent.insert(x, x);
+        if let std::collections::hash_map::Entry::Vacant(e) = self.parent.entry(x) {
+            e.insert(x);
             self.rank.insert(x, 0);
             return x;
         }
