@@ -255,6 +255,63 @@ class TestBipartiteClosenessCentrality:
         gene3_id = g.get_id_from_label("Gene3")
         assert cc[gene1_id] >= cc[gene3_id]
 
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_shortest_distances_on_cycle(self, reverse):
+        """Distances are true shortest paths, whatever order the edges were added in.
+
+        On the 8-cycle A-x-B-y-C-z-D-w-A, A is 1 hop from x and w and 3 hops from y
+        and z, so its closeness is 4 / (1 + 3 + 3 + 1) = 0.5 (a depth-first walk
+        around the cycle used to report 5 hops to one of them).
+        """
+        ring = ["A", "x", "B", "y", "C", "z", "D", "w"]
+        edges = [(ring[i], ring[(i + 1) % 8]) for i in range(8)]
+        if reverse:
+            edges = [(t, s) for s, t in reversed(edges)]
+
+        g = ec.Graph()
+        for label in ring:
+            g.add_node(label=label)
+        for source, target in edges:
+            g.add_edge(source, target)
+
+        s0, s1 = g.bipartite_sets()
+        which = 0 if g.get_id_from_label("A") in s0 else 1
+        cc = g.bipartite_closeness_centrality(which=which, return_dict=True)
+
+        assert len(cc) == 4
+        assert all(score == pytest.approx(0.5) for score in cc.values())
+
+    def test_matches_networkx_shortest_paths(self):
+        """Scores match the documented formula computed from NetworkX BFS distances."""
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(7)
+        for seed in range(40):
+            reference = nx.bipartite.random_graph(
+                rng.randint(2, 8), rng.randint(2, 8), 0.4, seed=seed
+            )
+            edges = list(reference.edges())
+            rng.shuffle(edges)
+
+            g = ec.Graph()
+            for node in reference.nodes():
+                g.add_node(label=str(node))
+            for u, v in edges:
+                g.add_edge(str(u), str(v))
+            label_of = {g.get_id_from_label(str(node)): node for node in reference.nodes()}
+
+            s0, s1 = g.bipartite_sets()
+            for which, (targets, others) in enumerate([(s0, s1), (s1, s0)]):
+                cc = g.bipartite_closeness_centrality(which=which, return_dict=True)
+                for node_id in targets:
+                    dist = nx.single_source_shortest_path_length(
+                        reference, label_of[node_id]
+                    )
+                    reached = [dist[label_of[o]] for o in others if label_of[o] in dist]
+                    expected = len(reached) / sum(reached) if reached else 0.0
+                    assert cc[node_id] == pytest.approx(expected)
+
 
 class TestBipartiteBetweennessCentrality:
     def test_returns_correct_count(self, simple_bipartite):

@@ -176,18 +176,23 @@ pub fn bipartite_degree_centrality(
     Ok(result)
 }
 
+/// Hop distances from `source` to every reachable node.
+///
+/// Must be a FIFO queue: each node's distance is fixed when it is first discovered, which
+/// is only the shortest distance if nodes are expanded in breadth-first order. (A LIFO
+/// stack explores depth-first and can overstate distances on graphs with cycles.)
 fn bfs_distances(graph: &Graph, source: u64) -> FxHashMap<u64, f64> {
     let mut dist: FxHashMap<u64, f64> = FxHashMap::default();
     dist.insert(source, 0.0);
-    let mut queue: Vec<u64> = vec![source];
+    let mut queue: std::collections::VecDeque<u64> = std::collections::VecDeque::from([source]);
 
-    while let Some(current) = queue.pop() {
+    while let Some(current) = queue.pop_front() {
         let current_dist = dist[&current];
         if let Ok(neighbors) = graph.neighbors(current) {
             for &neighbor in &neighbors {
                 if let std::collections::hash_map::Entry::Vacant(e) = dist.entry(neighbor) {
                     e.insert(current_dist + 1.0);
-                    queue.push(neighbor);
+                    queue.push_back(neighbor);
                 }
             }
         }
