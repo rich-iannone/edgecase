@@ -17571,7 +17571,15 @@ class Graph:
         A connected triple is a path of length 2 (three nodes where at least two edges connect
         them). Higher transitivity indicates more clustering.
 
-        Returns `None` if there are no connected triples in the graph.
+        On directed graphs, edge direction is followed: a connected triple is a directed path
+        `u -> v -> w` through three distinct nodes, and it counts as closed when the edge
+        `w -> u` exists, completing a directed 3-cycle. The result is the fraction of such paths
+        that close. A path that returns to its start (`u -> v -> u`, from a pair of reciprocal
+        edges) is not a triple, so a triangle with edges in both directions scores `1.0`.
+
+        The measure is computed on the simple graph in both cases: parallel edges count once
+        and self-loops are ignored. Returns `None` if there are no connected triples in the
+        graph.
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
 
@@ -17639,6 +17647,36 @@ class Graph:
 
         # Returns the clustering coefficient (typically 0.1-0.5 for real-world networks)
         trans
+        ```
+
+        In a directed graph, a 3-cycle is fully transitive. Making every edge reciprocal keeps
+        the score at `1.0`, because two-step paths that return to their start aren't triples:
+
+        ```{python}
+        cycle = (
+            ec.Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="A")
+        )
+
+        both_ways = (
+            ec.Graph(directed=True)
+            .add_node(label="A")
+            .add_node(label="B")
+            .add_node(label="C")
+            .add_edge(source="A", target="B")
+            .add_edge(source="B", target="A")
+            .add_edge(source="B", target="C")
+            .add_edge(source="C", target="B")
+            .add_edge(source="C", target="A")
+            .add_edge(source="A", target="C")
+        )
+
+        cycle.get_transitivity(), both_ways.get_transitivity()
         ```
 
         """
