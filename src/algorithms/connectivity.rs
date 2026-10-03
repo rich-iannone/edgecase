@@ -380,6 +380,26 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
         find_k_components_recursive(graph, component, 1, &mut result)?;
     }
 
+    // Different separator choices can reach the same node set, or a subset of
+    // another set at the same level; k-components are the *maximal* sets.
+    for comps in result.values_mut() {
+        for c in comps.iter_mut() {
+            c.sort_unstable();
+        }
+        comps.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+        comps.dedup();
+        let mut kept: Vec<Vec<u64>> = Vec::with_capacity(comps.len());
+        for c in comps.drain(..) {
+            let is_subset = kept.iter().any(|k: &Vec<u64>| {
+                c.iter().all(|x| k.binary_search(x).is_ok())
+            });
+            if !is_subset {
+                kept.push(c);
+            }
+        }
+        *comps = kept;
+    }
+
     Ok(result)
 }
 
@@ -405,15 +425,29 @@ fn find_k_components_recursive(
         result.entry(k).or_default().push(nodes.to_vec());
     }
 
-    if connectivity <= current_k {
+    // A candidate (component + separator) can be disconnected; look inside each piece.
+    if connectivity == 0 {
+        let pieces = if graph.is_directed() {
+            find_directed_components_in_subgraph(graph, nodes)
+        } else {
+            graph.find_components_in_subgraph(nodes)
+        };
+        if pieces.len() > 1 {
+            for piece in pieces {
+                if piece.len() > current_k {
+                    find_k_components_recursive(graph, &piece, current_k, result)?;
+                }
+            }
+        }
         return Ok(());
     }
 
-    // Try to find sub-components with even higher connectivity
-    let next_k = connectivity;
-
-    // Find minimum separators of size = connectivity
-    let separators = graph.find_minimal_separators(nodes, next_k)?;
+    // Even when this set is *only* `connectivity`-connected (no better than the
+    // level we arrived at), denser subsets may hide behind its minimum
+    // separators, so always split there and recurse (Moody-White). Stopping at
+    // `connectivity <= current_k` meant a graph with a cut vertex never got past k=1.
+    let level = current_k.max(connectivity);
+    let separators = graph.find_minimal_separators(nodes, connectivity)?;
 
     if separators.is_empty() {
         return Ok(());
@@ -457,11 +491,13 @@ fn find_k_components_recursive(
             }
             processed.insert(sig);
 
-            if candidate.len() <= next_k {
+            // candidate is a strict subset of `nodes` (the separator splits it),
+            // so the recursion terminates
+            if candidate.len() <= level || candidate.len() >= nodes.len() {
                 continue;
             }
 
-            find_k_components_recursive(graph, &candidate, next_k, result)?;
+            find_k_components_recursive(graph, &candidate, level, result)?;
         }
     }
 
