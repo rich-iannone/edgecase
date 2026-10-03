@@ -122,6 +122,9 @@ fn balance(a: &mut DMatrix<f64>) {
 ///
 /// Port of EISPACK `hqr`. Indices are 1-based internally to mirror the reference
 /// algorithm exactly.
+// Index loops mirror the published 1-based hqr algorithm, which addresses several
+// rows at once; iterator rewrites would obscure it.
+#[allow(clippy::needless_range_loop)]
 fn hessenberg_eigenvalues(h: &DMatrix<f64>) -> Option<Vec<Complex<f64>>> {
     let n = h.nrows();
     let mut a = vec![vec![0.0_f64; n + 1]; n + 1];
