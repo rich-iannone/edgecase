@@ -212,7 +212,7 @@ pub fn maximum_independent_set(graph: &Graph) -> PyResult<Vec<u64>> {
         let mut min_deg = usize::MAX;
         let mut min_node = 0u64;
 
-        for &(node, deg) in &degrees {
+        for &(node, _) in &degrees {
             if available.contains(&node) {
                 // Recalculate effective degree (neighbors still available)
                 let effective_deg = graph
