@@ -1129,6 +1129,9 @@ fn unblock(
 
 /// Detect if graph has any cycle using DFS
 pub fn has_cycle(graph: &Graph) -> bool {
+    if !graph.is_directed() {
+        return has_undirected_cycle(graph);
+    }
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
     let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
@@ -1141,6 +1144,48 @@ pub fn has_cycle(graph: &Graph) -> bool {
             }
     }
 
+    false
+}
+
+/// Undirected cycle check via union-find over the edge list.
+///
+/// A DFS over the (symmetric) adjacency list would see the edge back to the
+/// parent as a cycle, so every graph with an edge would report one. Here an
+/// edge closes a cycle only if it is a self-loop or its endpoints are already
+/// connected, which also counts parallel edges, as a multigraph should.
+fn has_undirected_cycle(graph: &Graph) -> bool {
+    let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
+
+    fn find(parent: &mut FxHashMap<u64, u64>, x: u64) -> u64 {
+        let mut root = x;
+        while let Some(&p) = parent.get(&root) {
+            if p == root {
+                break;
+            }
+            root = p;
+        }
+        // path compression
+        let mut cur = x;
+        while cur != root {
+            let next = *parent.get(&cur).unwrap_or(&root);
+            parent.insert(cur, root);
+            cur = next;
+        }
+        root
+    }
+
+    for (_, u, v) in graph.edges() {
+        if u == v {
+            return true;
+        }
+        parent.entry(u).or_insert(u);
+        parent.entry(v).or_insert(v);
+        let (ru, rv) = (find(&mut parent, u), find(&mut parent, v));
+        if ru == rv {
+            return true;
+        }
+        parent.insert(ru, rv);
+    }
     false
 }
 
@@ -1195,120 +1240,163 @@ pub fn directed_cycle_basis(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
 
     let sccs = crate::algorithms::connectivity::strongly_connected_components(graph)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
-
-    let adj = graph.get_adjacency_list();
+    let all_edges = graph.edges(); // (id, source, target)
     let mut cycles: Vec<Vec<u64>> = Vec::new();
+
+    // Self-loops are one-node directed cycles and each is its own basis element.
+    for &(_, u, v) in &all_edges {
+        if u == v {
+            cycles.push(vec![u]);
+        }
+    }
+
+    let mut johnson: Option<Vec<Vec<u64>>> = None; // computed lazily, at most once
 
     for scc in &sccs {
         if scc.len() < 2 {
             continue;
         }
-
         let scc_set: FxHashSet<u64> = scc.iter().copied().collect();
 
-        // Build DFS arborescence within this SCC
-        let root = scc[0];
-        let mut parent: FxHashMap<u64, u64> = FxHashMap::default();
-        let mut visited: FxHashSet<u64> = FxHashSet::default();
-        let mut tree_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
-        let mut stack = vec![root];
-        visited.insert(root);
+        // Non-loop edges inside the SCC; each gets a coordinate in the edge space.
+        let edges: Vec<(u64, u64)> = all_edges
+            .iter()
+            .filter(|&&(_, u, v)| u != v && scc_set.contains(&u) && scc_set.contains(&v))
+            .map(|&(_, u, v)| (u, v))
+            .collect();
+        let dim = edges.len() + 1 - scc.len(); // cycle-space dimension m - n + 1
+        if dim == 0 {
+            continue;
+        }
 
-        while let Some(u) = stack.pop() {
-            if let Some(neighbors) = adj.get(&u) {
-                for &v in neighbors {
-                    if scc_set.contains(&v) && !visited.contains(&v) {
-                        visited.insert(v);
-                        parent.insert(v, u);
-                        tree_edges.insert((u, v));
-                        stack.push(v);
+        // Edge (u, v) -> coordinate indices (parallel arcs get one index each).
+        let mut index: FxHashMap<(u64, u64), Vec<usize>> = FxHashMap::default();
+        let mut out: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+        for (i, &(u, v)) in edges.iter().enumerate() {
+            index.entry((u, v)).or_default().push(i);
+            out.entry(u).or_default().push(v);
+        }
+
+        let mut basis_rows: Vec<Vec<f64>> = Vec::new(); // row-echelon rows
+        let mut pivots: Vec<usize> = Vec::new();
+        let mut chosen: Vec<Vec<u64>> = Vec::new();
+        let mut used_arcs: FxHashMap<(u64, u64), usize> = FxHashMap::default();
+
+        // Try to add a closed directed walk [n0, n1, ..., nk] (nk -> n0 implied).
+        let try_add = |cycle: &[u64],
+                           used_arcs: &mut FxHashMap<(u64, u64), usize>,
+                           basis_rows: &mut Vec<Vec<f64>>,
+                           pivots: &mut Vec<usize>|
+         -> bool {
+            let mut row = vec![0.0f64; edges.len()];
+            for w in 0..cycle.len() {
+                let (u, v) = (cycle[w], cycle[(w + 1) % cycle.len()]);
+                let Some(ids) = index.get(&(u, v)) else { return false };
+                // rotate among parallel arcs so different cycles can use different copies
+                let k = used_arcs.get(&(u, v)).copied().unwrap_or(0) % ids.len();
+                row[ids[k]] += 1.0;
+            }
+            for (r, &p) in basis_rows.iter().zip(pivots.iter()) {
+                if row[p].abs() > 1e-9 {
+                    let f = row[p] / r[p];
+                    for j in 0..row.len() {
+                        row[j] -= f * r[j];
                     }
+                }
+            }
+            match row.iter().position(|x| x.abs() > 1e-9) {
+                Some(p) => {
+                    for w in 0..cycle.len() {
+                        let key = (cycle[w], cycle[(w + 1) % cycle.len()]);
+                        *used_arcs.entry(key).or_insert(0) += 1;
+                    }
+                    basis_rows.push(row);
+                    pivots.push(p);
+                    true
+                }
+                None => false,
+            }
+        };
+
+        // Candidates: for each arc u -> v, close it with a shortest directed path
+        // v ~> u inside the SCC (always exists, since the SCC is strongly connected).
+        for &(u, v) in &edges {
+            if chosen.len() == dim {
+                break;
+            }
+            if let Some(path) = shortest_directed_path(&out, &scc_set, v, u) {
+                // path = [v, ..., u]; the arc u -> v closes it
+                if try_add(&path, &mut used_arcs, &mut basis_rows, &mut pivots) {
+                    chosen.push(path);
                 }
             }
         }
 
-        // For each non-tree edge (u, v) within the SCC, extract a fundamental cycle.
-        // The cycle is: tree path from root to v, but we need the path that closes.
-        // For a non-tree edge u -> v: find the tree path from v to u (via parent pointers),
-        // then the cycle is v -> ... -> u -> v.
-        for &u in scc {
-            if let Some(neighbors) = adj.get(&u) {
-                for &v in neighbors {
-                    if !scc_set.contains(&v) || tree_edges.contains(&(u, v)) {
-                        continue;
-                    }
-                    // Non-tree edge u -> v. Find tree path from v up to u.
-                    // Since both u and v are in the same SCC's DFS tree rooted at `root`,
-                    // we need to find if there's a tree path from v to u.
-                    // Collect ancestors of u and ancestors of v to find the path.
-                    let path_root_to_u = tree_path_to_root(&parent, u);
-                    let path_root_to_v = tree_path_to_root(&parent, v);
-
-                    // Find LCA (lowest common ancestor)
-                    let ancestors_of_u: FxHashSet<u64> = path_root_to_u.iter().copied().collect();
-
-                    let mut lca = root;
-                    for &node in &path_root_to_v {
-                        if ancestors_of_u.contains(&node) {
-                            lca = node;
-                        }
-                    }
-
-                    // Cycle: path from lca to v (tree), then v...u via tree, then edge u->v
-                    // Actually: tree path lca -> ... -> u, then edge u -> v, then tree path v -> ... -> lca
-                    // But we need lca->u and lca->v from the tree paths.
-                    let seg_lca_to_u = sub_path(&path_root_to_v, &path_root_to_u, lca, u);
-                    let seg_lca_to_v = sub_path(&path_root_to_v, &path_root_to_v, lca, v);
-
-                    // Cycle: lca -> ... -> u -> v -> ... -> lca
-                    // But the tree path lca->u and lca->v are both forward (root-ward to leaf-ward).
-                    // We want: lca -> ... -> u (forward tree), edge u -> v, then v -> ... -> lca (reverse tree)
-                    // However for directed trees the path is always root-to-leaf direction.
-                    // The cycle is: (tree path from lca to u) ++ [edge u->v] ++ (reverse of tree path from lca to v)
-                    let mut cycle = seg_lca_to_u.clone();
-                    // Add v's path in reverse (from v back to lca), skipping lca itself
-                    let mut v_to_lca = seg_lca_to_v.clone();
-                    v_to_lca.reverse();
-                    // Remove the lca from v_to_lca since it's already the start of the cycle
-                    if !v_to_lca.is_empty() {
-                        v_to_lca.pop(); // remove lca at end (which was start of seg_lca_to_v)
-                    }
-                    cycle.extend(v_to_lca);
-
-                    if cycle.len() >= 2 {
-                        cycles.push(cycle);
-                    }
+        // Shortest cycles through each arc almost always span the space; if not,
+        // fall back to all simple cycles (which provably span it for an SCC).
+        if chosen.len() < dim {
+            if johnson.is_none() {
+                johnson = Some(find_cycles(graph, Some(2.0))?);
+            }
+            for c in johnson.as_ref().unwrap() {
+                if chosen.len() == dim {
+                    break;
+                }
+                if c.iter().all(|n| scc_set.contains(n))
+                    && try_add(c, &mut used_arcs, &mut basis_rows, &mut pivots)
+                {
+                    chosen.push(c.clone());
                 }
             }
+        }
+
+        cycles.extend(chosen);
+    }
+
+    // Report each cycle starting at its smallest node ID (rotation keeps the
+    // arc order), so the output doesn't depend on hash or search order.
+    for c in cycles.iter_mut() {
+        if let Some(pos) = c.iter().enumerate().min_by_key(|&(_, v)| *v).map(|(i, _)| i) {
+            c.rotate_left(pos);
         }
     }
 
     Ok(cycles)
 }
 
-fn tree_path_to_root(parent: &FxHashMap<u64, u64>, node: u64) -> Vec<u64> {
-    let mut path = vec![node];
-    let mut current = node;
-    while let Some(&p) = parent.get(&current) {
-        path.push(p);
-        current = p;
-    }
-    path.reverse();
-    path
-}
-
-fn sub_path(
-    _path_root_to_v: &[u64],
-    path_root_to_target: &[u64],
+/// BFS shortest directed path from `from` to `to` using only nodes in `allowed`.
+fn shortest_directed_path(
+    out: &FxHashMap<u64, Vec<u64>>,
+    allowed: &FxHashSet<u64>,
     from: u64,
     to: u64,
-) -> Vec<u64> {
-    let start = path_root_to_target.iter().position(|&n| n == from);
-    let end = path_root_to_target.iter().position(|&n| n == to);
-    match (start, end) {
-        (Some(s), Some(e)) if s <= e => path_root_to_target[s..=e].to_vec(),
-        _ => vec![from, to],
+) -> Option<Vec<u64>> {
+    let mut prev: FxHashMap<u64, u64> = FxHashMap::default();
+    let mut seen: FxHashSet<u64> = FxHashSet::default();
+    let mut queue = VecDeque::new();
+    seen.insert(from);
+    queue.push_back(from);
+    while let Some(x) = queue.pop_front() {
+        if x == to {
+            let mut path = vec![to];
+            let mut cur = to;
+            while cur != from {
+                cur = prev[&cur];
+                path.push(cur);
+            }
+            path.reverse();
+            return Some(path);
+        }
+        if let Some(ns) = out.get(&x) {
+            for &y in ns {
+                if allowed.contains(&y) && seen.insert(y) {
+                    prev.insert(y, x);
+                    queue.push_back(y);
+                }
+            }
+        }
     }
+    None
 }
 
 #[cfg(test)]
@@ -1480,5 +1568,49 @@ mod tests {
         graph.add_test_edge_by_label("C", "A", None);
 
         assert!(has_cycle(&graph));
+    }
+
+    #[test]
+    fn test_has_cycle_undirected_tree_is_acyclic() {
+        let mut graph = Graph::new_rust(false, false);
+        for l in ["A", "B", "C", "D"] {
+            graph.add_test_node(l);
+        }
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
+        graph.add_test_edge_by_label("B", "D", None);
+        assert!(!has_cycle(&graph));
+    }
+
+    #[test]
+    fn test_has_cycle_undirected_triangle() {
+        let mut graph = Graph::new_rust(false, false);
+        for l in ["A", "B", "C"] {
+            graph.add_test_node(l);
+        }
+        graph.add_test_edge_by_label("A", "B", None);
+        graph.add_test_edge_by_label("B", "C", None);
+        graph.add_test_edge_by_label("C", "A", None);
+        assert!(has_cycle(&graph));
+    }
+
+    #[test]
+    fn test_directed_cycle_basis_follows_arrows() {
+        // House: A->B->C->A plus C->E->D->B. Every basis cycle must follow arcs.
+        let mut graph = Graph::new_rust(true, false);
+        for l in ["A", "B", "C", "D", "E"] {
+            graph.add_test_node(l);
+        }
+        for (u, v) in [("A", "B"), ("B", "C"), ("C", "A"), ("C", "E"), ("E", "D"), ("D", "B")] {
+            graph.add_test_edge_by_label(u, v, None);
+        }
+        let arcs: FxHashSet<(u64, u64)> = graph.edges().iter().map(|&(_, u, v)| (u, v)).collect();
+        let basis = directed_cycle_basis(&graph).unwrap();
+        assert_eq!(basis.len(), 2); // m - n + p = 6 - 5 + 1
+        for c in &basis {
+            for i in 0..c.len() {
+                assert!(arcs.contains(&(c[i], c[(i + 1) % c.len()])), "cycle {:?} breaks an arc", c);
+            }
+        }
     }
 }
