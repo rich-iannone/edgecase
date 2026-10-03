@@ -455,3 +455,46 @@ class TestAdvancedPathsIntegration:
 
         # Weighted: distance is sum of weights
         assert w_dist[1][4] == 30.0
+
+
+
+class TestAllPairsNegativeWeights:
+    """Dijkstra-based all-pairs methods reject negative weights instead of hanging."""
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize(
+        "method", ["all_pairs_shortest_path_length", "all_pairs_shortest_path"]
+    )
+    def test_negative_weight_raises(self, method, directed):
+        """The undirected case used to loop forever (a negative edge is a negative cycle)."""
+        import subprocess
+        import sys
+
+        code = (
+            "import edgecase as ec\n"
+            f"g = ec.Graph(directed={directed}, weighted=True)\n"
+            "for label in 'ABC':\n"
+            "    g.add_node(label=label)\n"
+            "g.add_edge('A', 'B', weight=1.0)\n"
+            "g.add_edge('B', 'C', weight=-2.0)\n"
+            "try:\n"
+            f"    g.{method}()\n"
+            "except ValueError as e:\n"
+            "    print('ValueError:', e)\n"
+        )
+        # Run in a subprocess so a regression shows up as a timeout, not a hung test run
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=30
+        ).stdout
+        assert "ValueError" in out
+        assert "bellman_ford_shortest_path" in out
+
+    def test_zero_weights_are_allowed(self):
+        g = Graph(weighted=True)
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B", weight=0.0)
+        g.add_edge("B", "C", weight=2.0)
+
+        a, c = g.get_id_from_label("A"), g.get_id_from_label("C")
+        assert g.all_pairs_shortest_path_length()[a][c] == pytest.approx(2.0)

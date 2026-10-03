@@ -30825,10 +30825,10 @@ class Graph:
 
         Every node appears as an outer key, and each inner dictionary includes the node itself at
         distance `0.0`. Pairs with no connecting path are omitted rather than stored as infinity.
-        Edge weights must be non-negative: Dijkstra gives wrong answers with negative weights, and
-        on an undirected graph a negative edge can keep the computation from terminating. Use
-        `bellman_ford_shortest_path()` for graphs with negative weights. The method does not
-        modify the graph.
+        Edge weights must be non-negative, since Dijkstra can give wrong answers otherwise (and
+        on an undirected graph a negative edge is a negative cycle, so shortest paths aren't
+        defined). A negative weight raises a `ValueError`; use `bellman_ford_shortest_path()`
+        for directed graphs with negative weights. The method does not modify the graph.
 
         Returns
         -------
@@ -30836,6 +30836,11 @@ class Graph:
             Nested dictionary where `result[source][target] = distance`, keyed by node ID. Each
             source maps to itself with distance `0.0`. Only reachable pairs are included;
             unreachable pairs are omitted.
+
+        Raises
+        ------
+        ValueError
+            If any edge has a negative weight (Dijkstra requires non-negative weights).
 
         Technical Notes
         ---------------
@@ -30941,7 +30946,8 @@ class Graph:
 
         Each source maps to itself with the one-node path `[source]`. Unreachable pairs are
         omitted. When several shortest paths tie, only one of them is returned. Edge weights must
-        be non-negative (see `all_pairs_shortest_path_length()`). Storing every path costs much
+        be non-negative: a negative weight raises a `ValueError` (see
+        `all_pairs_shortest_path_length()`). Storing every path costs much
         more memory than storing distances, so prefer the length-only variant when routes are not
         needed. The method does not modify the graph.
 
@@ -30951,6 +30957,11 @@ class Graph:
             Nested dictionary where `result[source][target] = path`, a list of node IDs from
             source to target (both inclusive). Each source maps to itself as `[source]`. Only
             reachable pairs are included; unreachable pairs are omitted.
+
+        Raises
+        ------
+        ValueError
+            If any edge has a negative weight (Dijkstra requires non-negative weights).
 
         Technical Notes
         ---------------

@@ -327,12 +327,38 @@ pub fn all_pairs_shortest_path(
     Ok(result)
 }
 
+/// Reject negative edge weights before running Dijkstra.
+///
+/// Dijkstra assumes no path gets cheaper by adding an edge. With a negative weight it can
+/// return wrong distances, and on an undirected graph a negative edge is a negative cycle
+/// (walk it back and forth) that keeps relaxing forever, so the call never returned.
+fn ensure_non_negative_weights(graph: &Graph) -> PyResult<()> {
+    if let Some(edge) = graph
+        .get_edges_internal()
+        .iter()
+        .find(|e| e.weight.is_some_and(|w| w < 0.0))
+    {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Dijkstra-based shortest paths require non-negative edge weights, but edge {} \
+             ({} -> {}) has weight {}. Use bellman_ford_shortest_path() for graphs with \
+             negative weights (on an undirected graph a negative edge is a negative cycle, \
+             so shortest paths are undefined).",
+            edge.id,
+            edge.source,
+            edge.target,
+            edge.weight.unwrap_or_default()
+        )));
+    }
+    Ok(())
+}
+
 /// Helper function: Compute distances from a single source using Dijkstra
 #[inline]
 pub(crate) fn single_source_dijkstra_distances(
     graph: &Graph,
     source: u64,
 ) -> PyResult<FxHashMap<u64, f64>> {
+    ensure_non_negative_weights(graph)?;
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
     let mut node_to_idx: FxHashMap<u64, usize> =
@@ -396,6 +422,7 @@ fn single_source_dijkstra_paths(
     graph: &Graph,
     source: u64,
 ) -> PyResult<FxHashMap<u64, Vec<u64>>> {
+    ensure_non_negative_weights(graph)?;
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
     let mut node_to_idx: FxHashMap<u64, usize> =
