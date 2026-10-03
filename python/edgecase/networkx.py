@@ -1,3 +1,4 @@
+import importlib.util
 import warnings
 from typing import Optional
 
@@ -196,9 +197,8 @@ def from_networkx(nx_graph, weighted: Optional[bool] = None):
     ```
 
     """
-    try:
-        import networkx as nx
-    except ImportError:
+    # Only availability matters here: the conversion uses methods on `nx_graph` itself.
+    if importlib.util.find_spec("networkx") is None:
         raise ImportError(
             "NetworkX is required for graph conversion. Install it with: pip install networkx"
         )
