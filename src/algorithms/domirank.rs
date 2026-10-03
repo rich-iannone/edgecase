@@ -30,6 +30,7 @@ use rustc_hash::FxHashMap;
 #[pyfunction]
 #[pyo3(signature = (graph, sigma=None, alpha=0.95, dt=0.1, epsilon=1e-5, max_iter=1000, patience=10, max_depth=50))]
 #[inline]
+#[allow(clippy::too_many_arguments)] // one parameter per Python keyword argument
 pub fn domirank(
     graph: &Graph,
     sigma: Option<f64>,
