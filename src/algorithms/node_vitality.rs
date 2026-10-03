@@ -83,11 +83,10 @@ fn compute_sum_of_distances(graph: &Graph, exclude_node: Option<u64>) -> f64 {
         // Sum up all finite distances
         for (&target, &dist) in &distances {
             // Skip self-distances and excluded node
-            if target != source && Some(target) != exclude_node {
-                if dist < f64::INFINITY {
+            if target != source && Some(target) != exclude_node
+                && dist < f64::INFINITY {
                     total_distance += dist;
                 }
-            }
         }
     }
 
@@ -131,8 +130,8 @@ fn bfs_distances(
 
         for neighbor in neighbors {
             // Skip if already visited
-            if !distances.contains_key(&neighbor) {
-                distances.insert(neighbor, current_dist + 1.0);
+            if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
+                e.insert(current_dist + 1.0);
                 queue.push_back(neighbor);
             }
         }
