@@ -1595,16 +1595,18 @@ class Graph:
         ```
 
         """
+        # Validate every item before adding anything, so a malformed list adds no edges
+        parsed = [_parse_edge_item(item) for item in edges]
+
         edges_added = []
         self._recording_depth += 1
-        for item in edges:
-            if len(item) == 3 and isinstance(item[2], dict):
-                source, target, overrides = item
+        try:
+            for source, target, edge_weight, overrides in parsed:
                 merged = {**shared_attrs, **overrides}
-                edge_rel = overrides.get("rel", rel)
-                edge_weight = overrides.get("weight", weight)
-                merged.pop("rel", None)
-                merged.pop("weight", None)
+                edge_rel = merged.pop("rel", rel)
+                dict_weight = merged.pop("weight", None)
+                if edge_weight is None:
+                    edge_weight = dict_weight if "weight" in overrides else weight
                 self.add_edge(
                     source=source,
                     target=target,
@@ -1614,18 +1616,8 @@ class Graph:
                     **merged,
                 )
                 edges_added.append((str(source), str(target)))
-            else:
-                source, target = item[0], item[1]
-                self.add_edge(
-                    source=source,
-                    target=target,
-                    rel=rel,
-                    weight=weight,
-                    auto_create_nodes=auto_create_nodes,
-                    **shared_attrs,
-                )
-                edges_added.append((str(source), str(target)))
-        self._recording_depth -= 1
+        finally:
+            self._recording_depth -= 1
 
         pairs = repr([(s, t) for s, t in edges_added])
         attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
