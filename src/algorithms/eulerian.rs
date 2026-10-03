@@ -159,13 +159,13 @@ fn hierholzer_circuit(graph: &Graph) -> PyResult<Vec<u64>> {
     // Build adjacency list
     for edge in graph.get_edges_internal() {
         adj.entry(edge.source)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push((edge.target, edge.id));
 
         if !graph.is_directed() {
             // For undirected graphs, add reverse edge
             adj.entry(edge.target)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((edge.source, edge.id));
         }
     }
