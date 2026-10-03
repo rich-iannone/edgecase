@@ -113,7 +113,7 @@ pub fn count_strongly_connected_components(graph: &Graph) -> Result<usize, Strin
     for edge in graph.get_edges_internal() {
         transposed
             .entry(edge.target)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(edge.source);
     }
 
@@ -263,7 +263,7 @@ pub fn strongly_connected_components(graph: &Graph) -> Result<Vec<Vec<u64>>, Str
     for edge in graph.get_edges_internal() {
         transposed
             .entry(edge.target)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(edge.source);
     }
 
@@ -358,7 +358,7 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
     // k=1: SCCs for directed, CCs for undirected
     let base_components = if graph.is_directed() {
         strongly_connected_components(graph)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?
     } else {
         weakly_connected_components_list(graph)
     };
