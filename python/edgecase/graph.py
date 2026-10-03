@@ -27579,10 +27579,12 @@ class Graph:
         of connections.
 
         The computation starts with every node at `1`, repeatedly replaces each node's score with
-        the sum of its neighbors' scores (plus a small multiple, `0.01`, of its own score to break
-        ties between eigenvalues of equal magnitude), and rescales the vector to unit Euclidean
-        length. It stops when the scores change by less than `tol=` between rounds or after
-        `max_iter=` rounds.
+        the sum of its neighbors' scores plus its own score (that is, it iterates with `A + I`,
+        as NetworkX does), and rescales the vector to unit Euclidean length. Adding the node's
+        own score leaves the eigenvectors unchanged but breaks the tie between the eigenvalues
+        `λ` and `-λ` that every bipartite graph (trees, stars, even cycles) has, so the scores
+        settle instead of oscillating. It stops when the scores change by less than `tol=`
+        between rounds or after `max_iter=` rounds.
 
         Typical uses include:
 
@@ -27598,9 +27600,10 @@ class Graph:
           *to* (its successors), so nodes that point at important nodes rank highly. On acyclic
           directed graphs the principal eigenvector is degenerate and the result is not
           meaningful; consider `katz_centrality()` or `pagerank()` instead
-        - on bipartite graphs (trees, stars, even cycles) the power iteration converges slowly,
-          and the default `max_iter=100` may stop before the scores have settled; raise
-          `max_iter=` if precision matters (see the examples)
+        - graphs whose two largest eigenvalues are close (large grids, long paths, big random
+          trees) converge slowly. If `max_iter=` runs out before the scores settle, a
+          `RuntimeWarning` is emitted and the last round's scores are returned; raise
+          `max_iter=` to refine them
         - for a disconnected graph the scores tend to concentrate on the component with the
           largest eigenvalue
 
@@ -27608,8 +27611,9 @@ class Graph:
         ----------
         max_iter
             Maximum number of power-iteration rounds. Defaults to `100`. If the scores have not
-            converged by then, the values from the last round are returned without a warning.
-            Increase it for large graphs, bipartite graphs, or when using a very small `tol=`.
+            converged by then, the values from the last round are returned and a
+            `RuntimeWarning` is emitted. Increase it for large graphs, graphs with a small
+            spectral gap, or when using a very small `tol=`.
         tol
             Convergence threshold. Iteration stops once the sum of absolute changes in the
             (normalized) scores between two consecutive rounds falls below `tol=`. Defaults to
@@ -27655,9 +27659,9 @@ class Graph:
         {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
         ```
 
-        A star graph is bipartite, which makes the power iteration converge slowly. With the
-        default `max_iter=100` the hub's score is still well short of its exact value
-        (`1 / sqrt(2)`, about `0.707`); allowing more iterations gets there:
+        A star graph is bipartite, so a plain power iteration would bounce between two vectors.
+        Iterating with `A + I` avoids that, and the default settings reach the exact values: the
+        hub scores `1 / sqrt(2)`, about `0.707`, and the three leaves share the rest equally:
 
         ```{python}
         star = (
@@ -27671,13 +27675,8 @@ class Graph:
             .add_edge("hub", "C")
         )
 
-        default = star.eigen_centrality(return_dict=True)
-        longer = star.eigen_centrality(max_iter=1000, return_dict=True)
-
-        {
-            star.get_label_from_id(nid): (round(default[nid], 3), round(longer[nid], 3))
-            for nid in sorted(default)
-        }
+        scores = star.eigen_centrality(return_dict=True)
+        {star.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
         ```
 
         Storing the scores under a custom name and chaining into an aesthetic method is a common
@@ -27693,7 +27692,16 @@ class Graph:
         )
         ```
         """
-        centrality = self._graph.get_eigen_centrality(max_iter, tol)
+        centrality, converged = self._graph.get_eigen_centrality(max_iter, tol)
+        if not converged:
+            import warnings
+
+            warnings.warn(
+                f"eigen_centrality() did not converge within max_iter={max_iter} rounds "
+                f"(tol={tol}); the scores may be inaccurate. Increase max_iter= to refine them.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         # Auto-generate attribute name if not provided
         if attr_name is None:
@@ -36241,10 +36249,9 @@ class Graph:
           when hunting for a large independent set
 
         For the largest set the library can find, use `maximum_independent_set()`, which uses a
-        deterministic degree-based heuristic. This method is intended for undirected graphs: on a
-        directed graph, choosing a node only rules out its out-neighbors, so the result can
-        contain both endpoints of an edge. Call `to_undirected()` first if you need independence
-        regardless of edge direction.
+        deterministic degree-based heuristic. Edge direction is ignored, as in
+        `is_independent_set()`: on a directed graph, an edge `A -> B` means `A` and `B` can't
+        both be chosen. Self-loops are ignored.
 
         Parameters
         ----------
@@ -36357,7 +36364,9 @@ class Graph:
 
         The algorithm works by iteratively selecting the node with the minimum number of neighbors
         (among remaining candidates), adding it to the set, and removing it and its neighbors from
-        further consideration.
+        further consideration. Edge direction is ignored, as in `is_independent_set()`: on a
+        directed graph, an edge `A -> B` makes `A` and `B` neighbors of each other. Parallel
+        edges count once and self-loops are ignored.
 
         Returns
         -------
@@ -36456,7 +36465,7 @@ class Graph:
         At most `3 * count` attempts are made. Duplicate sets are discarded, so the method stops
         early once `count` distinct sets are found and returns fewer than `count` sets if the
         attempts run out first (for example, when the graph only has a few maximal independent
-        sets). Like `maximal_independent_set()`, it is intended for undirected graphs.
+        sets). Like `maximal_independent_set()`, it ignores edge direction.
 
         Parameters
         ----------

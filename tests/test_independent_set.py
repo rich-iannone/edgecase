@@ -718,3 +718,69 @@ class TestDocstringExamples:
         # Should sum to total nodes
         assert len(mis) + len(vertex_cover) == graph.count_nodes()
         assert len(mis) == 4  # Half of 8
+
+
+class TestIndependentSetDirected:
+    """Edge direction is ignored: an edge A -> B rules out keeping both A and B."""
+
+    @staticmethod
+    def _undirected_adjacency(g):
+        adj = {node_id: set() for node_id in g.get_node_ids()}
+        for edge_id in g.get_edge_ids():
+            edge = g.get_edge(edge_id)
+            if edge.source != edge.target:
+                adj[edge.source].add(edge.target)
+                adj[edge.target].add(edge.source)
+        return adj
+
+    def test_single_arc_keeps_one_endpoint(self):
+        g = Graph(directed=True)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge("A", "B")
+
+        for seed in range(10):
+            assert len(g.maximal_independent_set(seed=seed)) == 1
+        assert len(g.maximum_independent_set()) == 1
+
+    def test_in_neighbor_of_start_node_is_excluded(self):
+        """A start node also rules out nodes that point *into* it."""
+        g = Graph(directed=True)
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B").add_edge("C", "B")
+        b_id = g.get_id_from_label("B")
+
+        assert g.maximal_independent_set(nodes=[b_id], seed=1) == [b_id]
+
+    def test_start_nodes_joined_by_arc_are_rejected(self):
+        g = Graph(directed=True)
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge("A", "B")
+        ids = [g.get_id_from_label("B"), g.get_id_from_label("A")]
+
+        with pytest.raises(ValueError, match="independent set"):
+            g.maximal_independent_set(nodes=ids)
+
+    def test_random_directed_graphs_give_valid_maximal_sets(self):
+        import random
+
+        rng = random.Random(9)
+        for seed in range(80):
+            n = rng.randint(2, 12)
+            g = Graph(directed=True)
+            for i in range(n):
+                g.add_node(label=str(i))
+            for _ in range(rng.randint(1, 2 * n)):
+                g.add_edge(str(rng.randrange(n)), str(rng.randrange(n)))
+            adj = self._undirected_adjacency(g)
+
+            candidates = [g.maximal_independent_set(seed=seed), g.maximum_independent_set()]
+            candidates += g.find_maximal_independent_sets(3, seed=seed)
+            for chosen in candidates:
+                members = set(chosen)
+                assert g.is_independent_set(chosen)
+                assert all(not (adj[u] & members) for u in members)
+                # Maximal: every other node touches the set
+                assert all(adj[v] & members for v in adj if v not in members)

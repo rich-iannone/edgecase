@@ -88,11 +88,12 @@ class TestEigenCentrality:
         G.add_edge("B", "C")
         G.add_edge("A", "C")
 
-        eigen = G.eigen_centrality(return_dict=True)
+        # A DAG has no meaningful principal eigenvector: power iteration on (A + I) only
+        # drifts polynomially, so it doesn't settle and the method warns about it
+        with pytest.warns(RuntimeWarning, match="did not converge"):
+            eigen = G.eigen_centrality(return_dict=True)
 
-        # For DAGs with diagonal shift, nodes may have varying centrality
-        # The implementation uses symmetrized adjacency, so results vary
-        # Just verify all values are positive and normalized
+        # Values are still non-negative and normalized
         values = list(eigen.values())
         assert all(v >= 0 for v in values), "All centrality values should be non-negative"
         norm = sum(v**2 for v in values) ** 0.5
@@ -267,3 +268,59 @@ class TestAlphaCentrality:
         total = sum(x.values())
         for n in "ABCDE":
             assert got[n] == pytest.approx(x[n] / total, rel=1e-6)
+
+
+class TestEigenCentralityConvergence:
+    """Power iteration on A + I converges on bipartite graphs and warns when it can't."""
+
+    @staticmethod
+    def _star(leaves):
+        g = ec.Graph()
+        g.add_node(label="hub")
+        for i in range(leaves):
+            g.add_node(label=f"leaf{i}")
+            g.add_edge("hub", f"leaf{i}")
+        return g
+
+    @pytest.mark.parametrize("leaves", [3, 5, 20])
+    def test_star_reaches_exact_values_by_default(self, leaves):
+        """Star hub is 1/sqrt(2) and each leaf 1/sqrt(2 * leaves); used to stop at ~0.645."""
+        g = self._star(leaves)
+        scores = g.eigen_centrality(return_dict=True)
+
+        assert scores[g.get_id_from_label("hub")] == pytest.approx(2 ** -0.5, abs=1e-6)
+        for i in range(leaves):
+            assert scores[g.get_id_from_label(f"leaf{i}")] == pytest.approx(
+                (2 * leaves) ** -0.5, abs=1e-6
+            )
+
+    def test_bipartite_graphs_match_exact_eigenvector(self):
+        nx = pytest.importorskip("networkx")
+        np = pytest.importorskip("numpy")
+        graphs = [
+            nx.complete_bipartite_graph(3, 5),
+            nx.balanced_tree(2, 4),
+            nx.path_graph(10),
+            nx.cycle_graph(8),
+            nx.convert_node_labels_to_integers(nx.grid_2d_graph(4, 4)),
+        ]
+        for reference in graphs:
+            g = ec.Graph()
+            for node in reference:
+                g.add_node(label=str(node))
+            for u, v in reference.edges():
+                g.add_edge(str(u), str(v))
+
+            adjacency = nx.to_numpy_array(reference, nodelist=list(reference), weight=None)
+            _, vectors = np.linalg.eigh(adjacency)
+            exact = np.abs(vectors[:, -1])
+
+            scores = g.eigen_centrality(return_dict=True)
+            for k, node in enumerate(reference):
+                assert scores[g.get_id_from_label(str(node))] == pytest.approx(exact[k], abs=1e-5)
+
+    def test_warns_when_max_iter_runs_out(self):
+        g = self._star(5)
+        with pytest.warns(RuntimeWarning, match="max_iter=2"):
+            g.eigen_centrality(max_iter=2, return_dict=True)
+

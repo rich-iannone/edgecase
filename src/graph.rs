@@ -4985,18 +4985,18 @@ impl Graph {
     /// Measures importance based on connections to other important nodes
     ///
     /// Optimized implementation using dense arrays instead of HashMaps for better cache locality
+    ///
+    /// Returns the scores and whether the iteration converged within `max_iter` rounds.
     #[inline]
-    fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> FxHashMap<u64, f64> {
+    fn get_eigen_centrality(&self, max_iter: usize, tol: f64) -> (FxHashMap<u64, f64>, bool) {
         let n = self.num_nodes();
         if n == 0 {
-            return FxHashMap::default();
+            return (FxHashMap::default(), true);
         }
 
         // Special case: single node
         if n == 1 {
-            return self.nodes.keys()
-                .map(|&id| (id, 1.0))
-                .collect();
+            return (self.nodes.keys().map(|&id| (id, 1.0)).collect(), true);
         }
 
         // Create node_id -> index mapping for dense array access
@@ -5023,13 +5023,16 @@ impl Graph {
             }
         }
 
-        // Power iteration with shift to handle degenerate eigenvalues
-        // Add small diagonal shift: (A + εI) ensures largest eigenvalue is unique
-        // Hoist constant outside loop for better performance
-        let shift = 0.01; // Small positive shift
+        // Power iteration on (A + I), as NetworkX does. A + I has the same eigenvectors as A,
+        // but the shift breaks the tie between eigenvalues λ and -λ on bipartite graphs (trees,
+        // stars, even cycles): the unwanted component shrinks by (λ - 1)/(λ + 1) per round. A
+        // tiny shift (it used to be 0.01) leaves that ratio near 1, so the scores kept
+        // oscillating and 100 rounds stopped far from the answer (star hub 0.645 vs 0.707)
+        let shift = 1.0;
 
         let mut centrality = vec![1.0; n];
         let mut new_centrality = vec![0.0; n];
+        let mut converged = false;
 
         for _iter in 0..max_iter {
             // Matrix-vector multiply: new = (A + εI) * centrality
@@ -5053,7 +5056,8 @@ impl Graph {
             if norm < 1e-10 {
                 // Converged to zero (disconnected or DAG), use uniform
                 let uniform_value = 1.0 / (n as f64).sqrt();
-                new_centrality.fill(uniform_value);
+                centrality.fill(uniform_value);
+                converged = true;
                 break;
             }
 
@@ -5072,15 +5076,17 @@ impl Graph {
             std::mem::swap(&mut centrality, &mut new_centrality);
 
             if delta < tol {
+                converged = true;
                 break;
             }
         }
 
         // Convert back to HashMap with node IDs
-        node_ids.iter()
+        let scores = node_ids.iter()
             .enumerate()
             .map(|(idx, &node_id)| (node_id, centrality[idx]))
-            .collect()
+            .collect();
+        (scores, converged)
     }
 
     /// Get Bonacich power centrality

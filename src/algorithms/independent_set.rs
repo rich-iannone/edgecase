@@ -11,7 +11,29 @@ use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
+
+/// Neighbors of every node with edge direction ignored (in- and out-neighbors), deduplicated
+/// and without self-loops.
+///
+/// Independence is a property of the underlying undirected graph: an edge `A -> B` means `A`
+/// and `B` can't both be chosen, which is how `is_independent_set()` checks it. Using
+/// `Graph::neighbors()` directly would only rule out out-neighbors on directed graphs.
+fn undirected_neighbors(graph: &Graph) -> FxHashMap<u64, Vec<u64>> {
+    let mut adj: FxHashMap<u64, Vec<u64>> =
+        graph.get_node_ids().into_iter().map(|id| (id, Vec::new())).collect();
+    for edge in graph.get_edges_internal() {
+        if edge.source != edge.target {
+            adj.entry(edge.source).or_default().push(edge.target);
+            adj.entry(edge.target).or_default().push(edge.source);
+        }
+    }
+    for neighbors in adj.values_mut() {
+        neighbors.sort_unstable();
+        neighbors.dedup();
+    }
+    adj
+}
 
 /// Find a maximal independent set in the graph.
 ///
@@ -47,6 +69,8 @@ pub fn maximal_independent_set(
         return Ok(Vec::new());
     }
 
+    let adj = undirected_neighbors(graph);
+
     // Initialize independent set
     let mut independent_set: FxHashSet<u64> = FxHashSet::default();
     let mut excluded: FxHashSet<u64> = FxHashSet::default();
@@ -70,9 +94,8 @@ pub fn maximal_independent_set(
 
         // Check for adjacency between starting nodes
         for &node in &start_nodes {
-            let neighbors = graph.neighbors(node)?;
-            for neighbor in neighbors {
-                if independent_set.contains(&neighbor) && neighbor != node {
+            for neighbor in &adj[&node] {
+                if independent_set.contains(neighbor) {
                     return Err(pyo3::exceptions::PyValueError::new_err(
                         "Starting nodes do not form an independent set (adjacent nodes found)"
                     ));
@@ -83,10 +106,7 @@ pub fn maximal_independent_set(
         // Mark starting nodes and their neighbors as excluded from further consideration
         for &node in &start_nodes {
             excluded.insert(node);
-            let neighbors = graph.neighbors(node)?;
-            for neighbor in neighbors {
-                excluded.insert(neighbor);
-            }
+            excluded.extend(adj[&node].iter().copied());
         }
     }
 
@@ -116,11 +136,8 @@ pub fn maximal_independent_set(
         independent_set.insert(node);
         excluded.insert(node);
 
-        // Exclude all neighbors
-        let neighbors = graph.neighbors(node)?;
-        for neighbor in neighbors {
-            excluded.insert(neighbor);
-        }
+        // Exclude all neighbors, whichever way the edge points
+        excluded.extend(adj[&node].iter().copied());
     }
 
     // Return sorted for deterministic output order
@@ -196,30 +213,21 @@ pub fn maximum_independent_set(graph: &Graph) -> PyResult<Vec<u64>> {
         return Ok(Vec::new());
     }
 
+    let adj = undirected_neighbors(graph);
+
     // Track which nodes are still available
     let mut available: FxHashSet<u64> = all_nodes.iter().copied().collect();
     let mut independent_set: Vec<u64> = Vec::new();
-
-    // Pre-compute initial degrees
-    let mut degrees: Vec<(u64, usize)> = Vec::with_capacity(all_nodes.len());
-    for &node in &all_nodes {
-        let deg = graph.neighbors(node)?.len();
-        degrees.push((node, deg));
-    }
 
     while !available.is_empty() {
         // Find node with minimum degree among available nodes
         let mut min_deg = usize::MAX;
         let mut min_node = 0u64;
 
-        for &(node, _) in &degrees {
+        for &node in &all_nodes {
             if available.contains(&node) {
                 // Recalculate effective degree (neighbors still available)
-                let effective_deg = graph
-                    .neighbors(node)?
-                    .iter()
-                    .filter(|n| available.contains(n))
-                    .count();
+                let effective_deg = adj[&node].iter().filter(|n| available.contains(n)).count();
 
                 if effective_deg < min_deg || (effective_deg == min_deg && node < min_node) {
                     min_deg = effective_deg;
@@ -232,10 +240,9 @@ pub fn maximum_independent_set(graph: &Graph) -> PyResult<Vec<u64>> {
         independent_set.push(min_node);
         available.remove(&min_node);
 
-        // Remove all neighbors from available set
-        let neighbors = graph.neighbors(min_node)?;
-        for neighbor in neighbors {
-            available.remove(&neighbor);
+        // Remove all neighbors from available set, whichever way the edge points
+        for neighbor in &adj[&min_node] {
+            available.remove(neighbor);
         }
     }
 
