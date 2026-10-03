@@ -525,12 +525,12 @@ class TestEdgeWeightLookupAfterMutation:
         g.add_edge("D", "C", weight=0.5)
         assert self._dist(g, "A", "C") == pytest.approx(1.0)
 
-    def test_first_parallel_edge_keeps_its_weight(self):
-        """A later parallel edge doesn't replace the first edge's weight (first match wins)."""
+    def test_cheaper_parallel_edge_added_later_is_used(self):
+        """The cheapest parallel edge sets the step cost, even if added later (or reversed)."""
         g = self._triangle()
         assert self._dist(g, "A", "C") == pytest.approx(2.0)
-        g.add_edge("C", "A", weight=0.1)  # undirected parallel to A-C, added later
-        assert self._dist(g, "A", "C") == pytest.approx(2.0)
+        g.add_edge("C", "A", weight=0.1)  # undirected parallel to A-C, stored the other way
+        assert self._dist(g, "A", "C") == pytest.approx(0.1)
 
     def test_deleted_edge_is_forgotten(self):
         g = self._triangle()
@@ -568,3 +568,83 @@ class TestEdgeWeightLookupAfterMutation:
         assert g.get_edge(ids[0]) is None
         for edge_id in ids[1:]:
             assert g.get_edge(edge_id).id == edge_id
+
+
+class TestParallelEdgeWeights:
+    """Weighted path searches use the cheapest of several parallel edges (as NetworkX does)."""
+
+    @staticmethod
+    def _parallel(directed=False):
+        g = Graph(directed=directed, weighted=True)
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B", weight=5.0)  # first, expensive
+        g.add_edge("A", "B", weight=1.0)  # later, cheap
+        g.add_edge("B", "C", weight=1.0)
+        g.add_edge("A", "C", weight=3.0)
+        return g
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_dijkstra_family_uses_cheapest(self, directed):
+        g = self._parallel(directed)
+        a, c = g.get_id_from_label("A"), g.get_id_from_label("C")
+        assert g.all_pairs_shortest_path_length()[a][c] == pytest.approx(2.0)
+        assert g.all_pairs_shortest_path()[a][c] == [a, g.get_id_from_label("B"), c]
+        assert g.k_shortest_paths("A", "C", 1)[0][1] == pytest.approx(2.0)
+
+    def test_bellman_ford_uses_cheapest(self):
+        g = self._parallel(directed=True)
+        path = g.bellman_ford_shortest_path("A", "C", return_list=True)
+        assert [g.get_label_from_id(n) for n in path] == ["A", "B", "C"]
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_ada_star_uses_cheapest(self, directed):
+        g = self._parallel(directed)
+        path = g.ada_star_search("A", "C")
+        assert [g.get_label_from_id(n) for n in path] == ["A", "B", "C"]
+
+    def test_steiner_tree_reports_cheapest_edge(self):
+        g = self._parallel()
+        edges = g.steiner_tree(["A", "C"], return_subgraph=False)
+        assert sum(w for *_, w in edges) == pytest.approx(2.0)
+
+    def test_matches_networkx_multigraph(self):
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(42)
+        for seed in range(40):
+            directed = seed % 2 == 0
+            n = rng.randint(4, 10)
+            g = Graph(directed=directed, weighted=True)
+            multi = nx.MultiDiGraph() if directed else nx.MultiGraph()
+            for i in range(n):
+                g.add_node(label=str(i))
+                multi.add_node(i)
+            for _ in range(rng.randint(n, 3 * n)):
+                u, v = rng.sample(range(n), 2)
+                for _ in range(rng.choice([1, 2, 3])):
+                    w = round(rng.uniform(0.5, 5), 1)
+                    a, b = (u, v) if (directed or rng.random() < 0.5) else (v, u)
+                    g.add_edge(str(a), str(b), weight=w)
+                    multi.add_edge(a, b, weight=w)
+
+            got = g.all_pairs_shortest_path_length()
+            for u, dists in nx.all_pairs_dijkstra_path_length(multi):
+                for v, d in dists.items():
+                    uid, vid = g.get_id_from_label(str(u)), g.get_id_from_label(str(v))
+                    assert got[uid][vid] == pytest.approx(d)
+
+    def test_label_propagation_sums_parallel_edges(self):
+        """Each parallel edge votes with its own weight: two 1.0 edges outweigh one 1.5 edge."""
+        g = Graph(weighted=True)
+        for label in ["X", "L0", "L1"]:
+            g.add_node(label=label)
+        g.add_edge("X", "L0", weight=1.0)
+        g.add_edge("X", "L0", weight=1.0)
+        g.add_edge("X", "L1", weight=1.5)
+        seeds = {g.get_id_from_label("L0"): 0, g.get_id_from_label("L1"): 1}
+
+        result = g.label_propagation(seeds, return_dict=True)
+        assert result[g.get_id_from_label("X")] == 0
+

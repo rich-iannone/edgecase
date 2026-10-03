@@ -128,17 +128,11 @@ fn single_source_bfs(
     distances
 }
 
-/// Get edge weight, checking both directions for undirected graphs
+/// Get edge weight; `Graph::get_edge_weight()` already considers both orientations of an
+/// undirected edge and takes the cheapest parallel edge
 #[inline]
 fn get_edge_weight_bidirectional(graph: &Graph, from: u64, to: u64) -> f64 {
-    // Try forward direction first
-    let weight = graph.get_edge_weight(from, to);
-    if weight != 1.0 || graph.is_directed() {
-        // Found a weight or it's directed (default 1.0 is correct)
-        return weight;
-    }
-    // For undirected graphs with default weight, try reverse direction
-    graph.get_edge_weight(to, from)
+    graph.get_edge_weight(from, to)
 }
 
 /// Helper: Dijkstra for weighted single-source shortest paths

@@ -37458,7 +37458,7 @@ class Graph:
 
         The result is a heuristic and is not guaranteed to be optimal (the exact problem is
         NP-hard). Edge weights should be non-negative. When there are parallel edges between two
-        nodes, only one of them is considered.
+        nodes, the cheapest one is used.
 
         Parameters
         ----------

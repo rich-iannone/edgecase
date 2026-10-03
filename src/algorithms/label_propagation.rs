@@ -76,12 +76,18 @@ pub fn label_propagation(
             // Count weighted votes from neighbors
             let mut votes: FxHashMap<i64, f64> = FxHashMap::default();
 
-            // Outgoing neighbors (or all neighbors for undirected)
+            // Outgoing neighbors (or all neighbors for undirected). Each distinct neighbor
+            // votes once with the total weight of the edges joining them, so every parallel
+            // edge counts with its own weight (adjacency lists repeat a neighbor per edge)
             if let Some(nbrs) = adj.get(&nid) {
+                let mut seen: FxHashSet<u64> = FxHashSet::default();
                 for &nbr in nbrs {
+                    if !seen.insert(nbr) {
+                        continue;
+                    }
                     let lbl = *labels.get(&nbr).unwrap_or(&-1);
                     if lbl != -1 {
-                        let w = graph.get_edge_weight(nid, nbr);
+                        let w = graph.get_total_edge_weight(nid, nbr);
                         *votes.entry(lbl).or_insert(0.0) += w;
                     }
                 }
@@ -90,10 +96,14 @@ pub fn label_propagation(
             // For directed graphs, also consider incoming edges
             if directed {
                 if let Some(preds) = rev_adj.get(&nid) {
+                    let mut seen: FxHashSet<u64> = FxHashSet::default();
                     for &pred in preds {
+                        if !seen.insert(pred) {
+                            continue;
+                        }
                         let lbl = *labels.get(&pred).unwrap_or(&-1);
                         if lbl != -1 {
-                            let w = graph.get_edge_weight(pred, nid);
+                            let w = graph.get_total_edge_weight(pred, nid);
                             *votes.entry(lbl).or_insert(0.0) += w;
                         }
                     }

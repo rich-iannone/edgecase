@@ -221,14 +221,20 @@ pub struct Graph {
 /// `get_edge_weight()` and `get_edge()` used to scan the whole edge list, and Dijkstra calls
 /// `get_edge_weight()` on every relaxation, so all-pairs shortest paths cost O(V·E²).
 struct EdgeIndex {
-    /// (from, to) -> weight of the first edge (in insertion order) joining them; undirected
-    /// edges are entered in both orientations. Missing weights are stored as 1.0.
+    /// (from, to) -> smallest weight among the edges joining them, i.e. the cost of stepping
+    /// from `from` to `to`; undirected edges count in both orientations. Missing weights are
+    /// 1.0. (This used to be the *first* edge's weight, so a cheaper parallel edge added later
+    /// was ignored by every weighted path search.)
     weight_by_pair: FxHashMap<(u64, u64), f64>,
+    /// (from, to) -> sum of the weights of all edges joining them (parallel edges add up), for
+    /// tie-strength style measures; undirected edges count in both orientations
+    total_weight_by_pair: FxHashMap<(u64, u64), f64>,
     /// edge ID -> position in `edges`
     position_by_id: FxHashMap<u64, usize>,
-    /// (source, target) -> position of the first edge stored in exactly that orientation
-    /// (used by AdaStar, which prefers a stored `from -> to` edge over a reversed one)
-    first_position_by_pair: FxHashMap<(u64, u64), usize>,
+    /// (source, target) -> positions of every edge stored in exactly that orientation (used by
+    /// AdaStar, which resolves each edge's weight, with an attribute fallback, before taking
+    /// the minimum)
+    positions_by_pair: FxHashMap<(u64, u64), Vec<usize>>,
     /// node -> distinct nodes with an edge into it (both endpoints for undirected edges)
     predecessors: FxHashMap<u64, Vec<u64>>,
 }
@@ -238,7 +244,11 @@ impl EdgeIndex {
         let mut index = EdgeIndex {
             weight_by_pair: FxHashMap::with_capacity_and_hasher(edges.len() * 2, Default::default()),
             position_by_id: FxHashMap::with_capacity_and_hasher(edges.len(), Default::default()),
-            first_position_by_pair: FxHashMap::with_capacity_and_hasher(
+            total_weight_by_pair: FxHashMap::with_capacity_and_hasher(
+                edges.len() * 2,
+                Default::default(),
+            ),
+            positions_by_pair: FxHashMap::with_capacity_and_hasher(
                 edges.len(),
                 Default::default(),
             ),
@@ -250,18 +260,25 @@ impl EdgeIndex {
         index
     }
 
-    /// Record an edge stored at `position`. Earlier edges win for a given pair, matching the
-    /// first-match semantics of a front-to-back scan.
+    /// Record an edge stored at `position`
     fn add(&mut self, edge: &Edge, position: usize, directed: bool) {
         let weight = edge.weight.unwrap_or(1.0);
-        self.weight_by_pair.entry((edge.source, edge.target)).or_insert(weight);
-        if !directed {
-            self.weight_by_pair.entry((edge.target, edge.source)).or_insert(weight);
+        let mut orientations = vec![(edge.source, edge.target)];
+        if !directed && edge.source != edge.target {
+            orientations.push((edge.target, edge.source));
+        }
+        for pair in orientations {
+            self.weight_by_pair
+                .entry(pair)
+                .and_modify(|w| *w = w.min(weight))
+                .or_insert(weight);
+            *self.total_weight_by_pair.entry(pair).or_insert(0.0) += weight;
         }
         self.position_by_id.insert(edge.id, position);
-        self.first_position_by_pair
+        self.positions_by_pair
             .entry((edge.source, edge.target))
-            .or_insert(position);
+            .or_default()
+            .push(position);
         Self::add_predecessor(&mut self.predecessors, edge.target, edge.source);
         if !directed {
             Self::add_predecessor(&mut self.predecessors, edge.source, edge.target);
@@ -585,31 +602,45 @@ impl Graph {
     /// Find edge IDs by from/to node IDs
     /// Returns all matching edges (supports multi-edges)
     pub fn find_edge_ids(&self, from: u64, to: u64) -> Vec<u64> {
-        self.edges
-            .iter()
-            .filter(|e| {
-                if self.directed {
-                    e.source == from && e.target == to
-                } else {
-                    // For undirected graphs, match either direction
-                    (e.source == from && e.target == to) || (e.source == to && e.target == from)
-                }
-            })
-            .map(|e| e.id)
-            .collect()
+        // Positions of edges stored as from -> to (and, for undirected graphs, to -> from),
+        // from the edge index; sorted so IDs come back in edge-list order as before
+        let index = self.edge_index();
+        let mut positions: Vec<usize> = index
+            .positions_by_pair
+            .get(&(from, to))
+            .cloned()
+            .unwrap_or_default();
+        if !self.directed && from != to {
+            if let Some(reverse) = index.positions_by_pair.get(&(to, from)) {
+                positions.extend_from_slice(reverse);
+            }
+        }
+        positions.sort_unstable();
+        positions.into_iter().map(|p| self.edges[p].id).collect()
     }
 
     /// Get weight of edge between two nodes (for internal use in algorithms)
     #[inline]
     pub(crate) fn get_edge_weight(&self, from: u64, to: u64) -> f64 {
-        // Undirected edges are stored once, in insertion order, so traversing
-        // one "backwards" must still find it (and its weight). The index holds both
-        // orientations, first edge wins, and a missing edge or weight counts as 1.0.
+        // Cost of stepping from `from` to `to`: the cheapest of the edges joining them (an
+        // undirected edge stored the other way round counts too). A missing edge or weight
+        // counts as 1.0.
         self.edge_index()
             .weight_by_pair
             .get(&(from, to))
             .copied()
             .unwrap_or(1.0)
+    }
+
+    /// Combined strength of the tie from `from` to `to`: the sum of the weights of all edges
+    /// joining them (parallel edges add up; undirected edges count in either orientation).
+    /// 0.0 if there is no such edge.
+    pub(crate) fn get_total_edge_weight(&self, from: u64, to: u64) -> f64 {
+        self.edge_index()
+            .total_weight_by_pair
+            .get(&(from, to))
+            .copied()
+            .unwrap_or(0.0)
     }
 
 
@@ -11069,31 +11100,30 @@ impl AdaStar {
     /// Get edge weight from graph
     #[inline]
     fn get_edge_weight(&self, from: u64, to: u64, graph: &Graph) -> f64 {
-        // The first edge stored as `from -> to`; on an undirected graph, otherwise the first one
-        // stored as `to -> from`. Looked up in the graph's edge index (this used to scan every
-        // edge on every expansion, making a search O(E) per step)
+        // Cost of stepping from `from` to `to`: the cheapest edge stored as `from -> to` or, on
+        // an undirected graph, as `to -> from`. Each edge's weight comes from its weight field,
+        // else the `weight_attr` attribute, else 1.0. Positions come from the graph's edge
+        // index rather than a scan of every edge.
         let index = graph.edge_index();
-        let position = index
-            .first_position_by_pair
-            .get(&(from, to))
-            .or_else(|| {
-                if graph.directed {
-                    None
-                } else {
-                    index.first_position_by_pair.get(&(to, from))
-                }
-            });
-
-        let Some(&position) = position else {
-            return f64::INFINITY; // No edge exists
+        let forward = index.positions_by_pair.get(&(from, to));
+        let reverse = if graph.directed || from == to {
+            None
+        } else {
+            index.positions_by_pair.get(&(to, from))
         };
-        let edge = &graph.edges[position];
 
-        // First try the weight field
+        let mut best = f64::INFINITY; // stays infinite if no edge exists
+        for &position in forward.into_iter().chain(reverse).flatten() {
+            best = best.min(self.resolve_edge_weight(&graph.edges[position]));
+        }
+        best
+    }
+
+    /// An edge's weight for AdaStar: the weight field, else the `weight_attr` attribute, else 1.0
+    fn resolve_edge_weight(&self, edge: &Edge) -> f64 {
         if let Some(w) = edge.weight {
             return w;
         }
-        // Fall back to attributes
         if let Some(ref attrs) = edge.attributes {
             return Python::with_gil(|py| {
                 let dict = attrs.bind(py);

@@ -136,6 +136,20 @@ fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> f6
 }
 
 /// Run Dijkstra's algorithm from a source node to find shortest paths.
+/// The lowest-cost edge joining `a` and `b` (either orientation on undirected graphs), with
+/// its cost under `cost`. Ties go to the earliest edge. With parallel edges this picks the
+/// cheapest one; the first one found used to be taken regardless of its weight.
+fn cheapest_edge(graph: &Graph, a: u64, b: u64, cost: impl Fn(u64) -> f64) -> Option<(u64, f64)> {
+    let mut best: Option<(u64, f64)> = None;
+    for edge_id in graph.find_edge_ids(a, b) {
+        let c = cost(edge_id);
+        if best.is_none_or(|(_, best_cost)| c < best_cost) {
+            best = Some((edge_id, c));
+        }
+    }
+    best
+}
+
 /// Uses the specified weight attribute or default weights.
 fn dijkstra_single_source(
     graph: &Graph,
@@ -164,14 +178,12 @@ fn dijkstra_single_source(
         let neighbors = graph.neighbors(node)?;
 
         for neighbor in neighbors {
-            // Find edge between node and neighbor
-            let edge_ids = graph.find_edge_ids(node, neighbor);
-            if edge_ids.is_empty() {
+            // Cheapest edge between node and neighbor
+            let Some((_, edge_weight)) =
+                cheapest_edge(graph, node, neighbor, |eid| get_edge_weight(graph, eid, weight_attr))
+            else {
                 continue;
-            }
-
-            let edge_id = edge_ids[0];
-            let edge_weight = get_edge_weight(graph, edge_id, weight_attr);
+            };
 
             let new_dist = distance + edge_weight;
 
@@ -349,9 +361,9 @@ pub fn steiner_tree(
     let mut final_edges: Vec<(f64, u64, u64, u64)> = Vec::new(); // (weight, edge_id, source, target)
 
     for &(a, b) in &steiner_edges {
-        let edge_ids = graph.find_edge_ids(a, b);
-        if let Some(&edge_id) = edge_ids.first() {
-            let weight = get_edge_weight(graph, edge_id, weight_attr_ref);
+        let cheapest =
+            cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr_ref));
+        if let Some((edge_id, weight)) = cheapest {
             if let Some(edge) = graph.get_edge(edge_id) {
                 final_edges.push((weight, edge_id, edge.source, edge.target));
             }
@@ -392,13 +404,9 @@ fn path_to_edge_tuples(
         let source_label = get_label_or_id(graph, a);
         let target_label = get_label_or_id(graph, b);
 
-        // Find edge and get weight
-        let edge_ids = graph.find_edge_ids(a, b);
-        let weight = if let Some(&edge_id) = edge_ids.first() {
-            get_edge_weight(graph, edge_id, weight_attr)
-        } else {
-            1.0
-        };
+        // Cheapest edge's weight
+        let weight = cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr))
+            .map_or(1.0, |(_, w)| w);
 
         edges.push((source_label, target_label, weight));
     }
@@ -658,12 +666,9 @@ pub fn prize_collecting_steiner_tree(
             tree_nodes.insert(a);
             tree_nodes.insert(b);
 
-            let edge_ids = graph.find_edge_ids(a, b);
-            let weight = if let Some(&edge_id) = edge_ids.first() {
-                get_edge_weight(graph, edge_id, weight_attr_ref)
-            } else {
-                1.0
-            };
+            let weight =
+                cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr_ref))
+                    .map_or(1.0, |(_, w)| w);
             tree_edges.push((a, b, weight));
         }
 
@@ -889,8 +894,14 @@ pub fn directed_steiner_tree(
 
         for w in path.windows(2) {
             let (u, v) = (w[0], w[1]);
-            let edge_ids = graph.find_edge_ids(u, v);
-            if let Some(&eid) = edge_ids.first() {
+            // The edge the search actually used: cheapest under the current overrides
+            let used = cheapest_edge(graph, u, v, |eid| {
+                cost_overrides
+                    .get(&eid)
+                    .copied()
+                    .unwrap_or_else(|| get_edge_weight(graph, eid, weight_attr_ref))
+            });
+            if let Some((eid, _)) = used {
                 tree_edges.insert(eid);
                 tree_parent.insert(v, u);
                 cost_overrides.insert(eid, 0.0);
@@ -945,16 +956,13 @@ fn dijkstra_with_overrides(
         let neighbors = graph.neighbors(node)?;
 
         for neighbor in neighbors {
-            let edge_ids = graph.find_edge_ids(node, neighbor);
-            if edge_ids.is_empty() {
+            let Some((_, edge_weight)) = cheapest_edge(graph, node, neighbor, |eid| {
+                cost_overrides
+                    .get(&eid)
+                    .copied()
+                    .unwrap_or_else(|| get_edge_weight(graph, eid, weight_attr))
+            }) else {
                 continue;
-            }
-
-            let edge_id = edge_ids[0];
-            let edge_weight = if let Some(&override_cost) = cost_overrides.get(&edge_id) {
-                override_cost
-            } else {
-                get_edge_weight(graph, edge_id, weight_attr)
             };
 
             let new_dist = distance + edge_weight;
