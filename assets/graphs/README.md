@@ -1774,18 +1774,18 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `simrank_star_similarity()` — SimRank* similarity
 
-<img src="simrank-star-similarity.light.svg" alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.36." width="570">
+<img src="simrank-star-similarity.light.svg" alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.30." width="570">
 
 ```markdown
-![SimRank* similarity](/assets/graphs/simrank-star-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.36." width="100%"}
+![SimRank* similarity](/assets/graphs/simrank-star-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.30." width="100%"}
 ```
 
 ### `simrank_star_similarity_pair()` — SimRank* similarity for one pair
 
-<img src="simrank-star-similarity-pair.light.svg" alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.356 for the pair." width="570">
+<img src="simrank-star-similarity-pair.light.svg" alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.297 for the pair." width="570">
 
 ```markdown
-![SimRank* similarity for one pair](/assets/graphs/simrank-star-similarity-pair.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.356 for the pair." width="100%"}
+![SimRank* similarity for one pair](/assets/graphs/simrank-star-similarity-pair.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.297 for the pair." width="100%"}
 ```
 
 ## diffusion

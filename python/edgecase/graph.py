@@ -15816,7 +15816,7 @@ class Graph:
         r"""
         Compute SimRank* similarity between all node pairs.
 
-        ![SimRank* similarity](/assets/graphs/simrank-star-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.36." width="100%"}
+        ![SimRank* similarity](/assets/graphs/simrank-star-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.30." width="100%"}
 
         SimRank* fixes the "zero-similarity problem" of the original SimRank, where most node pairs
         receive a score of 0.0 on real-world graphs, by considering asymmetric in-link paths. The
@@ -15868,9 +15868,12 @@ class Graph:
             is mainly useful for checking results or trading accuracy for an early stop.
         return_dict
             If `True`, return the raw nested dict `{node_a: {node_b: sim}}` without modifying the
-            graph. If `False` (default), store each node's inner dict `{node_b: sim}` as the node
-            attribute `"simrank_star"` (overwriting any existing values), record the computation
-            so it appears in `describe()`, and return the graph for chaining.
+            graph. If `False` (default), store each node's similarities as the node attribute
+            `"simrank_star"` (overwriting any existing values), record the computation so it
+            appears in `describe()`, and return the graph for chaining. Each node's value is a
+            list of `{"node": other_id, "similarity": sim}` records sorted from most to least
+            similar (ties by node ID), so it becomes a list-of-structs column in
+            `get_node_df()`.
 
         Returns
         -------
@@ -15878,8 +15881,8 @@ class Graph:
             If `return_dict=True`, a nested dict mapping each node ID to a dict of
             `{other_node_id: similarity}`, including the node itself with `1.0`. Pairs whose
             similarity is zero are omitted from the inner dicts. Otherwise, the graph with a
-            `"simrank_star"` node attribute set to each node's similarity dict. An empty graph
-            yields an empty dict (or no attributes).
+            `"simrank_star"` node attribute holding each node's similarity records (zero pairs
+            omitted here too). An empty graph yields an empty dict (or no attributes).
 
         Raises
         ------
@@ -15910,17 +15913,28 @@ class Graph:
         ```
 
         With the default `return_dict=False`, each node's row is stored in the `simrank_star`
-        node attribute instead. Here is `A`'s similarity to `B`, read back from the graph:
+        node attribute instead, as `{"node", "similarity"}` records with the most similar node
+        first. Exploding that column gives one row per node pair, ready for filtering or joins.
+        Here are `A`'s two closest matches other than itself:
 
         ```{python}
+        import polars as pl
+
         graph.simrank_star_similarity()
 
-        b_id = graph.get_id_from_label("B")
-        round(graph.get_node(a_id).attributes["simrank_star"][b_id], 3)
+        (
+            graph.get_node_df()
+            .filter(pl.col("label") == "A")
+            .explode("simrank_star")
+            .unnest("simrank_star")
+            .filter(pl.col("node") != a_id)
+            .head(2)
+            .select("label", "node", pl.col("similarity").round(3))
+        )
         ```
 
         Lowering `importance_factor=` shortens the reach of similarity, so all off-diagonal
-        scores shrink. `A`'s similarity to `E` falls from about `0.24` to `0.06`:
+        scores shrink. `A`'s similarity to `E` falls from about `0.39` to `0.11`:
 
         ```{python}
         sims = graph.simrank_star_similarity(importance_factor=0.5, return_dict=True)
@@ -15942,9 +15956,15 @@ class Graph:
             return result
 
         attr_name = "simrank_star"
-        node_attrs = {}
-        for node_id, inner in result.items():
-            node_attrs[node_id] = inner
+        # Store each row as a list of {"node", "similarity"} records, most similar first. A dict
+        # keyed by integer node ID can't become a DataFrame column, so get_node_df() would fail
+        node_attrs = {
+            node_id: [
+                {"node": other_id, "similarity": sim}
+                for other_id, sim in sorted(inner.items(), key=lambda item: (-item[1], item[0]))
+            ]
+            for node_id, inner in result.items()
+        }
         self.set_node_attrs(attr_name, node_attrs)
         self._computations.append(
             (
@@ -15970,7 +15990,7 @@ class Graph:
         r"""
         Compute SimRank* similarity between a specific pair of nodes.
 
-        ![SimRank* similarity for one pair](/assets/graphs/simrank-star-similarity-pair.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.356 for the pair." width="100%"}
+        ![SimRank* similarity for one pair](/assets/graphs/simrank-star-similarity-pair.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.297 for the pair." width="100%"}
 
         Returns the SimRank* similarity of `source` and `target` as a single float, using the
         same definition and solvers as `simrank_star_similarity()`. SimRank* considers paths of

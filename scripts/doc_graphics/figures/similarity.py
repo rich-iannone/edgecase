@@ -275,14 +275,14 @@ def _sub_table(s: Scene, box, vals: dict, note: str) -> None:
     s.text(box.cx, y0 - 12, note, size=SIZE_NOTE, opacity=0.6)
 
 
-SIMRANK = {("B", "C"): "0.46", ("B", "D"): "0.47", ("B", "E"): "0.36", ("C", "D"): "0.32",
-           ("C", "E"): "0.54", ("D", "E"): "0.45"}
+SIMRANK = {("B", "C"): "0.44", ("B", "D"): "0.49", ("B", "E"): "0.30", ("C", "D"): "0.36",
+           ("C", "E"): "0.47", ("D", "E"): "0.47"}
 
 
 @figure("simrank_star_similarity", "similarity", "SimRank* similarity",
         "Nodes B and E are outlined in the accent color, with shared neighbors C and D in "
         "accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for "
-        "B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.36.")
+        "B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.30.")
 def simrank_star_similarity(s: Scene) -> None:
     left, right = compute(s, "g", "g.simrank_star_similarity()")
     _shared(s, left)
@@ -292,12 +292,12 @@ def simrank_star_similarity(s: Scene) -> None:
 @figure("simrank_star_similarity_pair", "similarity", "SimRank* similarity for one pair",
         "Nodes B and E are outlined in the accent color; the short paths between them through "
         "C and D are in accent. SimRank* counts paths of every length, decayed by the factor "
-        "C = 0.8 per step, and the card returns a score of 0.356 for the pair.")
+        "C = 0.8 per step, and the card returns a score of 0.297 for the pair.")
 def simrank_star_similarity_pair(s: Scene) -> None:
     left, right = compute(s, "g", 'g.simrank_star_similarity_pair("B","E")')
     _shared(s, left)
     s.card_centered(right, ["in-link paths via C, D, …", "each step decays by C",
-                            ("s*(B, E) = 0.356", "accent")], w=CARD_W, title="importance_factor C = 0.8")
+                            ("s*(B, E) = 0.297", "accent")], w=CARD_W, title="importance_factor C = 0.8")
 
 
 @figure("communicability", "similarity", "Communicability",

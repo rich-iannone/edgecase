@@ -26,8 +26,8 @@ use rustc_hash::FxHashMap;
 ///
 /// S = (C/2) · (Q·S + S·Qᵀ) + (1-C)·I
 ///
-/// where Q is the column-stochastic transition matrix built from in-neighbors
-/// and C is the importance/decay factor.
+/// where Q is the row-stochastic backward transition matrix (row a averages over the
+/// in-neighbors of a) and C is the importance/decay factor.
 ///
 /// # The PJsim reformulation
 ///
@@ -65,8 +65,8 @@ pub fn simrank_star_similarity(
         .map(|(idx, &id)| (id, idx))
         .collect();
 
-    // Build column-stochastic transition matrix Q from in-neighbors.
-    // Q[i][j] = 1/|In(j)| if i is an in-neighbor of j, else 0.
+    // Build row-stochastic backward transition matrix Q from in-neighbors.
+    // Q[j][i] = 1/|In(j)| if i is an in-neighbor of j, else 0.
     // For undirected graphs, in-neighbors = neighbors.
     let q = build_transition_matrix(graph, &node_ids, &node_to_idx);
 
@@ -152,21 +152,21 @@ pub fn simrank_star_similarity_pair(
     Ok(sim[(*src_idx, *tgt_idx)])
 }
 
-/// Build column-stochastic transition matrix Q.
+/// Build the row-stochastic backward transition matrix Q of Yu et al.
 ///
-/// Q[i][j] = 1/|In(j)| if node i is an in-neighbor of node j, else 0.
+/// Q[j][i] = 1/|In(j)| if node i is an in-neighbor of node j, else 0, so row j averages
+/// over j's in-neighbors and (Q·S)[a][b] = mean over x in In(a) of S[x][b]. In-neighbors are
+/// distinct (parallel edges count once); for undirected graphs they are the neighbors.
 fn build_transition_matrix(
     graph: &Graph,
     node_ids: &[u64],
     node_to_idx: &FxHashMap<u64, usize>,
 ) -> DMatrix<f64> {
     let n = node_ids.len();
-    let mut q = DMatrix::<f64>::zeros(n, n);
+    let mut in_neighbors: Vec<Vec<usize>> = vec![Vec::new(); n];
 
     if graph.is_directed() {
         // For directed graphs: in-neighbors of j are nodes with edges -> j
-        // Build in-neighbor lists from the edge list
-        let mut in_neighbors: Vec<Vec<usize>> = vec![Vec::new(); n];
         for edge in graph.get_edges_internal() {
             if let (Some(&src_idx), Some(&tgt_idx)) = (
                 node_to_idx.get(&edge.source),
@@ -175,29 +175,23 @@ fn build_transition_matrix(
                 in_neighbors[tgt_idx].push(src_idx);
             }
         }
-
-        for j in 0..n {
-            let in_deg = in_neighbors[j].len();
-            if in_deg > 0 {
-                let weight = 1.0 / in_deg as f64;
-                for &i in &in_neighbors[j] {
-                    q[(i, j)] = weight;
-                }
-            }
-        }
     } else {
         // For undirected: in-neighbors = neighbors
         for (j, &node_j) in node_ids.iter().enumerate() {
             if let Ok(neighbors) = graph.neighbors(node_j) {
-                let deg = neighbors.len();
-                if deg > 0 {
-                    let weight = 1.0 / deg as f64;
-                    for nbr in neighbors {
-                        if let Some(&i) = node_to_idx.get(&nbr) {
-                            q[(i, j)] = weight;
-                        }
-                    }
-                }
+                in_neighbors[j].extend(neighbors.iter().filter_map(|nbr| node_to_idx.get(nbr)));
+            }
+        }
+    }
+
+    let mut q = DMatrix::<f64>::zeros(n, n);
+    for (j, nbrs) in in_neighbors.iter_mut().enumerate() {
+        nbrs.sort_unstable();
+        nbrs.dedup();
+        if !nbrs.is_empty() {
+            let weight = 1.0 / nbrs.len() as f64;
+            for &i in nbrs.iter() {
+                q[(j, i)] = weight;
             }
         }
     }
@@ -322,11 +316,13 @@ fn solve_quasi_triangular_lyapunov(t: &DMatrix<f64>, f: &DMatrix<f64>) -> DMatri
                     a_big[(i, jj)] = t[(i, jj)] + if i == jj { t00 } else { 0.0 };
                 }
             }
+            // Column col of Y*T^T picks up Y[:,col+1]*T[col,col+1] (t01), and column col+1
+            // picks up Y[:,col]*T[col+1,col] (t10)
             for i in 0..n {
-                a_big[(i, n + i)] = t10;
+                a_big[(i, n + i)] = t01;
             }
             for i in 0..n {
-                a_big[(n + i, i)] = t01;
+                a_big[(n + i, i)] = t10;
             }
             for i in 0..n {
                 for jj in 0..n {
@@ -509,8 +505,13 @@ mod tests {
 
     #[test]
     fn test_symmetric_nodes_have_positive_similarity() {
-        // Nodes 1 and 2 both point to node 3 -- they should have positive similarity
-        let g = make_simple_directed();
+        // Nodes 1 and 2 are both linked from node 3 -- they should have positive similarity
+        let mut g = Graph::new_rust(true, false);
+        g.add_node_rust(node(1)).unwrap();
+        g.add_node_rust(node(2)).unwrap();
+        g.add_node_rust(node(3)).unwrap();
+        g.add_edge_rust(edge(3, 1)).unwrap();
+        g.add_edge_rust(edge(3, 2)).unwrap();
         let result = simrank_star_similarity(&g, 0.8, 100, 1e-6, "closed_form").unwrap();
         let sim_12 = result
             .get(&1)
@@ -519,9 +520,14 @@ mod tests {
             .unwrap_or(0.0);
         assert!(
             sim_12 > 0.0,
-            "Nodes 1,2 that share an out-neighbor should have positive similarity, got {}",
+            "Nodes 1,2 that share an in-neighbor should have positive similarity, got {}",
             sim_12
         );
+
+        // Sharing only an out-neighbor (1 -> 3, 2 -> 3) gives no in-link evidence
+        let g = make_simple_directed();
+        let result = simrank_star_similarity(&g, 0.8, 100, 1e-6, "closed_form").unwrap();
+        assert_eq!(result.get(&1).and_then(|m| m.get(&2)).copied().unwrap_or(0.0), 0.0);
     }
 
     #[test]
