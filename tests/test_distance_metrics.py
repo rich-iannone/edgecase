@@ -885,6 +885,83 @@ class TestResistanceDistanceMatrix:
         assert len(matrix) == 0
 
 
+class TestResistanceDistanceAccuracy:
+    """Exact values on spectra with repeated eigenvalues, and infinite cross-component pairs."""
+
+    @staticmethod
+    def _cycle(n):
+        g = ec.Graph()
+        for i in range(n):
+            g.add_node(label=str(i))
+        for i in range(n):
+            g.add_edge(str(i), str((i + 1) % n))
+        return g
+
+    @pytest.mark.parametrize("n", range(3, 16))
+    def test_cycle_closed_form(self, n):
+        """On C_n, nodes k steps apart have resistance k(n - k)/n (odd n used to be off ~1e-4)."""
+        g = self._cycle(n)
+        matrix = g.resistance_distance_matrix()
+        zero = g.get_id_from_label("0")
+        for k in range(1, n):
+            expected = k * (n - k) / n
+            node = g.get_id_from_label(str(k))
+            assert g.get_resistance_distance("0", str(k)) == pytest.approx(expected, abs=1e-12)
+            assert matrix[(zero, node)] == pytest.approx(expected, abs=1e-12)
+
+    def test_different_components_are_infinite(self):
+        g = ec.Graph()
+        for label in "ABCDE":
+            g.add_node(label=label)
+        g.add_edge("A", "B").add_edge("B", "C").add_edge("D", "E")
+        ids = {label: g.get_id_from_label(label) for label in "ABCDE"}
+
+        assert g.get_resistance_distance("A", "D") == float("inf")
+        matrix = g.resistance_distance_matrix()
+        assert matrix[(ids["A"], ids["E"])] == float("inf")
+        assert matrix[(ids["E"], ids["C"])] == float("inf")
+
+        # Pairs inside each component are unaffected by the other component
+        assert g.get_resistance_distance("A", "C") == pytest.approx(2.0)
+        assert matrix[(ids["D"], ids["E"])] == pytest.approx(1.0)
+
+    def test_isolated_node_is_infinitely_far(self):
+        g = ec.Graph()
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B")
+
+        assert g.get_resistance_distance("A", "C") == float("inf")
+        assert g.get_resistance_distance("A", "B") == pytest.approx(1.0)
+
+    def test_matches_networkx_per_component(self):
+        nx = pytest.importorskip("networkx")
+        import math
+        import random
+
+        rng = random.Random(4)
+        for seed in range(40):
+            reference = nx.gnp_random_graph(rng.randint(2, 12), rng.random() * 0.5, seed=seed)
+            g = ec.Graph()
+            for node in reference.nodes():
+                g.add_node(label=str(node))
+            for u, v in reference.edges():
+                g.add_edge(str(u), str(v))
+            matrix = g.resistance_distance_matrix()
+
+            for u in reference:
+                for v in reference:
+                    if u == v:
+                        continue
+                    got = matrix[(g.get_id_from_label(str(u)), g.get_id_from_label(str(v)))]
+                    if nx.has_path(reference, u, v):
+                        component = reference.subgraph(nx.node_connected_component(reference, u))
+                        expected = nx.resistance_distance(component, u, v)
+                        assert got == pytest.approx(expected, abs=1e-10)
+                    else:
+                        assert math.isinf(got)
+
+
 class TestKirchhoffIndex:
     """Test Kirchhoff index calculation."""
 

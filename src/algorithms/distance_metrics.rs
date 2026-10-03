@@ -299,36 +299,118 @@ pub fn estrada_index(graph: &Graph) -> PyResult<f64> {
     Ok(estrada)
 }
 
+/// Laplacian structure shared by the resistance-distance functions.
+struct ResistanceSetup {
+    node_ids: Vec<u64>,
+    node_to_idx: FxHashMap<u64, usize>,
+    /// Component label of each node index
+    component: Vec<usize>,
+    /// Edge multiplicities between distinct node indices (parallel edges are parallel resistors)
+    edges: Vec<(usize, usize)>,
+}
+
+impl ResistanceSetup {
+    fn new(graph: &Graph) -> Self {
+        let node_ids = graph.get_node_ids();
+        let n = node_ids.len();
+        let node_to_idx: FxHashMap<u64, usize> =
+            node_ids.iter().enumerate().map(|(idx, &id)| (id, idx)).collect();
+
+        // Self-loops carry no current, so they're skipped
+        let edges: Vec<(usize, usize)> = graph
+            .get_edges_internal()
+            .iter()
+            .filter_map(|edge| {
+                match (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target)) {
+                    (Some(&i), Some(&j)) if i != j => Some((i, j)),
+                    _ => None,
+                }
+            })
+            .collect();
+
+        // Union-find for connected components
+        let mut parent: Vec<usize> = (0..n).collect();
+        fn find(parent: &mut [usize], mut x: usize) -> usize {
+            while parent[x] != x {
+                parent[x] = parent[parent[x]];
+                x = parent[x];
+            }
+            x
+        }
+        for &(i, j) in &edges {
+            let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+            if ri != rj {
+                parent[ri] = rj;
+            }
+        }
+        let component = (0..n).map(|i| find(&mut parent, i)).collect();
+
+        ResistanceSetup { node_ids, node_to_idx, component, edges }
+    }
+
+    /// Indices of the nodes in the component with label `label`
+    fn members(&self, label: usize) -> Vec<usize> {
+        (0..self.node_ids.len()).filter(|&i| self.component[i] == label).collect()
+    }
+
+    /// Γ = (L + J/m)⁻¹ for the component made of `members` (m nodes), indexed by position in
+    /// `members`. L + J/m is symmetric positive definite for a connected component, so a
+    /// Cholesky inverse is exact; a pseudoinverse via eigendecomposition loses accuracy when
+    /// the Laplacian has repeated eigenvalues (e.g. ~1e-4 error on a 5-cycle).
+    fn component_gamma(&self, members: &[usize]) -> PyResult<DMatrix<f64>> {
+        let m = members.len();
+        let local: FxHashMap<usize, usize> =
+            members.iter().enumerate().map(|(k, &i)| (i, k)).collect();
+
+        let mut laplacian = DMatrix::<f64>::from_element(m, m, 1.0 / m as f64);
+        for &(i, j) in &self.edges {
+            if let (Some(&a), Some(&b)) = (local.get(&i), local.get(&j)) {
+                laplacian[(a, b)] -= 1.0;
+                laplacian[(b, a)] -= 1.0;
+                laplacian[(a, a)] += 1.0;
+                laplacian[(b, b)] += 1.0;
+            }
+        }
+
+        laplacian
+            .cholesky()
+            .map(|chol| chol.inverse())
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "Resistance distance computation failed: Laplacian system is not positive definite",
+                )
+            })
+    }
+}
+
 /// Compute the resistance distance between two nodes in a graph.
 ///
 /// The resistance distance (also called effective resistance) is the electrical
-/// resistance between two nodes if each edge is replaced by a 1-ohm resistor.
-/// It is computed using the Moore-Penrose pseudoinverse of a modified Laplacian:
+/// resistance between two nodes if each edge is replaced by a 1-ohm resistor:
 ///
 /// Ω(i,j) = Γ(i,i) + Γ(j,j) - 2*Γ(i,j)
 ///
-/// where Γ = (L + (1/n)J)⁺, L is the Laplacian matrix, J is the all-ones matrix,
-/// and ⁺ denotes the Moore-Penrose pseudoinverse.
+/// where Γ = (L + (1/m)J)⁻¹ for the m-node connected component holding i and j, L is its
+/// Laplacian matrix, and J is the all-ones matrix.
 ///
 /// # Arguments
-/// * `graph` - The graph to analyze (must be undirected and connected)
+/// * `graph` - The graph to analyze (must be undirected)
 /// * `source` - Source node ID
 /// * `target` - Target node ID
 ///
 /// # Returns
-/// The resistance distance as a float.
+/// The resistance distance as a float; infinity if the nodes are in different components.
 ///
 /// # Errors
 /// Returns an error if:
 /// - The graph is directed
 /// - Either source or target node doesn't exist
-/// - The graph is disconnected (nodes are not in the same component)
 ///
 /// # Notes
 /// - For adjacent nodes connected by a single edge: Ω(i,j) ≤ 1
 /// - Resistance distance satisfies the triangle inequality
 /// - The sum of all resistance distances is the Kirchhoff index
-/// - Time complexity: O(n³) for matrix operations
+/// - Time complexity: O(m³) for the component containing the two nodes
 ///
 /// # References
 /// - Klein, D. J. & Randić, M. (1993). Resistance Distance. J. Math. Chem. 12: 81-95.
@@ -361,92 +443,21 @@ pub fn resistance_distance(graph: &Graph, source: u64, target: u64) -> PyResult<
         return Ok(0.0);
     }
 
-    let node_ids = graph.get_node_ids();
-    let n = node_ids.len();
+    let setup = ResistanceSetup::new(graph);
+    let source_idx = setup.node_to_idx[&source];
+    let target_idx = setup.node_to_idx[&target];
 
-    if n < 2 {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "Graph must have at least 2 nodes for resistance distance",
-        ));
+    // No path means no current can flow: the resistance is infinite
+    if setup.component[source_idx] != setup.component[target_idx] {
+        return Ok(f64::INFINITY);
     }
 
-    // Create node_id to index mapping
-    let node_to_idx: FxHashMap<u64, usize> = node_ids
-        .iter()
-        .enumerate()
-        .map(|(idx, &node_id)| (node_id, idx))
-        .collect();
+    let members = setup.members(setup.component[source_idx]);
+    let gamma = setup.component_gamma(&members)?;
+    let s = members.iter().position(|&i| i == source_idx).unwrap();
+    let t = members.iter().position(|&i| i == target_idx).unwrap();
 
-    let source_idx = *node_to_idx.get(&source).unwrap();
-    let target_idx = *node_to_idx.get(&target).unwrap();
-
-    // Build Laplacian matrix: L = D - A
-    // where D is the degree matrix and A is the adjacency matrix
-    let mut laplacian = DMatrix::<f64>::zeros(n, n);
-
-    for edge in graph.get_edges_internal() {
-        if let (Some(&i), Some(&j)) = (
-            node_to_idx.get(&edge.source),
-            node_to_idx.get(&edge.target),
-        ) {
-            if i != j {
-                // Adjacency: subtract from off-diagonal
-                laplacian[(i, j)] -= 1.0;
-                laplacian[(j, i)] -= 1.0;
-                // Degree: add to diagonal
-                laplacian[(i, i)] += 1.0;
-                laplacian[(j, j)] += 1.0;
-            }
-        }
-    }
-
-    // Add (1/n) * J to make the matrix invertible
-    // This is equivalent to adding 1/n to every entry
-    let inv_n = 1.0 / (n as f64);
-    for i in 0..n {
-        for j in 0..n {
-            laplacian[(i, j)] += inv_n;
-        }
-    }
-
-    // Compute the pseudoinverse using eigendecomposition
-    // For symmetric matrices, the pseudoinverse can be computed as:
-    // A⁺ = V * D⁺ * V^T where D⁺ has 1/λ_i for non-zero eigenvalues
-    let eigen = SymmetricEigen::new(laplacian);
-    let eigenvalues = &eigen.eigenvalues;
-    let eigenvectors = &eigen.eigenvectors;
-
-    // Threshold for considering an eigenvalue as zero
-    let threshold = 1e-10;
-
-    // Build the pseudoinverse: Γ = V * diag(1/λ) * V^T
-    // Only for non-zero eigenvalues
-    let mut gamma = DMatrix::<f64>::zeros(n, n);
-
-    for k in 0..n {
-        let lambda = eigenvalues[k];
-        if lambda.abs() > threshold {
-            let inv_lambda = 1.0 / lambda;
-            // Add contribution from this eigenvector
-            for i in 0..n {
-                for j in 0..n {
-                    gamma[(i, j)] += inv_lambda * eigenvectors[(i, k)] * eigenvectors[(j, k)];
-                }
-            }
-        }
-    }
-
-    // Compute resistance distance: Ω(i,j) = Γ(i,i) + Γ(j,j) - 2*Γ(i,j)
-    let resistance = gamma[(source_idx, source_idx)] + gamma[(target_idx, target_idx)]
-        - 2.0 * gamma[(source_idx, target_idx)];
-
-    // Check for numerical issues that might indicate disconnected graph
-    if resistance < -1e-10 {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "Negative resistance distance computed - graph may be disconnected",
-        ));
-    }
-
+    let resistance = gamma[(s, s)] + gamma[(t, t)] - 2.0 * gamma[(s, t)];
     Ok(resistance.max(0.0))
 }
 
@@ -465,7 +476,7 @@ pub fn resistance_distance(graph: &Graph, source: u64, target: u64) -> PyResult<
 /// Returns an error if the graph is directed.
 ///
 /// # Notes
-/// - Time complexity: O(n³) for matrix operations
+/// - Time complexity: O(Σ m³) over the connected components (sizes m)
 /// - For disconnected graphs, distances between components are infinite
 #[pyfunction]
 #[pyo3(signature = (graph))]
@@ -477,80 +488,35 @@ pub fn resistance_distance_matrix(graph: &Graph) -> PyResult<std::collections::H
         ));
     }
 
-    let node_ids = graph.get_node_ids();
-    let n = node_ids.len();
+    let setup = ResistanceSetup::new(graph);
+    let n = setup.node_ids.len();
 
-    if n == 0 {
-        return Ok(std::collections::HashMap::new());
-    }
-
-    if n == 1 {
-        let mut result = std::collections::HashMap::new();
-        result.insert((node_ids[0], node_ids[0]), 0.0);
-        return Ok(result);
-    }
-
-    // Create node_id to index mapping
-    let node_to_idx: FxHashMap<u64, usize> = node_ids
-        .iter()
-        .enumerate()
-        .map(|(idx, &node_id)| (node_id, idx))
-        .collect();
-
-    // Build Laplacian matrix
-    let mut laplacian = DMatrix::<f64>::zeros(n, n);
-
-    for edge in graph.get_edges_internal() {
-        if let (Some(&i), Some(&j)) = (
-            node_to_idx.get(&edge.source),
-            node_to_idx.get(&edge.target),
-        ) {
-            if i != j {
-                laplacian[(i, j)] -= 1.0;
-                laplacian[(j, i)] -= 1.0;
-                laplacian[(i, i)] += 1.0;
-                laplacian[(j, j)] += 1.0;
-            }
+    // Every pair starts infinite (different components) and same-node pairs are zero;
+    // pairs inside a component are filled in from that component's Γ
+    let mut result = std::collections::HashMap::with_capacity(n * n);
+    for (i, &node_i) in setup.node_ids.iter().enumerate() {
+        for (j, &node_j) in setup.node_ids.iter().enumerate() {
+            result.insert((node_i, node_j), if i == j { 0.0 } else { f64::INFINITY });
         }
     }
 
-    // Add (1/n) * J
-    let inv_n = 1.0 / (n as f64);
-    for i in 0..n {
-        for j in 0..n {
-            laplacian[(i, j)] += inv_n;
+    let mut labels: Vec<usize> = setup.component.clone();
+    labels.sort_unstable();
+    labels.dedup();
+
+    for label in labels {
+        let members = setup.members(label);
+        if members.len() < 2 {
+            continue;
         }
-    }
-
-    // Compute pseudoinverse via eigendecomposition
-    let eigen = SymmetricEigen::new(laplacian);
-    let eigenvalues = &eigen.eigenvalues;
-    let eigenvectors = &eigen.eigenvectors;
-    let threshold = 1e-10;
-
-    let mut gamma = DMatrix::<f64>::zeros(n, n);
-    for k in 0..n {
-        let lambda = eigenvalues[k];
-        if lambda.abs() > threshold {
-            let inv_lambda = 1.0 / lambda;
-            for i in 0..n {
-                for j in 0..n {
-                    gamma[(i, j)] += inv_lambda * eigenvectors[(i, k)] * eigenvectors[(j, k)];
+        let gamma = setup.component_gamma(&members)?;
+        for (a, &i) in members.iter().enumerate() {
+            for (b, &j) in members.iter().enumerate() {
+                if a != b {
+                    let resistance = (gamma[(a, a)] + gamma[(b, b)] - 2.0 * gamma[(a, b)]).max(0.0);
+                    result.insert((setup.node_ids[i], setup.node_ids[j]), resistance);
                 }
             }
-        }
-    }
-
-    // Build result dictionary
-    let mut result = std::collections::HashMap::new();
-    for (i, &node_i) in node_ids.iter().enumerate() {
-        for (j, &node_j) in node_ids.iter().enumerate() {
-            let resistance = if i == j {
-                0.0
-            } else {
-                (gamma[(i, i)] + gamma[(j, j)] - 2.0 * gamma[(i, j)]).max(0.0)
-            };
-            result.insert((node_i, node_j), resistance);
         }
     }
 

@@ -39463,11 +39463,11 @@ class Graph:
 
         Edge weights are ignored (every edge is a 1-ohm resistor). Parallel edges act as
         resistors in parallel, so two edges between the same nodes give a resistance of `0.5`.
-        Self-loops are ignored. The graph should be connected: for two nodes in different
-        components the true resistance is infinite, but this method returns a finite value that
-        has no physical meaning, so check connectivity first. Each call does a full `O(n^3)`
-        matrix computation; when you need many pairs, `resistance_distance_matrix()` computes
-        them all at once for the cost of a single call.
+        Self-loops are ignored. If the two nodes are in different connected components, no
+        current can flow between them and the result is `float("inf")`. Each call does an
+        `O(m^3)` matrix computation on the component containing the two nodes (`m` nodes);
+        when you need many pairs, `resistance_distance_matrix()` computes them all at once for
+        the cost of a single call.
 
         Parameters
         ----------
@@ -39483,7 +39483,8 @@ class Graph:
         -------
         float
             The resistance distance between the two nodes (non-negative, at most the
-            shortest-path hop distance). Returns `0.0` if source equals target.
+            shortest-path hop distance). Returns `0.0` if source equals target, and
+            `float("inf")` if they are in different connected components.
 
         Raises
         ------
@@ -39598,17 +39599,18 @@ class Graph:
           (also available directly via `get_kirchhoff_index()`)
 
         Edge weights are ignored (every edge is a 1-ohm resistor), parallel edges act as
-        resistors in parallel, and self-loops are ignored. The graph should be connected: for
-        nodes in different components the true resistance is infinite, but the returned values
-        are finite and have no physical meaning. The result has `n * n` entries, so memory grows
-        quadratically with the number of nodes.
+        resistors in parallel, and self-loops are ignored. Pairs in different connected
+        components get `float("inf")`, since no current can flow between them; each component
+        is solved on its own. The result has `n * n` entries, so memory grows quadratically
+        with the number of nodes.
 
         Returns
         -------
         dict[tuple[int, int], float]
             Dictionary mapping node ID pairs to resistance distances. Both orientations of every
             pair are present (`(u, v)` and `(v, u)` hold the same value), as are the diagonal
-            entries `(u, u)`, which are `0.0`. An empty graph gives an empty dictionary.
+            entries `(u, u)`, which are `0.0`. Pairs in different connected components hold
+            `float("inf")`. An empty graph gives an empty dictionary.
 
         Raises
         ------
