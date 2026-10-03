@@ -2910,11 +2910,13 @@ class Graph:
         - for undirected graphs: whether it is connected, the number of connected components, and
           whether it is a tree and/or bipartite
 
-        If centrality or other node computations have been stored on the graph (e.g., by
-        `betweenness_centrality()`), a "Computations on nodes" section lists each one with the
-        attribute it wrote and how many nodes have a value. Aesthetic mappings created by
-        `colorize_node_attrs()` and `rescale_node_attrs()` are listed in a "Node aesthetics"
-        section.
+        If centrality or other computations have been run on the graph (e.g., by
+        `betweenness_centrality()`), a "Computations" section lists each one with the attribute
+        it wrote and how many nodes have a value. Computations whose result describes the whole
+        graph rather than individual nodes (e.g. `network_robustness()` with the default
+        `return_dict=False`) are listed as "graph-level result (not stored)". Aesthetic mappings
+        created by `colorize_node_attrs()` and `rescale_node_attrs()` are listed in a "Node
+        aesthetics" section.
 
         Use `describe()` as a first look at a new or loaded graph, to sanity-check the result of a
         transformation, or to confirm which computed attributes a graph already carries. Nothing is
@@ -3019,7 +3021,7 @@ class Graph:
         # Print computations section if any
         if hasattr(self, "_computations") and self._computations:
             print()
-            print("Computations on nodes:")
+            print("Computations:")
             for method_name, params, attr_name in self._computations:
                 # Format parameters
                 if params:
@@ -3027,6 +3029,10 @@ class Graph:
                     param_str = f"({param_str})"
                 else:
                     param_str = "()"
+                if attr_name is None:
+                    # Graph-level results aren't stored on the nodes
+                    print(f"  - {method_name}{param_str} -> graph-level result (not stored)")
+                    continue
                 # Get count of non-null values
                 try:
                     ndf = self.get_node_df()
@@ -22371,7 +22377,8 @@ class Graph:
             If `True`, return the robustness curve as a list of
             `(fraction_removed, largest_component_fraction)` tuples. If `False` (the default),
             return `self` for chaining. The curve is not written to the node or edge tables in
-            that case, so use `return_dict=True` whenever you need the values.
+            that case, so use `return_dict=True` whenever you need the values. The call is
+            still listed by `describe()`.
 
         Returns
         -------
@@ -22428,7 +22435,10 @@ class Graph:
 
         if return_dict:
             return result
-        self._computations.append(("network_robustness", result))
+        # Graph-level result (a curve, not one value per node), so no node attribute is written
+        self._computations.append(
+            ("network_robustness", {"strategy": strategy, "steps": steps, "seed": seed}, None)
+        )
         return self
 
     def influence_maximization(
@@ -22494,6 +22504,7 @@ class Graph:
             If `True`, return a list of `(node_id, marginal_gain)` tuples. If `False` (the
             default), return `self` for chaining. The selection is not written to the node table
             in that case, so use `return_dict=True` whenever you need the result.
+            The call is still listed by `describe()`.
 
         Returns
         -------
@@ -22560,7 +22571,15 @@ class Graph:
 
         if return_dict:
             return result
-        self._computations.append(("influence_maximization", result))
+        # Graph-level result (a ranked seed set), so no node attribute is written
+        self._computations.append(
+            (
+                "influence_maximization",
+                {"k": k, "model": model, "probability": probability,
+                 "n_simulations": n_simulations, "seed": seed},
+                None,
+            )
+        )
         return self
 
     def network_smooth(
@@ -22620,13 +22639,14 @@ class Graph:
             Convergence tolerance. Iteration stops once the largest absolute change in any node's
             score between two iterations is below this value. The default is `1e-6`.
         attr_name
-            If provided, store the smoothed scores as a node attribute with this name. It only
-            takes effect when `return_dict=False`; with the default, `None`, nothing is written
-            to the node table.
+            Name of the node attribute the smoothed scores are stored under when
+            `return_dict=False`. If `None` (default), the attribute is named
+            `"network_smooth"`. Overwrites an existing attribute of the same name.
         return_dict
             If `True`, return the smoothed scores as a dictionary (`attr_name=` is then ignored).
-            If `False` (the default), store the scores under `attr_name=` when given and return
-            `self` for chaining.
+            If `False` (the default), store the scores as a node attribute (see `attr_name=`),
+            record the computation so it is listed by `describe()`, and return `self` for
+            chaining.
 
         Returns
         -------
@@ -22680,9 +22700,12 @@ class Graph:
         result = _network_smooth(self._graph, scores, alpha, max_iter, tol)
         if return_dict:
             return result
-        if attr_name is not None:
-            self.set_node_attrs(attr_name, result)
-        self._computations.append(("network_smooth", result))
+        if attr_name is None:
+            attr_name = "network_smooth"
+        self.set_node_attrs(attr_name, result)
+        self._computations.append(
+            ("network_smooth", {"alpha": alpha, "max_iter": max_iter, "tol": tol}, attr_name)
+        )
         return self
 
     def soft_threshold_power(
@@ -22709,8 +22732,10 @@ class Graph:
         r_squared_cutoff
             Minimum signed R² to accept a power as adequate. The default is `0.8`.
         return_dict
-            If `True`, return the results as a dictionary. If `False`, store the result and return
-            `self` for chaining.
+            If `True`, return the results as a dictionary. If `False` (the default), return `self`
+            for chaining. The result describes the whole network rather than individual nodes, so
+            it is not written to the node table; the call is only listed by `describe()`. Use
+            `return_dict=True` whenever you need the values.
 
         Returns
         -------
@@ -22753,7 +22778,10 @@ class Graph:
 
         if return_dict:
             return result
-        self._computations.append(("soft_threshold_power", result))
+        # Graph-level result (one power for the whole network), so no node attribute is written
+        self._computations.append(
+            ("soft_threshold_power", {"powers": powers, "r_squared_cutoff": r_squared_cutoff}, None)
+        )
         return self
 
     def gwas_pipeline(
