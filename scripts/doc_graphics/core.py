@@ -861,7 +861,7 @@ def compute(s: Scene, left_caption: str, right_caption: str = "") -> tuple[Box, 
         # to the margin; short ones stay centered under the result.
         w = text_width(right_caption, SIZE_CAPTION)
         x = min(b.cx, W - MARGIN - w / 2)
-        s.caption(x, right_caption, max_w=W - MARGIN - Layout.COMPUTE_ARROW[0])
+        s.caption(x, right_caption, max_w=W - MARGIN - a.x1)
     return a, b
 
 
@@ -954,7 +954,7 @@ def shift(coords: dict[str, tuple[float, float]], dx: float, dy: float = 0) -> d
 Family = Literal[
     "mutation", "selection", "traversal", "paths", "node-metrics", "graph-metrics",
     "similarity", "communities", "predicates", "connectivity", "substructures",
-    "generators", "data", "transforms", "set-ops",
+    "generators", "data", "transforms", "set-ops", "diffusion", "enrichment",
 ]
 
 
