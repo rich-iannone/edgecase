@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use crate::graph::Graph;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// Compute shortest path distances using BFS (for unweighted graphs)
@@ -68,8 +68,8 @@ pub fn global_efficiency(graph: &Graph) -> PyResult<f64> {
 /// Compute local efficiency of a graph.
 ///
 /// The local efficiency of a node is the global efficiency of the subgraph
-/// induced by the neighbors of the node. The average local efficiency is
-/// the average of local efficiencies across all nodes.
+/// induced by the node's distinct neighbors (the node itself excluded). The
+/// average local efficiency is the average of local efficiencies across all nodes.
 ///
 /// # Arguments
 ///
@@ -90,8 +90,13 @@ pub fn local_efficiency(graph: &Graph) -> PyResult<f64> {
     let mut total_local_eff = 0.0;
 
     for &node in &nodes {
-        // Get neighbors of this node
-        let neighbors: Vec<u64> = graph.neighbors(node)?;
+        // Distinct neighbors of this node, excluding the node itself: parallel edges must not
+        // list a neighbor twice, and a self-loop must not put the node into its own
+        // neighborhood (the measure is about routing *around* the node)
+        let mut neighbors: Vec<u64> = graph.neighbors(node)?;
+        neighbors.retain(|&nb| nb != node);
+        neighbors.sort_unstable();
+        neighbors.dedup();
         let neighbor_count = neighbors.len();
 
         if neighbor_count <= 1 {
@@ -100,13 +105,10 @@ pub fn local_efficiency(graph: &Graph) -> PyResult<f64> {
         }
 
         // Compute efficiency within the neighborhood subgraph
-        let neighbor_set: FxHashMap<u64, ()> = neighbors.iter().map(|&n| (n, ())).collect();
+        let neighbor_set: FxHashSet<u64> = neighbors.iter().copied().collect();
         let mut subgraph_efficiency = 0.0;
-        let mut pair_count = 0;
 
-        for i in 0..neighbor_count {
-            let u = neighbors[i];
-
+        for &u in &neighbors {
             // BFS limited to neighborhood
             let mut distances: FxHashMap<u64, u64> = FxHashMap::default();
             let mut queue = VecDeque::new();
@@ -118,27 +120,25 @@ pub fn local_efficiency(graph: &Graph) -> PyResult<f64> {
 
                 for neighbor in graph.neighbors(current)? {
                     // Only consider edges within the neighborhood
-                    if neighbor_set.contains_key(&neighbor) && !distances.contains_key(&neighbor) {
+                    if neighbor_set.contains(&neighbor) && !distances.contains_key(&neighbor) {
                         distances.insert(neighbor, current_dist + 1);
                         queue.push_back(neighbor);
                     }
                 }
             }
 
-            // Calculate efficiency from u to other neighbors
-            for &v in &neighbors[i + 1..neighbor_count] {
-                if let Some(&d) = distances.get(&v) {
-                    if d > 0 {
-                        subgraph_efficiency += 1.0 / (d as f64);
-                    }
+            // Efficiency from u to every other neighbor (unreachable ones contribute 0).
+            // Ordered pairs: on directed graphs u -> v and v -> u can differ, and using only
+            // one of them would make the result depend on the neighbors' storage order
+            for (&v, &d) in &distances {
+                if v != u && d > 0 {
+                    subgraph_efficiency += 1.0 / (d as f64);
                 }
-                pair_count += 1;
             }
         }
 
-        if pair_count > 0 {
-            total_local_eff += subgraph_efficiency / (pair_count as f64);
-        }
+        let ordered_pairs = (neighbor_count * (neighbor_count - 1)) as f64;
+        total_local_eff += subgraph_efficiency / ordered_pairs;
     }
 
     Ok(total_local_eff / (n as f64))

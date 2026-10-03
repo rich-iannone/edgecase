@@ -441,6 +441,63 @@ class TestLocalEfficiency:
         # Each triangle has good local efficiency
         assert eff > 0.0
 
+    def test_parallel_edges_count_once(self):
+        """A triangle with a doubled A-B edge is still a triangle: every node scores 1.0."""
+        graph = Graph()
+        for label in "ABC":
+            graph.add_node(label=label)
+        graph.add_edge("A", "B")
+        graph.add_edge("B", "A")
+        graph.add_edge("B", "C")
+        graph.add_edge("C", "A")
+
+        assert graph.local_efficiency() == pytest.approx(1.0)
+
+    def test_self_loop_does_not_join_own_neighborhood(self):
+        """A self-loop on the center of a star must not let its leaves route through it."""
+        graph = Graph()
+        for label in ["hub", "A", "B"]:
+            graph.add_node(label=label)
+        graph.add_edge("hub", "A")
+        graph.add_edge("hub", "B")
+        graph.add_edge("hub", "hub")
+
+        assert graph.local_efficiency() == 0.0
+
+    def test_matches_networkx_with_parallel_edges_and_self_loops(self):
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(2)
+        for seed in range(60):
+            reference = nx.gnp_random_graph(rng.randint(2, 14), rng.random() * 0.5, seed=seed)
+            graph = Graph()
+            for node in reference:
+                graph.add_node(label=str(node))
+            for u, v in reference.edges():
+                graph.add_edge(str(u), str(v))
+            for u, v in list(reference.edges())[:4]:
+                graph.add_edge(str(v), str(u))
+            for node in list(reference)[:2]:
+                graph.add_edge(str(node), str(node))
+
+            assert graph.local_efficiency() == pytest.approx(nx.local_efficiency(reference))
+
+    def test_directed_uses_ordered_pairs(self):
+        """Hub -> {A, B} with A -> B: within the neighborhood only A reaches B, so 1/2 of the
+        ordered pairs are efficient; averaged over 3 nodes gives 1/6, whatever the edge order."""
+        for edges in (
+            [("Hub", "A"), ("Hub", "B"), ("A", "B")],
+            [("A", "B"), ("Hub", "B"), ("Hub", "A")],
+        ):
+            graph = Graph(directed=True)
+            for label in ["Hub", "A", "B"]:
+                graph.add_node(label=label)
+            for source, target in edges:
+                graph.add_edge(source, target)
+
+            assert graph.local_efficiency() == pytest.approx(1 / 6)
+
 
 class TestEfficiencyIntegration:
     """Integration tests for efficiency metrics."""

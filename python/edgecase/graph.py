@@ -39252,9 +39252,11 @@ class Graph:
         - measure local clustering in a way that also rewards indirect (2+ hop) connections
           among neighbors
 
-        Distances are hop counts; edge weights are ignored. The method is intended for undirected
-        graphs: on a directed graph, a node's neighbors are its out-neighbors and paths between
-        them follow edge direction.
+        Distances are hop counts; edge weights are ignored. A neighbor joined by parallel edges
+        counts once, and self-loops are ignored, so a node is never part of its own
+        neighborhood. On a directed graph, a node's neighbors are its out-neighbors, paths
+        between them follow edge direction, and each ordered pair `(u, v)` of neighbors is
+        counted separately, as in `global_efficiency()`.
 
         Returns
         -------
