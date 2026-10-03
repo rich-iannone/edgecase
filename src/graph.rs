@@ -10,6 +10,9 @@ use nalgebra as na;
 use crate::algorithms::sparse_eigen::CsrMatrix;
 use std::collections::VecDeque;
 
+/// (blocks, cohesion of each block, parent index of each block) from cohesive blocking.
+type CohesiveBlocks = (Vec<Vec<u64>>, Vec<usize>, Vec<Option<usize>>);
+
 /// A node in the graph
 #[pyclass]
 #[derive(Debug)]
@@ -142,8 +145,8 @@ impl UnionFind {
     #[inline]
     fn find(&mut self, mut x: u64) -> u64 {
         // Initialize if not seen
-        if !self.parent.contains_key(&x) {
-            self.parent.insert(x, x);
+        if let std::collections::hash_map::Entry::Vacant(e) = self.parent.entry(x) {
+            e.insert(x);
             self.rank.insert(x, 0);
             return x;
         }
@@ -602,7 +605,7 @@ impl Graph {
         // Get or create attributes dict
         if node.attributes.is_none() {
             let dict = PyDict::new(py);
-            node.attributes = Some(dict.unbind().into());
+            node.attributes = Some(dict.unbind());
         }
 
         // Update the attribute
@@ -635,7 +638,7 @@ impl Graph {
             // Handle regular attributes
             if edge.attributes.is_none() {
                 let dict = PyDict::new(py);
-                edge.attributes = Some(dict.unbind().into());
+                edge.attributes = Some(dict.unbind());
             }
 
             if let Some(ref attrs) = edge.attributes {
@@ -669,9 +672,9 @@ impl Graph {
 
         // Add new direction
         self.adjacency_list
-            .entry(edge.source.clone())
-            .or_insert_with(Vec::new)
-            .push(edge.target.clone());
+            .entry(edge.source)
+            .or_default()
+            .push(edge.target);
 
         Ok(())
     }
@@ -1268,8 +1271,8 @@ impl Graph {
         }
 
         // Add first m+1 nodes in a clique
-        for i in 0..=m {
-            self.add_node(Node::new(node_ids[i], None, None))?;
+        for &id in &node_ids[..=m] {
+            self.add_node(Node::new(id, None, None))?;
         }
 
         for i in 0..=m {
@@ -1286,13 +1289,13 @@ impl Graph {
 
         // Track degree for preferential attachment
         let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for i in 0..=m {
-            degrees.insert(node_ids[i], m);
+        for &id in &node_ids[..=m] {
+            degrees.insert(id, m);
         }
 
         // Add remaining nodes with preferential attachment
-        for i in (m + 1)..n {
-            self.add_node(Node::new(node_ids[i], None, None))?;
+        for &new_id in &node_ids[m + 1..n] {
+            self.add_node(Node::new(new_id, None, None))?;
 
             // Select m targets with probability proportional to degree
             let mut targets: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(m, Default::default());
@@ -1315,7 +1318,7 @@ impl Graph {
             for &target in &targets {
                 self.add_edge(Edge::new(
                     0,
-                    node_ids[i],
+                    new_id,
                     target,
                     None,
                     None,
@@ -1323,7 +1326,7 @@ impl Graph {
                 *degrees.get_mut(&target).unwrap() += 1;
             }
 
-            degrees.insert(node_ids[i], m);
+            degrees.insert(new_id, m);
         }
 
         Ok(())
@@ -1391,8 +1394,8 @@ impl Graph {
         let mut present: FxHashSet<(usize, usize)> =
             edges.iter().map(|&(u, v)| norm(u, v)).collect();
 
-        for i in 0..edges.len() {
-            let (u_idx, v_idx) = edges[i];
+        for edge in edges.iter_mut() {
+            let (u_idx, v_idx) = *edge;
             if rng.gen::<f64>() < p {
                 // Rewire: choose new target
                 let mut new_v_idx = rng.gen_range(0..n);
@@ -1408,7 +1411,7 @@ impl Graph {
                 if attempts < 100 {
                     present.remove(&norm(u_idx, v_idx));
                     present.insert(norm(u_idx, new_v_idx));
-                    edges[i] = (u_idx, new_v_idx);
+                    *edge = (u_idx, new_v_idx);
                 }
             }
         }
@@ -1734,11 +1737,10 @@ impl Graph {
         }
 
         for &node_id in self.nodes.keys() {
-            if *color.get(&node_id).unwrap() == 0 {
-                if has_cycle(node_id, &mut color, &self.adjacency_list) {
+            if *color.get(&node_id).unwrap() == 0
+                && has_cycle(node_id, &mut color, &self.adjacency_list) {
                     return Ok(false);
                 }
-            }
         }
 
         Ok(true)
@@ -1962,6 +1964,7 @@ impl Graph {
         let mut time = 0usize;
 
         // DFS helper function
+        #[allow(clippy::too_many_arguments)] // recursive Tarjan DFS threading its state
         fn dfs_ap(
             node: u64,
             visited: &mut FxHashSet<u64>,
@@ -2289,8 +2292,8 @@ impl Graph {
                         if let Some(&neighbor_dist) = distances.get(&neighbor) {
                             // Already visited - potential cycle
                             // In undirected graphs, skip if neighbor is parent (back edge)
-                            if !self.directed || Some(neighbor) != current_parent {
-                                if Some(neighbor) != current_parent {
+                            if (!self.directed || Some(neighbor) != current_parent)
+                                && Some(neighbor) != current_parent {
                                     // Found a cycle
                                     let cycle_length = current_dist + neighbor_dist + 1;
                                     min_cycle = Some(match min_cycle {
@@ -2303,7 +2306,6 @@ impl Graph {
                                         return Some(3);
                                     }
                                 }
-                            }
                         } else {
                             // Early termination within BFS
                             if let Some(current_min) = min_cycle {
@@ -2516,7 +2518,7 @@ impl Graph {
                 if let Some(neighbor_neighbors) = self.adjacency_list.get(&neighbor) {
                     for &third in neighbor_neighbors {
                         if third != node && self.adjacency_list.get(&third)
-                            .map_or(false, |thirds| thirds.contains(&node))
+                            .is_some_and(|thirds| thirds.contains(&node))
                         {
                             return true;
                         }
@@ -2888,9 +2890,7 @@ impl Graph {
 
                 // Only check non-adjacent pairs (adjacent pairs have higher connectivity)
                 let are_adjacent = self.edges.iter().any(|e| {
-                    (e.source == u && e.target == v) ||
-                    (e.source == v && e.target == u) ||
-                    (!self.directed && (e.source == v && e.target == u))
+                    (e.source == u && e.target == v) || (e.source == v && e.target == u)
                 });
 
                 if !are_adjacent {
@@ -2949,7 +2949,7 @@ impl Graph {
             // Group nodes by component ID
             let mut comp_groups: FxHashMap<usize, Vec<u64>> = FxHashMap::with_capacity_and_hasher(component_map.len(), Default::default());
             for (&node, &comp_id) in &component_map {
-                comp_groups.entry(comp_id).or_insert_with(Vec::new).push(node);
+                comp_groups.entry(comp_id).or_default().push(node);
             }
 
             for comp_nodes in comp_groups.values() {
@@ -3023,9 +3023,7 @@ impl Graph {
             }
             None => {
                 // Graph is disconnected
-                eccentricities
-                    .into_iter()
-                    .map(|(node, _)| (node, None))
+                eccentricities.into_keys().map(|node| (node, None))
                     .collect()
             }
         }
@@ -3177,7 +3175,7 @@ impl Graph {
         // Convert to Python list with node IDs
         let result = PyList::empty(py);
         for (n1, n2, n3) in triangles {
-            let tuple = PyTuple::new(py, &[n1, n2, n3])?;
+            let tuple = PyTuple::new(py, [n1, n2, n3])?;
             result.append(tuple)?;
         }
 
@@ -3594,9 +3592,8 @@ impl Graph {
             // Check cuts to several other nodes
             let check_count = (nodes.len()).min(10); // Check up to 10 other nodes
 
-            for i in 0..check_count {
-                if nodes[i] != source {
-                    let target = nodes[i];
+            for &target in nodes.iter().take(check_count) {
+                if target != source {
                     let cut = self.get_min_cut_between(source, target)?;
                     min_cut = min_cut.min(cut);
 
@@ -3705,7 +3702,7 @@ impl Graph {
                     "return" => break, // Return partial walk
                     "error" => {
                         return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                            format!("Random walk got stuck at vertex with no neighbors")
+                            "Random walk got stuck at vertex with no neighbors".to_string()
                         ));
                     }
                     _ => {
@@ -3824,7 +3821,7 @@ impl Graph {
                     "return" => break, // Return partial walk
                     "error" => {
                         return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                            format!("Random walk got stuck at vertex with no outgoing edges")
+                            "Random walk got stuck at vertex with no outgoing edges".to_string()
                         ));
                     }
                     _ => {
@@ -4051,12 +4048,11 @@ impl Graph {
                                 }
                             }
 
-                            // For undirected or to get reverse edges in directed
-                            if !self.directed || self.directed {
-                                for edge in &self.edges {
-                                    if edge.target == q && edge.source == j && !self.deleted_edge_ids.contains(&edge.id) {
-                                        q_to_j_weight += edge.weight.unwrap_or(1.0);
-                                    }
+                            // Also count j -> q: the reverse orientation of an undirected
+                            // edge, or the reciprocal arc in a directed graph
+                            for edge in &self.edges {
+                                if edge.target == q && edge.source == j && !self.deleted_edge_ids.contains(&edge.id) {
+                                    q_to_j_weight += edge.weight.unwrap_or(1.0);
                                 }
                             }
 
@@ -4154,8 +4150,8 @@ impl Graph {
         let result_matrix = if walk_length == 0 {
             // A^0 = Identity matrix
             let mut identity = vec![vec![0u64; n]; n];
-            for i in 0..n {
-                identity[i][i] = 1;
+            for (i, row) in identity.iter_mut().enumerate() {
+                row[i] = 1;
             }
             identity
         } else {
@@ -4571,8 +4567,8 @@ impl Graph {
 
             if let Some(neighbors) = self.adjacency_list.get(&current) {
                 for &neighbor in neighbors {
-                    if !distances.contains_key(&neighbor) {
-                        distances.insert(neighbor, current_dist + 1);
+                    if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
+                        e.insert(current_dist + 1);
                         queue.push_back(neighbor);
                     }
                 }
@@ -4606,8 +4602,8 @@ impl Graph {
                     if neighbor == excluded {
                         continue;
                     }
-                    if !distances.contains_key(&neighbor) {
-                        distances.insert(neighbor, current_dist + 1);
+                    if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
+                        e.insert(current_dist + 1);
                         queue.push_back(neighbor);
                     }
                 }
@@ -5806,7 +5802,7 @@ impl Graph {
     /// For undirected graphs: equivalent to connected components (same as weakly connected).
     pub fn count_strongly_connected_components(&self) -> PyResult<usize> {
         crate::algorithms::connectivity::count_strongly_connected_components(self)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+            .map_err(pyo3::exceptions::PyValueError::new_err)
     }
 
     /// Get all weakly connected components as sets of node IDs.
@@ -5821,7 +5817,7 @@ impl Graph {
     /// For undirected graphs: equivalent to connected components (same as weakly connected).
     pub fn strongly_connected_components(&self) -> PyResult<Vec<Vec<u64>>> {
         crate::algorithms::connectivity::strongly_connected_components(self)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+            .map_err(pyo3::exceptions::PyValueError::new_err)
     }
 
     /// Check if a directed graph is strongly connected.
@@ -5829,7 +5825,7 @@ impl Graph {
     /// to every other vertex following directed edges.
     pub fn is_strongly_connected(&self) -> PyResult<bool> {
         crate::algorithms::connectivity::is_strongly_connected(self)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e))
+            .map_err(pyo3::exceptions::PyValueError::new_err)
     }
 
     /// Check if a directed graph is weakly connected.
@@ -5981,7 +5977,8 @@ impl Graph {
         }
 
         // Stack stores: (current_node, path, visited_edges)
-        let mut stack: Vec<(u64, Vec<u64>, FxHashSet<(u64, u64)>)> = Vec::new();
+        type TrailFrame = (u64, Vec<u64>, FxHashSet<(u64, u64)>);
+        let mut stack: Vec<TrailFrame> = Vec::new();
         stack.push((source, vec![source], FxHashSet::default()));
 
         while let Some((current, path, visited_edges)) = stack.pop() {
@@ -6252,14 +6249,10 @@ impl Graph {
             let edge_id = edge.id;
 
             // For undirected graphs, normalize the pair (smaller node ID first)
-            let pair = if self.directed {
+            let pair = if self.directed || source <= target {
                 (source, target)
             } else {
-                if source <= target {
-                    (source, target)
-                } else {
-                    (target, source)
-                }
+                (target, source)
             };
 
             // Check if we've seen this pair before
@@ -6312,14 +6305,10 @@ impl Graph {
             let target = edge.target;
 
             // For undirected graphs, normalize the pair
-            let pair = if self.directed {
+            let pair = if self.directed || source <= target {
                 (source, target)
             } else {
-                if source <= target {
-                    (source, target)
-                } else {
-                    (target, source)
-                }
+                (target, source)
             };
 
             *pair_counts.entry(pair).or_insert(0) += 1;
@@ -6524,7 +6513,7 @@ impl Graph {
 
                 let signature = sig_parts.join("|");
 
-                let pair_map = seen.entry(pair).or_insert_with(BTreeMap::new);
+                let pair_map = seen.entry(pair).or_default();
                 if let Some(&first_id) = pair_map.get(&signature) {
                     // Duplicate with same attributes - mark for removal
                     if edge.id != first_id {
@@ -7558,14 +7547,14 @@ impl Graph {
 
         impl PartialOrd for MergeCandidate {
             fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                // Higher delta_q = higher priority
-                self.delta_q.partial_cmp(&other.delta_q)
+                Some(self.cmp(other))
             }
         }
 
         impl Ord for MergeCandidate {
             fn cmp(&self, other: &Self) -> Ordering {
-                self.partial_cmp(other).unwrap_or(Ordering::Equal)
+                // Higher delta_q = higher priority
+                self.delta_q.partial_cmp(&other.delta_q).unwrap_or(Ordering::Equal)
             }
         }
 
@@ -7958,7 +7947,7 @@ impl Graph {
         }
 
         // Convert to result format with contiguous IDs
-        let mut unique_comms: Vec<usize> = node_to_comm.iter().copied().collect();
+        let mut unique_comms: Vec<usize> = node_to_comm.to_vec();
         unique_comms.sort_unstable();
         unique_comms.dedup();
 
@@ -7972,7 +7961,7 @@ impl Graph {
         for (idx, node_id) in node_ids.iter().enumerate() {
             let old_comm = node_to_comm[idx];
             let new_comm = comm_remap.get(&old_comm).copied().unwrap_or(0);
-            result.insert(node_id.clone(), new_comm);
+            result.insert(*node_id, new_comm);
         }
 
         Ok(result)
@@ -8218,11 +8207,10 @@ impl Graph {
         // Empty path or single node is trivially a simple path
         if nodes.len() <= 1 {
             // But we need to check if the node exists
-            if nodes.len() == 1 {
-                if self.find_node_id(&nodes[0]).is_none() {
+            if nodes.len() == 1
+                && self.find_node_id(&nodes[0]).is_none() {
                     return Ok(false);
                 }
-            }
             return Ok(true);
         }
 
@@ -8509,13 +8497,13 @@ impl Graph {
 
         self.adjacency_list
             .entry(edge.source)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(edge.target);
 
         if !self.directed {
             self.adjacency_list
                 .entry(edge.target)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(edge.source);
         }
 
@@ -9076,7 +9064,7 @@ impl Graph {
         nodes: &[u64],
         parent_idx: Option<usize>,
         all_blocks: &mut Vec<Vec<u64>>,
-    ) -> PyResult<(Vec<Vec<u64>>, Vec<usize>, Vec<Option<usize>>)> {
+    ) -> PyResult<CohesiveBlocks> {
         let mut blocks = Vec::new();
         let mut cohesions = Vec::new();
         let mut parents = Vec::new();
@@ -9696,7 +9684,7 @@ impl Graph {
     #[inline]
     fn louvain_optimize(
         &self,
-        node_to_comm: &mut Vec<usize>,
+        node_to_comm: &mut [usize],
         node_to_idx: &FxHashMap<u64, usize>,
         m: f64,
         resolution: f64,
@@ -9898,8 +9886,8 @@ impl Graph {
         let mut result = vec![vec![0.0; n]; n];
 
         // Initialize as identity matrix
-        for i in 0..n {
-            result[i][i] = 1.0;
+        for (i, row) in result.iter_mut().enumerate() {
+            row[i] = 1.0;
         }
 
         // Repeated matrix multiplication
@@ -10029,7 +10017,7 @@ impl Graph {
                 let size_i = cluster_sizes.get(best_i).copied().unwrap_or(1) as f64;
                 let size_j = cluster_sizes.get(best_j).copied().unwrap_or(1) as f64;
                 let size_k = cluster_sizes.get(k).copied().unwrap_or(1) as f64;
-                let size_new = (size_i + size_j) as f64;
+                let size_new = size_i + size_j;
 
                 let d_ik = if best_i < dist_matrix.len() && k < dist_matrix[best_i].len() {
                     dist_matrix[best_i][k]
@@ -10088,12 +10076,12 @@ impl Graph {
                 let (c1, c2, _) = dendrogram[i];
 
                 // Get original nodes for these clusters
-                let nodes_c1 = self.get_cluster_nodes(c1, n, &dendrogram[..i]);
-                let nodes_c2 = self.get_cluster_nodes(c2, n, &dendrogram[..i]);
+                let nodes_c1 = Self::get_cluster_nodes(c1, n, &dendrogram[..i]);
+                let nodes_c2 = Self::get_cluster_nodes(c2, n, &dendrogram[..i]);
 
                 // Union all nodes from c2 into c1's community
                 if let (Some(rep1), Some(_rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next()) {
-                    let root1 = self.find_root(&mut parent, *rep1);
+                    let root1 = Self::find_root(&mut parent, *rep1);
                     for &node in &nodes_c2 {
                         parent[node] = root1;
                     }
@@ -10101,13 +10089,10 @@ impl Graph {
             }
 
             // Compress paths and assign contiguous IDs
-            let mut partition = vec![0; n];
-            for i in 0..n {
-                partition[i] = self.find_root(&mut parent, i);
-            }
+            let partition: Vec<usize> = (0..n).map(|i| Self::find_root(&mut parent, i)).collect();
 
             // Renumber to be contiguous
-            let mut unique_comms: Vec<usize> = partition.iter().copied().collect();
+            let mut unique_comms: Vec<usize> = partition.to_vec();
             unique_comms.sort_unstable();
             unique_comms.dedup();
 
@@ -10134,7 +10119,7 @@ impl Graph {
     }
 
     /// Get all original nodes that belong to a cluster
-    fn get_cluster_nodes(&self, cluster_id: usize, n: usize, merges: &[(usize, usize, f64)]) -> FxHashSet<usize> {
+    fn get_cluster_nodes(cluster_id: usize, n: usize, merges: &[(usize, usize, f64)]) -> FxHashSet<usize> {
         let mut nodes = FxHashSet::default();
 
         // If cluster_id < n, it's an original node
@@ -10152,16 +10137,16 @@ impl Graph {
         let (c1, c2, _) = merges[merge_idx];
 
         // Recursively get nodes from both children
-        nodes.extend(self.get_cluster_nodes(c1, n, merges));
-        nodes.extend(self.get_cluster_nodes(c2, n, merges));
+        nodes.extend(Self::get_cluster_nodes(c1, n, merges));
+        nodes.extend(Self::get_cluster_nodes(c2, n, merges));
 
         nodes
     }
 
     /// Union-Find helper: find root with path compression
-    fn find_root(&self, parent: &mut [usize], node: usize) -> usize {
+    fn find_root(parent: &mut [usize], node: usize) -> usize {
         if parent[node] != node {
-            parent[node] = self.find_root(parent, parent[node]);
+            parent[node] = Self::find_root(parent, parent[node]);
         }
         parent[node]
     }
@@ -10269,6 +10254,9 @@ fn normalize_eigenvector_sign(vector: &mut [f64]) {
     }
 }
 
+/// (eigenpairs as (value, vector), first two eigenvalues of the full spectrum)
+type SpectralPairs = (Vec<(f64, Vec<f64>)>, Vec<f64>);
+
 /// Selected eigenpairs of a symmetric matrix plus its two leading eigenvalues
 ///
 /// Pairs are in output order (`descending` or ascending by eigenvalue). The second
@@ -10283,7 +10271,7 @@ fn spectral_symmetric(
     which: &str,
     count: usize,
     descending: bool,
-) -> PyResult<(Vec<(f64, Vec<f64>)>, Vec<f64>)> {
+) -> PyResult<SpectralPairs> {
     use crate::algorithms::sparse_eigen::{
         block_size, iteration_budget, symmetric_extremal_eigenpairs, Extremal, SubspaceOptions,
     };
@@ -10672,9 +10660,9 @@ impl AdaStar {
                     .min_by(|a, b| {
                         let (k1_a, k2_a) = a.1;
                         let (k1_b, k2_b) = b.1;
-                        k1_a.partial_cmp(&k1_b)
+                        k1_a.partial_cmp(k1_b)
                             .unwrap_or(std::cmp::Ordering::Equal)
-                            .then(k2_a.partial_cmp(&k2_b).unwrap_or(std::cmp::Ordering::Equal))
+                            .then(k2_a.partial_cmp(k2_b).unwrap_or(std::cmp::Ordering::Equal))
                     })
                     .unwrap();
                 (Some(node), key)
@@ -10703,7 +10691,7 @@ impl AdaStar {
 
                     // Update predecessors
                     for &pred in graph.adjacency_list.keys() {
-                        if graph.adjacency_list.get(&pred).map_or(false, |neighbors| neighbors.contains(&u)) {
+                        if graph.adjacency_list.get(&pred).is_some_and(|neighbors| neighbors.contains(&u)) {
                             self.update_state(py, pred, graph)?;
                         }
                     }
@@ -10714,7 +10702,7 @@ impl AdaStar {
                     // Update u and its predecessors
                     self.update_state(py, u, graph)?;
                     for &pred in graph.adjacency_list.keys() {
-                        if graph.adjacency_list.get(&pred).map_or(false, |neighbors| neighbors.contains(&u)) {
+                        if graph.adjacency_list.get(&pred).is_some_and(|neighbors| neighbors.contains(&u)) {
                             self.update_state(py, pred, graph)?;
                         }
                     }
@@ -10978,8 +10966,8 @@ fn matrix_power(matrix: &[Vec<u64>], power: usize) -> Vec<Vec<u64>> {
     if power == 0 {
         // Return identity matrix
         let mut identity = vec![vec![0u64; n]; n];
-        for i in 0..n {
-            identity[i][i] = 1;
+        for (i, row) in identity.iter_mut().enumerate() {
+            row[i] = 1;
         }
         return identity;
     }
