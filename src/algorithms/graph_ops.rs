@@ -8,6 +8,7 @@
 //! - compose: like union but also handles node label/attribute merging
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::graph::{Edge, Graph, Node};
@@ -21,6 +22,143 @@ fn edge_key(source: u64, target: u64, directed: bool) -> (u64, u64) {
     } else {
         (target, source)
     }
+}
+
+/// Deep-copy an attribute dict so the result graph never shares a dict with an input.
+fn copy_attrs(py: Python<'_>, attrs: &Option<Py<PyDict>>) -> PyResult<Option<Py<PyDict>>> {
+    match attrs {
+        Some(d) => Ok(Some(d.bind(py).copy()?.unbind())),
+        None => Ok(None),
+    }
+}
+
+/// `copy_attrs` for functions that don't hold a `Python` token.
+fn copy_attrs_gil(attrs: &Option<Py<PyDict>>) -> PyResult<Option<Py<PyDict>>> {
+    match attrs {
+        Some(_) => Python::with_gil(|py| copy_attrs(py, attrs)),
+        None => Ok(None),
+    }
+}
+
+/// Merge two attribute dicts into a new one; keys in `high` win over keys in `low`.
+fn merge_attrs(
+    py: Python<'_>,
+    low: &Option<Py<PyDict>>,
+    high: &Option<Py<PyDict>>,
+) -> PyResult<Option<Py<PyDict>>> {
+    match (low, high) {
+        (None, None) => Ok(None),
+        (Some(_), None) => copy_attrs(py, low),
+        (None, Some(_)) => copy_attrs(py, high),
+        (Some(l), Some(h)) => {
+            let merged = l.bind(py).copy()?;
+            merged.update(h.bind(py).as_mapping())?;
+            Ok(Some(merged.unbind()))
+        }
+    }
+}
+
+fn node_attrs(g: &Graph, id: u64) -> Option<Py<PyDict>> {
+    g.get_node(id).and_then(|n| n.attributes)
+}
+
+/// Build a result node from `primary` (falling back to `secondary` for nodes it
+/// lacks): label from whichever graph has the node, attributes merged with
+/// `primary`'s values winning. Used by intersection / (symmetric) difference.
+fn merged_node(py: Python<'_>, id: u64, primary: &Graph, secondary: Option<&Graph>) -> PyResult<Node> {
+    let in_p = primary.has_node_id(id);
+    let sec = secondary.filter(|g| g.has_node_id(id));
+    let label = if in_p {
+        primary.label_from_id(id).ok().flatten()
+    } else {
+        None
+    }
+    .or_else(|| sec.and_then(|g| g.label_from_id(id).ok().flatten()));
+    let high = if in_p { node_attrs(primary, id) } else { None };
+    let low = sec.and_then(|g| node_attrs(g, id));
+    Ok(Node { id, label, attributes: merge_attrs(py, &low, &high)? })
+}
+
+/// Sorted node IDs, so results don't inherit hash-set ordering.
+fn sorted_ids(ids: FxHashSet<u64>) -> Vec<u64> {
+    let mut v: Vec<u64> = ids.into_iter().collect();
+    v.sort_unstable();
+    v
+}
+
+/// Shared body of `union` (calling graph wins) and `compose` (other graph wins).
+///
+/// Nodes merge by ID and duplicate edges collapse to one. Wherever both graphs
+/// carry a value for the same node or edge (label, attributes, edge weight), the
+/// preferred graph's value wins and the other graph fills in what it lacks.
+fn merge_graphs(
+    py: Python<'_>,
+    g1: &Graph,
+    g2: &Graph,
+    prefer_g2: bool,
+) -> PyResult<Graph> {
+    let directed = g1.is_directed();
+    let weighted = g1.is_weighted() || g2.is_weighted();
+    let mut result = Graph::new_rust(directed, weighted);
+    let (lo, hi) = if prefer_g2 { (g1, g2) } else { (g2, g1) };
+
+    // Nodes: G1's in G1 order, then G2-only nodes.
+    let mut ids: Vec<u64> = g1.get_node_ids();
+    let g1_ids: FxHashSet<u64> = ids.iter().copied().collect();
+    ids.extend(g2.get_node_ids().into_iter().filter(|id| !g1_ids.contains(id)));
+    for node_id in ids {
+        let label = if hi.has_node_id(node_id) {
+            hi.label_from_id(node_id).ok().flatten()
+        } else {
+            lo.label_from_id(node_id).ok().flatten()
+        };
+        let low = if lo.has_node_id(node_id) { node_attrs(lo, node_id) } else { None };
+        let high = if hi.has_node_id(node_id) { node_attrs(hi, node_id) } else { None };
+        result.add_node_rust(Node {
+            id: node_id,
+            label,
+            attributes: merge_attrs(py, &low, &high)?,
+        })?;
+    }
+
+    // Edges: one per (normalized) endpoint pair, G1's first. A duplicate from the
+    // other graph only contributes values the kept edge lacks, unless it is the
+    // preferred graph, in which case its values win.
+    let mut order: Vec<(u64, u64)> = Vec::new();
+    let mut merged: FxHashMap<(u64, u64), (u64, u64, Option<f64>, Option<Py<PyDict>>)> =
+        FxHashMap::default();
+    for (g, is_hi) in [(g1, !prefer_g2), (g2, prefer_g2)] {
+        for edge in g.get_edges_internal() {
+            if !result.has_node_id(edge.source) || !result.has_node_id(edge.target) {
+                continue;
+            }
+            let key = edge_key(edge.source, edge.target, directed);
+            match merged.get_mut(&key) {
+                None => {
+                    order.push(key);
+                    merged.insert(
+                        key,
+                        (edge.source, edge.target, edge.weight, copy_attrs(py, &edge.attributes)?),
+                    );
+                }
+                Some(entry) => {
+                    if is_hi {
+                        entry.2 = edge.weight.or(entry.2);
+                        entry.3 = merge_attrs(py, &entry.3, &edge.attributes)?;
+                    } else {
+                        entry.2 = entry.2.or(edge.weight);
+                        entry.3 = merge_attrs(py, &edge.attributes, &entry.3)?;
+                    }
+                }
+            }
+        }
+    }
+    for key in order {
+        let (source, target, weight, attributes) = merged.remove(&key).unwrap();
+        result.add_edge_rust(Edge { id: 0, source, target, weight, attributes })?;
+    }
+
+    Ok(result)
 }
 
 /// Compute the union of two graphs.
@@ -47,75 +185,7 @@ pub fn graph_union(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<Graph> {
             "Cannot compute union of directed and undirected graphs",
         ));
     }
-
-    let directed = g1.is_directed();
-    let weighted = g1.is_weighted() || g2.is_weighted();
-
-    let mut result = Graph::new_rust(directed, weighted);
-
-    // Track which edges we've added to avoid duplicates
-    let mut added_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
-
-    // Add all nodes from G1
-    for &node_id in g1.get_node_ids().iter() {
-        let label = g1.label_from_id(node_id).ok().flatten();
-        let node = Node {
-            id: node_id,
-            label,
-            attributes: None,
-        };
-        result.add_node_rust(node)?;
-    }
-
-    // Add nodes from G2 that aren't in G1
-    for &node_id in g2.get_node_ids().iter() {
-        if !result.has_node_id(node_id) {
-            let label = g2.label_from_id(node_id).ok().flatten();
-            let node = Node {
-                id: node_id,
-                label,
-                attributes: None,
-            };
-            result.add_node_rust(node)?;
-        }
-    }
-
-    // Add all edges from G1
-    for edge in g1.get_edges_internal() {
-        let key = edge_key(edge.source, edge.target, directed);
-        if !added_edges.contains(&key) {
-            let new_edge = Edge {
-                id: 0, // Auto-assign
-                source: edge.source,
-                target: edge.target,
-                weight: edge.weight,
-                attributes: None,
-            };
-            result.add_edge_rust(new_edge)?;
-            added_edges.insert(key);
-        }
-    }
-
-    // Add edges from G2 that aren't already present
-    for edge in g2.get_edges_internal() {
-        // Only add if both nodes exist in result
-        if result.has_node_id(edge.source) && result.has_node_id(edge.target) {
-            let key = edge_key(edge.source, edge.target, directed);
-            if !added_edges.contains(&key) {
-                let new_edge = Edge {
-                    id: 0,
-                    source: edge.source,
-                    target: edge.target,
-                    weight: edge.weight,
-                    attributes: None,
-                };
-                result.add_edge_rust(new_edge)?;
-                added_edges.insert(key);
-            }
-        }
-    }
-
-    Ok(result)
+    merge_graphs(py, g1, g2, false)
 }
 
 /// Compute the intersection of two graphs.
@@ -147,47 +217,33 @@ pub fn graph_intersection(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<Gr
 
     let mut result = Graph::new_rust(directed, weighted);
 
-    // Build set of edges in G2 for fast lookup
-    let mut g2_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
+    // G2's edges by key, for lookup and for their attributes
+    let mut g2_edges: FxHashMap<(u64, u64), &Edge> = FxHashMap::default();
     for edge in g2.get_edges_internal() {
-        let key = edge_key(edge.source, edge.target, directed);
-        g2_edges.insert(key);
+        g2_edges.entry(edge_key(edge.source, edge.target, directed)).or_insert(edge);
     }
 
-    // Track nodes we need to add
+    // Find edges present in both graphs (G1's values win; G2 fills in the rest)
     let mut nodes_to_add: FxHashSet<u64> = FxHashSet::default();
-    let mut edges_to_add: Vec<(u64, u64, Option<f64>)> = Vec::new();
-
-    // Find edges present in both graphs
+    let mut edges_to_add: Vec<Edge> = Vec::new();
     for edge in g1.get_edges_internal() {
-        let key = edge_key(edge.source, edge.target, directed);
-        if g2_edges.contains(&key) {
+        if let Some(other) = g2_edges.get(&edge_key(edge.source, edge.target, directed)) {
             nodes_to_add.insert(edge.source);
             nodes_to_add.insert(edge.target);
-            edges_to_add.push((edge.source, edge.target, edge.weight));
+            edges_to_add.push(Edge {
+                id: 0,
+                source: edge.source,
+                target: edge.target,
+                weight: edge.weight.or(other.weight),
+                attributes: merge_attrs(py, &other.attributes, &edge.attributes)?,
+            });
         }
     }
 
-    // Add necessary nodes (use G1's labels)
-    for &node_id in &nodes_to_add {
-        let label = g1.label_from_id(node_id).ok().flatten();
-        let node = Node {
-            id: node_id,
-            label,
-            attributes: None,
-        };
-        result.add_node_rust(node)?;
+    for node_id in sorted_ids(nodes_to_add) {
+        result.add_node_rust(merged_node(py, node_id, g1, Some(g2))?)?;
     }
-
-    // Add intersection edges
-    for (source, target, weight) in edges_to_add {
-        let edge = Edge {
-            id: 0,
-            source,
-            target,
-            weight,
-            attributes: None,
-        };
+    for edge in edges_to_add {
         result.add_edge_rust(edge)?;
     }
 
@@ -230,40 +286,27 @@ pub fn graph_difference(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<Grap
         g2_edges.insert(key);
     }
 
-    // Track nodes we need to add
+    // Find edges in G1 that are NOT in G2 (they keep all of G1's values)
     let mut nodes_to_add: FxHashSet<u64> = FxHashSet::default();
-    let mut edges_to_add: Vec<(u64, u64, Option<f64>)> = Vec::new();
-
-    // Find edges in G1 that are NOT in G2
+    let mut edges_to_add: Vec<Edge> = Vec::new();
     for edge in g1.get_edges_internal() {
-        let key = edge_key(edge.source, edge.target, directed);
-        if !g2_edges.contains(&key) {
+        if !g2_edges.contains(&edge_key(edge.source, edge.target, directed)) {
             nodes_to_add.insert(edge.source);
             nodes_to_add.insert(edge.target);
-            edges_to_add.push((edge.source, edge.target, edge.weight));
+            edges_to_add.push(Edge {
+                id: 0,
+                source: edge.source,
+                target: edge.target,
+                weight: edge.weight,
+                attributes: copy_attrs(py, &edge.attributes)?,
+            });
         }
     }
 
-    // Add necessary nodes
-    for &node_id in &nodes_to_add {
-        let label = g1.label_from_id(node_id).ok().flatten();
-        let node = Node {
-            id: node_id,
-            label,
-            attributes: None,
-        };
-        result.add_node_rust(node)?;
+    for node_id in sorted_ids(nodes_to_add) {
+        result.add_node_rust(merged_node(py, node_id, g1, None)?)?;
     }
-
-    // Add difference edges
-    for (source, target, weight) in edges_to_add {
-        let edge = Edge {
-            id: 0,
-            source,
-            target,
-            weight,
-            attributes: None,
-        };
+    for edge in edges_to_add {
         result.add_edge_rust(edge)?;
     }
 
@@ -313,54 +356,30 @@ pub fn graph_symmetric_difference(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyR
         g2_edges.insert(key);
     }
 
-    // Track nodes and edges to add
+    // Edges in exactly one graph keep that graph's values
     let mut nodes_to_add: FxHashSet<u64> = FxHashSet::default();
-    let mut edges_to_add: Vec<(u64, u64, Option<f64>)> = Vec::new();
-
-    // Edges in G1 but not G2
-    for edge in g1.get_edges_internal() {
-        let key = edge_key(edge.source, edge.target, directed);
-        if !g2_edges.contains(&key) {
-            nodes_to_add.insert(edge.source);
-            nodes_to_add.insert(edge.target);
-            edges_to_add.push((edge.source, edge.target, edge.weight));
+    let mut edges_to_add: Vec<Edge> = Vec::new();
+    for (g, other) in [(g1, &g2_edges), (g2, &g1_edges)] {
+        for edge in g.get_edges_internal() {
+            if !other.contains(&edge_key(edge.source, edge.target, directed)) {
+                nodes_to_add.insert(edge.source);
+                nodes_to_add.insert(edge.target);
+                edges_to_add.push(Edge {
+                    id: 0,
+                    source: edge.source,
+                    target: edge.target,
+                    weight: edge.weight,
+                    attributes: copy_attrs(py, &edge.attributes)?,
+                });
+            }
         }
     }
 
-    // Edges in G2 but not G1
-    for edge in g2.get_edges_internal() {
-        let key = edge_key(edge.source, edge.target, directed);
-        if !g1_edges.contains(&key) {
-            nodes_to_add.insert(edge.source);
-            nodes_to_add.insert(edge.target);
-            edges_to_add.push((edge.source, edge.target, edge.weight));
-        }
+    // Nodes: G1's label and attributes win, G2 fills in what G1 lacks
+    for node_id in sorted_ids(nodes_to_add) {
+        result.add_node_rust(merged_node(py, node_id, g1, Some(g2))?)?;
     }
-
-    // Add necessary nodes (prefer G1 labels, fall back to G2)
-    for &node_id in &nodes_to_add {
-        let label = g1
-            .label_from_id(node_id)
-            .ok()
-            .flatten()
-            .or_else(|| g2.label_from_id(node_id).ok().flatten());
-        let node = Node {
-            id: node_id,
-            label,
-            attributes: None,
-        };
-        result.add_node_rust(node)?;
-    }
-
-    // Add symmetric difference edges
-    for (source, target, weight) in edges_to_add {
-        let edge = Edge {
-            id: 0,
-            source,
-            target,
-            weight,
-            attributes: None,
-        };
+    for edge in edges_to_add {
         result.add_edge_rust(edge)?;
     }
 
@@ -390,76 +409,7 @@ pub fn graph_compose(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<Graph> 
             "Cannot compose directed and undirected graphs",
         ));
     }
-
-    let directed = g1.is_directed();
-    let weighted = g1.is_weighted() || g2.is_weighted();
-
-    let mut result = Graph::new_rust(directed, weighted);
-
-    // Track which edges we've added to avoid duplicates
-    let mut added_edges: FxHashSet<(u64, u64)> = FxHashSet::default();
-
-    // Collect all node IDs from both graphs
-    let mut all_node_ids: FxHashSet<u64> = FxHashSet::default();
-    for &node_id in g1.get_node_ids().iter() {
-        all_node_ids.insert(node_id);
-    }
-    for &node_id in g2.get_node_ids().iter() {
-        all_node_ids.insert(node_id);
-    }
-
-    // Add all nodes (G2 labels take precedence over G1)
-    for node_id in all_node_ids {
-        // Prefer G2 label if node exists in G2, otherwise use G1
-        let label = if g2.has_node_id(node_id) {
-            g2.label_from_id(node_id).ok().flatten()
-        } else {
-            g1.label_from_id(node_id).ok().flatten()
-        };
-
-        let node = Node {
-            id: node_id,
-            label,
-            attributes: None,
-        };
-        result.add_node_rust(node)?;
-    }
-
-    // Add all edges from G1
-    for edge in g1.get_edges_internal() {
-        let key = edge_key(edge.source, edge.target, directed);
-        if !added_edges.contains(&key) {
-            let new_edge = Edge {
-                id: 0,
-                source: edge.source,
-                target: edge.target,
-                weight: edge.weight,
-                attributes: None,
-            };
-            result.add_edge_rust(new_edge)?;
-            added_edges.insert(key);
-        }
-    }
-
-    // Add edges from G2 that aren't already present
-    for edge in g2.get_edges_internal() {
-        if result.has_node_id(edge.source) && result.has_node_id(edge.target) {
-            let key = edge_key(edge.source, edge.target, directed);
-            if !added_edges.contains(&key) {
-                let new_edge = Edge {
-                    id: 0,
-                    source: edge.source,
-                    target: edge.target,
-                    weight: edge.weight,
-                    attributes: None,
-                };
-                result.add_edge_rust(new_edge)?;
-                added_edges.insert(key);
-            }
-        }
-    }
-
-    Ok(result)
+    merge_graphs(py, g1, g2, true)
 }
 
 /// Disjoint union of two graphs.
@@ -507,7 +457,7 @@ pub fn graph_disjoint_union(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<
         let node = Node {
             id: node_id,
             label,
-            attributes: None,
+            attributes: copy_attrs(py, &node_attrs(g1, node_id))?,
         };
         result.add_node_rust(node)?;
     }
@@ -546,7 +496,7 @@ pub fn graph_disjoint_union(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<
         let node = Node {
             id: new_id,
             label,
-            attributes: None,
+            attributes: copy_attrs(py, &node_attrs(g2, old_id))?,
         };
         result.add_node_rust(node)?;
     }
@@ -558,7 +508,7 @@ pub fn graph_disjoint_union(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<
             source: edge.source,
             target: edge.target,
             weight: edge.weight,
-            attributes: None,
+            attributes: copy_attrs(py, &edge.attributes)?,
         };
         result.add_edge_rust(new_edge)?;
     }
@@ -572,7 +522,7 @@ pub fn graph_disjoint_union(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<
             source: new_source,
             target: new_target,
             weight: edge.weight,
-            attributes: None,
+            attributes: copy_attrs(py, &edge.attributes)?,
         };
         result.add_edge_rust(new_edge)?;
     }
@@ -612,11 +562,15 @@ pub fn transitive_closure(graph: &Graph) -> PyResult<Graph> {
     let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
 
     // Add all nodes
-    for node in graph.get_nodes().values() {
+    // Renumber in ascending original-ID order (not hash order), so contiguous IDs
+    // come out unchanged.
+    let mut originals: Vec<&Node> = graph.get_nodes().values().collect();
+    originals.sort_unstable_by_key(|n| n.id);
+    for node in originals {
         let new_node = Node {
             id: 0, // Auto-assign
             label: node.label.clone(),
-            attributes: None,
+            attributes: copy_attrs_gil(&node.attributes)?,
         };
         let new_id = result.add_node_rust(new_node)?;
         node_map.insert(node.id, new_id);
@@ -652,16 +606,24 @@ pub fn transitive_closure(graph: &Graph) -> PyResult<Graph> {
             }
         }
 
-        // Add edges from source to all reachable nodes
+        // Add edges from source to all reachable nodes. Arcs that already existed
+        // keep their attributes; arcs the closure adds have none.
         let new_source = node_map[&source];
         for &target in &visited {
             let new_target = node_map[&target];
+            let original = graph
+                .get_edges_internal()
+                .iter()
+                .find(|e| e.source == source && e.target == target);
             let edge = Edge {
                 id: 0,
                 source: new_source,
                 target: new_target,
                 weight: None,
-                attributes: None,
+                attributes: match original {
+                    Some(e) => copy_attrs_gil(&e.attributes)?,
+                    None => None,
+                },
             };
             result.add_edge_rust(edge)?;
         }
@@ -710,11 +672,15 @@ pub fn transitive_reduction(graph: &Graph) -> PyResult<Graph> {
     let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
 
     // Add all nodes
-    for node in graph.get_nodes().values() {
+    // Renumber in ascending original-ID order (not hash order), so contiguous IDs
+    // come out unchanged.
+    let mut originals: Vec<&Node> = graph.get_nodes().values().collect();
+    originals.sort_unstable_by_key(|n| n.id);
+    for node in originals {
         let new_node = Node {
             id: 0, // Auto-assign
             label: node.label.clone(),
-            attributes: None,
+            attributes: copy_attrs_gil(&node.attributes)?,
         };
         let new_id = result.add_node_rust(new_node)?;
         node_map.insert(node.id, new_id);
@@ -779,7 +745,7 @@ pub fn transitive_reduction(graph: &Graph) -> PyResult<Graph> {
                 source: node_map[&u],
                 target: node_map[&v],
                 weight: edge.weight,
-                attributes: None,
+                attributes: copy_attrs_gil(&edge.attributes)?,
             };
             result.add_edge_rust(new_edge)?;
         }
@@ -824,13 +790,17 @@ pub fn subgraph(graph: &Graph, nodes: Vec<u64>) -> PyResult<Graph> {
     // Map old node IDs to new node IDs
     let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
 
-    // Add nodes to the new graph
-    for &node_id in &nodes {
+    // Add nodes to the new graph, renumbered in ascending original-ID order (so
+    // the result doesn't depend on the order the IDs were passed in)
+    let mut ordered: Vec<u64> = nodes.clone();
+    ordered.sort_unstable();
+    ordered.dedup();
+    for &node_id in &ordered {
         if let Some(node) = graph.get_nodes().get(&node_id) {
             let new_node = Node {
                 id: 0, // Will be auto-assigned
                 label: node.label.clone(),
-                attributes: None, // Attributes cannot be cloned across PyO3 boundary
+                attributes: copy_attrs_gil(&node.attributes)?,
             };
             let new_id = result.add_node_rust(new_node)?;
             node_map.insert(node_id, new_id);
@@ -848,7 +818,7 @@ pub fn subgraph(graph: &Graph, nodes: Vec<u64>) -> PyResult<Graph> {
                     source: new_source,
                     target: new_target,
                     weight: edge.weight,
-                    attributes: None, // Attributes cannot be cloned across PyO3 boundary
+                    attributes: copy_attrs_gil(&edge.attributes)?,
                 };
                 result.add_edge_rust(new_edge)?;
             }
@@ -907,12 +877,15 @@ pub fn edge_subgraph(graph: &Graph, edges: Vec<u64>) -> PyResult<Graph> {
     let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
 
     // Add nodes to the new graph
+    // Renumber in ascending original-ID order (not hash order)
+    let mut node_ids: Vec<u64> = node_ids.into_iter().collect();
+    node_ids.sort_unstable();
     for &node_id in &node_ids {
         if let Some(node) = graph.get_nodes().get(&node_id) {
             let new_node = Node {
                 id: 0,
                 label: node.label.clone(),
-                attributes: None, // Attributes cannot be cloned across PyO3 boundary
+                attributes: copy_attrs_gil(&node.attributes)?,
             };
             let new_id = result.add_node_rust(new_node)?;
             node_map.insert(node_id, new_id);
@@ -930,7 +903,7 @@ pub fn edge_subgraph(graph: &Graph, edges: Vec<u64>) -> PyResult<Graph> {
                     source: new_source,
                     target: new_target,
                     weight: edge.weight,
-                    attributes: None, // Attributes cannot be cloned across PyO3 boundary
+                    attributes: copy_attrs_gil(&edge.attributes)?,
                 };
                 result.add_edge_rust(new_edge)?;
             }
