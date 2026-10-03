@@ -283,7 +283,7 @@ fn list_triangles_directed(
                             if let Ok(w_neighbors) = graph.neighbors(w) {
                                 if w_neighbors.contains(&u) {
                                     // Found triangle u -> v -> w -> u
-                                    let mut tri = vec![u, v, w];
+                                    let mut tri = [u, v, w];
                                     tri.sort_unstable();
                                     let triangle = (tri[0], tri[1], tri[2]);
 
