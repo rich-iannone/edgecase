@@ -54,16 +54,25 @@ fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64,
     for &node_id in node_ids.iter() {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             let mut sorted_neighbors = neighbors;
+            sorted_neighbors.retain(|&nb| nb != node_id);
             sorted_neighbors.sort_unstable();
+            sorted_neighbors.dedup();
             adj_vecs.insert(node_id, sorted_neighbors);
         }
     }
 
-    // Get edges and filter to u < v
-    let edges: Vec<(u64, u64)> = graph.edges()
+    // Normalize each edge to (min, max) regardless of stored direction, then dedup so
+    // parallel edges (including A-B stored alongside B-A) and self-loops don't double count
+    let mut edges: Vec<(u64, u64)> = graph.edges()
         .into_iter()
-        .filter_map(|(_, u, v)| if u < v { Some((u, v)) } else { None })
+        .filter_map(|(_, u, v)| match u.cmp(&v) {
+            std::cmp::Ordering::Less => Some((u, v)),
+            std::cmp::Ordering::Greater => Some((v, u)),
+            std::cmp::Ordering::Equal => None,
+        })
         .collect();
+    edges.sort_unstable();
+    edges.dedup();
 
     // Parallelize triangle counting only for very large graphs
     // Threshold chosen to avoid Rayon overhead on medium graphs
