@@ -51,8 +51,7 @@ pub fn topological_overlap_matrix(
         let ki = set_i.len();
         let mut row: HashMap<u64, f64> = HashMap::new();
 
-        for j in 0..n {
-            let nj = node_ids[j];
+        for &nj in &node_ids[..n] {
             if ni == nj {
                 row.insert(nj, 1.0);
                 continue;
