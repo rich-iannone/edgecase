@@ -1231,22 +1231,24 @@ class Graph:
         ```
 
         """
+        # Read the input once (it may be a generator) and validate it before adding anything
+        if isinstance(nodes, dict):
+            items = [(label, _node_attrs(label, attrs)) for label, attrs in nodes.items()]
+        else:
+            items = [_parse_node_item(item) for item in nodes]
+
         labels_added = []
         self._recording_depth += 1
-        for item in nodes:
-            if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], dict):
-                label, overrides = item
+        try:
+            for label, overrides in items:
                 merged = {**shared_attrs, **overrides}
-                node_type = overrides.get("type", type)
-                merged.pop("type", None)
+                node_type = merged.pop("type", type)
                 self.add_node(label=str(label), type=node_type, **merged)
                 labels_added.append(str(label))
-            else:
-                self.add_node(label=str(item), type=type, **shared_attrs)
-                labels_added.append(str(item))
-        self._recording_depth -= 1
+        finally:
+            self._recording_depth -= 1
 
-        node_list = repr([str(n) for n in nodes] if not isinstance(nodes, range) else nodes)
+        node_list = repr(nodes if isinstance(nodes, range) else labels_added)
         attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
         type_str = f", type={type!r}" if type is not None else ""
         code = f"G.add_nodes({node_list}{type_str}{attrs_str})"
