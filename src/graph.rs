@@ -512,9 +512,14 @@ impl Graph {
     /// Get weight of edge between two nodes (for internal use in algorithms)
     #[inline]
     pub(crate) fn get_edge_weight(&self, from: u64, to: u64) -> f64 {
+        // Undirected edges are stored once, in insertion order, so traversing
+        // one "backwards" must still find it (and its weight).
         self.edges
             .iter()
-            .find(|e| e.source == from && e.target == to)
+            .find(|e| {
+                (e.source == from && e.target == to)
+                    || (!self.directed && e.source == to && e.target == from)
+            })
             .and_then(|e| e.weight)
             .unwrap_or(1.0)
     }
@@ -910,10 +915,10 @@ impl Graph {
     /// Select the last N nodes that were created
     #[pyo3(signature = (n))]
     pub fn select_last_nodes_created(&mut self, n: usize) -> PyResult<()> {
-        let total = self.node_creation_order.len();
-        let start_idx = if n >= total { 0 } else { total - n };
+        let order = self.live_node_creation_order();
+        let start_idx = order.len().saturating_sub(n);
 
-        for &node_id in &self.node_creation_order[start_idx..] {
+        for &node_id in &order[start_idx..] {
             self.selected_nodes.insert(node_id);
         }
         Ok(())
@@ -922,23 +927,23 @@ impl Graph {
     /// Select the last N edges that were created
     #[pyo3(signature = (n))]
     pub fn select_last_edges_created(&mut self, n: usize) -> PyResult<()> {
-        let total = self.edge_creation_order.len();
-        let start_idx = if n >= total { 0 } else { total - n };
+        let order = self.live_edge_creation_order();
+        let start_idx = order.len().saturating_sub(n);
 
-        for edge_id in &self.edge_creation_order[start_idx..] {
-            self.selected_edges.insert(*edge_id);
+        for &edge_id in &order[start_idx..] {
+            self.selected_edges.insert(edge_id);
         }
         Ok(())
     }
 
     /// Get the creation order of all nodes
     pub fn get_node_creation_order(&self) -> Vec<u64> {
-        self.node_creation_order.clone()
+        self.live_node_creation_order()
     }
 
     /// Get the creation order of all edges
     pub fn get_edge_creation_order(&self) -> Vec<u64> {
-        self.edge_creation_order.clone()
+        self.live_edge_creation_order()
     }
 
     /// Select nodes in the K-hop neighborhood of specified nodes
@@ -1379,53 +1384,37 @@ impl Graph {
             }
         }
 
-        // Rewire edges with probability p
-        let mut rewired_edges: FxHashSet<(usize, usize)> = FxHashSet::with_capacity_and_hasher(expected_edges, Default::default());
+        // Rewire edges with probability p. `present` holds every edge of the graph
+        // as it currently stands, including lattice edges not yet visited: checking
+        // only already-processed edges let a rewired edge duplicate a later one.
+        let norm = |a: usize, b: usize| if a < b { (a, b) } else { (b, a) };
+        let mut present: FxHashSet<(usize, usize)> =
+            edges.iter().map(|&(u, v)| norm(u, v)).collect();
 
-        for (u_idx, v_idx) in edges {
+        for i in 0..edges.len() {
+            let (u_idx, v_idx) = edges[i];
             if rng.gen::<f64>() < p {
                 // Rewire: choose new target
                 let mut new_v_idx = rng.gen_range(0..n);
                 let mut attempts = 0;
 
-                while (new_v_idx == u_idx
-                    || rewired_edges.contains(&(u_idx, new_v_idx))
-                    || rewired_edges.contains(&(new_v_idx, u_idx)))
+                while (new_v_idx == u_idx || present.contains(&norm(u_idx, new_v_idx)))
                     && attempts < 100 {
                     new_v_idx = rng.gen_range(0..n);
                     attempts += 1;
                 }
 
+                // Otherwise (no free target found) the original edge is kept.
                 if attempts < 100 {
-                    self.add_edge(Edge::new(
-                        0,
-                        node_ids[u_idx],
-                        node_ids[new_v_idx],
-                        None,
-                        None,
-                    ))?;
-                    rewired_edges.insert((u_idx, new_v_idx));
-                } else {
-                    // Fallback: keep original edge
-                    self.add_edge(Edge::new(
-                        0,
-                        node_ids[u_idx],
-                        node_ids[v_idx],
-                        None,
-                        None,
-                    ))?;
-                    rewired_edges.insert((u_idx, v_idx));
+                    present.remove(&norm(u_idx, v_idx));
+                    present.insert(norm(u_idx, new_v_idx));
+                    edges[i] = (u_idx, new_v_idx);
                 }
-            } else {
-                self.add_edge(Edge::new(
-                    0,
-                    node_ids[u_idx],
-                    node_ids[v_idx],
-                    None,
-                    None,
-                ))?;
-                rewired_edges.insert((u_idx, v_idx));
             }
+        }
+
+        for (u_idx, v_idx) in edges {
+            self.add_edge(Edge::new(0, node_ids[u_idx], node_ids[v_idx], None, None))?;
         }
 
         Ok(())
@@ -1940,7 +1929,13 @@ impl Graph {
             return 0.0;
         }
 
-        let total_degree: usize = self.nodes.keys().map(|&id| self.degree(id)).sum();
+        // For directed graphs `degree()` is the out-degree only; the documented
+        // average is of total degree (in + out), and every arc adds one to each.
+        let total_degree: usize = if self.directed {
+            2 * self.edges.len()
+        } else {
+            self.nodes.keys().map(|&id| self.degree(id)).sum()
+        };
         total_degree as f64 * (1.0 / n as f64)
     }
 
@@ -2715,10 +2710,8 @@ impl Graph {
         Ok(result)
     }
 
-    /// Get adhesion (minimum edge cut size)
-    /// Returns minimum number of edges whose removal disconnects the graph
-    /// Uses simple approach: try removing each edge and check connectivity
-    /// For larger graphs, use max-flow based algorithms (future optimization)
+    /// Get adhesion: the edge connectivity of an undirected graph (the minimum
+    /// number of edges whose removal disconnects it).
     #[inline]
     fn get_adhesion(&self) -> PyResult<usize> {
         if self.directed {
@@ -2726,32 +2719,11 @@ impl Graph {
                 "Adhesion currently only implemented for undirected graphs",
             ));
         }
-
-        let n = self.num_nodes();
-        if n == 0 {
-            return Ok(0);
-        }
-
-        if !self.is_connected() {
-            return Ok(0);
-        }
-
-        // For small graphs, try edge removal
-        // For a complete graph, adhesion = minimum degree
-        let min_degree = self.nodes.keys()
-            .map(|&id| self.degree(id))
-            .min()
-            .unwrap_or(0);
-
-        // Simple upper bound: adhesion <= min_degree
-        // Exact computation requires max-flow, which we'll implement later
-        Ok(min_degree)
+        self.edge_connectivity()
     }
 
-    /// Get cohesion (minimum node cut size)
-    /// Returns minimum number of nodes whose removal disconnects the graph
-    /// Uses Menger's theorem: min node cut = max number of node-disjoint paths
-    /// Simplified implementation for now
+    /// Get cohesion: the node connectivity of an undirected graph (the minimum
+    /// number of nodes whose removal disconnects it).
     #[inline]
     fn get_cohesion(&self) -> PyResult<usize> {
         if self.directed {
@@ -2759,26 +2731,7 @@ impl Graph {
                 "Cohesion currently only implemented for undirected graphs",
             ));
         }
-
-        let n = self.num_nodes();
-        if n == 0 {
-            return Ok(0);
-        }
-
-        if !self.is_connected() {
-            return Ok(0);
-        }
-
-        // For complete graphs, cohesion = n - 1
-        // For others, cohesion <= min_degree
-        let min_degree = self.nodes.keys()
-            .map(|&id| self.degree(id))
-            .min()
-            .unwrap_or(0);
-
-        // Simple bound: cohesion <= min_degree
-        // Exact computation requires sophisticated algorithms
-        Ok(min_degree)
+        self.node_connectivity()
     }
 
     /// Compute node connectivity between two nodes
@@ -2819,40 +2772,31 @@ impl Graph {
             }
         }
 
-        // Build transformed graph for node connectivity
-        // Each node v becomes v_in (v*2) and v_out (v*2+1) with capacity 1 edge between them
-        // Exception: source and target nodes are not split (to measure connectivity between them)
+        // Build transformed graph for node connectivity.
+        // Every node v becomes v_in (v*2) and v_out (v*2+1). Internal nodes get a
+        // capacity-1 edge v_in -> v_out (removing v costs 1); source and target get
+        // none, and the flow runs from source_out to target_in. Splitting *every*
+        // node keeps all transformed ids in one space: leaving source/target as raw
+        // ids let them collide with another node's split id (e.g. node 6 vs. 3*2).
         let n = self.num_nodes();
         let estimated_capacity = n + self.edges.len() * 2;
         let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(estimated_capacity, Default::default());
 
-        // Add internal edges for split nodes (except source and target)
         for &node in self.nodes.keys() {
             if node != source && node != target {
-                let v_in = node * 2;
-                let v_out = node * 2 + 1;
-                capacity.insert((v_in, v_out), 1); // Capacity 1 to count node removal
+                capacity.insert((node * 2, node * 2 + 1), 1);
             }
         }
 
-        // Add edges from original graph
+        // Add edges from original graph: u_out -> v_in (and v_out -> u_in if undirected)
         for edge in &self.edges {
-            let s = edge.source;
-            let t = edge.target;
-
-            // Map to transformed nodes
-            let s_out = if s == source || s == target { s } else { s * 2 + 1 };
-            let t_in = if t == source || t == target { t } else { t * 2 };
-
-            *capacity.entry((s_out, t_in)).or_insert(0) += 1;
-
-            // For undirected graphs, add reverse edge
+            let (s, t) = (edge.source, edge.target);
+            *capacity.entry((s * 2 + 1, t * 2)).or_insert(0) += 1;
             if !self.directed {
-                let t_out = if t == source || t == target { t } else { t * 2 + 1 };
-                let s_in = if s == source || s == target { s } else { s * 2 };
-                *capacity.entry((t_out, s_in)).or_insert(0) += 1;
+                *capacity.entry((t * 2 + 1, s * 2)).or_insert(0) += 1;
             }
         }
+        let (flow_source, flow_sink) = (source * 2 + 1, target * 2);
 
         // Run max-flow from source to target on transformed graph
         let mut residual = capacity.clone();
@@ -2860,7 +2804,7 @@ impl Graph {
 
         loop {
             // Find augmenting path using BFS
-            let path = self.bfs_augmenting_path_custom(source, target, &residual);
+            let path = self.bfs_augmenting_path_custom(flow_source, flow_sink, &residual);
 
             if path.is_empty() {
                 break;
@@ -3840,8 +3784,15 @@ impl Graph {
         let mut current = start_id;
 
         for _ in 0..steps {
-            // Get available edges based on mode
+            // Get available edges based on mode. An undirected edge is stored once
+            // with an arbitrary orientation, so every mode follows any incident edge
+            // (otherwise "out" could only walk edges in their insertion direction).
             let available_edges: Vec<&Edge> = match mode {
+                "out" | "in" | "all" if !self.directed => {
+                    self.edges.iter()
+                        .filter(|e| e.source == current || e.target == current)
+                        .collect()
+                }
                 "out" => {
                     // Outgoing edges from current
                     self.edges.iter()
@@ -3889,6 +3840,9 @@ impl Graph {
 
             // Determine next vertex based on mode
             let next = match mode {
+                _ if !self.directed => {
+                    if edge.source == current { edge.target } else { edge.source }
+                }
                 "out" => edge.target,
                 "in" => edge.source,
                 "all" => {
@@ -3901,8 +3855,13 @@ impl Graph {
                 _ => unreachable!(),
             };
 
-            // Store edge as (edge_id, source_id, target_id)
-            edges_traversed.push((edge.id, edge.source, edge.target));
+            // Store edge as (edge_id, source_id, target_id). For undirected graphs the
+            // pair is oriented in the direction actually walked (current -> next).
+            if self.directed {
+                edges_traversed.push((edge.id, edge.source, edge.target));
+            } else {
+                edges_traversed.push((edge.id, current, next));
+            }
             current = next;
         }
 
@@ -4016,19 +3975,7 @@ impl Graph {
             // Get outgoing neighbors
             if let Some(neighbors) = self.adjacency_list.get(&node_id) {
                 for &neighbor_id in neighbors {
-                    let weight = if let Some(_weight_attr) = weights {
-                        // Try to get weight from edge attributes
-                        self.edges.iter()
-                            .find(|e| e.source == node_id && e.target == neighbor_id)
-                            .and_then(|e| e.weight)
-                            .unwrap_or(1.0)
-                    } else {
-                        // Check edge.weight field
-                        self.edges.iter()
-                            .find(|e| e.source == node_id && e.target == neighbor_id)
-                            .and_then(|e| e.weight)
-                            .unwrap_or(1.0)
-                    };
+                    let weight = self.get_edge_weight(node_id, neighbor_id);
                     *neighbor_weights.entry(neighbor_id).or_insert(0.0) += weight;
                 }
             }
@@ -5349,26 +5296,28 @@ impl Graph {
                     })
                     .unwrap_or(0.0);
 
-                // alpha * (sum of neighbor centralities) + 1.0 (exogenous)
+                // x = alpha * A x + e, with e = 1 for every node. Iterate the equation
+                // itself: renormalizing inside the loop and then adding e (as this used
+                // to) converges to something else, with nearly uniform scores.
                 let new_value = alpha * neighbor_sum + 1.0;
                 let prev_value = *prev_centrality.get(&node).unwrap();
                 centrality.insert(node, new_value);
 
-                let change = (new_value - prev_value).abs();
+                let change = (new_value - prev_value).abs() / new_value.abs().max(1.0);
                 max_change = max_change.max(change);
             }
 
-            // Normalize with multiplication
-            let total: f64 = centrality.values().sum();
-            if total > 0.0 {
-                let inv_total = 1.0 / total;
-                for val in centrality.values_mut() {
-                    *val *= inv_total;
-                }
-            }
-
-            if max_change < tol {
+            if max_change < tol || centrality.values().any(|v| !v.is_finite()) {
                 break;
+            }
+        }
+
+        // Report the fixed point scaled to sum to 1.
+        let total: f64 = centrality.values().sum();
+        if total.is_finite() && total > 0.0 {
+            let inv_total = 1.0 / total;
+            for val in centrality.values_mut() {
+                *val *= inv_total;
             }
         }
 
@@ -7796,110 +7745,19 @@ impl Graph {
             ));
         }
 
-        let n = self.num_nodes();
-        if n == 0 {
-            return Ok(FxHashMap::default());
-        }
-
-        // Special case: single node
-        if n == 1 {
-            let mut result = FxHashMap::default();
-            if let Some(&node_id) = self.nodes.keys().next() {
-                result.insert(node_id, 0);
-            }
-            return Ok(result);
-        }
-
-        // No edges: each node is its own community
-        if self.num_edges() == 0 {
-            let result: FxHashMap<u64, usize> = self.nodes.keys()
-                .enumerate()
-                .map(|(idx, &id)| (id, idx))
-                .collect();
-            return Ok(result);
-        }
-
-        // Create mutable working graph (adjacency list that we'll modify)
-        let mut working_adj: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for (&k, v) in self.adjacency_list.iter() {
-            let neighbors: FxHashSet<u64> = v.iter().copied().collect();
-            working_adj.insert(k, neighbors);
-        }
-
-        // Track best partition
-        #[allow(unused_assignments)]
-        let mut best_modularity = -1.0;
-        let mut best_partition = self.find_components(&working_adj);
-
-        // Initial modularity (all connected)
-        let m_initial = self.num_edges() as f64;
-        let mut current_modularity = self.compute_modularity_for_partition(&best_partition, m_initial);
-        best_modularity = current_modularity;
-
-        // Iteratively remove edges
-        let max_iterations = self.num_edges();
-        for _iteration in 0..max_iterations {
-            // Compute edge betweenness
-            let betweenness = self.compute_edge_betweenness(&working_adj);
-
-            if betweenness.is_empty() {
-                break; // No more edges
-            }
-
-            // Find edge with maximum betweenness
-            let max_edge = betweenness.iter()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                .map(|(edge, _)| edge.clone());
-
-            if let Some((u, v)) = max_edge {
-                // Remove edge from working graph
-                if let Some(neighbors) = working_adj.get_mut(&u) {
-                    neighbors.remove(&v);
+        // Same algorithm as cmty_girvan_newman(), so share its implementation: two
+        // copies with different (hash-order) tie-breaking used to disagree on about
+        // a fifth of small graphs. The first dendrogram entry is the best-modularity
+        // partition; communities are numbered by their smallest node ID.
+        let dendrogram = crate::algorithms::community::girvan_newman(self, None)?;
+        let mut result: FxHashMap<u64, usize> = FxHashMap::default();
+        if let Some(best) = dendrogram.first() {
+            for (comm_id, members) in best.iter().enumerate() {
+                for &node_id in members {
+                    result.insert(node_id, comm_id);
                 }
-                if let Some(neighbors) = working_adj.get_mut(&v) {
-                    neighbors.remove(&u);
-                }
-
-                // Find current communities
-                let current_partition = self.find_components(&working_adj);
-
-                // Count remaining edges
-                let remaining_edges: usize = working_adj.values()
-                    .map(|neighbors| neighbors.len())
-                    .sum::<usize>() / 2;
-
-                if remaining_edges == 0 {
-                    break; // Graph fully disconnected
-                }
-
-                // Compute modularity for current partition
-                current_modularity = self.compute_modularity_for_partition(&current_partition, m_initial);
-
-                // Update best if improved
-                if current_modularity > best_modularity {
-                    best_modularity = current_modularity;
-                    best_partition = current_partition;
-                }
-            } else {
-                break;
             }
         }
-
-        // Renumber communities to be contiguous
-        let mut community_map: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
-        let mut next_id = 0;
-
-        for comm_id in best_partition.values() {
-            if !community_map.contains_key(comm_id) {
-                community_map.insert(*comm_id, next_id);
-                next_id += 1;
-            }
-        }
-
-        let result: FxHashMap<u64, usize> = best_partition.iter()
-            .map(|(&node_id, old_comm)| (node_id, *community_map.get(old_comm).unwrap()))
-            .collect();
-
         Ok(result)
     }
 
@@ -8415,6 +8273,32 @@ impl Graph {
 
 
 impl Graph {
+    // ========== Creation-order Helpers ==========
+
+    /// The node creation log, minus nodes that have since been deleted.
+    ///
+    /// The log itself is append-only (deletions don't touch it), so every reader
+    /// filters against the live graph instead of reporting or selecting stale IDs.
+    pub(crate) fn live_node_creation_order(&self) -> Vec<u64> {
+        let mut seen: FxHashSet<u64> = FxHashSet::default();
+        self.node_creation_order
+            .iter()
+            .copied()
+            .filter(|id| self.nodes.contains_key(id) && seen.insert(*id))
+            .collect()
+    }
+
+    /// The edge creation log, minus edges that have since been deleted.
+    pub(crate) fn live_edge_creation_order(&self) -> Vec<u64> {
+        let live: FxHashSet<u64> = self.edges.iter().map(|e| e.id).collect();
+        let mut seen: FxHashSet<u64> = FxHashSet::default();
+        self.edge_creation_order
+            .iter()
+            .copied()
+            .filter(|id| live.contains(id) && seen.insert(*id))
+            .collect()
+    }
+
     // ========== Spectral Helpers ==========
 
     /// Node IDs in creation order (the row/column order of spectral matrices)
@@ -8885,41 +8769,6 @@ impl Graph {
         result
     }
 
-    /// Find connected components using BFS
-    fn find_components(&self, adj_list: &FxHashMap<u64, FxHashSet<u64>>) -> FxHashMap<u64, usize> {
-        let mut communities: FxHashMap<u64, usize> = FxHashMap::default();
-        let mut visited: FxHashSet<u64> = FxHashSet::default();
-        let mut current_community = 0;
-
-        for &start_node in self.nodes.keys() {
-            if visited.contains(&start_node) {
-                continue;
-            }
-
-            // BFS to find all nodes in this component
-            let mut queue = std::collections::VecDeque::new();
-            queue.push_back(start_node);
-            visited.insert(start_node);
-
-            while let Some(node) = queue.pop_front() {
-                communities.insert(node, current_community);
-
-                if let Some(neighbors) = adj_list.get(&node) {
-                    for &neighbor in neighbors {
-                        if !visited.contains(&neighbor) {
-                            visited.insert(neighbor);
-                            queue.push_back(neighbor);
-                        }
-                    }
-                }
-            }
-
-            current_community += 1;
-        }
-
-        communities
-    }
-
     /// Try to split a group of nodes using eigenvector method
     /// Returns Some((group1, group2)) if split improves modularity, None otherwise
     #[inline]
@@ -9114,119 +8963,6 @@ impl Graph {
         let v: Vec<f64> = eigenvector.iter().copied().collect();
 
         Some(v)
-    }
-
-    /// Compute edge betweenness using Brandes' algorithm
-    #[inline]
-    fn compute_edge_betweenness(&self, adj_list: &FxHashMap<u64, FxHashSet<u64>>) -> FxHashMap<(u64, u64), f64> {
-        let n = self.nodes.len();
-        let mut betweenness: FxHashMap<(u64, u64), f64> = FxHashMap::with_capacity_and_hasher(n * 5, Default::default());
-
-        // Initialize all edges with 0
-        for (&u, neighbors) in adj_list {
-            for &v in neighbors {
-                let edge_key = if u < v { (u, v) } else { (v, u) };
-                betweenness.entry(edge_key).or_insert(0.0);
-            }
-        }
-
-        // Run BFS from each node
-        for &source in self.nodes.keys() {
-            // BFS to find shortest paths
-            let mut distance: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let mut num_paths: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let mut stack: Vec<u64> = Vec::with_capacity(n);
-
-            let mut queue = std::collections::VecDeque::with_capacity(n);
-            queue.push_back(source);
-            distance.insert(source, 0);
-            num_paths.insert(source, 1.0);
-
-            // Forward BFS
-            while let Some(node) = queue.pop_front() {
-                stack.push(node);
-                let node_dist = *distance.get(&node).unwrap();
-
-                if let Some(neighbors) = adj_list.get(&node) {
-                    for &neighbor in neighbors {
-                        // First time seeing this node
-                        if !distance.contains_key(&neighbor) {
-                            distance.insert(neighbor, node_dist + 1);
-                            queue.push_back(neighbor);
-                        }
-
-                        // Shortest path to neighbor via node
-                        if *distance.get(&neighbor).unwrap() == node_dist + 1 {
-                            let node_paths = *num_paths.get(&node).unwrap();
-                            *num_paths.entry(neighbor).or_insert(0.0) += node_paths;
-                            predecessors.entry(neighbor).or_insert_with(|| Vec::with_capacity(4)).push(node);
-                        }
-                    }
-                }
-            }
-
-            // Backward accumulation
-            let mut dependency: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            for &node in self.nodes.keys() {
-                dependency.insert(node, 0.0);
-            }
-
-            // Process nodes in reverse order of distance from source
-            while let Some(w) = stack.pop() {
-                if let Some(preds) = predecessors.get(&w) {
-                    for &v in preds {
-                        let coeff = (num_paths.get(&v).unwrap() / num_paths.get(&w).unwrap())
-                                    * (1.0 + dependency.get(&w).unwrap());
-                        *dependency.get_mut(&v).unwrap() += coeff;
-
-                        // Accumulate edge betweenness
-                        let edge_key = if v < w { (v, w) } else { (w, v) };
-                        *betweenness.entry(edge_key).or_insert(0.0) += coeff;
-                    }
-                }
-            }
-        }
-
-        // Divide by 2 for undirected graphs (each edge counted twice)
-        for value in betweenness.values_mut() {
-            *value /= 2.0;
-        }
-
-        betweenness
-    }
-
-    /// Compute modularity for a given partition
-    #[inline]
-    #[allow(non_snake_case)]
-    fn compute_modularity_for_partition(&self, partition: &FxHashMap<u64, usize>, m: f64) -> f64 {
-        if m == 0.0 {
-            return 0.0;
-        }
-
-        let mut Q = 0.0;
-        let inv_two_m = 1.0 / (2.0 * m);
-
-        for (&node_i, comm_i) in partition {
-            for (&node_j, comm_j) in partition {
-                if comm_i == comm_j {
-                    // Check if edge exists
-                    let has_edge = self.adjacency_list.get(&node_i)
-                        .map(|neighbors| neighbors.contains(&node_j))
-                        .unwrap_or(false);
-
-                    #[allow(non_snake_case)]
-                    let A_ij = if has_edge { 1.0 } else { 0.0 };
-
-                    let k_i = self.degree(node_i) as f64;
-                    let k_j = self.degree(node_j) as f64;
-
-                    Q += A_ij - (k_i * k_j * inv_two_m);
-                }
-            }
-        }
-
-        Q * inv_two_m
     }
 
     /// Helper: BFS to find augmenting path in residual graph (for min cut)
