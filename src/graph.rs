@@ -10667,6 +10667,30 @@ mod tests {
     }
 }
 
+/// A (key, node) pair in AdaStar's OPEN heap, ordered by key (k1, then k2) and then by node
+/// ID so ties resolve deterministically. Keys are compared with `total_cmp`.
+#[derive(Clone, Copy, PartialEq)]
+struct OpenEntry {
+    key: (f64, f64),
+    node: u64,
+}
+
+impl Eq for OpenEntry {}
+
+impl PartialOrd for OpenEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for OpenEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.key.0.total_cmp(&other.key.0)
+            .then(self.key.1.total_cmp(&other.key.1))
+            .then(self.node.cmp(&other.node))
+    }
+}
+
 /// Anytime Dynamic A* (ADA*) path planner
 ///
 /// A stateful search algorithm that can:
@@ -10691,6 +10715,10 @@ pub struct AdaStar {
 
     // Priority queue sets
     open: FxHashMap<u64, (f64, f64)>,  // node -> (k1, k2) key
+    // Min-heap mirror of `open` for O(log n) minimum lookup. Entries are never removed
+    // eagerly: an entry is stale once its node left `open` or got a different key, and stale
+    // entries are skipped when they reach the top (see `peek_min_open`)
+    open_heap: std::collections::BinaryHeap<std::cmp::Reverse<OpenEntry>>,
     closed: FxHashSet<u64>,
     incons: FxHashSet<u64>,
 
@@ -10721,6 +10749,7 @@ impl AdaStar {
             state_to_goal_est: FxHashMap::default(),
             one_step_lookahead: FxHashMap::default(),
             open: FxHashMap::default(),
+            open_heap: std::collections::BinaryHeap::new(),
             closed: FxHashSet::default(),
             incons: FxHashSet::default(),
             visited: FxHashSet::default(),
@@ -10738,6 +10767,7 @@ impl AdaStar {
         self.state_to_goal_est = FxHashMap::with_capacity_and_hasher(n, Default::default());
         self.one_step_lookahead = FxHashMap::with_capacity_and_hasher(n, Default::default());
         self.open = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        self.open_heap.clear();
         self.closed = FxHashSet::with_capacity_and_hasher(n, Default::default());
         self.incons = FxHashSet::with_capacity_and_hasher(n, Default::default());
         self.visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
@@ -10753,7 +10783,7 @@ impl AdaStar {
 
         // Add target to OPEN with its key
         let key = self.compute_key(self.target, graph);
-        self.open.insert(self.target, key);
+        self.open_insert(self.target, key);
     }
 
     /// Compute or improve the path with given epsilon
@@ -10766,11 +10796,11 @@ impl AdaStar {
         } else {
             // Move INCONS to OPEN
             self.epsilon = epsilon;
-            for &state in &self.incons {
+            let incons: Vec<u64> = self.incons.drain().collect();
+            for state in incons {
                 let key = self.compute_key(state, graph);
-                self.open.insert(state, key);
+                self.open_insert(state, key);
             }
-            self.incons.clear();
 
             // Update all OPEN keys
             let n = self.open.len();
@@ -10778,7 +10808,7 @@ impl AdaStar {
             open_nodes.extend(self.open.keys().copied());
             for node in open_nodes {
                 let key = self.compute_key(node, graph);
-                self.open.insert(node, key);
+                self.open_insert(node, key);
             }
 
             self.closed.clear();
@@ -10787,19 +10817,9 @@ impl AdaStar {
         // Main search loop
         loop {
             // Get minimum key from OPEN
-            let (min_node, min_key) = if self.open.is_empty() {
-                (None, (f64::INFINITY, f64::INFINITY))
-            } else {
-                let (&node, &key) = self.open.iter()
-                    .min_by(|a, b| {
-                        let (k1_a, k2_a) = a.1;
-                        let (k1_b, k2_b) = b.1;
-                        k1_a.partial_cmp(k1_b)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                            .then(k2_a.partial_cmp(k2_b).unwrap_or(std::cmp::Ordering::Equal))
-                    })
-                    .unwrap();
-                (Some(node), key)
+            let (min_node, min_key) = match self.peek_min_open() {
+                Some((node, key)) => (Some(node), key),
+                None => (None, (f64::INFINITY, f64::INFINITY)),
             };
 
             // Termination condition
@@ -10856,11 +10876,11 @@ impl AdaStar {
         }
 
         // Move INCONS to OPEN
-        for &state in &self.incons {
+        let incons: Vec<u64> = self.incons.drain().collect();
+        for state in incons {
             let key = self.compute_key(state, graph);
-            self.open.insert(state, key);
+            self.open_insert(state, key);
         }
-        self.incons.clear();
 
         // Update all OPEN keys
         let n = self.open.len();
@@ -10868,7 +10888,7 @@ impl AdaStar {
         open_nodes.extend(self.open.keys().copied());
         for node in open_nodes {
             let key = self.compute_key(node, graph);
-            self.open.insert(node, key);
+            self.open_insert(node, key);
         }
 
         self.closed.clear();
@@ -10973,7 +10993,7 @@ impl AdaStar {
         if g_n != rhs_n {
             if !self.closed.contains(&n) {
                 let key = self.compute_key(n, graph);
-                self.open.insert(n, key);
+                self.open_insert(n, key);
             } else {
                 self.incons.insert(n);
             }
@@ -10986,6 +11006,35 @@ impl AdaStar {
     /// node's adjacency list on each expansion, which made the search O(V²) on its own.
     fn predecessors_of(u: u64, graph: &Graph) -> Vec<u64> {
         graph.edge_index().predecessors.get(&u).cloned().unwrap_or_default()
+    }
+
+    /// Insert or re-key a node in OPEN, mirroring it into the heap
+    fn open_insert(&mut self, node: u64, key: (f64, f64)) {
+        self.open.insert(node, key);
+        self.open_heap.push(std::cmp::Reverse(OpenEntry { key, node }));
+        // Bulk re-keying (new epsilon, graph updates) leaves stale entries behind; rebuild
+        // from `open` before they outnumber the live ones too much
+        if self.open_heap.len() > 4 * self.open.len() + 64 {
+            self.open_heap = self
+                .open
+                .iter()
+                .map(|(&node, &key)| std::cmp::Reverse(OpenEntry { key, node }))
+                .collect();
+        }
+    }
+
+    /// The OPEN node with the smallest key (ties broken by smallest node ID), without
+    /// removing it. This used to scan all of OPEN on every expansion.
+    fn peek_min_open(&mut self) -> Option<(u64, (f64, f64))> {
+        while let Some(std::cmp::Reverse(top)) = self.open_heap.peek() {
+            match self.open.get(&top.node) {
+                Some(&key) if key == top.key => return Some((top.node, key)),
+                _ => {
+                    self.open_heap.pop(); // stale: removed from OPEN or re-keyed
+                }
+            }
+        }
+        None
     }
 
     /// Compute priority key for a node

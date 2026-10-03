@@ -165,8 +165,9 @@ def test_all_pairs_weighted_400_nodes(benchmark):
 def test_ada_star_search_80x80_grid(benchmark):
     """Benchmark ADA* across an 80x80 weighted grid (6,320 edges).
 
-    Edge weights and predecessors come from the graph's edge index; scanning every edge for
-    each weight and every node for each predecessor made this ~50x slower (~0.95s vs ~0.02s).
+    Edge weights and predecessors come from the graph's edge index and OPEN is a min-heap;
+    scanning every edge per weight, every node per predecessor and all of OPEN per step made
+    this ~200x slower (~0.95s vs ~0.004s).
     """
     rng = random.Random(80)
     k = 80

@@ -351,3 +351,53 @@ class TestAdaStarComparison:
 
         # For this graph, optimal path is A->B->E->C or A->D->C (both cost 3.0)
         assert len(ada_path) == 3  # Should be a 3-hop path
+
+
+class TestAdaStarOpenHeap:
+    """OPEN is a lazily-cleaned min-heap; results must stay optimal and deterministic."""
+
+    def test_equal_cost_ties_are_deterministic(self):
+        """A 4-cycle has two equal-cost routes; repeated searches return the same one."""
+        import subprocess
+        import sys
+
+        code = (
+            "import edgecase as ec\n"
+            "g = ec.Graph(weighted=True)\n"
+            "for label in 'ABCD':\n"
+            "    g.add_node(label=label)\n"
+            "for s, t in [('A', 'B'), ('B', 'D'), ('A', 'C'), ('C', 'D')]:\n"
+            "    g.add_edge(s, t, weight=1.0)\n"
+            "print([g.get_label_from_id(n) for n in g.ada_star_search('A', 'D')])\n"
+        )
+        # Separate processes: tie-breaking must not depend on hash iteration order
+        runs = {
+            subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout
+            for _ in range(3)
+        }
+        assert len(runs) == 1
+        assert runs.pop().strip() in ("['A', 'B', 'D']", "['A', 'C', 'D']")
+
+    def test_optimal_on_random_weighted_graphs(self):
+        """With no heuristic, every returned path has the Dijkstra-optimal cost."""
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(7)
+        for _ in range(60):
+            n = rng.randint(4, 14)
+            reference = nx.gnm_random_graph(n, rng.randint(n, 3 * n), seed=rng.randrange(10**6))
+            g = ec.Graph(weighted=True)
+            for node in reference:
+                g.add_node(label=str(node))
+            for u, v in reference.edges():
+                w = round(rng.uniform(0.5, 5.0), 1)
+                reference[u][v]["weight"] = w
+                g.add_edge(str(u), str(v), weight=w)
+
+            s, t = rng.randrange(n), rng.randrange(n)
+            if s == t or not nx.has_path(reference, s, t):
+                continue
+            path = [int(g.get_label_from_id(x)) for x in g.ada_star_search(str(s), str(t))]
+            cost = sum(reference[a][b]["weight"] for a, b in zip(path, path[1:]))
+            assert cost == pytest.approx(nx.dijkstra_path_length(reference, s, t))
