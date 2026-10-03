@@ -58,6 +58,9 @@ fn merge_attrs(
     }
 }
 
+/// (source, target, weight, attributes) of an edge being merged by `merge_graphs`.
+type MergedEdge = (u64, u64, Option<f64>, Option<Py<PyDict>>);
+
 fn node_attrs(g: &Graph, id: u64) -> Option<Py<PyDict>> {
     g.get_node(id).and_then(|n| n.attributes)
 }
@@ -125,7 +128,7 @@ fn merge_graphs(
     // other graph only contributes values the kept edge lacks, unless it is the
     // preferred graph, in which case its values win.
     let mut order: Vec<(u64, u64)> = Vec::new();
-    let mut merged: FxHashMap<(u64, u64), (u64, u64, Option<f64>, Option<Py<PyDict>>)> =
+    let mut merged: FxHashMap<(u64, u64), MergedEdge> =
         FxHashMap::default();
     for (g, is_hi) in [(g1, !prefer_g2), (g2, prefer_g2)] {
         for edge in g.get_edges_internal() {
