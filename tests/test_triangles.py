@@ -93,6 +93,52 @@ class TestTriangleCounting:
             node_id = g.get_id_from_label(node)
             assert counts[node_id] == 3
 
+    @pytest.mark.parametrize("ca_edge", [("C", "A"), ("A", "C")])
+    def test_count_triangles_independent_of_edge_direction(self, ca_edge):
+        """Undirected counts don't depend on the order edge endpoints were given."""
+        g = ec.Graph()
+        for label in "ABCD":
+            g.add_node(label=label)
+        for source, target in [("A", "B"), ("B", "C"), ca_edge, ("C", "D"), ("A", "D")]:
+            g.add_edge(source, target)
+
+        counts = g.count_triangles()
+        by_label = {label: counts[g.get_id_from_label(label)] for label in "ABCD"}
+        assert by_label == {"A": 2, "B": 1, "C": 2, "D": 1}
+
+    def test_count_triangles_parallel_edges_and_self_loops(self):
+        """Parallel edges, reversed duplicates, and self-loops don't inflate counts."""
+        g = ec.Graph()
+        for label in "ABC":
+            g.add_node(label=label)
+        for source, target in [("A", "B"), ("B", "A"), ("B", "C"), ("C", "A"), ("C", "A"),
+                               ("A", "A")]:
+            g.add_edge(source, target)
+
+        counts = g.count_triangles()
+        assert all(count == 1 for count in counts.values())
+
+    def test_count_triangles_matches_networkx_random_orientation(self):
+        """Per-node counts match NetworkX when edges are added in random orientations."""
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(0)
+        for seed in range(50):
+            n = rng.randint(3, 20)
+            reference = nx.gnp_random_graph(n, 0.4, seed=seed)
+            g = ec.Graph()
+            for i in range(n):
+                g.add_node(label=str(i))
+            for u, v in reference.edges():
+                if rng.random() < 0.5:
+                    u, v = v, u
+                g.add_edge(str(u), str(v))
+
+            counts = g.count_triangles()
+            got = {i: counts[g.get_id_from_label(str(i))] for i in range(n)}
+            assert got == nx.triangles(reference)
+
     def test_count_triangles_directed(self):
         """Test triangle counting in directed graph."""
         g = ec.Graph(directed=True)
