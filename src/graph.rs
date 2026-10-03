@@ -4084,137 +4084,86 @@ impl Graph {
     #[inline]
     #[pyo3(signature = (weights=None))]
     pub fn constraint(&self, weights: Option<&str>) -> PyResult<FxHashMap<u64, Option<f64>>> {
-        let n = self.num_nodes();
-        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
-
-        // Process each node
-        for &node_id in self.nodes.keys() {
-
-            // Get all neighbors (for undirected: direct neighbors, for directed: both in and out)
-            let mut neighbor_weights = FxHashMap::with_capacity_and_hasher(n, Default::default());
-
-            // Get outgoing neighbors
-            if let Some(neighbors) = self.adjacency_list.get(&node_id) {
-                for &neighbor_id in neighbors {
-                    let weight = self.get_edge_weight(node_id, neighbor_id);
-                    *neighbor_weights.entry(neighbor_id).or_insert(0.0) += weight;
-                }
+        // Edge weight: the weight field by default (or for "weight"), else the named numeric
+        // attribute; anything missing counts as 1.0
+        let weight_of = |edge: &Edge| -> f64 {
+            match weights {
+                None | Some("weight") => edge.weight.unwrap_or(1.0),
+                Some(name) => edge
+                    .attributes
+                    .as_ref()
+                    .and_then(|attrs| {
+                        Python::with_gil(|py| {
+                            attrs
+                                .bind(py)
+                                .get_item(name)
+                                .ok()
+                                .flatten()
+                                .and_then(|v| v.extract::<f64>().ok())
+                        })
+                    })
+                    .unwrap_or(1.0),
             }
+        };
 
-            // For directed graphs, also count incoming edges
-            if self.directed {
-                for edge in &self.edges {
-                    if edge.target == node_id && !self.deleted_edge_ids.contains(&edge.id) {
-                        let weight = if let Some(_weight_attr) = weights {
-                            edge.weight.unwrap_or(1.0)
-                        } else {
-                            edge.weight.unwrap_or(1.0)
-                        };
-                        *neighbor_weights.entry(edge.source).or_insert(0.0) += weight;
-                    }
-                }
+        // a[(u, v)]: total weight of the edges u -> v (parallel edges add up; an undirected
+        // edge counts in both orientations)
+        let mut a: FxHashMap<(u64, u64), f64> = FxHashMap::default();
+        // Neighbors of each node, ignoring direction (in- and out-neighbors), as in NetworkX's
+        // `all_neighbors()`; a self-loop makes a node its own neighbor
+        let mut neighbors: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::default();
+        for edge in &self.edges {
+            let w = weight_of(edge);
+            *a.entry((edge.source, edge.target)).or_insert(0.0) += w;
+            if !self.directed && edge.source != edge.target {
+                *a.entry((edge.target, edge.source)).or_insert(0.0) += w;
             }
+            neighbors.entry(edge.source).or_default().insert(edge.target);
+            neighbors.entry(edge.target).or_default().insert(edge.source);
+        }
 
-            // If isolated vertex, constraint is undefined
-            if neighbor_weights.is_empty() {
-                result.insert(node_id, None);
+        // Mutual tie strength m(u, v) = a_uv + a_vu
+        let mutual = |u: u64, v: u64| -> f64 {
+            a.get(&(u, v)).copied().unwrap_or(0.0) + a.get(&(v, u)).copied().unwrap_or(0.0)
+        };
+
+        // Each node's total tie strength, the denominator of p_uv
+        let empty = FxHashSet::default();
+        let scale: FxHashMap<u64, f64> = self
+            .nodes
+            .keys()
+            .map(|&u| {
+                let total = neighbors.get(&u).unwrap_or(&empty).iter().map(|&w| mutual(u, w)).sum();
+                (u, total)
+            })
+            .collect();
+
+        // Proportional tie strength p_uv = m(u, v) / Σ_w m(u, w)
+        let p = |u: u64, v: u64| -> f64 {
+            let s = scale.get(&u).copied().unwrap_or(0.0);
+            if s == 0.0 { 0.0 } else { mutual(u, v) / s }
+        };
+
+        // C_u = Σ_v (p_uv + Σ_w p_uw · p_wv)², over u's neighbors v and w (as in Burt 1992 and
+        // NetworkX). Undefined for isolated nodes (a self-loop alone doesn't count as a tie,
+        // matching NetworkX) and for nodes whose ties all weigh 0.
+        let mut result = FxHashMap::with_capacity_and_hasher(self.nodes.len(), Default::default());
+        for &u in self.nodes.keys() {
+            let n_u = neighbors.get(&u).unwrap_or(&empty);
+            let has_other_tie = n_u.iter().any(|&v| v != u);
+            if !has_other_tie || scale.get(&u).copied().unwrap_or(0.0) == 0.0 {
+                result.insert(u, None);
                 continue;
             }
-
-            // Calculate total tie strength for normalization
-            let total_strength: f64 = neighbor_weights.values().sum();
-
-            if total_strength == 0.0 {
-                result.insert(node_id, None);
-                continue;
-            }
-
-            // Calculate proportional tie strengths (p_ij)
-            let inv_total_strength = 1.0 / total_strength;
-            let mut prop_strengths = FxHashMap::with_capacity_and_hasher(neighbor_weights.len(), Default::default());
-            for (&neighbor, &strength) in &neighbor_weights {
-                prop_strengths.insert(neighbor, strength * inv_total_strength);
-            }
-
-            // Calculate constraint: C_i = Σ_j (p_ij + Σ_q p_iq * p_qj)²
-            let mut constraint_sum = 0.0;
-
-            for (&j, &p_ij) in &prop_strengths {
-                // Calculate indirect connection: Σ_q p_iq * p_qj
-                let mut indirect = 0.0;
-
-                // Get neighbors of j
-                let mut j_neighbors = FxHashSet::with_capacity_and_hasher(n, Default::default());
-                if let Some(j_adj) = self.adjacency_list.get(&j) {
-                    j_neighbors.extend(j_adj.iter().copied());
-                }
-
-                // For directed graphs, also include incoming neighbors of j
-                if self.directed {
-                    for edge in &self.edges {
-                        if edge.target == j && !self.deleted_edge_ids.contains(&edge.id) {
-                            j_neighbors.insert(edge.source);
-                        }
-                    }
-                }
-
-                // Sum over common neighbors q (excluding i and j)
-                for &q in &j_neighbors {
-                    if q != node_id && q != j {
-                        if let Some(&p_iq) = prop_strengths.get(&q) {
-                            // Get weight from q to j
-                            let mut q_to_j_weight = 0.0;
-
-                            // Check direct edge q -> j
-                            for edge in &self.edges {
-                                if edge.source == q && edge.target == j && !self.deleted_edge_ids.contains(&edge.id) {
-                                    q_to_j_weight += edge.weight.unwrap_or(1.0);
-                                }
-                            }
-
-                            // Also count j -> q: the reverse orientation of an undirected
-                            // edge, or the reciprocal arc in a directed graph
-                            for edge in &self.edges {
-                                if edge.target == q && edge.source == j && !self.deleted_edge_ids.contains(&edge.id) {
-                                    q_to_j_weight += edge.weight.unwrap_or(1.0);
-                                }
-                            }
-
-                            // Get j's total strength for normalization
-                            let mut j_total = 0.0;
-                            if let Some(j_neighbors_weighted) = self.adjacency_list.get(&j) {
-                                for &j_neighbor in j_neighbors_weighted {
-                                    for edge in &self.edges {
-                                        if edge.source == j && edge.target == j_neighbor && !self.deleted_edge_ids.contains(&edge.id) {
-                                            j_total += edge.weight.unwrap_or(1.0);
-                                        }
-                                    }
-                                }
-                            }
-
-                            if self.directed {
-                                for edge in &self.edges {
-                                    if edge.target == j && !self.deleted_edge_ids.contains(&edge.id) {
-                                        j_total += edge.weight.unwrap_or(1.0);
-                                    }
-                                }
-                            }
-
-                            if j_total > 0.0 {
-                                let inv_j_total = 1.0 / j_total;
-                                let p_qj = q_to_j_weight * inv_j_total;
-                                indirect += p_iq * p_qj;
-                            }
-                        }
-                    }
-                }
-
-                // Add squared term
-                let term = p_ij + indirect;
-                constraint_sum += term * term;
-            }
-
-            result.insert(node_id, Some(constraint_sum));
+            let c: f64 = n_u
+                .iter()
+                .map(|&v| {
+                    let indirect: f64 = n_u.iter().map(|&w| p(u, w) * p(w, v)).sum();
+                    let local = p(u, v) + indirect;
+                    local * local
+                })
+                .sum();
+            result.insert(u, Some(c));
         }
 
         Ok(result)

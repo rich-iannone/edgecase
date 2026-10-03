@@ -25412,7 +25412,7 @@ class Graph:
         r"""
         Calculate Burt's constraint for each node.
 
-        ![Burt's constraint](/assets/graphs/constraint.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by Burt's constraint. Hub C, whose contacts are all linked to each other, is the most constrained at 1.20; the tail node F, the only link between E and G, sits in a structural hole and has the lowest constraint, 0.50." width="100%"}
+        ![Burt's constraint](/assets/graphs/constraint.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by Burt's constraint. The pendant G, with a single contact, is fully constrained at 1.00, and A, whose two contacts know each other, follows at 0.84. The bridge E, linking the triangles to the tail, spans a structural hole and has the lowest constraint, 0.48." width="100%"}
 
         Burt's constraint measures the extent to which ego's contacts are redundant, that is,
         connected to each other. Higher constraint indicates fewer structural holes and less
@@ -25427,7 +25427,10 @@ class Graph:
 
         `p_ij = (a_ij + a_ji) / Σ_k (a_ik + a_ki)`
 
-        and `a_ij` are elements of the adjacency matrix (edge weights).
+        and `a_ij` are elements of the adjacency matrix (edge weights). The sums run over the
+        node's contacts, its neighbors in either direction; on a directed graph that includes
+        in-neighbors, so a node with only incoming edges still gets a value (NetworkX returns
+        `nan` for it). Results otherwise match `networkx.constraint()`.
 
         Time complexity: `O(V × D²)` where `D` is average degree
         Space complexity: `O(V)`
@@ -25435,8 +25438,11 @@ class Graph:
         Parameters
         ----------
         weights
-            Name of edge attribute to use as weights. If `None`, uses edge
-            weight field. If weights don't exist, treats all edges equally.
+            Name of the edge attribute to use as tie strength. If `None` (default) or
+            `"weight"`, the edge's weight field is used. Edges without a (numeric) value
+            count as `1.0`, so on an unweighted graph all ties are equal. Parallel edges add up
+            their weights; on a directed graph `a_ij` and `a_ji` are the arcs in each
+            direction.
         attr_name
             Name of the node attribute to store constraint values. If `None`, uses `constraint` as
             the attribute name.
@@ -25448,7 +25454,8 @@ class Graph:
         -------
         dict[int, float | None] or Graph
             If `return_dict=` is `True`, a dictionary mapping node IDs to constraint values is
-            returned. Returns `None` for isolated nodes (undefined constraint). If `return_dict=` is
+            returned. Returns `None` for isolated nodes, including nodes whose only edge is a
+            self-loop (undefined constraint, `nan` in NetworkX). If `return_dict=` is
             `False`, returns self for method chaining.
 
         Technical Notes
@@ -25526,8 +25533,10 @@ class Graph:
         constraints[node_0_id], constraints[node_3_id]
         ```
 
-        Edge weights factor into the calculation too, where a strong tie dominates the
-        constraint formula more than a weak one:
+        Edge weights change each contact's share of the ego's tie strength. In this weighted
+        triangle "C" puts most of its tie strength into "B", and "B" is itself strongly tied
+        to "A", so "C" is the most constrained; "B", whose strength is spread over two contacts
+        that are only weakly linked to each other, is the least:
 
         ```{python}
         g = (
@@ -25540,7 +25549,8 @@ class Graph:
             .add_edge("B", "C", weight=3.0)
         )
 
-        g.constraint(return_dict=True)
+        scores = g.constraint(return_dict=True)
+        {g.get_label_from_id(nid): round(c, 3) for nid, c in sorted(scores.items())}
         ```
         """
         if attr_name is None:

@@ -49,12 +49,12 @@ def _local(s: Scene, call: str, header: str, scores: dict[str, float | None],
 
 @figure("constraint", "node-metrics", "Burt's constraint",
         "The shared seven-node strip of triangles with a tail, shaded by Burt's constraint. "
-        "Hub C, whose contacts are all linked to each other, is the most constrained at "
-        "1.20; the tail node F, the only link between E and G, sits in a structural hole "
-        "and has the lowest constraint, 0.50.")
+        "The pendant G, with a single contact, is fully constrained at 1.00, and A, whose two "
+        "contacts know each other, follows at 0.84. The bridge E, linking the triangles to "
+        "the tail, spans a structural hole and has the lowest constraint, 0.48.")
 def constraint(s: Scene) -> None:
     _local(s, "g.constraint()", "C_i",
-           {"A": 1.13, "B": 1.14, "C": 1.2, "D": 1.14, "E": 0.81, "F": 0.5, "G": 1.0})
+           {"A": 0.84, "B": 0.72, "C": 0.61, "D": 0.66, "E": 0.48, "F": 0.5, "G": 1.0})
 
 
 @figure("leverage_centrality", "node-metrics", "Leverage centrality",

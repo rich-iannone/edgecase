@@ -1210,10 +1210,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `constraint()` — Burt's constraint
 
-<img src="constraint.light.svg" alt="The shared seven-node strip of triangles with a tail, shaded by Burt&#x27;s constraint. Hub C, whose contacts are all linked to each other, is the most constrained at 1.20; the tail node F, the only link between E and G, sits in a structural hole and has the lowest constraint, 0.50." width="570">
+<img src="constraint.light.svg" alt="The shared seven-node strip of triangles with a tail, shaded by Burt&#x27;s constraint. The pendant G, with a single contact, is fully constrained at 1.00, and A, whose two contacts know each other, follows at 0.84. The bridge E, linking the triangles to the tail, spans a structural hole and has the lowest constraint, 0.48." width="570">
 
 ```markdown
-![Burt's constraint](/assets/graphs/constraint.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by Burt's constraint. Hub C, whose contacts are all linked to each other, is the most constrained at 1.20; the tail node F, the only link between E and G, sits in a structural hole and has the lowest constraint, 0.50." width="100%"}
+![Burt's constraint](/assets/graphs/constraint.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by Burt's constraint. The pendant G, with a single contact, is fully constrained at 1.00, and A, whose two contacts know each other, follows at 0.84. The bridge E, linking the triangles to the tail, spans a structural hole and has the lowest constraint, 0.48." width="100%"}
 ```
 
 ### `degrees()` — Degree of every node

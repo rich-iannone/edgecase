@@ -490,8 +490,99 @@ class TestConstraintValidation:
         # For A: two neighbors B and C who are connected
         # This creates indirect connections, increasing constraint
         # Closed triad has higher constraint than open triad
-        # Expected value from implementation: 1.25
-        assert result[g.get_id_from_label("A")] == pytest.approx(1.25)
+        # p_AB = p_AC = 1/2 and each indirect path adds 1/2 * 1/2, so
+        # C_A = 2 * (1/2 + 1/4)^2 = 1.125 (Burt 1992; matches networkx.constraint).
+        # This used to assert 1.25, the old implementation's (wrong) output.
+        assert result[g.get_id_from_label("A")] == pytest.approx(1.125)
 
         # Verify all nodes have increased constraint due to closure
         assert all(v > 0.5 for v in result.values())
+
+
+class TestConstraintMatchesNetworkX:
+    """constraint() follows Burt's definition exactly as networkx.constraint() computes it."""
+
+    @staticmethod
+    def _compare(reference, g, weights=None, weight_key=None):
+        nx = pytest.importorskip("networkx")
+        expected = nx.constraint(reference, weight=weight_key)
+        got = g.constraint(weights=weights, return_dict=True)
+        for node, value in expected.items():
+            ours = got[g.get_id_from_label(str(node))]
+            if set(nx.all_neighbors(reference, node)) <= {node}:
+                # No contacts besides itself: undefined. NetworkX gives nan for undirected
+                # graphs but a number for directed ones (its matrix path treats the self-loop
+                # differently); edgecase returns None for both
+                assert ours is None
+                continue
+            if value != value:  # nan: isolated (or, in NetworkX, a directed node w/o successors)
+                if reference.is_directed() and reference.degree(node) > 0:
+                    continue
+                assert ours is None
+            else:
+                assert ours == pytest.approx(value, abs=1e-12)
+
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("weighted", [False, True])
+    def test_random_graphs(self, directed, weighted):
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(1)
+        for seed in range(30):
+            reference = nx.gnp_random_graph(rng.randint(3, 10), 0.4, seed=seed, directed=directed)
+            for v in rng.sample(list(reference), 2):
+                reference.add_edge(v, v)  # self-loops too
+            g = Graph(directed=directed, weighted=weighted)
+            for node in reference:
+                g.add_node(label=str(node))
+            for u, v in reference.edges():
+                if weighted:
+                    w = round(rng.uniform(0.5, 3.0), 1)
+                    reference[u][v]["weight"] = w
+                    g.add_edge(str(u), str(v), weight=w)
+                else:
+                    g.add_edge(str(u), str(v))
+            self._compare(reference, g, weight_key="weight" if weighted else None)
+
+    def test_named_weight_attribute(self):
+        nx = pytest.importorskip("networkx")
+        reference = nx.Graph()
+        reference.add_edge("A", "B", strength=5.0)
+        reference.add_edge("A", "C", strength=1.0)
+        reference.add_edge("B", "C", strength=3.0)
+        g = Graph()
+        for label in "ABC":
+            g.add_node(label=label)
+        for u, v, data in reference.edges(data=True):
+            g.add_edge(u, v, strength=data["strength"])
+
+        self._compare(reference, g, weights="strength", weight_key="strength")
+
+    def test_parallel_edges_add_up(self):
+        """A pair joined by edges of weight 1 and 2 behaves like one edge of weight 3."""
+        multi = Graph(weighted=True)
+        simple = Graph(weighted=True)
+        for g in (multi, simple):
+            for label in "ABCD":
+                g.add_node(label=label)
+        for s, t, w in [("A", "B", 1.0), ("B", "A", 2.0), ("A", "C", 1.0), ("C", "D", 1.0),
+                        ("B", "C", 1.0)]:
+            multi.add_edge(s, t, weight=w)
+        for s, t, w in [("A", "B", 3.0), ("A", "C", 1.0), ("C", "D", 1.0), ("B", "C", 1.0)]:
+            simple.add_edge(s, t, weight=w)
+
+        m = multi.constraint(return_dict=True)
+        s = simple.constraint(return_dict=True)
+        for label in "ABCD":
+            assert m[multi.get_id_from_label(label)] == pytest.approx(
+                s[simple.get_id_from_label(label)]
+            )
+
+    def test_self_loop_only_node_is_undefined(self):
+        g = Graph()
+        g.add_node(label="A")
+        g.add_node(label="B")
+        g.add_edge("A", "A")
+        assert g.constraint(return_dict=True)[g.get_id_from_label("A")] is None
+
