@@ -371,11 +371,12 @@ DHOUSE_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "E"), ("E"
 @figure("directed_cycle_basis", "paths", "Directed cycle basis",
         "The house-shaped graph with directed edges, one strongly connected component. With 6 "
         "edges and 5 nodes the basis has 6 − 5 + 1 = 2 cycles, each following the arrows: the "
-        "triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal.")
+        "triangle A, B, C in the accent color and the outer loop A, B, D, E, C in teal, each "
+        "listed from its lowest node.")
 def directed_cycle_basis(s: Scene) -> None:
     left, right = compute(s, "g", "g.directed_cycle_basis()")
-    _house(s, left, [list("CAB"), list("CABDE")], directed=True, edges=DHOUSE_EDGES)
-    s.card_centered(right, [(bracket(list("CAB")), "accent"), (bracket(list("CABDE")), "g2")],
+    _house(s, left, [list("ABC"), list("ABDEC")], directed=True, edges=DHOUSE_EDGES)
+    s.card_centered(right, [(bracket(list("ABC")), "accent"), (bracket(list("ABDEC")), "g2")],
                     title="E − V + SCCs = 2 cycles")
 
 

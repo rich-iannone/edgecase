@@ -83,9 +83,14 @@ def cmty_walktrap(s: Scene) -> None:
         "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
         "the bridge C to D, drawn dashed because every path between the clusters crosses it, "
         "so it has the highest betweenness and is the first edge Girvan-Newman cuts. The "
-        "remaining pieces are the communities: 0 is D, E, F, G and 1 is A, B, C.")
+        "remaining pieces are the communities: 0 is A, B, C and 1 is D, E, F, G.")
 def cmty_edge_btwns(s: Scene) -> None:
-    _cmty(s, "g.cmty_edge_btwns()", edge_kw={("C", "D"): {"style": "removed"}})
+    # communities are numbered by smallest node id, so A, B, C is community 0
+    left, right = compute(s, "g", "g.cmty_edge_btwns()")
+    _partition(s, place(CMTY, left, unit=UNIT), CMTY_EDGES, [list("ABC"), list("DEFG")],
+               edge_kw={("C", "D"): {"style": "removed"}})
+    s.card_centered(right, [("0 → A, B, C", "accent"), ("1 → D, E, F, G", "g2")],
+                    title="community")
 
 
 # --- connected components (directed) ---------------------------------------
@@ -317,10 +322,10 @@ def cmty_l_eigenvec(s: Scene) -> None:
 @figure("cmty_girvan_newman", "communities", "Girvan-Newman communities",
         "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
         "the bridge C to D, drawn dashed because it has the highest betweenness and is cut "
-        "first. The partition matches cmty_edge_btwns() but the numbering differs: here "
+        "first. It shares cmty_edge_btwns()'s implementation, so the result is identical: "
         "community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal).")
 def cmty_girvan_newman(s: Scene) -> None:
-    # same partition as cmty_edge_btwns() on CMTY, opposite community ids (edgecase)
+    # same implementation (and so the same partition and numbering) as cmty_edge_btwns()
     left, right = compute(s, "g", "g.cmty_girvan_newman()")
     _partition(s, place(CMTY, left, unit=UNIT), CMTY_EDGES, [list("ABC"), list("DEFG")],
                edge_kw={("C", "D"): {"style": "removed"}})
@@ -355,34 +360,32 @@ def label_propagation(s: Scene) -> None:
                     title="label")
 
 
-# --- k-components (CORE without its pendant) -------------------------------
-
-# edgecase's k_components() does not recurse past a cut vertex, so on the full
-# CORE graph (pendant H) it reports only k = 1. Without H the graph is
-# 2-connected and the nesting is reported correctly.
-KCOMP = {k: v for k, v in CORE.items() if k != "H"}
-KCOMP_EDGES = [(a, b) for a, b in CORE_EDGES if "H" not in (a, b)]
+# --- k-components (the shared CORE graph) -----------------------------------
 
 
 @figure("k_components", "communities", "k-components",
-        "A seven-node graph: a dense cluster A, B, C, D with a ring through E, F, G. Every "
-        "pair of nodes stays connected after removing any one node, so A to G is the 1- and "
-        "2-component (teal), and the cluster A, B, C, D survives the loss of any two nodes, "
-        "so it is the 3-component (accent). The table lists the components at each level k.")
+        "The shared eight-node core graph: a dense cluster A, B, C, D, a ring through E, F, "
+        "G, and a pendant H. The whole graph is the 1-component (gray); dropping H, which "
+        "hangs on a single cut vertex, leaves A to G, the 2-component (teal); and the cluster "
+        "A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). "
+        "The table lists the components at each level k.")
 def k_components(s: Scene) -> None:
     left, right = compute(s, "g", "g.k_components()")
-    pos = place(KCOMP, left, unit=UNIT, pad=16)  # room for the outer hull
-    inner, outer = list("ABCD"), list("ABCDEFG")
-    grp = {**{k: "g2" for k in outer}, **{k: "accent" for k in inner}}
+    pos = place(CORE, left, unit=UNIT, pad=16)  # room for the outermost hull
+    inner, middle = list("ABCD"), list("ABCDEFG")
+    grp = {**{k: "g2" for k in middle}, **{k: "accent" for k in inner}}
 
     def style(a, b):  # innermost component holding both ends
-        return {"style": "accent"} if a in inner and b in inner else {"style": "g2"}
-    s.graph(pos, [(a, b, style(a, b)) for a, b in KCOMP_EDGES], styles=grp)
-    s.hull(outer, "g2", pad=14)
+        if a in inner and b in inner:
+            return {"style": "accent"}
+        return {"style": "g2"} if a in middle and b in middle else {}
+    s.graph(pos, [(a, b, style(a, b)) for a, b in CORE_EDGES], styles=grp)
+    s.hull(list(CORE), "ink", pad=21, opacity=0.06)
+    s.hull(middle, "g2", pad=14)
     s.hull(inner, "accent", pad=7)
-    rows = [["k", "components"], ["1", "[A … G]"], ["2", "[A … G]"], ["3", "[A B C D]"]]
+    rows = [["k", "components"], ["1", "[A … H]"], ["2", "[A … G]"], ["3", "[A B C D]"]]
     s.table_centered(right, rows, [30, 100],
-                     highlight={**{(i, j): "g2" for i in (1, 2) for j in (0, 1)},
+                     highlight={**{(2, j): "g2" for j in (0, 1)},
                                 **{(3, j): "accent" for j in (0, 1)}})
 
 

@@ -14,7 +14,7 @@ degree < 2: `local_clustering_coefficient` returns None (node `muted`, a
 
 The three `bipartite_*` centralities share ONE small bipartite graph
 (`BIP`) drawn as two rows: the opposite side `g2` (as in `is_bipartite`),
-the scored side (`which=0`, the bottom row on this graph) heat-shaded. Every
+the scored side (`which=1`, the bottom row, since partition 0 holds A, the lowest id) heat-shaded. Every
 number is what edgecase returns for the depicted graph (rounded to 2 decimals).
 """
 
@@ -120,18 +120,18 @@ def closeness_vitality(s: Scene) -> None:
 
 @figure("percolation_centrality", "node-metrics", "Percolation centrality",
         "The shared seven-node graph with the two percolated nodes, A and G, outlined; "
-        "every other node has state 0. Only paths that start or end at A or G count, so "
-        "the tail node F, the sole way to G, tops the table at 12.00, ahead of C 9.50 and "
-        "E 8.00.")
+        "every other node has state 0. Only paths that start at A or G count, so the nodes "
+        "linking A to G matter most: E and F share the top at 0.60, then C 0.50, with B and "
+        "D 0.05 and the endpoints A and G 0.")
 def percolation_centrality(s: Scene) -> None:
     left, right = compute(s, "g", "g.percolation_centrality(states)")
     s.text(left.cx, left.y0 + 8, "states = {A: 1, G: 1, others: 0}", size=SIZE_NOTE,
            opacity=0.6)
     gb = Box(left.x0, left.y0 + 22, left.x1, left.y1)
     pos = place(STRIP_COORDS, gb, unit=UNIT)
-    scores = {"A": 0.0, "B": 1.0, "C": 9.5, "D": 0.5, "E": 8.0, "F": 12.0, "G": 0.0}
+    scores = {"A": 0.0, "B": 0.05, "C": 0.5, "D": 0.05, "E": 0.6, "F": 0.6, "G": 0.0}
     top = max(scores.values())
-    styles = {"A": "soft", "G": "soft", "F": "accent"}
+    styles = {"A": "soft", "G": "soft", "E": "accent", "F": "accent"}
     s.graph(pos, STRIP_EDGES, heat={k: v / top for k, v in scores.items()}, styles=styles)
     rows = [["node", "score"]] + _rows(scores)
     s.table_centered(right, rows, [64, 64], highlight={(1, 0): "accent", (1, 1): "accent"})
@@ -139,8 +139,8 @@ def percolation_centrality(s: Scene) -> None:
 
 # --- bipartite centralities on one shared two-row graph ----------------------------
 
-# top row A-D is partition 1, bottom row E-G partition 0 (edgecase's 2-coloring
-# on this graph), so the default which=0 scores the bottom row
+# top row A-D is partition 0 (it holds A, the lowest node id) and the bottom row
+# E-G partition 1, so which=1 scores the bottom row
 BIP = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0),
        "E": (0.5, 1.2), "F": (2, 1.2), "G": (3, 1.2)}
 BIP_EDGES = [("A", "E"), ("B", "E"), ("B", "F"), ("C", "F"), ("D", "F"), ("D", "G")]
@@ -155,19 +155,19 @@ def _bipartite(s: Scene, call: str, header: str, scores: dict[str, float]) -> No
     s.graph(pos, BIP_EDGES, heat={k: v / top for k, v in scores.items()}, styles=styles)
     # name the two sides at the left end of each row
     x = min(p[0] for p in pos.values()) - 30
-    s.text(x, pos["A"][1], "side 1", size=SIZE_NOTE, anchor="end", color="g2")
-    s.text(x, pos["E"][1], "side 0", size=SIZE_NOTE, anchor="end", opacity=0.6)
+    s.text(x, pos["A"][1], "side 0", size=SIZE_NOTE, anchor="end", color="g2")
+    s.text(x, pos["E"][1], "side 1", size=SIZE_NOTE, anchor="end", opacity=0.6)
     rows = [["node", header]] + _rows(scores)
     s.table_centered(right, rows, [64, 64], highlight={(1, 0): "accent", (1, 1): "accent"})
 
 
 @figure("bipartite_degree_centrality", "node-metrics", "Bipartite degree centrality",
-        "A bipartite graph drawn as two rows: side 1, A to D, on top and side 0, E to G, "
-        "below, which the default which=0 scores. Each degree is divided by the four "
+        "A bipartite graph drawn as two rows: side 0, A to D, on top and side 1, E to G, "
+        "below, which which=1 scores. Each degree is divided by the four "
         "nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G "
         "0.25.")
 def bipartite_degree_centrality(s: Scene) -> None:
-    _bipartite(s, "g.bipartite_degree_centrality()", "score",
+    _bipartite(s, "g.bipartite_degree_centrality(which=1)", "score",
                {"E": 0.5, "F": 0.75, "G": 0.25})
 
 
@@ -176,7 +176,7 @@ def bipartite_degree_centrality(s: Scene) -> None:
         "to the top side A to D. F reaches B, C and D in one hop and A in three, so it "
         "scores 0.67, ahead of E 0.50 and G 0.33.")
 def bipartite_closeness_centrality(s: Scene) -> None:
-    _bipartite(s, "g.bipartite_closeness_centrality()", "score",
+    _bipartite(s, "g.bipartite_closeness_centrality(which=1)", "score",
                {"E": 0.5, "F": 0.67, "G": 0.33})
 
 
@@ -185,5 +185,5 @@ def bipartite_closeness_centrality(s: Scene) -> None:
         "each lies on shortest paths between top-side nodes. F joins B, C and D and scores "
         "2.50, E, the only way out of A, scores 1.33, and G, which only touches D, scores 0.")
 def bipartite_betweenness_centrality(s: Scene) -> None:
-    _bipartite(s, "g.bipartite_betweenness_centrality()", "score",
+    _bipartite(s, "g.bipartite_betweenness_centrality(1)", "score",
                {"E": 1.33, "F": 2.5, "G": 0.0})

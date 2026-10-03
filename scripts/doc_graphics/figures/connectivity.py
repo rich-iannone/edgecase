@@ -114,9 +114,8 @@ def get_adhesion(s: Scene) -> None:
         "color. No single node disconnects the graph, but removing D and E together does, "
         "so the cohesion (node connectivity) is 2. The card shows the cut D, E and the value 2.")
 def get_cohesion(s: Scene) -> None:
-    # Not the base graph: get_cohesion() returns the minimum degree (an upper
-    # bound), which is 2 on the base graph although its node connectivity is 1.
-    # Here the bound is tight, so the picture and the returned value agree.
+    # A 2-connected example, so this alias doesn't just repeat the node
+    # connectivity figure (which shows the base graph's single cut node).
     left, right = compute(s, "g", "g.get_cohesion()")
     coords = {"A": (0, 0.6), "B": (1, 0), "C": (1, 1.2), "D": (2, 0), "E": (2, 1.2), "F": (3, 0),
               "G": (3, 1.2), "H": (4, 0.6)}

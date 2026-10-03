@@ -189,12 +189,12 @@ def hub_centrality(s: Scene) -> None:
 
 @figure("alpha_centrality", "node-metrics", "Alpha centrality",
         "The same five-node directed graph shaded by alpha centrality with alpha 0.8, which "
-        "follows outgoing edges. The source A, which reaches every other node, scores 0.25, "
-        "then B and C 0.20, D 0.19, and the sink E 0.17; every node also gets the same "
-        "exogenous share, so the spread stays narrow.")
+        "follows outgoing edges. The source A, whose arcs reach every other node, scores "
+        "0.45, then B and C 0.17, D 0.13, and the sink E, which reaches nothing, only its "
+        "exogenous share, 0.07.")
 def alpha_centrality(s: Scene) -> None:
     _directed(s, "g.alpha_centrality(alpha=0.8)", "score",
-              {"A": 0.2481, "B": 0.1952, "C": 0.1952, "D": 0.1921, "E": 0.1692})
+              {"A": 0.4524, "B": 0.174, "C": 0.174, "D": 0.1284, "E": 0.0713})
 
 
 @figure("katz_centrality", "node-metrics", "Katz centrality",

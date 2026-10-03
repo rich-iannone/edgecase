@@ -222,16 +222,16 @@ def find_maximal_independent_sets(s: Scene) -> None:
 
 @figure("dominating_set", "substructures", "Dominating set",
         "A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. "
-        "Nodes 1, 3, and 7 form the dominating set (accent); an accent edge links each "
+        "Nodes 1, 3, and 5 form the dominating set (accent); an accent edge links each "
         "other node to a set member that dominates it. The card shows the result "
-        "[1, 3, 7], size 3.")
+        "[1, 3, 5], size 3.")
 def dominating_set(s: Scene) -> None:
     left, right = compute(s, "g", "g.dominating_set()")
     # one dominating edge per node outside the set
-    witness = {("1", "2"), ("3", "4"), ("5", "7"), ("6", "7")}
+    witness = {("1", "2"), ("3", "4"), ("5", "6"), ("5", "7")}
     s.graph(place(DOM, left, unit=UNIT), _edges(DOM_EDGES, witness),
-            styles={"1": "accent", "3": "accent", "7": "accent"})
-    s.card_centered(right, [("nodes  [1, 3, 7]", "accent"), "size   3"])
+            styles={"1": "accent", "3": "accent", "5": "accent"})
+    s.card_centered(right, [("nodes  [1, 3, 5]", "accent"), "size   3"])
 
 
 @figure("min_weighted_dominating_set", "substructures", "Minimum weighted dominating set",
