@@ -450,5 +450,78 @@ class TestDirectedGraphs:
         assert all(count == 0 for count in counts.values())
 
 
+class TestParallelEdgesAndSelfLoops:
+    """Triangle-based measures are computed on the simple graph."""
+
+    BASE = [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+
+    def _build(self, directed, extra=()):
+        g = ec.Graph(directed=directed)
+        for label in "ABCD":
+            g.add_node(label=label)
+        for source, target in [*self.BASE, *extra]:
+            g.add_edge(source, target)
+        return g
+
+    @pytest.mark.parametrize(
+        "directed, extra",
+        [
+            (False, [("A", "B"), ("B", "A"), ("C", "C"), ("D", "C")]),
+            (True, [("A", "B"), ("B", "C"), ("C", "C")]),
+        ],
+    )
+    def test_multigraph_matches_simple_graph(self, directed, extra):
+        """Parallel edges, reversed duplicates, and self-loops don't change any measure."""
+        simple = self._build(directed)
+        multi = self._build(directed, extra)
+
+        assert multi.count_triangles() == simple.count_triangles()
+        assert sorted(multi.list_triangles()) == sorted(simple.list_triangles())
+        assert multi.get_transitivity() == pytest.approx(simple.get_transitivity())
+        assert multi.clustering_coefficient(return_dict=True) == pytest.approx(
+            simple.clustering_coefficient(return_dict=True)
+        )
+        assert multi.get_avg_clustering_coefficient() == pytest.approx(
+            simple.get_avg_clustering_coefficient()
+        )
+
+    def test_undirected_values_with_parallel_edges(self):
+        """A doubled edge keeps the triangle-with-tail values of the simple graph."""
+        g = self._build(False, [("A", "B"), ("B", "A"), ("C", "C")])
+        ids = {label: g.get_id_from_label(label) for label in "ABCD"}
+
+        assert g.get_transitivity() == pytest.approx(0.6)
+        local = g.clustering_coefficient(return_dict=True)
+        assert local[ids["A"]] == pytest.approx(1.0)
+        assert local[ids["C"]] == pytest.approx(1 / 3)
+        assert len(g.list_triangles()) == 1
+
+    def test_matches_networkx_with_random_parallel_edges(self):
+        """Transitivity and local clustering match NetworkX on the underlying simple graph."""
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(0)
+        for seed in range(30):
+            n = rng.randint(3, 20)
+            reference = nx.gnp_random_graph(n, 0.4, seed=seed)
+            g = ec.Graph()
+            for i in range(n):
+                g.add_node(label=str(i))
+            for u, v in reference.edges():
+                g.add_edge(str(u), str(v))
+                if rng.random() < 0.3:
+                    g.add_edge(str(v), str(u))
+            for i in range(n):
+                if rng.random() < 0.1:
+                    g.add_edge(str(i), str(i))
+
+            assert (g.get_transitivity() or 0.0) == pytest.approx(nx.transitivity(reference))
+            local = g.clustering_coefficient(return_dict=True)
+            expected = nx.clustering(reference)
+            for i in range(n):
+                assert (local[g.get_id_from_label(str(i))] or 0.0) == pytest.approx(expected[i])
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
