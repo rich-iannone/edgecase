@@ -183,6 +183,37 @@ def get_edges_as_tuples(s: Scene) -> None:
                     title="(id, source, target)")
 
 
+@figure("get_edges_str_repr", "data", "Edges as strings",
+        "The shared four-node graph with node ids 1 to 4 in pills; the edge between B and C "
+        "is outlined in the accent color. The table lists one string per edge, 'source--target', "
+        "using node ids by default ('1--2' to '3--4') and labels with use_labels=True ('A--B' "
+        "to 'C--D'); the B–C row, '2--3' and 'B--C', is highlighted.")
+def get_edges_str_repr(s: Scene) -> None:
+    left, right = compute(s, "g", "g.get_edges_str_repr()")
+    _diamond(s, left, edge_styles={("B", "C"): "soft"})
+    _ids(s, accent="BC")
+    rows = [["default", "use_labels=True"]] + [
+        [f"'{NODE_ID[a]}--{NODE_ID[b]}'", f"'{a}--{b}'"] for a, b in D_EDGES
+    ]
+    bc = D_EDGES.index(("B", "C")) + 1
+    s.table_centered(right, rows, [100, 120], highlight={(bc, 0): "accent", (bc, 1): "accent"})
+
+
+@figure("get_graph_name", "data", "Graph name",
+        "The shared four-node graph, tagged with the name it was created with, "
+        "graph_name roads, shown as a tag in the accent color. The card returns that name, "
+        "'roads', and a note below it says a graph without a name returns None.")
+def get_graph_name(s: Scene) -> None:
+    left, right = compute(s, "g", "g.get_graph_name()")
+    pos = _diamond(s, left)
+    top = min(y for _, y in pos.values())
+    s.text(left.cx, top - 34, 'graph_name="roads"', size=SIZE_NOTE, boxed=True,
+           color="accent", weight=600)
+    card = s.card_centered(right, [("'roads'", "accent")])
+    s.text(right.cx, card.y + card.h + 16, "None if the graph has no name", size=SIZE_NOTE,
+           opacity=0.6)
+
+
 # -- id lists -----------------------------------------------------------------
 
 
@@ -506,3 +537,26 @@ def count_edges(s: Scene) -> None:
     s.edges[0].bend = 14  # A→B bows away from its reverse
     _edge_ids(s, accent={1, 2, 3, 4, 5, 6})
     s.card_centered(right, [("6", "accent")], title="edges")
+
+
+# --- summary ---------------------------------------------------------------------
+
+# describe() prints nine "key : value" lines; the result panel is too narrow for the full
+# keys at card size, so they're shown as a two-column table with short keys, in order.
+DESCRIBE_ROWS = [
+    ["nodes", "4"], ["edges", "5"], ["directed", "False"], ["density", "0.83"],
+    ["avg degree (min, max)", "2.50 (2, 3)"], ["connected", "True"], ["components", "1"],
+    ["tree", "False"], ["bipartite", "False"],
+]
+
+
+@figure("describe", "data", "Describe",
+        "The shared four-node graph, two triangles sharing the edge B–C, beside the summary "
+        "describe() prints for it: 4 nodes and 5 edges (both highlighted), undirected, "
+        "density 0.83, average degree 2.50 ranging from 2 to 3, connected as a single "
+        "component, and neither a tree nor bipartite.")
+def describe(s: Scene) -> None:
+    left, right = compute(s, "g", "g.describe()")
+    _diamond(s, left)
+    s.table_centered(right, DESCRIBE_ROWS, [152, 88], row_h=17, header=False,
+                     highlight={(0, 1): "accent", (1, 1): "accent"})
