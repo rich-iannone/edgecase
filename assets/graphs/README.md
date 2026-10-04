@@ -146,6 +146,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Set edge attributes](/assets/graphs/set-edge-attrs.light.svg){.lightbox fig-alt="Every edge of a six-node graph carries a value w on its label. The call names the edge B to E, drawn in a light accent stroke, which holds 4; after it that edge reads 5, in the accent color, while the other four edges keep their values." width="100%"}
 ```
 
+### `set_node_attr_to_display()` — Set display attribute
+
+<img src="set-node-attr-to-display.light.svg" alt="The same six-node graph on both sides, every node carrying a name in a badge (Ann, Bob, Cat, Dan, Eve, Fay). The call changes no node data, so the badges are identical; it only records a display preference, shown as a tag above each graph that reads display: None before and display: name, in the accent color, after." width="570">
+
+```markdown
+![Set display attribute](/assets/graphs/set-node-attr-to-display.light.svg){.lightbox fig-alt="The same six-node graph on both sides, every node carrying a name in a badge (Ann, Bob, Cat, Dan, Eve, Fay). The call changes no node data, so the badges are identical; it only records a display preference, shown as a tag above each graph that reads display: None before and display: name, in the accent color, after." width="100%"}
+```
+
 ### `set_node_attrs()` — Set node attributes
 
 <img src="set-node-attrs.light.svg" alt="Every node of a six-node graph carries a value x in a badge (A 3, B 5, C 2, D 4, E 6, F 1). The call names nodes B and F, outlined in the accent color; after it both read 7, while the other four nodes keep their values." width="570">
@@ -634,6 +642,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Count nodes](/assets/graphs/count-nodes.light.svg){.lightbox fig-alt="The shared four-node graph with every node, A to D, in the accent color and its id, 1 to 4, in a pill. The card returns the node count, 4." width="100%"}
 ```
 
+### `describe()` — Describe
+
+<img src="describe.light.svg" alt="The shared four-node graph, two triangles sharing the edge B–C, beside the summary describe() prints for it: 4 nodes and 5 edges (both highlighted), undirected, density 0.83, average degree 2.50 ranging from 2 to 3, connected as a single component, and neither a tree nor bipartite." width="570">
+
+```markdown
+![Describe](/assets/graphs/describe.light.svg){.lightbox fig-alt="The shared four-node graph, two triangles sharing the edge B–C, beside the summary describe() prints for it: 4 nodes and 5 edges (both highlighted), undirected, density 0.83, average degree 2.50 ranging from 2 to 3, connected as a single component, and neither a tree nor bipartite." width="100%"}
+```
+
 ### `find_edge_ids()` — Find edge ids
 
 <img src="find-edge-ids.light.svg" alt="The shared four-node graph with a second, parallel edge between A and B. The query nodes A and B are outlined in the accent color, and both edges between them, ids 1 and 6, are highlighted. The card returns 1 and 6." width="570">
@@ -696,6 +712,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Edges as tuples](/assets/graphs/get-edges-as-tuples.light.svg){.lightbox fig-alt="The shared four-node graph with node ids 1 to 4 and edge ids 1 to 5. The card lists one (id, source, target) tuple per edge, from (1, 1, 2) for edge 1 between A and B to (5, 3, 4) for edge 5 between C and D." width="100%"}
+```
+
+### `get_edges_str_repr()` — Edges as strings
+
+<img src="get-edges-str-repr.light.svg" alt="The shared four-node graph with node ids 1 to 4 in pills; the edge between B and C is outlined in the accent color. The table lists one string per edge, &#x27;source--target&#x27;, using node ids by default (&#x27;1--2&#x27; to &#x27;3--4&#x27;) and labels with use_labels=True (&#x27;A--B&#x27; to &#x27;C--D&#x27;); the B–C row, &#x27;2--3&#x27; and &#x27;B--C&#x27;, is highlighted." width="570">
+
+```markdown
+![Edges as strings](/assets/graphs/get-edges-str-repr.light.svg){.lightbox fig-alt="The shared four-node graph with node ids 1 to 4 in pills; the edge between B and C is outlined in the accent color. The table lists one string per edge, 'source--target', using node ids by default ('1--2' to '3--4') and labels with use_labels=True ('A--B' to 'C--D'); the B–C row, '2--3' and 'B--C', is highlighted." width="100%"}
+```
+
+### `get_graph_name()` — Graph name
+
+<img src="get-graph-name.light.svg" alt="The shared four-node graph, tagged with the name it was created with, graph_name roads, shown as a tag in the accent color. The card returns that name, &#x27;roads&#x27;, and a note below it says a graph without a name returns None." width="570">
+
+```markdown
+![Graph name](/assets/graphs/get-graph-name.light.svg){.lightbox fig-alt="The shared four-node graph, tagged with the name it was created with, graph_name roads, shown as a tag in the accent color. The card returns that name, 'roads', and a note below it says a graph without a name returns None." width="100%"}
 ```
 
 ### `get_id_from_label()` — Id from label
