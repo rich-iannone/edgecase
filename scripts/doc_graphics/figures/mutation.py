@@ -28,7 +28,7 @@ family's `*_ws` setters: the elements named in the call are `soft` in both
 panels and only their values (badges / edge labels) change, turning accent.
 """
 
-from core import Box, Scene, figure, place, transform
+from core import SIZE_NOTE, Box, Scene, figure, place, transform
 
 UNIT = 80  # one density for the whole family
 BEND = 15  # parallel pairs bow symmetrically by this much
@@ -358,3 +358,23 @@ def set_edge_attrs(s: Scene) -> None:
     s.graph(_place(H, right),
             [(a, b, {"weight": 5, "style": "accent"}) if (a, b) == named
              else (a, b, {"weight": v}) for (a, b), v in W.items()], prefix="r.")
+
+
+NAMES = {"A": "Ann", "B": "Bob", "C": "Cat", "D": "Dan", "E": "Eve", "F": "Fay"}
+
+
+@figure("set_node_attr_to_display", "mutation", "Set display attribute",
+        "The same six-node graph on both sides, every node carrying a name in a badge (Ann, "
+        "Bob, Cat, Dan, Eve, Fay). The call changes no node data, so the badges are identical; "
+        "it only records a display preference, shown as a tag above each graph that reads "
+        "display: None before and display: name, in the accent color, after.")
+def set_node_attr_to_display(s: Scene) -> None:
+    left, right = transform(s, "g", 'g.set_node_attr_to_display("name")')
+    for box, prefix in ((left, "l."), (right, "r.")):
+        pos = _place(H, box)
+        s.graph(pos, H_EDGES, prefix=prefix)
+        for k, v in NAMES.items():
+            s.badge(prefix + k, v, where="n" if H[k][1] == 0 else "s", color="ink")
+    top = min(y for _, y in _place(H, left).values())
+    s.text(left.cx, top - 44, "display: None", size=SIZE_NOTE, opacity=0.6)
+    s.text(right.cx, top - 44, 'display: "name"', size=SIZE_NOTE, color="accent", weight=600)
