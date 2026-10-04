@@ -3008,6 +3008,8 @@ class Graph:
         """
         Print a comprehensive description of the graph.
 
+        ![Describe](/assets/graphs/describe.light.svg){.lightbox fig-alt="The shared four-node graph, two triangles sharing the edge B–C, beside the summary describe() prints for it: 4 nodes and 5 edges (both highlighted), undirected, density 0.83, average degree 2.50 ranging from 2 to 3, connected as a single component, and neither a tree nor bipartite." width="100%"}
+
         Displays key graph properties including node/edge counts, connectivity, degree statistics,
         and optional custom properties via a hook function.
 
@@ -7188,6 +7190,8 @@ class Graph:
         """
         Get edges as formatted string representations.
 
+        ![Edges as strings](/assets/graphs/get-edges-str-repr.light.svg){.lightbox fig-alt="The shared four-node graph with node ids 1 to 4 in pills; the edge between B and C is outlined in the accent color. The table lists one string per edge, 'source--target', using node ids by default ('1--2' to '3--4') and labels with use_labels=True ('A--B' to 'C--D'); the B–C row, '2--3' and 'B--C', is highlighted." width="100%"}
+
         Returns one compact string per edge, showing its two endpoints joined by a connector that
         reflects the graph's directedness:
 
@@ -7789,6 +7793,8 @@ class Graph:
     def get_graph_name(self) -> Optional[str]:
         """
         Get the name of the graph.
+
+        ![Graph name](/assets/graphs/get-graph-name.light.svg){.lightbox fig-alt="The shared four-node graph, tagged with the name it was created with, graph_name roads, shown as a tag in the accent color. The card returns that name, 'roads', and a note below it says a graph without a name returns None." width="100%"}
 
         Returns the human-readable name assigned to this graph through the `graph_name=` argument
         of `Graph()`. The name is purely descriptive: it has no effect on any algorithm, but it
@@ -14877,6 +14883,8 @@ class Graph:
         """
         Set which node attribute to display in tooltips/labels.
 
+        ![Set display attribute](/assets/graphs/set-node-attr-to-display.light.svg){.lightbox fig-alt="The same six-node graph on both sides, every node carrying a name in a badge (Ann, Bob, Cat, Dan, Eve, Fay). The call changes no node data, so the badges are identical; it only records a display preference, shown as a tag above each graph that reads display: None before and display: name, in the accent color, after." width="100%"}
+
         Records the name of a node attribute as the graph's display preference, i.e., the
         attribute meant to be shown for each node in place of its ID when the graph is rendered.
         Only this preference is stored; no node data is read, created, or changed, and the
@@ -16689,10 +16697,6 @@ class Graph:
         The number of cycles returned equals `m - n + p` where `m` is the number of edges,
         `n` the number of nodes, and `p` the number of strongly connected components
         (counting isolated nodes and acyclic components).
-
-        Parameters
-        ----------
-        (none)
 
         Returns
         -------
