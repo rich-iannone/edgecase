@@ -120,6 +120,21 @@ class TestNodeSelection:
         assert len(selected) == 1
         assert 4 in selected  # D
 
+    def test_select_nodes_by_degree_directed_total(self):
+        """Regression: "total" on a directed graph was out-degree, unlike get_degree()."""
+        G = Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        G.add_edges([("A", "B"), ("C", "B"), ("D", "B"), ("B", "A")])
+        # Totals: A 2, B 4, C 1, D 1 (B's out-degree is only 1)
+        G.select_nodes_by_degree(min_degree=3)
+        assert G.get_selected_node_ids() == [G.get_id_from_label("B")]
+        G.clear_selection().select_nodes_by_degree(min_degree=2, max_degree=2)
+        assert G.get_selected_node_ids() == [G.get_id_from_label("A")]
+        for nid in G.get_node_ids():
+            G.clear_selection().select_nodes_by_degree(
+                min_degree=G.get_degree(nid), max_degree=G.get_degree(nid)
+            )
+            assert nid in G.get_selected_node_ids()
+
     def test_select_nodes_by_degree_invalid_type(self):
         """Invalid degree type raises error."""
         G = Graph()
