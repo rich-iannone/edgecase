@@ -1,5 +1,9 @@
-import pytest
+import random
+
 import edgecase as ec
+import networkx as nx
+import pytest
+from edgecase.steps import KIND_TRAVERSE
 
 
 class TestBasicTraversal:
@@ -885,3 +889,156 @@ class TestBFSvsDFS:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# BFS/DFS edges, layers, trees and orders, validated against NetworkX.
+
+
+def _triangle_tail() -> ec.Graph:
+    return (
+        ec.Graph()
+        .add_nodes(["A", "B", "C", "D"])
+        .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+    )
+
+
+def _pair(seed: int, directed: bool, n: int = 16):
+    """A NetworkX graph and an EdgeCase copy with identical node and edge insertion order."""
+    rnd = random.Random(seed)
+    G0 = nx.gnp_random_graph(n, rnd.choice([0.1, 0.18, 0.3]), seed=seed, directed=directed)
+    G = (nx.DiGraph if directed else nx.Graph)()
+    G.add_nodes_from(range(n))
+    G.add_edges_from(G0.edges)
+    g = ec.Graph(directed=directed).add_nodes([str(v) for v in range(n)])
+    if G.number_of_edges():
+        g.add_edges([(str(u), str(v)) for u, v in G.edges])
+    return G, g
+
+
+def _edge_labs(g, edges):
+    return [(int(g.get_label_from_id(p)), int(g.get_label_from_id(c))) for p, c in edges]
+
+
+def _labs(g, ids):
+    return [int(g.get_label_from_id(i)) for i in ids]
+
+
+class TestBfsEdgesLayersTrees:
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_edges_layers_and_depth_match_networkx(self, directed):
+        for seed in range(25):
+            G, g = _pair(seed, directed)
+            for s in (0, 5):
+                sid = g.get_id_from_label(str(s))
+                assert _edge_labs(g, g.bfs_edges(sid)) == list(nx.bfs_edges(G, s))
+                assert _edge_labs(g, g.bfs_edges(sid, depth_limit=2)) == list(
+                    nx.bfs_edges(G, s, depth_limit=2)
+                )
+                ours = [sorted(_labs(g, layer)) for layer in g.bfs_layers(sid)]
+                assert ours == [sorted(layer) for layer in nx.bfs_layers(G, [s])]
+                if directed:
+                    assert _edge_labs(g, g.bfs_edges(sid, mode="in")) == list(
+                        nx.bfs_edges(G, s, reverse=True)
+                    )
+            srcs = [g.get_id_from_label(str(x)) for x in (0, 7, 11)]
+            ours = [sorted(_labs(g, layer)) for layer in g.bfs_layers(srcs)]
+            assert ours == [sorted(layer) for layer in nx.bfs_layers(G, [0, 7, 11])]
+
+    def test_consistent_with_bfs_order(self):
+        for seed in range(10):
+            _, g = _pair(seed, False)
+            order = g.bfs(1, return_list=True)
+            layered = [n for layer in g.bfs_layers(1) for n in layer]
+            assert layered == order
+            assert [c for _, c in g.bfs_edges(1)] == order[1:]
+
+    def test_tree_graph(self):
+        g = _triangle_tail()
+        g.set_node_attrs("x", {g.get_id_from_label("C"): 5})
+        tree = g.bfs_tree("A")
+        assert tree.is_directed() and tree.is_arborescence()
+        assert sorted(tree.get_edges_str_repr(use_labels=True)) == ["A->B", "A->C", "C->D"]
+        assert tree.get_node_attrs("x") == {g.get_id_from_label("C"): 5}  # IDs and attrs kept
+        assert g.count_edges() == 4  # original untouched
+        grid = ec.Graph().add_grid_2d(rows=3, cols=3)
+        assert len(grid.bfs_tree(1).dag_longest_path()) - 1 == 4
+        assert grid.bfs_tree(1, depth_limit=1).count_nodes() == 3
+
+    def test_errors(self):
+        g = _triangle_tail()
+        with pytest.raises(ValueError, match="depth_limit"):
+            g.bfs_edges("A", depth_limit=-1)
+        with pytest.raises(ValueError, match="mode"):
+            g.bfs_layers("A", mode="sideways")
+        with pytest.raises(ValueError):
+            g.bfs_tree("nope")
+
+    def test_bfs_records_real_tree_edges(self):
+        g = _triangle_tail()
+        g.bfs("A", return_list=True)
+        step = g.steps[-1]
+        assert step.kind == KIND_TRAVERSE
+        assert [s.code for s in step.sub_steps] == ["visit A", "A → B", "A → C", "C → D"]
+
+    def test_bfs_layers_step(self):
+        path = ec.Graph().add_path_graph(4)
+        path.bfs_layers(1)
+        assert path.steps[-1].delta.node_groups == {"1": 0, "2": 1, "3": 2, "4": 3}
+
+
+class TestDfsEdgesAndOrders:
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_orders_and_edges_match_networkx(self, directed):
+        for seed in range(25):
+            G, g = _pair(seed, directed)
+            for s in (0, 5):
+                sid = g.get_id_from_label(str(s))
+                assert _edge_labs(g, g.dfs_edges(sid)) == list(nx.dfs_edges(G, s))
+                assert _labs(g, g.dfs_postorder_nodes(sid)) == list(nx.dfs_postorder_nodes(G, s))
+                assert _edge_labs(g, g.dfs_edges(sid, depth_limit=2)) == list(
+                    nx.dfs_edges(G, s, depth_limit=2)
+                )
+            assert _edge_labs(g, g.dfs_edges()) == list(nx.dfs_edges(G))
+            assert _labs(g, g.dfs_postorder_nodes()) == list(nx.dfs_postorder_nodes(G))
+
+    def test_preorder_consistent_with_dfs(self):
+        for seed in range(15):
+            for directed in (False, True):
+                _, g = _pair(seed, directed)
+                pre = g.dfs(1, return_list=True)
+                assert [1] + [c for _, c in g.dfs_edges(1)] == pre
+
+    def test_postorder_with_depth_limit_keeps_nodes_at_the_limit(self):
+        path = ec.Graph().add_path_graph(5)
+        assert path.dfs_postorder_nodes(1, depth_limit=2) == [3, 2, 1]  # NetworkX omits 3
+
+    def test_bfs_and_dfs_differ_on_the_triangle(self):
+        g = _triangle_tail()
+        lab = g.get_label_from_id
+        assert [(lab(p), lab(c)) for p, c in g.bfs_edges("A")] == [
+            ("A", "B"), ("A", "C"), ("C", "D"),
+        ]  # fmt: skip
+        assert [(lab(p), lab(c)) for p, c in g.dfs_edges("A")] == [
+            ("A", "B"), ("B", "C"), ("C", "D"),
+        ]  # fmt: skip
+
+    def test_forest_and_postorder_reverse_is_topological(self):
+        dag = ec.Graph(directed=True).add_nodes(list("ABCDEF"))
+        dag.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("E", "F")])
+        forest = dag.dfs_tree()
+        assert forest.count_nodes() == 6 and forest.count_edges() == 4
+        order = list(reversed(dag.dfs_postorder_nodes()))
+        pos = {n: i for i, n in enumerate(order)}
+        assert all(pos[s] < pos[t] for _, s, t in dag.get_edges_as_tuples())
+        grid = ec.Graph().add_grid_2d(rows=3, cols=3)
+        assert len(grid.dfs_tree(1).dag_longest_path()) - 1 == 8
+
+    def test_traversal_methods_record_playback(self):
+        g = _triangle_tail()
+        g.dfs_edges("A")
+        step = g.steps[-1]
+        assert step.kind == KIND_TRAVERSE and step.method == "dfs_edges"
+        assert [s.code for s in step.sub_steps] == ["visit A", "A → B", "B → C", "C → D"]
+        assert step.code == "G.dfs_edges('A')"
+        g.add_nodes(["E"]).dfs_edges()
+        assert g.steps[-1].sub_steps[-1].narration == "Start a new tree at E"
