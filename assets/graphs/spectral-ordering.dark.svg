@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Spectral ordering</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<rect x="521.8" y="48.0" width="204.5" height="100.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 77.31 126.69 L 134.69 69.31" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 157.31 69.31 L 214.69 126.69" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 237.31 126.69 L 294.69 69.31" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 317.31 69.31 L 374.69 126.69" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="66.0" cy="138.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="66.0" y="138.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">A</text>
+<circle cx="146.0" cy="58.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="146.0" y="58.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">B</text>
+<circle cx="226.0" cy="138.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="138.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">C</text>
+<circle cx="306.0" cy="58.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="306.0" y="58.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">D</text>
+<circle cx="386.0" cy="138.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="386.0" y="138.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">E</text>
+<rect x="57.5" y="153.0" width="17.0" height="16.0" rx="8.0" fill="#f97316" stroke="#f97316" stroke-opacity="1" stroke-width="1"/>
+<rect x="137.5" y="27.0" width="17.0" height="16.0" rx="8.0" fill="#f97316" stroke="#f97316" stroke-opacity="1" stroke-width="1"/>
+<rect x="217.5" y="153.0" width="17.0" height="16.0" rx="8.0" fill="#f97316" stroke="#f97316" stroke-opacity="1" stroke-width="1"/>
+<rect x="297.5" y="27.0" width="17.0" height="16.0" rx="8.0" fill="#f97316" stroke="#f97316" stroke-opacity="1" stroke-width="1"/>
+<rect x="377.5" y="153.0" width="17.0" height="16.0" rx="8.0" fill="#f97316" stroke="#f97316" stroke-opacity="1" stroke-width="1"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.spectral_ordering()</text>
+<text x="66.0" y="161.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0d1117" fill-opacity="1.0">1</text>
+<text x="146.0" y="35.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0d1117" fill-opacity="1.0">2</text>
+<text x="226.0" y="161.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0d1117" fill-opacity="1.0">3</text>
+<text x="306.0" y="35.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0d1117" fill-opacity="1.0">4</text>
+<text x="386.0" y="161.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0d1117" fill-opacity="1.0">5</text>
+<text x="535.8" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">returns node ids</text>
+<text x="535.8" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">added  D, B, E, A, C</text>
+<text x="535.8" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">ids    [4, 2, 5, 1, 3]</text>
+<text x="535.8" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">labels A, B, C, D, E</text>
+</svg>
