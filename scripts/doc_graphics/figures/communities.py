@@ -60,6 +60,10 @@ CMTY_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"), ("D", 
 # All three methods return {D, E, F, G} -> 0 and {A, B, C} -> 1 on this graph.
 CMTY_GROUPS = [list("DEFG"), list("ABC")]
 CMTY_CARD = [("0 → D, E, F, G", "accent"), ("1 → A, B, C", "g2")]
+# methods that number communities from the lowest node ID (Louvain, Leiden, label
+# propagation, fast greedy)
+CMTY_GROUPS_LOW = [list("ABC"), list("DEFG")]
+CMTY_CARD_LOW = [("0 → A, B, C", "accent"), ("1 → D, E, F, G", "g2")]
 
 
 def _cmty(s: Scene, call: str, **kw) -> None:
