@@ -1,3 +1,5 @@
+import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
 
@@ -347,3 +349,51 @@ class TestTopologicalSortIntegration:
         assert len(order_labels) == n
         # Should be in exact sequential order
         assert order_labels == [str(i) for i in range(n)]
+
+
+# All topological sorts, validated against NetworkX.
+
+
+class TestAllTopologicalSorts:
+    def test_matches_networkx(self):
+        for seed in range(20):
+            D = nx.gnp_random_graph(7, 0.3, seed=seed, directed=True)
+            D = nx.DiGraph([(u, v) for u, v in D.edges if u < v])
+            D.add_nodes_from(range(7))
+            g = ec.Graph(directed=True).add_nodes([str(n) for n in range(7)])
+            if D.number_of_edges():
+                g.add_edges([(str(u), str(v)) for u, v in D.edges])
+            ours = [[int(g.get_label_from_id(n)) for n in s] for s in g.all_topological_sorts()]
+            assert ours == sorted(ours)  # lexicographic by ID (= label order here)
+            assert sorted(ours) == sorted(nx.all_topological_sorts(D))
+
+    def test_counts_cap_and_errors(self):
+        free = ec.Graph(directed=True).add_nodes(list("ABCD"))
+        assert len(free.all_topological_sorts()) == 24
+        assert len(free.all_topological_sorts(max_sorts=5)) == 5
+        chain = ec.Graph(directed=True).add_nodes(list("ABC")).add_edges([("A", "B"), ("B", "C")])
+        assert chain.all_topological_sorts() == [[1, 2, 3]]
+        assert ec.Graph(directed=True).all_topological_sorts() == [[]]
+        with pytest.raises(ValueError, match="max_sorts"):
+            free.all_topological_sorts(max_sorts=0)
+        cyc = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "A")])
+        with pytest.raises(ValueError, match="cycle"):
+            cyc.all_topological_sorts()
+        with pytest.raises(ValueError, match="directed"):
+            ec.Graph().add_nodes(["A"]).all_topological_sorts()
+
+    def test_every_ordering_is_valid(self):
+        g = ec.Graph(directed=True).add_nodes(list("ABCDE"))
+        g.add_edges([("A", "C"), ("B", "C"), ("C", "D"), ("B", "E")])
+        orders = g.all_topological_sorts()
+        assert len(orders) == len({tuple(o) for o in orders})
+        for order in orders:
+            pos = {n: i for i, n in enumerate(order)}
+            assert all(pos[s] < pos[t] for _, s, t in g.get_edges_as_tuples())
+
+    def test_all_topological_sorts_step(self):
+        g = ec.Graph(directed=True).add_nodes(list("ABC")).add_edges([("A", "C"), ("B", "C")])
+        g.all_topological_sorts()
+        step = g.steps[-1]
+        assert step.narration == "2 topological orderings; first: A → B → C."
+        assert step.delta.node_groups == {"A": 0, "B": 1, "C": 2}
