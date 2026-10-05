@@ -18,10 +18,19 @@ with one node per component in the same color, its returned label beneath.
 eulerize uses the house from paths.py with predicates-style degree badges:
 the odd nodes are `accent` on the left, and each duplicated edge is an `accent`
 arc bowed beside the original on the right, where every badge is even.
+The small-world references sit beside degree_preserving_rewire and draw
+graph_metrics' `SW` ring (four triangles) in both directions:
+random_reference rewires it (seed 8) into a graph with almost no triangles,
+and lattice_reference (seed 1) rewires that random graph back into SW. The
+edges a reference drops are accent on the left; the edges it creates are
+accent on the right (dropped edges are not repeated there, to keep the ring
+legible). A small card under each graph gives its average clustering and
+degree sequence, which never changes. Both assert their results.
 """
 
 from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, transform
 
+from figures.graph_metrics import SW, SW_EDGES, sw_graph
 from figures.paths import HOUSE, HOUSE_EDGES
 from figures.predicates import _degrees
 
@@ -434,3 +443,67 @@ def tree_decomposition(s: Scene) -> None:
         s.line(r0.x + r0.w, gb.cy, r1.x, gb.cy, width=STROKE, role="tree_edge")
     s.card_centered(Box(right.x0, right.y1 - 56, right.x1, right.y1), [
         (f"width  3 − 1 = {width}", "accent")], title="largest bag − 1")
+
+
+# --- later additions: small-world references ----------------------------------
+
+
+def _edge_set(g) -> set:
+    return {frozenset((g.get_label_from_id(a), g.get_label_from_id(b)))
+            for _, a, b in g.get_edges_as_tuples()}
+
+
+def _degrees_of(g) -> str:
+    return " ".join(str(g.get_degree(g.get_id_from_label(k))) for k in SW)
+
+
+# random_reference(seed=8) of SW, as edgecase returns it; lattice_reference(seed=1)
+# of this graph gives SW back.
+SW_RANDOM = [("A", "B"), ("A", "C"), ("A", "E"), ("A", "H"), ("B", "E"), ("C", "D"), ("C", "E"),
+             ("C", "F"), ("D", "G"), ("E", "G"), ("F", "G"), ("G", "H")]
+
+
+def _reference(s: Scene, call: str, before, after) -> None:
+    left, right = transform(s, "g", call)
+    old, new = _edge_set(before), _edge_set(after)
+    for box, p, g, edges, hot in ((left, "l.", before, old, old - new),
+                                  (right, "r.", after, new, new - old)):
+        gbox = Box(box.x0, box.y0, box.x0 + 180, box.y1)  # the card takes the rest
+        pairs = sorted(tuple(sorted(e)) for e in edges)
+        s.graph(place(SW, gbox, unit=UNIT, r=R_SMALL),
+                [(a, b, {"style": "accent"}) if frozenset((a, b)) in hot else (a, b)
+                 for a, b in pairs], r=R_SMALL, prefix=p)
+        c = f"clustering {g.get_avg_clustering_coefficient():.3f}"
+        lines = [(c, "accent"), "degrees kept"] if p == "r." else [c, "degree 4 or 2"]
+        s.card(gbox.x1, box.cy - 28, box.x1 - gbox.x1, lines)
+
+
+@figure("random_reference", "transforms", "Random reference graph",
+        "Left: an eight-node ring with four chords that close four triangles, average "
+        "clustering 0.667. Right: random_reference(seed=8) rewires it with degree-preserving "
+        "swaps: the four accent edges on the left are replaced by the four accent edges on the "
+        "right, every node keeps its degree (4 or 2), and the triangles mostly disappear, "
+        "leaving an average clustering of 0.229.")
+def random_reference(s: Scene) -> None:
+    g = sw_graph()
+    r = g.random_reference(seed=8)
+    assert _edge_set(r) == {frozenset(e) for e in SW_RANDOM}
+    assert _degrees_of(r) == _degrees_of(g) and r.is_connected()
+    assert round(g.get_avg_clustering_coefficient(), 3) == 0.667
+    assert round(r.get_avg_clustering_coefficient(), 3) == 0.229
+    _reference(s, "g.random_reference(seed=8)", g, r)
+
+
+@figure("lattice_reference", "transforms", "Lattice reference graph",
+        "Left: a randomly wired eight-node graph with average clustering 0.229. Right: "
+        "lattice_reference(seed=1) keeps every degree but only accepts swaps that shorten "
+        "edges around the ring A to H: the four long accent edges on the left become the four "
+        "short accent edges on the right, closing four triangles around the ring, and the "
+        "average clustering rises to 0.667.")
+def lattice_reference(s: Scene) -> None:
+    g = sw_graph(SW_RANDOM)
+    lat = g.lattice_reference(seed=1)
+    assert _edge_set(lat) == {frozenset(e) for e in SW_EDGES}
+    assert _degrees_of(lat) == _degrees_of(g)
+    assert round(lat.get_avg_clustering_coefficient(), 3) == 0.667
+    _reference(s, "g.lattice_reference(seed=1)", g, lat)
