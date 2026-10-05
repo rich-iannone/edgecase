@@ -187,6 +187,46 @@ class TestMaxFlowCapacity:
         assert abs(flow_value - 1.7) < 1e-10
 
 
+class TestMaxFlowNamedCapacity:
+    """Regression: a named capacity attribute that an edge lacked silently became 1.0."""
+
+    def test_missing_named_attribute_raises(self):
+        g = Graph(directed=True)
+        g.add_edge("A", "B", bw=5.0, auto_create_nodes=True)
+        g.add_edge("B", "C", auto_create_nodes=True)
+        with pytest.raises(ValueError, match="no numeric 'bw' attribute"):
+            g.max_flow_value(source="A", sink="C", capacity="bw")
+        with pytest.raises(ValueError, match="no numeric 'bw' attribute"):
+            g.max_flow(source="A", sink="C", capacity="bw")
+        with pytest.raises(ValueError, match="no numeric 'bw' attribute"):
+            g.minimum_cut("A", "C", capacity="bw")
+
+    def test_non_numeric_named_attribute_raises(self):
+        g = Graph(directed=True)
+        g.add_edge("A", "B", bw="fast", auto_create_nodes=True)
+        with pytest.raises(ValueError, match="no numeric 'bw' attribute"):
+            g.max_flow_value(source="A", sink="B", capacity="bw")
+
+    def test_named_weight_uses_edge_weight(self):
+        g = Graph(directed=True, weighted=True)
+        g.add_edge("A", "B", weight=3.0, auto_create_nodes=True)
+        g.add_edge("B", "C", weight=2.0, auto_create_nodes=True)
+        assert g.max_flow_value(source="A", sink="C", capacity="weight") == 2.0
+
+    def test_named_cost_missing_raises(self):
+        g = Graph(directed=True)
+        g.add_edge("A", "B", price=1.0, auto_create_nodes=True)
+        g.add_edge("B", "C", auto_create_nodes=True)
+        with pytest.raises(ValueError, match="no numeric 'price' attribute"):
+            g.min_cost_flow("A", "C", cost="price")
+
+    def test_default_capacity_still_falls_back(self):
+        g = Graph(directed=True)
+        g.add_edge("A", "B", capacity=4.0, auto_create_nodes=True)
+        g.add_edge("B", "C", auto_create_nodes=True)
+        assert g.max_flow_value(source="A", sink="C") == 1.0
+
+
 class TestMaxFlowFlowDict:
     """Test the flow dictionary returned by max_flow()."""
 
