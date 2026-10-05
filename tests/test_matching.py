@@ -1,4 +1,11 @@
+import itertools
+import random
+
+import edgecase as ec
+import networkx as nx
+import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_QUERY
 
 
 class TestIsMatching:
@@ -241,7 +248,7 @@ class TestMaxWeightMatching:
         assert graph.is_matching(matching)
 
     def test_triangle_heavy_edge(self):
-        """Test greedy behavior with triangle."""
+        """In a triangle only one edge fits, so the heaviest one wins."""
         graph = Graph(weighted=True)
         graph.add_node(label="A")
         graph.add_node(label="B")
@@ -253,7 +260,7 @@ class TestMaxWeightMatching:
 
         matching = graph.max_weight_matching()
 
-        # Greedy picks heaviest first (first edge A-B)
+        # The heaviest edge, A-B, is the best single edge
         edge_ids = graph.get_edge_ids()
         heavy_edge_id = edge_ids[0]  # A-B edge
 
@@ -443,3 +450,218 @@ class TestMatchingIntegration:
                 break
 
         assert heavy_edge in matching
+
+
+# Exact matchings and covers, validated against NetworkX (blossom, min-weight, Hopcroft-Karp,
+# assignment) and by brute force or König's theorem (covers).
+
+
+def _build(G, weighted=True):
+    g = ec.Graph(weighted=weighted)
+    g.add_nodes([str(n) for n in sorted(G)])
+    for u, v, d in G.edges(data=True):
+        g.add_edge(str(u), str(v), weight=d.get("weight", 1.0))
+    return g
+
+
+def _general_cases(count=150):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        G = nx.gnp_random_graph(rnd.randint(1, 14), rnd.choice([0.15, 0.3, 0.6]), seed=seed)
+        kind = seed % 3
+        for u, v in G.edges:
+            G[u][v]["weight"] = [rnd.randint(1, 10), rnd.uniform(-2, 10), rnd.randint(-5, 20)][kind]
+        yield G
+
+
+def _bipartite_cases(count=120):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        a, b = rnd.randint(1, 8), rnd.randint(1, 8)
+        B = nx.bipartite.random_graph(a, b, rnd.choice([0.2, 0.4, 0.8]), seed=seed)
+        for u, v in B.edges:
+            B[u][v]["weight"] = rnd.choice([rnd.randint(1, 9), rnd.uniform(0, 5)])
+        yield B, a
+
+
+def _total(g, eids):
+    return sum(g.get_edge(e).weight for e in eids)
+
+
+def _ids(g, pairs):
+    return [g.find_edge_ids(u, v)[0] for u, v in pairs]
+
+
+class TestExactMaxWeightMatching:
+    def test_against_networkx(self):
+        for G in _general_cases():
+            g = _build(G)
+            for mc in (False, True):
+                ours = g.max_weight_matching(maxcardinality=mc)
+                ref = nx.max_weight_matching(G, maxcardinality=mc)
+                assert g.is_matching(ours)
+                assert _total(g, ours) == pytest.approx(
+                    sum(G[u][v]["weight"] for u, v in ref), abs=1e-7
+                )
+                if mc:
+                    assert len(ours) == len(ref)
+
+    def test_unweighted_is_maximum_cardinality(self):
+        for G in _general_cases(60):
+            g = _build(G, weighted=False)
+            assert len(g.max_weight_matching()) == len(nx.max_weight_matching(G, True))
+
+    def test_beats_greedy_and_weighted_flag(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 4.0), ("B", "C", 5.0), ("C", "D", 4.0)])
+        assert _total(g, g.max_weight_matching()) == 8.0
+        assert _total(g, g.max_weight_matching(method="greedy")) == 5.0
+        assert len(g.max_weight_matching(weighted=False)) == 2
+        with pytest.raises(ValueError, match="method"):
+            g.max_weight_matching(method="hungarian")
+
+    def test_parallel_edges_self_loops_and_direction(self):
+        g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 1.0), ("B", "A", 3.0), ("C", "C", 9.0)])
+        assert g.max_weight_matching() == g.find_edge_ids("B", "A")
+        assert ec.Graph().max_weight_matching() == []
+
+
+class TestMinWeightMatching:
+    def test_against_networkx(self):
+        for G in _general_cases(100):
+            g = _build(G)
+            ours, ref = g.min_weight_matching(), nx.min_weight_matching(G)
+            assert len(ours) == len(ref)
+            assert _total(g, ours) == pytest.approx(
+                sum(G[u][v]["weight"] for u, v in ref), abs=1e-7
+            )
+
+
+class TestMatchingPredicates:
+    def test_against_networkx(self):
+        for G in _general_cases(80):
+            g = _build(G, weighted=False)
+            edges = list(G.edges)
+            rnd = random.Random(len(edges))
+            for size in range(min(4, len(edges)) + 1):
+                pick = rnd.sample(edges, size)
+                eids = _ids(g, [(str(u), str(v)) for u, v in pick])
+                assert g.is_maximal_matching(eids) == nx.is_maximal_matching(G, pick)
+                assert g.is_perfect_matching(eids) == nx.is_perfect_matching(G, pick)
+
+    def test_examples_and_invalid_input(self):
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        ab, bc, cd = _ids(g, [("A", "B"), ("B", "C"), ("C", "D")])
+        assert g.is_maximal_matching([bc]) and not g.is_maximal_matching([ab])
+        assert g.is_perfect_matching([ab, cd]) and not g.is_perfect_matching([bc])
+        assert not g.is_maximal_matching([ab, bc]) and not g.is_perfect_matching([999])
+        loop = ec.Graph().add_nodes(["A"]).add_edge("A", "A")
+        assert loop.is_maximal_matching([]) and not loop.is_maximal_matching(loop.get_edge_ids())
+
+
+class TestBipartiteMatching:
+    def test_hopcroft_karp_and_konig(self):
+        for B, a in _bipartite_cases():
+            g = _build(B, weighted=False)
+            top = [str(i) for i in range(a)]
+            matching = g.bipartite_maximum_matching(top_nodes=top)
+            ref = nx.bipartite.hopcroft_karp_matching(B, top_nodes=range(a))
+            assert g.is_matching(matching) and len(matching) == len(ref) // 2
+            assert len(g.bipartite_maximum_matching()) == len(matching)  # automatic sides
+            cover = g.bipartite_vertex_cover(top_nodes=top)
+            assert g.is_vertex_cover(cover) and len(cover) == len(matching)
+
+    def test_assignment_against_networkx(self):
+        for B, a in _bipartite_cases():
+            g = _build(B)
+            top = [str(i) for i in range(a)]
+            try:
+                ref = nx.bipartite.minimum_weight_full_matching(B, top_nodes=range(a))
+            except ValueError:
+                with pytest.raises(ValueError, match="no full matching"):
+                    g.bipartite_min_weight_full_matching(top_nodes=top)
+                continue
+            ours = g.bipartite_min_weight_full_matching(top_nodes=top)
+            assert len(ours) == min(a, B.number_of_nodes() - a)
+            assert _total(g, ours) == pytest.approx(
+                sum(B[u][v]["weight"] for u, v in ref.items() if u < a), abs=1e-7
+            )
+
+    def test_errors(self):
+        tri = ec.Graph().add_nodes(["A", "B", "C"])
+        tri.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        for method in (tri.bipartite_maximum_matching, tri.bipartite_vertex_cover):
+            with pytest.raises(ValueError, match="not bipartite"):
+                method()
+        path = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        with pytest.raises(ValueError, match="same side"):
+            path.bipartite_maximum_matching(top_nodes=["A", "B"])
+
+
+class TestCovers:
+    def test_min_edge_cover_against_networkx(self):
+        for G in _general_cases(100):
+            if not len(G) or list(nx.isolates(G)):
+                continue
+            g = _build(G, weighted=False)
+            cover = g.min_edge_cover()
+            assert g.is_edge_cover(cover)
+            assert len(cover) == len({frozenset(e) for e in nx.min_edge_cover(G)})
+            assert nx.is_edge_cover(
+                G,
+                [
+                    tuple(int(g.get_label_from_id(n)) for n in g.get_node_ids_by_edge_id(e))
+                    for e in cover
+                ],
+            )
+
+    def test_min_edge_cover_edge_cases(self):
+        assert ec.Graph().min_edge_cover() == []
+        with pytest.raises(ValueError, match="isolated"):
+            ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B").min_edge_cover()
+        loop = ec.Graph().add_nodes(["A"]).add_edge("A", "A")
+        assert loop.min_edge_cover() == loop.get_edge_ids()
+
+    def test_weighted_vertex_cover_is_a_2_approximation(self):
+        for seed in range(60):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(9, 0.35, seed=seed)
+            g = _build(G, weighted=False)
+            cost = {g.get_id_from_label(str(v)): float(rnd.randint(1, 6)) for v in G}
+            g.set_node_attrs("cost", cost)
+            cover = g.min_weighted_vertex_cover(weight_attr="cost")
+            assert g.is_vertex_cover(cover)
+            best = min(
+                sum(cost[n] for n in subset)
+                for k in range(len(cost) + 1)
+                for subset in itertools.combinations(cost, k)
+                if g.is_vertex_cover(list(subset))
+            )
+            assert sum(cost[n] for n in cover) <= 2 * best + 1e-9
+
+    def test_vertex_cover_predicate_and_errors(self):
+        g = ec.Graph().add_nodes(["hub", "a", "b"]).add_edges([("hub", "a"), ("hub", "b")])
+        assert g.is_vertex_cover(["hub"]) and not g.is_vertex_cover(["a"])
+        assert g.is_edge_cover(g.get_edge_ids()) and not g.is_edge_cover([999])
+        g.set_node_attrs("cost", {g.get_id_from_label("a"): -1.0})
+        with pytest.raises(ValueError, match="non-negative"):
+            g.min_weighted_vertex_cover(weight_attr="cost")
+
+
+class TestMatchingStepHooks:
+    def test_steps(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 4.0), ("B", "C", 5.0), ("C", "D", 4.0)])
+        g.max_weight_matching()
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY and step.code == "G.max_weight_matching()"
+        assert step.delta.edges_selected == [("A", "B"), ("C", "D")]
+        assert step.narration == "Matching of 2 edges with total weight 8."
+        b = ec.Graph().add_nodes(list("ABCDE"))
+        b.add_edges([("A", "D"), ("A", "E"), ("B", "E"), ("C", "E")])
+        b.bipartite_vertex_cover()
+        assert b.steps[-1].delta.nodes_selected == ["A", "E"]
+        b.min_edge_cover()
+        assert len(b.steps[-1].delta.edges_selected) == 3  # 5 nodes - matching of 2
