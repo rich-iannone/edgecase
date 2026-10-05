@@ -1,3 +1,7 @@
+import random
+
+import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
 
@@ -304,3 +308,40 @@ class TestBellmanFordDualBehavior:
         assert isinstance(graph, Graph)
         ndf = graph.get_node_df()
         assert "bellman_ford_path_order" in ndf.columns
+
+
+class TestNegativeCycles:
+    """negative_edge_cycle and find_negative_cycle, validated against NetworkX."""
+
+    def test_against_networkx(self):
+        for seed in range(150):
+            rnd = random.Random(seed)
+            directed = seed % 3 != 0
+            G = nx.gnp_random_graph(rnd.randint(1, 9), 0.35, seed=seed, directed=directed)
+            for u, v in G.edges:
+                low = -3 if directed else (-1 if seed % 4 == 0 else 1)
+                G[u][v]["weight"] = rnd.choice([rnd.randint(1, 5), rnd.randint(low, 5)])
+            g = ec.Graph(directed=directed, weighted=True).add_nodes([str(n) for n in G])
+            for u, v, w in G.edges(data="weight"):
+                g.add_edge(str(u), str(v), weight=w)
+            assert g.negative_edge_cycle() == nx.negative_edge_cycle(G)
+            for source in G:
+                reach = {source} | nx.descendants(G, source)
+                expected = nx.negative_edge_cycle(G.subgraph(reach).copy())
+                if not expected:
+                    with pytest.raises(ValueError, match="no negative cycle"):
+                        g.find_negative_cycle(str(source))
+                    continue
+                cycle = [int(g.get_label_from_id(n)) for n in g.find_negative_cycle(str(source))]
+                assert cycle[0] == cycle[-1]
+                assert sum(G[a][b]["weight"] for a, b in zip(cycle, cycle[1:])) < 0
+
+    def test_examples(self):
+        fx = ec.Graph(directed=True, weighted=True).add_nodes(["USD", "EUR", "GBP"])
+        fx.add_edges([("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)])
+        assert fx.negative_edge_cycle()
+        cycle = [fx.get_label_from_id(n) for n in fx.find_negative_cycle("USD")]
+        assert cycle == ["USD", "EUR", "GBP", "USD"]
+        assert not fx.negative_edge_cycle(weighted=False)
+        undirected = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=-1.0)
+        assert len(undirected.find_negative_cycle("A")) == 3
