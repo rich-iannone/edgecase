@@ -9396,135 +9396,832 @@ class Graph:
         """
         return self._graph.is_planar()
 
-    def is_isomorphic(self, other: "Graph") -> bool:
+    def _match_colors(self, other: "Graph", node_attr, edge_attr):
+        """Integer node and edge colors for matching, shared between `self` and `other`."""
+
+        def names(spec):
+            if spec is None:
+                return []
+            return [spec] if isinstance(spec, str) else list(spec)
+
+        def key(value):
+            try:
+                hash(value)
+                return value
+            except TypeError:
+                return repr(value)
+
+        table: dict = {}
+        out = []
+        for g in (self, other):
+            node_vals = [g.get_node_attrs(n) for n in names(node_attr)]
+            edge_vals = [g.get_edge_attrs_by_id(n) for n in names(edge_attr)]
+            nc = {}
+            if node_vals:
+                for n in g.get_node_ids(limit=None):
+                    k = tuple(key(v.get(n)) for v in node_vals)
+                    nc[n] = table.setdefault(("n", k), len(table))
+            ec_ = {}
+            if edge_vals:
+                for e in g.get_edge_ids(limit=None):
+                    k = tuple(key(v.get(e)) for v in edge_vals)
+                    ec_[e] = table.setdefault(("e", k), len(table))
+            out.append((nc, ec_))
+        return out
+
+    def _match(self, other: "Graph", mode: str, node_attr, edge_attr, limit=None):
+        (nc_self, ec_self), (nc_other, ec_other) = self._match_colors(other, node_attr, edge_attr)
+        return rust.match_graphs(
+            self._graph, other._graph, mode, nc_self, nc_other, ec_self, ec_other, limit
+        )
+
+    def is_isomorphic(
+        self,
+        other: "Graph",
+        node_attr: str | list[str] | None = None,
+        edge_attr: str | list[str] | None = None,
+    ) -> bool:
         r"""
         Check if this graph is isomorphic to another graph.
 
         ![Is isomorphic](/assets/graphs/is-isomorphic.light.svg){.lightbox fig-alt="Each side compares graph g with graph h. Left: g is a five-node cycle and h is the same cycle redrawn as a star, so is_isomorphic(h) returns True. Right: h is a triangle with a two-edge tail; it has the same node and edge counts, but its degree-3 node C and degree-1 node E (shown in the accent color) have no match in the cycle, so is_isomorphic(h) returns False." width="100%"}
 
-        Two graphs are isomorphic if there exists a one-to-one correspondence (bijection) between
-        their nodes that preserves the adjacency relationship. In simpler terms, they have the same
-        structure but possibly different node labels.
+        Two graphs are isomorphic if their nodes can be put in one-to-one correspondence so that
+        two nodes are joined in one graph exactly when their partners are joined in the other.
+        In other words, they have the same structure, whatever the labels or the drawing. This
+        method decides it exactly, by searching for such a correspondence (use
+        `find_isomorphism()` to get it).
 
-        This implementation does *not* search for such a correspondence. Instead it checks the
-        following necessary conditions:
+        Isomorphism tests are used to:
 
-        - same directedness
-        - same number of nodes
-        - same number of edges
-        - same degree sequence (for directed graphs, the sorted out-degrees are compared)
+        - recognize when two networks (molecules, circuits, workflows) are the same structure
+        - deduplicate a collection of graphs, or check that a transformation preserved structure
+        - compare graphs that also carry categorical data, with `node_attr=` and `edge_attr=`
 
-        A `False` result is therefore definitive: the graphs cannot be isomorphic. A `True`
-        result only means no difference was found by these cheap tests; structurally different
-        graphs can still pass (see the last example). Labels, weights, and node or edge
-        attributes are ignored, and so is the current selection. Because the checks are cheap
-        (about the cost of sorting the degrees), this is a fast way to:
-
-        - rule out most non-matching graphs before running an expensive exact comparison
-        - spot accidental structural changes (e.g. a lost edge) between two versions of a graph
-        - group a collection of graphs into candidate structural classes
+        Edge direction must agree (both graphs directed or both undirected), and parallel edges
+        and self-loops must correspond one for one. Labels, IDs and weights are ignored unless
+        named with `node_attr=` or `edge_attr=`, and the current selection is ignored.
 
         Parameters
         ----------
         other
-            The `Graph` to compare this graph with. It is not modified. Its node labels and IDs
-            don't need to match this graph's in any way, since only the structure is compared.
-            Passing an object that is not a `Graph` raises an `AttributeError`.
+            The `Graph` to compare with. It is not modified.
+        node_attr
+            Optional node attribute name, or list of names, whose values must be equal for
+            matched nodes (a missing attribute counts as `None`).
+        edge_attr
+            Optional edge attribute name, or list of names, whose values must be equal for
+            matched edges.
 
         Returns
         -------
         bool
-            `True` if the two graphs agree on all of the conditions above (they may be
-            isomorphic), `False` if they differ on at least one (they are definitely not
-            isomorphic).
+            `True` if the graphs are isomorphic (respecting the attributes, if given).
 
         Technical Notes
         ---------------
-        A true isomorphism between graphs $G_1$ and $G_2$ is a bijection $\pi: V_1 \to V_2$
-        such that $(u, v) \in E_1 \iff (\pi(u), \pi(v)) \in E_2$. Deciding whether such a $\pi$
-        exists is the graph isomorphism problem, famous for sitting in $\mathsf{NP}$ but not
-        known to be in $\mathsf{P}$ or $\mathsf{NP}\text{-complete}$, and solved in practice by
-        backtracking algorithms like VF2 or Babai's quasi-polynomial procedure. This method
-        instead checks a handful of cheap *invariants* (node count, edge count, degree
-        sequence, directedness) which any isomorphism must preserve. Two graphs that
-        disagree on any invariant are provably non-isomorphic, but agreement is only
-        suggestive: many non-isomorphic graphs share the same degree sequence. Use this as a
-        fast filter before running a full isomorphism check.
+        Two graphs $G_1, G_2$ are isomorphic when a bijection $\pi: V_1 \to V_2$ satisfies
+        $(u, v) \in E_1 \iff (\pi(u), \pi(v)) \in E_2$. The search first compares node and edge
+        counts, then runs color refinement (the 1-dimensional Weisfeiler-Leman algorithm) on
+        both graphs together, starting from the attribute colors: if the refined color classes
+        differ in size, no isomorphism exists, and otherwise only nodes of equal refined color
+        are ever paired. The backtracking search then follows the VF2++ design (Jüttner and
+        Madarasi, 2018): nodes are matched in breadth-first order from a rare, high-degree root,
+        candidates come from the neighbors of already matched nodes, and a look-ahead compares,
+        color by color, how the unmatched neighbors of the two nodes split between the search
+        frontier and the rest of the graph. The worst case is exponential (graph isomorphism
+        has no known polynomial algorithm), but typical graphs, including large random,
+        regular and grid graphs, are decided in milliseconds.
 
         Examples
         --------
-        Two paths of the same length are isomorphic even though their node labels differ --
-        what matters is the structure, not the names:
+        A path drawn with different labels is still the same path:
 
         ```{python}
         import edgecase as ec
 
-        g1 = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        g2 = (
-            ec.Graph(directed=False)
-            .add_nodes(["X", "Y", "Z"])
-            .add_edges([("X", "Y"), ("Y", "Z")])
-        )
+        g1 = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        g2 = ec.Graph().add_nodes(["X", "Y", "Z"]).add_edges([("Y", "X"), ("Z", "Y")])
 
         g1.is_isomorphic(g2)
         ```
 
-        A path and a star of the same size have different degree sequences, so they're
-        correctly ruled out:
+        A six-node cycle and two separate triangles have the same degrees (six nodes, six
+        edges, every degree 2), but they are not isomorphic, since one is connected and the
+        other is not:
 
         ```{python}
-        path = ec.Graph(directed=False).add_path_graph(n=4)
-        star = ec.Graph(directed=False).add_star_graph(n=4)
+        hexagon = ec.Graph().add_cycle_graph(6)
+        two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
 
-        path.is_isomorphic(star)
+        hexagon.could_be_isomorphic(two_triangles, properties="d"), hexagon.is_isomorphic(
+            two_triangles
+        )
         ```
 
-        Directedness is compared too, so an otherwise-identical directed and undirected
-        graph don't count as isomorphic:
+        With `node_attr=`, matched nodes must also agree on an attribute. Both molecules below
+        are a chain of three atoms, but the central atom differs:
 
         ```{python}
-        directed = ec.Graph(directed=True).add_path_graph(n=3)
-        undirected = ec.Graph(directed=False).add_path_graph(n=3)
+        water = ec.Graph().add_nodes([("H1", {"el": "H"}), ("O", {"el": "O"}), ("H2", {"el": "H"})])
+        water.add_edges([("H1", "O"), ("O", "H2")])
+        other = ec.Graph().add_nodes([("O1", {"el": "O"}), ("H", {"el": "H"}), ("O2", {"el": "O"})])
+        other.add_edges([("O1", "H"), ("H", "O2")])
 
-        directed.is_isomorphic(undirected)
-        ```
-
-        Two complete graphs of the same size are always isomorphic, since every node is
-        interchangeable:
-
-        ```{python}
-        k4_a = ec.Graph(directed=False).add_full_graph(n=4)
-        k4_b = ec.Graph(directed=False).add_full_graph(n=4)
-
-        k4_a.is_isomorphic(k4_b)
-        ```
-
-        Graphs of different sizes can never be isomorphic:
-
-        ```{python}
-        g3 = ec.Graph(directed=False).add_cycle_graph(n=3)
-        g4 = ec.Graph(directed=False).add_cycle_graph(n=4)
-
-        g3.is_isomorphic(g4)
-        ```
-
-        Because only invariants are compared, a `True` result is not proof. A six-node cycle
-        and two separate triangles both have six nodes, six edges, and every degree equal to
-        `2`, so they pass the check even though one is connected and the other is not:
-
-        ```{python}
-        hexagon = ec.Graph(directed=False).add_cycle_graph(n=6)
-        two_triangles = ec.Graph(directed=False).add_cycle_graph(n=3).add_cycle_graph(n=3)
-
-        hexagon.is_isomorphic(two_triangles), hexagon.is_connected(), two_triangles.is_connected()
+        water.is_isomorphic(other), water.is_isomorphic(other, node_attr="el")
         ```
         """
-        return self._graph.is_isomorphic(other._graph)
+        if self.is_directed() != other.is_directed():
+            value = False
+        else:
+            value = bool(self._match(other, "iso", node_attr, edge_attr, limit=1))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_isomorphic",
+                "G.is_isomorphic(H)",
+                result=value,
+                narration=f"is_isomorphic(): {value}.",
+            )
+        return value
+
+    def find_isomorphism(
+        self,
+        other: "Graph",
+        node_attr: str | list[str] | None = None,
+        edge_attr: str | list[str] | None = None,
+    ) -> dict[int, int] | None:
+        """
+        Find a node correspondence that shows two graphs are isomorphic.
+
+        ![Find isomorphism](/assets/graphs/find-isomorphism.light.svg){.lightbox fig-alt="Two directed graphs drawn differently. Graph a is a workflow where fetch points to build and test, and build points to test; graph b has nodes s1, s2, s3 with s1 pointing to s2 and s3, and s2 pointing to s3. Matching colors pair each node of a with its partner in b, and the card returns the mapping fetch to s1 (accent), build to s2 (teal), and test to s3 (violet), under which every edge of a lands on an edge of b." width="100%"}
+
+        Where `is_isomorphic()` answers yes or no, this method returns the correspondence
+        itself: a dictionary that maps every node of this graph to its partner in `other`, so
+        that two nodes are joined in this graph exactly when their partners are joined in
+        `other`. It is the tool for aligning two versions of the same network whose labels
+        differ, such as matching atoms between two drawings of a molecule or nodes between two
+        exports of the same system.
+
+        When several correspondences exist (for example in a symmetric graph), one of them is
+        returned. Use `subgraph_isomorphisms()` with `other` as the pattern to list them all.
+
+        Parameters
+        ----------
+        other
+            The `Graph` to compare with. It is not modified.
+        node_attr
+            Optional node attribute name, or list of names, whose values must be equal for
+            matched nodes.
+        edge_attr
+            Optional edge attribute name, or list of names, whose values must be equal for
+            matched edges.
+
+        Returns
+        -------
+        dict[int, int] or None
+            A mapping from node IDs of this graph to node IDs of `other`, or `None` if the
+            graphs are not isomorphic.
+
+        Technical Notes
+        ---------------
+        Uses the same search as `is_isomorphic()` (color refinement followed by a VF2++ style
+        backtracking search) and stops at the first complete correspondence.
+
+        Examples
+        --------
+        The same three-step workflow, exported twice with different names:
+
+        ```{python}
+        import edgecase as ec
+
+        a = ec.Graph(directed=True).add_nodes(["fetch", "build", "test"])
+        a.add_edges([("fetch", "build"), ("build", "test"), ("fetch", "test")])
+        b = ec.Graph(directed=True).add_nodes(["s1", "s2", "s3"])
+        b.add_edges([("s2", "s3"), ("s1", "s3"), ("s1", "s2")])
+
+        mapping = a.find_isomorphism(b)
+        {a.get_label_from_id(k): b.get_label_from_id(v) for k, v in mapping.items()}
+        ```
+
+        Graphs with different structure have no correspondence:
+
+        ```{python}
+        a.find_isomorphism(ec.Graph(directed=True).add_path_graph(3)) is None
+        ```
+        """
+        if self.is_directed() != other.is_directed():
+            found = []
+        else:
+            found = self._match(other, "iso", node_attr, edge_attr, limit=1)
+        mapping = dict(found[0]) if found else None
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "find_isomorphism",
+                "G.find_isomorphism(H)",
+                result=mapping,
+                narration="find_isomorphism(): "
+                + ("found a correspondence." if mapping else "the graphs are not isomorphic."),
+            )
+        return mapping
+
+    def could_be_isomorphic(self, other: "Graph", properties: str = "dtc") -> bool:
+        """
+        Quickly rule out isomorphism by comparing node invariants.
+
+        ![Could be isomorphic](/assets/graphs/could-be-isomorphic.light.svg){.lightbox fig-alt="Each side compares graph g, a six-node cycle, with graph h, two separate triangles; both have 6 nodes and 6 edges. Left: comparing degrees only, every node has degree 2 (badges), so could_be_isomorphic(h, properties=d) returns True. Right: the default properties also count triangles per node, 0 on the cycle and 1 on every triangle node (badges in the accent color), so could_be_isomorphic(h) returns False and the graphs are certainly not isomorphic." width="100%"}
+
+        Isomorphic graphs must agree on every structural property of their nodes. This method
+        compares a few such properties, node by node, and returns `False` as soon as the two
+        graphs differ, which proves they are not isomorphic. A `True` result only means that
+        no difference was found; use `is_isomorphic()` for a definite answer. It is a cheap
+        first filter when comparing many graphs.
+
+        The properties, selected by letters in `properties=`, are:
+
+        - `"d"`: degree (in- and out-degree on directed graphs)
+        - `"t"`: number of triangles through the node (undirected graphs only)
+        - `"c"`: number of maximal cliques containing the node (undirected graphs only)
+
+        The graphs pass when the sorted lists of per-node property tuples are equal, and when
+        they have the same directedness, number of nodes and number of edges.
+
+        Parameters
+        ----------
+        other
+            The `Graph` to compare with.
+        properties
+            Which properties to compare, as a string of the letters above. Default `"dtc"`.
+            Triangle and clique counts are skipped on directed graphs.
+
+        Returns
+        -------
+        bool
+            `False` if the graphs certainly are not isomorphic, `True` if they might be.
+
+        Raises
+        ------
+        ValueError
+            If `properties=` contains a letter other than `d`, `t` or `c`.
+
+        Technical Notes
+        ---------------
+        Degrees cost $O(V + E)$, triangle counts $O(E^{3/2})$ and maximal cliques are
+        enumerated with Bron-Kerbosch, which is exponential in the worst case but fast on
+        sparse graphs. NetworkX's `could_be_isomorphic` compares the same three properties,
+        except that it does not check node and edge counts first.
+
+        Examples
+        --------
+        A six-node cycle and two triangles have the same degrees, but each triangle node lies
+        on a triangle, so the triangle counts tell them apart:
+
+        ```{python}
+        import edgecase as ec
+
+        hexagon = ec.Graph().add_cycle_graph(6)
+        two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
+
+        hexagon.could_be_isomorphic(two_triangles, properties="d"), hexagon.could_be_isomorphic(
+            two_triangles
+        )
+        ```
+
+        Passing is not proof. The 4 x 4 rook's graph and the Shrikhande graph agree on degrees
+        and triangle counts (every node has degree 6 and lies on 6 triangles), so they pass with
+        `properties="dt"`, yet they are not isomorphic: their maximal cliques differ (the
+        rook's graph is built from 4-cliques, the Shrikhande graph only has triangles), which
+        `"c"` detects, and `is_isomorphic()` confirms.
+        """
+        if set(properties) - set("dtc"):
+            raise ValueError("properties= may only contain the letters 'd', 't' and 'c'")
+        if (
+            self.is_directed() != other.is_directed()
+            or self.count_nodes() != other.count_nodes()
+            or self.count_edges() != other.count_edges()
+        ):
+            return False
+
+        def table(g):
+            ids = g.get_node_ids(limit=None)
+            cols = []
+            if "d" in properties:
+                if g.is_directed():
+                    outd, ind = dict.fromkeys(ids, 0), dict.fromkeys(ids, 0)
+                    for _, s, t in g.get_edges_as_tuples():
+                        outd[s] += 1
+                        ind[t] += 1
+                    cols.append({n: (ind[n], outd[n]) for n in ids})
+                else:
+                    deg = dict.fromkeys(ids, 0)
+                    for _, s, t in g.get_edges_as_tuples():
+                        deg[s] += 1
+                        deg[t] += 1
+                    cols.append(deg)
+            if not g.is_directed():
+                nbrs = {n: set() for n in ids}
+                for _, s, t in g.get_edges_as_tuples():
+                    if s != t:
+                        nbrs[s].add(t)
+                        nbrs[t].add(s)
+                if "t" in properties:
+                    cols.append({n: sum(len(nbrs[n] & nbrs[m]) for m in nbrs[n]) // 2 for n in ids})
+                if "c" in properties:
+                    count = dict.fromkeys(ids, 0)
+                    for clique in g.find_cliques():
+                        for n in clique:
+                            count[n] += 1
+                    cols.append(count)
+            return sorted(tuple(c[n] for c in cols) for n in ids)
+
+        return table(self) == table(other)
+
+    def is_subgraph_isomorphic(
+        self,
+        pattern: "Graph",
+        induced: bool = True,
+        node_attr: str | list[str] | None = None,
+        edge_attr: str | list[str] | None = None,
+    ) -> bool:
+        """
+        Check if a pattern graph occurs inside this graph.
+
+        ![Is subgraph isomorphic](/assets/graphs/is-subgraph-isomorphic.light.svg){.lightbox fig-alt="Each side searches graph g, a triangle A, B, C, for pattern p, a path of three nodes. Left: with induced=False extra edges are allowed, so the path maps onto B–A and B–C (in the accent color) and is_subgraph_isomorphic(p, induced=False) returns True. Right: with the default induced=True the matched nodes may have no extra edge, but the edge A–C (in the accent color) closes every candidate path into the triangle, so is_subgraph_isomorphic(p) returns False." width="100%"}
+
+        A pattern occurs when its nodes can be matched to distinct nodes of this graph so that
+        every pattern edge corresponds to an edge here. With `induced=True` (the default), the
+        matched nodes must also have no *extra* edges among them, so the pattern appears as an
+        induced subgraph: a path of three nodes then does not occur inside a triangle. With
+        `induced=False`, extra edges are allowed (a *monomorphism*), so any pattern whose edges
+        can be found is reported. Searching for small patterns is how motifs, functional
+        groups in molecules, fraud patterns in transaction graphs, or forbidden structures in
+        a design are found.
+
+        Both graphs must have the same directedness. Parallel edges and self-loops in the
+        pattern must be matched by the same number of edges (`induced=True`) or at least as
+        many (`induced=False`).
+
+        Parameters
+        ----------
+        pattern
+            The `Graph` to search for. It is not modified.
+        induced
+            If `True` (default), require an induced subgraph; if `False`, allow extra edges.
+        node_attr
+            Optional node attribute name, or list of names, whose values must be equal for
+            matched nodes.
+        edge_attr
+            Optional edge attribute name, or list of names, whose values must be equal for
+            matched edges.
+
+        Returns
+        -------
+        bool
+            `True` if at least one occurrence exists.
+
+        Raises
+        ------
+        ValueError
+            If one graph is directed and the other is not.
+
+        Technical Notes
+        ---------------
+        The search is the VF2++ style backtracking used by `is_isomorphic()`, mapping the
+        pattern into this graph and stopping at the first occurrence. Subgraph isomorphism is
+        NP-complete in general, but small patterns are found quickly. NetworkX's
+        `GraphMatcher(G, pattern).subgraph_is_isomorphic()` and `subgraph_is_monomorphic()`
+        answer the same questions.
+
+        Examples
+        --------
+        A triangle contains a path of three nodes as a subgraph, but not as an *induced*
+        subgraph, since the third edge of the triangle closes the path:
+
+        ```{python}
+        import edgecase as ec
+
+        triangle = ec.Graph().add_cycle_graph(3)
+        path = ec.Graph().add_path_graph(3)
+
+        triangle.is_subgraph_isomorphic(path), triangle.is_subgraph_isomorphic(path, induced=False)
+        ```
+
+        A square does contain the path as an induced subgraph:
+
+        ```{python}
+        ec.Graph().add_cycle_graph(4).is_subgraph_isomorphic(path)
+        ```
+        """
+        found = self._match_pattern(pattern, induced, node_attr, edge_attr, limit=1)
+        value = bool(found)
+        if self._recording_depth == 0:
+            self._record_occurrence_step("is_subgraph_isomorphic", pattern, found, value)
+        return value
+
+    def subgraph_isomorphisms(
+        self,
+        pattern: "Graph",
+        induced: bool = True,
+        node_attr: str | list[str] | None = None,
+        edge_attr: str | list[str] | None = None,
+        limit: int | None = None,
+    ) -> list[dict[int, int]]:
+        """
+        List the occurrences of a pattern graph inside this graph.
+
+        ![Subgraph isomorphisms](/assets/graphs/subgraph-isomorphisms.light.svg){.lightbox fig-alt="Left: pattern p, a feed-forward loop where A points to B and C and B points to C, beside graph g, a four-node directed network with edges x→y, y→z, x→z, z→w, and y→w. Right: two miniature copies of g, each highlighting one occurrence of the pattern in the accent color, listed beside it: A→x B→y C→z, and A→y B→z C→w." width="100%"}
+
+        Each occurrence is a mapping from the pattern's nodes to distinct nodes of this graph
+        such that every pattern edge corresponds to an edge here (see
+        `is_subgraph_isomorphic()` for the meaning of `induced=`). Symmetric patterns occur
+        several times on the same nodes: a triangle, for example, is found 6 times on each
+        triangle of the graph, once per way of matching its three corners. Use the mappings to
+        locate motifs, count pattern occurrences, or extract the matched nodes for further
+        analysis.
+
+        Passing a pattern with the same number of nodes and edges as this graph lists every
+        isomorphism between the two (with `induced=True`), and passing this graph itself lists
+        its automorphisms (symmetries).
+
+        Parameters
+        ----------
+        pattern
+            The `Graph` to search for. It is not modified.
+        induced
+            If `True` (default), require induced occurrences; if `False`, allow extra edges.
+        node_attr
+            Optional node attribute name, or list of names, whose values must be equal for
+            matched nodes.
+        edge_attr
+            Optional edge attribute name, or list of names, whose values must be equal for
+            matched edges.
+        limit
+            Stop after this many occurrences. If `None` (default), return all of them, which
+            can be very many for large graphs and symmetric patterns.
+
+        Returns
+        -------
+        list[dict[int, int]]
+            One dictionary per occurrence, mapping pattern node IDs to node IDs of this graph.
+
+        Raises
+        ------
+        ValueError
+            If one graph is directed and the other is not.
+
+        Technical Notes
+        ---------------
+        Uses the VF2++ style search of `is_isomorphic()`, enumerating every complete mapping.
+        The number of occurrences, and therefore the running time, can grow exponentially with
+        the pattern size. The mappings go from pattern to this graph, the reverse of NetworkX's
+        `GraphMatcher(G, pattern).subgraph_isomorphisms_iter()`, which yields graph-to-pattern
+        dictionaries; the occurrences themselves are the same.
+
+        Examples
+        --------
+        Find every feed-forward loop (A -> B -> C plus the shortcut A -> C) in a small directed
+        network:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["x", "y", "z", "w"])
+        g.add_edges([("x", "y"), ("y", "z"), ("x", "z"), ("z", "w"), ("y", "w")])
+
+        ffl = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        ffl.add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+
+        [
+            {ffl.get_label_from_id(p): g.get_label_from_id(t) for p, t in m.items()}
+            for m in g.subgraph_isomorphisms(ffl)
+        ]
+        ```
+
+        A square has 8 symmetries (4 rotations, each with or without a reflection):
+
+        ```{python}
+        square = ec.Graph().add_cycle_graph(4)
+        len(square.subgraph_isomorphisms(square))
+        ```
+        """
+        found = self._match_pattern(pattern, induced, node_attr, edge_attr, limit=limit)
+        mappings = [dict(m) for m in found]
+        if self._recording_depth == 0:
+            self._record_occurrence_step("subgraph_isomorphisms", pattern, found[:1], len(mappings))
+        return mappings
+
+    def _match_pattern(self, pattern, induced, node_attr, edge_attr, limit):
+        (nc_p, ec_p), (nc_t, ec_t) = pattern._match_colors(self, node_attr, edge_attr)
+        return rust.match_graphs(
+            pattern._graph,
+            self._graph,
+            "induced" if induced else "mono",
+            nc_p,
+            nc_t,
+            ec_p,
+            ec_t,
+            limit,
+        )
+
+    def _record_occurrence_step(self, method: str, pattern: "Graph", found, value) -> None:
+        delta = StepDelta()
+        if found:
+            m = dict(found[0])
+            delta.nodes_selected = [self._node_label(t) for t in m.values()]
+            delta.edges_selected = [
+                (self._node_label(m[s]), self._node_label(m[t]))
+                for _, s, t in pattern.get_edges_as_tuples()
+            ]
+        if isinstance(value, bool):
+            narration = f"{method}(): {value}."
+        else:
+            narration = f"{value} occurrence{'s' if value != 1 else ''} of the pattern."
+        self._record_step(
+            KIND_QUERY,
+            method,
+            f"G.{method}(pattern)",
+            delta=delta,
+            result=value,
+            narration=narration,
+        )
+
+    def _wl_labels(self, node_attr, edge_attr):
+        """Neighborhood structure and initial labels for the Weisfeiler-Lehman hashes, with the
+        conventions of NetworkX (parallel edges collapse; a self-loop adds 2 to the degree)."""
+        ids = self.get_node_ids(limit=None)
+        directed = self.is_directed()
+        evals = self.get_edge_attrs_by_id(edge_attr) if edge_attr else {}
+        succ: dict = {n: {} for n in ids}
+        pred: dict = {n: {} for n in ids}
+        for eid, s, t in sorted(self.get_edges_as_tuples()):
+            if edge_attr and eid not in evals:
+                raise ValueError(f"edge {eid} has no attribute {edge_attr!r}")
+            value = evals.get(eid)
+            succ[s].setdefault(t, value)
+            if directed:
+                pred[t].setdefault(s, value)
+            else:
+                succ[t].setdefault(s, value)
+        if node_attr:
+            nvals = self.get_node_attrs(node_attr)
+            missing = [n for n in ids if n not in nvals]
+            if missing:
+                raise ValueError(f"node {missing[0]} has no attribute {node_attr!r}")
+            labels = {n: str(nvals[n]) for n in ids}
+        elif edge_attr:
+            labels = dict.fromkeys(ids, "")
+        elif directed:
+            labels = {n: f"{len(pred[n])}_{len(succ[n])}" for n in ids}
+        else:
+            labels = {n: str(len(succ[n]) + (n in succ[n])) for n in ids}
+        return ids, succ, pred, labels
+
+    @staticmethod
+    def _wl_step(ids, succ, pred, labels, directed, edge_attr, digest_size):
+        import hashlib
+
+        new = {}
+        for n in ids:
+            if directed:
+                s = sorted(
+                    ("s_" if edge_attr is None else str(v)) + labels[w] for w, v in succ[n].items()
+                )
+                p = sorted(
+                    ("p_" if edge_attr is None else str(v)) + labels[w] for w, v in pred[n].items()
+                )
+                label = labels[n] + "".join(s) + "".join(p)
+            else:
+                label = labels[n] + "".join(
+                    sorted(
+                        ("" if edge_attr is None else str(v)) + labels[w]
+                        for w, v in succ[n].items()
+                    )
+                )
+            new[n] = hashlib.blake2b(label.encode("ascii"), digest_size=digest_size).hexdigest()
+        return new
+
+    def weisfeiler_lehman_graph_hash(
+        self,
+        node_attr: str | None = None,
+        edge_attr: str | None = None,
+        iterations: int = 3,
+        digest_size: int = 16,
+    ) -> str:
+        r"""
+        Compute the Weisfeiler-Lehman hash of the graph.
+
+        ![Weisfeiler-Lehman graph hash](/assets/graphs/weisfeiler-lehman-graph-hash.light.svg){.lightbox fig-alt="Two drawings of a triangle with a one-edge tail, one labeled A to D and one labeled w to z. Node colors mark the classes that neighborhood aggregation finds: the degree-3 node (C, x) in accent, the two other triangle nodes (A, B and y, z) in teal, and the tail end (D, w) in violet. Both graphs reduce to the same class counts, so the card shows the same hash, starting c0454391, for each, and equal is True." width="100%"}
+
+        The Weisfeiler-Lehman (WL) hash summarizes a graph's structure in a short hexadecimal
+        string. Isomorphic graphs always get the same hash, so different hashes prove that two
+        graphs differ. The converse does not hold: some non-isomorphic graphs (for example
+        many regular graphs of the same degree) share a hash. It is the standard way to group
+        or deduplicate large collections of graphs, such as molecules, before running exact
+        isomorphism tests within each group, and it underlies the WL graph kernels used in
+        machine learning.
+
+        Each node starts with a label (its degree, or the attribute named by `node_attr=`),
+        then, `iterations` times, replaces it by a hash of its own label and the sorted labels
+        of its neighbors (prefixed by the edge attribute named by `edge_attr=`, if given). The
+        graph hash is a hash of the counts of labels across all rounds. The result is
+        identical to NetworkX's `weisfeiler_lehman_graph_hash` for the same graph (NetworkX
+        3.5 or later).
+
+        Parallel edges count once and a self-loop makes a node its own neighbor, as in a
+        NetworkX `Graph` or `DiGraph`.
+
+        Parameters
+        ----------
+        node_attr
+            Optional node attribute used as the initial label (converted with `str()`). Every
+            node must have it.
+        edge_attr
+            Optional edge attribute whose value prefixes each neighbor's label. Every edge must
+            have it.
+        iterations
+            Number of neighborhood aggregation rounds (default 3). More rounds look further
+            from each node.
+        digest_size
+            Size of the BLAKE2b digests, in bytes (the hash string has twice as many hex
+            characters). Default 16.
+
+        Returns
+        -------
+        str
+            The hash, as a hexadecimal string.
+
+        Raises
+        ------
+        ValueError
+            If `iterations` is not positive, or a node or edge lacks a named attribute.
+
+        Technical Notes
+        ---------------
+        This is the WL subtree hash of Shervashidze et al. (2011). With degree labels, the
+        first round only re-encodes the degrees, so NetworkX (and this method) runs one round
+        fewer in that case. Each round costs $O(E \log \Delta)$ for sorting neighbor labels. Two
+        graphs get equal hashes exactly when 1-WL color refinement cannot tell them apart within
+        the given number of rounds (barring hash collisions).
+
+        Examples
+        --------
+        Relabeling a graph does not change its hash:
+
+        ```{python}
+        import edgecase as ec
+
+        a = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        a.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        b = ec.Graph().add_nodes(["w", "x", "y", "z"])
+        b.add_edges([("z", "y"), ("y", "x"), ("x", "z"), ("w", "x")])
+
+        a.weisfeiler_lehman_graph_hash() == b.weisfeiler_lehman_graph_hash()
+        ```
+
+        Equal hashes are not proof of isomorphism. A six-node cycle and two triangles are both
+        2-regular, so neighborhood aggregation never tells their nodes apart and the hashes
+        collide, while `is_isomorphic()` sees the difference:
+
+        ```{python}
+        hexagon = ec.Graph().add_cycle_graph(6)
+        two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
+
+        (
+            hexagon.weisfeiler_lehman_graph_hash() == two_triangles.weisfeiler_lehman_graph_hash(),
+            hexagon.is_isomorphic(two_triangles),
+        )
+        ```
+        """
+        import hashlib
+        from collections import Counter
+
+        if iterations <= 0:
+            raise ValueError("iterations= must be positive")
+        ids, succ, pred, labels = self._wl_labels(node_attr, edge_attr)
+        rounds = iterations - (0 if (node_attr or edge_attr) else 1)
+        counts: list = []
+        for _ in range(rounds):
+            labels = self._wl_step(
+                ids, succ, pred, labels, self.is_directed(), edge_attr, digest_size
+            )
+            counts.extend(sorted(Counter(labels.values()).items(), key=lambda x: x[0]))
+        value = hashlib.blake2b(
+            str(tuple(counts)).encode("ascii"), digest_size=digest_size
+        ).hexdigest()
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "weisfeiler_lehman_graph_hash",
+                "G.weisfeiler_lehman_graph_hash()",
+                result=value,
+                narration=f"Weisfeiler-Lehman hash {value[:12]}… after {iterations} rounds.",
+            )
+        return value
+
+    def weisfeiler_lehman_subgraph_hashes(
+        self,
+        node_attr: str | None = None,
+        edge_attr: str | None = None,
+        iterations: int = 3,
+        digest_size: int = 16,
+        include_initial_labels: bool = False,
+    ) -> dict[int, list[str]]:
+        """
+        Compute Weisfeiler-Lehman hashes of every node's neighborhood, round by round.
+
+        ![Weisfeiler-Lehman subgraph hashes](/assets/graphs/weisfeiler-lehman-subgraph-hashes.light.svg){.lightbox fig-alt="A path of five nodes, A to E, colored by their second-round hashes: the two ends A and E share one hash (accent), the inner nodes B and D share another (teal), and the middle node C has its own (violet). The card lists the first six hex digits of each class in matching colors: 68f978 for A and E, b51b1d for B and D, and 0ea5aa for C." width="100%"}
+
+        For each node, the k-th hash summarizes the structure within k hops of the node (its
+        "rooted subtree" after k rounds of Weisfeiler-Lehman relabeling; see
+        `weisfeiler_lehman_graph_hash()`). Two nodes with equal hashes at round k look alike up
+        to that depth, so the hashes can be used to find structurally equivalent nodes, to
+        compare neighborhoods across different graphs (hashes are comparable between graphs
+        hashed with the same settings), or as node features in machine learning, as in
+        graph2vec. The values are identical to NetworkX's `weisfeiler_lehman_subgraph_hashes`
+        (NetworkX 3.5 or later).
+
+        Parameters
+        ----------
+        node_attr
+            Optional node attribute used as the initial label. Every node must have it.
+        edge_attr
+            Optional edge attribute whose value prefixes neighbor labels. Every edge must have it.
+        iterations
+            Number of rounds (default 3).
+        digest_size
+            Size of the BLAKE2b digests, in bytes. Default 16.
+        include_initial_labels
+            If `True`, also include the hash of the initial label as the first entry of every
+            list.
+
+        Returns
+        -------
+        dict[int, list[str]]
+            For every node ID, its list of hashes, one per round (from the nearest
+            neighborhood to the widest).
+
+        Raises
+        ------
+        ValueError
+            If `iterations` is not positive, or a node or edge lacks a named attribute.
+
+        Technical Notes
+        ---------------
+        Each round replaces a node's label by the BLAKE2b hash of its label followed by the
+        sorted labels of its neighbors, and appends the new label to the node's list. With
+        degree labels the first entry is the hash of the degree, matching NetworkX. Each round
+        costs $O(E \\log \\Delta)$.
+
+        Examples
+        --------
+        In a path of five nodes, the two ends look alike, as do the two inner neighbors, and the
+        middle node is unique. The second-round hashes show those three classes:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+
+        hashes = path.weisfeiler_lehman_subgraph_hashes(iterations=2)
+        second = {path.get_label_from_id(n): h[1][:6] for n, h in hashes.items()}
+        second
+        ```
+        """
+        import hashlib
+
+        if iterations <= 0:
+            raise ValueError("iterations= must be positive")
+        ids, succ, pred, labels = self._wl_labels(node_attr, edge_attr)
+
+        def digest(text):
+            return hashlib.blake2b(text.encode("ascii"), digest_size=digest_size).hexdigest()
+
+        hashes = {n: ([digest(labels[n])] if include_initial_labels else []) for n in ids}
+        rounds = iterations
+        if not node_attr and not edge_attr:
+            rounds -= 1
+            for n in ids:
+                hashes[n].append(digest(labels[n]))
+        for _ in range(rounds):
+            labels = self._wl_step(
+                ids, succ, pred, labels, self.is_directed(), edge_attr, digest_size
+            )
+            for n in ids:
+                hashes[n].append(labels[n])
+        if self._recording_depth == 0 and ids:
+            final = {n: h[-1] for n, h in hashes.items()}
+            classes = {h: i for i, h in enumerate(dict.fromkeys(final[n] for n in sorted(ids)))}
+            self._record_step(
+                KIND_QUERY,
+                "weisfeiler_lehman_subgraph_hashes",
+                "G.weisfeiler_lehman_subgraph_hashes()",
+                delta=StepDelta(node_groups={self._node_label(n): classes[final[n]] for n in ids}),
+                result=hashes,
+                narration=f"{len(classes)} distinct neighborhood hashes after {iterations} rounds.",
+            )
+        return hashes
 
     def is_regular(self) -> bool:
         r"""
@@ -15345,6 +16042,288 @@ class Graph:
 
         return common_neighbors(self._graph, resolved_ebunch)
 
+    def _link_scores(self, kind, ebunch, community, alpha=0.8, delta=0.001):
+        pairs = None
+        if ebunch is not None:
+            pairs = [
+                (
+                    self._resolve_node_id(u, auto_create=False),
+                    self._resolve_node_id(v, auto_create=False),
+                )
+                for u, v in ebunch
+            ]
+        comm = None
+        if community is not None:
+            values = self.get_node_attrs(community)
+            table: dict = {}
+            comm = {}
+            for n in self.get_node_ids(limit=None):
+                if n in values:
+                    comm[n] = table.setdefault(values[n], len(table))
+        scores = rust.link_scores(self._graph, kind, pairs, comm, alpha, delta)
+        if self._recording_depth == 0 and scores:
+            top = max(scores, key=lambda r: r[2])
+            self._record_step(
+                KIND_QUERY,
+                kind if kind != "ccpa" else "common_neighbor_centrality",
+                "G.link_prediction(...)",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(top[0]), self._node_label(top[1])]
+                ),
+                result=scores,
+                narration=f"{len(scores)} pairs scored; best: {self._node_label(top[0])}–"
+                f"{self._node_label(top[1])} ({top[2]:.3g}).",
+            )
+        return scores
+
+    def common_neighbor_centrality(
+        self,
+        ebunch: list[tuple[Union[int, str], Union[int, str]]] | None = None,
+        alpha: float = 0.8,
+    ) -> list[tuple[int, int, float]]:
+        r"""
+        Score node pairs for link prediction with Common Neighbor and Centrality (CCPA).
+
+        ![Common neighbor centrality](/assets/graphs/common-neighbor-centrality.light.svg){.lightbox fig-alt="A path A, B, C, D. The candidate link A–C (dashed) joins nodes that share the neighbor B (accent) and are 2 steps apart. With alpha 0.8 and 4 nodes, the table scores every non-adjacent pair as 0.8 times the shared neighbors plus 0.2 times 4 over the distance: A–C and B–D score 1.2, and A–D, with no shared neighbor and 3 steps apart, only 0.267." width="100%"}
+
+        CCPA (Ahmad et al., 2020) combines two signals that a missing link should exist: how
+        many neighbors the two nodes share, and how close they are. For nodes `u` and `v` the
+        score is
+
+        $$\alpha \, |N(u) \cap N(v)| + (1 - \alpha) \frac{n}{d(u, v)},$$
+
+        where $n$ is the number of nodes and $d$ the shortest-path distance (pairs in different
+        components get no distance bonus). It improves on plain common-neighbor counts for pairs
+        that share no neighbors yet sit close together. With `alpha=1` it is exactly the number
+        of common neighbors.
+
+        The graph is treated as undirected and simple (parallel edges count once).
+
+        Parameters
+        ----------
+        ebunch
+            Optional list of `(u, v)` pairs to score (IDs or labels). If `None` (default), every
+            pair of non-adjacent nodes is scored.
+        alpha
+            The weight of the common-neighbor term, between 0 and 1 (default 0.8).
+
+        Returns
+        -------
+        list[tuple[int, int, float]]
+            `(u, v, score)` triples with node IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, a node does not exist, or a pair repeats a node.
+
+        Technical Notes
+        ---------------
+        Common neighbors are counted by set intersection and distances by breadth-first search,
+        run once per distinct source node in the pairs, so scoring all pairs costs
+        $O(V(V + E))$. The scores match NetworkX's `common_neighbor_centrality`.
+
+        Examples
+        --------
+        In a path A-B-C-D, the pair A-C shares the neighbor B and is two steps apart, so it
+        scores higher than A-D, which shares nothing and is three steps apart:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        [(g.get_label_from_id(u), g.get_label_from_id(v), round(s, 2))
+         for u, v, s in g.common_neighbor_centrality()]
+        ```
+        """
+        return self._link_scores("ccpa", ebunch, None, alpha=alpha)
+
+    def cn_soundarajan_hopcroft(
+        self,
+        ebunch: list[tuple[Union[int, str], Union[int, str]]] | None = None,
+        community: str = "community",
+    ) -> list[tuple[int, int, float]]:
+        """
+        Score node pairs by common neighbors, with a bonus for shared communities.
+
+        ![Common neighbors with community bonus](/assets/graphs/cn-soundarajan-hopcroft.light.svg){.lightbox fig-alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). The candidate link A–D (dashed) has two common neighbors, both in the accent color. B shares the pair's community, so it counts twice; C does not, so it counts once. The card adds 2 + 1 for a score of 3.0." width="100%"}
+
+        Soundarajan and Hopcroft (2012) refine the common-neighbor count using community
+        membership: for two nodes in the same community, each common neighbor that is also in
+        that community counts twice. Pairs in different communities get the plain count. The
+        idea is that links are more likely inside communities, so shared in-community neighbors
+        are stronger evidence. Communities come from a node attribute, such as the one written
+        by `cmty_louvain()` or `cmty_leiden()`.
+
+        The graph is treated as undirected and simple.
+
+        Parameters
+        ----------
+        ebunch
+            Optional list of `(u, v)` pairs to score. If `None` (default), every pair of
+            non-adjacent nodes is scored.
+        community
+            Name of the node attribute holding community labels (default `"community"`). Every
+            node must have it.
+
+        Returns
+        -------
+        list[tuple[int, int, float]]
+            `(u, v, score)` triples with node IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, a node lacks the community attribute or does not exist.
+
+        Technical Notes
+        ---------------
+        Each pair costs one neighbor-set intersection. The scores match NetworkX's
+        `cn_soundarajan_hopcroft`.
+
+        Examples
+        --------
+        A and D share the neighbors B and C, but only B is in their community, so the score is
+        2 + 1 = 3:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(
+            [("A", {"community": 0}), ("B", {"community": 0}), ("C", {"community": 1}),
+             ("D", {"community": 0})]
+        )
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+
+        g.cn_soundarajan_hopcroft([("A", "D")])[0][2]
+        ```
+        """
+        return self._link_scores("cn_sh", ebunch, community)
+
+    def ra_index_soundarajan_hopcroft(
+        self,
+        ebunch: list[tuple[Union[int, str], Union[int, str]]] | None = None,
+        community: str = "community",
+    ) -> list[tuple[int, int, float]]:
+        """
+        Score node pairs by resource allocation through shared-community neighbors.
+
+        ![Resource allocation with communities](/assets/graphs/ra-index-soundarajan-hopcroft.light.svg){.lightbox fig-alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). Of the two common neighbors of the candidate link A–D (dashed), only B (accent) is in the pair's community, so only B counts, with 1 over its degree 2. C is ignored. The card gives the score 0.5." width="100%"}
+
+        The resource allocation index sums `1 / degree` over the common neighbors of two nodes,
+        so rarely connected shared neighbors count more (see `resource_allocation_index()`).
+        Soundarajan and Hopcroft's community variant only counts common neighbors in the same
+        community as the pair, and gives `0` to pairs in different communities. Communities come
+        from a node attribute.
+
+        The graph is treated as undirected and simple.
+
+        Parameters
+        ----------
+        ebunch
+            Optional list of `(u, v)` pairs to score. If `None` (default), every pair of
+            non-adjacent nodes is scored.
+        community
+            Name of the node attribute holding community labels (default `"community"`).
+
+        Returns
+        -------
+        list[tuple[int, int, float]]
+            `(u, v, score)` triples with node IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, a node lacks the community attribute or does not exist.
+
+        Technical Notes
+        ---------------
+        Each pair costs one neighbor-set intersection. The scores match NetworkX's
+        `ra_index_soundarajan_hopcroft`.
+
+        Examples
+        --------
+        A and D share B (degree 2, same community) and C (another community), so only B counts:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(
+            [("A", {"community": 0}), ("B", {"community": 0}), ("C", {"community": 1}),
+             ("D", {"community": 0})]
+        )
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+
+        g.ra_index_soundarajan_hopcroft([("A", "D")])[0][2]
+        ```
+        """
+        return self._link_scores("ra_sh", ebunch, community)
+
+    def within_inter_cluster(
+        self,
+        ebunch: list[tuple[Union[int, str], Union[int, str]]] | None = None,
+        delta: float = 0.001,
+        community: str = "community",
+    ) -> list[tuple[int, int, float]]:
+        """
+        Score node pairs by the ratio of within- to inter-community common neighbors.
+
+        ![Within-inter-cluster ratio](/assets/graphs/within-inter-cluster.light.svg){.lightbox fig-alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). The candidate link A–D (dashed) has one common neighbor inside its community, B (accent), and one outside, C. The card divides 1 within by 1 inter plus delta 0.001, a score of 0.999." width="100%"}
+
+        The within-inter-cluster score (Valverde-Rebaza and de Andrade Lopes, 2012) compares the
+        common neighbors of two nodes that share their community with those that do not:
+        `|within| / (|inter| + delta)`. Pairs in different communities score `0`. A high score
+        means the pair's shared contacts sit inside their own community, a strong sign of a
+        missing intra-community link.
+
+        The graph is treated as undirected and simple.
+
+        Parameters
+        ----------
+        ebunch
+            Optional list of `(u, v)` pairs to score. If `None` (default), every pair of
+            non-adjacent nodes is scored.
+        delta
+            Small positive value that avoids dividing by zero (default 0.001).
+        community
+            Name of the node attribute holding community labels (default `"community"`).
+
+        Returns
+        -------
+        list[tuple[int, int, float]]
+            `(u, v, score)` triples with node IDs.
+
+        Raises
+        ------
+        ValueError
+            If `delta` is not positive, the graph is directed, or a node lacks the community
+            attribute or does not exist.
+
+        Technical Notes
+        ---------------
+        Each pair costs one neighbor-set intersection. The scores match NetworkX's
+        `within_inter_cluster`.
+
+        Examples
+        --------
+        A and D share one within-community neighbor (B) and one outside (C):
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(
+            [("A", {"community": 0}), ("B", {"community": 0}), ("C", {"community": 1}),
+             ("D", {"community": 0})]
+        )
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+
+        round(g.within_inter_cluster([("A", "D")])[0][2], 3)
+        ```
+        """
+        return self._link_scores("within_inter_cluster", ebunch, community, delta=delta)
+
     def jaccard_coefficient(
         self, ebunch: list[tuple[Union[int, str], Union[int, str]]] = None
     ) -> list[tuple[int, int, float]]:
@@ -15763,6 +16742,137 @@ class Graph:
     # ==============================================================================
     # Similarity
     # ==============================================================================
+
+    def simrank_similarity(
+        self,
+        source: Union[int, str, None] = None,
+        target: Union[int, str, None] = None,
+        importance_factor: float = 0.9,
+        max_iterations: int = 1000,
+        tolerance: float = 1e-4,
+        weighted: bool | None = None,
+    ) -> "float | dict[int, float] | dict[int, dict[int, float]]":
+        r"""
+        Compute SimRank similarity between nodes.
+
+        ![SimRank similarity](/assets/graphs/simrank-similarity.light.svg){.lightbox fig-alt="Students ann, bob, and cy in a column on the left, courses math, art, and bio on the right. ann and bob, outlined in the accent color, take the same two courses, math and art (accent), while cy only takes bio. ann and bob are never linked directly, yet SimRank with C = 0.9 rates them 0.818 because their neighbors are alike; ann and cy share nothing and score 0.0." width="100%"}
+
+        SimRank (Jeh and Widom, 2002) captures the idea that "two nodes are similar if their
+        neighbors are similar". Every node is fully similar to itself (score 1), and the
+        similarity of two different nodes is the average similarity of their neighbors (their
+        in-neighbors on a directed graph), discounted by `importance_factor`. It is used for
+        recommendation ("users who are linked to similar items"), finding related pages or
+        papers in citation and link graphs, and matching roles across a network.
+
+        A known quirk of SimRank is that nodes at an odd distance in a bipartite-like structure
+        can score 0 even when they look related; `simrank_star_similarity()` fixes that by
+        counting paths of every length. This method follows NetworkX's
+        `simrank_similarity`, with the same defaults and results.
+
+        Parameters
+        ----------
+        source
+            Optional node (ID or label). If given alone, return its similarity to every node.
+        target
+            Optional node (ID or label). With `source=`, return a single score.
+        importance_factor
+            The decay `C` applied at each step, between 0 and 1 (default 0.9).
+        max_iterations
+            Maximum number of iterations (default 1000).
+        tolerance
+            Convergence tolerance (default `1e-4`), applied as in `numpy.allclose`.
+        weighted
+            Whether to weight neighbors by edge weight. If `None` (default), follows the graph's
+            `weighted` flag.
+
+        Returns
+        -------
+        float, dict[int, float], or dict[int, dict[int, float]]
+            A single score when `source=` and `target=` are both given, the scores of `source`
+            against every node when only `source=` is given, and otherwise the full table, keyed
+            by node ID.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, or the iteration does not converge.
+
+        Technical Notes
+        ---------------
+        With the column-normalized adjacency matrix $W$ (columns summing to one over each
+        node's in-neighbors), the scores are iterated as $S \leftarrow C \, W^\top S W$ with the
+        diagonal reset to 1, starting from the identity, until successive iterates agree within
+        `tolerance`. Each iteration costs two dense $n \times n$ matrix products, $O(n^3)$, so
+        the method is meant for graphs of up to a few thousand nodes.
+
+        Examples
+        --------
+        Two students who take the same courses are similar, even though they are not linked to
+        each other:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["ann", "bob", "cy", "math", "art", "bio"])
+        g.add_edges(
+            [("ann", "math"), ("ann", "art"), ("bob", "math"), ("bob", "art"), ("cy", "bio")]
+        )
+
+        round(g.simrank_similarity("ann", "bob"), 3), g.simrank_similarity("ann", "cy")
+        ```
+
+        With only `source=`, the scores against every node come back as a dictionary:
+
+        ```{python}
+        scores = g.simrank_similarity("math")
+        {g.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        ```
+        """
+        ids, rows = rust.simrank(
+            self._graph,
+            importance_factor,
+            max_iterations,
+            tolerance,
+            self._use_weights(weighted),
+        )
+        pos = {n: i for i, n in enumerate(ids)}
+        s = None if source is None else self._resolve_node_id(source, auto_create=False)
+        t = None if target is None else self._resolve_node_id(target, auto_create=False)
+        if s is not None and t is not None:
+            result = rows[pos[s]][pos[t]]
+        elif s is not None or t is not None:
+            row = rows[pos[s if s is not None else t]]
+            result = {n: row[i] for i, n in enumerate(ids)}
+        else:
+            result = {n: {m: rows[i][j] for j, m in enumerate(ids)} for i, n in enumerate(ids)}
+        if self._recording_depth == 0:
+            if isinstance(result, float):
+                narration = (
+                    f"SimRank similarity of {self._node_label(s)} and {self._node_label(t)}: "
+                    f"{result:.3f}."
+                )
+                delta = StepDelta(nodes_selected=[self._node_label(s), self._node_label(t)])
+                kind = KIND_QUERY
+            elif s is not None or t is not None:
+                anchor = s if s is not None else t
+                narration = f"SimRank similarity to {self._node_label(anchor)}."
+                delta = StepDelta(
+                    nodes_selected=[self._node_label(anchor)],
+                    metric_values={self._node_label(n): v for n, v in result.items()},
+                )
+                kind = KIND_METRIC
+            else:
+                narration = f"SimRank similarity for all {len(ids)} x {len(ids)} pairs."
+                delta = StepDelta()
+                kind = KIND_QUERY
+            self._record_step(
+                kind,
+                "simrank_similarity",
+                "G.simrank_similarity()",
+                delta=delta,
+                narration=narration,
+            )
+        return result
 
     def simrank_star_similarity(
         self,
@@ -18010,6 +19120,299 @@ class Graph:
             )
 
         return self
+
+    def random_reference(
+        self, niter: int = 1, connectivity: bool = True, seed: int | None = None
+    ) -> "Graph":
+        r"""
+        Build a random reference graph with the same degrees (degree-preserving rewiring).
+
+        ![Random reference graph](/assets/graphs/random-reference.light.svg){.lightbox fig-alt="Left: an eight-node ring with four chords that close four triangles, average clustering 0.667. Right: random_reference(seed=8) rewires it with degree-preserving swaps: the four accent edges on the left are replaced by the four accent edges on the right, every node keeps its degree (4 or 2), and the triangles mostly disappear, leaving an average clustering of 0.229." width="100%"}
+
+        The result keeps every node's degree but scrambles the wiring with random double edge
+        swaps (`a-b, c-d` becomes `a-d, c-b`), destroying structure such as clustering and
+        communities. Comparing a network with such references tells whether a property (high
+        clustering, short paths, motifs) is more than a consequence of the degree sequence. It
+        is the random baseline of `small_world_sigma()` and `small_world_omega()`.
+
+        The graph is treated as undirected and simple (parallel edges and self-loops are
+        dropped). With `connectivity=True`, swaps that would disconnect the graph are undone.
+
+        Parameters
+        ----------
+        niter
+            Rewiring rounds, each attempting one swap per edge (default 1).
+        connectivity
+            If `True` (default), keep the graph connected.
+        seed
+            Random seed for reproducible results.
+
+        Returns
+        -------
+        Graph
+            A new undirected, unweighted graph with the same nodes (IDs, labels and attributes
+            kept) and rewired edges.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or has fewer than four nodes or two edges.
+
+        Technical Notes
+        ---------------
+        Follows NetworkX's `random_reference` (Maslov and Sneppen, 2002): endpoints are drawn
+        with probability proportional to degree, then a random neighbor of each; the swap is
+        applied when the four nodes are distinct and the new edges do not exist, and undone if
+        it disconnects the first pair. Each round makes up to $2E/(V-1)$ attempts per edge.
+
+        Examples
+        --------
+        Rewiring keeps the degrees and the connectivity:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_smallworld_graph(n=30, k=4, p=0.1, seed=1)
+        r = g.random_reference(niter=5, seed=2)
+        def degree_sequence(graph):
+            return sorted(graph.get_degree(n) for n in graph.get_node_ids(limit=None))
+
+        degree_sequence(g) == degree_sequence(r), r.is_connected()
+        ```
+        """
+        result = Graph._from_rust(
+            rust.reference_graph(self._graph, niter, False, connectivity, seed)
+        )
+        self._record_reference("random_reference", result)
+        return result
+
+    def lattice_reference(
+        self, niter: int = 5, connectivity: bool = True, seed: int | None = None
+    ) -> "Graph":
+        r"""
+        Build a lattice-like reference graph with the same degrees.
+
+        ![Lattice reference graph](/assets/graphs/lattice-reference.light.svg){.lightbox fig-alt="Left: a randomly wired eight-node graph with average clustering 0.229. Right: lattice_reference(seed=1) keeps every degree but only accepts swaps that shorten edges around the ring A to H: the four long accent edges on the left become the four short accent edges on the right, closing four triangles around the ring, and the average clustering rises to 0.667." width="100%"}
+
+        Like `random_reference()`, this rewires the graph with degree-preserving double edge
+        swaps, but only accepts swaps that make the edges shorter on a ring of the nodes (nodes
+        placed on a circle in ID order). The result approaches a ring lattice with the original
+        degree sequence: highly clustered, with long paths. It is the "ordered" baseline of
+        `small_world_omega()`.
+
+        The graph is treated as undirected and simple. With `connectivity=True`, swaps that would
+        disconnect the graph are undone.
+
+        Parameters
+        ----------
+        niter
+            Rewiring rounds, each attempting one swap per edge (default 5).
+        connectivity
+            If `True` (default), keep the graph connected.
+        seed
+            Random seed for reproducible results.
+
+        Returns
+        -------
+        Graph
+            A new undirected, unweighted graph with the same nodes and rewired edges.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or has fewer than four nodes or two edges.
+
+        Technical Notes
+        ---------------
+        Sporns and Zwi (2004) latticize by accepting a swap of `a-b, c-d` into `a-d, c-b` only
+        when the ring distances satisfy $d(a, d) + d(c, b) \le d(a, b) + d(c, d)$. NetworkX's
+        `lattice_reference` instead compares $d(a, c) + d(b, d)$, which does not measure the new
+        edges; EdgeCase uses the intended criterion, so its references are more lattice-like.
+
+        Examples
+        --------
+        Latticizing a random graph raises its clustering:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_gnp_graph(n=40, p=0.15, seed=3)
+        lattice = g.lattice_reference(niter=10, seed=4)
+        round(g.get_avg_clustering_coefficient(), 3), round(lattice.get_avg_clustering_coefficient(), 3)
+        ```
+        """
+        result = Graph._from_rust(
+            rust.reference_graph(self._graph, niter, True, connectivity, seed)
+        )
+        self._record_reference("lattice_reference", result)
+        return result
+
+    def _record_reference(self, method: str, result: "Graph") -> None:
+        if self._recording_depth != 0:
+            return
+        pairs = [
+            (result._node_label(s), result._node_label(t))
+            for _, s, t in result.get_edges_as_tuples()
+        ]
+        result._record_step(
+            KIND_BUILD_EDGES,
+            method,
+            f"G.{method}()",
+            delta=StepDelta(
+                nodes_added=[
+                    result._node_label(n) for n in sorted(result.get_node_ids(limit=None))
+                ],
+                edges_added=pairs,
+            ),
+        )
+        self._record_step(
+            KIND_TRANSFORM,
+            method,
+            f"G.{method}()",
+            narration=f"{method}(): {len(pairs)} rewired edges.",
+        )
+
+    def small_world_sigma(
+        self, niter: int = 100, nrand: int = 10, seed: int | None = None
+    ) -> float:
+        r"""
+        Compute the small-world coefficient sigma.
+
+        ![Small-world coefficient sigma](/assets/graphs/small-world-sigma.light.svg){.lightbox fig-alt="An eight-node ring with four chords that close four triangles. Its transitivity C is 0.43, against 0.354 averaged over 10 degree-preserving random references, while its average path length L, 1.643, is close to the references' 1.707. The card divides the two ratios, (0.43 / 0.354) / (1.643 / 1.707), for sigma = 1.260: above 1, so the graph counts as small-world." width="100%"}
+
+        A small-world network combines the high clustering of a lattice with the short paths of
+        a random graph. Humphries and Gurney (2008) measure this as
+
+        $$\sigma = \frac{C / C_r}{L / L_r},$$
+
+        where $C$ is the transitivity and $L$ the average shortest path length, and $C_r$, $L_r$
+        are their averages over `nrand` random reference graphs with the same degrees (see
+        `random_reference()`). A network is commonly called small-world when $\sigma > 1$:
+        clustered well beyond chance while keeping near-random path lengths. Typical uses are
+        brain, social and infrastructure networks.
+
+        The graph must be undirected and connected, and is treated as simple. The result is
+        random; use `seed=` for reproducible values.
+
+        Parameters
+        ----------
+        niter
+            Rewiring rounds for each random reference (default 100, as in NetworkX).
+        nrand
+            Number of random references to average (default 10).
+        seed
+            Random seed.
+
+        Returns
+        -------
+        float
+            The coefficient sigma.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, or has fewer than four nodes or two edges.
+
+        Technical Notes
+        ---------------
+        Follows NetworkX's `sigma`, with the rewiring and the metrics computed in Rust, which
+        makes it practical on graphs of a few thousand nodes (each reference needs all-pairs
+        breadth-first searches for $L_r$). Because the references are random, values from
+        EdgeCase and NetworkX agree only up to sampling noise.
+
+        Examples
+        --------
+        A Watts-Strogatz graph with a little rewiring is strongly small-world:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_smallworld_graph(n=100, k=6, p=0.1, seed=1)
+        round(g.small_world_sigma(niter=10, nrand=5, seed=2), 2)
+        ```
+        """
+        value, parts = rust.small_world(self._graph, "sigma", niter, nrand, seed)
+        if self._recording_depth == 0:
+            c, length, cr, lr = parts
+            self._record_step(
+                KIND_QUERY,
+                "small_world_sigma",
+                "G.small_world_sigma()",
+                result=value,
+                narration=f"sigma = ({c:.3f} / {cr:.3f}) / ({length:.3f} / {lr:.3f}) = {value:.3f}.",
+            )
+        return value
+
+    def small_world_omega(self, niter: int = 5, nrand: int = 10, seed: int | None = None) -> float:
+        r"""
+        Compute the small-world coefficient omega.
+
+        ![Small-world coefficient omega](/assets/graphs/small-world-omega.light.svg){.lightbox fig-alt="An eight-node ring with four chords that close four triangles. The random references average a path length L_r of 1.689 against the graph's 1.643, and the best lattice reference clusters no more than the graph itself, C_l = C = 0.667. The card computes 1.689 / 1.643 minus 0.667 / 0.667, omega = 0.028: near 0, the small-world middle between a lattice (-1) and a random graph (1)." width="100%"}
+
+        Telesford et al. (2011) compare a network both with a random graph and with a lattice:
+
+        $$\omega = \frac{L_r}{L} - \frac{C}{C_\ell},$$
+
+        where $L$ is the average shortest path length, $C$ the average clustering coefficient,
+        $L_r$ the average path length of random references and $C_\ell$ the best clustering of
+        lattice references (see `random_reference()` and `lattice_reference()`). Omega lies
+        roughly between -1 and 1: near 0 means small-world, near -1 lattice-like, and near 1
+        random-like, which places a network on the order-to-randomness spectrum in a way that
+        sigma does not.
+
+        The graph must be undirected and connected, and is treated as simple. The result is
+        random; use `seed=` for reproducible values.
+
+        Parameters
+        ----------
+        niter
+            Rewiring rounds for the lattice references (the random references use twice as
+            many), default 5 as in NetworkX.
+        nrand
+            Number of reference pairs (default 10).
+        seed
+            Random seed.
+
+        Returns
+        -------
+        float
+            The coefficient omega.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, or has fewer than four nodes or two edges.
+
+        Technical Notes
+        ---------------
+        Follows NetworkX's `omega` ($C_\ell$ is the largest clustering among the lattice
+        references and the original graph). The lattice references use the corrected swap
+        criterion described in `lattice_reference()`.
+
+        Examples
+        --------
+        A slightly rewired ring lattice is near 0 (small-world), while a random graph scores
+        higher:
+
+        ```{python}
+        import edgecase as ec
+
+        ws = ec.Graph().add_smallworld_graph(n=60, k=6, p=0.1, seed=1)
+        er = ec.Graph().add_smallworld_graph(n=60, k=6, p=1.0, seed=1)
+        round(ws.small_world_omega(seed=2), 2), round(er.small_world_omega(seed=2), 2)
+        ```
+        """
+        value, parts = rust.small_world(self._graph, "omega", niter, nrand, seed)
+        if self._recording_depth == 0:
+            c, length, cl, lr = parts
+            self._record_step(
+                KIND_QUERY,
+                "small_world_omega",
+                "G.small_world_omega()",
+                result=value,
+                narration=f"omega = {lr:.3f} / {length:.3f} - {c:.3f} / {cl:.3f} = {value:.3f}.",
+            )
+        return value
 
     def square_clustering(
         self, attr_name: str | None = None, return_dict: bool = False
@@ -32057,6 +33460,125 @@ class Graph:
 
         return self
 
+    def negative_edge_cycle(self, weighted: bool | None = None) -> bool:
+        """
+        Check if the graph contains a cycle of negative total weight.
+
+        ![Negative edge cycle](/assets/graphs/negative-edge-cycle.light.svg){.lightbox fig-alt="Three currencies linked by exchange edges weighted with negative log-rates. Left: USD to EUR −0.10, EUR to GBP −0.15 and GBP to USD +0.20 add up to −0.05, a negative cycle (accent) that signals an arbitrage loop, so negative_edge_cycle() returns True. Right: with GBP to USD at +0.30 the loop totals +0.05, so no cycle is negative and the call returns False." width="100%"}
+
+        Shortest paths are only well defined when no cycle has negative total weight; otherwise
+        going around the cycle again always makes a route cheaper. Negative weights appear with
+        costs that can be gains (currency exchange rates as negative log-rates, refunds,
+        energy recovery), and a negative cycle then signals an arbitrage or modelling error.
+        This method checks the whole graph, whatever node a cycle is reachable from.
+
+        On an undirected graph every edge can be traversed both ways, so a single negative edge
+        already forms a negative cycle (there and back).
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag (an unweighted graph has no negative cycle).
+
+        Returns
+        -------
+        bool
+            `True` if some cycle has negative total weight.
+
+        Technical Notes
+        ---------------
+        Bellman-Ford is run from all nodes at once (distance 0 everywhere, equivalent to a
+        virtual source joined to every node, as in NetworkX); if distances still improve after
+        $V$ rounds, a negative cycle exists. It runs in $O(VE)$ time.
+
+        Examples
+        --------
+        Three currencies whose exchange rates, as negative log-rates, admit an arbitrage loop:
+
+        ```{python}
+        import edgecase as ec
+
+        fx = ec.Graph(directed=True, weighted=True).add_nodes(["USD", "EUR", "GBP"])
+        fx.add_edges([("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)])
+
+        fx.negative_edge_cycle()
+        ```
+        """
+        value = rust.negative_edge_cycle(self._graph, self._use_weights(weighted))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "negative_edge_cycle",
+                "G.negative_edge_cycle()",
+                result=value,
+                narration=f"negative_edge_cycle(): {value}.",
+            )
+        return value
+
+    def find_negative_cycle(
+        self, source: Union[int, str], weighted: bool | None = None
+    ) -> list[int]:
+        """
+        Find a cycle of negative total weight reachable from a source node.
+
+        ![Find negative cycle](/assets/graphs/find-negative-cycle.light.svg){.lightbox fig-alt="Three currencies linked by exchange edges weighted with negative log-rates, searched from USD (outlined). Going around USD to EUR to GBP and back to USD (accent arrows) costs −0.10 − 0.15 + 0.20 = −0.05, a negative cycle: an arbitrage loop. The card returns the cycle with its first node repeated at the end, USD, EUR, GBP, USD." width="100%"}
+
+        Returns one negative cycle that can be reached from `source`, as the list of nodes
+        around it (the first node repeated at the end). Use it to locate the arbitrage loop or
+        the modelling error behind a failed shortest-path computation (see
+        `negative_edge_cycle()`).
+
+        Parameters
+        ----------
+        source
+            The node to search from, as an ID or label.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+
+        Returns
+        -------
+        list[int]
+            The node IDs around the cycle, with the first node repeated at the end.
+
+        Raises
+        ------
+        ValueError
+            If `source` does not exist or no negative cycle is reachable from it.
+
+        Technical Notes
+        ---------------
+        Bellman-Ford from `source`, keeping predecessors. A node still improving in round $V$ is
+        reachable from a negative cycle; following predecessors $V$ times lands on the cycle,
+        which is then read off by following predecessors until it closes. It runs in $O(VE)$
+        time. NetworkX's `find_negative_cycle` can fail with "Negative cycle is detected but not
+        found" on some graphs where this method succeeds.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        fx = ec.Graph(directed=True, weighted=True).add_nodes(["USD", "EUR", "GBP"])
+        fx.add_edges([("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)])
+
+        [fx.get_label_from_id(n) for n in fx.find_negative_cycle("USD")]
+        ```
+        """
+        sid = self._resolve_node_id(source, auto_create=False)
+        cycle = rust.find_negative_cycle(self._graph, sid, self._use_weights(weighted))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "find_negative_cycle",
+                f"G.find_negative_cycle({self._node_label(sid)!r})",
+                delta=self._path_delta([cycle]),
+                result=cycle,
+                narration=f"Negative cycle through {len(cycle) - 1} nodes.",
+            )
+        return cycle
+
     def bellman_ford_shortest_path(
         self,
         source: Union[int, str],
@@ -35757,6 +37279,492 @@ class Graph:
             )
         return length
 
+    def immediate_dominators(self, start: Union[int, str]) -> dict[int, int]:
+        r"""
+        Find the immediate dominator of every node reachable from a start node.
+
+        ![Immediate dominators](/assets/graphs/immediate-dominators.light.svg){.lightbox fig-alt="An if/else control-flow graph: entry (outlined) leads to if, which branches to then and else; both rejoin at merge, which leads to exit. The dominator tree is drawn in the accent color: every path to merge passes through if but through neither branch, so the dashed accent arrow if to merge replaces the faded branch edges. The card maps each node to its immediate dominator: if for then, else and merge, merge for exit." width="100%"}
+
+        In a directed graph with a start node, a node `d` *dominates* node `v` if every path from
+        the start to `v` passes through `d`. The *immediate* dominator of `v` is its closest strict
+        dominator, and linking every node to it forms the dominator tree. Dominators come from
+        compiler design (control-flow analysis, loop detection, placing code), and in networks
+        they identify single points of failure: a node's immediate dominator is the last
+        unavoidable relay on the way from a source, such as a router every packet to a host must
+        traverse, or a gene that every regulatory path to another passes through.
+
+        Only nodes reachable from `start` appear in the result, and `start` maps to itself.
+
+        Parameters
+        ----------
+        start
+            The start (entry) node, as an ID or label.
+
+        Returns
+        -------
+        dict[int, int]
+            For every reachable node ID, the ID of its immediate dominator.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or `start` does not exist.
+
+        Technical Notes
+        ---------------
+        This is the iterative algorithm of Cooper, Harvey and Kennedy (2001), as in NetworkX:
+        nodes are processed in reverse postorder of a depth-first search, each node's dominator
+        is updated to the nearest common dominator of its processed predecessors, and the pass
+        repeats until nothing changes. It is simple and fast in practice, $O(V^2)$ in the worst
+        case. Dominance frontiers follow from the dominator tree; see `dominance_frontiers()`.
+
+        Examples
+        --------
+        In a small control-flow graph, both branches of an if/else rejoin at `merge`, so the
+        immediate dominator of `merge` is `if`, not either branch:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["entry", "if", "then", "else", "merge", "exit"])
+        g.add_edges(
+            [
+                ("entry", "if"), ("if", "then"), ("if", "else"),
+                ("then", "merge"), ("else", "merge"), ("merge", "exit"),
+            ]
+        )
+
+        idom = g.immediate_dominators("entry")
+        {g.get_label_from_id(n): g.get_label_from_id(d) for n, d in idom.items()}
+        ```
+        """
+        sid = self._resolve_node_id(start, auto_create=False)
+        idoms, _ = rust.dominators(self._graph, sid)
+        result = dict(idoms)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "immediate_dominators",
+                f"G.immediate_dominators({self._node_label(sid)!r})",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(sid)],
+                    edges_selected=[
+                        (self._node_label(d), self._node_label(n)) for n, d in idoms if n != d
+                    ],
+                ),
+                result=result,
+                narration=f"Dominator tree of {len(result)} nodes reachable from "
+                f"{self._node_label(sid)}.",
+            )
+        return result
+
+    def dominance_frontiers(self, start: Union[int, str]) -> dict[int, set[int]]:
+        """
+        Find the dominance frontier of every node reachable from a start node.
+
+        ![Dominance frontiers](/assets/graphs/dominance-frontiers.light.svg){.lightbox fig-alt="The same if/else control-flow graph from entry. The branches then and else are outlined: each dominates only itself, and its edge into merge (accent) leaves its region, so merge, filled in accent, is the dominance frontier of both. The card lists every node's frontier: merge for then and else, and empty for the others." width="100%"}
+
+        The dominance frontier of a node `d` is the set of nodes where `d`'s dominance ends: the
+        nodes `v` that `d` does not strictly dominate, but that have a predecessor dominated by
+        `d` (see `immediate_dominators()`). They are the merge points where paths from inside
+        and outside `d`'s region meet. Compilers use them to place phi functions when building
+        static single assignment form; in other networks they mark where the influence of an
+        unavoidable node stops being exclusive.
+
+        Parameters
+        ----------
+        start
+            The start (entry) node, as an ID or label.
+
+        Returns
+        -------
+        dict[int, set[int]]
+            For every node ID reachable from `start`, the set of node IDs in its frontier.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or `start` does not exist.
+
+        Technical Notes
+        ---------------
+        Following Cooper, Harvey and Kennedy (2001), as in NetworkX: for every join node `v`
+        (two or more predecessors), each reachable predecessor walks up the dominator tree until
+        reaching `v`'s immediate dominator, adding `v` to the frontier of every node passed. The
+        cost is proportional to the total size of the frontiers after computing the dominators.
+
+        Examples
+        --------
+        In an if/else, the frontier of each branch is the merge node where the branches rejoin:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["entry", "if", "then", "else", "merge", "exit"])
+        g.add_edges(
+            [
+                ("entry", "if"), ("if", "then"), ("if", "else"),
+                ("then", "merge"), ("else", "merge"), ("merge", "exit"),
+            ]
+        )
+
+        frontiers = g.dominance_frontiers("entry")
+        {g.get_label_from_id(n): sorted(g.get_label_from_id(f) for f in fs)
+         for n, fs in frontiers.items()}
+        ```
+        """
+        sid = self._resolve_node_id(start, auto_create=False)
+        _, fronts = rust.dominators(self._graph, sid)
+        result = {n: set(f) for n, f in fronts}
+        if self._recording_depth == 0:
+            joins = sorted({v for f in result.values() for v in f})
+            self._record_step(
+                KIND_QUERY,
+                "dominance_frontiers",
+                f"G.dominance_frontiers({self._node_label(sid)!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in joins]),
+                result=result,
+                narration=f"{len(joins)} nodes lie on some dominance frontier.",
+            )
+        return result
+
+    def _dsep_sets(self, *specs) -> list[set[int]]:
+        out = []
+        for spec in specs:
+            if spec is None:
+                out.append(None)
+            elif isinstance(spec, (int, str)):
+                out.append({self._resolve_node_id(spec, auto_create=False)})
+            else:
+                out.append({self._resolve_node_id(n, auto_create=False) for n in spec})
+        return out
+
+    def _dag_adjacency(self):
+        if not self.is_directed():
+            raise ValueError("d-separation requires a directed acyclic graph")
+        if not self.is_dag():
+            raise ValueError("d-separation requires a directed acyclic graph")
+        ids = self.get_node_ids(limit=None)
+        succ = {n: set() for n in ids}
+        pred = {n: set() for n in ids}
+        for _, s, t in self.get_edges_as_tuples():
+            succ[s].add(t)
+            pred[t].add(s)
+        return succ, pred
+
+    @staticmethod
+    def _dag_ancestors(pred, nodes) -> set:
+        seen = set(nodes)
+        stack = list(nodes)
+        while stack:
+            for p in pred[stack.pop()]:
+                if p not in seen:
+                    seen.add(p)
+                    stack.append(p)
+        return seen
+
+    @staticmethod
+    def _dsep_reachable(succ, pred, x, a, z) -> set:
+        """Nodes reachable from `x` by paths that are open given `z` within the ancestral set
+        `a` (the `_reachable` routine of van der Zander, Liśkiewicz and Textor)."""
+        from collections import deque
+
+        queue = deque()
+        for node in x:
+            if pred[node]:
+                queue.append((True, node))
+            if succ[node]:
+                queue.append((False, node))
+        processed = set(queue)
+        while queue:
+            e, v = queue.popleft()
+            for f, n in [(False, p) for p in pred[v]] + [(True, s) for s in succ[v]]:
+                if (f, n) in processed:
+                    continue
+                if n in a and (v not in z or (e and not f)):
+                    queue.append((f, n))
+                    processed.add((f, n))
+        return {w for _, w in processed}
+
+    def is_d_separator(self, x, y, z) -> bool:
+        r"""
+        Check if a set of nodes d-separates two others in a directed acyclic graph.
+
+        ![Is d-separator](/assets/graphs/is-d-separator.light.svg){.lightbox fig-alt="A causal graph: smoking (teal) causes tar, tar causes cancer (violet), and smoking also causes yellow fingers. Left: conditioning on tar (outlined) blocks the only path from smoking to cancer, so is_d_separator returns True. Right: with nothing conditioned on, the chain smoking, tar, cancer (accent) is open, so smoking and cancer are dependent and is_d_separator returns False." width="100%"}
+
+        In a causal diagram or Bayesian network (a DAG whose edges point from causes to
+        effects), d-separation reads conditional independence off the graph: if `z` d-separates
+        `x` from `y`, then `x` and `y` are independent given `z` in every probability
+        distribution that respects the graph. A path between them is *blocked* by `z` when it
+        passes through a chain or fork node in `z`, or through a collider (a node with both
+        path edges pointing into it) that is not in `z` and has no descendant in `z`.
+        `z` d-separates `x` and `y` when every path is blocked. This is the basis of choosing
+        adjustment sets in causal inference and of testing a causal model against data.
+
+        Parameters
+        ----------
+        x, y
+            Nodes, or lists of nodes, as IDs or labels.
+        z
+            The conditioning nodes (a node, a list, or an empty list).
+
+        Returns
+        -------
+        bool
+            `True` if `z` d-separates `x` from `y`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not a directed acyclic graph, a node does not exist, or the three
+            sets are not disjoint.
+
+        Technical Notes
+        ---------------
+        The check is a "Bayes ball" style search (Shachter, 1998) from `x` that moves backward
+        to parents and forward to children, passing through a node in `z` only as a collider and
+        through a collider only when it is an ancestor of `x` or `z` (a sufficient criterion for
+        an open collider path). It visits each node at most once in each direction, so it runs
+        in $O(V + E)$ time, as NetworkX's `is_d_separator` does.
+
+        Examples
+        --------
+        Smoking causes tar, tar causes cancer, and smoking also causes yellow fingers. Smoking
+        and cancer are dependent, but conditioning on tar blocks the only path between them:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["smoking", "tar", "cancer", "fingers"])
+        g.add_edges([("smoking", "tar"), ("tar", "cancer"), ("smoking", "fingers")])
+
+        g.is_d_separator("smoking", "cancer", []), g.is_d_separator("smoking", "cancer", "tar")
+        ```
+
+        Conditioning on a common effect (a collider) opens a path. Talent and luck are
+        independent, but become dependent among people who are known to be successful:
+
+        ```{python}
+        h = ec.Graph(directed=True).add_nodes(["talent", "luck", "success"])
+        h.add_edges([("talent", "success"), ("luck", "success")])
+        h.is_d_separator("talent", "luck", []), h.is_d_separator("talent", "luck", "success")
+        ```
+        """
+        x, y, z = self._dsep_sets(x, y, z)
+        if x & y or x & z or y & z:
+            raise ValueError("the sets x, y and z must be disjoint")
+        succ, pred = self._dag_adjacency()
+        anc = self._dag_ancestors(pred, x) | z
+        from collections import deque
+
+        forward, backward = deque(), deque(x)
+        seen_f, seen_b = set(), set()
+        value = True
+        while forward or backward:
+            if backward:
+                node = backward.popleft()
+                seen_b.add(node)
+                if node in y:
+                    value = False
+                    break
+                if node not in z:
+                    backward.extend(pred[node] - seen_b)
+                    forward.extend(succ[node] - seen_f)
+            if forward:
+                node = forward.popleft()
+                seen_f.add(node)
+                if node in y:
+                    value = False
+                    break
+                if node in anc:
+                    backward.extend(pred[node] - seen_b)
+                if node not in z:
+                    forward.extend(succ[node] - seen_f)
+        if self._recording_depth == 0:
+            self._record_dsep_step("is_d_separator", x, y, z, value)
+        return value
+
+    def is_minimal_d_separator(self, x, y, z, included=None, restricted=None) -> bool:
+        """
+        Check if a set d-separates two others and no proper subset does.
+
+        ![Is minimal d-separator](/assets/graphs/is-minimal-d-separator.light.svg){.lightbox fig-alt="The chain A to B to C to D, with A in teal and D in violet. Left: z = [B] (outlined) blocks the chain, and dropping B would open it, so is_minimal_d_separator returns True. Right: z = [B, C] also separates A from D, but C (accent) is not needed, since B alone already blocks the chain, so the set is not minimal and the call returns False." width="100%"}
+
+        A d-separator `z` of `x` and `y` (see `is_d_separator()`) is *minimal* when removing any
+        node from it breaks the separation. Minimal separators are the smallest sets of variables
+        that must be measured to make `x` and `y` conditionally independent, which keeps causal
+        adjustment sets lean. With `included=`, nodes that must be in the separator are fixed and
+        only the other nodes have to be needed; with `restricted=`, the separator may only use
+        the given nodes.
+
+        Parameters
+        ----------
+        x, y
+            Nodes, or lists of nodes, as IDs or labels.
+        z
+            The candidate separator (a node or a list).
+        included
+            Optional nodes that are required to be in `z` (and are exempt from minimality).
+        restricted
+            Optional nodes that `z` must be drawn from (default: all nodes).
+
+        Returns
+        -------
+        bool
+            `True` if `z` is a minimal d-separator of `x` and `y` under the constraints.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not a directed acyclic graph, a node does not exist, the sets are not
+            disjoint, `included` is not part of `z`, or `z` is not part of `restricted`.
+
+        Technical Notes
+        ---------------
+        The test of van der Zander, Liśkiewicz and Textor (2019), as in NetworkX: `z` must lie
+        within the ancestors of `x`, `y` and `included`, must not let `x` reach `y`, and every
+        node of `z` outside `included` must be reachable (by open paths given `z`) from both `x`
+        and `y`, so dropping it would open a path. It runs in $O(V + E)$ time.
+
+        Examples
+        --------
+        In the chain A -> B -> C -> D, either B or C alone separates A from D, so both are
+        minimal, while {B, C} separates but is not minimal:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        (
+            g.is_minimal_d_separator("A", "D", ["B"]),
+            g.is_minimal_d_separator("A", "D", ["B", "C"]),
+            g.is_d_separator("A", "D", ["B", "C"]),
+        )
+        ```
+        """
+        x, y, z, included, restricted = self._dsep_sets(x, y, z, included, restricted)
+        succ, pred = self._dag_adjacency()
+        included = included or set()
+        restricted = set(succ) if restricted is None else restricted
+        if not included <= z:
+            raise ValueError("included nodes must be part of z")
+        if not z <= restricted:
+            raise ValueError("z must be contained in restricted")
+        if x & y or x & z or y & z:
+            raise ValueError("the sets x, y and z must be disjoint")
+        anc = self._dag_ancestors(pred, x | y | included)
+        x_closure = self._dsep_reachable(succ, pred, x, anc, z)
+        if x_closure & y or not z <= anc:
+            value = False
+        else:
+            y_closure = self._dsep_reachable(succ, pred, y, anc, z)
+            value = (z - included) <= (x_closure & y_closure)
+        if self._recording_depth == 0:
+            self._record_dsep_step("is_minimal_d_separator", x, y, z, value)
+        return value
+
+    def find_minimal_d_separator(self, x, y, included=None, restricted=None) -> list[int] | None:
+        """
+        Find a minimal set of nodes that d-separates two others in a directed acyclic graph.
+
+        ![Find minimal d-separator](/assets/graphs/find-minimal-d-separator.light.svg){.lightbox fig-alt="A causal graph: age (teal) affects exercise, exercise affects weight, and both exercise and weight affect heart health (violet). Every path from age to heart starts with the edge into exercise, so conditioning on exercise alone, in the accent color, blocks them all. The card returns the minimal separator [exercise]." width="100%"}
+
+        Returns a minimal d-separator of `x` and `y` (see `is_d_separator()` and
+        `is_minimal_d_separator()`): a set of nodes that, once conditioned on, blocks every path
+        between them, and from which no node can be dropped. In causal inference this is a lean
+        set of variables to measure or adjust for. Constraints mirror real studies: `included=`
+        forces variables into the set (for example, ones that are always recorded) and
+        `restricted=` limits the set to observable variables.
+
+        When `x` and `y` are adjacent, or every separator would need a forbidden node, no
+        separator exists and `None` is returned.
+
+        Parameters
+        ----------
+        x, y
+            Nodes, or lists of nodes, as IDs or labels.
+        included
+            Optional nodes that must be in the separator.
+        restricted
+            Optional nodes that the separator may use (default: all nodes).
+
+        Returns
+        -------
+        list[int] or None
+            The node IDs of a minimal separator, sorted, or `None` if none exists.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not a directed acyclic graph, a node does not exist, `x`, `y` and
+            `included` overlap, or `included` is not part of `restricted`.
+
+        Technical Notes
+        ---------------
+        The linear-time algorithm of van der Zander, Liśkiewicz and Textor (2019), as in
+        NetworkX: start from all allowed ancestors of `x`, `y` and `included`, keep those
+        reachable from `x` by open paths, then those also reachable from `y`. Each step is a
+        graph search, so the whole computation runs in $O(V + E)$ time.
+
+        Examples
+        --------
+        Age influences heart health only through exercise (directly, and via weight), so
+        conditioning on exercise alone separates them:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["age", "exercise", "weight", "heart"])
+        g.add_edges([("age", "exercise"), ("exercise", "weight"), ("weight", "heart"),
+                     ("exercise", "heart")])
+
+        [g.get_label_from_id(n) for n in g.find_minimal_d_separator("age", "heart")]
+        ```
+
+        With a direct edge from age to heart health, nothing can separate them:
+
+        ```{python}
+        g.add_edge("age", "heart")
+        g.find_minimal_d_separator("age", "heart") is None
+        ```
+        """
+        x, y, included, restricted = self._dsep_sets(x, y, included, restricted)
+        succ, pred = self._dag_adjacency()
+        included = included or set()
+        restricted = set(succ) if restricted is None else restricted
+        if not included <= restricted:
+            raise ValueError("included nodes must be part of restricted")
+        if x & y or x & included or y & included:
+            raise ValueError("the sets x, y and included must be disjoint")
+        anc = self._dag_ancestors(pred, x | y | included)
+        z_init = restricted & (anc - (x | y))
+        x_closure = self._dsep_reachable(succ, pred, x, anc, z_init)
+        if x_closure & y:
+            result = None
+        else:
+            z_updated = z_init & (x_closure | included)
+            y_closure = self._dsep_reachable(succ, pred, y, anc, z_updated)
+            result = sorted(z_updated & (y_closure | included))
+        if self._recording_depth == 0:
+            self._record_dsep_step("find_minimal_d_separator", x, y, set(result or []), result)
+        return result
+
+    def _record_dsep_step(self, method, x, y, z, value) -> None:
+        groups = {self._node_label(n): 0 for n in x}
+        groups.update({self._node_label(n): 1 for n in y})
+        self._record_step(
+            KIND_QUERY,
+            method,
+            f"G.{method}(x, y, ...)",
+            delta=StepDelta(
+                node_groups=groups, nodes_selected=[self._node_label(n) for n in sorted(z)]
+            ),
+            result=value,
+            narration=f"{method}(): {value}.",
+        )
+
     def condensation(self) -> "Graph":
         """
         Collapse each strongly connected component into a single node.
@@ -38417,6 +40425,351 @@ class Graph:
             result=paths,
             narration=f"{n} {kind}-disjoint path{'s' if n != 1 else ''} from {s_lbl} to {t_lbl}.",
         )
+
+    def chain_decomposition(
+        self, root: Union[int, str, None] = None
+    ) -> list[list[tuple[int, int]]]:
+        r"""
+        Decompose an undirected graph into chains (Schmidt's chain decomposition).
+
+        ![Chain decomposition](/assets/graphs/chain-decomposition.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D. The depth-first search splits the edges into two chains, each a closed loop: A, C, B back to A (accent) and D, F, E back to D (teal). The bridge C–D, faded, lies on no cycle and so belongs to no chain. The card lists both chains as edge pairs in traversal order." width="100%"}
+
+        A depth-first search splits the edges into tree edges and back edges. Each back edge
+        starts a *chain*: the back edge followed by tree edges climbing towards the root until
+        reaching a node already covered by an earlier chain. The chains cover every edge that
+        lies on a cycle, and nothing else, so the edges left out are exactly the bridges. The
+        first chain of each component is a cycle; later chains are cycles or paths that hang
+        off earlier chains, like the "ears" of an ear decomposition. Chain decompositions give
+        simple linear-time tests for 2-edge- and 2-vertex-connectivity and show how a network's
+        cycles are layered.
+
+        Parameters
+        ----------
+        root
+            Optional start node (ID or label). If given, only its connected component is
+            decomposed. If `None` (default), every component is, starting from the lowest node
+            ID.
+
+        Returns
+        -------
+        list[list[tuple[int, int]]]
+            The chains, each a list of `(u, v)` node ID pairs in traversal order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or `root` does not exist.
+
+        Technical Notes
+        ---------------
+        Schmidt (2013) orients tree edges towards the root and back edges away from it, then
+        visits the nodes in DFS preorder and, for each back edge leaving the current node,
+        follows parent pointers until a visited node is reached. It runs in $O(V + E)$ time. The
+        DFS visits neighbors in the order their edges were added and treats parallel edges as
+        one, so the chains are identical to NetworkX's `chain_decomposition` for the same graph.
+
+        Examples
+        --------
+        Two triangles joined by a bridge decompose into two chains (one per triangle); the
+        bridge C-D belongs to no chain:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+
+        [
+            [(g.get_label_from_id(u), g.get_label_from_id(v)) for u, v in chain]
+            for chain in g.chain_decomposition()
+        ]
+        ```
+        """
+        root_id = None if root is None else self._resolve_node_id(root, auto_create=False)
+        chains = rust.chain_decomposition(self._graph, root_id)
+        if self._recording_depth == 0:
+            groups = {}
+            for i, chain in enumerate(chains):
+                for u, v in chain:
+                    groups.setdefault(self._node_label(u), i)
+                    groups.setdefault(self._node_label(v), i)
+            self._record_step(
+                KIND_QUERY,
+                "chain_decomposition",
+                "G.chain_decomposition()",
+                delta=StepDelta(
+                    node_groups=groups,
+                    edges_selected=[
+                        (self._node_label(u), self._node_label(v)) for c in chains for u, v in c
+                    ],
+                ),
+                result=chains,
+                narration=f"{len(chains)} chains.",
+            )
+        return chains
+
+    def k_edge_components(self, k: int) -> list[list[int]]:
+        r"""
+        Find the k-edge-connected components of an undirected graph.
+
+        ![k-edge-connected components](/assets/graphs/k-edge-components.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D. With k = 2, nodes belong together when two edge-disjoint paths join them: the triangle A, B, C (accent region) and the triangle D, E, F (teal region) qualify, while the faded bridge offers only one path between them. The card lists the two components; with k = 3 all 6 nodes are separate." width="100%"}
+
+        Two nodes belong to the same k-edge-connected component when at least `k` edges must be
+        removed to separate them, that is, when they are joined by `k` edge-disjoint paths in the
+        whole graph. These classes partition the nodes: with `k=1` they are the connected
+        components, with `k=2` the pieces left after removing the bridges, and larger `k` finds
+        ever more robustly linked groups, as in finding the parts of a communication or
+        transport network that survive any `k - 1` link failures.
+
+        The paths may pass through nodes outside the component, so a component need not induce a
+        k-edge-connected subgraph by itself; use `k_edge_subgraphs()` for that stricter notion.
+        Parallel edges count separately and self-loops are ignored.
+
+        Parameters
+        ----------
+        k
+            The required number of edge-disjoint paths (at least 1).
+
+        Returns
+        -------
+        list[list[int]]
+            The components as sorted lists of node IDs (every node appears in exactly one;
+            nodes in no larger group form singletons).
+
+        Raises
+        ------
+        ValueError
+            If `k` is less than 1 or the graph is directed.
+
+        Technical Notes
+        ---------------
+        The method builds a Gomory-Hu tree with unit edge capacities (Gusfield's algorithm,
+        $V - 1$ maximum flows with Dinic's algorithm). The local edge connectivity of two nodes
+        is the smallest weight on their tree path, so removing the tree edges lighter than `k`
+        leaves exactly the components. NetworkX's `k_edge_components` gives the same partition,
+        except that it returns nothing for a single-node graph when `k` is 3 or more.
+
+        Examples
+        --------
+        In two triangles joined by a bridge, `k=2` separates the triangles, and `k=3` separates
+        every node, since a triangle only offers two edge-disjoint paths between its corners:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+
+        [[g.get_label_from_id(n) for n in c] for c in g.k_edge_components(2)], len(
+            g.k_edge_components(3)
+        )
+        ```
+        """
+        comps = rust.k_edge_components(self._graph, k, False)
+        if self._recording_depth == 0:
+            self._record_partition_step("k_edge_components", f"G.k_edge_components({k})", comps, k)
+        return comps
+
+    def k_edge_subgraphs(self, k: int) -> list[list[int]]:
+        r"""
+        Find the maximal k-edge-connected subgraphs of an undirected graph.
+
+        ![k-edge-connected subgraphs](/assets/graphs/k-edge-subgraphs.light.svg){.lightbox fig-alt="Both sides show hubs u and v joined through a, b and c, with k = 3. Left: k_edge_components(3) counts paths through the whole graph, and the three edge-disjoint u–v paths (accent, teal, violet) put u and v in one component, with a, b and c alone. Right: k_edge_subgraphs(3) counts only edges inside each group, and u and v are not even adjacent, so every subgraph is a single node." width="100%"}
+
+        A k-edge-connected subgraph is a set of nodes whose induced subgraph stays connected
+        after removing any `k - 1` of its own edges. This method returns the maximal such sets,
+        which partition the nodes. Unlike `k_edge_components()`, only edges inside the set
+        count, so each group is robust on its own, which is what matters when, say, a cluster
+        of servers must stay connected using only its internal links. Every node not in a larger
+        group forms its own singleton.
+
+        Parallel edges count separately and self-loops are ignored.
+
+        Parameters
+        ----------
+        k
+            The required edge connectivity (at least 1).
+
+        Returns
+        -------
+        list[list[int]]
+            The node sets as sorted lists of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If `k` is less than 1 or the graph is directed.
+
+        Technical Notes
+        ---------------
+        The k-edge-connected components of the graph are computed (see `k_edge_components()`),
+        and then recursively the components of each one's induced subgraph, until every set is
+        a single component of its own induced subgraph. Each set then has edge connectivity at
+        least `k` (or is a single node), and maximality follows because the components of the
+        whole graph contain every k-edge-connected subgraph. Results match NetworkX's
+        `k_edge_subgraphs`.
+
+        Examples
+        --------
+        Hubs `u` and `v` are joined by three edge-disjoint paths through `a`, `b` and `c`, so
+        they form a 3-edge-connected component. But those paths run through other nodes, and on
+        their own `u` and `v` are not even adjacent, so every 3-edge-connected subgraph is a
+        single node:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["u", "v", "a", "b", "c"])
+        g.add_edges([("u", "a"), ("a", "v"), ("u", "b"), ("b", "v"), ("u", "c"), ("c", "v")])
+
+        def show(groups):
+            return [[g.get_label_from_id(n) for n in group] for group in groups]
+
+        show(g.k_edge_components(3)), show(g.k_edge_subgraphs(3))
+        ```
+        """
+        comps = rust.k_edge_components(self._graph, k, True)
+        if self._recording_depth == 0:
+            self._record_partition_step("k_edge_subgraphs", f"G.k_edge_subgraphs({k})", comps, k)
+        return comps
+
+    def _record_partition_step(self, method: str, code: str, comps, k: int) -> None:
+        big = [c for c in comps if len(c) > 1]
+        groups = {self._node_label(n): i for i, c in enumerate(big) for n in c}
+        self._record_step(
+            KIND_QUERY,
+            method,
+            code,
+            delta=StepDelta(node_groups=groups),
+            result=comps,
+            narration=f"{len(big)} groups of two or more nodes (k = {k}).",
+        )
+
+    def is_k_edge_connected(self, k: int) -> bool:
+        """
+        Check if an undirected graph stays connected after removing any `k - 1` edges.
+
+        ![Is k-edge-connected](/assets/graphs/is-k-edge-connected.light.svg){.lightbox fig-alt="The same six-node cycle on both sides. Left: removing any single edge leaves a path, so the cycle is 2-edge-connected and is_k_edge_connected(2) returns True. Right: removing the two accent edges B–C and E–F splits it in two, so fewer than 3 edge removals disconnect it and is_k_edge_connected(3) returns False." width="100%"}
+
+        A graph is k-edge-connected when it has more than `k` nodes and no set of fewer than `k`
+        edges disconnects it; equivalently, every pair of nodes is joined by `k` edge-disjoint
+        paths. 1-edge-connected means connected, and 2-edge-connected means connected without
+        bridges. Use it to check that a network tolerates a given number of link failures.
+
+        Parameters
+        ----------
+        k
+            The number of edges that must be removed to disconnect the graph (at least 1).
+
+        Returns
+        -------
+        bool
+            `True` if the graph is k-edge-connected.
+
+        Raises
+        ------
+        ValueError
+            If `k` is less than 1 or the graph is directed.
+
+        Technical Notes
+        ---------------
+        As in NetworkX, the graph needs at least $k + 1$ nodes and minimum degree at least $k$
+        (quick rejections); otherwise it is k-edge-connected exactly when all nodes form a single
+        k-edge-connected component (see `k_edge_components()`).
+
+        Examples
+        --------
+        A cycle survives any single edge failure but not two; a complete graph on five nodes
+        survives any three:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph().add_cycle_graph(6)
+        k5 = ec.Graph().add_full_graph(5)
+        ring.is_k_edge_connected(2), ring.is_k_edge_connected(3), k5.is_k_edge_connected(4)
+        ```
+        """
+        if k < 1:
+            raise ValueError("k must be at least 1")
+        if self.is_directed():
+            raise ValueError("is_k_edge_connected() requires an undirected graph")
+        ids = self.get_node_ids(limit=None)
+        if len(ids) < k + 1:
+            return False
+        degree = dict.fromkeys(ids, 0)
+        for _, s, t in self.get_edges_as_tuples():
+            if s != t:
+                degree[s] += 1
+                degree[t] += 1
+        if min(degree.values()) < k:
+            return False
+        return len(rust.k_edge_components(self._graph, k, False)) == 1
+
+    def average_node_connectivity(self) -> float:
+        r"""
+        Compute the average local node connectivity over all pairs of nodes.
+
+        ![Average node connectivity](/assets/graphs/average-node-connectivity.light.svg){.lightbox fig-alt="Left: a six-node cycle, where every pair of nodes, such as A and D (outlined), is joined by two routes that share no other node (accent and teal), so the average node connectivity is 2.0. Right: the same nodes without the closing edge F–A (dashed), a path, where every pair has only one route and the average is 1.0." width="100%"}
+
+        The local node connectivity of two nodes is the number of paths between them that share
+        no other node (equivalently, how many other nodes must fail to separate them, plus one
+        for a direct edge). Averaging it over all pairs (Beineke, Oellermann and Pippert, 2002)
+        gives a finer measure of robustness than the global node connectivity, which only
+        reports the weakest pair: two networks with the same weakest point can differ a lot in
+        how well connected they are on average.
+
+        Pairs are unordered on undirected graphs and ordered on directed graphs (paths follow
+        edge direction). Parallel edges count once and self-loops are ignored. The value agrees
+        with `get_node_connectivity_between()` averaged over pairs, and with NetworkX's
+        `average_node_connectivity`.
+
+        Returns
+        -------
+        float
+            The average local node connectivity (`0.0` for fewer than two nodes).
+
+        Technical Notes
+        ---------------
+        Each pair is one maximum flow in the usual auxiliary network: every node is split into
+        an in-copy and an out-copy joined by a unit-capacity arc, and every edge becomes a
+        unit-capacity arc from out-copy to in-copy. With $O(V^2)$ pairs, each solved by Dinic's
+        algorithm, the method suits graphs of up to a few hundred nodes.
+
+        Examples
+        --------
+        In a complete graph on five nodes, every pair has its direct edge plus three paths
+        through the other nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_full_graph(5).average_node_connectivity()
+        ```
+
+        A cycle has two disjoint routes between any pair, and a path only one:
+
+        ```{python}
+        (
+            ec.Graph().add_cycle_graph(6).average_node_connectivity(),
+            ec.Graph().add_path_graph(6).average_node_connectivity(),
+        )
+        ```
+        """
+        value = rust.average_node_connectivity(self._graph)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "average_node_connectivity",
+                "G.average_node_connectivity()",
+                result=value,
+                narration=f"Average node connectivity: {value:.3g}.",
+            )
+        return value
 
     def get_edge_connectivity(self) -> int:
         """
