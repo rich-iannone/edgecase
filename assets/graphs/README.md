@@ -244,6 +244,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Line graph](/assets/graphs/line-graph.light.svg){.lightbox fig-alt="A four-node graph whose edges AB, BC, CD and BD each have their own color. In the line graph each of those edges becomes a node of the same color, named after it, and two nodes are joined when their edges share an endpoint; AB and CD share none, so they stay unconnected." width="100%"}
 ```
 
+### `metric_closure()` — Metric closure
+
+<img src="metric-closure.light.svg" alt="Left: a path A, B, C, D whose three edges each have weight 1. Right: the metric closure joins every pair of nodes, weighted by the shortest-path distance between them. It keeps the three unit edges and adds the accent shortcuts A–C with weight 2, B–D with weight 2, and A–D with weight 3." width="570">
+
+```markdown
+![Metric closure](/assets/graphs/metric-closure.light.svg){.lightbox fig-alt="Left: a path A, B, C, D whose three edges each have weight 1. Right: the metric closure joins every pair of nodes, weighted by the shortest-path distance between them. It keeps the three unit edges and adds the accent shortcuts A–C with weight 2, B–D with weight 2, and A–D with weight 3." width="100%"}
+```
+
 ### `quotient_graph()` — Quotient graph
 
 <img src="quotient-graph.light.svg" alt="A six-node graph partitioned into three blocks, shown as tinted regions: A, B, C in the accent color, D, E in teal, and F in violet. The quotient has one node per block, labeled block_0, block_1 and block_2; edges inside a block vanish and the several edges between two blocks merge into one." width="570">
@@ -306,6 +314,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Transitive reduction](/assets/graphs/transitive-reduction.light.svg){.lightbox fig-alt="A DAG on A, B, C, D: the chain A to B to C to D plus three shortcut arrows A to C, B to D and A to D, in the accent color. The reduction drops the shortcuts, shown dashed, because the chain already reaches the same nodes." width="100%"}
+```
+
+### `tree_decomposition()` — Tree decomposition
+
+<img src="tree-decomposition.light.svg" alt="Left: a five-node cycle A to E; the dashed accent chords B–E and C–E split it into three triangles. Right: the returned tree of bags, each bag a shaded box holding one triangle: {A,B,E}, {B,C,E}, and {C,D,E}, joined in a chain; neighboring bags share two nodes, and every cycle edge lies inside a bag. The largest bag has 3 nodes, so the card gives the width 3 − 1 = 2." width="570">
+
+```markdown
+![Tree decomposition](/assets/graphs/tree-decomposition.light.svg){.lightbox fig-alt="Left: a five-node cycle A to E; the dashed accent chords B–E and C–E split it into three triangles. Right: the returned tree of bags, each bag a shaded box holding one triangle: {A,B,E}, {B,C,E}, and {C,D,E}, joined in a chain; neighboring bags share two nodes, and every cycle edge lies inside a bag. The largest bag has 3 nodes, so the card gives the width 3 − 1 = 2." width="100%"}
 ```
 
 ## set-ops
@@ -1372,6 +1388,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Single-source shortest path lengths](/assets/graphs/single-source-shortest-path-length.light.svg){.lightbox fig-alt="The directed weighted graph with the source A outlined and each node's distance from A in a badge: A 0.0, B 1.0, E 2.0, C and D 3.0, and F 4.0, reached along the accent edges. The table lists the same distances from nearest to farthest." width="100%"}
+```
+
+### `traveling_salesman()` — Traveling salesman
+
+<img src="traveling-salesman.light.svg" alt="Five sites A to E on a pentagon, joined by roads weighted with travel times: A–B 2, B–C 2, C–D 3, D–E 2, E–A 3, and the two chords A–C 4 and B–E 3. The round trip starts at A (outlined) and follows the accent arrows A, B, C, D, E, back to A, visiting every site once; the chords are faded. The card shows the route and its cost 2 + 2 + 3 + 2 + 3 = 12." width="570">
+
+```markdown
+![Traveling salesman](/assets/graphs/traveling-salesman.light.svg){.lightbox fig-alt="Five sites A to E on a pentagon, joined by roads weighted with travel times: A–B 2, B–C 2, C–D 3, D–E 2, E–A 3, and the two chords A–C 4 and B–E 3. The round trip starts at A (outlined) and follows the accent arrows A, B, C, D, E, back to A, visiting every site once; the chords are faded. The card shows the route and its cost 2 + 2 + 3 + 2 + 3 = 12." width="100%"}
 ```
 
 ## node-metrics
@@ -2544,6 +2568,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Local bridges](/assets/graphs/local-bridges.light.svg){.lightbox fig-alt="Two triangles joined directly by the edge C–D and the long way round through G, plus a pendant node H. The four accent edges C–D, A–G, G–F, and E–H lie on no triangle. The table lists each with its edge id and span: without it, its ends are 4 hops apart, or never reconnect (inf) for the true bridge E–H." width="100%"}
 ```
 
+### `max_cut()` — Maximum cut
+
+<img src="max-cut.light.svg" alt="A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E on side S (teal) and B, D, F on side T (violet). Every one of the six edges then runs between the two sides, so all six are cut edges in the accent color. The card gives the cut value 6.0 and the two sides." width="570">
+
+```markdown
+![Maximum cut](/assets/graphs/max-cut.light.svg){.lightbox fig-alt="A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E on side S (teal) and B, D, F on side T (violet). Every one of the six edges then runs between the two sides, so all six are cut edges in the accent color. The card gives the cut value 6.0 and the two sides." width="100%"}
+```
+
 ### `max_flow()` — Maximum flow
 
 <img src="max-flow.light.svg" alt="A directed network from source S to sink T through A and B. Each edge is labeled flow over capacity, and every edge carries flow, drawn in the accent color with width growing with the flow. The card lists the flow per edge, which totals 5." width="570">
@@ -2908,6 +2940,38 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![All spanning trees](/assets/graphs/all-spanning-trees.light.svg){.lightbox fig-alt="Left: a triangle A, B, C with a pendant node D attached to C. Right: its three spanning trees, one per row; each keeps edge C–D and drops one triangle edge (drawn dashed), with the tree edges A–C B–C C–D, A–B B–C C–D, and A–B A–C C–D listed beside them." width="100%"}
 ```
 
+### `bipartite_maximum_matching()` — Bipartite maximum matching
+
+<img src="bipartite-maximum-matching.light.svg" alt="Three applicants, Ann, Bob, and Cy, in a column on the left and three jobs, Dev, Ops, and QA, on the right. Ann and Bob can only do Dev, and Cy can do Ops or QA, so at most two pairs form: Ann–Dev and Cy–Ops, in the accent color with their endpoints. Bob and QA stay unmatched. The card lists the two pairs and the size 2." width="570">
+
+```markdown
+![Bipartite maximum matching](/assets/graphs/bipartite-maximum-matching.light.svg){.lightbox fig-alt="Three applicants, Ann, Bob, and Cy, in a column on the left and three jobs, Dev, Ops, and QA, on the right. Ann and Bob can only do Dev, and Cy can do Ops or QA, so at most two pairs form: Ann–Dev and Cy–Ops, in the accent color with their endpoints. Bob and QA stay unmatched. The card lists the two pairs and the size 2." width="100%"}
+```
+
+### `bipartite_min_weight_full_matching()` — Bipartite minimum weight full matching
+
+<img src="bipartite-min-weight-full-matching.light.svg" alt="Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, even though Ana&#x27;s nearest delivery is d1 (2)." width="570">
+
+```markdown
+![Bipartite minimum weight full matching](/assets/graphs/bipartite-min-weight-full-matching.light.svg){.lightbox fig-alt="Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, even though Ana's nearest delivery is d1 (2)." width="100%"}
+```
+
+### `bipartite_vertex_cover()` — Bipartite vertex cover
+
+<img src="bipartite-vertex-cover.light.svg" alt="A bipartite graph with A, B, C on the top row and D, E on the bottom row, and edges A–D, A–E, B–E, and C–E. The minimum vertex cover is A and E, in the accent color: every edge touches one of them. A maximum matching, A–D and B–E in a second color, has the same size, as König&#x27;s theorem says. The card shows the cover [A, E] and the matching, both of size 2." width="570">
+
+```markdown
+![Bipartite vertex cover](/assets/graphs/bipartite-vertex-cover.light.svg){.lightbox fig-alt="A bipartite graph with A, B, C on the top row and D, E on the bottom row, and edges A–D, A–E, B–E, and C–E. The minimum vertex cover is A and E, in the accent color: every edge touches one of them. A maximum matching, A–D and B–E in a second color, has the same size, as König's theorem says. The card shows the cover [A, E] and the matching, both of size 2." width="100%"}
+```
+
+### `densest_subgraph()` — Densest subgraph
+
+<img src="densest-subgraph.light.svg" alt="A clique of four nodes A, B, C, D, every pair joined, with a chain D–E–F hanging off D. The densest subgraph is the clique, in the accent color: 6 edges on 4 nodes, density 6 / 4 = 1.5. The chain dilutes it, since the whole graph has 8 edges on 6 nodes, density 8 / 6 = 1.33. The card shows the nodes [A, B, C, D] and both densities." width="570">
+
+```markdown
+![Densest subgraph](/assets/graphs/densest-subgraph.light.svg){.lightbox fig-alt="A clique of four nodes A, B, C, D, every pair joined, with a chain D–E–F hanging off D. The densest subgraph is the clique, in the accent color: 6 edges on 4 nodes, density 6 / 4 = 1.5. The chain dilutes it, since the whole graph has 8 edges on 6 nodes, density 8 / 6 = 1.33. The card shows the nodes [A, B, C, D] and both densities." width="100%"}
+```
+
 ### `directed_steiner_tree()` — Directed Steiner tree
 
 <img src="directed-steiner-tree.light.svg" alt="A directed version of the steiner_tree graph, rooted at B with terminals C and E outlined. The edge between C and D now points from C to D, so C cannot be reached through D: the arborescence B→D→E→C (accent) reaches E through the non-terminal D and then C from E. The card lists the three edges and their total weight 2 + 1 + 4 = 7." width="570">
@@ -2974,10 +3038,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `max_weight_matching()` — Maximum weight matching
 
-<img src="max-weight-matching.light.svg" alt="The same five-node graph with edge weights. Taking edges by weight, the matching picks 1–2 (5) and 3–4 (4), shown in the accent color with their endpoints. The card shows the returned edge ids 2 and 3, the pairs, and the total weight 5 + 4 = 9." width="570">
+<img src="max-weight-matching.light.svg" alt="A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two outer edges A–B and C–D, in the accent color with their endpoints, for a total weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the greedy method would lock in B–C first and stop at a total of 5." width="570">
 
 ```markdown
-![Maximum weight matching](/assets/graphs/max-weight-matching.light.svg){.lightbox fig-alt="The same five-node graph with edge weights. Taking edges by weight, the matching picks 1–2 (5) and 3–4 (4), shown in the accent color with their endpoints. The card shows the returned edge ids 2 and 3, the pairs, and the total weight 5 + 4 = 9." width="100%"}
+![Maximum weight matching](/assets/graphs/max-weight-matching.light.svg){.lightbox fig-alt="A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two outer edges A–B and C–D, in the accent color with their endpoints, for a total weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the greedy method would lock in B–C first and stop at a total of 5." width="100%"}
 ```
 
 ### `maximal_independent_set()` — Maximal independent set
@@ -3028,12 +3092,36 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Maximum spanning tree](/assets/graphs/maximum-spanning-tree.light.svg){.lightbox fig-alt="The same weighted graph as the minimum spanning tree figure. The maximum spanning tree keeps the heaviest edges that still form a tree: D–E (7), B–E (6), A–D (5), and C–D (3), in the accent color. The card lists them and their total weight, 7 + 6 + 5 + 3 = 21." width="100%"}
 ```
 
+### `min_edge_cover()` — Minimum edge cover
+
+<img src="min-edge-cover.light.svg" alt="A path of five nodes, A to E. A maximum matching covers four nodes with two edges, and one more edge is needed for the fifth, so the minimum edge cover has three edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a chosen edge. The card lists the three edges and the count 5 − 2 = 3." width="570">
+
+```markdown
+![Minimum edge cover](/assets/graphs/min-edge-cover.light.svg){.lightbox fig-alt="A path of five nodes, A to E. A maximum matching covers four nodes with two edges, and one more edge is needed for the fifth, so the minimum edge cover has three edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a chosen edge. The card lists the three edges and the count 5 − 2 = 3." width="100%"}
+```
+
+### `min_weight_matching()` — Minimum weight matching
+
+<img src="min-weight-matching.light.svg" alt="Four drivers A, B, C, D with the extra driving time of each possible pair as edge weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; the other edges are faded. The card notes that taking the cheapest edge A–C (1) would force B–D (6), a total of 7." width="570">
+
+```markdown
+![Minimum weight matching](/assets/graphs/min-weight-matching.light.svg){.lightbox fig-alt="Four drivers A, B, C, D with the extra driving time of each possible pair as edge weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; the other edges are faded. The card notes that taking the cheapest edge A–C (1) would force B–D (6), a total of 7." width="100%"}
+```
+
 ### `min_weighted_dominating_set()` — Minimum weighted dominating set
 
 <img src="min-weighted-dominating-set.light.svg" alt="The same seven-node graph, with each node&#x27;s weight w in a badge: the hubs 2 and 5 cost 4, every other node costs 1. The cheapest dominating set found is 1, 4, and 6 (accent), with an accent edge from each other node to the member that dominates it. The card shows [1, 4, 6] and total weight 1 + 1 + 1 = 3." width="570">
 
 ```markdown
 ![Minimum weighted dominating set](/assets/graphs/min-weighted-dominating-set.light.svg){.lightbox fig-alt="The same seven-node graph, with each node's weight w in a badge: the hubs 2 and 5 cost 4, every other node costs 1. The cheapest dominating set found is 1, 4, and 6 (accent), with an accent edge from each other node to the member that dominates it. The card shows [1, 4, 6] and total weight 1 + 1 + 1 = 3." width="100%"}
+```
+
+### `min_weighted_vertex_cover()` — Minimum weighted vertex cover
+
+<img src="min-weighted-vertex-cover.light.svg" alt="A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the method takes the four leaves instead, in the accent color. The card shows the cover [a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub." width="570">
+
+```markdown
+![Minimum weighted vertex cover](/assets/graphs/min-weighted-vertex-cover.light.svg){.lightbox fig-alt="A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the method takes the four leaves instead, in the accent color. The card shows the cover [a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub." width="100%"}
 ```
 
 ### `minimum_branching()` — Minimum branching
@@ -3280,6 +3368,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Is dominating set](/assets/graphs/is-dominating-set.light.svg){.lightbox fig-alt="The same two-by-three ladder on both sides, with the candidate nodes outlined. Left: every node is B, E, or next to one of them, so is_dominating_set() returns True. Right: with B and D, node F (shown in the accent color) has no neighbor in the set, so is_dominating_set() returns False." width="100%"}
 ```
 
+### `is_edge_cover()` — Is edge cover
+
+<img src="is-edge-cover.light.svg" alt="The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: the outer edges A-B and C-D touch all four nodes, so is_edge_cover() returns True. Right: the middle edge B-C alone misses A and D (filled in the accent color), so is_edge_cover() returns False." width="570">
+
+```markdown
+![Is edge cover](/assets/graphs/is-edge-cover.light.svg){.lightbox fig-alt="The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: the outer edges A-B and C-D touch all four nodes, so is_edge_cover() returns True. Right: the middle edge B-C alone misses A and D (filled in the accent color), so is_edge_cover() returns False." width="100%"}
+```
+
 ### `is_eulerian()` — Is Eulerian
 
 <img src="is-eulerian.light.svg" alt="Left: a bowtie of two triangles sharing node C; badges give each node&#x27;s degree and all are even, so a closed trail can use every edge once and is_eulerian() returns True. Right: the same bowtie plus an edge between B and E, which makes B and E odd (degree 3, shown in the accent color), so is_eulerian() returns False." width="570">
@@ -3326,6 +3422,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is matching](/assets/graphs/is-matching.light.svg){.lightbox fig-alt="The same two-by-three ladder on both sides, with the candidate edges in the accent color. Left: A-D, B-C, and E-F touch six different nodes, so is_matching() returns True. Right: B-C and C-F both end at C (filled in the accent color), so is_matching() returns False." width="100%"}
+```
+
+### `is_maximal_matching()` — Is maximal matching
+
+<img src="is-maximal-matching.light.svg" alt="The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: the middle edge B-C alone; both other edges touch B or C, so nothing can be added and is_maximal_matching() returns True. Right: A-B alone; the edge C-D (shown in the accent color with its free endpoints C and D) could still be added, so is_maximal_matching() returns False." width="570">
+
+```markdown
+![Is maximal matching](/assets/graphs/is-maximal-matching.light.svg){.lightbox fig-alt="The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: the middle edge B-C alone; both other edges touch B or C, so nothing can be added and is_maximal_matching() returns True. Right: A-B alone; the edge C-D (shown in the accent color with its free endpoints C and D) could still be added, so is_maximal_matching() returns False." width="100%"}
+```
+
+### `is_perfect_matching()` — Is perfect matching
+
+<img src="is-perfect-matching.light.svg" alt="A six-node ring A to F on both sides, with the candidate edges drawn as the input. Left: the alternate edges A-B, C-D, and E-F pair up every node, so is_perfect_matching() returns True. Right: only A-B and C-D, which leave E and F (filled in the accent color) unmatched, so is_perfect_matching() returns False." width="570">
+
+```markdown
+![Is perfect matching](/assets/graphs/is-perfect-matching.light.svg){.lightbox fig-alt="A six-node ring A to F on both sides, with the candidate edges drawn as the input. Left: the alternate edges A-B, C-D, and E-F pair up every node, so is_perfect_matching() returns True. Right: only A-B and C-D, which leave E and F (filled in the accent color) unmatched, so is_perfect_matching() returns False." width="100%"}
 ```
 
 ### `is_planar()` — Is planar
@@ -3390,6 +3502,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is valid coloring](/assets/graphs/is-valid-coloring.light.svg){.lightbox fig-alt="The same two-by-three ladder on both sides, each node filled with its color and badged with the color number. Left: no edge joins two nodes of the same color, so is_valid_coloring() returns True. Right: F is recolored to 2, the same color as its neighbor C, and that edge (shown in the accent color) makes is_valid_coloring() return False." width="100%"}
+```
+
+### `is_vertex_cover()` — Is vertex cover
+
+<img src="is-vertex-cover.light.svg" alt="A star with center hub and leaves a, b, c on both sides, with the candidate nodes outlined. Left: hub touches every edge, so is_vertex_cover() returns True. Right: the leaf a alone leaves the edges hub-b and hub-c (shown in the accent color) untouched, so is_vertex_cover() returns False." width="570">
+
+```markdown
+![Is vertex cover](/assets/graphs/is-vertex-cover.light.svg){.lightbox fig-alt="A star with center hub and leaves a, b, c on both sides, with the candidate nodes outlined. Left: hub touches every edge, so is_vertex_cover() returns True. Right: the leaf a alone leaves the edges hub-b and hub-c (shown in the accent color) untouched, so is_vertex_cover() returns False." width="100%"}
 ```
 
 ### `is_weakly_connected()` — Is weakly connected
