@@ -1,4 +1,9 @@
+import random
+
 import edgecase as ec
+import networkx as nx
+import pytest
+from edgecase.steps import KIND_QUERY
 
 
 class TestWeaklyConnectedComponents:
@@ -446,3 +451,94 @@ class TestComponentConsistency:
 
         # Check all nodes covered
         assert len(all_scc_nodes) == 10
+
+
+# Biconnected components, validated against NetworkX.
+
+
+def _random_undirected():
+    for seed in range(25):
+        rnd = random.Random(seed)
+        G = nx.gnp_random_graph(18, rnd.choice([0.1, 0.15, 0.25]), seed=seed)
+        G.add_nodes_from(range(18))
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.choice([0.5, 1, 2, 3])
+        yield G
+
+
+def _build(G: nx.Graph, weighted: bool = False) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G.nodes])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+def _labels(g: ec.Graph, ids) -> list[str]:
+    return [g.get_label_from_id(n) for n in ids]
+
+
+def _lab(g: ec.Graph, nid: int) -> int:
+    return int(g.get_label_from_id(nid))
+
+
+class TestBiconnectedComponents:
+    def test_components_match_networkx(self):
+        for G in _random_undirected():
+            g = _build(G)
+            ours = sorted(sorted(_lab(g, n) for n in b) for b in g.biconnected_components())
+            assert ours == sorted(sorted(c) for c in nx.biconnected_components(G))
+            edges = g.biconnected_components(edges=True)
+            ours_e = sorted(
+                sorted(
+                    tuple(sorted(_lab(g, x) for x in g.get_node_ids_by_edge_id(e))) for e in block
+                )
+                for block in edges
+            )
+            ref_e = sorted(
+                sorted(tuple(sorted(e)) for e in es) for es in nx.biconnected_component_edges(G)
+            )
+            assert ours_e == ref_e
+
+    def test_is_biconnected_matches_networkx(self):
+        for G in _random_undirected():
+            g = _build(G)
+            assert g.is_biconnected() == nx.is_biconnected(G)
+        assert ec.Graph().add_cycle_graph(5).is_biconnected()
+        assert not ec.Graph().add_path_graph(3).is_biconnected()
+        assert ec.Graph().add_path_graph(2).is_biconnected()  # a single edge
+        assert not ec.Graph().add_node("A").is_biconnected()
+
+    def test_shared_articulation_point_and_bridge_block(self):
+        g = ec.Graph().add_nodes(list("ABCDEFZ"))
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C"), ("E", "F")]
+        )
+        blocks = [_labels(g, b) for b in g.biconnected_components()]
+        assert blocks == [["A", "B", "C"], ["C", "D", "E"], ["E", "F"]]  # Z is isolated
+
+    def test_parallel_edges_and_self_loops(self):
+        g = ec.Graph().add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("A", "B"), ("B", "C"), ("C", "C")])
+        assert [_labels(g, b) for b in g.biconnected_components()] == [["A", "B"], ["B", "C"]]
+        assert sum(len(b) for b in g.biconnected_components(edges=True)) == 3  # loop excluded
+
+    def test_directed_rejected(self):
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A"]).biconnected_components()
+
+    def test_steps(self):
+        g = ec.Graph().add_nodes(list("ABCDEF"))
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C"), ("E", "F")]
+        )
+        g.biconnected_components()
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY
+        assert step.narration == "3 biconnected components; articulation points: C, E."
+        assert step.delta.node_groups["C"] == 0 and step.delta.node_groups["F"] == 2
+        g.is_biconnected()
+        assert g.steps[-1].delta.nodes_selected == ["C", "E"]
