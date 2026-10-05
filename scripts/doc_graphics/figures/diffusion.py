@@ -7,9 +7,10 @@ a row, the top row highlighted, exactly as in the node-metrics family.
 `network_smooth` rewrites the scores it is given, so it uses `transform`
 instead: raw scores as ink badges before → smoothed scores as heat + accent
 badges after. Selection-style methods (`influence_maximization`,
-`expand_seed_set`) show the chosen or added nodes in `accent`.
+`expand_seed_set`) show the chosen or added nodes in `accent`; `voterank`
+also numbers its picks with filled order badges, as traversals do.
 
-All five methods use ONE shared graph (`TWO_*`: a diamond A–D joined by the
+All six methods use ONE shared graph (`TWO_*`: a diamond A–D joined by the
 bridge D–E to the triangle E, F, G) and, where they take seeds, the same seed
 A, so the spreading methods can be compared directly: heat diffusion and
 random walk with restart both rank A > B, C > D > E > F, G, and the bridge
@@ -138,3 +139,18 @@ def expand_seed_set(s: Scene) -> None:
     # score = edges into the current module / degree; C first, then D
     s.card_centered(right, ["seeds   A, B", "+ C     2/3", "+ D     2/3",
                             ("[A, B, C, D]", "accent")], title="links in / degree")
+
+
+@figure("voterank", "diffusion", "VoteRank spreaders",
+        "The shared seven-node graph with the two spreaders VoteRank elects filled in accent "
+        "and numbered in election order: first B, which ties on three votes and has the "
+        "lowest id, then E in the other cluster, because B's neighbors lose voting power "
+        "once B is elected. The card returns B, E.")
+def voterank(s: Scene) -> None:
+    left, right = compute(s, "g", "g.voterank(count=2)")
+    s.graph(place(TWO_COORDS, left, unit=UNIT), TWO_EDGES,
+            styles={"B": "accent", "E": "accent"})
+    s.badge("B", "1", filled=True)
+    s.badge("E", "2", filled=True)
+    s.card_centered(right, ["round 1  B", "round 2  E", ("[B, E]", "accent")],
+                    title="elected in order")
