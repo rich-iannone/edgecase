@@ -21932,10 +21932,10 @@ class Graph:
             Statistical test to use. `"hypergeometric"` (default) computes the exact one-sided
             p-value `P(X >= k)` under the hypergeometric distribution, which is the appropriate
             test for small counts. `"chi_squared"` is a quick large-sample approximation: it
-            computes `z = |k - E| / sqrt(E)` with `E = K * n / N` and returns the upper normal
-            tail probability of `z`. Because it uses the absolute difference, it gives the same
-            p-value for depletion as for enrichment, so always check `fold_enrichment` (above or
-            below `1`) when using it. Any other value raises a `ValueError`.
+            computes `z = (k - E) / sqrt(E)` with `E = K * n / N` and returns the upper normal
+            tail probability of `z`. Like the hypergeometric test it is one-sided: a subgraph
+            with fewer hits than expected (`k < E`) gets a p-value above `0.5`, not a small one.
+            Any other value raises a `ValueError`.
 
         Returns
         -------
@@ -22030,17 +22030,12 @@ class Graph:
             elif method == "chi_squared":
                 expected = K * n_sub / n_total if n_total > 0 else 0
                 if expected > 0:
-                    chi2 = (k - expected) ** 2 / expected
-                    # Approximate p-value for 1 dof
-                    from math import sqrt
+                    from math import erfc, sqrt
 
-                    if chi2 > 0:
-                        z = sqrt(chi2)
-                        from math import erf
-
-                        p_val = max(0.0, 1.0 - 0.5 * (1.0 + erf(z / sqrt(2.0))))
-                    else:
-                        p_val = 1.0
+                    # Signed z keeps the test one-sided (over-representation), like the
+                    # hypergeometric P(X >= k): depletion gives z < 0 and a p-value above 0.5
+                    z = (k - expected) / sqrt(expected)
+                    p_val = min(1.0, 0.5 * erfc(z / sqrt(2.0)))
                 else:
                     p_val = 1.0
             else:
