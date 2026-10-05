@@ -10,6 +10,9 @@ Undirected measures reuse the shared strip graph from `node_metrics.py`
 degree, betweenness and PageRank: the eigenvector family (eigen, Bonacich,
 Laplacian) and DomiRank favor the hub C, while communicability betweenness
 and second-order centrality favor the bridge E, like betweenness does.
+Subgraph centrality (closed walks) favors the hub C; the electrical
+current-flow measures favor the bridge E, current-flow closeness only just
+(its table uses 3 decimals so E and C do not round to a tie).
 `second_order_centrality` is inverted (lower = more central), so its table is
 sorted low → high and the lowest value is the top node.
 
@@ -22,11 +25,18 @@ walks (A highest) and Katz incoming walks (D highest).
 seeds are keyed by node id in the API, so the caption shows the real call
 (`{1: 1.0}`) and the seed carries an `id 1` pill. `knotty_centrality` returns a set, not scores, so it
 shows the connective core in `accent` inside a hull with a card of its score.
+`fiedler_vector` has signed values, so it uses the signed heat: positive
+entries shaded accent, negative ones g2 (darker = larger magnitude), on
+graph_metrics' PAIR (two triangles joined by C–D) like the other split
+methods; its table cells take the same two colors. `spectral_ordering`
+returns an order, so it uses traversal-style filled order badges (1 = first)
+on a path whose node ids were shuffled, with a card mapping ids to labels.
 Every number is what edgecase returns for the depicted graph (2 decimals).
 """
 
 from core import Scene, compute, figure, place
 
+from figures.graph_metrics import PAIR, PAIR_EDGES
 from figures.node_metrics import STRIP_COORDS, STRIP_EDGES, UNIT, _metric, _rows
 
 # --- the shared directed graph ---------------------------------------------------
@@ -89,6 +99,17 @@ def domirank_centrality(s: Scene) -> None:
              "G": 0.1349})
 
 
+@figure("subgraph_centrality", "node-metrics", "Subgraph centrality",
+        "The shared seven-node strip of triangles with a tail, shaded by subgraph "
+        "centrality, which counts closed walks that start and end at each node. Hub C sits "
+        "in three triangles and scores 6.17, ahead of D 4.74 and B 4.67, while the tail "
+        "nodes F 2.32 and G 1.59, in no triangle, score least.")
+def subgraph_centrality(s: Scene) -> None:
+    _metric(s, "g.subgraph_centrality()", "score",
+            {"A": 3.1799, "B": 4.6658, "C": 6.1744, "D": 4.7442, "E": 4.0391, "F": 2.3162,
+             "G": 1.5929})
+
+
 # --- walk-based betweenness on the shared strip graph ------------------------------
 
 
@@ -122,6 +143,33 @@ def second_order_centrality(s: Scene) -> None:
     body = [[k, f"{v:.2f}"] for k, v in sorted(sigma.items(), key=lambda kv: kv[1])]
     s.table_centered(right, [["node", "σ"]] + body, [64, 64],
                      highlight={(1, 0): "accent", (1, 1): "accent"})
+
+
+# --- current flow (the graph as a resistor network) on the shared strip graph ------
+
+
+@figure("current_flow_betweenness_centrality", "node-metrics",
+        "Current-flow betweenness centrality",
+        "The shared seven-node graph shaded by current-flow betweenness, the share of "
+        "electrical current through each node when every pair in turn injects and draws a "
+        "unit of current. The bridge E carries the most at 0.58, then the hub C 0.43 and "
+        "the tail node F 0.33; the pendant G carries none.")
+def current_flow_betweenness_centrality(s: Scene) -> None:
+    _metric(s, "g.current_flow_betweenness_centrality()", "score",
+            {"A": 0.0889, "B": 0.219, "C": 0.4254, "D": 0.2952, "E": 0.5841, "F": 0.3333,
+             "G": 0.0})
+
+
+@figure("current_flow_closeness_centrality", "node-metrics",
+        "Current-flow closeness centrality",
+        "The shared seven-node graph shaded by current-flow closeness, based on the "
+        "effective resistance from each node to all others. The bridge E edges out the hub "
+        "C, 0.159 to 0.156, ahead of D 0.147, while the pendant G, behind a single edge, "
+        "scores 0.070.")
+def current_flow_closeness_centrality(s: Scene) -> None:
+    _metric(s, "g.current_flow_closeness_centrality()", "score",
+            {"A": 0.1167, "B": 0.1355, "C": 0.1556, "D": 0.1469, "E": 0.1591, "F": 0.1077,
+             "G": 0.07}, digits=3)
 
 
 # --- seeded walk ------------------------------------------------------------------
@@ -204,3 +252,46 @@ def alpha_centrality(s: Scene) -> None:
 def katz_centrality(s: Scene) -> None:
     _directed(s, "g.katz_centrality(alpha=0.5)", "score",
               {"A": 0.1053, "B": 0.1579, "C": 0.1579, "D": 0.3158, "E": 0.2632})
+
+
+# --- Fiedler vector: signed node values on the two-triangle graph ---------------
+
+# PAIR from graph_metrics.py: triangles A, B, C and D, E, F joined by C–D. The
+# same graph hosts modularity_spectrum and spectral_bisection.
+FIEDLER = {"A": 0.4647, "B": 0.4647, "C": 0.2610, "D": -0.2610, "E": -0.4647, "F": -0.4647}
+
+
+@figure("fiedler_vector", "node-metrics", "Fiedler vector",
+        "Two triangles joined by the edge C–D, each node shaded by its Fiedler vector "
+        "entry: positive in the accent color, negative in teal, darker for larger values. "
+        "The values change smoothly, A and B 0.46, C 0.26, then across the bridge D -0.26 "
+        "and E and F -0.46, so their sign splits the graph at C–D.")
+def fiedler_vector(s: Scene) -> None:
+    left, right = compute(s, "g", "g.fiedler_vector()")
+    top = max(abs(v) for v in FIEDLER.values())
+    s.graph(place(PAIR, left, unit=UNIT), PAIR_EDGES,
+            heat={k: v / top for k, v in FIEDLER.items()})
+    rows = [["node", "value"]] + _rows(FIEDLER)
+    hl = {(i, j): "accent" if float(r[1]) > 0 else "g2"
+          for i, r in enumerate(rows[1:], 1) for j in (0, 1)}
+    s.table_centered(right, rows, [64, 64], highlight=hl)
+
+
+# --- spectral ordering: a path whose node ids are shuffled ------------------------
+
+ZIGZAG = {"A": (0, 1), "B": (1, 0), "C": (2, 1), "D": (3, 0), "E": (4, 1)}
+ZIGZAG_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+
+
+@figure("spectral_ordering", "node-metrics", "Spectral ordering",
+        "A five-node path A–B–C–D–E whose nodes were added in the shuffled order D, B, E, "
+        "A, C, so their ids are out of path order. Sorting by the Fiedler vector returns "
+        "the ids [4, 2, 5, 1, 3], which are A, B, C, D, E: the filled order badges run "
+        "straight along the path.")
+def spectral_ordering(s: Scene) -> None:
+    left, right = compute(s, "g", "g.spectral_ordering()")
+    s.graph(place(ZIGZAG, left, unit=UNIT), ZIGZAG_EDGES)
+    for i, k in enumerate("ABCDE", 1):
+        s.badge(k, str(i), where="n" if ZIGZAG[k][1] == 0 else "s", filled=True)
+    s.card_centered(right, ["added  D, B, E, A, C", "ids    [4, 2, 5, 1, 3]",
+                            ("labels A, B, C, D, E", "accent")], title="returns node ids")
