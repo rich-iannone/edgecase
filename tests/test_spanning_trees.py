@@ -1,6 +1,13 @@
-import pytest
+import collections
+import itertools
+import math
+import random
 
+import edgecase as ec
+import networkx as nx
+import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_QUERY
 
 
 class TestSteinerTree:
@@ -560,3 +567,112 @@ class TestSpanningTreesIntegration:
 
         # Steiner tree should have 4 edges (the whole path since that's the only connection)
         assert steiner.count_edges() == 4
+
+
+# Spanning tree counts (matrix-tree theorem) validated against NetworkX, and random spanning
+# trees checked against the exact product-of-weights distribution.
+
+
+def _digraphs(count=120):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        n = rnd.randint(1, 10)
+        G = nx.gnp_random_graph(n, rnd.choice([0.2, 0.4, 0.7]), seed=seed, directed=True)
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.choice([rnd.uniform(-3, 5), rnd.randint(-2, 4)])
+        yield G, rnd
+
+
+def _build(G, weighted=True):
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in sorted(G)])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d.get("weight", 1.0))
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+class TestSpanningTreeCounts:
+    def test_against_networkx(self):
+        for G, rnd in _digraphs(80):
+            g = _build(G)
+            if not len(G):
+                continue
+            root = rnd.randrange(len(G))
+            assert g.number_of_spanning_trees(root=str(root), weighted=False) == round(
+                nx.number_of_spanning_trees(G, root=root)
+            )
+            U = G.to_undirected()
+            for u, v in U.edges:
+                U[u][v]["weight"] = abs(U[u][v]["weight"]) + 0.5
+            gu = _build(U)
+            count = gu.number_of_spanning_trees(weighted=False)
+            assert isinstance(count, int) and count == round(nx.number_of_spanning_trees(U))
+            assert gu.number_of_spanning_trees() == pytest.approx(
+                nx.number_of_spanning_trees(U, weight="weight"), rel=1e-8, abs=1e-12
+            )
+
+    def test_known_counts(self):
+        assert ec.Graph().add_full_graph(6).number_of_spanning_trees() == 6**4
+        assert ec.Graph().add_full_graph(20).number_of_spanning_trees() == 20**18  # exact
+        assert ec.Graph().add_full_graph(60).number_of_spanning_trees() == 60**58  # > 128 bits
+        assert ec.Graph().add_cycle_graph(7).number_of_spanning_trees() == 7
+        split = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B")
+        assert split.number_of_spanning_trees() == 0
+        assert ec.Graph().add_nodes(["A"]).number_of_spanning_trees() == 1
+        multi = ec.Graph().add_nodes(["A", "B", "C"])
+        multi.add_edges([("A", "B"), ("A", "B"), ("B", "C"), ("C", "C")])
+        assert multi.number_of_spanning_trees() == 2  # parallel edges count, loops do not
+
+    def test_errors(self):
+        with pytest.raises(ValueError, match="at least one node"):
+            ec.Graph().number_of_spanning_trees()
+        d = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+        with pytest.raises(ValueError, match="root"):
+            d.number_of_spanning_trees()
+
+    def test_steps(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+        g.number_of_spanning_trees(root="A")
+        assert g.steps[-1].kind == KIND_QUERY and g.steps[-1].delta.nodes_selected == ["A"]
+
+
+class TestRandomSpanningTree:
+    def test_distribution_matches_product_of_weights(self):
+        G = nx.Graph()
+        G.add_weighted_edges_from([(0, 1, 1), (1, 2, 2), (2, 0, 3), (2, 3, 1), (3, 0, 1)])
+        g = _build(G)
+        weights = {}
+        for combo in itertools.combinations(g.get_edge_ids(limit=None), 3):
+            sub = g.edge_subgraph(list(combo))
+            if sub.count_nodes() == 4 and sub.is_tree():
+                weights[frozenset(combo)] = math.prod(g.get_edge(e).weight for e in combo)
+        total = sum(weights.values())
+        assert total == pytest.approx(g.number_of_spanning_trees())
+        n = 20000
+        counts = collections.Counter()
+        for s in range(n):
+            tree = g.random_spanning_tree(seed=s)
+            key = frozenset(
+                g.find_edge_ids(*s_.split("--"))[0]
+                for s_ in tree.get_edges_str_repr(use_labels=True)
+            )
+            counts[key] += 1
+        assert set(counts) <= set(weights)
+        for key, w in weights.items():
+            assert abs(counts[key] / n - w / total) < 0.015
+
+    def test_properties_and_seed(self):
+        grid = ec.Graph().add_grid_2d(5, 5)
+        t1, t2 = grid.random_spanning_tree(seed=3), grid.random_spanning_tree(seed=3)
+        assert t1.is_tree() and t1.count_edges() == 24
+        assert t1.get_edges_str_repr(use_labels=True) == t2.get_edges_str_repr(use_labels=True)
+
+    def test_errors(self):
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A"]).random_spanning_tree()
+        with pytest.raises(ValueError, match="connected"):
+            ec.Graph().add_nodes(["A", "B"]).random_spanning_tree()
