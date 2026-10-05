@@ -131,7 +131,7 @@ class Node:
     label: str = ""
     style: Style = "default"
     r: float = R
-    heat: float | None = None  # 0..1 score shading (node metrics); overrides fill
+    heat: float | None = None  # 0..1 score shading (node metrics; < 0 = g2); overrides fill
 
 
 @dataclass
@@ -643,7 +643,13 @@ HEAT_MAX = 0.55  # strongest heat fill; keeps labels legible in both themes
 
 
 def heat_fill(theme: Theme, heat: float) -> str:
-    return _mix(theme.paper, theme.accent, HEAT_MAX * max(0.0, min(1.0, heat)))
+    """Accent shade for heat in 0..1; negative heat (-1..0) shades in g2 instead.
+
+    The signed scale is for values with a meaningful sign (Fiedler vector
+    entries): positive = accent, negative = g2, darker = larger magnitude.
+    """
+    color = theme.accent if heat >= 0 else theme.g2
+    return _mix(theme.paper, color, HEAT_MAX * min(1.0, abs(heat)))
 
 
 def _render_node(n: Node, theme: Theme) -> str:
