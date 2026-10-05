@@ -66,19 +66,19 @@ CMTY_GROUPS_LOW = [list("ABC"), list("DEFG")]
 CMTY_CARD_LOW = [("0 → A, B, C", "accent"), ("1 → D, E, F, G", "g2")]
 
 
-def _cmty(s: Scene, call: str, **kw) -> None:
+def _cmty(s: Scene, call: str, groups=CMTY_GROUPS, card=CMTY_CARD, **kw) -> None:
     left, right = compute(s, "g", call)
-    _partition(s, place(CMTY, left, unit=UNIT), CMTY_EDGES, CMTY_GROUPS, **kw)
-    s.card_centered(right, CMTY_CARD, title="community")
+    _partition(s, place(CMTY, left, unit=UNIT), CMTY_EDGES, groups, **kw)
+    s.card_centered(right, card, title="community")
 
 
 @figure("cmty_louvain", "communities", "Louvain communities",
         "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
         "the single edge C to D. Louvain puts each cluster in its own community, drawn as "
-        "tinted regions in teal and the accent color. The card lists community 0 as D, E, F, G "
-        "and community 1 as A, B, C.")
+        "tinted regions in the accent color and teal. The card lists community 0 as A, B, C "
+        "and community 1 as D, E, F, G.")
 def cmty_louvain(s: Scene) -> None:
-    _cmty(s, "g.cmty_louvain()")
+    _cmty(s, "g.cmty_louvain()", CMTY_GROUPS_LOW, CMTY_CARD_LOW)
 
 
 @figure("cmty_walktrap", "communities", "Walktrap communities",
@@ -316,9 +316,9 @@ def find_cohesive_blocks(s: Scene) -> None:
         "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
         "the single edge C to D. Greedily merging the pairs that raise modularity most stops "
         "at the two clusters, drawn as tinted regions in the accent color and teal. The card "
-        "lists community 0 as D, E, F, G and community 1 as A, B, C.")
+        "lists community 0 as A, B, C and community 1 as D, E, F, G.")
 def cmty_fast_greedy(s: Scene) -> None:
-    _cmty(s, "g.cmty_fast_greedy()")
+    _cmty(s, "g.cmty_fast_greedy()", CMTY_GROUPS_LOW, CMTY_CARD_LOW)
 
 
 @figure("cmty_l_eigenvec", "communities", "Leading eigenvector communities",
