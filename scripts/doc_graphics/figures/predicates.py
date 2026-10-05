@@ -293,6 +293,108 @@ def is_matching(s: Scene) -> None:
                 styles={k: "accent" for k in bad}, prefix=f"{box.x0}.")
 
 
+# --- matchings and covers (docstring examples) -------------------------------------
+#
+# These rebuild each docstring example in edgecase and assert both answers, so
+# the pictures cannot drift from the library. Candidate edges are `soft`; the
+# culprit (an edge that could still be added, an uncovered node or edge) is
+# `accent`.
+
+P4 = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0)}
+P4_EDGES = [("A", "B"), ("B", "C"), ("C", "D")]
+HEX = ring(list("ABCDEF"), start_deg=-120)
+HEX_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")]
+STAR3 = {"a": (0, 0), "b": (2, 0), "hub": (1, 0.55), "c": (1, 1.5)}
+STAR3_EDGES = [("hub", "a"), ("hub", "b"), ("hub", "c")]
+
+
+def _ec(nodes, edges):
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(nodes))
+    g.add_edges(edges)
+    return g
+
+
+def _eids(g, pairs) -> list[int]:
+    return [g.find_edge_ids(a, b)[0] for a, b in pairs]
+
+
+def _edge_pair(s: Scene, box: Box, coords, edges, cases, culprit_edges=(), culprit_nodes=""):
+    """One side of an edge-set predicate: note, graph, candidate edges `soft`."""
+    gb = _note(s, box, "edges = " + ", ".join(f"{a}-{b}" for a, b in cases))
+    specs = []
+    for a, b in edges:
+        if (a, b) in cases:
+            specs.append((a, b, {"style": "soft"}))
+        elif (a, b) in culprit_edges:
+            specs.append((a, b, {"style": "accent"}))
+        else:
+            specs.append((a, b))
+    s.graph(place(coords, gb), specs, styles={k: "accent" for k in culprit_nodes},
+            prefix=f"{box.x0}.")
+
+
+@figure("is_maximal_matching", "predicates", "Is maximal matching",
+        "The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: "
+        "the middle edge B-C alone; both other edges touch B or C, so nothing can be added "
+        "and is_maximal_matching() returns True. Right: A-B alone; the edge C-D (shown in "
+        "the accent color with its free endpoints C and D) could still be added, so "
+        "is_maximal_matching() returns False.")
+def is_maximal_matching(s: Scene) -> None:
+    g = _ec(P4, P4_EDGES)
+    assert g.is_maximal_matching(_eids(g, [("B", "C")]))
+    assert not g.is_maximal_matching(_eids(g, [("A", "B")]))
+    left, right = contrast(s, "g.is_maximal_matching(edges)", "g.is_maximal_matching(edges)")
+    _edge_pair(s, left, P4, P4_EDGES, [("B", "C")])
+    _edge_pair(s, right, P4, P4_EDGES, [("A", "B")], {("C", "D")}, "CD")
+
+
+@figure("is_perfect_matching", "predicates", "Is perfect matching",
+        "A six-node ring A to F on both sides, with the candidate edges drawn as the input. "
+        "Left: the alternate edges A-B, C-D, and E-F pair up every node, so "
+        "is_perfect_matching() returns True. Right: only A-B and C-D, which leave E and F "
+        "(filled in the accent color) unmatched, so is_perfect_matching() returns False.")
+def is_perfect_matching(s: Scene) -> None:
+    alt = [("A", "B"), ("C", "D"), ("E", "F")]
+    g = _ec(HEX, HEX_EDGES)
+    assert g.is_perfect_matching(_eids(g, alt))
+    assert not g.is_perfect_matching(_eids(g, alt[:2]))
+    left, right = contrast(s, "g.is_perfect_matching(edges)", "g.is_perfect_matching(edges)")
+    _edge_pair(s, left, HEX, HEX_EDGES, alt)
+    _edge_pair(s, right, HEX, HEX_EDGES, alt[:2], culprit_nodes="EF")
+
+
+@figure("is_vertex_cover", "predicates", "Is vertex cover",
+        "A star with center hub and leaves a, b, c on both sides, with the candidate nodes "
+        "outlined. Left: hub touches every edge, so is_vertex_cover() returns True. Right: "
+        "the leaf a alone leaves the edges hub-b and hub-c (shown in the accent color) "
+        "untouched, so is_vertex_cover() returns False.")
+def is_vertex_cover(s: Scene) -> None:
+    g = _ec(STAR3, STAR3_EDGES)
+    assert g.is_vertex_cover(["hub"]) and not g.is_vertex_cover(["a"])
+    left, right = contrast(s, "g.is_vertex_cover(nodes)", "g.is_vertex_cover(nodes)")
+    for box, chosen in ((left, ["hub"]), (right, ["a"])):
+        gb = _note(s, box, f"nodes = {', '.join(chosen)}")
+        bad = {e for e in STAR3_EDGES if not set(e) & set(chosen)}
+        s.graph(place(STAR3, gb), _hi(STAR3_EDGES, bad), styles={k: "soft" for k in chosen},
+                prefix=f"{box.x0}.")
+
+
+@figure("is_edge_cover", "predicates", "Is edge cover",
+        "The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: "
+        "the outer edges A-B and C-D touch all four nodes, so is_edge_cover() returns True. "
+        "Right: the middle edge B-C alone misses A and D (filled in the accent color), so "
+        "is_edge_cover() returns False.")
+def is_edge_cover(s: Scene) -> None:
+    g = _ec(P4, P4_EDGES)
+    assert g.is_edge_cover(_eids(g, [("A", "B"), ("C", "D")]))
+    assert not g.is_edge_cover(_eids(g, [("B", "C")]))
+    left, right = contrast(s, "g.is_edge_cover(edges)", "g.is_edge_cover(edges)")
+    _edge_pair(s, left, P4, P4_EDGES, [("A", "B"), ("C", "D")])
+    _edge_pair(s, right, P4, P4_EDGES, [("B", "C")], culprit_nodes="AD")
+
+
 @figure("is_valid_coloring", "predicates", "Is valid coloring",
         "The same two-by-three ladder on both sides, each node filled with its color and "
         "badged with the color number. Left: no edge joins two nodes of the same color, so "
