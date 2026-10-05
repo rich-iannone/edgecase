@@ -60,7 +60,7 @@ pub fn max_flow(
         ));
     }
 
-    let (_, edge_flows) = edmonds_karp(graph, source, sink, capacity)?;
+    let (_, edge_flows, _) = edmonds_karp(graph, source, sink, capacity)?;
 
     // Only report edges that carry flow
     Ok(edge_flows.into_iter().filter(|&(_, flow)| flow > 1e-10).collect())
@@ -95,7 +95,7 @@ pub fn max_flow_value(
         ));
     }
 
-    let (total_flow, _) = edmonds_karp(graph, source, sink, capacity)?;
+    let (total_flow, _, _) = edmonds_karp(graph, source, sink, capacity)?;
     Ok(total_flow)
 }
 
@@ -373,7 +373,7 @@ fn cheapest_residual_path(
 }
 
 /// Helper function to get edge capacity
-fn get_edge_capacity(
+pub(crate) fn get_edge_capacity(
     edge: &crate::graph::Edge,
     capacity: Option<&str>,
     is_weighted: bool,
@@ -429,12 +429,15 @@ fn get_edge_capacity(
 /// graphs the reverse arc starts empty (it only cancels flow); on undirected graphs it
 /// starts with the full capacity, so the edge can carry flow either way, and the edge's
 /// reported flow is the magnitude of its net flow.
-fn edmonds_karp(
+///
+/// Also returns the source side of a minimum cut: the nodes still reachable from `source`
+/// in the final residual network.
+pub(crate) fn edmonds_karp(
     graph: &Graph,
     source: u64,
     sink: u64,
     capacity: Option<&str>,
-) -> PyResult<(f64, Vec<(u64, f64)>)> {
+) -> PyResult<(f64, Vec<(u64, f64)>, Vec<u64>)> {
     let edges = graph.get_edges_internal();
     let is_directed = graph.is_directed();
 
@@ -493,7 +496,27 @@ fn edmonds_karp(
         .map(|(edge_id, forward, edge_cap)| (edge_id, (edge_cap - arcs[forward].residual).abs()))
         .collect();
 
-    Ok((total_flow, edge_flows))
+    // Source side of the minimum cut: everything reachable through residual capacity
+    let mut reach = vec![false; out_arcs.len()];
+    let mut queue: VecDeque<usize> = VecDeque::from([source_idx]);
+    reach[source_idx] = true;
+    while let Some(v) = queue.pop_front() {
+        for &a in &out_arcs[v] {
+            let arc = &arcs[a];
+            if arc.residual > 1e-10 && !reach[arc.to] {
+                reach[arc.to] = true;
+                queue.push_back(arc.to);
+            }
+        }
+    }
+    let mut source_side: Vec<u64> = node_index
+        .iter()
+        .filter(|(_, &i)| reach[i])
+        .map(|(&id, _)| id)
+        .collect();
+    source_side.sort_unstable();
+
+    Ok((total_flow, edge_flows, source_side))
 }
 
 /// BFS for a shortest augmenting path over arcs with positive residual capacity.
