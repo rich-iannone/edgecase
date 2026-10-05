@@ -1,5 +1,6 @@
 //! Graph algorithms module
 
+pub mod approximation;
 pub mod bipartite;
 pub mod branchings;
 pub mod bridges;
@@ -29,6 +30,7 @@ pub mod line_graph;
 pub mod linalg;
 pub mod link_prediction;
 pub mod matching;
+pub mod matching_cover;
 pub mod mixing_cuts;
 pub mod motifs;
 pub mod network_comparison;
