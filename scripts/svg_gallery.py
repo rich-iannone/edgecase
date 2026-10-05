@@ -4098,8 +4098,8 @@ def build_gallery_items() -> List[GalleryItem]:
             .add_node("D").add_node("E")
             .add_edge("A", "B").add_edge("B", "C").add_edge("A", "C")
             .add_edge("C", "D").add_edge("D", "E")
-            .motif_census(size=3)
         )
+        G.motif_census(size=3)  # returns the counts; the step is still recorded
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
             "show_labels", "auto_play", "speed", "layout",
@@ -4120,8 +4120,8 @@ def build_gallery_items() -> List[GalleryItem]:
                 "    ec.Graph()\n"
                 "    .add_node('A')...add_node('E')\n"
                 "    .add_edge('A', 'B')...add_edge('D', 'E')\n"
-                "    .motif_census(size=3)\n"
                 ")\n"
+                "G.motif_census(size=3)\n"
                 "G.play()"
             ),
         )
