@@ -106,6 +106,17 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::approximation::tree_decomposition, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::approximation::densest_subgraph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::approximation::max_cut, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::isomorphism::match_graphs, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::isomorphism::simrank, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::chain_decomposition, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::dominators, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::k_edge_components, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::average_node_connectivity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::reference_graph, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::small_world, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::negative_edge_cycle, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::find_negative_cycle, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::link_scores, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::adjacency_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::incidence_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::laplacian_matrix, m)?)?;
