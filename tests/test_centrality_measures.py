@@ -1,8 +1,14 @@
 """Tests for centrality measures: bridging, Laplacian, eccentricity, radiality, closeness
 vitality, coreness, HITS, alpha, and leverage centrality."""
 
+import itertools
+import math
+import random
+
 import edgecase as ec
+import networkx as nx
 import pytest
+from edgecase.steps import KIND_METRIC, KIND_QUERY
 
 
 @pytest.fixture
@@ -648,3 +654,276 @@ class TestCentralityIntegration:
         assert a_id in coreness
         assert a_id in alpha
         assert a_id in leverage
+
+
+# Subgraph, current-flow, group, VoteRank, trophic, reaching, subset betweenness and
+# structural-hole centralities, validated against NetworkX (and brute force where NetworkX's
+# group betweenness is wrong).
+
+
+def _connected_cases():
+    for seed in range(12):
+        rnd = random.Random(seed)
+        U = nx.connected_watts_strogatz_graph(14, 4, 0.3, seed=seed)
+        U = nx.Graph(sorted(U.edges))
+        for u, v in U.edges:
+            U[u][v]["weight"] = rnd.uniform(0.5, 3.0)
+        yield U, _build(U), _build(U, weighted=True)
+
+
+def _random_cases(directed: bool):
+    for seed in range(12):
+        rnd = random.Random(seed)
+        G0 = nx.gnp_random_graph(12, 0.25, seed=seed, directed=directed)
+        G = (nx.DiGraph if directed else nx.Graph)()
+        G.add_nodes_from(range(12))
+        for u, v in G0.edges:
+            G.add_edge(u, v, weight=rnd.choice([1, 2, 3]))
+        yield G, _build(G), _build(G, weighted=True), rnd
+
+
+def _build(G: nx.Graph, weighted: bool = False) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in sorted(G.nodes)])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+def _lab(g: ec.Graph, scores: dict) -> dict:
+    return {int(g.get_label_from_id(k)): v for k, v in scores.items()}
+
+
+def _ids(g: ec.Graph, nodes) -> list[int]:
+    return [g.get_id_from_label(str(v)) for v in nodes]
+
+
+def _brute_group_betweenness(G, group, weight=None, endpoints=False):
+    S, total = set(group), 0.0
+    for s, t in itertools.permutations(G.nodes, 2):
+        if (s in S or t in S) and not endpoints:
+            continue
+        if not nx.has_path(G, s, t):
+            continue
+        paths = list(nx.all_shortest_paths(G, s, t, weight=weight))
+        hits = sum(1 for p in paths if (S & set(p) if endpoints else S & set(p[1:-1])))
+        total += hits / len(paths)
+    return total if G.is_directed() else total / 2
+
+
+class TestSpectralAndElectrical:
+    def test_subgraph_centrality(self):
+        for U, g, _ in _connected_cases():
+            ours = _lab(g, g.subgraph_centrality(return_dict=True))
+            assert ours == pytest.approx(nx.subgraph_centrality(U))
+        assert sum(
+            ec.karate_club().subgraph_centrality(return_dict=True).values()
+        ) == pytest.approx(ec.karate_club().get_estrada_index())
+
+    @pytest.mark.parametrize("normalized", [True, False])
+    def test_current_flow_betweenness(self, normalized):
+        for U, g, gw in _connected_cases():
+            ours = _lab(g, g.current_flow_betweenness_centrality(normalized, return_dict=True))
+            assert ours == pytest.approx(nx.current_flow_betweenness_centrality(U, normalized))
+            ours = _lab(gw, gw.current_flow_betweenness_centrality(normalized, return_dict=True))
+            ref = nx.current_flow_betweenness_centrality(U, normalized, weight="weight")
+            assert ours == pytest.approx(ref)
+
+    def test_current_flow_closeness(self):
+        for U, g, gw in _connected_cases():
+            assert _lab(g, g.current_flow_closeness_centrality(return_dict=True)) == pytest.approx(
+                nx.current_flow_closeness_centrality(U)
+            )
+            assert _lab(
+                gw, gw.current_flow_closeness_centrality(return_dict=True)
+            ) == pytest.approx(nx.information_centrality(U, weight="weight"))
+
+    def test_requirements(self):
+        split = ec.Graph().add_nodes(list("ABCD")).add_edges([("A", "B"), ("C", "D")])
+        with pytest.raises(ValueError, match="connected"):
+            split.current_flow_betweenness_centrality()
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A"]).subgraph_centrality()
+
+
+class TestGroupCentrality:
+    def test_against_brute_force_and_networkx(self):
+        for directed in (False, True):
+            for G, g, gw, rnd in _random_cases(directed):
+                grp = rnd.sample(range(12), 3)
+                for endpoints in (False, True):
+                    ours = g.group_betweenness_centrality(grp_ids := _ids(g, grp), False, endpoints)
+                    assert ours == pytest.approx(
+                        _brute_group_betweenness(G, grp, endpoints=endpoints)
+                    )
+                ours_w = gw.group_betweenness_centrality(grp_ids, False)
+                assert ours_w == pytest.approx(_brute_group_betweenness(G, grp, weight="weight"))
+                # (NetworkX's group betweenness is not compared: it deviates from the
+                # definition on some graphs, connected ones included; brute force is the
+                # reference above)
+                assert g.group_closeness_centrality(grp_ids) == pytest.approx(
+                    nx.group_closeness_centrality(G, grp)
+                )
+                assert gw.group_closeness_centrality(grp_ids) == pytest.approx(
+                    nx.group_closeness_centrality(G, grp, weight="weight")
+                )
+                if directed:
+                    assert g.group_degree_centrality(grp_ids, mode="out") == pytest.approx(
+                        nx.group_out_degree_centrality(G, grp)
+                    )
+                    assert g.group_degree_centrality(grp_ids, mode="in") == pytest.approx(
+                        nx.group_in_degree_centrality(G, grp)
+                    )
+                else:
+                    assert g.group_degree_centrality(grp_ids) == pytest.approx(
+                        nx.group_degree_centrality(G, grp)
+                    )
+
+    def test_examples_and_errors(self):
+        g = ec.Graph().add_nodes(list("ABCDEF"))
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+        assert g.group_betweenness_centrality(["C", "D"]) == pytest.approx(2 / 3)
+        assert g.group_betweenness_centrality(["A", "B"]) == 0.0
+        path = ec.Graph().add_path_graph(7)
+        assert path.group_closeness_centrality([2, 6]) > path.group_closeness_centrality([3, 4])
+        with pytest.raises(ValueError, match="at least one"):
+            g.group_degree_centrality([])
+        with pytest.raises(ValueError, match="mode"):
+            g.group_degree_centrality(["A"], mode="both")
+
+
+class TestVoteRankAndTrophic:
+    def test_voterank_matches_networkx(self):
+        for directed in (False, True):
+            for G, g, _, _ in _random_cases(directed):
+                assert [int(g.get_label_from_id(n)) for n in g.voterank()] == nx.voterank(G)
+                assert [int(g.get_label_from_id(n)) for n in g.voterank(3)] == nx.voterank(G, 3)
+        assert ec.Graph().voterank() == []
+
+    def test_trophic_matches_networkx(self):
+        for G, _, _, _ in _random_cases(True):
+            D = nx.DiGraph([(u, v, d) for u, v, d in G.edges(data=True) if u < v])
+            D.add_nodes_from(range(12))
+            g, gw = _build(D), _build(D, weighted=True)
+            assert _lab(g, g.trophic_levels(return_dict=True)) == pytest.approx(
+                nx.trophic_levels(D, weight=None)
+            )
+            assert _lab(gw, gw.trophic_levels(return_dict=True)) == pytest.approx(
+                nx.trophic_levels(D)
+            )
+            assert gw.trophic_incoherence_parameter() == pytest.approx(
+                nx.trophic_incoherence_parameter(D)
+            )
+            ours = {
+                (int(gw.get_label_from_id(s)), int(gw.get_label_from_id(t))): d
+                for (_, s, t), d in zip(gw.get_edges_as_tuples(), gw.trophic_differences().values())
+            }
+            assert ours == pytest.approx(nx.trophic_differences(D))
+
+    def test_food_web_and_cannibalism(self):
+        web = ec.Graph(directed=True).add_nodes(["grass", "rabbit", "mouse", "fox", "owl"])
+        web.add_edges(
+            [("grass", "rabbit"), ("grass", "mouse"), ("rabbit", "fox"),
+             ("mouse", "fox"), ("mouse", "owl"), ("fox", "owl")]
+        )  # fmt: skip
+        levels = {
+            web.get_label_from_id(n): v for n, v in web.trophic_levels(return_dict=True).items()
+        }
+        assert levels == pytest.approx({"grass": 1, "rabbit": 2, "mouse": 2, "fox": 3, "owl": 3.5})
+        D = nx.DiGraph([(0, 1), (1, 2), (0, 2), (2, 2)])
+        g = _build(D)
+        for cannibalism in (False, True):
+            assert g.trophic_incoherence_parameter(cannibalism=cannibalism) == pytest.approx(
+                nx.trophic_incoherence_parameter(D, weight=None, cannibalism=cannibalism)
+            )
+        with pytest.raises(ValueError, match="basal"):
+            ec.Graph(directed=True).add_nodes(["A", "B"]).add_edges(
+                [("A", "B"), ("B", "A")]
+            ).trophic_levels()
+
+
+class TestReachingSubsetStructuralHoles:
+    def test_local_and_global_reaching(self):
+        for U, g, gw in _connected_cases():
+            ref = {v: nx.local_reaching_centrality(U, v) for v in U}
+            assert _lab(g, g.local_reaching_centrality(return_dict=True)) == pytest.approx(ref)
+            ref_w = {v: nx.local_reaching_centrality(U, v, weight="weight") for v in U}
+            assert _lab(gw, gw.local_reaching_centrality(return_dict=True)) == pytest.approx(ref_w)
+            assert gw.global_reaching_centrality() == pytest.approx(
+                nx.global_reaching_centrality(U, weight="weight")
+            )
+        for G, g, _, _ in _random_cases(True):
+            if G.number_of_edges():
+                assert g.global_reaching_centrality() == pytest.approx(
+                    nx.global_reaching_centrality(G)
+                )
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_subset_betweenness(self, directed):
+        for G, g, gw, rnd in _random_cases(directed):
+            srcs, tgts = rnd.sample(range(12), 4), rnd.sample(range(12), 4)
+            for normalized in (False, True):
+                ours = g.betweenness_centrality_subset(
+                    _ids(g, srcs), _ids(g, tgts), normalized, return_dict=True
+                )
+                ref = nx.betweenness_centrality_subset(G, srcs, tgts, normalized=normalized)
+                assert _lab(g, ours) == pytest.approx(ref)
+            ours = gw.betweenness_centrality_subset(
+                _ids(gw, srcs), _ids(gw, tgts), return_dict=True
+            )
+            assert _lab(gw, ours) == pytest.approx(
+                nx.betweenness_centrality_subset(G, srcs, tgts, weight="weight")
+            )
+
+    def test_effective_size_and_local_constraint(self):
+        for U, g, gw in _connected_cases():
+            assert _lab(g, g.effective_size(return_dict=True)) == pytest.approx(
+                nx.effective_size(U)
+            )
+            # NetworkX's sparse shortcut is wrong for weights; its per-node formula is the reference
+            ref_w = nx.effective_size(U, nodes=list(U), weight="weight")
+            assert _lab(gw, gw.effective_size(return_dict=True)) == pytest.approx(ref_w)
+            for u, v in list(U.edges)[:6]:
+                assert gw.local_constraint(str(u), str(v)) == pytest.approx(
+                    nx.local_constraint(U, u, v, weight="weight")
+                )
+        g = ec.Graph().add_nodes(["A", "B", "Z"]).add_edge("A", "B")
+        assert g.effective_size(return_dict=True)[g.get_id_from_label("Z")] is None
+        d = nx.gnp_random_graph(12, 0.3, seed=3, directed=True)
+        gd = _build(d)
+        ours = _lab(gd, gd.effective_size(return_dict=True))
+        ref = nx.effective_size(d, nodes=list(d))
+        for k, v in ref.items():
+            if math.isnan(v):
+                # NetworkX gives NaN to every node without out-edges; EdgeCase only to nodes
+                # without any contacts, since in-ties count as contacts too
+                assert (ours[k] is None) == (d.degree(k) == 0)
+            else:
+                assert ours[k] == pytest.approx(v)
+
+
+class TestCentralityStepHooks:
+    def test_metric_and_query_steps(self):
+        g = ec.Graph().add_path_graph(5)
+        g.current_flow_closeness_centrality()
+        step = g.steps[-1]
+        assert step.kind == KIND_METRIC and set(step.delta.metric_values) == {
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+        }
+        g.group_degree_centrality([2, 4])
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY and step.delta.nodes_selected == ["2", "4"]
+        g.voterank(count=2)
+        assert g.steps[-1].delta.node_groups == {"2": 0, "4": 1}
+        n = len(g.steps)
+        g.effective_size(return_dict=True)
+        assert len(g.steps) == n
