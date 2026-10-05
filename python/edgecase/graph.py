@@ -4206,6 +4206,26 @@ class Graph:
     # Graph Generators
     # ====================================================================
 
+    def _add_generated_nodes(self, n: int, label: bool, type: str | None) -> list[int]:
+        """Add `n` nodes for a structural generator and return their IDs in order.
+
+        Labels (when `label=True`) are numbered from `count_nodes() + 1` as before. Edges must be
+        wired by the returned IDs, not by label, so that `label=False` works.
+        """
+        start = self.count_nodes() + 1
+        attributes = {"type": type} if type else None
+        return [
+            self._graph.add_node(
+                rust.Node(id=0, label=str(start + i) if label else None, attributes=attributes)
+            )
+            for i in range(n)
+        ]
+
+    def _add_path_edges(self, node_ids: list[int], rel: str | None) -> None:
+        edge_attrs = {"rel": rel} if rel else {}
+        for source, target in zip(node_ids, node_ids[1:]):
+            self.add_edge(source, target, **edge_attrs)
+
     def add_path_graph(
         self,
         n: int,
@@ -4249,9 +4269,8 @@ class Graph:
             If `True` (default), label nodes with consecutive numbers as described above. These
             labels match the node IDs when the path is added to a fresh graph, but not necessarily
             otherwise (e.g., after nodes have been deleted). Avoid adding a path to a graph that
-            already uses numeric labels, as duplicated labels make label lookups ambiguous. Note
-            that the edges are wired up by label, so `label=False` currently raises a `ValueError`
-            for any `n` greater than `1`.
+            already uses numeric labels, as duplicated labels make label lookups ambiguous. If
+            `False`, the nodes are left unlabelled.
         rel
             Optional relationship label assigned to all edges of the path (stored in the `rel`
             column of the edge DataFrame). Default is `None`.
@@ -4309,25 +4328,9 @@ class Graph:
 
         before = self._begin_compound()
 
-        # Get starting node ID (continue from existing nodes)
-        start_id = self.count_nodes() + 1
-
-        # Add nodes
-        for i in range(n):
-            node_label = str(start_id + i) if label else None
-            attrs = {}
-            if type:
-                attrs["type"] = type
-            self.add_node(label=node_label, **attrs)
-
-        # Add edges (path has n-1 edges)
-        for i in range(n - 1):
-            source = str(start_id + i)
-            target = str(start_id + i + 1)
-            edge_attrs = {}
-            if rel:
-                edge_attrs["rel"] = rel
-            self.add_edge(source, target, **edge_attrs)
+        # Path has n-1 edges, wired by ID so unlabelled nodes work
+        node_ids = self._add_generated_nodes(n, label, type)
+        self._add_path_edges(node_ids, rel)
 
         self._end_compound("add_path_graph", f"G.add_path_graph(n={n})", before)
         return self
@@ -4375,8 +4378,7 @@ class Graph:
         label
             If `True` (default), label nodes with consecutive numbers as described above. These
             labels match the node IDs when the cycle is added to a fresh graph, but not
-            necessarily otherwise. Since the edges are wired up by label, `label=False` currently
-            raises a `ValueError`.
+            necessarily otherwise. If `False`, the nodes are left unlabelled.
         rel
             Optional relationship label assigned to all edges of the cycle, including the closing
             edge (stored in the `rel` column of the edge DataFrame). Default is `None`.
@@ -4430,16 +4432,11 @@ class Graph:
 
         before = self._begin_compound()
 
-        # Add path first
-        self.add_path_graph(n, type=type, label=label, rel=rel)
-
-        # Close the cycle with final edge
-        start_id = self.count_nodes() - n + 1
-        end_id = self.count_nodes()
-        edge_attrs = {}
-        if rel:
-            edge_attrs["rel"] = rel
-        self.add_edge(str(end_id), str(start_id), **edge_attrs)
+        # Add path first, then close the cycle with a final edge
+        node_ids = self._add_generated_nodes(n, label, type)
+        self._add_path_edges(node_ids, rel)
+        edge_attrs = {"rel": rel} if rel else {}
+        self.add_edge(node_ids[-1], node_ids[0], **edge_attrs)
 
         self._end_compound("add_cycle_graph", f"G.add_cycle_graph(n={n})", before)
         return self
@@ -4481,8 +4478,7 @@ class Graph:
             If `True` (default), each new node is labelled with a number given as a string,
             counting up from `count_nodes() + 1` at the time of the call (so `"1"`, `"2"`, ... in
             an empty graph, where the labels match the node IDs). The hub gets the first number.
-            Note that the edges are wired up by label, so `label=False` currently raises a
-            `ValueError`.
+            If `False`, the nodes are left unlabelled.
         rel
             Optional value stored in the `rel` attribute of every new edge, e.g. `"connects"`. If
             `None` (default), no `rel` attribute is set.
@@ -4544,23 +4540,11 @@ class Graph:
 
         before = self._begin_compound()
 
-        start_id = self.count_nodes() + 1
-        center_id = str(start_id)
-
-        # Add all nodes
-        for i in range(n):
-            node_label = str(start_id + i) if label else None
-            attrs = {}
-            if type:
-                attrs["type"] = type
-            self.add_node(label=node_label, **attrs)
+        center_id, *peripheral_ids = self._add_generated_nodes(n, label, type)
 
         # Add edges from center to all other nodes
-        for i in range(1, n):
-            peripheral_id = str(start_id + i)
-            edge_attrs = {}
-            if rel:
-                edge_attrs["rel"] = rel
+        edge_attrs = {"rel": rel} if rel else {}
+        for peripheral_id in peripheral_ids:
             self.add_edge(center_id, peripheral_id, **edge_attrs)
 
         self._end_compound("add_star_graph", f"G.add_star_graph(n={n})", before)
@@ -4610,8 +4594,8 @@ class Graph:
         label
             If `True` (default), each new node is labelled with a number given as a string,
             counting up from `count_nodes() + 1` at the time of the call (so `"1"`, `"2"`, ... in
-            an empty graph, where the labels match the node IDs). Note that the edges are wired
-            up by label, so `label=False` currently raises a `ValueError`.
+            an empty graph, where the labels match the node IDs). If `False`, the nodes are left
+            unlabelled.
         rel
             Optional value stored in the `rel` attribute of every new edge, including any
             self-loops. If `None` (default), no `rel` attribute is set.
@@ -4664,33 +4648,22 @@ class Graph:
 
         before = self._begin_compound()
 
-        start_id = self.count_nodes() + 1
-
-        # Add nodes
-        for i in range(n):
-            node_label = str(start_id + i) if label else None
-            attrs = {}
-            if type:
-                attrs["type"] = type
-            self.add_node(label=node_label, **attrs)
+        node_ids = self._add_generated_nodes(n, label, type)
 
         # Add edges between all pairs
         edge_attrs = {}
         if rel:
             edge_attrs["rel"] = rel
 
-        for i in range(n):
-            for j in range(n):
+        for i, source in enumerate(node_ids):
+            for j, target in enumerate(node_ids):
                 if i == j:
                     # Self-loop
                     if keep_loops:
-                        source = str(start_id + i)
                         self.add_edge(source, source, **edge_attrs)
                 elif i < j or self.is_directed():
                     # For undirected, only add each edge once (i < j)
                     # For directed, add both directions
-                    source = str(start_id + i)
-                    target = str(start_id + j)
                     self.add_edge(source, target, **edge_attrs)
 
         self._end_compound("add_full_graph", f"G.add_full_graph(n={n})", before)
@@ -5161,6 +5134,13 @@ class Graph:
         self._end_compound("add_prism_graph", f"G.add_prism_graph(n={n})", before)
         return self
 
+    def _copy_generated_graph(self, temp: "Graph") -> None:
+        """Add `temp`'s unlabelled nodes as new nodes, then its edges between them by ID."""
+        temp_ids = sorted(temp.get_node_ids(limit=None))
+        new_ids = dict(zip(temp_ids, self._add_generated_nodes(len(temp_ids), False, None)))
+        for _, source, target in temp.get_edges_as_tuples():
+            self.add_edge(new_ids[source], new_ids[target])
+
     def add_gnp_graph(
         self,
         n: int,
@@ -5208,9 +5188,10 @@ class Graph:
         directed
             Leave as `None` (default) to generate edges according to the graph's own
             directedness. Passing the graph's own setting (`graph.is_directed()`) does the same
-            thing. Passing a value that differs from it is intended to generate the edges as if
-            the graph had that directedness, but this path is currently broken and raises an
-            `AttributeError`; create the `Graph` with the directedness you want instead.
+            thing. Passing a value that differs from it generates the edges as if the graph had
+            that directedness: `directed=True` on an undirected graph considers both orientations
+            of each pair (so a pair can get two parallel edges), and `directed=False` on a
+            directed graph considers each pair once and stores the edge in one direction.
         seed
             Integer seed for the random number generator. The same `seed=` with the same `n=` and
             `p=` always gives the same edges. If `None` (default), the result differs on every
@@ -5265,15 +5246,10 @@ class Graph:
         before = self._begin_compound()
 
         if directed is not None and directed != self.is_directed():
-            # Create temporary graph with desired directedness
+            # Generate with the requested directedness, then copy in
             temp = Graph(directed=directed)
             temp._graph.generate_gnp_graph(n, p, seed)
-            # Copy nodes and edges to this graph
-            for node_id in temp.get_node_ids(limit=None):
-                node_label = temp.get_label_from_id(node_id)
-                self.add_node(label=node_label)
-            for source, target in temp.edges():
-                self.add_edge(source, target)
+            self._copy_generated_graph(temp)
         else:
             self._graph.generate_gnp_graph(n, p, seed)
 
@@ -5325,9 +5301,10 @@ class Graph:
         directed
             Leave as `None` (default) to generate edges according to the graph's own
             directedness. Passing the graph's own setting (`graph.is_directed()`) does the same
-            thing. Passing a value that differs from it is intended to generate the edges as if
-            the graph had that directedness, but this path is currently broken and raises an
-            `AttributeError`; create the `Graph` with the directedness you want instead.
+            thing. Passing a value that differs from it generates the edges as if the graph had
+            that directedness: `directed=True` on an undirected graph considers both orientations
+            of each pair (so a pair can get two parallel edges), and `directed=False` on a
+            directed graph considers each pair once and stores the edge in one direction.
         seed
             Integer seed for the random number generator. The same `seed=` with the same `n=` and
             `m=` always picks the same edges. If `None` (default), the result differs on every
@@ -5382,15 +5359,10 @@ class Graph:
         before = self._begin_compound()
 
         if directed is not None and directed != self.is_directed():
-            # Create temporary graph with desired directedness
+            # Generate with the requested directedness, then copy in
             temp = Graph(directed=directed)
             temp._graph.generate_gnm_graph(n, m, seed)
-            # Copy nodes and edges to this graph
-            for node_id in temp.get_node_ids(limit=None):
-                node_label = temp.get_label_from_id(node_id)
-                self.add_node(label=node_label)
-            for source, target in temp.edges():
-                self.add_edge(source, target)
+            self._copy_generated_graph(temp)
         else:
             self._graph.generate_gnm_graph(n, m, seed)
 
@@ -7512,8 +7484,8 @@ class Graph:
         ----------
         node
             The node to look for: an `int` is matched against node IDs and a `str` is matched
-            against node labels. Values of any other type (e.g. a `float` like `1.0`) are not valid
-            identifiers and make the method return `False`.
+            against node labels. Values of any other type (e.g. a `float` like `1.0`, or a `bool`)
+            are not valid identifiers and make the method return `False`, as do negative integers.
 
         Returns
         -------
@@ -7562,10 +7534,14 @@ class Graph:
         graph.has_node(1), graph.has_node("1")
         ```
         """
+        # bool is an int subclass, but True/False aren't node identifiers
+        if isinstance(node, bool):
+            return False
         try:
             node_id = self._resolve_node_id(node, auto_create=False)
             return self._graph.has_node_id(node_id)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
+            # OverflowError: an int outside the u64 ID range (e.g. negative) can't be a node ID
             return False
 
     def has_edge(self, source: Union[int, str], target: Union[int, str]) -> bool:
@@ -8374,7 +8350,8 @@ class Graph:
         edge connects nodes from different sets. Equivalently, the graph can be colored with two
         colors such that no adjacent nodes share a color.
 
-        All trees and forests are bipartite. Graphs with odd-length cycles are not.
+        All trees and forests are bipartite. Graphs with odd-length cycles (including self-loops)
+        are not. On a directed graph edge direction is ignored, as in `bipartite_sets()`.
 
         Returns
         -------
@@ -8449,9 +8426,8 @@ class Graph:
         column are not consulted. Use `is_bipartite()` if you only need a yes/no answer. The
         whole graph is used and the current selection is ignored.
 
-        This method is designed for undirected graphs. On a directed graph the coloring follows
-        edges only in their stored direction, so it can raise `ValueError` for a graph that
-        `is_bipartite()` accepts (for example, when an edge points to a node with a lower ID).
+        On a directed graph edge direction is ignored: the partition is that of the underlying
+        undirected graph, matching `is_bipartite()`.
 
         Returns
         -------
@@ -8545,8 +8521,8 @@ class Graph:
         node attributes are not carried over. Nodes of the chosen partition that share no neighbor
         with any other node still appear, as isolated nodes. Note that projections can be much
         denser than the original graph: a node in the other partition with *d* neighbors creates
-        up to *d(d - 1)/2* projected edges. This method is designed for undirected graphs; on
-        directed graphs the underlying partitioning follows edges only in their stored direction.
+        up to *d(d - 1)/2* projected edges. On directed graphs edge direction is ignored, both for
+        the partitioning and for which nodes count as shared neighbors.
 
         Parameters
         ----------
@@ -8684,10 +8660,9 @@ class Graph:
 
         Only nodes in the chosen partition are scored. Degree is the number of incident edges, so
         in a multigraph each parallel edge counts and scores can exceed `1.0`. If the opposite
-        partition is empty (e.g. a graph with no edges), every score is `0.0`. This method is
-        designed for undirected graphs: on a directed graph only outgoing edges count toward the
-        degree, and the underlying partitioning can raise `ValueError` for some edge
-        orientations. The whole graph is used and the current selection is ignored.
+        partition is empty (e.g. a graph with no edges), every score is `0.0`. On a directed
+        graph edge direction is ignored, so the degree is in-degree plus out-degree. The whole
+        graph is used and the current selection is ignored.
 
         Parameters
         ----------
@@ -8804,9 +8779,9 @@ class Graph:
         against the part of the other side it can reach, and a node that can reach none of it
         scores `0.0`. If the opposite partition is empty, every score is `0.0`. The method runs a
         graph traversal from every node in the chosen partition, so its cost grows roughly with
-        the size of that partition times the size of the graph. It is designed for undirected
-        graphs: on directed graphs, edges are only followed in their stored direction. The whole
-        graph is used and the current selection is ignored.
+        the size of that partition times the size of the graph. On directed graphs edge direction
+        is ignored, so distances are those of the underlying undirected graph. The whole graph is
+        used and the current selection is ignored.
 
         Parameters
         ----------
@@ -8928,9 +8903,9 @@ class Graph:
 
         Only nodes in the chosen partition are scored, and a node with a single neighbor always
         scores `0.0`. The method performs one search per node in the opposite partition, so its
-        cost grows roughly with the size of that partition times the number of edges. It is
-        designed for undirected graphs: on directed graphs, edges are only followed in their
-        stored direction. The whole graph is used and the current selection is ignored.
+        cost grows roughly with the size of that partition times the number of edges. On directed
+        graphs edge direction is ignored, so shortest paths are those of the underlying
+        undirected graph. The whole graph is used and the current selection is ignored.
 
         Parameters
         ----------
@@ -10483,11 +10458,10 @@ class Graph:
         - decide whether to collapse duplicates (e.g. with `simplify()`) before running
           algorithms that assume a simple graph
 
-        Pairs are matched by the source and target as stored, so in a directed graph `A->B` and
-        `B->A` are different pairs. The same matching is used for undirected graphs, which means
-        an edge added as `B--A` is not paired with one added as `A--B` here (whereas
-        `is_simple()` treats them as parallel). The count covers the whole graph and ignores the
-        current selection.
+        In a directed graph `A->B` and `B->A` are different pairs. In an undirected graph the
+        order doesn't matter, so an edge added as `B--A` is parallel to one added as `A--B`
+        (matching `is_simple()`). The count covers the whole graph and ignores the current
+        selection.
 
         Returns
         -------
@@ -10560,11 +10534,9 @@ class Graph:
         `mutual / (mutual + asymmetric)`, the share of connected pairs that are linked in both
         directions.
 
-        The count is intended for graphs without parallel edges. With parallel edges, every
-        repeated edge in the reverse direction of an already-seen edge adds another count, so the
-        result can exceed the number of distinct mutual pairs; run `simplify()` first (or check
-        `count_multi_edges()`) if your graph may contain duplicates. The count covers the whole
-        graph and ignores the current selection.
+        Parallel edges don't change the count: a pair with three `A->B` edges and one `B->A`
+        edge is still one mutual pair. The count covers the whole graph and ignores the current
+        selection.
 
         Returns
         -------
@@ -10731,10 +10703,9 @@ class Graph:
 
         The `"out"` list has one entry per edge, so a node joined by parallel edges appears more
         than once, and a self-loop lists the node itself (twice in an undirected graph). Wrap the
-        result in `set()` if you need distinct neighbors. In undirected graphs, use the default
-        `mode="out"` (or `"all"`): `mode="in"` only matches edges that were added with the node as
-        `target=`, so it can miss neighbors. Because `"in"` and `"all"` scan every edge, they are
-        slower than `"out"` on large graphs; `get_predecessors()` and `get_successors()` are
+        result in `set()` if you need distinct neighbors. In undirected graphs all three modes
+        return the same `"out"` list. On directed graphs `"in"` and `"all"` scan every edge, so
+        they are slower than `"out"` on large graphs; `get_predecessors()` and `get_successors()` are
         dedicated alternatives for directed graphs. The current selection is ignored.
 
         Parameters
@@ -10743,8 +10714,8 @@ class Graph:
             The node whose neighbors to find, as a node ID (`int`) or label (`str`).
         mode
             Which edges to follow: `"out"` (default) for outgoing edges (successors), `"in"` for
-            incoming edges (predecessors), or `"all"` for both. In undirected graphs, `"out"` and
-            `"all"` return the same neighbors.
+            incoming edges (predecessors), or `"all"` for both. In undirected graphs all three
+            return the same neighbors.
 
         Returns
         -------
@@ -10827,6 +10798,11 @@ class Graph:
         if mode not in ["out", "in", "all"]:
             raise ValueError("mode must be 'out', 'in', or 'all'")
 
+        # Undirected adjacency lists already hold every neighbor, whichever way round each
+        # edge was stored, so all three modes are the same
+        if not self._graph.is_directed:
+            mode = "out"
+
         neighbors = []
 
         if mode in ["out", "all"]:
@@ -10839,11 +10815,6 @@ class Graph:
                 # edge_tuple is (edge_id, source, target)
                 if edge_tuple[2] == node_id and edge_tuple[1] not in neighbors:
                     neighbors.append(edge_tuple[1])
-
-        # For undirected graphs, mode doesn't matter
-        if not self._graph.is_directed and mode != "all":
-            # Already got all neighbors via adjacency list
-            pass
 
         return neighbors
 
@@ -12171,10 +12142,7 @@ class Graph:
             Which degree to compare: `"in"` (number of incoming edges), `"out"` (number of
             outgoing edges), or `"total"` (default). Any other value raises `ValueError`. In an
             undirected graph all three give the same value, the number of incident edges. In a
-            directed graph, `"total"` is currently computed from the outgoing adjacency only, so
-            it matches `"out"` rather than in-degree plus out-degree (and differs from
-            `get_degree()`); pass `"in"` or `"out"` explicitly, or use `select_nodes()` with
-            `get_degree()` if the sum is needed.
+            directed graph, `"total"` is in-degree plus out-degree, matching `get_degree()`.
 
         Returns
         -------
@@ -13582,12 +13550,11 @@ class Graph:
 
         - each starting node is traversed independently; the results are combined
         - a starting node that already satisfies the condition is kept as-is and not expanded
-        - the method is meant for directed graphs; in an undirected graph, "incoming" neighbors
-          are taken from the orientation in which edges were added, so the walk only follows
-          edges back toward the node given as `source=` (use `trav_out_until()` to spread in all
-          directions)
+        - in an undirected graph edges have no direction, so the walk spreads to every neighbor
+          and behaves like `trav_out_until()`
         - if no nodes are selected, the method does nothing
-        - incoming neighbors are found by scanning the edge list for each visited node, and
+        - on directed graphs incoming neighbors are found by scanning the edge list for each
+          visited node, and
           `conditions=` is a Python callable, so long walks on large graphs can be slow
 
         Parameters
@@ -26378,8 +26345,8 @@ class Graph:
         - a large count at degree `0` or `1` reveals many isolated or peripheral nodes
 
         In undirected graphs the degrees match `get_degree()` (parallel edges each count and a
-        self-loop counts twice). In directed graphs, each node is binned by its **out-degree**
-        only, not by the total degree that `get_degree()` reports. Edge weights are ignored. The
+        self-loop counts twice). In directed graphs, each node is binned by its total degree
+        (in-degree plus out-degree), also matching `get_degree()`. Edge weights are ignored. The
         dictionary is not ordered by degree; wrap it in `sorted()` to read it in order. An empty
         graph gives an empty dictionary.
 
@@ -32970,24 +32937,24 @@ class Graph:
         A node's eccentricity is the number of hops to the farthest node it can reach; the node(s)
         with the smallest eccentricity form the *center* of the graph and are the best starting
         points when the worst-case distance to everyone else matters. Distances are counted in
-        hops (edge weights are ignored) and, in directed graphs, follow edge directions. Nodes
-        that reach nothing (isolated nodes, or nodes without outgoing edges in a directed graph)
-        have eccentricity `0`, which makes the result `0` under the default `unconnected=True`.
-        See `get_radius()` for details.
+        hops (edge weights are ignored) and, in directed graphs, follow edge directions. Only
+        nodes that reach their whole component count, so isolated nodes and directed sinks don't
+        pull the result down to `0`. See `get_radius()` for details.
 
         Parameters
         ----------
         unconnected
             Controls what happens when some nodes cannot reach each other. If `True` (default),
-            each node's eccentricity only considers the nodes it can reach and the smallest one
-            is returned, pooled across all components. If `False`, returns `None` for a graph
-            that is not connected (weak connectivity for directed graphs).
+            the smallest eccentricity is taken across all components, skipping single-node
+            components. If `False`, returns `None` for a graph that is not connected (weak
+            connectivity for directed graphs).
 
         Returns
         -------
         int | None
             Minimum eccentricity (radius), or `None` if disconnected (when `unconnected=False`).
-            Also `None` for an empty graph.
+            Also `None` for an empty graph, or a directed graph where no node reaches its whole
+            component.
 
         Examples
         --------
@@ -33166,26 +33133,34 @@ class Graph:
           without a clear center
         - bounding the number of rounds a broadcast from the best starting node needs
 
-        Because each node's eccentricity only covers the nodes it can reach, nodes that reach
-        nothing have eccentricity `0`: an isolated node, or a node with no outgoing edges in a
-        directed graph, makes the radius `0` under the default `unconnected=True`.
-        `get_min_eccentricity()` is an alias of this method and `get_diameter()` is its
-        counterpart (the largest eccentricity).
+        A node's eccentricity only covers the nodes it can reach, so a node that reaches nothing
+        (an isolated node, or a sink in a directed graph) would have eccentricity `0`. To keep
+        such nodes from dragging the radius to `0`, only nodes that reach every node of their
+        (weakly) connected component are considered, and single-node components are skipped
+        unless the graph has no edges between distinct nodes (then the radius is `0`). In an
+        undirected graph every node reaches its component, so this is the smallest component
+        radius among components with at least two nodes. In a directed graph a node counts only
+        if every node of its component is reachable from it: a directed path `A -> B -> C` has
+        radius `2` (only `A` reaches everything), and if no node reaches its whole component the
+        result is `None`. `get_min_eccentricity()` is an alias of this method, `get_center()`
+        returns the nodes that attain it, and `get_diameter()` is its counterpart (the largest
+        eccentricity).
 
         Parameters
         ----------
         unconnected
             Controls what happens when some nodes cannot reach each other. If `True` (default),
-            each node's eccentricity only considers the nodes it can reach and the smallest one
-            is returned, pooled across all components (so an isolated node yields `0`). If
-            `False`, the method returns `None` for a graph that is not connected. For directed
-            graphs this check uses weak connectivity (edge directions ignored).
+            the smallest eccentricity is taken across all components, skipping single-node
+            components (so an isolated node doesn't make the radius `0`). If `False`, the method
+            returns `None` for a graph that is not connected. For directed graphs this check uses
+            weak connectivity (edge directions ignored).
 
         Returns
         -------
         int | None
             Minimum eccentricity, or `None` if disconnected (when `unconnected=False`). Also
-            `None` for an empty graph.
+            `None` for an empty graph, or a directed graph where no node reaches its whole
+            component.
 
         Examples
         --------
@@ -33211,12 +33186,24 @@ class Graph:
         (path.get_radius(), path.get_diameter())
         ```
 
-        Adding an isolated node drops the radius to `0`, since that node reaches nothing. Use
-        `unconnected=False` to get `None` instead of a misleading value for a disconnected graph:
+        An isolated node reaches nothing, so it is skipped and the star's radius of `1` stands.
+        Use `unconnected=False` to get `None` for any disconnected graph instead:
 
         ```{python}
         graph.add_node(label="loner")
         (graph.get_radius(), graph.get_radius(unconnected=False))
+        ```
+
+        In a directed graph only nodes that reach their whole component count. Along the path
+        `A -> B -> C` that is just `A`, whose farthest node is two hops away:
+
+        ```{python}
+        chain = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
+        )
+        chain.get_radius()
         ```
         """
         return self._graph.get_radius_with_unconnected(unconnected)
@@ -36058,9 +36045,8 @@ class Graph:
         which is what you want when the full set of alternatives matters (for example, to count
         redundant routes or to check whether every route passes through some node).
 
-        Paths are returned as lists of node *labels*, not node IDs. Nodes without a label appear
-        as their ID converted to a string, but `source=` and `target=` themselves must have
-        labels. The number of simple paths can grow exponentially with graph size, so set
+        Paths are returned as lists of node *labels*, not node IDs. Nodes without a label
+        (including `source=` and `target=`) appear as their ID converted to a string. The number of simple paths can grow exponentially with graph size, so set
         `cutoff=` on anything beyond small graphs. The method does not modify the graph.
 
         Parameters
@@ -36085,10 +36071,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `source=` or `target=` is a string label that does not exist in the graph.
-        TypeError
-            If `source=` or `target=` is an integer ID that does not exist, or refers to a node
-            without a label.
+            If `source=` or `target=` is a label or integer ID that does not exist in the graph.
 
         Algorithm
         ---------
@@ -36181,14 +36164,11 @@ class Graph:
         len(routes)
         ```
         """
-        # Resolve node labels to internal IDs
-        source_label = self.get_label_from_id(self._resolve_node_id(source, auto_create=False))
-        target_label = self.get_label_from_id(self._resolve_node_id(target, auto_create=False))
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
 
-        # Call Rust implementation
-        paths = self._graph.all_simple_paths(source_label, target_label, cutoff)
-
-        return paths
+        # Rust checks that both IDs exist and returns the paths as labels
+        return self._graph.all_simple_paths(source_id, target_id, cutoff)
 
     def is_simple_path(self, nodes: list[Union[int, str]]) -> bool:
         """
@@ -36398,8 +36378,7 @@ class Graph:
         Parameters
         ----------
         start
-            The node where the walk begins, given as an integer node ID or a string label. The
-            node must have a label (nodes created by the graph generators always do).
+            The node where the walk begins, given as an integer node ID or a string label.
         steps
             Number of moves to make. A complete walk visits `steps + 1` nodes, counting the start
             node. With `steps=0` the walk is just `[start]`.
@@ -36436,10 +36415,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If `start=` is a label that does not exist, `mode=` is not one of `"out"`, `"in"`,
-            `"all"`, or the walk gets stuck and `stuck=` is not `"return"` or `"error"`.
-        TypeError
-            If `start=` is an integer ID that does not exist or refers to a node without a label.
+            If `start=` is a label or integer ID that does not exist, `mode=` is not one of
+            `"out"`, `"in"`, `"all"`, or the walk gets stuck and `stuck=` is not `"return"` or
+            `"error"`.
         RuntimeError
             If walk gets stuck and `stuck="error"`.
 
@@ -36532,13 +36510,7 @@ class Graph:
         ```
         """
         start_id = self._resolve_node_id(start, auto_create=False)
-
-        # Get node labels for Rust call (Rust implementation uses labels)
-        start_label = self.get_label_from_id(start_id)
-        walk_labels = self._graph.random_walk(start_label, steps, mode, stuck, seed)
-
-        # Convert labels back to IDs
-        walk_ids = [self.get_id_from_label(label) for label in walk_labels]
+        walk_ids = self._graph.random_walk(start_id, steps, mode, stuck, seed)
 
         if return_list:
             return walk_ids
@@ -39880,18 +39852,19 @@ class Graph:
         (the minimax location), and the counterpart of `get_periphery()`.
 
         Distances are computed by breadth-first search, so edge weights are ignored, as in
-        `eccentricity()` and `get_periphery()`. On a directed graph, distances follow edge
-        direction and only reachable nodes count, so a sink (which reaches nothing) has
-        eccentricity `0` and is always central. On a disconnected graph, eccentricities are
-        measured within each component
-        (as in `get_radius()`), so an isolated node, with eccentricity `0`, is always central;
-        call this on a connected graph (or one component) for a meaningful answer. For the
+        `eccentricity()` and `get_periphery()`. The candidates are the same as in
+        `get_radius()`: only nodes that reach every node of their (weakly) connected component,
+        skipping single-node components unless the graph has no edges between distinct nodes.
+        So an isolated node, or a sink in a directed graph, is never central just because it
+        reaches nothing. On a disconnected graph the center comes from the component(s) with
+        the smallest radius. For the
         node minimizing the *total* distance instead, see `get_barycenter()`.
 
         Returns
         -------
         list[int]
-            Sorted IDs of the center nodes. Empty for an empty graph.
+            Sorted IDs of the center nodes. Empty for an empty graph, or a directed graph where
+            no node reaches its whole component.
 
         Examples
         --------
@@ -39916,9 +39889,10 @@ class Graph:
         [graph.get_label_from_id(n) for n in graph.get_center()]
         ```
         """
-        ecc = self._graph.get_eccentricity()
-        values = [e for e in ecc.values() if e is not None]
-        result = sorted(n for n, e in ecc.items() if values and e == min(values))
+        # Same eligible nodes as get_radius(), so the center's eccentricity is the radius
+        ecc = self._graph.center_eccentricities()
+        values = list(ecc.values())
+        result = sorted(n for n, e in ecc.items() if e == min(values))
 
         if self._recording_depth == 0:
             self._record_step(
@@ -39932,6 +39906,8 @@ class Graph:
                     f"(eccentricity {min(values)})."
                     if result
                     else "The graph is empty."
+                    if self.count_nodes() == 0
+                    else "No node reaches every node of its component."
                 ),
             )
         return result
