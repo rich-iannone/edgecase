@@ -288,8 +288,8 @@ fn get_edge_cost(edge: &crate::graph::Edge, cost: Option<&str>) -> PyResult<f64>
     };
 
     let unit_cost = if let Some(cost_attr) = cost {
-        // Use specified cost attribute
-        get_attr(cost_attr).unwrap_or(1.0)
+        // A named attribute must be present on every edge
+        named_edge_value(edge, cost_attr, "cost")?
     } else {
         // Default: try "cost" attribute, otherwise 1.0
         get_attr("cost").unwrap_or(1.0)
@@ -372,6 +372,37 @@ fn cheapest_residual_path(
     Ok(Some((path, dist[sink])))
 }
 
+/// Numeric value of the edge attribute `name`, for a `capacity=` / `cost=` / `weight=` argument
+/// that names one explicitly.
+///
+/// An edge that lacks the attribute, or holds a non-numeric value, raises `ValueError` instead of
+/// silently counting as `1.0`. `"weight"` also falls back to the edge's weight field, since
+/// weighted graphs store weights there rather than as an attribute. `role` names the argument in
+/// the error message.
+pub(crate) fn named_edge_value(
+    edge: &crate::graph::Edge,
+    name: &str,
+    role: &str,
+) -> PyResult<f64> {
+    let value = edge.attributes.as_ref().and_then(|attrs| {
+        Python::with_gil(|py| match attrs.bind(py).get_item(name) {
+            Ok(Some(v)) => v.extract::<f64>().ok(),
+            _ => None,
+        })
+    });
+    let value = match value {
+        Some(v) => Some(v),
+        None if name == "weight" => edge.weight,
+        None => None,
+    };
+    value.ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Edge {} ({} -> {}) has no numeric '{}' attribute, which {}='{}' requires",
+            edge.id, edge.source, edge.target, name, role, name
+        ))
+    })
+}
+
 /// Helper function to get edge capacity
 pub(crate) fn get_edge_capacity(
     edge: &crate::graph::Edge,
@@ -394,8 +425,8 @@ pub(crate) fn get_edge_capacity(
     };
 
     let edge_cap = if let Some(cap_attr) = capacity {
-        // Use specified capacity attribute
-        get_attr(cap_attr).unwrap_or(1.0)
+        // A named attribute must be present on every edge
+        named_edge_value(edge, cap_attr, "capacity")?
     } else {
         // Default behavior:
         // 1. Try "capacity" attribute first
