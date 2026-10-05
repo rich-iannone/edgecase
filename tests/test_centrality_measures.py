@@ -8,6 +8,7 @@ import random
 import edgecase as ec
 import networkx as nx
 import pytest
+from edgecase import Graph
 from edgecase.steps import KIND_METRIC, KIND_QUERY
 
 
@@ -927,3 +928,368 @@ class TestCentralityStepHooks:
         n = len(g.steps)
         g.effective_size(return_dict=True)
         assert len(g.steps) == n
+
+
+# Closeness and degree centrality, validated against NetworkX on random graphs (directed and
+# undirected, including disconnected ones) and on hand-computed cases.
+
+
+def _random_graphs(directed: bool):
+    # p is low enough that many of these graphs are disconnected
+    for seed in range(12):
+        yield nx.gnp_random_graph(20, 0.12, seed=seed, directed=directed)
+
+
+def _strip() -> Graph:
+    """The seven-node graph used by the doc figures."""
+    return (
+        Graph()
+        .add_nodes(list("ABCDEFG"))
+        .add_edges(
+            [
+                ("A", "B"),
+                ("A", "C"),
+                ("B", "C"),
+                ("B", "D"),
+                ("C", "D"),
+                ("C", "E"),
+                ("D", "E"),
+                ("E", "F"),
+                ("F", "G"),
+            ]
+        )
+    )
+
+
+def _from_nx(G: nx.Graph) -> Graph:
+    g = Graph(directed=G.is_directed())
+    g.add_nodes([str(n) for n in G.nodes])
+    if G.number_of_edges():
+        g.add_edges([(str(u), str(v)) for u, v in G.edges])
+    return g
+
+
+def _by_int_label(g: Graph, scores: dict[int, float]) -> dict[int, float]:
+    return {int(g.get_label_from_id(nid)): v for nid, v in scores.items()}
+
+
+TOL = 1e-9
+
+
+def _weighted_cases():
+    for seed in range(15):
+        rnd = random.Random(seed)
+        for directed in (False, True):
+            G = nx.gnp_random_graph(15, 0.22, seed=seed, directed=directed)
+            for u, v in G.edges:
+                G[u][v]["weight"] = rnd.choice([0.5, 1, 1.5, 2, 3])
+            yield G, _build_in_order(G, True)
+
+
+def _triangle_detour() -> ec.Graph:
+    """A-C is heavy, so the cheapest A-C route detours through B."""
+    return (
+        ec.Graph(weighted=True)
+        .add_nodes(["A", "B", "C"])
+        .add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)])
+    )
+
+
+def _build_in_order(G: nx.Graph, weighted: bool) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G.nodes])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+class TestClosenessCentrality:
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("wf_improved", [True, False])
+    def test_matches_networkx(self, directed, wf_improved):
+        for G in _random_graphs(directed):
+            g = _from_nx(G)
+            # NetworkX measures incoming distance on digraphs, i.e. mode="in"
+            mode = "in" if directed else "out"
+            ours = _by_int_label(
+                g, g.closeness_centrality(mode=mode, wf_improved=wf_improved, return_dict=True)
+            )
+            ref = nx.closeness_centrality(G, wf_improved=wf_improved)
+            for n, v in ref.items():
+                assert ours[n] == pytest.approx(v, abs=TOL)
+
+    def test_out_mode_matches_networkx_on_reverse(self):
+        for G in _random_graphs(True):
+            g = _from_nx(G)
+            ours = _by_int_label(g, g.closeness_centrality(mode="out", return_dict=True))
+            ref = nx.closeness_centrality(G.reverse())
+            for n, v in ref.items():
+                assert ours[n] == pytest.approx(v, abs=TOL)
+
+    def test_all_mode_ignores_direction(self):
+        for G in _random_graphs(True):
+            g = _from_nx(G)
+            ours = _by_int_label(g, g.closeness_centrality(mode="all", return_dict=True))
+            ref = nx.closeness_centrality(G.to_undirected())
+            for n, v in ref.items():
+                assert ours[n] == pytest.approx(v, abs=TOL)
+
+    def test_path_hand_computed(self):
+        g = Graph().add_nodes(list("ABCDE"))
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        c = g.closeness_centrality(return_dict=True)
+        lab = {g.get_label_from_id(k): v for k, v in c.items()}
+        # C: distances 2+1+1+2 = 6 -> 4/6; A: 1+2+3+4 = 10 -> 4/10
+        assert lab["C"] == pytest.approx(4 / 6)
+        assert lab["A"] == pytest.approx(0.4)
+        assert lab["A"] == lab["E"] and lab["B"] == lab["D"]
+
+    def test_strip_values_used_in_figure(self):
+        g = _strip()
+        lab = {
+            g.get_label_from_id(k): round(v, 2)
+            for k, v in g.closeness_centrality(return_dict=True).items()
+        }
+        assert lab == {"A": 0.46, "B": 0.5, "C": 0.67, "D": 0.6, "E": 0.67, "F": 0.5, "G": 0.35}
+
+    def test_wf_correction_on_disconnected_graph(self):
+        g = Graph().add_nodes(["Hub", "A", "B", "C", "X", "Y"])
+        g.add_edges([("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("X", "Y")])
+        corrected = g.closeness_centrality(return_dict=True)
+        raw = g.closeness_centrality(wf_improved=False, return_dict=True)
+        x, hub = g.get_id_from_label("X"), g.get_id_from_label("Hub")
+        assert raw[x] == pytest.approx(1.0)
+        assert corrected[x] == pytest.approx(0.2)  # 1 * (1 / 5)
+        assert corrected[hub] > corrected[x]
+
+    def test_empty_single_and_isolated(self):
+        assert Graph().closeness_centrality(return_dict=True) == {}
+        g = Graph().add_node(label="A")
+        assert list(g.closeness_centrality(return_dict=True).values()) == [0.0]
+        g = Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B")
+        assert g.closeness_centrality(return_dict=True)[g.get_id_from_label("C")] == 0.0
+
+    def test_invalid_mode(self):
+        with pytest.raises(ValueError, match="mode"):
+            _strip().closeness_centrality(mode="sideways")
+
+    def test_stores_attribute_and_chains(self):
+        g = _strip().closeness_centrality()
+        assert "closeness_centrality" in g.get_node_df().columns
+        g.closeness_centrality(attr_name="close", mode="all")
+        assert "close" in g.get_node_df().columns
+        assert ("closeness_centrality", {"mode": "all"}, "close") in g._computations
+
+    def test_return_dict_does_not_store(self):
+        g = _strip()
+        g.closeness_centrality(return_dict=True)
+        assert "closeness_centrality" not in g.get_node_df().columns
+
+    def test_steps(self):
+        g = _strip().closeness_centrality()
+        step = g.steps[-1]
+        assert step.kind == KIND_METRIC and step.method == "closeness_centrality"
+        assert step.code == "G.closeness_centrality(attr_name='closeness_centrality')"
+        assert round(step.delta.metric_values["E"], 2) == 0.67
+        assert set(step.delta.metric_values) == set("ABCDEFG")
+        n = len(g.steps)
+        g.closeness_centrality(return_dict=True)
+        assert len(g.steps) == n
+        assert '"mv"' in g.play()._html  # node heat
+
+    def test_non_default_params_appear_in_code(self):
+        g = Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+        g.closeness_centrality(mode="in", wf_improved=False)
+        assert g.steps[-1].code == (
+            "G.closeness_centrality(mode='in', wf_improved=False, attr_name='closeness_centrality')"
+        )
+
+
+class TestDegreeCentrality:
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_matches_networkx(self, directed):
+        for G in _random_graphs(directed):
+            g = _from_nx(G)
+            ours = _by_int_label(g, g.degree_centrality(return_dict=True))
+            for n, v in nx.degree_centrality(G).items():
+                assert ours[n] == pytest.approx(v, abs=TOL)
+
+    def test_in_and_out_match_networkx(self):
+        for G in _random_graphs(True):
+            g = _from_nx(G)
+            ours_in = _by_int_label(g, g.degree_centrality(mode="in", return_dict=True))
+            ours_out = _by_int_label(g, g.degree_centrality(mode="out", return_dict=True))
+            for n, v in nx.in_degree_centrality(G).items():
+                assert ours_in[n] == pytest.approx(v, abs=TOL)
+            for n, v in nx.out_degree_centrality(G).items():
+                assert ours_out[n] == pytest.approx(v, abs=TOL)
+
+    def test_mode_ignored_for_undirected(self):
+        g = _strip()
+        assert g.degree_centrality(mode="in", return_dict=True) == g.degree_centrality(
+            return_dict=True
+        )
+
+    def test_star(self):
+        g = Graph().add_nodes(["Hub", "A", "B", "C", "D"])
+        g.add_edges([("Hub", x) for x in "ABCD"])
+        c = g.degree_centrality(return_dict=True)
+        assert c[g.get_id_from_label("Hub")] == pytest.approx(1.0)
+        assert c[g.get_id_from_label("A")] == pytest.approx(0.25)
+
+    def test_self_loop_counts_twice_like_networkx(self):
+        G = nx.Graph([(0, 1), (1, 2), (2, 2)])
+        g = _from_nx(G)
+        ours = _by_int_label(g, g.degree_centrality(return_dict=True))
+        for n, v in nx.degree_centrality(G).items():
+            assert ours[n] == pytest.approx(v)
+
+    def test_empty_and_single(self):
+        assert Graph().degree_centrality(return_dict=True) == {}
+        g = Graph().add_node(label="A")
+        assert list(g.degree_centrality(return_dict=True).values()) == [1.0]
+
+    def test_invalid_mode(self):
+        with pytest.raises(ValueError, match="mode"):
+            _strip().degree_centrality(mode="both")
+
+    def test_stores_attribute(self):
+        g = Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+        g.degree_centrality(mode="in", attr_name="indeg")
+        df = g.get_node_df().sort("label")
+        assert df["indeg"].to_list() == [0.0, 1.0]
+
+    def test_steps(self):
+        g = _strip().degree_centrality(mode="all")
+        step = g.steps[-1]
+        assert step.kind == KIND_METRIC and step.method == "degree_centrality"
+        assert step.delta.metric_values["C"] == pytest.approx(4 / 6)
+        assert "highest: C" in step.narration
+        n = len(g.steps)
+        g.degree_centrality(return_dict=True)
+        assert len(g.steps) == n
+
+
+# Weighted betweenness, edge betweenness, closeness and harmonic centrality (weighted=None
+# follows the graph, like shortest_path()), validated against NetworkX.
+
+
+class TestWeightedCentralitiesAgainstNetworkX:
+    def test_betweenness(self):
+        for G, g in _weighted_cases():
+            ours = _by_int_label(g, g.betweenness_centrality(return_dict=True))
+            ref = nx.betweenness_centrality(G, weight="weight")
+            assert ours == pytest.approx(ref, abs=1e-12)
+
+    @pytest.mark.parametrize("normalized", [True, False])
+    def test_edge_betweenness(self, normalized):
+        for G, g in _weighted_cases():
+            scores = g.edge_betweenness_centrality(normalized=normalized, return_dict=True)
+            ours = {}
+            for eid, value in scores.items():
+                s, t = g.get_node_ids_by_edge_id(eid)
+                ours[(int(g.get_label_from_id(s)), int(g.get_label_from_id(t)))] = value
+            ref = nx.edge_betweenness_centrality(G, normalized=normalized, weight="weight")
+            for (u, v), val in ref.items():
+                got = ours.get((u, v))
+                if got is None and not G.is_directed():
+                    got = ours[(v, u)]
+                assert got == pytest.approx(val, abs=1e-12)
+
+    @pytest.mark.parametrize("wf_improved", [True, False])
+    def test_closeness(self, wf_improved):
+        for G, g in _weighted_cases():
+            mode = "in" if G.is_directed() else "out"  # NetworkX uses incoming distances
+            ours = _by_int_label(
+                g, g.closeness_centrality(mode=mode, wf_improved=wf_improved, return_dict=True)
+            )
+            ref = nx.closeness_centrality(G, distance="weight", wf_improved=wf_improved)
+            assert ours == pytest.approx(ref, abs=1e-12)
+
+    def test_harmonic(self):
+        for G, g in _weighted_cases():
+            ours = _by_int_label(g, g.harmonic_centrality(return_dict=True))
+            # NetworkX sums over incoming distances; mode="out" matches it on the reverse
+            ref = nx.harmonic_centrality(G.reverse() if G.is_directed() else G, distance="weight")
+            assert ours == pytest.approx(ref, abs=1e-12)
+
+
+class TestCentralityWeightedFlag:
+    def test_follows_graph_by_default_and_can_be_overridden(self):
+        g = _triangle_detour()
+        b = g.get_id_from_label("B")
+        assert g.betweenness_centrality(return_dict=True)[b] == 1.0
+        assert g.betweenness_centrality(weighted=False, return_dict=True)[b] == 0.0
+
+    def test_weighted_true_on_unweighted_graph_uses_stored_weights(self):
+        g = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)])
+        )
+        b = g.get_id_from_label("B")
+        assert g.betweenness_centrality(return_dict=True)[b] == 0.0
+        assert g.betweenness_centrality(weighted=True, return_dict=True)[b] == 1.0
+
+    def test_consistent_with_shortest_path_length(self):
+        g = _triangle_detour()
+        close = g.closeness_centrality(return_dict=True)
+        a = g.get_id_from_label("A")
+        total = g.shortest_path_length("A", "B") + g.shortest_path_length("A", "C")
+        assert close[a] == pytest.approx(2 / total)
+
+    def test_unweighted_results_unchanged_on_weighted_graph_when_disabled(self):
+        G = nx.gnp_random_graph(20, 0.2, seed=3)
+        for u, v in G.edges:
+            G[u][v]["weight"] = 2.5
+        weighted, plain = _build_in_order(G, True), _build_in_order(G, False)
+        assert weighted.betweenness_centrality(
+            weighted=False, return_dict=True
+        ) == plain.betweenness_centrality(return_dict=True)
+        assert weighted.closeness_centrality(
+            weighted=False, return_dict=True
+        ) == plain.closeness_centrality(return_dict=True)
+
+    def test_parallel_edges_only_cheapest_carries_paths(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B"])
+        g.add_edges([("A", "B", 1.0), ("A", "B", 3.0)])
+        cheap, dear = g.find_edge_ids("A", "B")
+        raw = g.edge_betweenness_centrality(normalized=False, return_dict=True)
+        assert raw[cheap] == pytest.approx(1.0) and raw[dear] == 0.0
+
+    def test_harmonic_cutoff_is_a_distance(self):
+        g = _triangle_detour()
+        h = g.harmonic_centrality(cutoff=1, return_dict=True)
+        a = g.get_id_from_label("A")
+        assert h[a] == pytest.approx(1.0)  # only B (distance 1) is within the cutoff
+
+    def test_negative_weights_rejected(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=-1.0)
+        for method in (
+            "betweenness_centrality",
+            "edge_betweenness_centrality",
+            "closeness_centrality",
+            "harmonic_centrality",
+        ):
+            with pytest.raises(ValueError, match="non-negative"):
+                getattr(g, method)(return_dict=True)
+
+    def test_harmonic_weights_argument_points_to_weighted(self):
+        with pytest.raises(ValueError, match="weighted"):
+            _triangle_detour().harmonic_centrality(weights="weight")
+
+    def test_explicit_flag_recorded_in_computations(self):
+        g = _triangle_detour().betweenness_centrality(weighted=False).closeness_centrality()
+        assert ("betweenness_centrality", {"weighted": False}, "betweenness_centrality") in (
+            g._computations
+        )
+        assert ("closeness_centrality", {}, "closeness_centrality") in g._computations
+
+    def test_weighted_closeness_step_code(self):
+        g = _triangle_detour().closeness_centrality(weighted=False)
+        assert g.steps[-1].code == (
+            "G.closeness_centrality(weighted=False, attr_name='closeness_centrality')"
+        )
