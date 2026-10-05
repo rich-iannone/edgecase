@@ -17,7 +17,10 @@ is_k_regular), and the 2 x 3 ladder (is_bipartite and every set-checking
 method). Set checkers draw the candidate set `soft` on both sides and name it
 in a note above the graph; the violation is `accent`. has_path keeps the
 query endpoints `soft` on both sides: the path is `accent` on the left, the
-reversed edge that cuts it off is `accent` on the right. Graph scale is the
+reversed edge that cuts it off is `accent` on the right. The isomorphism
+predicates split each panel into two small graphs (g and h, or pattern p and
+host g), named in notes above them; could_be_isomorphic shows the compared
+per-node property as badges. Graph scale is the
 default `UNIT` throughout.
 """
 
@@ -647,6 +650,85 @@ def is_isomorphic(s: Scene) -> None:
         s.graph(place(c5, gbox, r=R_SMALL), c5_edges, r=R_SMALL, prefix=f"{box.x0}g.")
         s.graph(place(h, hbox, r=R_SMALL), h_edges, r=R_SMALL,
                 styles={k: "accent" for k in odd}, prefix=f"{box.x0}h.")
+
+
+# could_be_isomorphic docstring: a hexagon against two triangles (both 2-regular).
+HEX6 = ring([str(i) for i in range(6)], radius=0.85, start_deg=-90)
+HEX6_EDGES = [(str(i), str((i + 1) % 6)) for i in range(6)]
+TWO_TRI = {"0": (0.5, 0), "1": (0, 0.85), "2": (1, 0.85),
+           "3": (2.1, 0), "4": (1.6, 0.85), "5": (2.6, 0.85)}
+TWO_TRI_EDGES = [("0", "1"), ("1", "2"), ("0", "2"), ("3", "4"), ("4", "5"), ("3", "5")]
+
+
+@figure("could_be_isomorphic", "predicates", "Could be isomorphic",
+        "Each side compares graph g, a six-node cycle, with graph h, two separate triangles; "
+        "both have 6 nodes and 6 edges. Left: comparing degrees only, every node has degree 2 "
+        "(badges), so could_be_isomorphic(h, properties=d) returns True. Right: the default "
+        "properties also count triangles per node, 0 on the cycle and 1 on every triangle node "
+        "(badges in the accent color), so could_be_isomorphic(h) returns False and the graphs "
+        "are certainly not isomorphic.")
+def could_be_isomorphic(s: Scene) -> None:
+    import edgecase as ec
+
+    hexagon = ec.Graph().add_cycle_graph(6)
+    two = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
+    assert hexagon.could_be_isomorphic(two, properties="d") is True
+    assert hexagon.could_be_isomorphic(two) is False
+    assert hexagon.could_be_isomorphic(two, properties="t") is False
+    left, right = contrast(s, 'g.could_be_isomorphic(h, properties="d")',
+                           "g.could_be_isomorphic(h)")
+    for box, side in ((left, "d"), (right, "t")):
+        gbox = Box(box.x0, box.y0 + 22, box.cx, box.y1)
+        hbox = Box(box.cx, box.y0 + 22, box.x1, box.y1)
+        tag = "degree" if side == "d" else "triangles"
+        for sub, name in ((gbox, "g"), (hbox, "h")):
+            s.text(sub.cx, box.y0 + 8, f"{name}: {tag}", size=SIZE_NOTE, opacity=0.6)
+        gp, hp = f"{box.x0}g.", f"{box.x0}h."
+        s.graph(place(HEX6, gbox, r=R_SMALL), HEX6_EDGES, r=R_SMALL, labels=False, prefix=gp)
+        s.graph(place(TWO_TRI, hbox, r=R_SMALL), TWO_TRI_EDGES, r=R_SMALL, labels=False,
+                styles={k: "accent" for k in TWO_TRI} if side == "t" else None, prefix=hp)
+        for k, w in zip(HEX6, ("n", "ne", "se", "s", "sw", "nw")):
+            s.badge(gp + k, "2" if side == "d" else "0", where=w, color="ink")
+        for k in TWO_TRI:
+            s.badge(hp + k, "2" if side == "d" else "1", where="n" if k in "03" else "s",
+                    color="accent" if side == "t" else "ink")
+
+
+# is_subgraph_isomorphic docstring: a 3-node path pattern inside a triangle. Both
+# share one footprint; the pattern is the triangle with its base absent (dashed).
+PEAK = {"A": (0, 1), "B": (1, 0), "C": (2, 1)}
+
+
+@figure("is_subgraph_isomorphic", "predicates", "Is subgraph isomorphic",
+        "Each side searches graph g, a triangle A, B, C, for pattern p, a path of three "
+        "nodes. Left: with induced=False extra edges are allowed, so the path maps onto "
+        "B–A and B–C (in the accent color) and is_subgraph_isomorphic(p, induced=False) "
+        "returns True. Right: with the default induced=True the matched nodes may have no "
+        "extra edge, but the edge A–C (in the accent color) closes every candidate path into "
+        "the triangle, so is_subgraph_isomorphic(p) returns False.")
+def is_subgraph_isomorphic(s: Scene) -> None:
+    import edgecase as ec
+
+    tri = ec.Graph().add_cycle_graph(3)
+    path = ec.Graph().add_path_graph(3)
+    assert tri.is_subgraph_isomorphic(path, induced=False) is True
+    assert tri.is_subgraph_isomorphic(path) is False
+    left, right = contrast(s, "g.is_subgraph_isomorphic(p, induced=False)",
+                           "g.is_subgraph_isomorphic(p)")
+    for box, induced in ((left, False), (right, True)):
+        pbox = Box(box.x0, box.y0 + 22, box.x0 + box.w * 0.42, box.y1)
+        gbox = Box(pbox.x1, box.y0 + 22, box.x1, box.y1)
+        for sub, name in ((pbox, "p"), (gbox, "g")):
+            s.text(sub.cx, box.y0 + 8, name, size=SIZE_NOTE, opacity=0.6)
+        s.graph(place(PEAK, pbox, r=R_SMALL, unit=44), [("A", "B"), ("B", "C")],
+                r=R_SMALL, labels=False, styles=dict.fromkeys(PEAK, "soft"),
+                prefix=f"{box.x0}p.")
+        path_style = {"style": "soft" if induced else "accent"}
+        s.graph(place(PEAK, gbox, r=R_SMALL), [("A", "B", path_style), ("B", "C", path_style),
+                                               ("A", "C", {"style": "accent" if induced
+                                                           else "muted"})],
+                r=R_SMALL, styles=dict.fromkeys(PEAK, "soft" if induced else "accent"),
+                prefix=f"{box.x0}g.")
 
 
 # --- reachability ------------------------------------------------------------------
