@@ -4,6 +4,8 @@ import random
 import edgecase as ec
 import networkx as nx
 import pytest
+from edgecase.steps import KIND_QUERY
+from networkx.algorithms.connectivity import local_edge_connectivity
 
 
 class TestNodeConnectivity:
@@ -396,3 +398,82 @@ class TestDisjointPaths:
         b.edge_disjoint_paths("A", "E")
         assert b.steps[-1].narration == "2 edge-disjoint paths from A to E."
         assert set(b.steps[-1].delta.nodes_selected) == set("ABCDE")
+
+
+# Chain decomposition, k-edge-connected components and subgraphs, and average node
+# connectivity, validated against NetworkX (and brute force where NetworkX's k-edge components
+# return nothing for one-node graphs).
+
+
+def _simple_cases(count=120):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        G = nx.gnp_random_graph(rnd.randint(2, 12), rnd.choice([0.15, 0.3, 0.5]), seed=seed)
+        g = ec.Graph().add_nodes([str(n) for n in G])
+        for u, v in G.edges:
+            g.add_edge(str(u), str(v))
+        yield G, g
+
+
+def _lab(g, nid):
+    return int(g.get_label_from_id(nid))
+
+
+class TestChainsAndKEdge:
+    def test_chain_decomposition_matches_networkx(self):
+        for G, g in _simple_cases():
+            for root in (None, 0):
+                ours = [
+                    [(_lab(g, a), _lab(g, b)) for a, b in c]
+                    for c in g.chain_decomposition(None if root is None else "0")
+                ]
+                assert ours == [list(c) for c in nx.chain_decomposition(G, root)]
+
+    def test_k_edge_components_and_subgraphs(self):
+        for G, g in _simple_cases(80):
+            for k in (1, 2, 3):
+                comps = sorted(sorted(_lab(g, x) for x in c) for c in g.k_edge_components(k))
+                assert comps == sorted(sorted(c) for c in nx.k_edge_components(G, k))
+                subs = sorted(sorted(_lab(g, x) for x in c) for c in g.k_edge_subgraphs(k))
+                assert subs == sorted(sorted(c) for c in nx.k_edge_subgraphs(G, k))
+                assert g.is_k_edge_connected(k) == nx.is_k_edge_connected(G, k)
+
+    def test_single_node_and_brute_force(self):
+        lonely = ec.Graph().add_nodes(["A"])
+        assert lonely.k_edge_components(3) == [lonely.get_node_ids(limit=None)]
+        G = nx.complete_bipartite_graph(2, 3)
+        g = ec.Graph().add_nodes([str(n) for n in G])
+        g.add_edges([(str(u), str(v)) for u, v in G.edges])
+        brute = {
+            frozenset(v for v in G if v == u or local_edge_connectivity(G, u, v) >= 3) for u in G
+        }
+        ours = {frozenset(_lab(g, x) for x in c) for c in g.k_edge_components(3)}
+        assert ours == brute and len(g.k_edge_subgraphs(3)) == 5
+        with pytest.raises(ValueError, match="at least 1"):
+            g.k_edge_components(0)
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).k_edge_components(2)
+
+    def test_average_node_connectivity(self):
+        for G, g in _simple_cases(30):
+            if len(G) <= 9:
+                assert g.average_node_connectivity() == pytest.approx(
+                    nx.average_node_connectivity(G)
+                )
+        D = nx.gnp_random_graph(7, 0.4, seed=3, directed=True)
+        d = ec.Graph(directed=True).add_nodes([str(n) for n in D])
+        d.add_edges([(str(u), str(v)) for u, v in D.edges])
+        assert d.average_node_connectivity() == pytest.approx(nx.average_node_connectivity(D))
+        assert ec.Graph().add_full_graph(5).average_node_connectivity() == 4.0
+
+    def test_steps(self):
+        g = ec.Graph().add_nodes(list("ABCDEF"))
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+        g.chain_decomposition()
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY and step.narration == "2 chains."
+        assert ("C", "D") not in step.delta.edges_selected
+        g.k_edge_components(2)
+        assert set(g.steps[-1].delta.node_groups.values()) == {0, 1}
