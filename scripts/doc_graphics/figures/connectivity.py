@@ -51,7 +51,7 @@ non-negative side `g3`, the one cut edge in accent, and a card with both id
 lists in their colors.
 """
 
-from core import SIZE_NOTE, Box, Scene, compute, figure, place, transform
+from core import SIZE_NOTE, Box, Scene, compute, figure, place, ring, transform
 
 from figures.graph_metrics import PAIR, PAIR_EDGES
 
@@ -642,3 +642,38 @@ def spectral_bisection(s: Scene) -> None:
     s.card_centered(right, [("[4, 5, 6]  D, E, F", "g2"), ("[1, 2, 3]  A, B, C", "g3"),
                             ("cut       C–D", "accent")],
                     title="(negative, non-negative side)")
+
+
+# --- later additions: maximum cut ------------------------------------------
+#
+# max_cut rebuilds its docstring example in edgecase and asserts the result.
+# The sides of a 6-cycle alternate, so they are node colors (g2 / g3) rather
+# than hulls; the cut edges are `accent`, and here every edge crosses.
+HEX = ring(list("ABCDEF"), radius=1.0)
+HEX_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")]
+
+
+@figure("max_cut", "connectivity", "Maximum cut",
+        "A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E "
+        "on side S (teal) and B, D, F on side T (violet). Every one of the six edges then "
+        "runs between the two sides, so all six are cut edges in the accent color. The card "
+        "gives the cut value 6.0 and the two sides.")
+def max_cut(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.max_cut(seed=1)")
+    g = ec.Graph().add_nodes(list(HEX))
+    g.add_edges(HEX_EDGES)
+    value, (S, T) = g.max_cut(seed=1)
+    side_s = sorted(g.get_label_from_id(n) for n in S)
+    side_t = sorted(g.get_label_from_id(n) for n in T)
+    assert value == 6.0 and side_s == ["A", "C", "E"] and side_t == ["B", "D", "F"]
+    cut = [(a, b) for a, b in HEX_EDGES if (a in side_s) != (b in side_s)]
+    assert len(cut) == value
+    s.graph(place(HEX, left, unit=UNIT), [(a, b, {"style": "accent"}) for a, b in cut],
+            styles={k: "g2" if k in side_s else "g3" for k in HEX})
+    s.card_centered(right, [(f"value  {value:.1f}", "accent"),
+                            ("S      " + ", ".join(side_s), "g2"),
+                            ("T      " + ", ".join(side_t), "g3"),
+                            f"cut    {len(cut)} of {len(HEX_EDGES)} edges"],
+                    title="(value, (S, T))")
