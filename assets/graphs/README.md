@@ -236,6 +236,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Eulerize](/assets/graphs/eulerize.light.svg){.lightbox fig-alt="Left: a square with a roof; badges give each node's degree, and only the top corners B and C are odd (accent color). Right: eulerize() returns a new graph with the edge B-C duplicated (accent arc), the cheapest fix, so every degree is even and the graph has an Eulerian circuit." width="100%"}
 ```
 
+### `lattice_reference()` — Lattice reference graph
+
+<img src="lattice-reference.light.svg" alt="Left: a randomly wired eight-node graph with average clustering 0.229. Right: lattice_reference(seed=1) keeps every degree but only accepts swaps that shorten edges around the ring A to H: the four long accent edges on the left become the four short accent edges on the right, closing four triangles around the ring, and the average clustering rises to 0.667." width="570">
+
+```markdown
+![Lattice reference graph](/assets/graphs/lattice-reference.light.svg){.lightbox fig-alt="Left: a randomly wired eight-node graph with average clustering 0.229. Right: lattice_reference(seed=1) keeps every degree but only accepts swaps that shorten edges around the ring A to H: the four long accent edges on the left become the four short accent edges on the right, closing four triangles around the ring, and the average clustering rises to 0.667." width="100%"}
+```
+
 ### `line_graph()` — Line graph
 
 <img src="line-graph.light.svg" alt="A four-node graph whose edges AB, BC, CD and BD each have their own color. In the line graph each of those edges becomes a node of the same color, named after it, and two nodes are joined when their edges share an endpoint; AB and CD share none, so they stay unconnected." width="570">
@@ -258,6 +266,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Quotient graph](/assets/graphs/quotient-graph.light.svg){.lightbox fig-alt="A six-node graph partitioned into three blocks, shown as tinted regions: A, B, C in the accent color, D, E in teal, and F in violet. The quotient has one node per block, labeled block_0, block_1 and block_2; edges inside a block vanish and the several edges between two blocks merge into one." width="100%"}
+```
+
+### `random_reference()` — Random reference graph
+
+<img src="random-reference.light.svg" alt="Left: an eight-node ring with four chords that close four triangles, average clustering 0.667. Right: random_reference(seed=8) rewires it with degree-preserving swaps: the four accent edges on the left are replaced by the four accent edges on the right, every node keeps its degree (4 or 2), and the triangles mostly disappear, leaving an average clustering of 0.229." width="570">
+
+```markdown
+![Random reference graph](/assets/graphs/random-reference.light.svg){.lightbox fig-alt="Left: an eight-node ring with four chords that close four triangles, average clustering 0.667. Right: random_reference(seed=8) rewires it with degree-preserving swaps: the four accent edges on the left are replaced by the four accent edges on the right, every node keeps its degree (4 or 2), and the triangles mostly disappear, leaving an average clustering of 0.229." width="100%"}
 ```
 
 ### `reverse()` — Reverse edges
@@ -996,6 +1012,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![DFS tree](/assets/graphs/dfs-tree.light.svg){.lightbox fig-alt="Left: the same six-node graph with the root A outlined. Right: dfs_tree() keeps the edges the depth-first search discovered, which snake through the graph as one long path, A to B, D, F, E, and finally C (accent arrows); A-C and B-E are dashed. The tree has depth 5, against 3 for the BFS tree." width="100%"}
 ```
 
+### `dominance_frontiers()` — Dominance frontiers
+
+<img src="dominance-frontiers.light.svg" alt="The same if/else control-flow graph from entry. The branches then and else are outlined: each dominates only itself, and its edge into merge (accent) leaves its region, so merge, filled in accent, is the dominance frontier of both. The card lists every node&#x27;s frontier: merge for then and else, and empty for the others." width="570">
+
+```markdown
+![Dominance frontiers](/assets/graphs/dominance-frontiers.light.svg){.lightbox fig-alt="The same if/else control-flow graph from entry. The branches then and else are outlined: each dominates only itself, and its edge into merge (accent) leaves its region, so merge, filled in accent, is the dominance frontier of both. The card lists every node's frontier: merge for then and else, and empty for the others." width="100%"}
+```
+
+### `find_minimal_d_separator()` — Find minimal d-separator
+
+<img src="find-minimal-d-separator.light.svg" alt="A causal graph: age (teal) affects exercise, exercise affects weight, and both exercise and weight affect heart health (violet). Every path from age to heart starts with the edge into exercise, so conditioning on exercise alone, in the accent color, blocks them all. The card returns the minimal separator [exercise]." width="570">
+
+```markdown
+![Find minimal d-separator](/assets/graphs/find-minimal-d-separator.light.svg){.lightbox fig-alt="A causal graph: age (teal) affects exercise, exercise affects weight, and both exercise and weight affect heart health (violet). Every path from age to heart starts with the edge into exercise, so conditioning on exercise alone, in the accent color, blocks them all. The card returns the minimal separator [exercise]." width="100%"}
+```
+
 ### `get_all_connected_nodes()` — All connected nodes
 
 <img src="get-all-connected-nodes.light.svg" alt="A directed graph in two pieces, with the start node A outlined. Ignoring arrow direction, A reaches B, C, and D, shown in the accent color with the edges used; the separate pair E and F is not reached. The card lists B, C, D, without A itself." width="570">
@@ -1034,6 +1066,30 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Topological sort](/assets/graphs/get-topological-sort-order.light.svg){.lightbox fig-alt="A six-node directed acyclic graph laid out left to right. Numbered badges give the topological order, in which every node comes after all nodes with arrows into it. The result card lists A, B, D, C, E, F." width="100%"}
+```
+
+### `immediate_dominators()` — Immediate dominators
+
+<img src="immediate-dominators.light.svg" alt="An if/else control-flow graph: entry (outlined) leads to if, which branches to then and else; both rejoin at merge, which leads to exit. The dominator tree is drawn in the accent color: every path to merge passes through if but through neither branch, so the dashed accent arrow if to merge replaces the faded branch edges. The card maps each node to its immediate dominator: if for then, else and merge, merge for exit." width="570">
+
+```markdown
+![Immediate dominators](/assets/graphs/immediate-dominators.light.svg){.lightbox fig-alt="An if/else control-flow graph: entry (outlined) leads to if, which branches to then and else; both rejoin at merge, which leads to exit. The dominator tree is drawn in the accent color: every path to merge passes through if but through neither branch, so the dashed accent arrow if to merge replaces the faded branch edges. The card maps each node to its immediate dominator: if for then, else and merge, merge for exit." width="100%"}
+```
+
+### `is_d_separator()` — Is d-separator
+
+<img src="is-d-separator.light.svg" alt="A causal graph: smoking (teal) causes tar, tar causes cancer (violet), and smoking also causes yellow fingers. Left: conditioning on tar (outlined) blocks the only path from smoking to cancer, so is_d_separator returns True. Right: with nothing conditioned on, the chain smoking, tar, cancer (accent) is open, so smoking and cancer are dependent and is_d_separator returns False." width="570">
+
+```markdown
+![Is d-separator](/assets/graphs/is-d-separator.light.svg){.lightbox fig-alt="A causal graph: smoking (teal) causes tar, tar causes cancer (violet), and smoking also causes yellow fingers. Left: conditioning on tar (outlined) blocks the only path from smoking to cancer, so is_d_separator returns True. Right: with nothing conditioned on, the chain smoking, tar, cancer (accent) is open, so smoking and cancer are dependent and is_d_separator returns False." width="100%"}
+```
+
+### `is_minimal_d_separator()` — Is minimal d-separator
+
+<img src="is-minimal-d-separator.light.svg" alt="The chain A to B to C to D, with A in teal and D in violet. Left: z = [B] (outlined) blocks the chain, and dropping B would open it, so is_minimal_d_separator returns True. Right: z = [B, C] also separates A from D, but C (accent) is not needed, since B alone already blocks the chain, so the set is not minimal and the call returns False." width="570">
+
+```markdown
+![Is minimal d-separator](/assets/graphs/is-minimal-d-separator.light.svg){.lightbox fig-alt="The chain A to B to C to D, with A in teal and D in violet. Left: z = [B] (outlined) blocks the chain, and dropping B would open it, so is_minimal_d_separator returns True. Right: z = [B, C] also separates A from D, but C (accent) is not needed, since B alone already blocks the chain, so the set is not minimal and the call returns False." width="100%"}
 ```
 
 ### `lowest_common_ancestor()` — Lowest common ancestor
@@ -1270,6 +1326,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Extract path](/assets/graphs/extract-path.light.svg){.lightbox fig-alt="An AdaStar planner from A to F that has already searched. extract_path reads the stored path A, B, C, F, drawn in the accent color, without running the search again." width="100%"}
 ```
 
+### `find_negative_cycle()` — Find negative cycle
+
+<img src="find-negative-cycle.light.svg" alt="Three currencies linked by exchange edges weighted with negative log-rates, searched from USD (outlined). Going around USD to EUR to GBP and back to USD (accent arrows) costs −0.10 − 0.15 + 0.20 = −0.05, a negative cycle: an arbitrage loop. The card returns the cycle with its first node repeated at the end, USD, EUR, GBP, USD." width="570">
+
+```markdown
+![Find negative cycle](/assets/graphs/find-negative-cycle.light.svg){.lightbox fig-alt="Three currencies linked by exchange edges weighted with negative log-rates, searched from USD (outlined). Going around USD to EUR to GBP and back to USD (accent arrows) costs −0.10 − 0.15 + 0.20 = −0.05, a negative cycle: an arbitrage loop. The card returns the cycle with its first node repeated at the end, USD, EUR, GBP, USD." width="100%"}
+```
+
 ### `get_all_simple_paths()` — All simple paths
 
 <img src="get-all-simple-paths.light.svg" alt="A directed graph with three routes from A to F, none repeating a node. All three simple paths are returned and drawn in their own colors: A, B, C, F in the accent color, A, D, F in teal, and A, E, F in violet, matching the card." width="570">
@@ -1324,6 +1388,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Multi-source shortest path lengths](/assets/graphs/multi-source-shortest-path-length.light.svg){.lightbox fig-alt="A two-by-four ladder with sources A and G outlined, each node's distance to the nearer source in a badge. The sources are at 0; B, C, E, F, and H are one hop from a source; D, in the far corner, is the only node at distance 2. The table groups the nodes by distance." width="100%"}
+```
+
+### `negative_edge_cycle()` — Negative edge cycle
+
+<img src="negative-edge-cycle.light.svg" alt="Three currencies linked by exchange edges weighted with negative log-rates. Left: USD to EUR −0.10, EUR to GBP −0.15 and GBP to USD +0.20 add up to −0.05, a negative cycle (accent) that signals an arbitrage loop, so negative_edge_cycle() returns True. Right: with GBP to USD at +0.30 the loop totals +0.05, so no cycle is negative and the call returns False." width="570">
+
+```markdown
+![Negative edge cycle](/assets/graphs/negative-edge-cycle.light.svg){.lightbox fig-alt="Three currencies linked by exchange edges weighted with negative log-rates. Left: USD to EUR −0.10, EUR to GBP −0.15 and GBP to USD +0.20 add up to −0.05, a negative cycle (accent) that signals an arbitrage loop, so negative_edge_cycle() returns True. Right: with GBP to USD at +0.30 the loop totals +0.05, so no cycle is negative and the call returns False." width="100%"}
 ```
 
 ### `node_disjoint_paths()` — Node-disjoint paths
@@ -2210,6 +2282,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Rich-club coefficient](/assets/graphs/rich-club-coefficient.light.svg){.lightbox fig-alt="A five-node graph whose three degree-3 nodes B, C, D are grouped in the accent color and fully linked to each other. The table gives, for each degree k, the nodes above k, the edges among them, and phi(k): 0.6, 0.833, and 1.0 at k = 2." width="100%"}
 ```
 
+### `small_world_omega()` — Small-world coefficient omega
+
+<img src="small-world-omega.light.svg" alt="An eight-node ring with four chords that close four triangles. The random references average a path length L_r of 1.689 against the graph&#x27;s 1.643, and the best lattice reference clusters no more than the graph itself, C_l = C = 0.667. The card computes 1.689 / 1.643 minus 0.667 / 0.667, omega = 0.028: near 0, the small-world middle between a lattice (-1) and a random graph (1)." width="570">
+
+```markdown
+![Small-world coefficient omega](/assets/graphs/small-world-omega.light.svg){.lightbox fig-alt="An eight-node ring with four chords that close four triangles. The random references average a path length L_r of 1.689 against the graph's 1.643, and the best lattice reference clusters no more than the graph itself, C_l = C = 0.667. The card computes 1.689 / 1.643 minus 0.667 / 0.667, omega = 0.028: near 0, the small-world middle between a lattice (-1) and a random graph (1)." width="100%"}
+```
+
+### `small_world_sigma()` — Small-world coefficient sigma
+
+<img src="small-world-sigma.light.svg" alt="An eight-node ring with four chords that close four triangles. Its transitivity C is 0.43, against 0.354 averaged over 10 degree-preserving random references, while its average path length L, 1.643, is close to the references&#x27; 1.707. The card divides the two ratios, (0.43 / 0.354) / (1.643 / 1.707), for sigma = 1.260: above 1, so the graph counts as small-world." width="570">
+
+```markdown
+![Small-world coefficient sigma](/assets/graphs/small-world-sigma.light.svg){.lightbox fig-alt="An eight-node ring with four chords that close four triangles. Its transitivity C is 0.43, against 0.354 averaged over 10 degree-preserving random references, while its average path length L, 1.643, is close to the references' 1.707. The card divides the two ratios, (0.43 / 0.354) / (1.643 / 1.707), for sigma = 1.260: above 1, so the graph counts as small-world." width="100%"}
+```
+
 ### `trophic_incoherence_parameter()` — Trophic incoherence parameter
 
 <img src="trophic-incoherence-parameter.light.svg" alt="The food web of grass, rabbit, mouse, fox and owl, laid out by trophic level with each edge labelled by its level difference: four edges of exactly 1, mouse to owl 1.5 and fox to owl 0.5. The card takes their mean, 1.0, and their standard deviation, q = 0.29; a perfectly layered web would score 0." width="570">
@@ -2226,6 +2314,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Adamic-Adar index](/assets/graphs/adamic-adar-index.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent; badges give C degree 3 and D degree 2. The card sums 1 over the log of each degree, 0.910 + 1.443, for an Adamic-Adar index of 2.353." width="100%"}
+```
+
+### `cn_soundarajan_hopcroft()` — Common neighbors with community bonus
+
+<img src="cn-soundarajan-hopcroft.light.svg" alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). The candidate link A–D (dashed) has two common neighbors, both in the accent color. B shares the pair&#x27;s community, so it counts twice; C does not, so it counts once. The card adds 2 + 1 for a score of 3.0." width="570">
+
+```markdown
+![Common neighbors with community bonus](/assets/graphs/cn-soundarajan-hopcroft.light.svg){.lightbox fig-alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). The candidate link A–D (dashed) has two common neighbors, both in the accent color. B shares the pair's community, so it counts twice; C does not, so it counts once. The card adds 2 + 1 for a score of 3.0." width="100%"}
+```
+
+### `common_neighbor_centrality()` — Common neighbor centrality
+
+<img src="common-neighbor-centrality.light.svg" alt="A path A, B, C, D. The candidate link A–C (dashed) joins nodes that share the neighbor B (accent) and are 2 steps apart. With alpha 0.8 and 4 nodes, the table scores every non-adjacent pair as 0.8 times the shared neighbors plus 0.2 times 4 over the distance: A–C and B–D score 1.2, and A–D, with no shared neighbor and 3 steps apart, only 0.267." width="570">
+
+```markdown
+![Common neighbor centrality](/assets/graphs/common-neighbor-centrality.light.svg){.lightbox fig-alt="A path A, B, C, D. The candidate link A–C (dashed) joins nodes that share the neighbor B (accent) and are 2 steps apart. With alpha 0.8 and 4 nodes, the table scores every non-adjacent pair as 0.8 times the shared neighbors plus 0.2 times 4 over the distance: A–C and B–D score 1.2, and A–D, with no shared neighbor and 3 steps apart, only 0.267." width="100%"}
 ```
 
 ### `common_neighbors()` — Common neighbor count
@@ -2258,6 +2362,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Edge overlap](/assets/graphs/edge-overlap.light.svg){.lightbox fig-alt="Two graphs on nodes A to D. G and H share edges A–B and B–D, drawn in accent; A–C is only in G and C–D only in H. The card counts 2 shared edges out of 4 in the union, one unique to each side, for a Jaccard index of 0.5." width="100%"}
+```
+
+### `find_isomorphism()` — Find isomorphism
+
+<img src="find-isomorphism.light.svg" alt="Two directed graphs drawn differently. Graph a is a workflow where fetch points to build and test, and build points to test; graph b has nodes s1, s2, s3 with s1 pointing to s2 and s3, and s2 pointing to s3. Matching colors pair each node of a with its partner in b, and the card returns the mapping fetch to s1 (accent), build to s2 (teal), and test to s3 (violet), under which every edge of a lands on an edge of b." width="570">
+
+```markdown
+![Find isomorphism](/assets/graphs/find-isomorphism.light.svg){.lightbox fig-alt="Two directed graphs drawn differently. Graph a is a workflow where fetch points to build and test, and build points to test; graph b has nodes s1, s2, s3 with s1 pointing to s2 and s3, and s2 pointing to s3. Matching colors pair each node of a with its partner in b, and the card returns the mapping fetch to s1 (accent), build to s2 (teal), and test to s3 (violet), under which every edge of a lands on an edge of b." width="100%"}
 ```
 
 ### `get_common_neighbors()` — Common neighbors
@@ -2348,6 +2460,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Preferential attachment](/assets/graphs/preferential-attachment.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color and every edge touching them is in accent; badges give B degree 3 and E degree 4. Shared neighbors play no role: the card multiplies the two degrees, 3 times 4, for a score of 12." width="100%"}
 ```
 
+### `ra_index_soundarajan_hopcroft()` — Resource allocation with communities
+
+<img src="ra-index-soundarajan-hopcroft.light.svg" alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). Of the two common neighbors of the candidate link A–D (dashed), only B (accent) is in the pair&#x27;s community, so only B counts, with 1 over its degree 2. C is ignored. The card gives the score 0.5." width="570">
+
+```markdown
+![Resource allocation with communities](/assets/graphs/ra-index-soundarajan-hopcroft.light.svg){.lightbox fig-alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). Of the two common neighbors of the candidate link A–D (dashed), only B (accent) is in the pair's community, so only B counts, with 1 over its degree 2. C is ignored. The card gives the score 0.5." width="100%"}
+```
+
 ### `resistance_distance_matrix()` — Resistance distance matrix
 
 <img src="resistance-distance-matrix.light.svg" alt="A five-node cycle A–C–B–E–D. The table gives the resistance distance for every pair: 0 on the diagonal, 0.8 for adjacent nodes, and 1.2 for nodes two steps apart; A and B are outlined in the accent color and their 1.2 cells are highlighted." width="570">
@@ -2364,6 +2484,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Resource allocation index](/assets/graphs/resource-allocation-index.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent; badges give C degree 3 and D degree 2. The card sums 1 over each degree, 1/3 + 1/2, for a resource allocation index of 0.833." width="100%"}
 ```
 
+### `simrank_similarity()` — SimRank similarity
+
+<img src="simrank-similarity.light.svg" alt="Students ann, bob, and cy in a column on the left, courses math, art, and bio on the right. ann and bob, outlined in the accent color, take the same two courses, math and art (accent), while cy only takes bio. ann and bob are never linked directly, yet SimRank with C = 0.9 rates them 0.818 because their neighbors are alike; ann and cy share nothing and score 0.0." width="570">
+
+```markdown
+![SimRank similarity](/assets/graphs/simrank-similarity.light.svg){.lightbox fig-alt="Students ann, bob, and cy in a column on the left, courses math, art, and bio on the right. ann and bob, outlined in the accent color, take the same two courses, math and art (accent), while cy only takes bio. ann and bob are never linked directly, yet SimRank with C = 0.9 rates them 0.818 because their neighbors are alike; ann and cy share nothing and score 0.0." width="100%"}
+```
+
 ### `simrank_star_similarity()` — SimRank* similarity
 
 <img src="simrank-star-similarity.light.svg" alt="Nodes B and E are outlined in the accent color, with shared neighbors C and D in accent. A 4 by 4 table, part of the full all-pairs result, gives SimRank* scores for B, C, D, and E with 1 on the diagonal; the highlighted B, E cells read 0.30." width="570">
@@ -2378,6 +2506,30 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![SimRank* similarity for one pair](/assets/graphs/simrank-star-similarity-pair.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color; the short paths between them through C and D are in accent. SimRank* counts paths of every length, decayed by the factor C = 0.8 per step, and the card returns a score of 0.297 for the pair." width="100%"}
+```
+
+### `weisfeiler_lehman_graph_hash()` — Weisfeiler-Lehman graph hash
+
+<img src="weisfeiler-lehman-graph-hash.light.svg" alt="Two drawings of a triangle with a one-edge tail, one labeled A to D and one labeled w to z. Node colors mark the classes that neighborhood aggregation finds: the degree-3 node (C, x) in accent, the two other triangle nodes (A, B and y, z) in teal, and the tail end (D, w) in violet. Both graphs reduce to the same class counts, so the card shows the same hash, starting c0454391, for each, and equal is True." width="570">
+
+```markdown
+![Weisfeiler-Lehman graph hash](/assets/graphs/weisfeiler-lehman-graph-hash.light.svg){.lightbox fig-alt="Two drawings of a triangle with a one-edge tail, one labeled A to D and one labeled w to z. Node colors mark the classes that neighborhood aggregation finds: the degree-3 node (C, x) in accent, the two other triangle nodes (A, B and y, z) in teal, and the tail end (D, w) in violet. Both graphs reduce to the same class counts, so the card shows the same hash, starting c0454391, for each, and equal is True." width="100%"}
+```
+
+### `weisfeiler_lehman_subgraph_hashes()` — Weisfeiler-Lehman subgraph hashes
+
+<img src="weisfeiler-lehman-subgraph-hashes.light.svg" alt="A path of five nodes, A to E, colored by their second-round hashes: the two ends A and E share one hash (accent), the inner nodes B and D share another (teal), and the middle node C has its own (violet). The card lists the first six hex digits of each class in matching colors: 68f978 for A and E, b51b1d for B and D, and 0ea5aa for C." width="570">
+
+```markdown
+![Weisfeiler-Lehman subgraph hashes](/assets/graphs/weisfeiler-lehman-subgraph-hashes.light.svg){.lightbox fig-alt="A path of five nodes, A to E, colored by their second-round hashes: the two ends A and E share one hash (accent), the inner nodes B and D share another (teal), and the middle node C has its own (violet). The card lists the first six hex digits of each class in matching colors: 68f978 for A and E, b51b1d for B and D, and 0ea5aa for C." width="100%"}
+```
+
+### `within_inter_cluster()` — Within-inter-cluster ratio
+
+<img src="within-inter-cluster.light.svg" alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). The candidate link A–D (dashed) has one common neighbor inside its community, B (accent), and one outside, C. The card divides 1 within by 1 inter plus delta 0.001, a score of 0.999." width="570">
+
+```markdown
+![Within-inter-cluster ratio](/assets/graphs/within-inter-cluster.light.svg){.lightbox fig-alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). The candidate link A–D (dashed) has one common neighbor inside its community, B (accent), and one outside, C. The card divides 1 within by 1 inter plus delta 0.001, a score of 0.999." width="100%"}
 ```
 
 ## diffusion
@@ -2432,6 +2584,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## connectivity
 
+### `average_node_connectivity()` — Average node connectivity
+
+<img src="average-node-connectivity.light.svg" alt="Left: a six-node cycle, where every pair of nodes, such as A and D (outlined), is joined by two routes that share no other node (accent and teal), so the average node connectivity is 2.0. Right: the same nodes without the closing edge F–A (dashed), a path, where every pair has only one route and the average is 1.0." width="570">
+
+```markdown
+![Average node connectivity](/assets/graphs/average-node-connectivity.light.svg){.lightbox fig-alt="Left: a six-node cycle, where every pair of nodes, such as A and D (outlined), is joined by two routes that share no other node (accent and teal), so the average node connectivity is 2.0. Right: the same nodes without the closing edge F–A (dashed), a path, where every pair has only one route and the average is 1.0." width="100%"}
+```
+
 ### `biconnected_components()` — Biconnected components
 
 <img src="biconnected-components.light.svg" alt="Two triangles joined by the path C, D, E, plus an isolated node H. Each block has its own tinted region and color: A, B, C; the bridge C, D; the bridge D, E; and E, F, G. The articulation points C, D, and E sit where two regions overlap, because each belongs to two blocks; H belongs to none." width="570">
@@ -2454,6 +2614,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Bridges](/assets/graphs/bridges.light.svg){.lightbox fig-alt="Two triangles joined by the path C, D, E. The edges C–D and D–E are in the accent color: each is the only link between its two sides, so removing it disconnects the graph. The card lists the bridges C–D and D–E." width="100%"}
+```
+
+### `chain_decomposition()` — Chain decomposition
+
+<img src="chain-decomposition.light.svg" alt="Two triangles joined by the bridge C–D. The depth-first search splits the edges into two chains, each a closed loop: A, C, B back to A (accent) and D, F, E back to D (teal). The bridge C–D, faded, lies on no cycle and so belongs to no chain. The card lists both chains as edge pairs in traversal order." width="570">
+
+```markdown
+![Chain decomposition](/assets/graphs/chain-decomposition.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D. The depth-first search splits the edges into two chains, each a closed loop: A, C, B back to A (accent) and D, F, E back to D (teal). The bridge C–D, faded, lies on no cycle and so belongs to no chain. The card lists both chains as edge pairs in traversal order." width="100%"}
 ```
 
 ### `conductance()` — Conductance
@@ -2558,6 +2726,30 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Gomory-Hu tree](/assets/graphs/gomory-hu-tree.light.svg){.lightbox fig-alt="Left: the weighted cut graph, whose minimum cut between A and F is the accent pair of edges B–D and C–E, capacity 3. Right: its Gomory-Hu tree, six edges weighted with pairwise cut values. On the tree path from A to F (weights 7, 3, 6, 6) the lightest edge, C–E with weight 3, is in the accent color: it gives the same cut value 3." width="100%"}
+```
+
+### `is_k_edge_connected()` — Is k-edge-connected
+
+<img src="is-k-edge-connected.light.svg" alt="The same six-node cycle on both sides. Left: removing any single edge leaves a path, so the cycle is 2-edge-connected and is_k_edge_connected(2) returns True. Right: removing the two accent edges B–C and E–F splits it in two, so fewer than 3 edge removals disconnect it and is_k_edge_connected(3) returns False." width="570">
+
+```markdown
+![Is k-edge-connected](/assets/graphs/is-k-edge-connected.light.svg){.lightbox fig-alt="The same six-node cycle on both sides. Left: removing any single edge leaves a path, so the cycle is 2-edge-connected and is_k_edge_connected(2) returns True. Right: removing the two accent edges B–C and E–F splits it in two, so fewer than 3 edge removals disconnect it and is_k_edge_connected(3) returns False." width="100%"}
+```
+
+### `k_edge_components()` — k-edge-connected components
+
+<img src="k-edge-components.light.svg" alt="Two triangles joined by the bridge C–D. With k = 2, nodes belong together when two edge-disjoint paths join them: the triangle A, B, C (accent region) and the triangle D, E, F (teal region) qualify, while the faded bridge offers only one path between them. The card lists the two components; with k = 3 all 6 nodes are separate." width="570">
+
+```markdown
+![k-edge-connected components](/assets/graphs/k-edge-components.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D. With k = 2, nodes belong together when two edge-disjoint paths join them: the triangle A, B, C (accent region) and the triangle D, E, F (teal region) qualify, while the faded bridge offers only one path between them. The card lists the two components; with k = 3 all 6 nodes are separate." width="100%"}
+```
+
+### `k_edge_subgraphs()` — k-edge-connected subgraphs
+
+<img src="k-edge-subgraphs.light.svg" alt="Both sides show hubs u and v joined through a, b and c, with k = 3. Left: k_edge_components(3) counts paths through the whole graph, and the three edge-disjoint u–v paths (accent, teal, violet) put u and v in one component, with a, b and c alone. Right: k_edge_subgraphs(3) counts only edges inside each group, and u and v are not even adjacent, so every subgraph is a single node." width="570">
+
+```markdown
+![k-edge-connected subgraphs](/assets/graphs/k-edge-subgraphs.light.svg){.lightbox fig-alt="Both sides show hubs u and v joined through a, b and c, with k = 3. Left: k_edge_components(3) counts paths through the whole graph, and the three edge-disjoint u–v paths (accent, teal, violet) put u and v in one component, with a, b and c alone. Right: k_edge_subgraphs(3) counts only edges inside each group, and u and v are not even adjacent, so every subgraph is a single node." width="100%"}
 ```
 
 ### `local_bridges()` — Local bridges
@@ -3196,6 +3388,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Steiner tree](/assets/graphs/steiner-tree.light.svg){.lightbox fig-alt="A weighted five-node graph with terminals B, C, and E outlined in the accent color. The Steiner tree joins them through the non-terminal node D, filled in the accent color, using edges B–D, D–C, and D–E; node A and the heavier outer edges are unused. The card lists the tree edges and the total weight 2 + 2 + 1 = 5." width="100%"}
 ```
 
+### `subgraph_isomorphisms()` — Subgraph isomorphisms
+
+<img src="subgraph-isomorphisms.light.svg" alt="Left: pattern p, a feed-forward loop where A points to B and C and B points to C, beside graph g, a four-node directed network with edges x→y, y→z, x→z, z→w, and y→w. Right: two miniature copies of g, each highlighting one occurrence of the pattern in the accent color, listed beside it: A→x B→y C→z, and A→y B→z C→w." width="570">
+
+```markdown
+![Subgraph isomorphisms](/assets/graphs/subgraph-isomorphisms.light.svg){.lightbox fig-alt="Left: pattern p, a feed-forward loop where A points to B and C and B points to C, beside graph g, a four-node directed network with edges x→y, y→z, x→z, z→w, and y→w. Right: two miniature copies of g, each highlighting one occurrence of the pattern in the accent color, listed beside it: A→x B→y C→z, and A→y B→z C→w." width="100%"}
+```
+
 ### `to_prufer_sequence()` — To Prüfer sequence
 
 <img src="to-prufer-sequence.light.svg" alt="A tree on node ids 1 to 6: 3–1, 1–5, 5–2, 5–6, and 6–4. Repeatedly removing the smallest leaf and writing down its neighbor removes 2, 3, 1, and 4 in that order (filled order badges), along the four edges in the accent color; removing 3 turns 1 into a leaf, so it goes next. The card shows the removed leaves and the returned sequence [5, 1, 5, 6]." width="570">
@@ -3271,6 +3471,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ```
 
 ## predicates
+
+### `could_be_isomorphic()` — Could be isomorphic
+
+<img src="could-be-isomorphic.light.svg" alt="Each side compares graph g, a six-node cycle, with graph h, two separate triangles; both have 6 nodes and 6 edges. Left: comparing degrees only, every node has degree 2 (badges), so could_be_isomorphic(h, properties=d) returns True. Right: the default properties also count triangles per node, 0 on the cycle and 1 on every triangle node (badges in the accent color), so could_be_isomorphic(h) returns False and the graphs are certainly not isomorphic." width="570">
+
+```markdown
+![Could be isomorphic](/assets/graphs/could-be-isomorphic.light.svg){.lightbox fig-alt="Each side compares graph g, a six-node cycle, with graph h, two separate triangles; both have 6 nodes and 6 edges. Left: comparing degrees only, every node has degree 2 (badges), so could_be_isomorphic(h, properties=d) returns True. Right: the default properties also count triangles per node, 0 on the cycle and 1 on every triangle node (badges in the accent color), so could_be_isomorphic(h) returns False and the graphs are certainly not isomorphic." width="100%"}
+```
 
 ### `has_bridges()` — Has bridges
 
@@ -3486,6 +3694,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is strongly connected](/assets/graphs/is-strongly-connected.light.svg){.lightbox fig-alt="Left: two directed triangles joined by edges in both directions between C and D, so every node can reach every other along the arrows and is_strongly_connected() returns True. Right: the same graph without the edge from D back to C (drawn dashed in the accent color); nothing in D, E, F can reach A, B, C, so is_strongly_connected() returns False." width="100%"}
+```
+
+### `is_subgraph_isomorphic()` — Is subgraph isomorphic
+
+<img src="is-subgraph-isomorphic.light.svg" alt="Each side searches graph g, a triangle A, B, C, for pattern p, a path of three nodes. Left: with induced=False extra edges are allowed, so the path maps onto B–A and B–C (in the accent color) and is_subgraph_isomorphic(p, induced=False) returns True. Right: with the default induced=True the matched nodes may have no extra edge, but the edge A–C (in the accent color) closes every candidate path into the triangle, so is_subgraph_isomorphic(p) returns False." width="570">
+
+```markdown
+![Is subgraph isomorphic](/assets/graphs/is-subgraph-isomorphic.light.svg){.lightbox fig-alt="Each side searches graph g, a triangle A, B, C, for pattern p, a path of three nodes. Left: with induced=False extra edges are allowed, so the path maps onto B–A and B–C (in the accent color) and is_subgraph_isomorphic(p, induced=False) returns True. Right: with the default induced=True the matched nodes may have no extra edge, but the edge A–C (in the accent color) closes every candidate path into the triangle, so is_subgraph_isomorphic(p) returns False." width="100%"}
 ```
 
 ### `is_tree()` — Is tree
