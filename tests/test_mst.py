@@ -1,5 +1,9 @@
-import pytest
+import random
+
 import edgecase as ec
+import networkx as nx
+import pytest
+from edgecase.steps import KIND_BUILD_EDGES, KIND_TRANSFORM
 
 
 class TestMinimumSpanningTree:
@@ -389,3 +393,107 @@ class TestMSTEdgeCases:
 
         # Should have 2 edges for 3 nodes
         assert mst.count_edges() == 2
+
+
+# Edmonds' optimum branchings and spanning arborescences, validated against NetworkX.
+
+
+def _digraphs(count=120):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        n = rnd.randint(1, 10)
+        G = nx.gnp_random_graph(n, rnd.choice([0.2, 0.4, 0.7]), seed=seed, directed=True)
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.choice([rnd.uniform(-3, 5), rnd.randint(-2, 4)])
+        yield G, rnd
+
+
+def _build(G, weighted=True):
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in sorted(G)])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d.get("weight", 1.0))
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+def _total(g):
+    return sum(g.get_edge(e).weight for e in g.get_edge_ids(limit=None))
+
+
+class TestBranchings:
+    def test_optimum_branchings_against_networkx(self):
+        for G, _ in _digraphs():
+            g = _build(G)
+            for ours, ref in (
+                (g.maximum_branching(), nx.maximum_branching(G)),
+                (g.minimum_branching(), nx.minimum_branching(G)),
+            ):
+                assert _total(ours) == pytest.approx(
+                    sum(G[u][v]["weight"] for u, v in ref.edges), abs=1e-9
+                )
+                assert ours.count_nodes() == g.count_nodes()
+                if g.count_nodes():
+                    assert ours.is_branching()
+
+    def test_spanning_arborescences_against_networkx(self):
+        for G, _ in _digraphs():
+            g = _build(G)
+            for method, ref_fn in (
+                (g.maximum_spanning_arborescence, nx.maximum_spanning_arborescence),
+                (g.minimum_spanning_arborescence, nx.minimum_spanning_arborescence),
+            ):
+                try:
+                    ref = ref_fn(G)
+                except nx.NetworkXException:
+                    with pytest.raises(ValueError, match="no spanning arborescence"):
+                        method()
+                    continue
+                ours = method()
+                assert ours.is_arborescence()
+                assert _total(ours) == pytest.approx(
+                    sum(G[u][v]["weight"] for u, v in ref.edges), abs=1e-9
+                )
+
+    def test_unique_optimum_matches_edge_set(self):
+        rnd = random.Random(5)
+        G = nx.gnp_random_graph(12, 0.5, seed=5, directed=True)
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.random()
+        g = _build(G)
+        ours = {
+            tuple(s.split("->"))
+            for s in g.maximum_spanning_arborescence().get_edges_str_repr(use_labels=True)
+        }
+        ref = {(str(u), str(v)) for u, v in nx.maximum_spanning_arborescence(G).edges}
+        assert ours == ref
+
+    def test_weight_attr_and_copies(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        g.add_edges(
+            [("A", "B", {"score": 1.0}), ("C", "B", {"score": 5.0}), ("A", "C", {"score": 2.0})]
+        )
+        tree = g.maximum_spanning_arborescence(weight_attr="score")
+        assert sorted(tree.get_edges_str_repr(use_labels=True)) == ["A->C", "C->B"]
+        assert tree.get_node_ids(limit=None) == g.get_node_ids(limit=None)
+        assert g.count_edges() == 3
+
+    def test_errors(self):
+        with pytest.raises(ValueError, match="directed"):
+            ec.Graph().add_path_graph(3).maximum_branching()
+        split = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        split.add_edges([("A", "B"), ("C", "B")])
+        with pytest.raises(ValueError, match="no spanning arborescence"):
+            split.minimum_spanning_arborescence()
+
+    def test_steps(self):
+        g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 2.0), ("B", "C", 3.0), ("A", "C", 1.0)])
+        tree = g.maximum_spanning_arborescence()
+        step = g.steps[-1]
+        assert step.kind == KIND_TRANSFORM
+        assert sorted(step.delta.edges_selected) == [("A", "B"), ("B", "C")]
+        assert step.narration == "maximum_spanning_arborescence(): 2 edges with total weight 5."
+        assert tree.steps[-1].kind == KIND_BUILD_EDGES
