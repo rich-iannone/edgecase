@@ -938,9 +938,9 @@ class Graph:
         - starting a fresh record of operations after a checkpoint, e.g., to export only the
           later steps with `steps.to_polars()`
 
-        Note that a cleared log no longer knows how the existing nodes and edges were created.
-        Since `play()` rebuilds each frame from the recorded steps alone, nodes and edges that
-        existed before clearing won't appear in a later replay.
+        A cleared log no longer knows how the existing nodes and edges were created, so the
+        current nodes and edges are kept as a starting point: a later `play()` shows them from
+        the first frame and replays only the steps recorded since.
 
         Returns
         -------
@@ -974,6 +974,13 @@ class Graph:
 
         self._steps = StepList()
         self._steps._graph_ref = weakref.ref(self)
+        # Labels as the step deltas record them, edges in stored (source, target) order
+        self._steps.baseline = (
+            sorted(self._node_label(n) for n in self.get_node_ids(limit=None)),
+            sorted(
+                {(self._node_label(s), self._node_label(t)) for _, s, t in self.get_edges_as_tuples()}
+            ),
+        )
         self._pending_note = None
         return self
 
@@ -3387,7 +3394,8 @@ class Graph:
         self-contained HTML file in a temporary location; inside a Jupyter/IPython session that
         HTML is displayed inline below the cell, otherwise it is opened in the default web
         browser. Nodes are labelled with their node IDs, directed graphs are drawn with arrows,
-        and multiple edges between the same pair of nodes are shown as a single line.
+        and every edge is drawn: parallel edges between the same pair of nodes are curved apart
+        so each one stays visible.
 
         `plot_vis()` is meant for hands-on exploration of small and medium graphs: dragging nodes
         around, zooming, and watching the physics simulation settle. For a static,
@@ -3398,9 +3406,9 @@ class Graph:
         target
             Where to show the graph: `"auto"`, `"notebook"`, or `"browser"`. If `"auto"` (default),
             infers whether to display inline (an IPython/Jupyter session is active) or open a
-            browser tab. Note that whenever an IPython session is active the graph is displayed
-            inline regardless of this setting, and that `"notebook"` outside of IPython only writes
-            the temporary HTML file without showing it. Any other value raises a `ValueError`.
+            browser tab. `"browser"` always opens a browser tab, even inside IPython. Note that
+            `"notebook"` outside of IPython only writes the temporary HTML file without showing
+            it. Any other value raises a `ValueError`.
         width
             Canvas width in pixels. Default is `800`.
         height
@@ -3474,6 +3482,7 @@ class Graph:
                 self,
                 output_path=None,
                 open_browser=True,
+                display_inline=False,
                 width=width,
                 height=height,
                 node_size=node_size,
@@ -3592,7 +3601,7 @@ class Graph:
         color_by: Optional[str] = None,
         edge_color_by: Optional[str] = None,
         size_by: Optional[str] = None,
-        label_by: str = "id",
+        label_by: Optional[str] = None,
         edge_label_by: Optional[str] = None,
         curved_edges: bool = False,
         theme: str = "light",
@@ -3607,6 +3616,7 @@ class Graph:
         edge_routing: Union[str, float] = "around",
         show_labels: bool = True,
         output: Optional[str] = None,
+        seed: Optional[int] = None,
     ):
         """
         Render the graph as a static SVG image.
@@ -3634,10 +3644,12 @@ class Graph:
 
         Attribute-based options read the attributes stored on nodes and edges (those set with
         `add_node()`, `set_node_attrs()`, or computed by methods like `betweenness_centrality()`
-        and `cmty_louvain()`). Columns that only exist in DataFrame views, such as the node
-        `label` and `degree` columns or the edge `weight` column, can't be used. The force and
-        random layouts are not seeded, so node positions differ between calls. For large graphs
-        (several thousand nodes and up) consider `plot_cosmo()` instead.
+        and `cmty_louvain()`). `color_by=`, `size_by=` and `label_by=` also accept `"label"`
+        (the node label, or the ID for unlabelled nodes), `"degree"` and `"id"` when no node
+        has a stored attribute of that name; any other name that no node has raises a
+        `ValueError`. The force and random layouts start from random positions, so pass
+        `seed=` for a reproducible picture. For large graphs (several thousand nodes and up)
+        consider `plot_cosmo()` instead.
 
         Parameters
         ----------
@@ -3659,14 +3671,14 @@ class Graph:
             `cross_community_color=`. When set, this takes precedence over the edge coloring done
             by `color_by=`. It is ignored if no node has the attribute. Default is `None`.
         size_by
-            Numeric node attribute to map to node radius. Values are min-max scaled so that
-            radii range from half to twice the base `node_size=`. Nodes with a missing or
-            non-numeric value get the base size. Default is `None` (uniform size).
+            Numeric node attribute to map to node radius, or `"degree"`. Values are min-max
+            scaled so that radii range from half to twice the base `node_size=`. Nodes with a
+            missing or non-numeric value get the base size. Default is `None` (uniform size).
         label_by
-            What to display as the text on each node. The default, `"id"`, shows the internal
-            node ID. Any other value is treated as a node attribute name, and nodes lacking that
-            attribute fall back to their ID. Since node labels aren't stored as attributes, store
-            display names as an attribute (e.g., `name=`) to show them. Has no effect if
+            What to display as the text on each node: `"id"` for the internal node ID,
+            `"label"` for the node label (unlabelled nodes show their ID), or a node attribute
+            name (nodes lacking it show their ID). If `None` (default), the attribute chosen with
+            `set_node_attr_to_display()` is used, or `"id"` if none was chosen. Has no effect if
             `show_labels=` is `False`.
         edge_label_by
             Edge attribute to display as a small text label along each edge (e.g., `"rel"`).
@@ -3680,8 +3692,8 @@ class Graph:
         palette
             Name of a color palette from `edgecase.colors` used for `color_by=` and
             `edge_color_by=` (see `edgecase.colors.list_palettes()` for the options, e.g., `"Set2"`
-            or `"Dark2"`). Default is `"tableau"`. Unknown names silently fall back to the default
-            colors.
+            or `"Dark2"`). Default is `"tableau"`. An unknown name raises a `ValueError` when
+            `color_by=` or `edge_color_by=` is set.
         width
             SVG canvas width in pixels. Default is `600`. Together with `height=`, it also
             influences the automatic node size.
@@ -3718,6 +3730,9 @@ class Graph:
             Optional file path to save the output to. A path ending in `.html` saves the HTML
             version with hover tooltips; any other extension (typically `.svg`) saves the raw SVG.
             The rendered object is returned either way. Default is `None` (nothing is saved).
+        seed
+            Integer seed for the `"force"` and `"random"` layouts. The same seed on the same graph
+            gives the same positions. If `None` (default), positions differ between calls.
 
         Returns
         -------
@@ -3725,6 +3740,13 @@ class Graph:
             Interactive visualization that auto-renders in Jupyter notebooks (via `_repr_html_`) and
             can be saved with `.save(path)`. The raw SVG markup is available as its `.svg`
             property.
+
+        Raises
+        ------
+        ValueError
+            If `color_by=`, `size_by=` or `label_by=` names an attribute that no node has (other
+            than the built-in `"id"`, `"label"` and `"degree"`), or `palette=` is unknown while
+            `color_by=` or `edge_color_by=` is set.
 
         Examples
         --------
@@ -3797,7 +3819,7 @@ class Graph:
             color_by=color_by,
             edge_color_by=edge_color_by,
             size_by=size_by,
-            label_by=label_by,
+            label_by=label_by or getattr(self, "_display_attr", None) or "id",
             edge_label_by=edge_label_by,
             curved_edges=curved_edges,
             theme=theme,
@@ -3812,6 +3834,7 @@ class Graph:
             edge_routing=edge_routing,
             show_labels=show_labels,
             output=output,
+            seed=seed,
         )
 
     def play(
@@ -3851,8 +3874,9 @@ class Graph:
         - debugging a sequence of graph edits by watching exactly what each one changed
 
         A note still pending from `note()` is flushed as a final annotation step before
-        rendering. The replay is rebuilt purely from the recorded steps, not from the current
-        graph, so nodes and edges created before a `clear_steps()` call don't appear in it. Node
+        rendering. The replay is rebuilt from the recorded steps, not from the current graph.
+        After a `clear_steps()` call it starts from the nodes and edges that existed at that
+        point, which are present from the first frame. Node
         labels shown in the player are the node labels (or IDs for unlabelled nodes).
 
         Parameters
@@ -3888,9 +3912,9 @@ class Graph:
             If `True`, start playback automatically as soon as the widget is displayed. If `False`
             (default), the player waits on the first frame until play is pressed.
         speed
-            Initial playback speed multiplier. The speed menu offers `0.5`, `1.0` (default, about
-            1.2 seconds per step), `2.0`, and `4.0`; pass one of these values. Other values don't
-            match a menu entry, in which case the menu shows its first entry (`0.5x`).
+            Initial playback speed multiplier, a positive number. `1.0` (default) is about 1.2
+            seconds per step. The speed menu offers `0.5`, `1.0`, `2.0`, and `4.0`, plus the
+            given value if it's another one (e.g. `1.5`). Anything else raises `ValueError`.
         layout_mode
             `"progressive"` (the default) lays out the graph as it exists at each step, starting
             from the previous step's positions, and animates nodes between steps so the graph
@@ -3950,6 +3974,7 @@ class Graph:
         return render_steps(
             graph=self,
             steps=steps or list(self._steps),
+            baseline=self._steps.baseline,
             layout=layout,
             theme=theme,
             width=width,
@@ -4012,9 +4037,8 @@ class Graph:
         tree_edges
             Explicit tree edges as `(source, target)` node ID pairs, where `target` is the node
             reached through that edge. If `None` (default), they are inferred from the visit order
-            by attaching each node to its most recently visited neighbor. The inference only
-            follows outgoing edges, so on directed graphs it currently finds no tree edges; pass
-            them explicitly there if you want the traversal tree drawn.
+            by attaching each node to its most recently visited neighbor (on directed graphs, its
+            most recently visited predecessor, since the tree edge must point to the node).
         algorithm
             Label shown in the controls (e.g., `"BFS"`, `"DFS"`). Default is `""`, which shows no
             label, except when BFS is run automatically from `start=`, in which case it becomes
@@ -8701,7 +8725,7 @@ class Graph:
         return_dict
             If `False` (default), returns the graph itself so calls can be chained, and records the
             computation so it is listed by `describe()`. If `True`, returns the scores as a
-            dictionary instead. In both cases the scores are also written to the node DataFrame.
+            dictionary instead, without writing anything to the graph.
 
         Returns
         -------
@@ -8762,13 +8786,13 @@ class Graph:
         if attr_name is None:
             attr_name = "bipartite_degree_centrality"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            self._computations.append(("bipartite_degree_centrality", {"which": which}, attr_name))
-
         if return_dict:
             return result_ids
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        self._computations.append(("bipartite_degree_centrality", {"which": which}, attr_name))
+
         return self
 
     def bipartite_closeness_centrality(
@@ -8819,7 +8843,7 @@ class Graph:
         return_dict
             If `False` (default), returns the graph itself so calls can be chained, and records the
             computation so it is listed by `describe()`. If `True`, returns the scores as a
-            dictionary instead. In both cases the scores are also written to the node DataFrame.
+            dictionary instead, without writing anything to the graph.
 
         Returns
         -------
@@ -8880,15 +8904,15 @@ class Graph:
         if attr_name is None:
             attr_name = "bipartite_closeness_centrality"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            self._computations.append(
-                ("bipartite_closeness_centrality", {"which": which}, attr_name)
-            )
-
         if return_dict:
             return result_ids
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        self._computations.append(
+            ("bipartite_closeness_centrality", {"which": which}, attr_name)
+        )
+
         return self
 
     def bipartite_betweenness_centrality(
@@ -8944,7 +8968,7 @@ class Graph:
         return_dict
             If `False` (default), returns the graph itself so calls can be chained, and records the
             computation so it is listed by `describe()`. If `True`, returns the scores as a
-            dictionary instead. In both cases the scores are also written to the node DataFrame.
+            dictionary instead, without writing anything to the graph.
 
         Returns
         -------
@@ -9006,15 +9030,15 @@ class Graph:
         if attr_name is None:
             attr_name = "bipartite_betweenness_centrality"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            self._computations.append(
-                ("bipartite_betweenness_centrality", {"which": which}, attr_name)
-            )
-
         if return_dict:
             return result_ids
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        self._computations.append(
+            ("bipartite_betweenness_centrality", {"which": which}, attr_name)
+        )
+
         return self
 
     def is_tree(self) -> bool:
@@ -11208,16 +11232,15 @@ class Graph:
             Absolute tolerance as a `(lower, upper)` tuple of non-negative offsets. With a
             starting value `x`, neighbors whose value lies in `[x - lower, x + upper]` (inclusive)
             are returned. For example, `(1.0, 2.0)` accepts values from `x - 1.0` to `x + 2.0`.
-            Defaults to `None`. If both `tol_abs=` and `tol_pct=` are given, `tol_abs=` takes
-            precedence and `tol_pct=` is ignored.
+            Defaults to `None`. Give at most one of `tol_abs=` and `tol_pct=`.
         tol_pct
             Percentage tolerance as a `(lower_pct, upper_pct)` tuple, expressed in percent (so
-            `10` means 10%). Neighbors whose value lies in
-            `[x * (1 - lower_pct / 100), x * (1 + upper_pct / 100)]` are returned. For example,
-            `(10, 20)` accepts values from `0.9 * x` to `1.2 * x`. Defaults to `None`. Only
-            used when `tol_abs=` is `None`. Because the window scales with `x`, it is suited to
-            attributes that span several orders of magnitude, but it collapses to exact matching
-            when `x` is `0` and is inverted (so matches nothing) when `x` is negative.
+            `10` means 10%) of the magnitude of `x`. Neighbors whose value lies in
+            `[x - |x| * lower_pct / 100, x + |x| * upper_pct / 100]` are returned. For example,
+            `(10, 20)` accepts values from `0.9 * x` to `1.2 * x` when `x` is positive, and from
+            `-110` to `-80` when `x` is `-100`. Defaults to `None`. Because the window scales with
+            `x`, it is suited to attributes that span several orders of magnitude, but it
+            collapses to exact matching when `x` is `0`.
 
         Returns
         -------
@@ -11231,13 +11254,14 @@ class Graph:
         ------
         ValueError
             If the starting node's value for `node_attr=` exists but is not numeric (`int` or
-            `float`), or if `node=` is a label not found in the graph.
+            `float`), if `node=` is a label not found in the graph, if both `tol_abs=` and
+            `tol_pct=` are given, or if a tolerance offset is negative.
 
         Technical Notes
         ---------------
         Let $x_u$ be the starting node's value. With `tol_abs=(a, b)`, a neighbor $v$ is
         similar when $x_u - a \le x_v \le x_u + b$. With `tol_pct=(p, q)` it is similar when
-        $x_u (1 - p/100) \le x_v \le x_u (1 + q/100)$. With neither, the condition reduces to
+        $x_u - |x_u| p/100 \le x_v \le x_u + |x_u| q/100$. With neither, the condition reduces to
         $x_v = x_u$. Bounds are inclusive on both sides. Python `bool` values are a subclass of
         `int` and are therefore treated as numeric (`True == 1`).
 
@@ -11296,6 +11320,12 @@ class Graph:
         )
         ```
         """
+        if tol_abs is not None and tol_pct is not None:
+            raise ValueError("Give at most one of tol_abs= and tol_pct=")
+        for name, tol in (("tol_abs", tol_abs), ("tol_pct", tol_pct)):
+            if tol is not None and (tol[0] < 0 or tol[1] < 0):
+                raise ValueError(f"{name}= offsets must be non-negative, got {tuple(tol)}")
+
         # Get starting node's attribute value
         start_node = self.get_node(node)
         if not start_node or not start_node.attributes:
@@ -11315,8 +11345,9 @@ class Graph:
             lower_bound = start_value - tol_abs[0]
             upper_bound = start_value + tol_abs[1]
         elif tol_pct is not None:
-            lower_bound = start_value * (1 - tol_pct[0] / 100.0)
-            upper_bound = start_value * (1 + tol_pct[1] / 100.0)
+            # Offsets scale with |x| so the window isn't inverted for negative values
+            lower_bound = start_value - abs(start_value) * tol_pct[0] / 100.0
+            upper_bound = start_value + abs(start_value) * tol_pct[1] / 100.0
         else:
             # Exact match if no tolerance specified
             lower_bound = start_value
@@ -12265,11 +12296,9 @@ class Graph:
         The measures differ in what "important" means: degree counts direct connections,
         PageRank rewards links from other important nodes, and betweenness rewards nodes that
         sit on many shortest paths. Degree-based measures are cheap; betweenness computes
-        all-pairs shortest paths and can be slow on large graphs. Note that `"pagerank"` and
-        `"betweenness"` also store their scores as a node attribute (`pagerank` and
-        `betweenness_centrality` by default), exactly as calling `pagerank()` or
-        `betweenness_centrality()` would. Selection is cumulative, so call `clear_selection()`
-        first to start fresh. The graph is modified in place and returned for chaining.
+        all-pairs shortest paths and can be slow on large graphs. The scores are only used for
+        ranking; no node attribute is written. Selection is cumulative, so call
+        `clear_selection()` first to start fresh. The graph is modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -12289,10 +12318,10 @@ class Graph:
             node whose score is at least the `k`-th highest score is selected, so the result can
             contain more than `k` nodes.
         **kwargs
-            Extra keyword arguments forwarded to `pagerank()` when `measure="pagerank"`, e.g.,
-            `damping=`, `max_iter=`, `tol=`, or `attr_name=` (to change the name of the stored
-            score attribute). Passing an argument that `pagerank()` does not accept raises
-            `TypeError`. For all other measures, `**kwargs` is ignored.
+            Extra keyword arguments forwarded to `pagerank()` (e.g., `damping=`, `max_iter=`,
+            `tol=`) or `betweenness_centrality()` (`weighted=`). An argument the chosen measure
+            doesn't accept, any argument for the degree measures, and `attr_name=` /
+            `return_dict=` (nothing is stored) raise `TypeError`.
 
         Returns
         -------
@@ -12356,6 +12385,16 @@ class Graph:
         ```
 
         """
+        for name in ("attr_name", "return_dict"):
+            if name in kwargs:
+                raise TypeError(
+                    f"select_nodes_by_centrality() doesn't store scores, so {name}= isn't accepted"
+                )
+        if kwargs and measure in ("degree", "in_degree", "out_degree"):
+            raise TypeError(
+                f"measure={measure!r} takes no extra arguments, got {sorted(kwargs)}"
+            )
+
         # Compute scores based on measure
         if measure == "degree":
             scores = {
@@ -12376,7 +12415,7 @@ class Graph:
         elif measure == "pagerank":
             scores = self.pagerank(return_dict=True, **kwargs)
         elif measure == "betweenness":
-            scores = self.betweenness_centrality(return_dict=True)
+            scores = self.betweenness_centrality(return_dict=True, **kwargs)
         else:
             raise ValueError(
                 f"Unknown centrality measure '{measure}'. "
@@ -13396,16 +13435,14 @@ class Graph:
             branches never match contributes nothing. If `False` and `add_to_selection=` is
             `False`, the deepest unmatched nodes reached (the frontier at `max_steps=`, or the
             dead-end level where the walk ran out of edges) are selected alongside the matches.
-            If `False` and `add_to_selection=` is `True`, every visited node is selected.
+            If `False` and `add_to_selection=` is `True`, every visited node is added.
         add_to_selection
             Whether to select the traversed path or just its endpoints. If `False` (the
             default), the selection becomes the matching nodes (plus the unmatched frontier when
-            `exclude_unmatched=False`). If `True`, every node visited during the walk, including
-            the starting nodes, is a candidate for selection; combined with the default
-            `exclude_unmatched=True` that still filters down to the matching nodes, so pair it
-            with `exclude_unmatched=False` to keep the whole traversed region. Note that the
-            previous selection is always cleared first; only nodes visited by this walk can be
-            selected afterward.
+            `exclude_unmatched=False`). If `True`, the current selection (the starting nodes) is
+            kept and nodes visited during the walk are added to it; with the default
+            `exclude_unmatched=True` only the visited nodes that match are added, so pair it with
+            `exclude_unmatched=False` to add the whole traversed region.
 
         Returns
         -------
@@ -13519,9 +13556,10 @@ class Graph:
                     if not exclude_unmatched or conditions(node_id):
                         final_nodes.add(node_id)
 
-        # Update selection
+        # Update selection: replace it, or with add_to_selection=True keep it and add to it
         self._recording_depth += 1
-        self.clear_selection()
+        if not add_to_selection:
+            self.clear_selection()
 
         if add_to_selection:
             nodes_to_select = all_visited
@@ -13596,16 +13634,14 @@ class Graph:
             branches never match contributes nothing. If `False` and `add_to_selection=` is
             `False`, the deepest unmatched nodes reached (the frontier at `max_steps=`, or the
             level where the walk ran out of incoming edges) are selected alongside the matches.
-            If `False` and `add_to_selection=` is `True`, every visited node is selected.
+            If `False` and `add_to_selection=` is `True`, every visited node is added.
         add_to_selection
             Whether to select the traversed path or just its endpoints. If `False` (the
             default), the selection becomes the matching nodes (plus the unmatched frontier when
-            `exclude_unmatched=False`). If `True`, every node visited during the walk, including
-            the starting nodes, is a candidate for selection; combined with the default
-            `exclude_unmatched=True` that still filters down to the matching nodes, so pair it
-            with `exclude_unmatched=False` to keep the whole traversed region. Note that the
-            previous selection is always cleared first; only nodes visited by this walk can be
-            selected afterward.
+            `exclude_unmatched=False`). If `True`, the current selection (the starting nodes) is
+            kept and nodes visited during the walk are added to it; with the default
+            `exclude_unmatched=True` only the visited nodes that match are added, so pair it with
+            `exclude_unmatched=False` to add the whole traversed region.
 
         Returns
         -------
@@ -13721,9 +13757,10 @@ class Graph:
                     if not exclude_unmatched or conditions(node_id):
                         final_nodes.add(node_id)
 
-        # Update selection
+        # Update selection: replace it, or with add_to_selection=True keep it and add to it
         self._recording_depth += 1
-        self.clear_selection()
+        if not add_to_selection:
+            self.clear_selection()
 
         if add_to_selection:
             nodes_to_select = all_visited
@@ -15404,11 +15441,13 @@ class Graph:
             `"Pastel2"`), sequential and diverging ColorBrewer palettes (e.g., `"Greens"`,
             `"RdBu"`), the viridis family (`"viridis"`, `"magma"`, `"inferno"`, `"plasma"`,
             `"cividis"`), and `"default"`, `"vibrant"`, `"pastel"`, `"dark"`, and `"tableau"`.
-            An unrecognized name silently falls back to `"default"`. Qualitative palettes are
-            the best choice for unordered categories.
+            An unrecognized name raises a `ValueError`. Qualitative palettes are the best
+            choice for unordered categories.
         alpha
-            Intended to set a transparency level (`0`-`100`). Currently accepted but ignored:
-            colors are always written as given by the palette. Default is `None`.
+            Opacity as a percentage, from `0` (fully transparent) to `100` (opaque). When given,
+            an alpha channel is appended to every color, giving `#RRGGBBAA` strings (`alpha=50`
+            gives `80`). The palette colors must then be hex strings (`#RGB` or `#RRGGBB`). If
+            `None` (default), colors are written as given by the palette.
         nodes
             A list of node IDs or labels restricting which nodes are read from `node_attr_from=`
             and therefore colored. If `None` (the default), all nodes are considered. Ignored when
@@ -15422,7 +15461,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If neither `node_attr_from=` nor `values=` is provided.
+            If neither `node_attr_from=` nor `values=` is provided, `palette=` is an unknown
+            name or an empty list, or `alpha=` is outside `0`-`100` or used with a color that
+            isn't a hex string.
 
         Examples
         --------
@@ -15492,8 +15533,15 @@ class Graph:
         G.colorize_node_attrs(values={"A": "north", "C": "south"}, palette="Dark2")
         G.get_node_attrs("color")
         ```
+
+        `alpha=` makes the colors semi-transparent by appending an alpha channel:
+
+        ```{python}
+        G.colorize_node_attrs(values={"A": "north", "C": "south"}, palette="Dark2", alpha=50)
+        G.get_node_attrs("color")
+        ```
         """
-        from edgecase.colors import COLOR_PALETTES
+        from edgecase.colors import get_palette
 
         if nodes is None:
             nodes = self.get_node_ids(limit=None)
@@ -15504,17 +15552,20 @@ class Graph:
                 raise ValueError("Must provide either node_attr_from or values")
             values = self.get_node_attrs(node_attr_from, nodes=nodes)
 
+        # Validate palette and alpha up front, even if there is nothing to color
+        colors = get_palette(palette) if isinstance(palette, str) else list(palette)
+        if not colors:
+            raise ValueError("palette must contain at least one color")
+        if alpha is not None:
+            if isinstance(alpha, bool) or not 0 <= alpha <= 100:
+                raise ValueError(f"alpha must be between 0 and 100, got {alpha!r}")
+            colors = [_with_alpha(c, alpha) for c in colors]
+
         if not values:
             return self
 
         # Get unique values and assign colors
         unique_values = sorted(list(set(values.values())))
-
-        # Get color palette
-        if isinstance(palette, str):
-            colors = COLOR_PALETTES.get(palette, COLOR_PALETTES["default"])
-        else:
-            colors = palette
 
         # Create color mapping
         n_values = len(unique_values)
@@ -15749,15 +15800,16 @@ class Graph:
         attribute name is not validated against the nodes. The call is also logged in the
         graph's recorded step history.
 
-        Note that the built-in plotting methods do not currently read this setting, so calling
-        it has no visible effect on their output.
+        `plot()` uses this attribute for its node text when `label_by=` isn't given. As in
+        `label_by=`, `"label"` and `"id"` are also accepted, and nodes lacking the attribute
+        show their ID.
 
         Parameters
         ----------
         attr
             Name of the node attribute to display (e.g., `"label"` or `"name"`). Any string is
-            accepted, even if no node has that attribute. If `None` (the default), the
-            preference is cleared, which means node IDs are shown.
+            accepted here; `plot()` raises if no node has that attribute. If `None` (the
+            default), the preference is cleared, which means node IDs are shown.
 
         Returns
         -------
@@ -18629,7 +18681,7 @@ class Graph:
     def motif_census(
         self,
         size: int = 3,
-        return_dict: bool = False,
+        return_dict: bool = True,
     ) -> Union[dict[str, int], "Graph"]:
         """
         Count occurrences of all non-isomorphic connected subgraphs of a given size.
@@ -18670,17 +18722,17 @@ class Graph:
             `ValueError`. Four-node motifs reveal richer patterns (squares, stars, near-cliques)
             but are considerably more expensive to count.
         return_dict
-            If `True`, return the census dictionary directly. If `False` (default), the census is
-            computed and the call is logged in the graph's computation history (shown when the
-            graph is printed), but the counts themselves are not stored on the graph and `self` is
-            returned for method chaining. In practice you will almost always want `True`.
+            If `True` (default), return the census dictionary. If `False`, `self` is returned for
+            method chaining and the call is logged as a graph-level computation, but the counts
+            are not stored anywhere (the census describes the whole graph, not individual nodes),
+            so a `UserWarning` is emitted.
 
         Returns
         -------
         dict or Graph
-            If `return_dict=` is `True`: a `{motif_class: count}` dictionary. If the graph has
-            fewer than `size=` nodes, the dictionary is empty. If `return_dict=` is `False`
-            (default): `self` for chaining.
+            If `return_dict=` is `True` (default): a `{motif_class: count}` dictionary. If the
+            graph has fewer than `size=` nodes, the dictionary is empty. If `return_dict=` is
+            `False`: `self` for chaining.
 
         Raises
         ------
@@ -18702,7 +18754,7 @@ class Graph:
             .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
         )
 
-        g.motif_census(size=3, return_dict=True)
+        g.motif_census(size=3)
         ```
 
         With `size=4`, every four-node group is examined. A complete graph on five nodes contains
@@ -18712,7 +18764,7 @@ class Graph:
         k5 = ec.Graph()
         k5.add_full_graph(n=5)
 
-        k5.motif_census(size=4, return_dict=True)
+        k5.motif_census(size=4)
         ```
 
         In a directed graph, edge direction distinguishes motifs, so the classes get generic
@@ -18726,7 +18778,7 @@ class Graph:
             .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
         )
 
-        dg.motif_census(size=3, return_dict=True)
+        dg.motif_census(size=3)
         ```
         """
         from edgecase._core import motif_census as _motif_census
@@ -18734,7 +18786,9 @@ class Graph:
         result = _motif_census(self._graph, size)
 
         if not return_dict:
-            self._computations.append(("motif_census", {"size": size}, f"motif_census_{size}"))
+            _warn_result_not_stored("motif_census")
+            # Graph-level result, so no node attribute is written
+            self._computations.append(("motif_census", {"size": size}, None))
 
         if self._recording_depth == 0:
             code = f"G.motif_census(size={size})"
@@ -18832,7 +18886,7 @@ class Graph:
         size: int = 3,
         n_random: int = 100,
         seed: Optional[int] = None,
-        return_dict: bool = False,
+        return_dict: bool = True,
     ) -> Union[dict[str, dict[str, float]], "Graph"]:
         """
         Test motif significance against degree-preserving random graphs.
@@ -18871,10 +18925,9 @@ class Graph:
             runs. With an integer seed, the `i`-th random graph is generated with seed
             `seed + i`, making the whole result reproducible.
         return_dict
-            If `True`, return the significance results directly. If `False` (default), the
-            results are computed and the call is logged in the graph's computation history, but the
-            statistics themselves are not stored on the graph and `self` is returned for chaining.
-            In practice you will almost always want `True`.
+            If `True` (default), return the significance results. If `False`, `self` is returned
+            for chaining and the call is logged as a graph-level computation, but the statistics
+            are not stored anywhere, so a `UserWarning` is emitted.
 
         Returns
         -------
@@ -18888,7 +18941,7 @@ class Graph:
             z-score is `0.0` if the observed count equals the mean and `inf`/`-inf` otherwise.
             `p_value` is the fraction of random graphs whose count is greater than or equal to the
             observed count (a one-sided test for over-representation). If `return_dict=` is
-            `False` (default): `self` for chaining.
+            `False`: `self` for chaining.
 
         Raises
         ------
@@ -18914,7 +18967,7 @@ class Graph:
             ("C", "D"), ("F", "G"), ("I", "A"),  # ring links
         ])
 
-        result = g.motif_significance(size=3, n_random=200, seed=1, return_dict=True)
+        result = g.motif_significance(size=3, n_random=200, seed=1)
         {motif: round(stats["z_score"], 2) for motif, stats in result.items()}
         ```
 
@@ -18937,7 +18990,7 @@ class Graph:
             .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
         )
 
-        small.motif_significance(size=3, n_random=10, seed=23, return_dict=True)
+        small.motif_significance(size=3, n_random=10, seed=23)
         ```
         """
         from edgecase._core import motif_significance as _motif_significance
@@ -18945,12 +18998,10 @@ class Graph:
         result = _motif_significance(self._graph, size, n_random, seed)
 
         if not return_dict:
+            _warn_result_not_stored("motif_significance")
+            # Graph-level result, so no node attribute is written
             self._computations.append(
-                (
-                    "motif_significance",
-                    {"size": size, "n_random": n_random},
-                    f"motif_significance_{size}",
-                )
+                ("motif_significance", {"size": size, "n_random": n_random}, None)
             )
 
         if self._recording_depth == 0:
@@ -20400,17 +20451,16 @@ class Graph:
         if attr_name is None:
             attr_name = "cmty_fast_greedy"
 
+        if return_dict:
+            return communities
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, communities)
 
         # Track computation
-        if not return_dict:
-            params = {"resolution": resolution} if resolution != 1.0 else {}
-            self._computations.append(("cmty_fast_greedy", params, attr_name))
+        params = {"resolution": resolution} if resolution != 1.0 else {}
+        self._computations.append(("cmty_fast_greedy", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
         return self
 
     def cmty_edge_btwns(
@@ -20512,16 +20562,15 @@ class Graph:
         if attr_name is None:
             attr_name = "cmty_edge_btwns"
 
+        if return_dict:
+            return communities
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, communities)
 
         # Track computation
-        if not return_dict:
-            self._computations.append(("cmty_edge_btwns", {}, attr_name))
+        self._computations.append(("cmty_edge_btwns", {}, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
         return self
 
     def cmty_girvan_newman(
@@ -20605,13 +20654,13 @@ class Graph:
         if attr_name is None:
             attr_name = "cmty_girvan_newman"
 
-        self.set_node_attrs(attr_name, communities)
-
-        if not return_dict:
-            self._computations.append(("cmty_girvan_newman", {}, attr_name))
-
         if return_dict:
             return communities
+
+        self.set_node_attrs(attr_name, communities)
+
+        self._computations.append(("cmty_girvan_newman", {}, attr_name))
+
         return self
 
     def cmty_l_eigenvec(
@@ -20734,16 +20783,15 @@ class Graph:
         if attr_name is None:
             attr_name = "cmty_l_eigenvec"
 
+        if return_dict:
+            return communities
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, communities)
 
         # Track computation
-        if not return_dict:
-            self._computations.append(("cmty_l_eigenvec", {}, attr_name))
+        self._computations.append(("cmty_l_eigenvec", {}, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
         return self
 
     def cmty_louvain(
@@ -20859,17 +20907,16 @@ class Graph:
         if attr_name is None:
             attr_name = "cmty_louvain"
 
+        if return_dict:
+            return communities
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, communities)
 
         # Track computation
-        if not return_dict:
-            params = {"resolution": resolution} if resolution != 1.0 else {}
-            self._computations.append(("cmty_louvain", params, attr_name))
+        params = {"resolution": resolution} if resolution != 1.0 else {}
+        self._computations.append(("cmty_louvain", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
         return self
 
     def cmty_walktrap(
@@ -20985,6 +21032,9 @@ class Graph:
         if attr_name is None:
             attr_name = "cmty_walktrap"
 
+        if return_dict:
+            return communities
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, communities)
 
@@ -20992,12 +21042,8 @@ class Graph:
         params = {}
         if steps != 4:
             params["steps"] = steps
-        if not return_dict:
-            self._computations.append(("cmty_walktrap", params, attr_name))
+        self._computations.append(("cmty_walktrap", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return communities
         return self
 
     def _membership_from(self, communities) -> dict[int, int]:
@@ -21857,13 +21903,13 @@ class Graph:
         if attr_name is None:
             attr_name = "label_propagation"
 
-        self.set_node_attrs(attr_name, result)
-
-        if not return_dict:
-            self._computations.append(("label_propagation", {}, attr_name))
-
         if return_dict:
             return result
+
+        self.set_node_attrs(attr_name, result)
+
+        self._computations.append(("label_propagation", {}, attr_name))
+
         return self
 
     # ==============================================================================
@@ -24792,8 +24838,9 @@ class Graph:
         3. module scoring: computes mean smoothed score per module and ranks modules by aggregate
            signal.
 
-        Optionally, if `enrichment_attr=` and `enrichment_labels=` are provided, computes a fold
-        enrichment for each community to test for over-representation of labeled nodes.
+        Optionally, if a positive set of nodes is given (through `enrichment_attr=` or
+        `enrichment_labels=`), computes a fold enrichment for each community to test for
+        over-representation of those nodes.
 
         The pipeline answers a common question in network genetics: which groups of
         interacting genes carry the strongest association signal? Single-gene statistics are
@@ -24809,8 +24856,8 @@ class Graph:
         - finding candidate pathways for follow-up from a list of per-gene scores
         - checking whether high-scoring modules are also enriched for known disease genes
 
-        Note that the community detection step stores its assignments on the graph, in the
-        `cmty_louvain` or `cmty_walktrap` node column. Nothing else is written to the graph.
+        Nothing is written to the graph: the smoothed scores and community assignments are only
+        returned.
 
         Parameters
         ----------
@@ -24833,12 +24880,13 @@ class Graph:
             is `1.0`; higher values give more, smaller modules and lower values give fewer,
             larger ones. It is ignored when `community_method="walktrap"`.
         enrichment_attr
-            Name to give the enrichment test. Any non-`None` value, together with
-            `enrichment_labels=`, switches on the enrichment step; the value itself is not
-            otherwise used (no node attribute is read). The default, `None`, skips enrichment.
+            Name of a node attribute marking the "positive" nodes for enrichment testing, such
+            as a `known_disease_gene` flag: nodes whose value is truthy are positive, and nodes
+            lacking the attribute are not. Giving it switches on the enrichment step. The
+            default, `None`, skips it unless `enrichment_labels=` is given.
         enrichment_labels
-            Optional list of node IDs considered as the "positive" set for enrichment testing,
-            such as known disease genes. Only used when `enrichment_attr=` is also given.
+            Alternatively, an explicit list of node IDs to use as the positive set. Giving it
+            switches on the enrichment step. Use either this or `enrichment_attr=`, not both.
 
         Returns
         -------
@@ -24858,8 +24906,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `community_method=` is not `"louvain"` or `"walktrap"`, or if `smooth_alpha=` is
-            outside `[0, 1]`.
+            If `community_method=` is not `"louvain"` or `"walktrap"`, if `smooth_alpha=` is
+            outside `[0, 1]`, or if both `enrichment_attr=` and `enrichment_labels=` are given.
 
         Examples
         --------
@@ -24901,11 +24949,21 @@ class Graph:
 
         ```{python}
         known = [g.get_id_from_label(label) for label in ["g0", "g1", "g5"]]
-        result = g.gwas_pipeline(scores, enrichment_attr="known", enrichment_labels=known)
+        result = g.gwas_pipeline(scores, enrichment_labels=known)
         result["enrichment"]
+        ```
+
+        The same positive set can come from a node attribute instead, here a `known` flag:
+
+        ```{python}
+        g.set_node_attrs("known", {nid: True for nid in known})
+        g.gwas_pipeline(scores, enrichment_attr="known")["enrichment"]
         ```
         """
         from edgecase._core import network_smooth as _network_smooth
+
+        if enrichment_attr is not None and enrichment_labels is not None:
+            raise ValueError("Give either enrichment_attr= or enrichment_labels=, not both")
 
         smoothed = _network_smooth(self._graph, scores, smooth_alpha, smooth_max_iter, 1e-6)
 
@@ -24937,9 +24995,14 @@ class Graph:
             "module_scores": module_scores,
         }
 
-        if enrichment_attr is not None and enrichment_labels is not None:
+        if enrichment_attr is not None or enrichment_labels is not None:
             enrichment: dict[int, float] = {}
-            positive_set = set(enrichment_labels)
+            if enrichment_attr is not None:
+                positive_set = {
+                    nid for nid, value in self.get_node_attrs(enrichment_attr).items() if value
+                }
+            else:
+                positive_set = set(enrichment_labels)
             total_positive = len(positive_set)
             total_nodes = len(smoothed)
             for comm_id, members in communities.items():
@@ -26013,10 +26076,10 @@ class Graph:
         edge counts as `1`). For in- or out-degree alone, use `get_in_degree()` or
         `get_out_degree()`.
 
-        The scores are written to the node DataFrame every time, including when
-        `return_dict=True`. Note that `get_node_df()` always ends with a live `degree` column, so
-        with the default `attr_name=` the stored attribute appears under that same column
-        name; pick another `attr_name=` if you want a separate snapshot column.
+        With `return_dict=False` the degrees are written to the node DataFrame; with
+        `return_dict=True` they are only returned. Note that `get_node_df()` always ends with a
+        live `degree` column, so with the default `attr_name=` the stored attribute appears under
+        that same column name; pick another `attr_name=` if you want a separate snapshot column.
 
         Parameters
         ----------
@@ -26024,9 +26087,8 @@ class Graph:
             Column name to store degree values in the node DataFrame. If `None` (default),
             automatically uses `degree`. Overwrites column if it already exists.
         return_dict
-            If `True`, returns a dictionary mapping node IDs to degrees (the values are still
-            stored under `attr_name=`). If `False` (default), stores in NDF and returns self for
-            chaining.
+            If `True`, returns a dictionary mapping node IDs to degrees without writing anything
+            to the graph. If `False` (default), stores in NDF and returns self for chaining.
 
         Returns
         -------
@@ -26092,16 +26154,15 @@ class Graph:
         if attr_name is None:
             attr_name = "degree"
 
+        if return_dict:
+            return degrees
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, degrees)
 
         # Track computation
-        if not return_dict:
-            self._computations.append(("degrees", {}, attr_name))
+        self._computations.append(("degrees", {}, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return degrees
         return self
 
     def get_degree(self, node: Union[int, str]) -> int:
@@ -26964,23 +27025,22 @@ class Graph:
         if attr_name is None:
             attr_name = "pagerank"
 
+        if return_dict:
+            return result_ids
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
 
         # Track computation
-        if not return_dict:
-            params = {}
-            if damping != 0.85:
-                params["damping"] = damping
-            if max_iter != 100:
-                params["max_iter"] = max_iter
-            if tol != 1e-6:
-                params["tol"] = tol
-            self._computations.append(("pagerank", params, attr_name))
+        params = {}
+        if damping != 0.85:
+            params["damping"] = damping
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("pagerank", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
         return self
 
     def personalized_pagerank(
@@ -27046,9 +27106,8 @@ class Graph:
             `"personalized_pagerank"`. An existing column with this name is overwritten. Use
             different names to keep results from several seed sets side by side.
         return_dict
-            If `True`, returns the score dictionary (the scores are still stored under
-            `attr_name=`). If `False` (default), stores scores in the node DataFrame and returns
-            self for chaining.
+            If `True`, returns the score dictionary without writing anything to the graph. If
+            `False` (default), stores scores in the node DataFrame and returns self for chaining.
 
         Returns
         -------
@@ -27128,20 +27187,20 @@ class Graph:
         if attr_name is None:
             attr_name = "personalized_pagerank"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            params = {}
-            if damping != 0.85:
-                params["damping"] = damping
-            if max_iter != 100:
-                params["max_iter"] = max_iter
-            if tol != 1e-6:
-                params["tol"] = tol
-            self._computations.append(("personalized_pagerank", params, attr_name))
-
         if return_dict:
             return result_ids
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        params = {}
+        if damping != 0.85:
+            params["damping"] = damping
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("personalized_pagerank", params, attr_name))
+
         return self
 
     def random_walk_with_restart(
@@ -27204,9 +27263,9 @@ class Graph:
             Column name for the node DataFrame. Defaults to `"rwr"`. An existing column with this
             name is overwritten.
         return_dict
-            If `True`, returns the score dictionary (the scores are still stored under
-            `attr_name=`). If `False` (default), stores the scores in the node DataFrame and
-            returns self for chaining.
+            If `True`, returns the score dictionary without writing anything to the graph. If
+            `False` (default), stores the scores in the node DataFrame and returns self for
+            chaining.
 
         Returns
         -------
@@ -27286,16 +27345,16 @@ class Graph:
         if attr_name is None:
             attr_name = "rwr"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            params = {}
-            if restart_prob != 0.15:
-                params["restart_prob"] = restart_prob
-            self._computations.append(("random_walk_with_restart", params, attr_name))
-
         if return_dict:
             return result_ids
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        params = {}
+        if restart_prob != 0.15:
+            params["restart_prob"] = restart_prob
+        self._computations.append(("random_walk_with_restart", params, attr_name))
+
         return self
 
     def heat_diffusion(
@@ -27357,9 +27416,9 @@ class Graph:
             Column name used to store the heat values in the node DataFrame. If `None` (default),
             the column is named `"heat"`. An existing column with the same name is overwritten.
         return_dict
-            If `True`, return the heat values as a dictionary. If `False` (default), return the
-            graph itself for method chaining. In both cases the values are also written to the
-            node DataFrame under `attr_name=`.
+            If `True`, return the heat values as a dictionary without writing anything to the
+            graph. If `False` (default), write them to the node DataFrame under `attr_name=` and
+            return the graph itself for method chaining.
 
         Returns
         -------
@@ -27432,18 +27491,18 @@ class Graph:
         if attr_name is None:
             attr_name = "heat"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            params = {}
-            if t != 1.0:
-                params["t"] = t
-            if max_iter != 50:
-                params["max_iter"] = max_iter
-            self._computations.append(("heat_diffusion", params, attr_name))
-
         if return_dict:
             return result_ids
+
+        self.set_node_attrs(attr_name, result_ids)
+
+        params = {}
+        if t != 1.0:
+            params["t"] = t
+        if max_iter != 50:
+            params["max_iter"] = max_iter
+        self._computations.append(("heat_diffusion", params, attr_name))
+
         return self
 
     def constraint(
@@ -27725,17 +27784,16 @@ class Graph:
         if attr_name is None:
             attr_name = "betweenness_centrality"
 
+        if return_dict:
+            return result_ids
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
 
         # Track computation
-        if not return_dict:
-            params = {} if weighted is None else {"weighted": weighted}
-            self._computations.append(("betweenness_centrality", params, attr_name))
+        params = {} if weighted is None else {"weighted": weighted}
+        self._computations.append(("betweenness_centrality", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
         return self
 
     def edge_betweenness_centrality(
@@ -28049,18 +28107,17 @@ class Graph:
         if attr_name is None:
             attr_name = "load_centrality"
 
+        if return_dict:
+            return result_ids
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
 
         # Track computation
-        if not return_dict:
-            self._computations.append(
-                ("load_centrality", {"normalized": normalized, "cutoff": cutoff}, attr_name)
-            )
+        self._computations.append(
+            ("load_centrality", {"normalized": normalized, "cutoff": cutoff}, attr_name)
+        )
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
         return self
 
     def second_order_centrality(
@@ -28207,16 +28264,15 @@ class Graph:
         if attr_name is None:
             attr_name = "second_order_centrality"
 
+        if return_dict:
+            return result_ids
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
 
         # Track computation
-        if not return_dict:
-            self._computations.append(("second_order_centrality", {}, attr_name))
+        self._computations.append(("second_order_centrality", {}, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
         return self
 
     def communicability(
@@ -28434,16 +28490,15 @@ class Graph:
         if attr_name is None:
             attr_name = "communicability_betweenness"
 
+        if return_dict:
+            return result
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result)
 
         # Track computation
-        if not return_dict:
-            self._computations.append(("communicability_betweenness_centrality", {}, attr_name))
+        self._computations.append(("communicability_betweenness_centrality", {}, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result
         return self
 
     # -------------------------------------------------------------------------
@@ -28479,47 +28534,46 @@ class Graph:
           states
 
         When every node has the same state (the default is `1.0` for all), the score reduces to
-        standard normalized betweenness centrality. All shortest paths are counted by number of
-        hops and, for directed graphs, follow edge direction. Like betweenness, the computation
-        runs a shortest-path search from every node, so it can be slow on large graphs.
-
-        Note that, unlike most centrality methods, the returned dictionary is keyed by node
-        *label* rather than node ID.
+        standard normalized betweenness centrality. Shortest paths are counted by number of
+        hops, or by total edge weight when `weight=` is given, and on directed graphs follow
+        edge direction. Like betweenness, the computation runs a shortest-path search from
+        every node, so it can be slow on large graphs.
 
         Parameters
         ----------
         states
-            Dictionary mapping node labels to percolation states, each between `0.0` and `1.0`.
-            Keys are matched against node labels as strings (an integer key `1` matches the label
-            `"1"`), and an unknown label raises a `ValueError`. Nodes missing from the dictionary
+            Dictionary mapping nodes to percolation states, each between `0.0` and `1.0`. Keys
+            are integer node IDs or string labels, and an unknown node raises a `ValueError`.
+            Nodes missing from the dictionary
             get a state of `1.0`, so to mark only a few nodes as percolated you must give the
             others an explicit `0.0`. If `None` (default), every node has state `1.0` and the
             result equals normalized betweenness centrality. If the states sum to `1.0` or less
             (e.g., a single fully percolated node), every score is `0.0`.
         weight
-            Name of an edge attribute holding weights. Accepted for API compatibility but
-            currently has no effect: path lengths are always counted in hops. Defaults to `None`.
+            Name of an edge attribute holding non-negative weights, used as path lengths. Every
+            edge must hold a numeric value (`"weight"` also accepts the edge weight of a weighted
+            graph). If `None` (default), path lengths are counted in hops.
         attr_name
             Column name used to store the scores in the node DataFrame. If `None` (default), the
             column is named `"percolation_centrality"`. An existing column with the same name is
             overwritten. Only used when `return_dict=` is `False`.
         return_dict
-            If `True`, return the scores as a dictionary keyed by node label and leave the node
+            If `True`, return the scores as a dictionary keyed by node ID and leave the node
             DataFrame untouched. If `False` (default), store the scores in the node DataFrame
             under `attr_name=` and return the graph for method chaining.
 
         Returns
         -------
         dict or Graph
-            If `return_dict=` is `True`: a dictionary mapping node labels (or node IDs, for nodes
-            without a label) to percolation centrality values. If `return_dict=` is `False`
+            If `return_dict=` is `True`: a dictionary mapping node IDs to percolation centrality
+            values. If `return_dict=` is `False`
             (default): the graph itself, with the scores stored as a node attribute.
 
         Raises
         ------
         ValueError
-            If a key in `states=` does not match any node label, or if a state lies outside
-            `[0.0, 1.0]`.
+            If a key in `states=` does not match any node, a state lies outside `[0.0, 1.0]`, or
+            an edge lacks a numeric `weight=` attribute or has a negative weight.
 
         Examples
         --------
@@ -28536,7 +28590,8 @@ class Graph:
             .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("C", "F"), ("F", "G")])
         )
 
-        graph.percolation_centrality(return_dict=True)
+        scores = graph.percolation_centrality(return_dict=True)
+        {graph.get_label_from_id(n): round(v, 3) for n, v in sorted(scores.items())}
         ```
 
         Now suppose only A and G are infected. Paths that start at those two nodes are the only
@@ -28547,7 +28602,8 @@ class Graph:
         ```{python}
         states = {"A": 1.0, "G": 1.0, "B": 0.0, "C": 0.0, "D": 0.0, "E": 0.0, "F": 0.0}
 
-        graph.percolation_centrality(states=states, return_dict=True)
+        scores = graph.percolation_centrality(states=states, return_dict=True)
+        {graph.get_label_from_id(n): round(v, 3) for n, v in sorted(scores.items())}
         ```
 
         With `return_dict=False` (the default) the scores go into the node DataFrame, here under
@@ -28560,40 +28616,27 @@ class Graph:
         """
         from edgecase._core import percolation_centrality as rust_pc
 
-        # Convert states from labels to IDs if provided
+        # Resolve state keys (IDs or labels) to node IDs
         states_by_id = None
         if states is not None:
             states_by_id = {}
-            for label, state in states.items():
-                node_id = self._graph.id_from_label(str(label))
+            for node, state in states.items():
+                node_id = self._resolve_node_id(node, auto_create=False)
+                if not self._graph.has_node_id(node_id):
+                    raise ValueError(f"Node {node!r} in states= does not exist")
                 states_by_id[node_id] = state
 
-        result_by_id = rust_pc(self._graph, states_by_id, weight)
+        result = rust_pc(self._graph, states_by_id, weight)
 
-        # Convert result from IDs to labels
-        result = {}
-        for node_id, centrality in result_by_id.items():
-            label = self._graph.label_from_id(node_id)
-            if label is not None:
-                result[label] = centrality
-            else:
-                result[node_id] = centrality
-
-        # Store as node attributes if not returning dict
-        if not return_dict:
-            attr = attr_name if attr_name is not None else "percolation_centrality"
-            # Use set_node_attrs with a dict mapping node IDs to values
-            self.set_node_attrs(attr, result_by_id)
-
-        # Track computation
-        if not return_dict:
-            self._computations.append(
-                ("percolation_centrality", {"states": states, "weight": weight}, attr_name)
-            )
-
-        # Return dict if requested, otherwise return self for chaining
         if return_dict:
             return result
+
+        if attr_name is None:
+            attr_name = "percolation_centrality"
+        self.set_node_attrs(attr_name, result)
+        self._computations.append(
+            ("percolation_centrality", {"states": states, "weight": weight}, attr_name)
+        )
         return self
 
     def node_percolation(
@@ -29116,22 +29159,21 @@ class Graph:
         if attr_name is None:
             attr_name = "average_neighbor_degree"
 
+        if return_dict:
+            return result_ids
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
 
         # Track computation
-        if not return_dict:
-            params = {}
-            if self.is_directed():
-                params["source"] = source
-                params["target"] = target
-            if weight is not None:
-                params["weight"] = weight
-            self._computations.append(("average_neighbor_degree", params, attr_name))
+        params = {}
+        if self.is_directed():
+            params["source"] = source
+            params["target"] = target
+        if weight is not None:
+            params["weight"] = weight
+        self._computations.append(("average_neighbor_degree", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
         return self
 
     def harmonic_centrality(
@@ -29295,27 +29337,26 @@ class Graph:
         if attr_name is None:
             attr_name = "harmonic_centrality"
 
+        if return_dict:
+            return result_ids
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, result_ids)
 
         # Track computation
-        if not return_dict:
-            params = {}
-            if mode != "out":
-                params["mode"] = mode
-            if weights is not None:
-                params["weights"] = weights
-            if normalized:
-                params["normalized"] = normalized
-            if cutoff != -1:
-                params["cutoff"] = cutoff
-            if weighted is not None:
-                params["weighted"] = weighted
-            self._computations.append(("harmonic_centrality", params, attr_name))
+        params = {}
+        if mode != "out":
+            params["mode"] = mode
+        if weights is not None:
+            params["weights"] = weights
+        if normalized:
+            params["normalized"] = normalized
+        if cutoff != -1:
+            params["cutoff"] = cutoff
+        if weighted is not None:
+            params["weighted"] = weighted
+        self._computations.append(("harmonic_centrality", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return result_ids
         return self
 
     def closeness_centrality(
@@ -31032,9 +31073,9 @@ class Graph:
             (default), automatically uses `eigen_centrality`. Overwrites column if it already
             exists.
         return_dict
-            If `True`, returns dictionary instead of self. If `False` (default), returns self for
-            chaining. In both cases the scores are also stored in the node DataFrame under
-            `attr_name=`.
+            If `True`, returns the scores as a dictionary without writing anything to the graph.
+            If `False` (default), stores them in the node DataFrame under `attr_name=` and
+            returns self for chaining.
 
         Returns
         -------
@@ -31105,21 +31146,20 @@ class Graph:
         if attr_name is None:
             attr_name = "eigen_centrality"
 
+        if return_dict:
+            return centrality
+
         # Store in node DataFrame
         self.set_node_attrs(attr_name, centrality)
 
         # Track computation
-        if not return_dict:
-            params = {}
-            if max_iter != 100:
-                params["max_iter"] = max_iter
-            if tol != 1e-6:
-                params["tol"] = tol
-            self._computations.append(("eigen_centrality", params, attr_name))
+        params = {}
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        if tol != 1e-6:
+            params["tol"] = tol
+        self._computations.append(("eigen_centrality", params, attr_name))
 
-        # Return dict if requested, otherwise return self for chaining
-        if return_dict:
-            return centrality
         return self
 
     def alpha_centrality(
@@ -42376,10 +42416,10 @@ class Graph:
             The node the flow ends at, given as an integer node ID or a string label. Must be a
             different node than `source=`.
         capacity
-            Name of the edge attribute to use as capacity. Edges that lack the attribute (or hold
-            a non-numeric value) get a capacity of `1.0`. If `None` (default), each edge's
-            `capacity` attribute is used when present, then its weight on weighted graphs, and
-            `1.0` otherwise.
+            Name of the edge attribute to use as capacity. Every edge must hold a numeric value
+            for it (`"weight"` also accepts the edge weight of a weighted graph); otherwise a
+            `ValueError` is raised. If `None` (default), each edge's `capacity` attribute is used
+            when present, then its weight on weighted graphs, and `1.0` otherwise.
 
         Returns
         -------
@@ -42391,7 +42431,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If source or sink doesn't exist, they're the same node, or any capacity is negative.
+            If source or sink doesn't exist, they're the same node, any capacity is negative, or
+            an edge lacks the attribute named by `capacity=`.
 
         Technical Notes
         ---------------
@@ -42526,10 +42567,10 @@ class Graph:
             The node the flow ends at, given as an integer node ID or a string label. Must be a
             different node than `source=`.
         capacity
-            Name of the edge attribute to use as capacity. Edges that lack the attribute (or hold
-            a non-numeric value) get a capacity of `1.0`. If `None` (default), each edge's
-            `capacity` attribute is used when present, then its weight on weighted graphs, and
-            `1.0` otherwise.
+            Name of the edge attribute to use as capacity. Every edge must hold a numeric value
+            for it (`"weight"` also accepts the edge weight of a weighted graph); otherwise a
+            `ValueError` is raised. If `None` (default), each edge's `capacity` attribute is used
+            when present, then its weight on weighted graphs, and `1.0` otherwise.
 
         Returns
         -------
@@ -42539,7 +42580,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If source or sink doesn't exist, they're the same node, or any capacity is negative.
+            If source or sink doesn't exist, they're the same node, any capacity is negative, or
+            an edge lacks the attribute named by `capacity=`.
 
         Examples
         --------
@@ -42637,12 +42679,14 @@ class Graph:
         capacity
             Name of the edge attribute holding each edge's capacity. If `None` (the default), each
             edge's capacity is taken from its `"capacity"` attribute if present, otherwise from
-            the edge weight on a weighted graph, otherwise `1.0`. If a name is given, edges
-            lacking that attribute (or holding a non-numeric value) get a capacity of `1.0`.
+            the edge weight on a weighted graph, otherwise `1.0`. If a name is given, every edge
+            must hold a numeric value for it (`"weight"` also accepts the edge weight), otherwise
+            a `ValueError` is raised.
         cost
-            Name of the edge attribute holding the cost per unit of flow. If `None` (the default),
-            each edge's `"cost"` attribute is used. Edges lacking the attribute (or holding a
-            non-numeric value) get a per-unit cost of `1.0`.
+            Name of the edge attribute holding the cost per unit of flow. If a name is given,
+            every edge must hold a numeric value for it, otherwise a `ValueError` is raised. If
+            `None` (the default), each edge's `"cost"` attribute is used, and edges lacking it
+            (or holding a non-numeric value) get a per-unit cost of `1.0`.
 
         Returns
         -------
@@ -42659,7 +42703,7 @@ class Graph:
             If the graph is undirected, `source=` or `sink=` doesn't exist, they're the same node,
             `demand=` is negative, `demand=` cannot be satisfied, or a cycle whose per-unit costs
             sum to a negative number is reachable from `source=` (the cheapest flow is then
-            undefined).
+            undefined), or an edge lacks the attribute named by `capacity=` or `cost=`.
 
         Technical Notes
         ---------------
