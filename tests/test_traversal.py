@@ -356,6 +356,16 @@ class TestConditionalTraversal:
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         assert nodes == ["1"]
 
+    def test_trav_in_until_undirected_follows_every_edge(self):
+        """Regression: on undirected graphs the walk only followed edges stored toward the node."""
+        # Path stored as A-B, B-C, C-D; walking "in" from A used to find nothing
+        G = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        G.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        d = G.get_id_from_label("D")
+        G.select_nodes(lambda n: n.label == "A")
+        G.trav_in_until(lambda nid: nid == d)
+        assert G.get_selected_node_ids() == [d]
+
     def test_trav_out_until_multiple_values(self):
         """Test condition checking multiple values."""
         G = ec.Graph(directed=True)
