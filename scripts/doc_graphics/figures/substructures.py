@@ -20,10 +20,15 @@ The Steiner variants (prize-collecting, directed) reuse the steiner_tree
 graph, with prizes as node badges. The motif methods use the dominating-set
 graph and stack one small motif shape per class on the right (the
 all_spanning_trees rows), with its count (and z-score) beside it.
+`isolates` returns ids, so its two-row graph is labeled with ids and the
+edgeless nodes are `accent`.
+`triadic_census` uses the five-node directed network from its docstring with a
+type / count / triads table; two triads are highlighted in the graph and their
+rows: the cycle 030C in accent, the 120U triad in g2.
 """
 
-from core import (R_SMALL, SIZE_CARD, SIZE_NOTE, Box, Scene, compute, figure,
-                  place, text_width)
+from core import (R_SMALL, SIZE_CARD, SIZE_NOTE, Box, Scene, compute, figure, place, text_width,
+                  transform)
 
 UNIT = 84  # family-wide grid step for the main graph
 MINI_UNIT = 36  # grid step inside the small multiples (max that keeps rows apart)
@@ -401,3 +406,375 @@ def motif_significance(s: Scene) -> None:
     s.graph(place(DOM, left, unit=UNIT), DOM_EDGES)
     _motif_rows(s, right, [(True, "accent", ["triangle  2", "z +1.77  p 0.15"]),
                            (False, "default", ["path      6", "z −1.77  p 1.00"])])
+
+
+# --- isolates --------------------------------------------------------------
+
+# Two rows of four; nodes 4 and 6 touch no edge.
+ISO = {str(i + 1): (i % 4, i // 4 * 1.1) for i in range(8)}
+ISO_EDGES = [("1", "2"), ("2", "3"), ("1", "5"), ("3", "7"), ("7", "8")]
+
+
+@figure("isolates", "substructures", "Isolates",
+        "Eight nodes with ids 1 to 8, joined by five edges into one chain, except nodes 4 and "
+        "6, which touch no edge. Those two isolates are drawn in the accent color, and the "
+        "card returns their ids [4, 6].")
+def isolates(s: Scene) -> None:
+    left, right = compute(s, "g", "g.isolates()")
+    s.graph(place(ISO, left, unit=UNIT), ISO_EDGES, styles={"4": "accent", "6": "accent"})
+    s.card_centered(right, [("[4, 6]", "accent")], title="isolated node ids")
+
+
+# --- later additions: triadic census ---------------------------------------
+
+# The triadic_census docstring network: a mutual pair A ⇄ B both pointing at
+# C, and the directed cycle C → D → E → C.
+TRIAD = {"A": (0, 0), "B": (0, 1.3), "C": (1.2, 0.65), "D": (2.4, 0), "E": (2.4, 1.3)}
+TRIAD_EDGES = [("A", "B"), ("B", "A"), ("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"),
+               ("E", "C")]
+# g.triadic_census() non-zero types in standard order, with the triads behind them
+TRIAD_ROWS = [("012", "ADE, BDE"), ("102", "ABD, ABE"), ("021U", "ACE, BCE"),
+              ("021C", "ACD, BCD"), ("030C", "CDE"), ("120U", "ABC")]
+
+
+@figure("triadic_census", "substructures", "Triadic census",
+        "A directed graph on five nodes: A and B point at each other and both at C, and C, D, "
+        "E form a directed cycle. Each of its 10 triads gets one of 16 types; the table lists "
+        "the non-zero counts with the triads behind them: 2 each of 012, 102, 021U, and 021C, "
+        "1 cyclic triad 030C (C, D, E, accent color), and 1 120U (A, B, C, teal). Every "
+        "other type is 0.")
+def triadic_census(s: Scene) -> None:
+    left, right = compute(s, "g", "g.triadic_census()")
+    color = {"ABC": "g2", "CDE": "accent"}
+
+    def style(a: str, b: str) -> dict:
+        kw = {"bend": 7} if (b, a) in TRIAD_EDGES else {}
+        for tri, c in color.items():
+            if {a, b} <= set(tri):
+                kw["style"] = c
+        return kw
+
+    s.graph(place(TRIAD, left, unit=UNIT), [(a, b, style(a, b)) for a, b in TRIAD_EDGES],
+            directed=True, styles={"A": "g2", "B": "g2", "D": "accent", "E": "accent"})
+    rows = [["type", "count", "triads"]] + [[t, str(len(tr.split(","))), tr]
+                                           for t, tr in TRIAD_ROWS] + [["total", "10", ""]]
+    hl = {(i, j): color[tr] for i, (t, tr) in enumerate(TRIAD_ROWS, 1) if tr in color
+          for j in range(3)}
+    s.table_centered(right, rows, [50, 50, 76], highlight=hl)
+
+
+# --- later additions: branchings and arborescences -------------------------
+#
+# The directed counterparts of the spanning trees. Each figure builds the
+# docstring's example with edgecase and draws what the method returns: chosen
+# edges `accent`, the rest `muted`, except an edge that beats the chosen
+# in-edge of its target and was still dropped (the edge Edmonds' algorithm
+# breaks a cycle at), which is `removed`. The card lists the chosen edges and
+# their total weight.
+
+
+def _ec_edges(h) -> list[tuple[str, str, float | None]]:
+    """(source label, target label, weight) for every edge of an edgecase graph."""
+    out = []
+    for eid in h.get_edge_ids(limit=None):
+        e = h.get_edge(eid)
+        out.append((h.get_label_from_id(e.source), h.get_label_from_id(e.target), e.weight))
+    return out
+
+
+def _num(w: float) -> str:
+    """A weight as drawn: integral, with a real minus sign."""
+    v = int(w) if float(w).is_integer() else w
+    return f"−{-v}" if v < 0 else f"{v}"
+
+
+def _total(ws: list[float]) -> str:
+    """'3 − 2 + 4 = 5' for the weights [3, -2, 4]."""
+    out = _num(ws[0])
+    for w in ws[1:]:
+        out += f" − {_num(-w)}" if w < 0 else f" + {_num(w)}"
+    return f"{out} = {_num(sum(ws))}"
+
+
+def _branching(method: str, coords, arcs, *, maximize: bool):
+    """Run `method` on the weighted digraph `arcs`; return (edge specs, chosen, weights)."""
+    import edgecase as ec
+
+    g = ec.Graph(directed=True, weighted=True).add_nodes(list(coords))
+    g.add_edges([(a, b, float(w)) for a, b, w in arcs])
+    chosen = _ec_edges(getattr(g, method)())
+    parent_w = {b: w for _, b, w in chosen}
+    on = {(a, b) for a, b, _ in chosen}
+    better = (lambda x, y: x > y) if maximize else (lambda x, y: x < y)
+
+    def style(a: str, b: str, w: float) -> str:
+        if (a, b) in on:
+            return "accent"
+        if b in parent_w and better(w, parent_w[b]):
+            return "removed"
+        return "muted"
+
+    specs = []
+    for a, b, w in arcs:
+        kw = {"style": style(a, b, w), "weight": _num(w)}
+        if (b, a) in {(x, y) for x, y, _ in arcs}:
+            kw["bend"] = 12
+        specs.append((a, b, kw))
+    return specs, chosen, [w for _, _, w in chosen]
+
+
+def _arrows(chosen) -> str:
+    return " ".join(f"{a}→{b}" for a, b, _ in chosen)
+
+
+# maximum_branching docstring: the cycle B -> C -> D -> B with A feeding in.
+MAXB = {"A": (0, 0.6), "B": (1.2, 0), "C": (2.4, 0.6), "D": (1.2, 1.2)}
+MAXB_ARCS = [("A", "B", 3), ("B", "C", 5), ("C", "D", 4), ("D", "B", 6), ("A", "D", 1)]
+
+
+@figure("maximum_branching", "substructures", "Maximum branching",
+        "A weighted directed graph on four nodes: A points to B (3) and D (1), and B, C, D "
+        "form the cycle B→C (5), C→D (4), D→B (6). The heaviest in-edges would close that "
+        "cycle, so Edmonds' algorithm drops D→B (dashed) and keeps A→B, B→C, and C→D in "
+        "the accent color, a single tree rooted at A; A→D is faded. The card lists the three "
+        "edges and their total weight 3 + 5 + 4 = 12.")
+def maximum_branching(s: Scene) -> None:
+    left, right = compute(s, "g", "g.maximum_branching()")
+    specs, chosen, ws = _branching("maximum_branching", MAXB, MAXB_ARCS, maximize=True)
+    s.graph(place(MAXB, left, unit=UNIT), specs, directed=True)
+    s.card_centered(right, [_arrows(chosen), (_total(ws), "accent")], title="branching edges")
+
+
+# minimum_branching docstring: only negative weights can lower the total.
+MINB = {"A": (0.7, 0), "B": (0, 1.2), "C": (1.4, 1.2)}
+MINB_ARCS = [("A", "B", -2), ("C", "B", -3), ("A", "C", -1), ("B", "C", 4)]
+
+
+@figure("minimum_branching", "substructures", "Minimum branching",
+        "A weighted directed triangle: A→B (−2), A→C (−1), C→B (−3), and B→C (4). Only "
+        "negative edges lower the total, and each node may keep one parent, so the minimum "
+        "branching takes C→B and A→C, in the accent color, while A→B and B→C are faded. The "
+        "card lists the two edges and their total weight −3 − 1 = −4.")
+def minimum_branching(s: Scene) -> None:
+    left, right = compute(s, "g", "g.minimum_branching()")
+    specs, chosen, ws = _branching("minimum_branching", MINB, MINB_ARCS, maximize=False)
+    s.graph(place(MINB, left, unit=UNIT), specs, directed=True)
+    s.card_centered(right, [_arrows(chosen), (_total(ws), "accent")], title="branching edges")
+
+
+# maximum_spanning_arborescence docstring: C has only negative in-edges.
+MAXA = {"A": (0, 0), "B": (1.4, 0), "C": (1.4, 1.2), "D": (2.8, 1.2)}
+MAXA_ARCS = [("A", "B", 3), ("B", "C", -2), ("A", "C", -5), ("C", "D", 4)]
+
+
+@figure("maximum_spanning_arborescence", "substructures", "Maximum spanning arborescence",
+        "A weighted directed graph: A→B (3), B→C (−2), A→C (−5), and C→D (4). Node C can only "
+        "be reached through a negative edge, and a spanning arborescence must reach every "
+        "node, so it takes the less costly B→C: the tree A→B, B→C, C→D in the accent color, "
+        "total 3 − 2 + 4 = 5, with A→C faded. The card contrasts it with the maximum "
+        "branching, which leaves C without a parent and keeps only A→B and C→D, total 7.")
+def maximum_spanning_arborescence(s: Scene) -> None:
+    left, right = compute(s, "g", "g.maximum_spanning_arborescence()")
+    specs, chosen, ws = _branching("maximum_spanning_arborescence", MAXA, MAXA_ARCS,
+                                   maximize=True)
+    s.graph(place(MAXA, left, unit=UNIT), specs, directed=True)
+    _, br, bws = _branching("maximum_branching", MAXA, MAXA_ARCS, maximize=True)
+    s.card_centered(right, [_arrows(chosen), (_total(ws), "accent"),
+                            f"branching {_total(bws).split(' = ')[1]}: {_arrows(br)}"],
+                    title="arborescence edges")
+
+
+# minimum_spanning_arborescence docstring: one-way links between relay stations.
+MINA = {"A": (0, 0.6), "B": (1.3, 0), "C": (1.3, 1.2), "D": (2.6, 0.6)}
+MINA_ARCS = [("A", "B", 4), ("A", "C", 1), ("C", "B", 2), ("B", "D", 3), ("C", "D", 6),
+             ("D", "C", 1)]
+
+
+@figure("minimum_spanning_arborescence", "substructures", "Minimum spanning arborescence",
+        "One-way links between four relay stations, weighted by cost: A→B (4), A→C (1), "
+        "C→B (2), B→D (3), C→D (6), and D→C (1). The cheapest tree reaching every station "
+        "from the root A, outlined in the accent color, uses A→C, C→B, and B→D, in the "
+        "accent color; the other links are faded. The card lists the three edges and their "
+        "total cost 1 + 2 + 3 = 6.")
+def minimum_spanning_arborescence(s: Scene) -> None:
+    left, right = compute(s, "g", "g.minimum_spanning_arborescence()")
+    specs, chosen, ws = _branching("minimum_spanning_arborescence", MINA, MINA_ARCS,
+                                   maximize=False)
+    root = next(k for k in MINA if k not in {b for _, b, _ in chosen})
+    s.graph(place(MINA, left, unit=UNIT), specs, directed=True, styles={root: "soft"})
+    s.card_centered(right, [_arrows(chosen), (_total(ws), "accent")],
+                    title=f"arborescence edges, root {root}")
+
+
+# --- later additions: counting and sampling spanning trees -----------------
+
+SQUARE = {"A": (0, 0), "B": (1, 0), "C": (1, 1), "D": (0, 1)}
+SQUARE_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+DIAG = ("A", "C")
+DOT = 5  # unlabeled miniature node radius
+
+
+@figure("number_of_spanning_trees", "substructures", "Number of spanning trees",
+        "Left: a square A, B, C, D with the diagonal A–C in the accent color. Right: its 8 "
+        "spanning trees as miniatures in two rows. The top row holds the 4 trees of the "
+        "plain square, each dropping one side; the bottom row holds the 4 trees that use the "
+        "diagonal. The heading gives the count, 8, and a note under the rows the sum 4 + 4 = 8.")
+def number_of_spanning_trees(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.number_of_spanning_trees()")
+    g = ec.Graph().add_nodes(list(SQUARE))
+    g.add_edges(SQUARE_EDGES)
+    before = g.number_of_spanning_trees()
+    g.add_edge(*DIAG)
+    total = g.number_of_spanning_trees()
+    trees = [{_key(a, b) for a, b, _ in _ec_edges(t)} for t in g.all_spanning_trees()]
+    rows = [[t for t in trees if DIAG not in t], [t for t in trees if DIAG in t]]
+    assert len(rows[0]) == before and len(trees) == total
+
+    s.graph(place(SQUARE, left, unit=UNIT),
+            SQUARE_EDGES + [(*DIAG, {"style": "accent"})])
+
+    side, gap, n = 24, 12, max(len(r) for r in rows)
+    note_w = max(text_width(t, SIZE_NOTE) for t in ("no A–C", "with A–C"))
+    row_w = n * (side + 2 * DOT) + (n - 1) * gap + 10 + note_w
+    x0 = right.cx - row_w / 2
+    s.text(right.cx, right.y0 + 16, f"{total} spanning trees", size=SIZE_CARD,
+           color="accent", weight=600, role="card")
+    all_edges = SQUARE_EDGES + [DIAG]
+    for i, (row, note) in enumerate(zip(rows, ("no A–C", "with A–C"))):
+        cy = right.y0 + 62 + i * 58
+        for j, t in enumerate(row):
+            cx0 = x0 + j * (side + 2 * DOT + gap) + DOT
+            pos = {k: (cx0 + x * side, cy - side / 2 + y * side) for k, (x, y) in SQUARE.items()}
+            s.graph(pos, [(a, b, {"style": "accent" if _key(a, b) in t else "removed"})
+                          for a, b in all_edges],
+                    styles={k: "accent" for k in SQUARE}, labels=False, r=DOT,
+                    prefix=f"t{i}{j}.")
+        s.text(x0 + row_w - note_w, cy, note, size=SIZE_NOTE, anchor="start", opacity=0.75)
+    s.text(right.cx, right.y1 - 10, f"{before} + {total - before} = {total}", size=SIZE_NOTE,
+           opacity=0.75)
+
+
+GRID_N = 4
+GRID_SEED = 7
+
+
+@figure("random_spanning_tree", "substructures", "Random spanning tree",
+        "Left: a 4 by 4 grid graph, 16 nodes and 24 edges. Right: the spanning tree drawn "
+        "with seed 7, its 15 edges in the accent color and the 9 unused grid edges dashed. "
+        "Every node is reached by exactly one route, so the tree reads as a maze.")
+def random_spanning_tree(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = transform(s, "g", f"g.random_spanning_tree(seed={GRID_SEED})")
+    grid = ec.Graph().add_grid_2d(GRID_N, GRID_N)
+
+    def coord(label: str) -> tuple[float, float]:
+        i, j = (int(v) for v in label.strip("()").split(","))
+        return (j, i)
+
+    coords = {lab: coord(lab) for lab in (grid.get_label_from_id(n)
+                                          for n in grid.get_node_ids(limit=None))}
+    edges = [(a, b) for a, b, _ in _ec_edges(grid)]
+    tree = {_key(a, b) for a, b, _ in _ec_edges(grid.random_spanning_tree(seed=GRID_SEED))}
+    assert len(tree) == len(coords) - 1
+    r = 8
+    s.graph(place(coords, left, unit=48, r=r), edges, labels=False, r=r, prefix="l.")
+    s.graph(place(coords, right, unit=48, r=r),
+            [(a, b, {"style": "accent" if _key(a, b) in tree else "removed"}) for a, b in edges],
+            labels=False, r=r, prefix="r.")
+
+
+# --- later additions: Prüfer sequences -------------------------------------
+
+# A tree on ids 1..6 whose code [5, 1, 5, 6] shows a neighbor (1) turning
+# into the next smallest leaf.
+PRUFER = {"3": (0, 0), "1": (1, 0.7), "5": (2, 0), "2": (2, 1.2), "6": (3, 0.7), "4": (4, 0)}
+PRUFER_EDGES = [("2", "5"), ("1", "3"), ("1", "5"), ("4", "6"), ("5", "6")]
+
+
+def _prufer_encode(edges, order: list[str]) -> list[tuple[str, str]]:
+    """(removed leaf, its neighbor) per step, removing the smallest leaf each time."""
+    adj = {k: set() for k in order}
+    for a, b in edges:
+        adj[a].add(b)
+        adj[b].add(a)
+    steps = []
+    for _ in range(len(order) - 2):
+        leaf = next(k for k in order if k in adj and len(adj[k]) == 1)
+        (nb,) = adj.pop(leaf)
+        adj[nb].discard(leaf)
+        steps.append((leaf, nb))
+    return steps
+
+
+@figure("to_prufer_sequence", "substructures", "To Prüfer sequence",
+        "A tree on node ids 1 to 6: 3–1, 1–5, 5–2, 5–6, and 6–4. Repeatedly removing the "
+        "smallest leaf and writing down its neighbor removes 2, 3, 1, and 4 in that order "
+        "(filled order badges), along the four edges in the accent color; removing 3 turns "
+        "1 into a leaf, so it goes next. The card shows the removed leaves and the returned "
+        "sequence [5, 1, 5, 6].")
+def to_prufer_sequence(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.to_prufer_sequence()")
+    order = sorted(PRUFER, key=int)
+    g = ec.Graph().add_nodes(order)  # labels "1".."6" get ids 1..6
+    g.add_edges(PRUFER_EDGES)
+    seq = [g.get_label_from_id(n) for n in g.to_prufer_sequence()]
+    steps = _prufer_encode(PRUFER_EDGES, order)
+    assert seq == [nb for _, nb in steps]
+    removed = {_key(a, b) for a, b in steps}
+    s.graph(place(PRUFER, left, unit=UNIT),
+            [(a, b, {"style": "accent"}) if _key(a, b) in removed else (a, b)
+             for a, b in PRUFER_EDGES])
+    for i, (leaf, _) in enumerate(steps, 1):
+        s.badge(leaf, str(i), filled=True)
+    s.card_centered(right, ["leaves  " + "  ".join(l for l, _ in steps),
+                            ("result  [" + ", ".join(seq) + "]", "accent")],
+                    title="remove leaf, write neighbor")
+
+
+PRUFER_NAMES = ["A", "B", "C", "D", "E", "F"]
+PRUFER_SEQ = ["D", "D", "E", "E"]
+NAMED = {"A": (0, 0), "B": (0, 1.2), "D": (1, 0.6), "E": (2.2, 0.6), "C": (3.2, 0),
+         "F": (3.2, 1.2)}
+
+
+def _prufer_decode(seq: list[str], order: list[str]) -> list[tuple[str, str]]:
+    """Edges in the order the decoder adds them; the last joins the final two nodes."""
+    deg = {k: 1 + seq.count(k) for k in order}
+    out = []
+    for x in seq:
+        leaf = next(k for k in order if deg[k] == 1)
+        out.append((leaf, x))
+        deg[leaf] -= 1
+        deg[x] -= 1
+    out.append(tuple(k for k in order if deg[k] == 1))
+    return out
+
+
+@figure("from_prufer_sequence", "substructures", "From Prüfer sequence",
+        "Left: a card with the node names A to F, smallest first, and the sequence D, D, E, "
+        "E. Each entry joins the smallest remaining leaf to it: A–D, B–D, C–E, and D–E; the "
+        "last two nodes left, E and F, are then joined. Right: the decoded six-node tree, "
+        "with D and E, the nodes named in the sequence, and the four edges added for its "
+        "entries in the accent color, and the final edge E–F plain.")
+def from_prufer_sequence(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = transform(s, "names, seq", "Graph.from_prufer_sequence(seq, nodes=names)")
+    t = ec.Graph.from_prufer_sequence(PRUFER_SEQ, nodes=PRUFER_NAMES)
+    got = {_key(a, b) for a, b, _ in _ec_edges(t)}
+    steps = _prufer_decode(PRUFER_SEQ, PRUFER_NAMES)
+    assert got == {_key(a, b) for a, b in steps}
+    s.card_centered(left, ["names  " + " ".join(PRUFER_NAMES),
+                           ("seq    " + " ".join(PRUFER_SEQ), "accent"),
+                           "joins  " + " ".join(f"{a}–{b}" for a, b in steps[:-1]),
+                           f"last   {steps[-1][0]}–{steps[-1][1]}"])
+    entries = {_key(a, b) for a, b in steps[:-1]}
+    s.graph(place(NAMED, right, unit=UNIT),
+            [(a, b, {"style": "accent"}) if _key(a, b) in entries else (a, b)
+             for a, b in sorted(got)],
+            styles={k: "accent" for k in set(PRUFER_SEQ)})
