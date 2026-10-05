@@ -1,5 +1,7 @@
 """Tests for network enrichment testing: subgraph enrichment, module annotation enrichment."""
 
+import math
+
 import pytest
 import edgecase as ec
 
@@ -124,6 +126,24 @@ class TestSubgraphEnrichment:
         sub = [g.get_id_from_label(label) for label in ["G1", "G2", "G3"]]
         result = g.subgraph_enrichment(sub, "pathway", "apoptosis", method="chi_squared")
         assert 0.0 <= result["p_value"] <= 1.0
+
+    def test_chi_squared_is_one_sided(self):
+        # 10 nodes, 5 tagged "A". Subgraph of 4: E = 2. k = 4 is enrichment, k = 0 is depletion
+        # by the same distance, which the old |k - E| statistic scored identically
+        g = ec.Graph().add_nodes([f"N{i}" for i in range(10)])
+        ids = g.get_node_ids()
+        g.set_node_attrs("tag", {nid: ("A" if i < 5 else "B") for i, nid in enumerate(ids)})
+
+        enriched = g.subgraph_enrichment(ids[:4], "tag", "A", method="chi_squared")
+        depleted = g.subgraph_enrichment(ids[6:], "tag", "A", method="chi_squared")
+        neutral = g.subgraph_enrichment(ids[3:7], "tag", "A", method="chi_squared")
+
+        z = 2 / math.sqrt(2)
+        assert enriched["p_value"] == pytest.approx(0.5 * math.erfc(z / math.sqrt(2)))
+        assert depleted["p_value"] == pytest.approx(0.5 * math.erfc(-z / math.sqrt(2)))
+        assert depleted["p_value"] > 0.5 > enriched["p_value"]
+        assert neutral["p_value"] == pytest.approx(0.5)
+        assert enriched["p_value"] + depleted["p_value"] == pytest.approx(1.0)
 
     def test_invalid_method_raises(self, annotated_graph):
         g = annotated_graph
