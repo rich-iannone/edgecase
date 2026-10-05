@@ -108,6 +108,17 @@ class TestMultiEdges:
         G.add_edge("A", "B", id=2, auto_create_nodes=True)  # Duplicate
         assert G.count_multi_edges() == 1
 
+    def test_count_multi_edges_undirected_either_orientation(self):
+        """Regression: undirected A-B plus B-A gave 0, though is_simple() was False."""
+        G = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "A"), ("B", "C")])
+        assert not G.is_simple()
+        assert G.count_multi_edges() == 1
+        G.add_edges([("C", "B"), ("B", "C")])
+        assert G.count_multi_edges() == 3
+        # Repeated self-loops still count
+        loops = ec.Graph().add_nodes(["A"]).add_edges([("A", "A"), ("A", "A")])
+        assert loops.count_multi_edges() == 1
+
 
 class TestMutualNodePairs:
     """Test bidirectional edge counting."""
@@ -182,6 +193,15 @@ class TestMutualNodePairs:
                     G.add_edge(src, tgt, auto_create_nodes=True)
         # 3 nodes = 3 pairs: (A,B), (B,C), (A,C)
         assert G.count_mutual_node_pairs() == 3
+
+    def test_count_mutual_ignores_parallel_edges(self):
+        """Regression: A->B plus 3x B->A gave 3."""
+        G = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        G.add_edges([("A", "B"), ("B", "A"), ("B", "A"), ("B", "A")])
+        assert G.count_mutual_node_pairs() == 1
+        G.add_edges([("A", "B"), ("B", "C"), ("B", "C")])
+        assert G.count_mutual_node_pairs() == 1
+        assert G.count_asymmetric_node_pairs() == 1
 
 
 class TestAsymmetricNodePairs:
