@@ -396,9 +396,9 @@ class TestUnconnectedParameter:
         G.add_node("B")
         G.add_node("C")
 
-        # Isolated nodes have eccentricity 0
+        # Isolated nodes reach nothing, so they don't count toward the radius
         assert G.get_diameter() == 2  # Max ecc from path
-        assert G.get_radius() == 0  # Min ecc from isolated nodes
+        assert G.get_radius() == 1  # Path's middle node
 
         # Mean distance computed only for reachable pairs
         mean = G.get_mean_distance()
@@ -1155,3 +1155,55 @@ class TestCenterAndBarycenter:
         assert g.steps[-1].narration == "Center: 3 (eccentricity 2)."
         g.get_barycenter()
         assert g.steps[-1].narration == "Barycenter: 3 (total distance 6)."
+
+
+class TestRadiusIgnoresNodesThatReachNothing:
+    """Regression: an isolated node, or a sink in a directed graph, made the radius 0."""
+
+    def test_isolated_node_skipped(self):
+        g = ec.Graph().add_path_graph(5).add_node(label="loner")
+        assert g.get_radius() == 2
+        assert g.get_min_eccentricity() == 2
+        assert g.get_center() == [3]
+        assert g.get_radius(unconnected=False) is None
+
+    def test_smallest_radius_across_components(self):
+        # Path of 5 (radius 2) plus a separate edge (radius 1)
+        g = ec.Graph().add_path_graph(5).add_nodes(["X", "Y"]).add_edges([("X", "Y")])
+        assert g.get_radius() == 1
+        assert sorted(_labels(g, g.get_center())) == ["X", "Y"]
+
+    def test_graph_without_edges(self):
+        g = ec.Graph().add_nodes(["A", "B"])
+        assert g.get_radius() == 0
+        assert len(g.get_center()) == 2
+        assert ec.Graph().get_radius() is None
+        assert ec.Graph().add_nodes(["A"]).get_radius() == 0
+
+    def test_directed_path_and_sink(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("B", "C")])
+        # Only A reaches the whole component; C (a sink) no longer gives 0
+        assert g.get_radius() == 2
+        assert _labels(g, g.get_center()) == ["A"]
+        assert g.get_radius(unconnected=False) == 2
+
+    def test_directed_out_star_and_in_star(self):
+        out_star = ec.Graph(directed=True).add_star_graph(4)
+        assert out_star.get_radius() == 1
+        assert out_star.get_center() == [1]
+        # No node of an in-star reaches the others
+        in_star = ec.Graph(directed=True).add_nodes(["H", "A", "B"])
+        in_star.add_edges([("A", "H"), ("B", "H")])
+        assert in_star.get_radius() is None
+        assert in_star.get_center() == []
+
+    def test_strongly_connected_matches_networkx(self):
+        for seed in range(15):
+            G = nx.gnp_random_graph(10, 0.35, seed=seed, directed=True)
+            if not nx.is_strongly_connected(G):
+                continue
+            g = ec.Graph(directed=True).add_nodes([str(n) for n in G])
+            g.add_edges([(str(u), str(v)) for u, v in G.edges])
+            assert g.get_radius() == nx.radius(G)
+            assert sorted(_lab(g, n) for n in g.get_center()) == sorted(nx.center(G))
