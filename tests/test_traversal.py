@@ -356,6 +356,20 @@ class TestConditionalTraversal:
         nodes = [G.get_label_from_id(nid) for nid in node_ids]
         assert nodes == ["1"]
 
+    @pytest.mark.parametrize("method", ["trav_out_until", "trav_in_until"])
+    def test_add_to_selection_keeps_existing_selection(self, method):
+        """Regression: add_to_selection=True still cleared the selection first."""
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "X"])
+        g.add_edges([("A", "B"), ("B", "C")] if method == "trav_out_until" else [("C", "B"), ("B", "A")])
+        a, c, x = (g.get_id_from_label(n) for n in "ACX")
+        g.select_nodes_by_id([a, x])
+        getattr(g, method)(lambda nid: nid == c, add_to_selection=True)
+        # A and X (unmatched starting nodes) stay; the match C is added
+        assert sorted(g.get_selected_node_ids()) == sorted([a, c, x])
+        g.clear_selection().select_nodes_by_id([a, x])
+        getattr(g, method)(lambda nid: nid == c)
+        assert g.get_selected_node_ids() == [c]
+
     def test_trav_in_until_undirected_follows_every_edge(self):
         """Regression: on undirected graphs the walk only followed edges stored toward the node."""
         # Path stored as A-B, B-C, C-D; walking "in" from A used to find nothing
