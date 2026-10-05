@@ -3907,16 +3907,7 @@ impl Graph {
             current = next;
         }
 
-        // Convert node IDs to labels
-        let labels: Vec<String> = path.iter()
-            .map(|&id| {
-                self.nodes.get(&id)
-                    .and_then(|node| node.label.clone())
-                    .unwrap_or_else(|| id.to_string())
-            })
-            .collect();
-
-        Ok(labels)
+        Ok(path)
     }
 
     /// Perform a random walk on the graph and return edges
