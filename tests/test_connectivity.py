@@ -1,6 +1,9 @@
-import pytest
+import itertools
+import random
+
 import edgecase as ec
 import networkx as nx
+import pytest
 
 
 class TestNodeConnectivity:
@@ -304,3 +307,92 @@ class TestNodeConnectivityBetween:
         i = g.get_id_from_label
         for s, t in [("A", "F"), ("B", "G"), ("C", "E")]:
             assert g.get_node_connectivity_between(i(s), i(t)) == nx.node_connectivity(ref, s, t)
+
+
+# Edge- and node-disjoint paths, validated against NetworkX.
+
+
+def _bowtie() -> ec.Graph:
+    return (
+        ec.Graph()
+        .add_nodes(list("ABCDE"))
+        .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+    )
+
+
+def _random(seed: int, directed: bool, n: int = 12):
+    rnd = random.Random(seed)
+    G0 = nx.gnp_random_graph(n, rnd.choice([0.2, 0.3, 0.45]), seed=seed, directed=directed)
+    G = (nx.DiGraph if directed else nx.Graph)()
+    G.add_nodes_from(range(n))
+    for u, v in G0.edges:
+        G.add_edge(u, v, capacity=rnd.choice([1, 2, 3, 5]))
+    g = ec.Graph(directed=directed).add_nodes([str(v) for v in range(n)])
+    for u, v, d in G.edges(data=True):
+        g.add_edge(str(u), str(v), capacity=d["capacity"])
+    return G, g
+
+
+def _id(g, v):
+    return g.get_id_from_label(str(v))
+
+
+def _labs(g, ids):
+    return [int(g.get_label_from_id(i)) for i in ids]
+
+
+class TestDisjointPaths:
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_counts_match_networkx_and_paths_are_disjoint(self, directed):
+        for seed in range(20):
+            G, g = _random(seed, directed)
+            for s, t in itertools.islice(itertools.permutations(range(12), 2), 0, 132, 19):
+                reachable = nx.has_path(G, s, t)
+                edge_paths = g.edge_disjoint_paths(_id(g, s), _id(g, t))
+                node_paths = g.node_disjoint_paths(_id(g, s), _id(g, t))
+                ref_e = len(list(nx.edge_disjoint_paths(G, s, t))) if reachable else 0
+                ref_n = len(list(nx.node_disjoint_paths(G, s, t))) if reachable else 0
+                assert len(edge_paths) == ref_e and len(node_paths) == ref_n
+                used = []
+                for p in edge_paths:
+                    labs = _labs(g, p)
+                    assert labs[0] == s and labs[-1] == t
+                    for a, b in zip(labs, labs[1:]):
+                        assert G.has_edge(a, b)
+                        used.append((a, b) if directed else tuple(sorted((a, b))))
+                assert len(used) == len(set(used))
+                inner = [v for p in node_paths for v in _labs(g, p)[1:-1]]
+                assert len(inner) == len(set(inner))
+
+    def test_bowtie_contrast_and_menger(self):
+        g = _bowtie()
+        assert len(g.edge_disjoint_paths("A", "E")) == g.get_min_cut_between("A", "E") == 2
+        assert len(g.node_disjoint_paths("A", "E")) == 1
+        assert g.get_node_connectivity_between("A", "E") == 1
+
+    def test_cube_and_max_paths(self):
+        cube = ec.Graph().add_nodes([str(i) for i in range(8)])
+        cube.add_edges(
+            [
+                (str(a), str(b))
+                for a in range(8)
+                for b in range(a + 1, 8)
+                if bin(a ^ b).count("1") == 1
+            ]
+        )
+        paths = cube.node_disjoint_paths("0", "7")
+        assert len(paths) == 3 and all(len(p) == 4 for p in paths)
+        assert len(cube.edge_disjoint_paths("0", "7", max_paths=2)) == 2
+        with pytest.raises(ValueError, match="max_paths"):
+            cube.node_disjoint_paths("0", "7", max_paths=0)
+
+    def test_unreachable_and_adjacent(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"]).add_edge("A", "B")
+        assert g.edge_disjoint_paths("B", "A") == [] and g.node_disjoint_paths("B", "A") == []
+        assert g.node_disjoint_paths("A", "B") == [[1, 2]]
+
+    def test_steps(self):
+        b = _bowtie()
+        b.edge_disjoint_paths("A", "E")
+        assert b.steps[-1].narration == "2 edge-disjoint paths from A to E."
+        assert set(b.steps[-1].delta.nodes_selected) == set("ABCDE")
