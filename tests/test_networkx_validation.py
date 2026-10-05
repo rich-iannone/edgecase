@@ -1035,7 +1035,7 @@ class TestShortestPathLengths:
 
         # A to C: via B is shorter (3.0) than direct (5.0)
         if hasattr(G, "shortest_path_length"):
-            ec_length = G.shortest_path_length("A", "C", weighted=True)
+            ec_length = G.shortest_path_length("A", "C")
             nx_length = nx.shortest_path_length(nx_graph, "A", "C", weight="weight")
             assert abs(ec_length - nx_length) < 0.001
             assert abs(ec_length - 3.0) < 0.001
@@ -1214,7 +1214,7 @@ class TestDegreeMetrics:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "degree_centrality"):
-            ec_dc = G.degree_centrality()
+            ec_dc = G.degree_centrality(return_dict=True)
             nx_dc = nx.degree_centrality(nx_graph)
 
             for node_id in G.get_node_ids(limit=None):
@@ -1352,7 +1352,7 @@ class TestClosenessAndHarmonic:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "closeness_centrality"):
-            ec_cc = G.closeness_centrality()
+            ec_cc = G.closeness_centrality(return_dict=True)
             nx_cc = nx.closeness_centrality(nx_graph)
 
             for node_id in G.get_node_ids(limit=None):
@@ -1375,7 +1375,7 @@ class TestClosenessAndHarmonic:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "closeness_centrality"):
-            ec_cc = G.closeness_centrality()
+            ec_cc = G.closeness_centrality(return_dict=True)
             nx_cc = nx.closeness_centrality(nx_graph)
 
             # Center should have highest closeness
@@ -1481,20 +1481,24 @@ class TestWeightedMetrics:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "betweenness_centrality"):
-            # EdgeCase betweenness_centrality doesn't support weighted parameter yet
-            # So we compare unweighted versions
+            # On a weighted graph, betweenness follows edge weights (like shortest_path)
             ec_bc = G.betweenness_centrality(return_dict=True)
-            nx_bc = nx.betweenness_centrality(nx_graph)  # Unweighted
-
+            nx_bc = nx.betweenness_centrality(nx_graph, weight="weight")
             for node_id in G.get_node_ids(limit=None):
-                label = G.get_label_from_id(node_id)
                 nx_node = node_to_nx(G, node_id)
                 assert abs(ec_bc[node_id] - nx_bc[nx_node]) < 0.01
 
-            # In unweighted triangle graph, all nodes have zero betweenness
-            # (this is correct - no shortest paths go through intermediate nodes)
+            # The heavy A-C edge makes the A-C shortest path detour through B
             b_id = G.get_id_from_label("B")
-            assert ec_bc[b_id] == 0.0
+            assert ec_bc[b_id] == 1.0
+
+            # weighted=False counts hops: in a triangle no path needs an intermediate node
+            ec_hops = G.betweenness_centrality(weighted=False, return_dict=True)
+            nx_hops = nx.betweenness_centrality(nx_graph)
+            for node_id in G.get_node_ids(limit=None):
+                nx_node = node_to_nx(G, node_id)
+                assert abs(ec_hops[node_id] - nx_hops[nx_node]) < 0.01
+            assert ec_hops[b_id] == 0.0
 
     def test_weighted_pagerank(self):
         """Test PageRank with edge weights."""
