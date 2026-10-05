@@ -19,6 +19,8 @@ class StepDelta:
     nodes_selected: list[str] = field(default_factory=list)
     edges_selected: list[tuple[str, str]] = field(default_factory=list)
     metric_values: dict[str, float] = field(default_factory=dict)
+    edge_metric_values: dict[tuple[str, str], float] = field(default_factory=dict)
+    node_groups: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -281,6 +283,25 @@ def auto_narrate(step: Step) -> str:
         if ne:
             return f"{ne} edge{'s' if ne != 1 else ''} selected via {step.method}()."
         return f"Selection updated via {step.method}()."
+
+    if step.kind in (KIND_METRIC, KIND_QUERY, KIND_TRANSFORM) and d.node_groups:
+        k = len(set(d.node_groups.values()))
+        return f"{step.method}() grouped {len(d.node_groups)} nodes into {k} groups."
+
+    if step.kind == KIND_QUERY and (d.nodes_selected or d.edges_selected):
+        n = len(d.nodes_selected)
+        return f"{step.method}() found {n} node{'s' if n != 1 else ''}."
+
+    if step.kind == KIND_METRIC:
+        if d.edge_metric_values:
+            (src, tgt), top = max(d.edge_metric_values.items(), key=lambda kv: kv[1])
+            n = len(d.edge_metric_values)
+            return f"{step.method}() scored {n} edges; highest: {src}–{tgt} ({top:.3g})."
+        if d.metric_values:
+            lbl, top = max(d.metric_values.items(), key=lambda kv: kv[1])
+            n = len(d.metric_values)
+            return f"{step.method}() scored {n} nodes; highest: {lbl} ({top:.3g})."
+        return f"{step.method}() computed."
 
     if step.kind == KIND_TRANSFORM:
         if d.edges_added:
