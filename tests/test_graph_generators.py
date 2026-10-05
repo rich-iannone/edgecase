@@ -310,3 +310,36 @@ class TestPerformance:
         G = ec.Graph().add_pa_graph(1000, m=3, seed=23)
 
         assert G.count_nodes() == 1000
+
+
+class TestRandomGraphDirectedOverride:
+    """Regression: a directed= that differed from the graph's raised AttributeError after the
+    nodes had already been added."""
+
+    @pytest.mark.parametrize("method,args", [("add_gnp_graph", {"p": 1.0}), ("add_gnm_graph", {"m": 12})])
+    def test_directed_on_undirected_graph(self, method, args):
+        # Both orientations of each of the 6 pairs: 12 edges, every pair doubled
+        g = ec.Graph().add_nodes(["X"])
+        getattr(g, method)(n=4, directed=True, seed=1, **args)
+        assert not g.is_directed()
+        assert g.count_nodes() == 5
+        assert g.count_edges() == 12
+        assert g.count_multi_edges() == 6
+        x = g.get_id_from_label("X")
+        assert all(x not in (s, t) for _, s, t in g.get_edges_as_tuples())
+
+    @pytest.mark.parametrize("method,args", [("add_gnp_graph", {"p": 1.0}), ("add_gnm_graph", {"m": 6})])
+    def test_undirected_on_directed_graph(self, method, args):
+        # Each of the 6 pairs once, in one direction
+        g = ec.Graph(directed=True)
+        getattr(g, method)(n=4, directed=False, seed=1, **args)
+        assert g.is_directed()
+        assert g.count_nodes() == 4
+        assert g.count_edges() == 6
+        assert g.count_mutual_node_pairs() == 0
+
+    def test_invalid_args_add_nothing(self):
+        g = ec.Graph()
+        with pytest.raises(ValueError):
+            g.add_gnp_graph(n=4, p=2.0, directed=True)
+        assert g.count_nodes() == 0
