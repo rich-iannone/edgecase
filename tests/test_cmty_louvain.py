@@ -450,3 +450,69 @@ class TestLouvainEdgeCases:
         # Bipartite graphs are tricky - should find some structure
         num_communities = len(set(communities.values()))
         assert num_communities >= 1
+
+
+class TestLouvainQualityAndScale:
+    """Regression tests for the multi-level (aggregating) implementation.
+
+    The previous implementation had no aggregation phase and recomputed community totals over
+    every node for every move: 115 s and modularity 0.23 on a 20k-node graph where NetworkX's
+    Louvain reaches 0.385 in a few seconds.
+    """
+
+    @staticmethod
+    def _from_nx(G):
+        g = ec.Graph()
+        g.add_nodes([str(n) for n in G.nodes])
+        g.add_edges([(str(u), str(v)) for u, v in G.edges])
+        return g
+
+    def test_karate_near_optimal_modularity(self):
+        karate = ec.karate_club()
+        q = karate.modularity(karate.cmty_louvain(return_dict=True))
+        assert q > 0.41  # optimum is 0.4198
+
+    def test_recovers_planted_partition(self):
+        import networkx as nx
+
+        P = nx.planted_partition_graph(8, 50, 0.3, 0.01, seed=1)
+        g = self._from_nx(P)
+        m = g.cmty_louvain(return_dict=True)
+        found = sorted(
+            sorted(int(g.get_label_from_id(n)) for n in m if m[n] == c) for c in set(m.values())
+        )
+        assert found == [list(range(i * 50, (i + 1) * 50)) for i in range(8)]
+
+    def test_matches_networkx_quality_and_is_fast(self):
+        import time
+
+        import networkx as nx
+
+        B = nx.powerlaw_cluster_graph(20000, 4, 0.3, seed=1)
+        g = self._from_nx(B)
+        start = time.perf_counter()
+        m = g.cmty_louvain(return_dict=True)
+        elapsed = time.perf_counter() - start
+        # NetworkX louvain_communities(seed=1) reaches 0.385 on this graph
+        assert g.modularity(m) > 0.37
+        assert elapsed < 5.0  # ~0.05 s in practice; the old code took ~115 s
+
+    def test_uses_edge_weights(self):
+        # A 4-cycle: heavy edges A-B and C-D should pair those nodes, whichever pair is heavy
+        def build(heavy):
+            g = ec.Graph(weighted=True).add_nodes(list("ABCD"))
+            for u, v in [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]:
+                g.add_edge(u, v, weight=10.0 if (u, v) in heavy else 1.0)
+            m = g.cmty_louvain(return_dict=True)
+            return {g.get_label_from_id(n): c for n, c in m.items()}
+
+        a = build({("A", "B"), ("C", "D")})
+        assert a["A"] == a["B"] and a["C"] == a["D"] and a["A"] != a["C"]
+        b = build({("B", "C"), ("D", "A")})
+        assert b["B"] == b["C"] and b["D"] == b["A"] and b["A"] != b["B"]
+
+    def test_deterministic_on_large_graph(self):
+        import networkx as nx
+
+        g = self._from_nx(nx.powerlaw_cluster_graph(2000, 3, 0.3, seed=2))
+        assert g.cmty_louvain(return_dict=True) == g.cmty_louvain(return_dict=True)
