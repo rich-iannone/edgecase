@@ -419,3 +419,104 @@ def bipartite_sets(s: Scene) -> None:
     _partition(s, place(LADDER, left, unit=UNIT), LADDER_EDGES, [list("ACE"), list("BDF")],
                hulls=False)
     s.card_centered(right, [("0 → A, C, E", "accent"), ("1 → B, D, F", "g2")], title="set")
+
+
+# --- more community methods on the shared CMTY graph -----------------------
+
+
+@figure("cmty_leiden", "communities", "Leiden communities",
+        "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
+        "the single edge C to D. Leiden returns the two clusters as communities, each one "
+        "connected, drawn as tinted regions in the accent color and teal. The card lists "
+        "community 0 as A, B, C and community 1 as D, E, F, G.")
+def cmty_leiden(s: Scene) -> None:
+    # same partition for every seed tried, so the caption leaves seed= out
+    _cmty(s, "g.cmty_leiden()", CMTY_GROUPS_LOW, CMTY_CARD_LOW)
+
+
+@figure("cmty_label_propagation", "communities", "Label propagation communities",
+        "Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by "
+        "the single edge C to D. Starting from one label per node, each node repeatedly "
+        "adopts its neighbors' most common label; the labels settle on the two clusters, "
+        "drawn in the accent color and teal. The card lists community 0 as A, B, C and "
+        "community 1 as D, E, F, G.")
+def cmty_label_propagation(s: Scene) -> None:
+    # same partition for every seed tried, so the caption leaves seed= out
+    _cmty(s, "g.cmty_label_propagation()", CMTY_GROUPS_LOW, CMTY_CARD_LOW)
+
+
+@figure("modularity", "communities", "Modularity",
+        "The two-cluster graph with 9 edges, split into the partition you pass: A, B, C "
+        "(teal) and D, E, F, G (violet). The card scores each community as its share of "
+        "edges inside minus the share expected by chance, 3/9 − (7/18)² and "
+        "5/9 − (11/18)², each 0.18, for a modularity Q of 0.36.")
+def modularity(s: Scene) -> None:
+    # the partition is an input here, so it takes g2/g3 and accent is kept for Q
+    left, right = compute(s, 'g,  p = [list("ABC"), list("DEFG")]', "g.modularity(p)")
+    pos = place(CMTY, left, unit=UNIT)
+    grp = {**dict.fromkeys("ABC", "g2"), **dict.fromkeys("DEFG", "g3")}
+    s.graph(pos, [(a, b, {"style": grp[a]}) if grp[a] == grp[b] else (a, b)
+                  for a, b in CMTY_EDGES], styles=grp)
+    s.hull(list("ABC"), "g2")
+    s.hull(list("DEFG"), "g3")
+    s.card_centered(right, [("ABC   3/9 − (7/18)² = 0.18", "g2"),
+                            ("DEFG  5/9 − (11/18)² = 0.18", "g3"),
+                            ("Q     0.36", "accent")], title="L/m − (D/2m)², m = 9")
+
+
+@figure("partition_quality", "communities", "Partition quality",
+        "The two-cluster graph split into the partition you pass: A, B, C (teal) and D, E, "
+        "F, G (violet). 8 of the 9 edges lie inside a community, all but the bridge C to D, "
+        "so coverage is 8/9 = 0.889. Of the 21 node pairs, 19 are classified correctly (8 "
+        "joined pairs inside a community and 11 unjoined pairs across), so performance is "
+        "19/21 = 0.905.")
+def partition_quality(s: Scene) -> None:
+    # same input convention as modularity: the partition is g2/g3, accent is the result
+    left, right = compute(s, 'g,  p = [list("ABC"), list("DEFG")]', "g.partition_quality(p)")
+    pos = place(CMTY, left, unit=UNIT)
+    grp = {**dict.fromkeys("ABC", "g2"), **dict.fromkeys("DEFG", "g3")}
+    s.graph(pos, [(a, b, {"style": grp[a]}) if grp[a] == grp[b] else (a, b)
+                  for a, b in CMTY_EDGES], styles=grp)
+    s.hull(list("ABC"), "g2")
+    s.hull(list("DEFG"), "g3")
+    s.card_centered(right, ["edges inside      8 of 9",
+                            "pairs right  8 + 11 of 21",
+                            ("coverage     8/9 = 0.889", "accent"),
+                            ("performance 19/21 = 0.905", "accent")],
+                    title="(coverage, performance)")
+
+
+# --- overlapping communities -------------------------------------------------
+
+# Triangles ABC and BCD share edge B-C, so they percolate into one 3-clique
+# community; triangle DEF shares only node D with it, so it is a second
+# community overlapping at D. G is in no triangle.
+KCLQ = {"A": (0, 0.6), "B": (1, 0), "C": (1, 1.2), "D": (2, 0.6), "E": (3, 0), "F": (3, 1.2),
+        "G": (4, 1.2)}
+KCLQ_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("D", "E"),
+              ("D", "F"), ("E", "F"), ("F", "G")]
+
+
+@figure("cmty_k_clique", "communities", "k-clique communities",
+        "Two triangles A, B, C and B, C, D share an edge, so they merge into one community "
+        "(accent color); triangle D, E, F shares only node D with it and forms a second "
+        "community (teal). The two tinted regions overlap at D, which belongs to both. The "
+        "pendant G is in no triangle and in no community.")
+def cmty_k_clique(s: Scene) -> None:
+    left, right = compute(s, "g", "g.cmty_k_clique(k=3)")
+    c1, c2 = set("ABCD"), set("DEF")
+
+    def style(a, b):
+        if a in c1 and b in c1:
+            return {"style": "accent"}
+        if a in c2 and b in c2:
+            return {"style": "g2"}
+        return {"style": "muted"}
+    # D, in both communities, stays ink inside the overlap of the two regions
+    styles = {**dict.fromkeys("ABC", "accent"), **dict.fromkeys("EF", "g2"), "G": "muted"}
+    s.graph(place(KCLQ, left, unit=UNIT), [(a, b, style(a, b)) for a, b in KCLQ_EDGES],
+            styles=styles)
+    s.hull(sorted(c1), "accent")
+    s.hull(sorted(c2), "g2")
+    s.card_centered(right, [("[A, B, C, D]", "accent"), ("[D, E, F]", "g2"),
+                            "D in both, G in none"], title="communities")
