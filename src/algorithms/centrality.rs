@@ -346,7 +346,7 @@ fn compute_load_from_source(
 ///
 /// Performance: O(V·E) time with BFS from each node, parallelized with Rayon
 #[pyfunction]
-#[pyo3(signature = (graph, mode="out", weights=None, normalized=false, cutoff=-1))]
+#[pyo3(signature = (graph, mode="out", weights=None, normalized=false, cutoff=-1, weighted=false))]
 #[inline]
 pub fn harmonic_centrality(
     graph: &Graph,
@@ -354,6 +354,7 @@ pub fn harmonic_centrality(
     weights: Option<&str>,
     normalized: bool,
     cutoff: i32,
+    weighted: bool,
 ) -> PyResult<FxHashMap<u64, f64>> {
     use rayon::prelude::*;
 
@@ -384,11 +385,15 @@ pub fn harmonic_centrality(
         }
     };
 
-    // Currently only supporting unweighted version
     if weights.is_some() {
-        return Err(pyo3::exceptions::PyNotImplementedError::new_err(
-            "Weighted harmonic centrality not yet implemented"
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "weights= is not supported; edge weights are used automatically on weighted \
+             graphs (or pass weighted=True)"
         ));
+    }
+
+    if weighted {
+        return harmonic_weighted(graph, reverse_edges, normalized, cutoff);
     }
 
     // Create node_id to index mapping
@@ -1353,4 +1358,575 @@ fn compute_degrees(graph: &Graph, node_ids: &[u64]) -> FxHashMap<u64, usize> {
         degrees.insert(nid, deg);
     }
     degrees
+}
+
+/// Index-based adjacency for BFS-style algorithms: `adj[i]` lists `(neighbor_idx, edge_id)`.
+///
+/// Built once from the edge list so the hot loops avoid hash lookups. Self-loops are skipped
+/// (they never lie on a shortest path). `reverse=true` follows edges backward; `both=true`
+/// ignores direction. For undirected graphs every edge is added in both directions.
+fn indexed_adjacency(
+    graph: &Graph,
+    node_to_idx: &FxHashMap<u64, usize>,
+    reverse: bool,
+    both: bool,
+) -> Vec<Vec<(usize, u64)>> {
+    let mut adj: Vec<Vec<(usize, u64)>> = vec![Vec::new(); node_to_idx.len()];
+    let undirected = !graph.is_directed();
+    for e in graph.get_edges_internal() {
+        if e.source == e.target {
+            continue;
+        }
+        let (Some(&s), Some(&t)) = (node_to_idx.get(&e.source), node_to_idx.get(&e.target))
+        else {
+            continue;
+        };
+        if undirected || both {
+            adj[s].push((t, e.id));
+            adj[t].push((s, e.id));
+        } else if reverse {
+            adj[t].push((s, e.id));
+        } else {
+            adj[s].push((t, e.id));
+        }
+    }
+    adj
+}
+
+/// Calculate closeness centrality for all nodes
+///
+/// Closeness is the reciprocal of the mean shortest-path distance from a node to the nodes it
+/// can reach: `C(v) = r / Σ d(v, u)`, where `r` is the number of reachable nodes (excluding
+/// `v`). With `wf_improved=true` (the default, as in NetworkX) the score is further scaled by
+/// `r / (n - 1)`, the Wasserman-Faust correction, so nodes in small components are not
+/// over-rewarded. Isolated nodes score 0.
+///
+/// Distances are hop counts. `mode` selects the direction on directed graphs: "out" follows
+/// edges forward, "in" backward, "all" ignores direction.
+///
+/// References:
+/// - Freeman, L. C. (1979). Centrality in networks: I. Conceptual clarification.
+///   Social Networks, 1(3), 215-239.
+/// - Wasserman, S., & Faust, K. (1994). Social Network Analysis. Cambridge University Press.
+///
+/// Performance: O(V·E) time with BFS from each node, parallelized with Rayon
+#[pyfunction]
+#[pyo3(signature = (graph, mode="out", wf_improved=true, weighted=false))]
+pub fn closeness_centrality(
+    graph: &Graph,
+    mode: &str,
+    wf_improved: bool,
+    weighted: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+    use std::collections::VecDeque;
+
+    let (reverse, both) = match mode {
+        "out" => (false, false),
+        "in" => (true, false),
+        "all" | "total" => (false, true),
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid mode '{}'. Must be 'out', 'in', or 'all'",
+                mode
+            )))
+        }
+    };
+
+    if weighted {
+        return closeness_weighted(graph, reverse, both, wf_improved);
+    }
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    if n == 0 {
+        return Ok(FxHashMap::default());
+    }
+
+    let node_to_idx: FxHashMap<u64, usize> =
+        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let adj = indexed_adjacency(graph, &node_to_idx, reverse, both);
+
+    let scores: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|src| {
+            let mut dist: Vec<i64> = vec![-1; n];
+            let mut queue: VecDeque<usize> = VecDeque::with_capacity(n);
+            dist[src] = 0;
+            queue.push_back(src);
+            let mut total: i64 = 0;
+            let mut reached: usize = 0;
+            while let Some(v) = queue.pop_front() {
+                for &(w, _) in &adj[v] {
+                    if dist[w] < 0 {
+                        dist[w] = dist[v] + 1;
+                        total += dist[w];
+                        reached += 1;
+                        queue.push_back(w);
+                    }
+                }
+            }
+            if total == 0 || n < 2 {
+                return 0.0;
+            }
+            let r = reached as f64;
+            let mut c = r / total as f64;
+            if wf_improved {
+                c *= r / (n - 1) as f64;
+            }
+            c
+        })
+        .collect();
+
+    Ok(node_ids.iter().zip(scores).map(|(&id, c)| (id, c)).collect())
+}
+
+/// Calculate degree centrality for all nodes
+///
+/// The degree divided by `n - 1`, the largest degree possible in a simple graph. `mode` picks
+/// the degree on directed graphs: "all" (in + out), "in", or "out". A self-loop adds 2 to the
+/// total degree (1 in, 1 out), and parallel edges each count, so scores can exceed 1 on
+/// multigraphs. Matches NetworkX `degree_centrality` / `in_degree_centrality` /
+/// `out_degree_centrality`.
+#[pyfunction]
+#[pyo3(signature = (graph, mode="all"))]
+pub fn degree_centrality(graph: &Graph, mode: &str) -> PyResult<FxHashMap<u64, f64>> {
+    let (count_in, count_out) = match mode {
+        "all" | "total" => (true, true),
+        "in" => (true, false),
+        "out" => (false, true),
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid mode '{}'. Must be 'all', 'in', or 'out'",
+                mode
+            )))
+        }
+    };
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    let mut deg: FxHashMap<u64, f64> =
+        node_ids.iter().map(|&id| (id, 0.0)).collect();
+
+    // On undirected graphs both endpoints always count, whatever the mode
+    let undirected = !graph.is_directed();
+    for e in graph.get_edges_internal() {
+        if count_out || undirected {
+            *deg.entry(e.source).or_insert(0.0) += 1.0;
+        }
+        if count_in || undirected {
+            *deg.entry(e.target).or_insert(0.0) += 1.0;
+        }
+    }
+
+    // NetworkX convention: a single node has centrality 1
+    if n <= 1 {
+        return Ok(node_ids.iter().map(|&id| (id, 1.0)).collect());
+    }
+    let scale = 1.0 / (n - 1) as f64;
+    for v in deg.values_mut() {
+        *v *= scale;
+    }
+    Ok(deg)
+}
+
+/// Calculate betweenness centrality for all edges (Brandes' edge variant)
+///
+/// The score of an edge is the number of shortest paths, summed over all node pairs, that run
+/// through it, each pair weighted by the fraction of its shortest paths that use the edge.
+/// Parallel edges are distinct routes, so they split the paths between them. Returns a map of
+/// edge ID to score.
+///
+/// Normalization follows NetworkX: with `normalized=true` scores are divided by `n·(n-1)`;
+/// otherwise undirected scores are halved (each pair is visited from both ends). Self-loops
+/// score 0.
+///
+/// Brandes, U. (2008). On variants of shortest-path betweenness centrality and their generic
+/// computation. Social Networks, 30(2), 136-145.
+///
+/// Performance: O(V·E) time, parallelized over source nodes with Rayon
+#[pyfunction]
+#[pyo3(signature = (graph, normalized=true, weighted=false))]
+pub fn edge_betweenness_centrality(
+    graph: &Graph,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+    use std::collections::VecDeque;
+
+    let edges = graph.get_edges_internal();
+    let mut result: FxHashMap<u64, f64> =
+        edges.iter().map(|e| (e.id, 0.0)).collect();
+
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    if n == 0 || edges.is_empty() {
+        return Ok(result);
+    }
+
+    let node_to_idx: FxHashMap<u64, usize> =
+        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+
+    let scale = if normalized {
+        if n > 1 { 1.0 / (n * (n - 1)) as f64 } else { 1.0 }
+    } else if graph.is_directed() {
+        1.0
+    } else {
+        0.5
+    };
+
+    if weighted {
+        let (_, totals, edge_ids) = weighted_brandes(graph, &node_ids, &node_to_idx)?;
+        for (eid, t) in edge_ids.into_iter().zip(totals) {
+            result.insert(eid, t * scale);
+        }
+        return Ok(result);
+    }
+
+    let adj = indexed_adjacency(graph, &node_to_idx, false, false);
+
+    // Dense edge slots so the per-source accumulators are plain vectors
+    let edge_slot: FxHashMap<u64, usize> =
+        edges.iter().enumerate().map(|(i, e)| (e.id, i)).collect();
+    let m = edges.len();
+
+    let totals = (0..n)
+        .into_par_iter()
+        .map(|src| {
+            let mut stack: Vec<usize> = Vec::with_capacity(n);
+            // predecessor node and the edge slot used to arrive from it
+            let mut preds: Vec<Vec<(usize, usize)>> = vec![Vec::new(); n];
+            let mut sigma: Vec<f64> = vec![0.0; n];
+            let mut dist: Vec<i64> = vec![-1; n];
+            let mut queue: VecDeque<usize> = VecDeque::with_capacity(n);
+            sigma[src] = 1.0;
+            dist[src] = 0;
+            queue.push_back(src);
+
+            while let Some(v) = queue.pop_front() {
+                stack.push(v);
+                for &(w, eid) in &adj[v] {
+                    if dist[w] < 0 {
+                        dist[w] = dist[v] + 1;
+                        queue.push_back(w);
+                    }
+                    if dist[w] == dist[v] + 1 {
+                        sigma[w] += sigma[v];
+                        preds[w].push((v, edge_slot[&eid]));
+                    }
+                }
+            }
+
+            let mut delta: Vec<f64> = vec![0.0; n];
+            let mut partial: Vec<f64> = vec![0.0; m];
+            while let Some(w) = stack.pop() {
+                let coeff = (1.0 + delta[w]) / sigma[w];
+                for &(v, slot) in &preds[w] {
+                    let c = sigma[v] * coeff;
+                    partial[slot] += c;
+                    delta[v] += c;
+                }
+            }
+            partial
+        })
+        .reduce(
+            || vec![0.0; m],
+            |mut acc, part| {
+                for (a, p) in acc.iter_mut().zip(part) {
+                    *a += p;
+                }
+                acc
+            },
+        );
+
+    for (i, e) in edges.iter().enumerate() {
+        result.insert(e.id, totals[i] * scale);
+    }
+    Ok(result)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Weighted shortest-path centralities
+//
+// On a weighted graph (or when asked), betweenness, closeness and harmonic centrality measure
+// distance as total edge weight, found with Dijkstra's algorithm, matching `shortest_path()`.
+// Each edge's weight comes from its `weight` value (1.0 if missing). Parallel edges are separate
+// routes; only the cheapest ones carry shortest paths.
+// ---------------------------------------------------------------------------------------------
+
+/// Relative tolerance for treating two path costs as equal (ties).
+const WEIGHT_TIE_EPS: f64 = 1e-12;
+
+fn same_dist(a: f64, b: f64) -> bool {
+    if !a.is_finite() || !b.is_finite() {
+        return a == b;
+    }
+    (a - b).abs() <= WEIGHT_TIE_EPS * a.abs().max(b.abs()).max(1.0)
+}
+
+/// Weighted index adjacency: `adj[i]` lists `(neighbor, edge_id, weight)`. Self-loops are skipped.
+/// Raises `ValueError` on negative weights.
+fn weighted_adjacency(
+    graph: &Graph,
+    node_to_idx: &FxHashMap<u64, usize>,
+    reverse: bool,
+    both: bool,
+) -> PyResult<Vec<Vec<(usize, u64, f64)>>> {
+    let mut adj: Vec<Vec<(usize, u64, f64)>> = vec![Vec::new(); node_to_idx.len()];
+    let undirected = !graph.is_directed();
+    for e in graph.get_edges_internal() {
+        let w = e.weight.unwrap_or(1.0);
+        if w < 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Weighted shortest-path centralities require non-negative edge weights, but \
+                 edge {} ({} -> {}) has weight {}",
+                e.id, e.source, e.target, w
+            )));
+        }
+        if e.source == e.target {
+            continue;
+        }
+        let (Some(&s), Some(&t)) = (node_to_idx.get(&e.source), node_to_idx.get(&e.target))
+        else {
+            continue;
+        };
+        if undirected || both {
+            adj[s].push((t, e.id, w));
+            adj[t].push((s, e.id, w));
+        } else if reverse {
+            adj[t].push((s, e.id, w));
+        } else {
+            adj[s].push((t, e.id, w));
+        }
+    }
+    Ok(adj)
+}
+
+#[derive(Copy, Clone, PartialEq)]
+struct HeapItem {
+    dist: f64,
+    node: usize,
+}
+
+impl Eq for HeapItem {}
+
+impl Ord for HeapItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .dist
+            .partial_cmp(&self.dist)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| other.node.cmp(&self.node))
+    }
+}
+
+impl PartialOrd for HeapItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Shortest-path DAG from one source (Dijkstra variant of Brandes' first phase).
+///
+/// `order` lists settled nodes by non-decreasing distance; `preds[w]` holds `(v, edge_id)` for
+/// every edge on some shortest path into `w`; `sigma[w]` counts shortest paths. Nodes beyond
+/// `cutoff` are not settled.
+struct ShortestPathDag {
+    order: Vec<usize>,
+    preds: Vec<Vec<(usize, u64)>>,
+    sigma: Vec<f64>,
+    dist: Vec<f64>,
+}
+
+fn dijkstra_dag(
+    adj: &[Vec<(usize, u64, f64)>],
+    src: usize,
+    cutoff: Option<f64>,
+    want_preds: bool,
+) -> ShortestPathDag {
+    use std::collections::BinaryHeap;
+    let n = adj.len();
+    let mut dist = vec![f64::INFINITY; n];
+    let mut sigma = vec![0.0; n];
+    let mut preds: Vec<Vec<(usize, u64)>> = if want_preds { vec![Vec::new(); n] } else { Vec::new() };
+    let mut done = vec![false; n];
+    let mut order = Vec::with_capacity(n);
+    let mut heap = BinaryHeap::new();
+    dist[src] = 0.0;
+    sigma[src] = 1.0;
+    heap.push(HeapItem { dist: 0.0, node: src });
+    while let Some(HeapItem { dist: d, node: v }) = heap.pop() {
+        if done[v] || d > dist[v] {
+            continue;
+        }
+        done[v] = true;
+        order.push(v);
+        for &(w, eid, wt) in &adj[v] {
+            if done[w] {
+                continue;
+            }
+            let nd = d + wt;
+            if let Some(c) = cutoff {
+                if nd > c && !same_dist(nd, c) {
+                    continue;
+                }
+            }
+            if nd < dist[w] && !same_dist(nd, dist[w]) {
+                dist[w] = nd;
+                sigma[w] = sigma[v];
+                if want_preds {
+                    preds[w].clear();
+                    preds[w].push((v, eid));
+                }
+                heap.push(HeapItem { dist: nd, node: w });
+            } else if same_dist(nd, dist[w]) {
+                sigma[w] += sigma[v];
+                if want_preds {
+                    preds[w].push((v, eid));
+                }
+            }
+        }
+    }
+    ShortestPathDag { order, preds, sigma, dist }
+}
+
+/// Weighted Brandes accumulation over all sources: (node betweenness by index, edge betweenness
+/// by edge slot), both raw (each ordered pair counted once per direction).
+fn weighted_brandes(
+    graph: &Graph,
+    node_ids: &[u64],
+    node_to_idx: &FxHashMap<u64, usize>,
+) -> PyResult<(Vec<f64>, Vec<f64>, Vec<u64>)> {
+    use rayon::prelude::*;
+    let adj = weighted_adjacency(graph, node_to_idx, false, false)?;
+    let edge_ids: Vec<u64> = graph.get_edges_internal().iter().map(|e| e.id).collect();
+    let slot: FxHashMap<u64, usize> = edge_ids.iter().enumerate().map(|(i, &e)| (e, i)).collect();
+    let n = node_ids.len();
+    let m = edge_ids.len();
+    let (nodes, edges) = (0..n)
+        .into_par_iter()
+        .map(|s| {
+            let dag = dijkstra_dag(&adj, s, None, true);
+            let mut delta = vec![0.0; n];
+            let mut node_part = vec![0.0; n];
+            let mut edge_part = vec![0.0; m];
+            for &w in dag.order.iter().rev() {
+                let coeff = (1.0 + delta[w]) / dag.sigma[w];
+                for &(v, eid) in &dag.preds[w] {
+                    let c = dag.sigma[v] * coeff;
+                    delta[v] += c;
+                    edge_part[slot[&eid]] += c;
+                }
+                if w != s {
+                    node_part[w] += delta[w];
+                }
+            }
+            (node_part, edge_part)
+        })
+        .reduce(
+            || (vec![0.0; n], vec![0.0; m]),
+            |(mut an, mut ae), (pn, pe)| {
+                an.iter_mut().zip(pn).for_each(|(a, p)| *a += p);
+                ae.iter_mut().zip(pe).for_each(|(a, p)| *a += p);
+                (an, ae)
+            },
+        );
+    Ok((nodes, edges, edge_ids))
+}
+
+/// Betweenness centrality with edge weights as distances (normalized like
+/// `betweenness_centrality`). Matches NetworkX `betweenness_centrality(G, weight="weight")`.
+#[pyfunction]
+pub fn betweenness_centrality_weighted(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
+    let mut node_ids = graph.get_node_ids();
+    node_ids.sort_unstable();
+    let n = node_ids.len();
+    if n == 0 {
+        return Ok(FxHashMap::default());
+    }
+    let node_to_idx: FxHashMap<u64, usize> =
+        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let (mut bc, _, _) = weighted_brandes(graph, &node_ids, &node_to_idx)?;
+    // Same scaling as the unweighted version: undirected pairs are seen from both ends
+    let mut scale = if graph.is_directed() { 1.0 } else { 0.5 };
+    if n > 2 {
+        scale *= if graph.is_directed() {
+            1.0 / ((n - 1) * (n - 2)) as f64
+        } else {
+            2.0 / ((n - 1) * (n - 2)) as f64
+        };
+    }
+    for v in bc.iter_mut() {
+        *v *= scale;
+    }
+    Ok(node_ids.into_iter().zip(bc).collect())
+}
+
+/// Closeness with weighted distances (see `closeness_centrality`).
+fn closeness_weighted(
+    graph: &Graph,
+    reverse: bool,
+    both: bool,
+    wf_improved: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    let node_to_idx: FxHashMap<u64, usize> =
+        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let adj = weighted_adjacency(graph, &node_to_idx, reverse, both)?;
+    let scores: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|s| {
+            let dag = dijkstra_dag(&adj, s, None, false);
+            let reached = dag.order.len() - 1;
+            let total: f64 = dag.order.iter().map(|&v| dag.dist[v]).sum();
+            if total <= 0.0 || n < 2 {
+                return 0.0;
+            }
+            let r = reached as f64;
+            let mut c = r / total;
+            if wf_improved {
+                c *= r / (n - 1) as f64;
+            }
+            c
+        })
+        .collect();
+    Ok(node_ids.into_iter().zip(scores).collect())
+}
+
+/// Harmonic centrality with weighted distances (see `harmonic_centrality`).
+fn harmonic_weighted(
+    graph: &Graph,
+    reverse: bool,
+    normalized: bool,
+    cutoff: i32,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    let node_to_idx: FxHashMap<u64, usize> =
+        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let adj = weighted_adjacency(graph, &node_to_idx, reverse, false)?;
+    let cut = (cutoff >= 0).then_some(cutoff as f64);
+    let scores: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|s| {
+            let dag = dijkstra_dag(&adj, s, cut, false);
+            let h: f64 = dag
+                .order
+                .iter()
+                .map(|&v| dag.dist[v])
+                .filter(|&d| d > 0.0)
+                .map(|d| 1.0 / d)
+                .sum();
+            if normalized && n > 1 {
+                h / (n - 1) as f64
+            } else {
+                h
+            }
+        })
+        .collect();
+    Ok(node_ids.into_iter().zip(scores).collect())
 }
