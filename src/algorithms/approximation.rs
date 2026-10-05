@@ -536,17 +536,17 @@ pub fn tree_decomposition(graph: &Graph, heuristic: &str) -> PyResult<(i64, Vec<
 // Densest subgraph
 // ---------------------------------------------------------------------------------------------
 
-struct Dinic {
+pub(crate) struct Dinic {
     adj: Vec<Vec<usize>>,
     to: Vec<usize>,
     cap: Vec<i64>,
 }
 
 impl Dinic {
-    fn new(n: usize) -> Self {
+    pub(crate) fn new(n: usize) -> Self {
         Dinic { adj: vec![Vec::new(); n], to: Vec::new(), cap: Vec::new() }
     }
-    fn add(&mut self, u: usize, v: usize, c: i64, back: i64) {
+    pub(crate) fn add(&mut self, u: usize, v: usize, c: i64, back: i64) {
         self.adj[u].push(self.to.len());
         self.to.push(v);
         self.cap.push(c);
@@ -554,7 +554,7 @@ impl Dinic {
         self.to.push(u);
         self.cap.push(back);
     }
-    fn max_flow(&mut self, s: usize, t: usize) -> i64 {
+    pub(crate) fn max_flow(&mut self, s: usize, t: usize) -> i64 {
         let n = self.adj.len();
         let mut flow = 0;
         loop {
@@ -601,7 +601,7 @@ impl Dinic {
         }
         0
     }
-    fn source_side(&self, s: usize) -> Vec<bool> {
+    pub(crate) fn source_side(&self, s: usize) -> Vec<bool> {
         let mut seen = vec![false; self.adj.len()];
         seen[s] = true;
         let mut q = VecDeque::from([s]);
