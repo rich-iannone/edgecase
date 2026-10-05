@@ -429,3 +429,25 @@ class TestRandomWalkIntegration:
         unique_vertices = len(set(path))
 
         assert unique_vertices > 10  # Should explore the graph
+
+
+class TestRandomWalkUnlabelledAndMissing:
+    """Regression: TypeError for an unlabelled start node or a nonexistent integer ID."""
+
+    def test_unlabelled_nodes(self):
+        g = Graph().add_path_graph(4, label=False)
+        ids = sorted(g.get_node_ids())
+        walk = g.random_walk(ids[0], steps=3, return_list=True, seed=1)
+        assert walk[0] == ids[0]
+        assert len(walk) == 4 and set(walk) <= set(ids)
+
+    def test_numeric_label_does_not_redirect(self):
+        # The old label round-trip turned an unlabelled node 1 into the node labelled "1"
+        g = Graph().add_node().add_node(label="1")
+        unlabelled = [n for n in g.get_node_ids() if g.get_label_from_id(n) is None][0]
+        assert g.random_walk(unlabelled, steps=0, return_list=True) == [unlabelled]
+
+    def test_missing_integer_id_raises_value_error(self):
+        g = Graph().add_path_graph(3)
+        with pytest.raises(ValueError, match="does not exist"):
+            g.random_walk(999, steps=2)
