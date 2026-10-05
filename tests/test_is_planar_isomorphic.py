@@ -1,4 +1,12 @@
+import random
+import warnings
+
+import edgecase as ec
+import networkx as nx
+import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_QUERY
+from networkx.algorithms import isomorphism as nx_iso
 
 
 class TestIsPlanar:
@@ -321,3 +329,210 @@ class TestIntegration:
             tree = Graph(directed=False).add_path_graph(n=n)
             assert tree.is_planar()
             assert tree.is_tree()
+
+
+# Exact isomorphism, subgraph isomorphism and Weisfeiler-Lehman hashes, validated against
+# NetworkX (is_isomorphic, GraphMatcher counts, WL hashes).
+
+
+def _build(G, order=None):
+    g = ec.Graph(directed=G.is_directed())
+    g.add_nodes([str(n) for n in (order or sorted(G))])
+    for u, v in G.edges():
+        g.add_edge(str(u), str(v))
+    return g
+
+
+def _pairs(count=200):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        directed = seed % 3 == 0
+        n = rnd.randint(1, 9)
+        G = nx.gnp_random_graph(n, rnd.choice([0.2, 0.4, 0.6]), seed=seed, directed=directed)
+        if seed % 5 == 0 and not directed:
+            G = nx.MultiGraph(G)
+            for u, v in list(G.edges())[:2]:
+                G.add_edge(u, v)
+        if seed % 7 == 0 and n:
+            G.add_edge(0, 0)
+        H = nx.relabel_nodes(G, dict(zip(G, rnd.sample(list(G), n))))
+        if rnd.random() < 0.5 and isinstance(H, nx.Graph) and not H.is_multigraph():
+            H = H.copy()
+            if not directed and H.number_of_edges() >= 2:
+                try:
+                    nx.double_edge_swap(H, nswap=1, max_tries=100, seed=seed)
+                except nx.NetworkXException:
+                    pass
+        yield G, H, rnd
+
+
+class TestExactIsomorphism:
+    def test_against_networkx(self):
+        for G, H, rnd in _pairs():
+            g, h = _build(G), _build(H, rnd.sample(sorted(H), len(H)))
+            expected = nx.is_isomorphic(G, H)
+            assert g.is_isomorphic(h) == expected
+            mapping = g.find_isomorphism(h)
+            assert (mapping is not None) == expected
+            if mapping:
+                assert sorted(mapping) == sorted(g.get_node_ids(limit=None))
+                for _, s, t in g.get_edges_as_tuples():
+                    assert h.find_edge_ids(mapping[s], mapping[t])
+
+    def test_beats_invariant_checks(self):
+        hexagon = ec.Graph().add_cycle_graph(6)
+        two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
+        assert hexagon.could_be_isomorphic(two_triangles, properties="d")
+        assert not hexagon.could_be_isomorphic(two_triangles)
+        assert not hexagon.is_isomorphic(two_triangles)
+        rook = nx.convert_node_labels_to_integers(
+            nx.cartesian_product(nx.complete_graph(4), nx.complete_graph(4))
+        )
+        shrikhande = nx.Graph()
+        for a in range(4):
+            for b in range(4):
+                for da, db in [(0, 1), (1, 0), (1, 1), (0, 3), (3, 0), (3, 3)]:
+                    shrikhande.add_edge(4 * a + b, 4 * ((a + da) % 4) + (b + db) % 4)
+        r, sh = _build(rook), _build(shrikhande)
+        assert r.could_be_isomorphic(sh, properties="dt") and not r.could_be_isomorphic(sh)
+        assert not r.is_isomorphic(sh)
+
+    def test_attributes_and_directedness(self):
+        def chain(elements):
+            g = ec.Graph().add_nodes([(f"n{i}", {"el": e}) for i, e in enumerate(elements)])
+            return g.add_edges([("n0", "n1"), ("n1", "n2")])
+
+        water, other = chain("HOH"), chain("OHO")
+        assert water.is_isomorphic(other) and not water.is_isomorphic(other, node_attr="el")
+        a = ec.Graph().add_nodes(["A", "B"]).add_edges([("A", "B", {"k": 1})])
+        b = ec.Graph().add_nodes(["A", "B"]).add_edges([("A", "B", {"k": 2})])
+        assert a.is_isomorphic(b) and not a.is_isomorphic(b, edge_attr="k")
+        d = ec.Graph(directed=True).add_path_graph(3)
+        assert not d.is_isomorphic(ec.Graph().add_path_graph(3))
+        assert d.find_isomorphism(ec.Graph().add_path_graph(3)) is None
+        with pytest.raises(ValueError, match="letters"):
+            d.could_be_isomorphic(d, properties="x")
+
+    def test_large_and_regular_graphs(self):
+        for G in (nx.random_regular_graph(3, 200, seed=1), nx.hypercube_graph(7)):
+            G = nx.convert_node_labels_to_integers(G)
+            order = sorted(G)
+            random.Random(2).shuffle(order)
+            assert _build(G).is_isomorphic(_build(G, order))
+
+
+class TestSubgraphIsomorphism:
+    def test_counts_match_networkx(self):
+        for seed in range(150):
+            rnd = random.Random(seed)
+            directed = seed % 3 == 0
+            T = nx.gnp_random_graph(rnd.randint(2, 9), 0.45, seed=seed, directed=directed)
+            P = nx.gnp_random_graph(rnd.randint(1, 4), 0.6, seed=seed + 1000, directed=directed)
+            t, p = _build(T), _build(P)
+            matcher = nx_iso.DiGraphMatcher if directed else nx_iso.GraphMatcher
+            induced = sum(1 for _ in matcher(T, P).subgraph_isomorphisms_iter())
+            mono = sum(1 for _ in matcher(T, P).subgraph_monomorphisms_iter())
+            assert len(t.subgraph_isomorphisms(p)) == induced
+            assert len(t.subgraph_isomorphisms(p, induced=False)) == mono
+            assert t.is_subgraph_isomorphic(p) == (induced > 0)
+            assert t.is_subgraph_isomorphic(p, induced=False) == (mono > 0)
+
+    def test_examples_limit_and_errors(self):
+        triangle, path = ec.Graph().add_cycle_graph(3), ec.Graph().add_path_graph(3)
+        assert not triangle.is_subgraph_isomorphic(path)
+        assert triangle.is_subgraph_isomorphic(path, induced=False)
+        assert len(triangle.subgraph_isomorphisms(triangle)) == 6
+        assert (
+            len(ec.Graph().add_cycle_graph(4).subgraph_isomorphisms(ec.Graph().add_cycle_graph(4)))
+            == 8
+        )
+        assert len(ec.Graph().add_full_graph(5).subgraph_isomorphisms(triangle, limit=4)) == 4
+        assert ec.Graph().add_full_graph(3).subgraph_isomorphisms(ec.Graph()) == [{}]
+        with pytest.raises(ValueError, match="directed"):
+            triangle.is_subgraph_isomorphic(ec.Graph(directed=True).add_path_graph(2))
+        labeled = ec.Graph().add_nodes([("a", {"c": 1}), ("b", {"c": 2})]).add_edge("a", "b")
+        pattern = ec.Graph().add_nodes([("x", {"c": 2}), ("y", {"c": 2})]).add_edge("x", "y")
+        assert labeled.is_subgraph_isomorphic(pattern)
+        assert not labeled.is_subgraph_isomorphic(pattern, node_attr="c")
+
+
+class TestWeisfeilerLehman:
+    def test_hashes_match_networkx(self):
+        warnings.simplefilter("ignore", UserWarning)
+        for seed in range(120):
+            rnd = random.Random(seed)
+            directed = seed % 2 == 0
+            G = nx.gnp_random_graph(
+                rnd.randint(1, 11), rnd.choice([0.2, 0.4]), seed=seed, directed=directed
+            )
+            if seed % 5 == 0 and len(G):
+                G.add_edge(0, 0)
+            for n in G:
+                G.nodes[n]["c"] = rnd.choice("xyz")
+            for u, v in G.edges:
+                G[u][v]["e"] = rnd.choice([1, 2])
+            g = ec.Graph(directed=directed).add_nodes([(str(n), {"c": G.nodes[n]["c"]}) for n in G])
+            if G.number_of_edges():
+                g.add_edges([(str(u), str(v), {"e": G[u][v]["e"]}) for u, v in G.edges])
+            label = {g.get_id_from_label(str(n)): n for n in G}
+            for node_attr, edge_attr in [(None, None), ("c", None), (None, "e"), ("c", "e")]:
+                for iterations in (1, 3):
+                    assert g.weisfeiler_lehman_graph_hash(
+                        node_attr, edge_attr, iterations
+                    ) == nx.weisfeiler_lehman_graph_hash(
+                        G, edge_attr=edge_attr, node_attr=node_attr, iterations=iterations
+                    )
+                    ours = g.weisfeiler_lehman_subgraph_hashes(
+                        node_attr, edge_attr, iterations, include_initial_labels=iterations == 3
+                    )
+                    assert {label[k]: v for k, v in ours.items()} == (
+                        nx.weisfeiler_lehman_subgraph_hashes(
+                            G,
+                            edge_attr=edge_attr,
+                            node_attr=node_attr,
+                            iterations=iterations,
+                            include_initial_labels=iterations == 3,
+                        )
+                    )
+
+    def test_invariance_collisions_and_errors(self):
+        a = (
+            ec.Graph()
+            .add_nodes(list("ABCD"))
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        )
+        b = (
+            ec.Graph()
+            .add_nodes(list("wxyz"))
+            .add_edges([("z", "y"), ("y", "x"), ("x", "z"), ("w", "x")])
+        )
+        assert a.weisfeiler_lehman_graph_hash() == b.weisfeiler_lehman_graph_hash()
+        hexagon = ec.Graph().add_cycle_graph(6)
+        two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
+        assert (
+            hexagon.weisfeiler_lehman_graph_hash() == two_triangles.weisfeiler_lehman_graph_hash()
+        )
+        assert len(a.weisfeiler_lehman_graph_hash(digest_size=8)) == 16
+        with pytest.raises(ValueError, match="positive"):
+            a.weisfeiler_lehman_graph_hash(iterations=0)
+        with pytest.raises(ValueError, match="attribute"):
+            a.weisfeiler_lehman_graph_hash(node_attr="missing")
+
+
+class TestIsomorphismStepHooks:
+    def test_steps(self):
+        host = ec.Graph(directed=True).add_nodes(["x", "y", "z", "w"])
+        host.add_edges([("x", "y"), ("y", "z"), ("x", "z"), ("z", "w"), ("y", "w")])
+        ffl = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        ffl.add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+        host.subgraph_isomorphisms(ffl)
+        step = host.steps[-1]
+        assert step.kind == KIND_QUERY and step.narration == "2 occurrences of the pattern."
+        assert sorted(step.delta.edges_selected) == [("x", "y"), ("x", "z"), ("y", "z")]
+        path = ec.Graph().add_nodes(list("ABCDE"))
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path.weisfeiler_lehman_subgraph_hashes(iterations=2)
+        groups = path.steps[-1].delta.node_groups
+        assert groups["A"] == groups["E"] and groups["B"] == groups["D"] != groups["C"]
+        path.is_isomorphic(path)
+        assert path.steps[-1].narration == "is_isomorphic(): True."
