@@ -42,6 +42,7 @@ def plot_graph(
     edge_width: float = 2.0,
     layout: str = "force",
     static: bool = False,
+    display_inline: Optional[bool] = None,
 ) -> str:
     """
     Render graph using vis-network.
@@ -69,6 +70,10 @@ def plot_graph(
         If `True`, disables physics simulation and interactivity (no node dragging, no animation).
         The graph will be rendered in a fixed position after initial layout. Useful for static
         reports, exports, or embedding in documents. Defaults to `False`.
+    display_inline
+        Whether to display the HTML inline in an IPython/Jupyter session. If `None` (default),
+        display inline whenever an IPython session is active. If `False`, never display inline,
+        so `open_browser=` decides whether a browser tab is opened.
 
     Returns
     -------
@@ -93,16 +98,8 @@ def plot_graph(
     """
     # Extract graph data (fast - direct from Rust)
     nodes = graph.get_node_ids(limit=None)
-    edges = []
-
-    # Build edge list efficiently
-    seen = set()
-    for node in nodes:
-        for neighbor in graph.neighbors(node):
-            edge_key = tuple(sorted([node, neighbor]))
-            if edge_key not in seen:
-                edges.append([node, neighbor])
-                seen.add(edge_key)
+    # One entry per edge, so parallel edges (and A->B plus B->A) are all drawn
+    edges = graph.get_edges_as_tuples()
 
     # Compute initial positions based on layout
     if layout == "circular":
@@ -139,7 +136,7 @@ def plot_graph(
         from IPython import get_ipython
         from IPython.display import HTML, display
 
-        if get_ipython() is not None:
+        if get_ipython() is not None and display_inline is not False:
             # We're in a notebook - display the HTML directly
             # Wrap in an iframe srcdoc to avoid any notebook sanitization issues
             # Add extra space for body padding (20px) + container padding (20px) + borders
@@ -220,7 +217,7 @@ def _force_directed_layout(
 def _generate_vis_network_html(
     graph,
     nodes: list[str],
-    edges: list[list[str]],
+    edges: list[tuple[int, int, int]],
     positions: dict | None,
     width: int,
     height: int,
@@ -311,13 +308,28 @@ def _generate_vis_network_html(
         vis_nodes.append(node_dict)
 
     vis_edges = []
-    for src, tgt in edges:
-        edge_ids = graph.find_edge_ids(src, tgt)
-        edge_obj = graph.get_edge(edge_ids[0]) if edge_ids else None
+    # Parallel edges between the same two nodes get alternating curves of growing roundness so
+    # they don't draw on top of each other; the first one keeps the default smooth curve
+    pair_count: dict[tuple, int] = {}
+    for eid, src, tgt in edges:
+        edge_obj = graph.get_edge(eid)
         edge_dict = {
+            "id": str(eid),
             "from": str(src),
             "to": str(tgt),
         }
+        pair = (min(src, tgt), max(src, tgt))
+        k = pair_count.get(pair, 0)
+        pair_count[pair] = k + 1
+        if k > 0 and src != tgt:
+            # Flip the curve direction for edges stored the other way round, so CW/CCW refer to
+            # the same side of the pair
+            clockwise = (k % 2 == 1) == (src < tgt)
+            edge_dict["smooth"] = {
+                "enabled": True,
+                "type": "curvedCW" if clockwise else "curvedCCW",
+                "roundness": 0.2 * ((k + 1) // 2),
+            }
         # Add custom attributes if present
         if edge_obj and edge_obj.attributes:
             if "color" in edge_obj.attributes:
