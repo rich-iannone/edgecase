@@ -458,6 +458,27 @@ class TestGetNeighbors:
         assert 3 not in neighbors
 
 
+class TestNeighborsUndirectedModes:
+    """Regression: mode="in" on undirected graphs missed edges stored with the node as source."""
+
+    def test_all_modes_match_on_undirected(self):
+        G = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        G.add_edges([("A", "B"), ("C", "A"), ("A", "D")])
+        a = G.get_id_from_label("A")
+        expected = G.neighbors(a, mode="out")
+        assert sorted(G.get_label_from_id(n) for n in expected) == ["B", "C", "D"]
+        assert G.neighbors(a, mode="in") == expected
+        assert G.neighbors(a, mode="all") == expected
+
+    def test_directed_modes_unchanged(self):
+        G = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        G.add_edges([("A", "B"), ("C", "A")])
+        a, b, c = (G.get_id_from_label(x) for x in "ABC")
+        assert G.neighbors(a, mode="out") == [b]
+        assert G.neighbors(a, mode="in") == [c]
+        assert G.neighbors(a, mode="all") == [b, c]
+
+
 class TestGetCommonNeighbors:
     """Tests for get_common_neighbors()."""
 
@@ -1017,3 +1038,19 @@ class TestQueryWorkflows:
         # Returns ID-keyed dict: {1: 100, 3: 150} (A, C)
         assert set(high_values.keys()) == {1, 3}
         assert sum(high_values.values()) == 250
+
+
+class TestHasNodeInvalidIdentifiers:
+    """Regression: has_node(-1) raised OverflowError and has_node(True) returned True."""
+
+    def test_negative_and_out_of_range_ids(self):
+        G = ec.Graph().add_nodes(["A", "B"])
+        assert G.has_node(-1) is False
+        assert G.has_node(2**64) is False
+        assert G.has_node(G.get_id_from_label("A")) is True
+
+    def test_bools_are_not_identifiers(self):
+        G = ec.Graph().add_nodes(["A", "B"])
+        assert G.has_node(1) is True
+        assert G.has_node(True) is False
+        assert G.has_node(False) is False
