@@ -1,5 +1,10 @@
+import random
+
+import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_TRANSFORM
 
 
 class TestSubgraphBasic:
@@ -376,3 +381,78 @@ class TestSubgraphGrid:
 
         assert sub.count_nodes() == 4
         assert sub.count_edges() >= 0  # At least 0 edges
+
+
+# Ego graphs, validated against NetworkX.
+
+
+def _build(G: nx.Graph, weighted: bool = False) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G.nodes])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+class TestEgoGraph:
+    def test_node_sets_match_networkx(self):
+        for seed in range(15):
+            rnd = random.Random(seed)
+            for directed in (False, True):
+                G = nx.gnp_random_graph(16, 0.15, seed=seed, directed=directed)
+                for u, v in G.edges:
+                    G[u][v]["weight"] = rnd.choice([0.5, 1, 2])
+                for weighted in (False, True):
+                    g = _build(G, weighted)
+                    for radius in (1, 2):
+                        for mode in ("out", "in") if directed else ("out",):
+                            H = G.reverse() if mode == "in" else G
+                            ref = nx.ego_graph(
+                                H, 0, radius=radius, distance="weight" if weighted else None
+                            )
+                            ego = g.ego_graph("0", radius=radius, mode=mode)
+                            labels = sorted(int(x) for x in ego.get_node_df()["label"])
+                            assert labels == sorted(ref.nodes)
+                            assert ego.count_edges() == ref.number_of_edges()
+
+    def test_center_flag_mode_all_and_attributes(self):
+        g = ec.Graph().add_nodes(list("ABCDEF"))
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("B", "D"), ("C", "E"), ("E", "F")])
+        g.set_node_attrs("x", {g.get_id_from_label("B"): 7})
+        ego = g.ego_graph("C")
+        assert sorted(ego.get_edges_str_repr(use_labels=True)) == [
+            "B--C", "B--D", "C--D", "C--E",
+        ]  # fmt: skip
+        b = ego.get_id_from_label("B")
+        assert ego.get_node_attrs("x") == {b: 7}
+        assert sorted(g.ego_graph("C", center=False).get_node_df()["label"]) == ["B", "D", "E"]
+        d = ec.Graph(directed=True).add_nodes(["me", "a", "c"])
+        d.add_edges([("me", "a"), ("c", "me")])
+        assert sorted(d.ego_graph("me", mode="all").get_node_df()["label"]) == ["a", "c", "me"]
+        assert g.count_nodes() == 6  # original untouched
+
+    def test_weighted_radius_is_a_budget(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 2.0), ("B", "C", 0.5)])
+        assert sorted(g.ego_graph("A", radius=1).get_node_df()["label"]) == ["A"]
+        assert sorted(g.ego_graph("A", radius=2.5).get_node_df()["label"]) == ["A", "B", "C"]
+        assert sorted(g.ego_graph("A", weighted=False).get_node_df()["label"]) == ["A", "B"]
+
+    def test_errors(self):
+        g = ec.Graph().add_nodes(["A"])
+        with pytest.raises(ValueError, match="radius"):
+            g.ego_graph("A", radius=-1)
+        with pytest.raises(ValueError, match="mode"):
+            g.ego_graph("A", mode="both")
+        with pytest.raises(ValueError):
+            g.ego_graph("nope")
+
+    def test_steps(self):
+        g = ec.Graph().add_path_graph(5)
+        ego = g.ego_graph(3)
+        step = g.steps[-1]
+        assert step.kind == KIND_TRANSFORM and step.delta.nodes_selected == ["2", "3", "4"]
+        assert len(ego.steps) == 1 and ego.steps[0].delta.nodes_added == ["2", "3", "4"]
