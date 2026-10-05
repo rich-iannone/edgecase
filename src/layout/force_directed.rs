@@ -1,4 +1,5 @@
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
@@ -11,6 +12,8 @@ pub struct LayoutConfig {
     pub use_barnes_hut: bool,
     pub theta: f64,
     pub damping: f64,
+    /// Seed for the random starting positions; `None` draws from entropy
+    pub seed: Option<u64>,
 }
 
 impl Default for LayoutConfig {
@@ -22,6 +25,7 @@ impl Default for LayoutConfig {
             use_barnes_hut: true,
             theta: 0.5,
             damping: 0.9,
+            seed: None,
         }
     }
 }
@@ -126,7 +130,10 @@ impl ForceDirectedLayout {
     }
 
     fn initialize_positions(&self, node_count: usize, k: f64) -> Vec<Position> {
-        let mut rng = rand::thread_rng();
+        let mut rng = match self.config.seed {
+            Some(seed) => ChaCha8Rng::seed_from_u64(seed),
+            None => ChaCha8Rng::from_entropy(),
+        };
         let init_range = (node_count as f64).sqrt() * k;
 
         (0..node_count)
