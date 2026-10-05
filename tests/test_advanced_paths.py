@@ -1,6 +1,12 @@
-from edgecase import Graph
+import itertools
+import math
+import random
+
+import edgecase as ec
 import networkx as nx
 import pytest
+from edgecase import Graph
+from edgecase.steps import KIND_METRIC, KIND_QUERY
 
 
 class TestAllPairsShortestPathLength:
@@ -648,3 +654,285 @@ class TestParallelEdgeWeights:
         result = g.label_propagation(seeds, return_dict=True)
         assert result[g.get_id_from_label("X")] == 0
 
+
+# Shortest-path queries (shortest_path_length, has_path, all_shortest_paths, single- and
+# multi-source paths and lengths), validated against NetworkX on random graphs.
+
+
+def _random_cases():
+    """(networkx graph, edgecase graph, weight key) over many random configurations."""
+    for seed in range(15):
+        rnd = random.Random(seed)
+        for directed in (False, True):
+            for weighted in (False, True):
+                G = nx.gnp_random_graph(14, 0.2, seed=seed, directed=directed)
+                for u, v in G.edges:
+                    G[u][v]["weight"] = rnd.choice([0.5, 1, 2, 3])
+                yield G, _build(G, weighted), ("weight" if weighted else None)
+
+
+def _two_triangles() -> ec.Graph:
+    return (
+        ec.Graph()
+        .add_nodes(list("ABCDEF"))
+        .add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+    )
+
+
+def _lab(g: ec.Graph, nid: int) -> int:
+    return int(g.get_label_from_id(nid))
+
+
+def _build(G: nx.Graph, weighted: bool = False) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G.nodes])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+def _weighted_cases():
+    for seed in range(15):
+        rnd = random.Random(seed)
+        for directed in (False, True):
+            G = nx.gnp_random_graph(15, 0.22, seed=seed, directed=directed)
+            for u, v in G.edges:
+                G[u][v]["weight"] = rnd.choice([0.5, 1, 1.5, 2, 3])
+            yield G, _build_in_order(G, True)
+
+
+def _triangle_detour() -> ec.Graph:
+    """A-C is heavy, so the cheapest A-C route detours through B."""
+    return (
+        ec.Graph(weighted=True)
+        .add_nodes(["A", "B", "C"])
+        .add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)])
+    )
+
+
+def _build_in_order(G: nx.Graph, weighted: bool) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G.nodes])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+class TestPathQueriesAgainstNetworkX:
+    def test_single_source_lengths(self):
+        for G, g, w in _random_cases():
+            s = 0
+            ours = {
+                _lab(g, k): v
+                for k, v in g.single_source_shortest_path_length("0", return_dict=True).items()
+            }
+            ref = (
+                nx.single_source_dijkstra_path_length(G, s, weight=w)
+                if w
+                else nx.single_source_shortest_path_length(G, s)
+            )
+            assert ours.keys() == ref.keys()
+            for k, v in ref.items():
+                assert ours[k] == pytest.approx(v)
+
+    def test_cutoff(self):
+        for G, g, w in _random_cases():
+            ours = set(
+                _lab(g, k)
+                for k in g.single_source_shortest_path_length("0", cutoff=2, return_dict=True)
+            )
+            ref = (
+                nx.single_source_dijkstra_path_length(G, 0, cutoff=2, weight=w)
+                if w
+                else nx.single_source_shortest_path_length(G, 0, cutoff=2)
+            )
+            assert ours == set(ref)
+
+    def test_single_source_paths_are_shortest(self):
+        for G, g, w in _random_cases():
+            ref = nx.single_source_dijkstra_path_length(G, 0, weight=w or (lambda u, v, d: 1))
+            paths = g.single_source_shortest_path("0")
+            assert {_lab(g, t) for t in paths} == set(ref)
+            for t, p in paths.items():
+                p = [_lab(g, x) for x in p]
+                assert p[0] == 0 and p[-1] == _lab(g, t)
+                cost = sum(G[a][b]["weight"] if w else 1 for a, b in zip(p, p[1:]))
+                assert cost == pytest.approx(ref[p[-1]])
+
+    def test_multi_source(self):
+        for G, g, w in _random_cases():
+            srcs = [0, 1, 2]
+            ref = nx.multi_source_dijkstra_path_length(
+                G, set(srcs), weight=w or (lambda u, v, d: 1)
+            )
+            ours = g.multi_source_shortest_path_length([str(s) for s in srcs], return_dict=True)
+            assert {_lab(g, k): v for k, v in ours.items()} == pytest.approx(ref)
+            for t, p in g.multi_source_shortest_path([str(s) for s in srcs]).items():
+                p = [_lab(g, x) for x in p]
+                assert p[0] in srcs and p[-1] == _lab(g, t)
+                cost = sum(G[a][b]["weight"] if w else 1 for a, b in zip(p, p[1:]))
+                assert cost == pytest.approx(ref[p[-1]])
+
+    def test_pairwise_length_has_path_and_all_shortest_paths(self):
+        for G, g, w in _random_cases():
+            for a, b in itertools.islice(itertools.permutations(G.nodes, 2), 0, 80, 9):
+                reachable = nx.has_path(G, a, b)
+                assert g.has_path(str(a), str(b)) is reachable
+                length = g.shortest_path_length(str(a), str(b))
+                paths = g.all_shortest_paths(str(a), str(b))
+                if not reachable:
+                    assert length is None and paths == []
+                    continue
+                assert length == pytest.approx(nx.shortest_path_length(G, a, b, weight=w))
+                ours = sorted([_lab(g, x) for x in p] for p in paths)
+                assert ours == sorted(nx.all_shortest_paths(G, a, b, weight=w))
+
+
+class TestShortestPathQueries:
+    def test_unweighted_lengths_are_ints(self):
+        g = _two_triangles()
+        assert g.shortest_path_length("A", "F") == 3
+        assert isinstance(g.shortest_path_length("A", "F"), int)
+        dist = g.single_source_shortest_path_length("A", return_dict=True)
+        assert all(isinstance(v, int) for v in dist.values())
+
+    def test_weighted_lengths_are_floats(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=2.5)
+        assert g.shortest_path_length("A", "B") == 2.5
+
+    def test_agrees_with_shortest_path(self):
+        g = ec.Graph(directed=True, weighted=True).add_nodes(list("ABCDF"))
+        g.add_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "F", 1.0), ("A", "D", 3.0), ("D", "F", 3.0)]
+        )
+        path = g.shortest_path("A", "F", return_list=True)
+        assert g.shortest_path_length("A", "F") == 4.0
+        assert path in g.all_shortest_paths("A", "F")
+
+    def test_self_distance_and_self_path(self):
+        g = _two_triangles()
+        assert g.shortest_path_length("A", "A") == 0
+        assert g.has_path("A", "A")
+        a = g.get_id_from_label("A")
+        assert g.all_shortest_paths("A", "A") == [[a]]
+        assert g.single_source_shortest_path("A")[a] == [a]
+
+    def test_directed_has_no_way_back(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+        assert g.has_path("A", "B") and not g.has_path("B", "A")
+        assert g.shortest_path_length("B", "A") is None
+
+    def test_grid_has_binomial_number_of_paths_and_max_paths(self):
+        grid = ec.Graph().add_grid_2d(rows=4, cols=4)
+        assert len(grid.all_shortest_paths(1, 16)) == math.comb(6, 3)
+        assert len(grid.all_shortest_paths(1, 16, max_paths=5)) == 5
+        with pytest.raises(ValueError, match="max_paths"):
+            grid.all_shortest_paths(1, 16, max_paths=0)
+
+    def test_negative_weights_rejected(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=-1.0)
+        with pytest.raises(ValueError, match="non-negative"):
+            g.shortest_path_length("A", "B")
+
+    def test_errors(self):
+        g = _two_triangles()
+        with pytest.raises(ValueError):
+            g.has_path("A", "nope")
+        with pytest.raises(ValueError, match="source"):
+            g.multi_source_shortest_path([])
+
+    def test_length_attributes_stored_with_nulls(self):
+        g = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B")
+        g.single_source_shortest_path_length("A", attr_name="d")
+        df = g.get_node_df().sort("label")
+        assert df["d"].to_list() == [0, 1, None]
+        g.multi_source_shortest_path_length(["A", "C"])
+        df = g.get_node_df().sort("label")
+        assert df["multi_source_shortest_path_length"].to_list() == [0, 1, 0]
+
+    def test_path_queries_highlight_results(self):
+        g = _two_triangles()
+        g.all_shortest_paths("A", "F")
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY and step.method == "all_shortest_paths"
+        assert step.delta.nodes_selected == ["A", "C", "D", "F"]
+        assert step.delta.edges_selected == [("A", "C"), ("C", "D"), ("D", "F")]
+        assert step.narration == "1 shortest path from A to F."
+
+        g.has_path("A", "F")
+        assert g.steps[-1].narration == "F is reachable from A."
+        g.shortest_path_length("A", "F")
+        assert g.steps[-1].result == 3
+        assert g.steps[-1].delta.nodes_selected == ["A", "F"]
+
+    def test_distance_methods_record_metric_heat(self):
+        g = _two_triangles().single_source_shortest_path_length("A")
+        step = g.steps[-1]
+        assert step.kind == KIND_METRIC
+        assert step.delta.metric_values == {"A": 0, "B": 1, "C": 1, "D": 2, "E": 3, "F": 3}
+        assert "farthest: E (3)" in step.narration
+
+    def test_multi_source_path_records_catchments(self):
+        g = _two_triangles()
+        g.multi_source_shortest_path(["A", "F"])
+        d = g.steps[-1].delta
+        assert d.node_groups == {"A": 0, "B": 0, "C": 0, "D": 1, "E": 1, "F": 1}
+        assert d.nodes_selected == [] and len(d.edges_selected) == 4
+
+    def test_return_dict_records_no_step(self):
+        g = _two_triangles()
+        n = len(g.steps)
+        g.single_source_shortest_path_length("A", return_dict=True)
+        g.multi_source_shortest_path_length(["A"], return_dict=True)
+        assert len(g.steps) == n
+
+
+# Bidirectional Dijkstra, validated against NetworkX.
+
+
+class TestBidirectionalDijkstra:
+    def test_matches_networkx(self):
+        for G, g in _weighted_cases():
+            for weighted in (True, False):
+                gg = g if weighted else _build_in_order(G, False)
+                for a, b in itertools.islice(itertools.permutations(G.nodes, 2), 0, 200, 7):
+                    res = gg.bidirectional_dijkstra(str(a), str(b))
+                    if not nx.has_path(G, a, b):
+                        assert res is None
+                        continue
+                    length, path = res
+                    ref = nx.shortest_path_length(G, a, b, weight="weight" if weighted else None)
+                    labels = [int(gg.get_label_from_id(n)) for n in path]
+                    cost = sum(
+                        G[x][y]["weight"] if weighted else 1 for x, y in zip(labels, labels[1:])
+                    )
+                    assert length == pytest.approx(ref) and cost == pytest.approx(ref)
+                    assert labels[0] == a and labels[-1] == b
+
+    def test_types_and_trivial_cases(self):
+        g = _triangle_detour()
+        length, path = g.bidirectional_dijkstra("A", "C")
+        assert length == 2.0 and [g.get_label_from_id(n) for n in path] == ["A", "B", "C"]
+        hops = ec.Graph().add_nodes(["A", "B"]).add_edge("A", "B")
+        assert hops.bidirectional_dijkstra("A", "B") == (1, [1, 2])
+        assert isinstance(hops.bidirectional_dijkstra("A", "B")[0], int)
+        assert hops.bidirectional_dijkstra("A", "A") == (0, [1])
+        lonely = ec.Graph().add_nodes(["A", "B"])
+        assert lonely.bidirectional_dijkstra("A", "B") is None
+
+    def test_bidirectional_dijkstra_highlights_path(self):
+        g = _triangle_detour()
+        g.bidirectional_dijkstra("A", "C")
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY
+        assert step.delta.nodes_selected == ["A", "B", "C"]
+        assert step.delta.edges_selected == [("A", "B"), ("B", "C")]
+        assert "length 2" in step.narration
