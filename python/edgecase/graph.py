@@ -41340,91 +41340,1403 @@ class Graph:
 
         return maximal_matching(self._graph)
 
-    def max_weight_matching(self) -> list[int]:
+    def _record_matching_step(
+        self, method: str, code: str, eids: list[int], narration: str, nodes=None
+    ) -> None:
+        """Query step that highlights a set of edges (and, by default, their endpoints)."""
+        if self._recording_depth != 0:
+            return
+        pairs, ends = [], []
+        for e in eids:
+            a, b = self.get_node_ids_by_edge_id(e)
+            pairs.append((self._node_label(a), self._node_label(b)))
+            ends.extend([a, b])
+        selected = ends if nodes is None else nodes
+        self._record_step(
+            KIND_QUERY,
+            method,
+            code,
+            delta=StepDelta(
+                nodes_selected=[self._node_label(n) for n in dict.fromkeys(selected)],
+                edges_selected=pairs,
+            ),
+            result=eids,
+            narration=narration,
+        )
+
+    def _top_ids(self, top_nodes) -> list[int] | None:
+        if top_nodes is None:
+            return None
+        return [self._resolve_node_id(n, auto_create=False) for n in top_nodes]
+
+    def max_weight_matching(
+        self,
+        maxcardinality: bool = False,
+        weighted: bool | None = None,
+        method: str = "blossom",
+    ) -> list[int]:
         r"""
-        Find a maximum weight matching in the graph.
+        Find a maximum-weight matching (Edmonds' blossom algorithm).
 
-        ![Maximum weight matching](/assets/graphs/max-weight-matching.light.svg){.lightbox fig-alt="The same five-node graph with edge weights. Taking edges by weight, the matching picks 1–2 (5) and 3–4 (4), shown in the accent color with their endpoints. The card shows the returned edge ids 2 and 3, the pairs, and the total weight 5 + 4 = 9." width="100%"}
+        ![Maximum weight matching](/assets/graphs/max-weight-matching.light.svg){.lightbox fig-alt="A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two outer edges A–B and C–D, in the accent color with their endpoints, for a total weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the greedy method would lock in B–C first and stop at a total of 5." width="100%"}
 
-        Finds a matching that maximizes the sum of edge weights. Uses a greedy algorithm that
-        selects edges by weight in descending order. For unweighted graphs, all edges have weight
-        `1.0`.
+        A matching is a set of edges with no shared endpoints, so each node is paired with at
+        most one partner. The maximum-weight matching is the matching whose edges have the
+        largest possible total weight. It answers questions such as "which pairs of workers and
+        tasks, players and teams, or donors and recipients give the best total compatibility,
+        if everyone joins at most one pair?". On an unweighted graph every edge counts as `1`,
+        so the result is a maximum matching: as many pairs as possible.
 
-        Note that this is a greedy approximation, not guaranteed to be optimal for general graphs.
-        For optimal solutions on bipartite graphs, use specialized bipartite matching algorithms.
+        With `maxcardinality=True`, the matching first uses as many edges as possible and only
+        then maximizes the weight, so it may take a light edge if that lets one more pair form.
+        Edges with zero or negative weight are only ever chosen in that mode.
+
+        The default `method="blossom"` is exact. `method="greedy"` instead takes edges from
+        heaviest to lightest whenever both endpoints are still free; it is faster on very large
+        graphs but only guaranteed to reach half of the optimal weight.
+
+        Edge direction is ignored, self-loops are never chosen, and among parallel edges only the
+        heaviest can be chosen.
+
+        Parameters
+        ----------
+        maxcardinality
+            If `True`, return a maximum-weight matching among the matchings with the most edges.
+            Default `False`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag; with `False` every edge counts as `1`.
+        method
+            `"blossom"` (default, exact) or `"greedy"` (fast half-approximation; ignores
+            `maxcardinality=`).
 
         Returns
         -------
         list[int]
-            List of edge IDs forming a maximum weight matching.
+            The IDs of the matched edges, in ascending order.
+
+        Raises
+        ------
+        ValueError
+            If `method=` is unknown or an edge weight is not finite.
 
         Technical Notes
         ---------------
-        Sorts edges by weight in $O(E \log E)$ and admits each into the matching if both
-        endpoints are still free, taking $O(V + E)$ auxiliary space to track the matched
-        set. This greedy scheme is provably optimal on trees and forests but only
-        $\tfrac{1}{2}$-approximate on general graphs (Preis, 1999): a heavy edge that shares
-        an endpoint with two moderately-weighted ones can still be the wrong choice. For an
-        exact optimum on general graphs use Edmonds' weighted blossom algorithm; for
-        bipartite inputs the Hungarian method delivers an exact result in $O(V^3)$. On
-        unweighted graphs every edge scores identically and the call degenerates into
-        `maximal_matching()`.
+        Edmonds' algorithm (1965) grows alternating trees from the unmatched nodes and keeps
+        a feasible solution of the linear-programming dual: one variable per node and one per
+        *blossom*, an odd cycle of tight edges that is shrunk into a single node. When no tight
+        edge extends the search, the duals are adjusted until a new edge becomes tight, a
+        blossom is expanded, or (without `maxcardinality=`) a node's dual drops to zero. Each
+        augmentation enlarges the matching by one edge, giving $O(V^3)$ time overall. This
+        is a port of Joris van Rantwijk's implementation, which NetworkX also uses, and the
+        total weight always matches NetworkX's (when there are several optimal matchings, the
+        one returned may differ). The greedy method sorts the edges in $O(E \log E)$ and is a
+        $\tfrac{1}{2}$-approximation (Preis, 1999).
 
         Examples
         --------
-        Given a choice between one heavy edge (`A-B`, weight 10) and several light ones, the
-        greedy algorithm grabs the heavy edge first, then fills in the rest of the matching with
-        whatever's left:
+        In this path the heaviest edge B-C is a trap: taking it blocks both A-B and C-D, which
+        together weigh more. The exact matching takes the outer pair:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 10.0), ("B", "C", 1.0), ("C", "D", 1.0), ("A", "C", 2.0)])
-        )
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 4.0), ("B", "C", 5.0), ("C", "D", 4.0)])
 
-        matching = graph.max_weight_matching()
+        exact = g.max_weight_matching()
+        greedy = g.max_weight_matching(method="greedy")
 
-        # Returns total weight of the matching (11.0: edges A-B and C-D)
-        sum(graph.get_edge(eid).weight for eid in matching)
+        def total(ids):
+            return sum(g.get_edge(e).weight for e in ids)
+
+        # Returns (8.0, 5.0): the greedy method locks in B-C
+        total(exact), total(greedy)
         ```
 
-        For an unweighted graph, every edge has the same implicit weight, so the algorithm just
-        maximizes the number of matched pairs -- here, a complete graph on 8 nodes yields a
-        perfect matching:
+        With `maxcardinality=True`, the matching must use as many edges as possible, even if
+        that lowers the total weight. Here the heavy edge A-B alone (weight 10) beats the two
+        light edges A-C and B-D (total 2), but only the light pair matches every node:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_full_graph(8)
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 10.0), ("A", "C", 1.0), ("B", "D", 1.0)])
 
-        matching = graph.max_weight_matching()
-
-        # Returns 4 (all 8 nodes paired up)
-        len(matching)
+        [
+            [g.get_edge(e).weight for e in g.max_weight_matching(maxcardinality=mc)]
+            for mc in (False, True)
+        ]
         ```
 
-        Being greedy, this can miss the true optimum: in a triangle with a heavy `A-B` edge, the
-        algorithm locks in `A-B` first, leaving `C` unmatched, even though a different weighting
-        could favor a different pair:
+        On an unweighted graph, the result is a maximum matching. A 4 x 4 grid has a perfect
+        matching of 8 edges:
 
         ```{python}
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B", 5.0), ("B", "C", 3.0), ("A", "C", 2.0)])
-        )
-
-        matching = graph.max_weight_matching()
-
-        # Returns 1 (only one edge can be chosen in a 3-node graph)
-        len(matching)
+        grid = ec.Graph().add_grid_2d(4, 4)
+        matching = grid.max_weight_matching()
+        len(matching), grid.is_perfect_matching(matching)
         ```
         """
-        from edgecase._core import max_weight_matching
+        use = self._use_weights(weighted)
+        if method == "greedy":
+            from edgecase._core import max_weight_matching as greedy
+            from edgecase._core import maximal_matching
 
-        return max_weight_matching(self._graph)
+            eids = sorted(greedy(self._graph) if use else maximal_matching(self._graph))
+        elif method == "blossom":
+            eids = rust.blossom_max_weight_matching(self._graph, maxcardinality, use, False)
+        else:
+            raise ValueError(f"method= must be 'blossom' or 'greedy', got {method!r}")
+        if self._recording_depth == 0:
+            args = []
+            if maxcardinality:
+                args.append("maxcardinality=True")
+            if weighted is not None:
+                args.append(f"weighted={weighted!r}")
+            if method != "blossom":
+                args.append(f"method={method!r}")
+            total = sum((self.get_edge(e).weight or 1.0) if use else 1.0 for e in eids)
+            self._record_matching_step(
+                "max_weight_matching",
+                f"G.max_weight_matching({', '.join(args)})",
+                eids,
+                f"Matching of {len(eids)} edges with total weight {total:g}.",
+            )
+        return eids
+
+    def min_weight_matching(self, weighted: bool | None = None) -> list[int]:
+        r"""
+        Find a minimum-weight matching among the matchings with the most edges.
+
+        ![Minimum weight matching](/assets/graphs/min-weight-matching.light.svg){.lightbox fig-alt="Four drivers A, B, C, D with the extra driving time of each possible pair as edge weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; the other edges are faded. The card notes that taking the cheapest edge A–C (1) would force B–D (6), a total of 7." width="100%"}
+
+        A matching is a set of edges with no shared endpoints. This method first makes the
+        matching as large as possible (as many pairs as the graph allows) and, among all such
+        matchings, returns one with the smallest total weight. On a graph with a perfect
+        matching, that is the cheapest way to pair up every node. It is the right tool when
+        edges are costs (distances, prices, travel times) and everyone should be paired.
+
+        Requiring a maximum number of edges matters: without it, the cheapest matching would
+        simply be empty. Edge direction is ignored, self-loops are never chosen, and among
+        parallel edges only the lightest can be chosen.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag. Without weights every maximum matching is equally cheap.
+
+        Returns
+        -------
+        list[int]
+            The IDs of the matched edges, in ascending order.
+
+        Raises
+        ------
+        ValueError
+            If an edge weight is not finite.
+
+        Technical Notes
+        ---------------
+        As in NetworkX, every weight $w$ is replaced by $W + 1 - w$, where $W$ is the largest
+        weight, and a maximum-weight matching of maximum cardinality is computed with Edmonds'
+        blossom algorithm (see `max_weight_matching()`). Since all matchings considered have the
+        same number of edges $k$, maximizing $\sum (W + 1 - w) = k(W + 1) - \sum w$ minimizes
+        the original total. It runs in $O(V^3)$ time.
+
+        Examples
+        --------
+        Four delivery drivers must be paired into two-person teams, and each edge is the extra
+        driving time if the two share a route. The cheapest pairing matches A with B and C
+        with D:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [("A", "B", 2.0), ("C", "D", 3.0), ("A", "C", 1.0), ("B", "D", 6.0), ("A", "D", 4.0)]
+        )
+
+        teams = g.min_weight_matching()
+        [(g.get_label_from_id(e.source), g.get_label_from_id(e.target), e.weight)
+         for e in (g.get_edge(i) for i in teams)]
+        ```
+
+        The cheapest single edge, A-C (1), is not used: pairing A with C would force B and D
+        together at a cost of 6, for a total of 7 instead of 5.
+        """
+        use = self._use_weights(weighted)
+        eids = rust.blossom_max_weight_matching(self._graph, True, use, True)
+        if self._recording_depth == 0:
+            total = sum((self.get_edge(e).weight or 1.0) if use else 1.0 for e in eids)
+            self._record_matching_step(
+                "min_weight_matching",
+                "G.min_weight_matching()",
+                eids,
+                f"Minimum-weight matching of {len(eids)} edges, total weight {total:g}.",
+            )
+        return eids
+
+    def _matching_ends(self, edges: list[int]) -> list[int] | None:
+        """Endpoints of a valid matching (no self-loops, no shared nodes), else None."""
+        seen: list[int] = []
+        used: set[int] = set()
+        for e in edges:
+            ends = self.get_node_ids_by_edge_id(e) if isinstance(e, int) else None
+            if ends is None:
+                return None
+            a, b = ends
+            if a == b or a in used or b in used:
+                return None
+            used.update((a, b))
+            seen.extend((a, b))
+        return seen
+
+    def is_maximal_matching(self, edges: list[int]) -> bool:
+        """
+        Check if a set of edges is a maximal matching.
+
+        ![Is maximal matching](/assets/graphs/is-maximal-matching.light.svg){.lightbox fig-alt="The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: the middle edge B-C alone; both other edges touch B or C, so nothing can be added and is_maximal_matching() returns True. Right: A-B alone; the edge C-D (shown in the accent color with its free endpoints C and D) could still be added, so is_maximal_matching() returns False." width="100%"}
+
+        A matching is a set of edges with no shared endpoints. It is *maximal* when no other
+        edge of the graph can be added without breaking that rule: every edge has at least one
+        endpoint that is already matched. Maximal is weaker than maximum (largest possible):
+        `maximal_matching()` returns maximal matchings quickly, while `max_weight_matching()`
+        on an unweighted graph returns a maximum one, and every maximum matching is maximal.
+
+        Edge direction is ignored. Self-loops cannot be part of a matching, and they are not
+        needed to make it maximal.
+
+        Parameters
+        ----------
+        edges
+            A list of integer edge IDs, such as the output of `maximal_matching()`.
+
+        Returns
+        -------
+        bool
+            `True` if the edges exist, form a matching, and no edge can be added to it.
+            Unknown edge IDs give `False`.
+
+        Technical Notes
+        ---------------
+        The check marks the matched nodes and then makes one pass over the edges, looking
+        for a non-loop edge whose two endpoints are both unmatched. It runs in $O(V + E)$.
+
+        Examples
+        --------
+        In the path A-B-C-D, the middle edge alone is maximal (both outer edges touch B or
+        C), but not maximum, and the single outer edge A-B is not even maximal:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        ab, bc, cd = (g.find_edge_ids(u, v)[0] for u, v in [("A", "B"), ("B", "C"), ("C", "D")])
+
+        g.is_maximal_matching([bc]), g.is_maximal_matching([ab]), g.is_maximal_matching([ab, cd])
+        ```
+        """
+        ends = self._matching_ends(edges)
+        if ends is None:
+            return False
+        used = set(ends)
+        return not any(
+            s != t and s not in used and t not in used for _, s, t in self.get_edges_as_tuples()
+        )
+
+    def is_perfect_matching(self, edges: list[int]) -> bool:
+        """
+        Check if a set of edges is a perfect matching.
+
+        ![Is perfect matching](/assets/graphs/is-perfect-matching.light.svg){.lightbox fig-alt="A six-node ring A to F on both sides, with the candidate edges drawn as the input. Left: the alternate edges A-B, C-D, and E-F pair up every node, so is_perfect_matching() returns True. Right: only A-B and C-D, which leave E and F (filled in the accent color) unmatched, so is_perfect_matching() returns False." width="100%"}
+
+        A perfect matching pairs up every node of the graph: it is a matching (no two edges
+        share an endpoint) that touches all nodes. Only graphs with an even number of nodes
+        can have one. Perfect matchings are what you want when nobody may be left out, such as
+        assigning roommates, pairing chess players for a round, or covering a board with
+        dominoes.
+
+        Edge direction is ignored, and self-loops cannot be part of a matching.
+
+        Parameters
+        ----------
+        edges
+            A list of integer edge IDs, such as the output of `max_weight_matching()`.
+
+        Returns
+        -------
+        bool
+            `True` if the edges exist, form a matching, and cover every node. Unknown edge IDs
+            give `False`.
+
+        Technical Notes
+        ---------------
+        A matching is perfect exactly when it has $V / 2$ edges, so the check validates the
+        matching and counts its endpoints in $O(V + E)$ time. Whether a graph *has* a perfect
+        matching can be decided by computing a maximum matching (`max_weight_matching()` on an
+        unweighted graph) and checking it with this method.
+
+        Examples
+        --------
+        A 6-cycle has two perfect matchings, made of alternate edges:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph().add_nodes(list("ABCDEF"))
+        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
+        alternate = [ring.find_edge_ids(u, v)[0] for u, v in [("A", "B"), ("C", "D"), ("E", "F")]]
+
+        # Returns (True, False): dropping one edge leaves E and F unmatched
+        ring.is_perfect_matching(alternate), ring.is_perfect_matching(alternate[:2])
+        ```
+
+        A maximum matching tells you whether a perfect one exists. A star never has one:
+
+        ```{python}
+        star = ec.Graph().add_star_graph(4)
+        star.is_perfect_matching(star.max_weight_matching())
+        ```
+        """
+        ends = self._matching_ends(edges)
+        return ends is not None and len(ends) == self.count_nodes()
+
+    def bipartite_maximum_matching(self, top_nodes: list | None = None) -> list[int]:
+        r"""
+        Find a maximum matching of a bipartite graph (Hopcroft-Karp algorithm).
+
+        ![Bipartite maximum matching](/assets/graphs/bipartite-maximum-matching.light.svg){.lightbox fig-alt="Three applicants, Ann, Bob, and Cy, in a column on the left and three jobs, Dev, Ops, and QA, on the right. Ann and Bob can only do Dev, and Cy can do Ops or QA, so at most two pairs form: Ann–Dev and Cy–Ops, in the accent color with their endpoints. Bob and QA stay unmatched. The card lists the two pairs and the size 2." width="100%"}
+
+        In a bipartite graph the nodes split into two sides and every edge joins the two sides,
+        as in workers and jobs, students and schools, or reviewers and papers. A maximum
+        matching pairs as many nodes across the sides as possible, with each node in at most
+        one pair. This method finds one with the Hopcroft-Karp algorithm, which is much faster
+        than the general `max_weight_matching()` on large bipartite graphs.
+
+        The sides are found by 2-coloring the graph (ignoring edge direction) unless they are
+        given with `top_nodes=`. The size of a maximum matching does not depend on which valid
+        split is used. Self-loops are not allowed (they make a graph non-bipartite).
+
+        Parameters
+        ----------
+        top_nodes
+            Optional list of the nodes on one side (IDs or labels); all other nodes form the
+            other side. If `None` (default), the sides are found automatically.
+
+        Returns
+        -------
+        list[int]
+            The IDs of the matched edges, in ascending order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite, or `top_nodes=` leaves an edge within one side.
+
+        Technical Notes
+        ---------------
+        Hopcroft and Karp (1973) augment along many shortest augmenting paths at once: each
+        phase runs a breadth-first search from all free top nodes to layer the graph, then a
+        depth-first search finds a maximal set of vertex-disjoint shortest augmenting paths in
+        that layering. Only $O(\sqrt{V})$ phases are needed, so the running time is
+        $O(E \sqrt{V})$. By König's theorem the matching size equals the size of a minimum
+        vertex cover (see `bipartite_vertex_cover()`).
+
+        Examples
+        --------
+        Three applicants and three jobs. Ann and Bob can only do the first job between them,
+        so at most two of the three jobs can be filled:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["Ann", "Bob", "Cy", "Dev", "Ops", "QA"])
+        g.add_edges([("Ann", "Dev"), ("Bob", "Dev"), ("Cy", "Ops"), ("Cy", "QA")])
+
+        matching = g.bipartite_maximum_matching(top_nodes=["Ann", "Bob", "Cy"])
+        len(matching)
+        ```
+
+        Listing the pairs shows that Cy takes one of their two jobs:
+
+        ```{python}
+        [tuple(g.get_label_from_id(n) for n in g.get_node_ids_by_edge_id(e)) for e in matching]
+        ```
+        """
+        eids = rust.hopcroft_karp_matching(self._graph, self._top_ids(top_nodes))
+        self._record_matching_step(
+            "bipartite_maximum_matching",
+            "G.bipartite_maximum_matching()",
+            eids,
+            f"Maximum bipartite matching of {len(eids)} edges.",
+        )
+        return eids
+
+    def bipartite_min_weight_full_matching(
+        self, top_nodes: list | None = None, weighted: bool | None = None
+    ) -> list[int]:
+        r"""
+        Solve the assignment problem: a minimum-weight full matching of a bipartite graph.
+
+        ![Bipartite minimum weight full matching](/assets/graphs/bipartite-min-weight-full-matching.light.svg){.lightbox fig-alt="Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, even though Ana's nearest delivery is d1 (2)." width="100%"}
+
+        Given two groups, such as workers and tasks, and a cost for each possible pairing (an
+        edge between the groups, weighted by its cost), the assignment problem asks for the
+        cheapest way to give every member of the smaller group a distinct partner from the
+        larger group. Missing edges are pairings that are not allowed. Classic uses include
+        assigning jobs to machines, drivers to ride requests, and tracking objects between
+        video frames.
+
+        The sides are found by 2-coloring the graph (ignoring edge direction) unless they are
+        given with `top_nodes=`. Every node of the smaller side is matched; on a tie in size,
+        both sides are fully matched. To maximize a total score instead of minimizing a cost,
+        negate the weights.
+
+        Parameters
+        ----------
+        top_nodes
+            Optional list of the nodes on one side (IDs or labels); all other nodes form the
+            other side. If `None` (default), the sides are found automatically.
+        weighted
+            Whether to use edge weights as costs. If `None` (default), follows the graph's
+            `weighted` flag; with `False` every pairing costs `1`.
+
+        Returns
+        -------
+        list[int]
+            The IDs of the matched edges, in ascending order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite, `top_nodes=` leaves an edge within one side, or no
+            matching covers the whole smaller side.
+
+        Technical Notes
+        ---------------
+        The Hungarian method (Kuhn 1955, Munkres 1957) adds the nodes of the smaller side one
+        at a time and grows the matching along a cheapest augmenting path, found with
+        Dijkstra-like scans over reduced costs kept non-negative by node potentials. With $r$
+        rows (smaller side) and $c$ columns it runs in $O(r^2 c)$ time, the same optimum that
+        NetworkX obtains from SciPy's `linear_sum_assignment`.
+
+        Examples
+        --------
+        Three couriers and three deliveries, with travel times as weights. The quickest
+        assignment is not the one that gives each courier their nearest delivery:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(weighted=True).add_nodes(["Ana", "Ben", "Cho", "d1", "d2", "d3"])
+        g.add_edges(
+            [
+                ("Ana", "d1", 2.0), ("Ana", "d2", 3.0), ("Ana", "d3", 8.0),
+                ("Ben", "d1", 3.0), ("Ben", "d2", 7.0), ("Ben", "d3", 9.0),
+                ("Cho", "d1", 6.0), ("Cho", "d2", 4.0), ("Cho", "d3", 5.0),
+            ]
+        )
+
+        plan = g.bipartite_min_weight_full_matching(top_nodes=["Ana", "Ben", "Cho"])
+        [
+            (g.get_label_from_id(e.source), g.get_label_from_id(e.target), e.weight)
+            for e in (g.get_edge(i) for i in plan)
+        ]
+        ```
+
+        The total is 3 + 3 + 5 = 11. Giving Ana her nearest delivery (d1, 2) would leave Ben
+        with d2 or d3 and cost more overall.
+        """
+        eids = rust.min_weight_full_matching(
+            self._graph, self._top_ids(top_nodes), self._use_weights(weighted)
+        )
+        if self._recording_depth == 0:
+            use = self._use_weights(weighted)
+            total = sum((self.get_edge(e).weight or 1.0) if use else 1.0 for e in eids)
+            self._record_matching_step(
+                "bipartite_min_weight_full_matching",
+                "G.bipartite_min_weight_full_matching()",
+                eids,
+                f"Full matching of {len(eids)} edges with total cost {total:g}.",
+            )
+        return eids
+
+    def bipartite_vertex_cover(self, top_nodes: list | None = None) -> list[int]:
+        r"""
+        Find a minimum vertex cover of a bipartite graph (König's theorem).
+
+        ![Bipartite vertex cover](/assets/graphs/bipartite-vertex-cover.light.svg){.lightbox fig-alt="A bipartite graph with A, B, C on the top row and D, E on the bottom row, and edges A–D, A–E, B–E, and C–E. The minimum vertex cover is A and E, in the accent color: every edge touches one of them. A maximum matching, A–D and B–E in a second color, has the same size, as König's theorem says. The card shows the cover [A, E] and the matching, both of size 2." width="100%"}
+
+        A vertex cover is a set of nodes that touches every edge. Finding the smallest one is
+        hard in general, but on bipartite graphs it is easy: by König's theorem its size equals
+        the size of a maximum matching, and it can be read off from one. Vertex covers answer
+        questions like "which fewest people must be interviewed so that every reported
+        interaction involves one of them?", or "which fewest checkpoints monitor every road
+        between two districts?".
+
+        The sides are found by 2-coloring the graph (ignoring edge direction) unless they are
+        given with `top_nodes=`. Any valid split gives a minimum cover, though possibly a
+        different one.
+
+        Parameters
+        ----------
+        top_nodes
+            Optional list of the nodes on one side (IDs or labels); all other nodes form the
+            other side. If `None` (default), the sides are found automatically.
+
+        Returns
+        -------
+        list[int]
+            The node IDs of a minimum vertex cover, in ascending order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite, or `top_nodes=` leaves an edge within one side.
+
+        Technical Notes
+        ---------------
+        After computing a maximum matching $M$ with Hopcroft-Karp, the method collects the
+        set $Z$ of nodes reachable from unmatched top nodes along alternating paths (non-matching
+        edges from top to bottom, matching edges back up). The cover is the top nodes outside
+        $Z$ plus the bottom nodes inside it, which has exactly $|M|$ nodes (König 1931). The
+        total time is $O(E \sqrt{V})$. For non-bipartite graphs, see
+        `min_weighted_vertex_cover()` for a 2-approximation.
+
+        Examples
+        --------
+        Every edge of this small bipartite graph touches A or E, so two nodes suffice, matching
+        the size of a maximum matching:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges([("A", "D"), ("A", "E"), ("B", "E"), ("C", "E")])
+
+        cover = g.bipartite_vertex_cover()
+        [g.get_label_from_id(n) for n in cover], len(g.bipartite_maximum_matching())
+        ```
+
+        `is_vertex_cover()` confirms that every edge is touched:
+
+        ```{python}
+        g.is_vertex_cover(cover)
+        ```
+        """
+        cover, matching = rust.bipartite_vertex_cover(self._graph, self._top_ids(top_nodes))
+        if self._recording_depth == 0:
+            self._record_matching_step(
+                "bipartite_vertex_cover",
+                "G.bipartite_vertex_cover()",
+                matching,
+                f"Minimum vertex cover of {len(cover)} nodes (König: equals the matching size).",
+                nodes=cover,
+            )
+        return cover
+
+    def min_edge_cover(self) -> list[int]:
+        r"""
+        Find a minimum edge cover: the fewest edges that touch every node.
+
+        ![Minimum edge cover](/assets/graphs/min-edge-cover.light.svg){.lightbox fig-alt="A path of five nodes, A to E. A maximum matching covers four nodes with two edges, and one more edge is needed for the fifth, so the minimum edge cover has three edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a chosen edge. The card lists the three edges and the count 5 − 2 = 3." width="100%"}
+
+        An edge cover is a set of edges such that every node is an endpoint of at least one of
+        them. The smallest one is built from a maximum matching, which covers two new nodes per
+        edge, plus one extra edge for each node the matching leaves out. Edge covers model
+        problems such as placing the fewest two-person patrols so that every post is visited,
+        or picking the fewest links that still involve every station.
+
+        A node without any incident edge cannot be covered, so the graph must have no isolated
+        nodes. Edge direction is ignored. A self-loop can cover its node (when no other edge is
+        available), but is never part of the matching.
+
+        Returns
+        -------
+        list[int]
+            The edge IDs of a minimum edge cover, in ascending order. An empty graph gives an
+            empty list.
+
+        Raises
+        ------
+        ValueError
+            If the graph has an isolated node.
+
+        Technical Notes
+        ---------------
+        Gallai's identity says that a minimum edge cover has $V - \nu$ edges, where $\nu$ is
+        the size of a maximum matching. The method computes a maximum matching with Edmonds'
+        blossom algorithm in $O(V^3)$ time and then, for each unmatched node, adds its incident
+        edge with the lowest ID, as NetworkX does with an arbitrary incident edge.
+
+        Examples
+        --------
+        In a path of five nodes, a maximum matching covers four of them with two edges, and one
+        more edge is needed for the last node:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+
+        cover = path.min_edge_cover()
+        len(cover), path.is_edge_cover(cover)
+        ```
+
+        A star needs every edge, since each leaf is only touched by its own edge:
+
+        ```{python}
+        star = ec.Graph().add_star_graph(5)
+        len(star.min_edge_cover()) == star.count_edges()
+        ```
+        """
+        eids = rust.min_edge_cover(self._graph)
+        self._record_matching_step(
+            "min_edge_cover",
+            "G.min_edge_cover()",
+            eids,
+            f"Minimum edge cover of {len(eids)} edges.",
+        )
+        return eids
+
+    def is_edge_cover(self, edges: list[int]) -> bool:
+        """
+        Check if a set of edges touches every node (an edge cover).
+
+        ![Is edge cover](/assets/graphs/is-edge-cover.light.svg){.lightbox fig-alt="The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: the outer edges A-B and C-D touch all four nodes, so is_edge_cover() returns True. Right: the middle edge B-C alone misses A and D (filled in the accent color), so is_edge_cover() returns False." width="100%"}
+
+        An edge cover is a set of edges such that every node of the graph is an endpoint of at
+        least one of them. Unlike a matching, edges in a cover may share endpoints. Use this
+        method to validate a hand-built cover or the output of `min_edge_cover()`. A graph with
+        an isolated node has no edge cover, so the check is then always `False` (and the empty
+        graph is covered by the empty set).
+
+        Parameters
+        ----------
+        edges
+            A list of integer edge IDs.
+
+        Returns
+        -------
+        bool
+            `True` if every node is an endpoint of one of the edges. Unknown edge IDs give
+            `False`.
+
+        Technical Notes
+        ---------------
+        The check collects the endpoints of the given edges and compares them with the node
+        set, in $O(V + k)$ time for $k$ edges. Edge direction is ignored.
+
+        Examples
+        --------
+        The two outer edges of the path A-B-C-D cover all four nodes, while the middle edge
+        alone misses A and D:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        ab, bc, cd = (g.find_edge_ids(u, v)[0] for u, v in [("A", "B"), ("B", "C"), ("C", "D")])
+
+        g.is_edge_cover([ab, cd]), g.is_edge_cover([bc])
+        ```
+        """
+        covered: set[int] = set()
+        for e in edges:
+            ends = self.get_node_ids_by_edge_id(e) if isinstance(e, int) else None
+            if ends is None:
+                return False
+            covered.update(ends)
+        return covered >= set(self.get_node_ids(limit=None))
+
+    def min_weighted_vertex_cover(self, weight_attr: str | None = None) -> list[int]:
+        r"""
+        Find a vertex cover of small total weight (2-approximation).
+
+        ![Minimum weighted vertex cover](/assets/graphs/min-weighted-vertex-cover.light.svg){.lightbox fig-alt="A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the method takes the four leaves instead, in the accent color. The card shows the cover [a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub." width="100%"}
+
+        A vertex cover is a set of nodes that touches every edge. With node weights (costs),
+        the goal is a cover of minimum total weight, such as the cheapest set of servers that
+        monitors every link, or the fewest guards who together watch every corridor. That
+        problem is NP-hard, so this method returns a cover that is guaranteed to weigh at most
+        twice the optimum, and is often much closer. Without weights it minimizes the number of
+        nodes (with the same guarantee). On bipartite graphs, `bipartite_vertex_cover()` finds
+        an exact minimum (unweighted).
+
+        Edge direction is ignored. A self-loop forces its node into the cover.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of a node attribute holding non-negative costs. If `None` (default), every
+            node costs `1`. Nodes without the attribute, or with a non-numeric value, cost `1`.
+
+        Returns
+        -------
+        list[int]
+            The node IDs of the cover, in ascending order.
+
+        Raises
+        ------
+        ValueError
+            If a node cost is negative or NaN.
+
+        Technical Notes
+        ---------------
+        This is the local-ratio algorithm of Bar-Yehuda and Even (1985), as in NetworkX. It
+        scans the edges (in ID order); for each edge not yet covered, it adds the cheaper
+        endpoint to the cover and subtracts that endpoint's remaining cost from the other
+        endpoint. The amounts subtracted form a feasible dual solution that the cover weighs at
+        most twice, which gives the factor-2 guarantee. It runs in $O(V + E)$ time.
+
+        Examples
+        --------
+        A star with a costly center: covering every edge with the center costs 10, while the
+        four cheap leaves cost 4 together, and the method finds that cheaper cover:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["hub", "a", "b", "c", "d"])
+        g.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")])
+        g.set_node_attrs("cost", {g.get_id_from_label("hub"): 10.0})
+
+        cover = g.min_weighted_vertex_cover(weight_attr="cost")
+        [g.get_label_from_id(n) for n in cover]
+        ```
+
+        Without costs, the single center node is the smallest cover:
+
+        ```{python}
+        [g.get_label_from_id(n) for n in g.min_weighted_vertex_cover()]
+        ```
+        """
+        cover = rust.min_weighted_vertex_cover(self._graph, weight_attr)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "min_weighted_vertex_cover",
+                "G.min_weighted_vertex_cover()"
+                if weight_attr is None
+                else f"G.min_weighted_vertex_cover(weight_attr={weight_attr!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in cover]),
+                result=cover,
+                narration=f"Vertex cover of {len(cover)} nodes (at most twice the optimum).",
+            )
+        return cover
+
+    def is_vertex_cover(self, nodes: list[Union[int, str]]) -> bool:
+        """
+        Check if a set of nodes touches every edge (a vertex cover).
+
+        ![Is vertex cover](/assets/graphs/is-vertex-cover.light.svg){.lightbox fig-alt="A star with center hub and leaves a, b, c on both sides, with the candidate nodes outlined. Left: hub touches every edge, so is_vertex_cover() returns True. Right: the leaf a alone leaves the edges hub-b and hub-c (shown in the accent color) untouched, so is_vertex_cover() returns False." width="100%"}
+
+        A vertex cover is a set of nodes such that every edge has at least one endpoint in the
+        set. It is the complement of an independent set: a set of nodes is a vertex cover
+        exactly when the remaining nodes have no edges among them. Use this method to validate
+        the output of `bipartite_vertex_cover()` or `min_weighted_vertex_cover()`, or a
+        hand-picked set of monitors.
+
+        Edge direction is ignored, and a self-loop is only covered by its own node.
+
+        Parameters
+        ----------
+        nodes
+            A list of node IDs or labels.
+
+        Returns
+        -------
+        bool
+            `True` if every edge has an endpoint in `nodes`.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist.
+
+        Technical Notes
+        ---------------
+        One pass over the edge list in $O(V + E)$ time.
+
+        Examples
+        --------
+        The center of a star covers every edge; any leaves alone do not:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["hub", "a", "b", "c"])
+        g.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c")])
+
+        g.is_vertex_cover(["hub"]), g.is_vertex_cover(["a", "b", "c"]), g.is_vertex_cover(["a"])
+        ```
+        """
+        ids = {self._resolve_node_id(n, auto_create=False) for n in nodes}
+        return all(s in ids or t in ids for _, s, t in self.get_edges_as_tuples())
+
+    # ==============================================================================
+    # Approximation and Optimization
+    # ==============================================================================
+
+    def traveling_salesman(
+        self,
+        nodes: list[Union[int, str]] | None = None,
+        cycle: bool = True,
+        method: str | None = None,
+        weighted: bool | None = None,
+        seed: int | None = None,
+        max_iterations: int = 10,
+        n_inner: int = 100,
+        move: str = "1-1",
+        temperature: float | None = None,
+    ) -> list[int]:
+        r"""
+        Find a short route that visits every node (traveling salesperson problem).
+
+        ![Traveling salesman](/assets/graphs/traveling-salesman.light.svg){.lightbox fig-alt="Five sites A to E on a pentagon, joined by roads weighted with travel times: A–B 2, B–C 2, C–D 3, D–E 2, E–A 3, and the two chords A–C 4 and B–E 3. The round trip starts at A (outlined) and follows the accent arrows A, B, C, D, E, back to A, visiting every site once; the chords are faded. The card shows the route and its cost 2 + 2 + 3 + 2 + 3 = 12." width="100%"}
+
+        The traveling salesperson problem asks for the cheapest round trip that visits each of
+        a set of locations exactly once. Here the graph does not need to be complete: the
+        route moves between consecutive stops along shortest paths, so the problem is solved
+        on the *metric closure* (see `metric_closure()`) and the returned walk may pass
+        through other nodes on the way. The problem is NP-hard, so the methods are heuristics
+        that give good, but not always optimal, routes. Typical uses are delivery and service
+        routes, drilling and printing orders, and sequencing samples or jobs.
+
+        Methods:
+
+        - `"christofides"` (default for undirected graphs): at most 1.5 times the optimal cost.
+        - `"greedy"`: nearest neighbor from the first node; fast, no guarantee.
+        - `"simulated_annealing"` and `"threshold_accepting"`: start from the greedy route
+          and improve it with random moves (`"threshold_accepting"` is the default for
+          directed graphs, where Christofides does not apply). Use `seed=` for reproducible
+          results.
+
+        Parameters
+        ----------
+        nodes
+            The stops to visit (IDs or labels). If `None` (default), every node.
+        cycle
+            If `True` (default), return to the start. If `False`, return a path instead: the
+            most expensive leg of the round trip is removed.
+        method
+            One of the methods above. If `None` (default), `"christofides"` for undirected and
+            `"threshold_accepting"` for directed graphs.
+        weighted
+            Whether to use edge weights as travel costs. If `None` (default), follows the
+            graph's `weighted` flag; with `False` every edge costs `1`. Weights must be
+            non-negative.
+        seed
+            Random seed for the local search methods.
+        max_iterations
+            Local search only: stop after this many outer rounds without an improvement.
+        n_inner
+            Local search only: moves tried per outer round.
+        move
+            Local search only: `"1-1"` (default) swaps two stops, `"1-0"` moves one stop to a
+            new position.
+        temperature
+            Local search only: the starting temperature for simulated annealing (default
+            `100`) or the starting threshold for threshold accepting (default `1`). These are
+            in units of edge weight, so scale them with your weights.
+
+        Returns
+        -------
+        list[int]
+            The walk as node IDs. With `cycle=True`, the first and last node are the same.
+
+        Raises
+        ------
+        ValueError
+            If a stop cannot be reached from another, a weight is negative, `method="christofides"`
+            is used on a directed graph, or an argument is invalid.
+
+        Technical Notes
+        ---------------
+        Distances between stops are computed with Dijkstra's algorithm from every stop. On
+        that complete, metric instance, Christofides' algorithm (1976) builds a minimum
+        spanning tree, adds a minimum-weight perfect matching on its odd-degree nodes (Edmonds'
+        blossom algorithm), walks an Eulerian circuit of the union, and skips repeated nodes;
+        the triangle inequality makes the result at most $\tfrac{3}{2}$ times optimal, in
+        $O(k^3)$ time for $k$ stops. Simulated annealing accepts a worse route with probability
+        $e^{-\Delta / T}$ and cools $T$ by 1% per round; threshold accepting accepts any move
+        worse by at most the threshold, which shrinks by 10% per round with an accepted move.
+        Both follow NetworkX's design, but unlike NetworkX they leave the current route
+        unchanged when a move is rejected.
+
+        Examples
+        --------
+        Five sites linked by roads, weighted by travel time. The route visits every site and
+        returns to the start, for a total of 2 + 2 + 3 + 2 + 3 = 12:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges(
+            [
+                ("A", "B", 2.0), ("B", "C", 2.0), ("C", "D", 3.0), ("D", "E", 2.0),
+                ("E", "A", 3.0), ("A", "C", 4.0), ("B", "E", 3.0),
+            ]
+        )
+
+        route = g.traveling_salesman()
+        [g.get_label_from_id(n) for n in route]
+        ```
+
+        Only some nodes may need a visit. With stops A and D, the round trip passes through B
+        and C (which are not stops) in both directions, because the path is the only way
+        between them:
+
+        ```{python}
+        path = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        path.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("C", "D", 1.0)])
+        [path.get_label_from_id(n) for n in path.traveling_salesman(nodes=["A", "D"])]
+        ```
+
+        With `cycle=False` the most expensive leg of the round trip (E-A or C-D, weight 3) is
+        dropped, leaving a one-way route:
+
+        ```{python}
+        [g.get_label_from_id(n) for n in g.traveling_salesman(cycle=False, method="greedy")]
+        ```
+        """
+        if method is None:
+            method = "threshold_accepting" if self.is_directed() else "christofides"
+        ids = (
+            None if nodes is None else [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        )
+        walk, cost = rust.traveling_salesman(
+            self._graph,
+            ids,
+            cycle,
+            method,
+            self._use_weights(weighted),
+            seed,
+            max_iterations,
+            n_inner,
+            move,
+            temperature,
+        )
+        if self._recording_depth == 0:
+            delta = self._path_delta([walk])
+            if ids is not None:
+                delta.nodes_selected = [self._node_label(n) for n in dict.fromkeys(ids)]
+            self._record_step(
+                KIND_QUERY,
+                "traveling_salesman",
+                f"G.traveling_salesman(method={method!r})",
+                delta=delta,
+                result=walk,
+                narration=f"{'Tour' if cycle else 'Route'} of cost {cost:g} through "
+                f"{len(set(walk))} nodes ({method}).",
+            )
+        return walk
+
+    def metric_closure(self, weighted: bool | None = None) -> "Graph":
+        r"""
+        Build the metric closure: a complete graph of shortest-path distances.
+
+        ![Metric closure](/assets/graphs/metric-closure.light.svg){.lightbox fig-alt="Left: a path A, B, C, D whose three edges each have weight 1. Right: the metric closure joins every pair of nodes, weighted by the shortest-path distance between them. It keeps the three unit edges and adds the accent shortcuts A–C with weight 2, B–D with weight 2, and A–D with weight 3." width="100%"}
+
+        The metric closure has the same nodes as the graph and an edge between every pair of
+        nodes, weighted by the length of the shortest path between them. It turns any connected
+        network into a complete "distance table" that satisfies the triangle inequality, which
+        is what many approximation algorithms expect: traveling salesperson heuristics (see
+        `traveling_salesman()`), Steiner tree approximations, and clustering or facility
+        location on network distances.
+
+        On a directed graph, the result is a complete directed graph whose edge from `u` to `v`
+        holds the distance from `u` to `v`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights as lengths. If `None` (default), follows the graph's
+            `weighted` flag; with `False` the distances are hop counts. Weights must be
+            non-negative.
+
+        Returns
+        -------
+        Graph
+            A new weighted graph with the same directedness and nodes (IDs, labels and
+            attributes kept), with one edge per pair of nodes (per ordered pair if directed)
+            weighted by distance.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not connected (strongly connected if directed), or a weight is
+            negative.
+
+        Technical Notes
+        ---------------
+        Dijkstra's algorithm runs from every node, for $O(V (E + V) \log V)$ time, and the
+        result has $V (V - 1) / 2$ edges (twice as many if directed), so it is meant for small
+        and medium graphs. Unlike NetworkX, the edges do not store the shortest paths
+        themselves; use `shortest_path()` to recover one.
+
+        Examples
+        --------
+        In a path A-B-C-D with unit weights, the closure adds the shortcuts A-C (2), B-D (2)
+        and A-D (3):
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("C", "D", 1.0)])
+
+        closure = g.metric_closure()
+        closure.get_edges_str_repr(use_labels=True), closure.get_edge_attrs_by_id("weight")
+        ```
+
+        The closure satisfies the triangle inequality even when the original weights do not
+        (the direct edge A-C below is longer than going through B):
+
+        ```{python}
+        tri = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
+        tri.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)])
+        closure = tri.metric_closure()
+        closure.get_edge(closure.find_edge_ids("A", "C")[0]).weight
+        ```
+        """
+        result = Graph._from_rust(rust.metric_closure(self._graph, self._use_weights(weighted)))
+        if self._recording_depth == 0:
+            pairs = [
+                (result._node_label(s), result._node_label(t))
+                for _, s, t in result.get_edges_as_tuples()
+            ]
+            result._record_step(
+                KIND_BUILD_EDGES,
+                "metric_closure",
+                "G.metric_closure()",
+                delta=StepDelta(
+                    nodes_added=[
+                        result._node_label(n) for n in sorted(result.get_node_ids(limit=None))
+                    ],
+                    edges_added=pairs,
+                ),
+            )
+            self._record_step(
+                KIND_TRANSFORM,
+                "metric_closure",
+                "G.metric_closure()",
+                narration=f"Metric closure with {len(pairs)} distance edges.",
+            )
+        return result
+
+    def tree_decomposition(self, heuristic: str = "min_fill_in") -> tuple[int, "Graph"]:
+        r"""
+        Find a tree decomposition and an upper bound on the treewidth.
+
+        ![Tree decomposition](/assets/graphs/tree-decomposition.light.svg){.lightbox fig-alt="Left: a five-node cycle A to E; the dashed accent chords B–E and C–E split it into three triangles. Right: the returned tree of bags, each bag a shaded box holding one triangle: {A,B,E}, {B,C,E}, and {C,D,E}, joined in a chain; neighboring bags share two nodes, and every cycle edge lies inside a bag. The largest bag has 3 nodes, so the card gives the width 3 − 1 = 2." width="100%"}
+
+        A tree decomposition arranges the nodes into overlapping groups called *bags*, connected
+        as a tree, so that every edge lies inside some bag and the bags containing any given
+        node form a connected piece of the tree. Its *width* is the size of the largest bag
+        minus one, and the treewidth of the graph is the smallest width possible: trees have
+        treewidth 1, cycles 2, and a complete graph on $n$ nodes $n - 1$. Many NP-hard problems
+        (coloring, independent sets, probabilistic inference in graphical models) become fast
+        on graphs of small treewidth when solved bag by bag along the decomposition.
+
+        Computing the exact treewidth is NP-hard, so this method uses a greedy elimination
+        heuristic, as NetworkX does, and the width it reports is an upper bound:
+
+        - `"min_fill_in"` (default): eliminate the node whose neighbors need the fewest extra
+          edges to become a clique. Usually tighter.
+        - `"min_degree"`: eliminate a node of smallest degree. Faster.
+
+        Edge direction, self-loops and parallel edges are ignored.
+
+        Parameters
+        ----------
+        heuristic
+            `"min_fill_in"` (default) or `"min_degree"`.
+
+        Returns
+        -------
+        tuple[int, Graph]
+            The width, and the decomposition as a new undirected tree whose nodes are the bags.
+            Each bag is labeled with its members, such as `"{A,B,C}"`, and stores their node
+            IDs in the node attribute `"bag"`. An empty graph has width `-1` and a single empty
+            bag.
+
+        Raises
+        ------
+        ValueError
+            If `heuristic=` is unknown.
+
+        Technical Notes
+        ---------------
+        Elimination repeatedly picks a node by the heuristic, joins its remaining neighbors
+        into a clique (the "fill-in" edges), records the node with its neighbors, and removes
+        it; elimination stops once the remaining nodes form a clique, which becomes the first
+        bag. Undoing the eliminations in reverse, each node and its recorded neighbors form a
+        new bag, attached to an existing bag that contains those neighbors. Min-degree uses a
+        heap, while min-fill-in recomputes fill-in counts for every node at each step, so it
+        is slower, roughly $O(V^2 \Delta^2)$ for maximum degree $\Delta$. Ties are broken by
+        node ID; the widths match NetworkX's.
+
+        Examples
+        --------
+        A cycle has treewidth 2. Its decomposition is a chain of bags of three nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "A")])
+
+        width, tree = ring.tree_decomposition()
+        width, [tree.get_label_from_id(n) for n in sorted(tree.get_node_ids(limit=None))]
+        ```
+
+        Every edge of the original graph sits inside some bag, and the bags form a tree:
+
+        ```{python}
+        tree.is_tree(), tree.count_nodes()
+        ```
+
+        A tree has width 1, since each bag only needs a node and its parent:
+
+        ```{python}
+        star = ec.Graph().add_star_graph(5)
+        star.tree_decomposition(heuristic="min_degree")[0]
+        ```
+        """
+        width, bags, edges = rust.tree_decomposition(self._graph, heuristic)
+        labels = ["{" + ",".join(self._node_label(n) for n in bag) + "}" for bag in bags]
+        result = Graph()
+        result.add_nodes([(lab, {"bag": list(bag)}) for lab, bag in zip(labels, bags)])
+        if edges:
+            result.add_edges([(labels[a], labels[b]) for a, b in edges])
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_TRANSFORM,
+                "tree_decomposition",
+                "G.tree_decomposition()"
+                if heuristic == "min_fill_in"
+                else f"G.tree_decomposition(heuristic={heuristic!r})",
+                narration=f"Tree decomposition of width {width} with {len(bags)} bags.",
+            )
+        return width, result
+
+    def densest_subgraph(
+        self, method: str = "exact", iterations: int = 1
+    ) -> tuple[float, list[int]]:
+        r"""
+        Find the densest subgraph: the set of nodes with the most edges per node.
+
+        ![Densest subgraph](/assets/graphs/densest-subgraph.light.svg){.lightbox fig-alt="A clique of four nodes A, B, C, D, every pair joined, with a chain D–E–F hanging off D. The densest subgraph is the clique, in the accent color: 6 edges on 4 nodes, density 6 / 4 = 1.5. The chain dilutes it, since the whole graph has 8 edges on 6 nodes, density 8 / 6 = 1.33. The card shows the nodes [A, B, C, D] and both densities." width="100%"}
+
+        The density of a set of nodes $S$ here is the number of edges among them divided by
+        their number, $|E(S)| / |S|$ (half the average degree inside $S$). The densest
+        subgraph is the set with the highest such density. It highlights the tightest core of
+        a network: tightly knit groups of friends, coordinated accounts or bots in social
+        media, dense regions of protein interaction networks, or fraud rings in transaction
+        graphs. Unlike a clique, it does not require every pair to be connected.
+
+        Methods:
+
+        - `"exact"` (default): an optimal set, computed with maximum flows.
+        - `"greedy++"`: peel off the node of smallest degree repeatedly and keep the densest
+          intermediate set. One iteration (the default) is Charikar's peeling, which finds at
+          least half the optimal density; more iterations converge towards the optimum.
+
+        Edge direction, self-loops and parallel edges are ignored.
+
+        Parameters
+        ----------
+        method
+            `"exact"` (default) or `"greedy++"`.
+        iterations
+            Number of peeling passes for `"greedy++"` (ignored by `"exact"`).
+
+        Returns
+        -------
+        tuple[float, list[int]]
+            The density and the node IDs of the subgraph, in ascending order. A graph without
+            edges gives `(0.0, [])`.
+
+        Raises
+        ------
+        ValueError
+            If `method=` is unknown or `iterations` is less than 1.
+
+        Technical Notes
+        ---------------
+        The exact method uses Goldberg's (1984) reduction: for a guess $g = p / q$, a
+        network with arcs from a source to every node, from every node to a sink, and both
+        ways along each edge has a minimum cut below $q m n$ exactly when some set has density
+        above $g$, and the source side of that cut is such a set. Starting from $g = m / n$,
+        each step replaces $g$ by the density of the set found (Dinkelbach's method), and stops
+        when no denser set exists. All capacities are integers, so the result is exact. Each
+        step is one maximum flow (Dinic's algorithm), and few steps are needed in practice.
+        Greedy++ (Boob et al., 2020) repeats the peeling with node loads that accumulate across
+        passes, as in NetworkX; its densities match NetworkX's.
+
+        Examples
+        --------
+        A clique of four friends plus a loosely attached chain. The densest part is the clique,
+        with 6 edges on 4 nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
+        g.add_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("D", "E"), ("E", "F")]
+        )
+
+        density, nodes = g.densest_subgraph()
+        density, [g.get_label_from_id(n) for n in nodes]
+        ```
+
+        The whole graph is less dense, at 8 edges on 6 nodes:
+
+        ```{python}
+        round(g.count_edges() / g.count_nodes(), 3)
+        ```
+        """
+        density, nodes = rust.densest_subgraph(self._graph, method, iterations)
+        if self._recording_depth == 0:
+            inside = set(nodes)
+            self._record_step(
+                KIND_QUERY,
+                "densest_subgraph",
+                "G.densest_subgraph()"
+                if method == "exact"
+                else (f"G.densest_subgraph(method={method!r}, iterations={iterations})"),
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(n) for n in nodes],
+                    edges_selected=[
+                        (self._node_label(s), self._node_label(t))
+                        for _, s, t in self.get_edges_as_tuples()
+                        if s in inside and t in inside and s != t
+                    ],
+                ),
+                result=(density, nodes),
+                narration=f"Densest subgraph: {len(nodes)} nodes, density {density:.3g}.",
+            )
+        return density, nodes
+
+    def max_cut(
+        self,
+        method: str = "one_exchange",
+        initial: list[Union[int, str]] | None = None,
+        seed: int | None = None,
+        weighted: bool | None = None,
+        p: float = 0.5,
+    ) -> tuple[float, tuple[list[int], list[int]]]:
+        r"""
+        Split the nodes into two sides so that many edges cross between them (max-cut).
+
+        ![Maximum cut](/assets/graphs/max-cut.light.svg){.lightbox fig-alt="A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E on side S (teal) and B, D, F on side T (violet). Every one of the six edges then runs between the two sides, so all six are cut edges in the accent color. The card gives the cut value 6.0 and the two sides." width="100%"}
+
+        The maximum cut problem asks for a split of the nodes into two groups that maximizes
+        the number (or total weight) of edges with one end in each group. It models choosing
+        opposing teams or sides so that conflicts (edges) fall between them, assigning
+        components to two circuit layers to minimize same-layer connections, and it is a
+        standard benchmark for optimization. Max-cut is NP-hard, so these methods are
+        heuristics:
+
+        - `"one_exchange"` (default): local search that moves one node to the other side
+          whenever that increases the cut, until no single move helps. The result cuts at least
+          half of the total edge weight (with non-negative weights).
+        - `"randomized"`: put each node on side `S` with probability `p`. With `p=0.5`, half
+          the weight is cut on average.
+
+        Edge direction is ignored, and self-loops never count.
+
+        Parameters
+        ----------
+        method
+            `"one_exchange"` (default) or `"randomized"`.
+        initial
+            One-exchange only: nodes (IDs or labels) that start on side `S`. If `None`
+            (default), all nodes start on side `T`.
+        seed
+            Random seed. One-exchange uses it to break ties between equally good moves.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+        p
+            Randomized only: the probability that a node is put on side `S`.
+
+        Returns
+        -------
+        tuple[float, tuple[list[int], list[int]]]
+            The cut weight and the two sides `(S, T)` as lists of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If `method=` is unknown, `p` is outside $[0, 1]$, or a node in `initial` does not
+            exist.
+
+        Technical Notes
+        ---------------
+        One-exchange keeps, for every node, the gain of moving it (the weight of its edges to
+        its own side minus the weight to the other side) and repeatedly moves a node with the
+        largest positive gain, updating its neighbors' gains in $O(\deg)$. At a local optimum
+        every node has at least half of its incident weight crossing the cut, so the cut holds
+        at least half the total weight. Each move strictly increases the cut, so the search
+        terminates. This mirrors NetworkX's `one_exchange` and `randomized_partitioning`.
+
+        Examples
+        --------
+        In a 6-cycle, putting alternate nodes on opposite sides cuts all 6 edges:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
+        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
+
+        value, (S, T) = ring.max_cut(seed=1)
+        value, sorted(ring.get_label_from_id(n) for n in S)
+        ```
+
+        A triangle can never be cut completely: one side always contains two of its nodes,
+        so the best cut has 2 of the 3 edges:
+
+        ```{python}
+        tri = ec.Graph().add_nodes(["A", "B", "C"])
+        tri.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        tri.max_cut(seed=1)[0]
+        ```
+        """
+        init = (
+            None
+            if initial is None
+            else [self._resolve_node_id(n, auto_create=False) for n in initial]
+        )
+        value, S, T = rust.max_cut(self._graph, method, init, seed, self._use_weights(weighted), p)
+        if self._recording_depth == 0:
+            side = dict.fromkeys(S, 0) | dict.fromkeys(T, 1)
+            self._record_step(
+                KIND_QUERY,
+                "max_cut",
+                "G.max_cut()" if method == "one_exchange" else f"G.max_cut(method={method!r})",
+                delta=StepDelta(
+                    node_groups={self._node_label(n): g for n, g in side.items()},
+                    edges_selected=[
+                        (self._node_label(s), self._node_label(t))
+                        for _, s, t in self.get_edges_as_tuples()
+                        if side[s] != side[t]
+                    ],
+                ),
+                result=(value, (S, T)),
+                narration=f"Cut of weight {value:g} between {len(S)} and {len(T)} nodes.",
+            )
+        return value, (S, T)
 
     # ==============================================================================
     # Independent Sets
