@@ -20,6 +20,8 @@ The Steiner variants (prize-collecting, directed) reuse the steiner_tree
 graph, with prizes as node badges. The motif methods use the dominating-set
 graph and stack one small motif shape per class on the right (the
 all_spanning_trees rows), with its count (and z-score) beside it.
+`subgraph_isomorphisms` splits the input panel into the pattern (`soft`) and
+the host, and stacks one miniature host per occurrence like find_cliques.
 `isolates` returns ids, so its two-row graph is labeled with ids and the
 edgeless nodes are `accent`.
 `triadic_census` uses the five-node directed network from its docstring with a
@@ -1030,3 +1032,59 @@ def densest_subgraph(s: Scene) -> None:
                             (f"density  {len(on)} / {len(nodes)} = {density:g}", "accent"),
                             f"whole    {m} / {n} = {m / n:.2f}"],
                     title="edges / nodes")
+
+
+# --- pattern occurrences ---------------------------------------------------
+
+# subgraph_isomorphisms docstring: feed-forward loops (A -> B -> C plus A -> C)
+# in a four-node directed network. The host zigzags so each occurrence is one
+# of its two triangles; the pattern is drawn on the first triangle's footprint.
+FFL = {"A": (0, 1), "B": (1, 0), "C": (2, 1)}
+FFL_EDGES = [("A", "B"), ("B", "C"), ("A", "C")]
+FFL_HOST = {"x": (0, 1), "y": (1, 0), "z": (2, 1), "w": (3, 0)}
+FFL_HOST_EDGES = [("x", "y"), ("y", "z"), ("x", "z"), ("z", "w"), ("y", "w")]
+
+
+@figure("subgraph_isomorphisms", "substructures", "Subgraph isomorphisms",
+        "Left: pattern p, a feed-forward loop where A points to B and C and B points to C, "
+        "beside graph g, a four-node directed network with edges x→y, y→z, x→z, z→w, and "
+        "y→w. Right: two miniature copies of g, each highlighting one occurrence of the "
+        "pattern in the accent color, listed beside it: A→x B→y C→z, and A→y B→z C→w.")
+def subgraph_isomorphisms(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(FFL_HOST))
+    g.add_edges(FFL_HOST_EDGES)
+    p = ec.Graph(directed=True).add_nodes(list(FFL))
+    p.add_edges(FFL_EDGES)
+    found = [{p.get_label_from_id(a): g.get_label_from_id(b) for a, b in m.items()}
+             for m in g.subgraph_isomorphisms(p)]
+    assert found == [{"A": "x", "B": "y", "C": "z"}, {"A": "y", "B": "z", "C": "w"}]
+    left, right = compute(s, "p", "g.subgraph_isomorphisms(p)")
+    pbox = Box(left.x0, left.y0, left.x0 + 150, left.y1)
+    gbox = Box(pbox.x1, left.y0, left.x1, left.y1)
+    cap = next(t for t in s.texts if t.role == "caption" and t.text == "p")
+    cap.x = pbox.cx
+    s.caption(gbox.cx, "g", max_w=gbox.w)
+    s.graph(place(FFL, pbox, unit=UNIT * 0.6), FFL_EDGES, directed=True,
+            styles=dict.fromkeys(FFL, "soft"), prefix="p.")
+    s.graph(place(FFL_HOST, gbox, unit=UNIT * 0.8), FFL_HOST_EDGES, directed=True,
+            prefix="g.")
+    texts = [" ".join(f"{a}→{b}" for a, b in m.items()) for m in found]
+    xs = [c[0] for c in FFL_HOST.values()]
+    gw = (max(xs) - min(xs)) * MINI_UNIT + 2 * R_SMALL
+    tw = max(text_width(t, SIZE_CARD) for t in texts)
+    gap = 18
+    x0 = right.cx - (gw + gap + tw) / 2
+    row_h = right.h / len(found)
+    for i, (m, label) in enumerate(zip(found, texts)):
+        cell = Box(x0, right.y0 + i * row_h, x0 + gw, right.y0 + (i + 1) * row_h)
+        hit = set(m.values())
+        on = {(m[a], m[b]) for a, b in FFL_EDGES}
+        s.graph(place(FFL_HOST, cell, unit=MINI_UNIT, r=R_SMALL, pad=0),
+                [(a, b, {"style": "accent" if (a, b) in on else "muted"})
+                 for a, b in FFL_HOST_EDGES],
+                directed=True, styles={k: "accent" if k in hit else "muted" for k in FFL_HOST},
+                r=R_SMALL, prefix=f"m{i}.")
+        s.text(x0 + gw + gap, cell.cy, label, size=SIZE_CARD, anchor="start", color="accent",
+               weight=600, role="card")
