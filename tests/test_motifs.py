@@ -1,6 +1,8 @@
-import pytest
-import edgecase as ec
+import random
 
+import edgecase as ec
+import networkx as nx
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -575,3 +577,56 @@ class TestMotifCensusLarger:
         census = g.motif_census(size=3, return_dict=True)
         assert census["path"] == 18  # Each internal node forms a path with its neighbors
         assert "triangle" not in census
+
+
+# Directed triadic census, validated against NetworkX.
+
+
+def _random(seed: int, directed: bool, n: int = 12):
+    rnd = random.Random(seed)
+    G0 = nx.gnp_random_graph(n, rnd.choice([0.2, 0.3, 0.45]), seed=seed, directed=directed)
+    G = (nx.DiGraph if directed else nx.Graph)()
+    G.add_nodes_from(range(n))
+    for u, v in G0.edges:
+        G.add_edge(u, v, capacity=rnd.choice([1, 2, 3, 5]))
+    g = ec.Graph(directed=directed).add_nodes([str(v) for v in range(n)])
+    for u, v, d in G.edges(data=True):
+        g.add_edge(str(u), str(v), capacity=d["capacity"])
+    return G, g
+
+
+class TestTriadicCensus:
+    def test_matches_networkx(self):
+        for seed in range(20):
+            G, g = _random(seed, True)
+            assert g.triadic_census() == nx.triadic_census(G)
+        D = nx.gnp_random_graph(60, 0.08, seed=1, directed=True)
+        big = ec.Graph(directed=True).add_nodes([str(v) for v in D])
+        big.add_edges([(str(u), str(v)) for u, v in D.edges])
+        assert big.triadic_census() == nx.triadic_census(D)
+
+    def test_order_total_and_examples(self):
+        cycle = ec.Graph(directed=True).add_nodes(list("ABC"))
+        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        census = cycle.triadic_census()
+        assert list(census) == [
+            "003", "012", "102", "021D", "021U", "021C", "111D", "111U",
+            "030T", "030C", "201", "120D", "120U", "120C", "210", "300",
+        ]  # fmt: skip
+        assert census["030C"] == 1 and sum(census.values()) == 1
+        g = ec.Graph(directed=True).add_nodes(list("ABCDE"))
+        assert g.triadic_census()["003"] == 10
+
+    def test_parallel_edges_and_undirected(self):
+        g = ec.Graph(directed=True).add_nodes(list("ABC"))
+        g.add_edges([("A", "B"), ("A", "B"), ("B", "B")])
+        assert g.triadic_census()["012"] == 1
+        with pytest.raises(ValueError, match="directed"):
+            ec.Graph().add_nodes(list("ABC")).triadic_census()
+
+    def test_triadic_census_step(self):
+        cycle = ec.Graph(directed=True).add_nodes(list("ABC"))
+        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        cycle.triadic_census()
+        step = cycle.steps[-1]
+        assert step.narration == "Triadic census of 1 triads; most common connected types: 030C ×1."
