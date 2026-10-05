@@ -1,6 +1,10 @@
 import math
-import pytest
+import random
+
 import edgecase as ec
+import networkx as nx
+import numpy as np
+import pytest
 from edgecase.matrix_utils import from_adjacency_matrix, to_adjacency_matrix
 
 
@@ -443,3 +447,112 @@ class TestModuleExports:
         g2 = ec.from_adjacency_matrix([[0, 1], [1, 0]])
 
         assert g2.count_nodes() == 2
+
+
+# Matrix accessors (adjacency, incidence, Laplacians, modularity, Bethe Hessian) validated
+# against NetworkX, with self-loops, weights and directed graphs.
+
+
+def _matrix_cases():
+    for seed in range(10):
+        rnd = random.Random(seed)
+        for directed in (False, True):
+            G0 = nx.gnp_random_graph(9, rnd.choice([0.2, 0.35]), seed=seed, directed=directed)
+            G = (nx.DiGraph if directed else nx.Graph)()
+            G.add_nodes_from(range(9))
+            for u, v in G0.edges:
+                G.add_edge(u, v, weight=rnd.choice([0.5, 1, 2, 3]))
+            if seed % 3 == 0:
+                G.add_edge(2, 2, weight=1.5)
+            yield G, sorted(G.nodes)
+
+
+def _two_triangles():
+    return (
+        ec.Graph()
+        .add_nodes(list("ABCDEF"))
+        .add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+    )
+
+
+def _build(G, weighted):
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in sorted(G.nodes)])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+class TestMatrixAccessors:
+    def test_against_networkx(self):
+        for G, nodes in _matrix_cases():
+            for weighted in (False, True):
+                g, w = _build(G, weighted), ("weight" if weighted else None)
+                assert np.allclose(
+                    g.adjacency_matrix()[0], nx.to_numpy_array(G, nodelist=nodes, weight=w)
+                )
+                for oriented in (False, True):
+                    m, _, eids = g.incidence_matrix(oriented=oriented)
+                    edgelist = [
+                        tuple(int(g.get_label_from_id(x)) for x in g.get_node_ids_by_edge_id(e))
+                        for e in eids
+                    ]
+                    ref = nx.incidence_matrix(
+                        G, nodelist=nodes, edgelist=edgelist, oriented=oriented, weight=w
+                    ).toarray()
+                    assert np.allclose(m, ref)
+                assert np.allclose(
+                    g.laplacian_matrix()[0],
+                    nx.laplacian_matrix(G, nodelist=nodes, weight=w).toarray(),
+                )
+                ref_mod = (
+                    nx.directed_modularity_matrix if G.is_directed() else nx.modularity_matrix
+                )(G, nodelist=nodes, weight=w)
+                assert np.allclose(g.modularity_matrix()[0], ref_mod)
+                if G.is_directed():
+                    # Repeated, non-diagonalizable eigenvalues (common at 0 here) are only
+                    # determined to about eps**(1/k), so match each value to its nearest partner
+                    ours = list(g.modularity_spectrum())
+                    remaining = list(np.linalg.eigvals(ref_mod))
+                    for z in ours:
+                        k = int(np.argmin([abs(z - r) for r in remaining]))
+                        assert abs(z - remaining.pop(k)) < 1e-4
+                    if weighted:
+                        for walk in (None, "pagerank"):
+                            ref = nx.directed_laplacian_matrix(G, nodelist=nodes, walk_type=walk)
+                            assert np.allclose(g.directed_laplacian_matrix(walk)[0], ref, atol=1e-8)
+                else:
+                    assert np.allclose(
+                        g.normalized_laplacian_matrix()[0],
+                        nx.normalized_laplacian_matrix(G, nodelist=nodes, weight=w).toarray(),
+                    )
+                    assert np.allclose(g.modularity_spectrum(), sorted(np.linalg.eigvalsh(ref_mod)))
+                    if weighted and G.number_of_edges():
+                        ref = nx.bethe_hessian_matrix(G, nodelist=nodes).toarray()
+                        assert np.allclose(g.bethe_hessian_matrix()[0], ref)
+
+    def test_properties_and_errors(self):
+        star = ec.Graph().add_star_graph(4)
+        lap, nodes = star.laplacian_matrix()
+        assert nodes == [1, 2, 3, 4] and all(sum(row) == 0 for row in lap)
+        assert all(not math.copysign(1, v) < 0 for row in lap for v in row if v == 0)  # no -0.0
+        path = ec.Graph().add_path_graph(4)
+        assert path.bethe_hessian_matrix(r=1)[0] == path.laplacian_matrix()[0]
+        b, _, edges = path.incidence_matrix(oriented=True)
+        assert all(abs(sum(row[j] for row in b)) < 1e-12 for j in range(len(edges)))
+        with pytest.raises(ValueError, match="directed"):
+            path.directed_laplacian_matrix()
+        with pytest.raises(ValueError, match="walk_type"):
+            ec.Graph(directed=True).add_nodes(["A"]).directed_laplacian_matrix("zigzag")
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B").bethe_hessian_matrix()
+
+    def test_steps(self):
+        g = _two_triangles()
+        g.laplacian_matrix()
+        assert g.steps[-1].narration == "laplacian_matrix(): a 6 x 6 matrix."
