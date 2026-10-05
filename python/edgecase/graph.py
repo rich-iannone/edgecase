@@ -41259,9 +41259,8 @@ class Graph:
         On a directed graph only paths that follow edge direction from `source=` to `sink=`
         are cut. When several minimum cuts exist, only one of them is returned. If the sink is
         already unreachable, the result is an empty set. If the source and sink are joined by a
-        direct edge, no set of other nodes can separate them, so the returned set does not
-        disconnect them; check adjacency first if this matters. The method does not modify the
-        graph.
+        direct edge (`source -> sink` on a directed graph), no set of other nodes can separate
+        them, so a `ValueError` is raised. The method does not modify the graph.
 
         Parameters
         ----------
@@ -41280,7 +41279,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If source or sink node doesn't exist, or if they're the same.
+            If source or sink node doesn't exist, if they're the same, or if they're adjacent.
 
         Technical Notes
         ---------------
