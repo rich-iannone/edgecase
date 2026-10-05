@@ -95,6 +95,17 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::branchings::is_branching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::branchings::to_prufer_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::branchings::from_prufer_sequence, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::matching_cover::blossom_max_weight_matching, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::matching_cover::hopcroft_karp_matching, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::matching_cover::bipartite_vertex_cover, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::matching_cover::min_weight_full_matching, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::matching_cover::min_edge_cover, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::matching_cover::min_weighted_vertex_cover, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::approximation::traveling_salesman, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::approximation::metric_closure, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::approximation::tree_decomposition, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::approximation::densest_subgraph, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::approximation::max_cut, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::adjacency_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::incidence_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::laplacian_matrix, m)?)?;
