@@ -38,11 +38,19 @@ Shared layouts keep siblings comparable:
 - BOWTIE: two triangles sharing C plus a detour A - F - E, for the Menger
   pair. edge_disjoint_paths finds three routes from A to E (two meet at C);
   node_disjoint_paths keeps only two, and the route through B, D stays muted.
+- FX: the negative-cycle docstrings' three currencies, USD -> EUR -> GBP ->
+  USD weighted by negative log-rates (-0.10, -0.15, 0.20; total -0.05).
+  find_negative_cycle draws the cycle in accent from the `soft` source USD
+  and sums it on the card; negative_edge_cycle is a predicate, so it uses
+  `contrast`: the arbitrage loop (accent) beside the same loop with GBP -> USD
+  at 0.30 (total +0.05). Both assert their results with edgecase.
 """
 
 import math
 
-from core import SIZE_NOTE, Box, Scene, compute, figure, place, ring
+from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
+
+from figures.similarity import _name
 
 UNIT = 72  # one graph scale for the whole family
 COLORS = ("accent", "g2", "g3")
@@ -760,3 +768,69 @@ def traveling_salesman(s: Scene) -> None:
     s.card_centered(right, [(arrows(tour), "accent"),
                             "cost  " + " + ".join(str(c) for c in cost) + f" = {sum(cost)}"],
                     title="visit every site, return to A")
+
+
+# --- later additions: negative cycles -----------------------------------------
+
+FX = {"USD": (0, 1), "EUR": (1, 0), "GBP": (2, 1)}
+FX_EDGES = [("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)]
+
+
+def _fx_graph(edges):
+    import edgecase as ec
+
+    g = ec.Graph(directed=True, weighted=True).add_nodes(list(FX))
+    g.add_edges(edges)
+    return g
+
+
+def _signed(w: float) -> str:
+    return f"{w:+.2f}".replace("-", "−")
+
+
+def _fx(s: Scene, box: Box, edges, *, style: str, prefix: str = "",
+        styles: dict | None = None) -> None:
+    styles = styles or {}
+    gbox = Box(box.x0, box.y0 + 14, box.x1, box.y1)  # a row for the name above EUR
+    s.graph(place(FX, gbox, unit=UNIT * 1.5),
+            [(a, b, {"style": style, "weight": _signed(w)}) for a, b, w in edges],
+            directed=True, styles=styles, prefix=prefix, labels=False)
+    for k, where in zip(FX, ("w", "n", "e")):  # codes are too wide for a circle
+        _name(s, prefix + k, k, where, "ink" if styles.get(k, "default") == "default" else "accent")
+
+
+@figure("negative_edge_cycle", "paths", "Negative edge cycle",
+        "Three currencies linked by exchange edges weighted with negative log-rates. Left: "
+        "USD to EUR −0.10, EUR to GBP −0.15 and GBP to USD +0.20 add up to −0.05, a "
+        "negative cycle (accent) that signals an arbitrage loop, so negative_edge_cycle() "
+        "returns True. Right: with GBP to USD at +0.30 the loop totals +0.05, so no cycle is "
+        "negative and the call returns False.")
+def negative_edge_cycle(s: Scene) -> None:
+    fair = [e if e[0] != "GBP" else ("GBP", "USD", 0.30) for e in FX_EDGES]
+    assert _fx_graph(FX_EDGES).negative_edge_cycle() is True
+    assert _fx_graph(fair).negative_edge_cycle() is False
+    left, right = contrast(s, "g.negative_edge_cycle()", "g.negative_edge_cycle()")
+    for box, p, edges, note, style in ((left, "l.", FX_EDGES, "cycle total −0.05", "accent"),
+                                       (right, "r.", fair, "cycle total +0.05", "default")):
+        s.text(box.cx, box.y0 + 8, note, size=SIZE_NOTE, opacity=0.6)
+        _fx(s, Box(box.x0, box.y0 + 22, box.x1, box.y1), edges, style=style, prefix=p,
+            styles=dict.fromkeys(FX, style) if style == "accent" else None)
+
+
+@figure("find_negative_cycle", "paths", "Find negative cycle",
+        "Three currencies linked by exchange edges weighted with negative log-rates, searched "
+        "from USD (outlined). Going around USD to EUR to GBP and back to USD (accent arrows) "
+        "costs −0.10 − 0.15 + 0.20 = −0.05, a negative cycle: an arbitrage loop. The card "
+        "returns the cycle with its first node repeated at the end, USD, EUR, GBP, USD.")
+def find_negative_cycle(s: Scene) -> None:
+    g = _fx_graph(FX_EDGES)
+    cycle = [g.get_label_from_id(n) for n in g.find_negative_cycle("USD")]
+    assert cycle == ["USD", "EUR", "GBP", "USD"]
+    total = sum(w for _, _, w in FX_EDGES)
+    assert round(total, 2) == -0.05
+    left, right = compute(s, "g", 'g.find_negative_cycle("USD")')
+    _fx(s, left, FX_EDGES, style="accent", styles={"USD": "soft", "EUR": "accent",
+                                                    "GBP": "accent"})
+    s.card_centered(right, [(bracket(cycle), "accent"),
+                            "total  −0.10 − 0.15 + 0.20", "     = −0.05"],
+                    title="negative cycle from USD")
