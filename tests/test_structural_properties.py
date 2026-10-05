@@ -300,6 +300,26 @@ class TestDegreeDistribution:
         assert len(dist) == 1  # Only one degree value
 
 
+class TestDegreeDistributionDirected:
+    """Regression: directed graphs were binned by out-degree, unlike get_degree()."""
+
+    def test_directed_uses_total_degree(self):
+        # A -> B -> C plus A -> C and a self-loop on C: totals A 2, B 2, C 4
+        G = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        G.add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "C")])
+        assert G.get_degree_distribution() == {2: 2, 4: 1}
+        expected: dict[int, int] = {}
+        for nid in G.get_node_ids():
+            d = G.get_degree(nid)
+            expected[d] = expected.get(d, 0) + 1
+        assert G.get_degree_distribution() == expected
+
+    def test_directed_path_has_no_zero_bin(self):
+        # The sink used to land in degree 0
+        G = ec.Graph(directed=True).add_path_graph(4)
+        assert G.get_degree_distribution() == {1: 2, 2: 2}
+
+
 class TestCountSelfloops:
     """Test count_all_loops() method."""
 
