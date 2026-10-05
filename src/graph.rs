@@ -468,6 +468,54 @@ impl Graph {
         Ok(self.nodes.get(&node_id).and_then(|n| n.label.clone()))
     }
 
+    /// Rename nodes atomically.
+    ///
+    /// `mapping` pairs node IDs with their new labels. Every ID must exist, and after renaming
+    /// all labels must still be unique; otherwise nothing changes and `ValueError` is raised.
+    /// Node IDs, attributes and edges are untouched.
+    pub fn relabel_nodes(&mut self, mapping: Vec<(u64, String)>) -> PyResult<()> {
+        let mut renamed: FxHashMap<u64, String> = FxHashMap::default();
+        for (id, label) in mapping {
+            if !self.nodes.contains_key(&id) {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Node {} does not exist",
+                    id
+                )));
+            }
+            renamed.insert(id, label);
+        }
+        // New labels must not collide with each other or with labels that are kept
+        let mut seen: FxHashMap<&str, u64> = FxHashMap::default();
+        for (id, label) in &renamed {
+            if let Some(other) = seen.insert(label.as_str(), *id) {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Nodes {} and {} would both be labeled '{}'",
+                    other, id, label
+                )));
+            }
+            if let Some(&owner) = self.node_labels.get(label) {
+                if !renamed.contains_key(&owner) {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Label '{}' is already used by node {}",
+                        label, owner
+                    )));
+                }
+            }
+        }
+        for (id, _) in &renamed {
+            if let Some(old) = self.nodes.get(id).and_then(|n| n.label.clone()) {
+                self.node_labels.remove(&old);
+            }
+        }
+        for (id, label) in renamed {
+            self.node_labels.insert(label.clone(), id);
+            if let Some(node) = self.nodes.get_mut(&id) {
+                node.label = Some(label);
+            }
+        }
+        Ok(())
+    }
+
     /// Check if a node with the given ID exists
     ///
     /// # Arguments
@@ -3129,6 +3177,12 @@ impl Graph {
             return self.nodes.keys()
                 .map(|&id| (id, Some(0.0)))
                 .collect();
+        }
+
+        // Eccentricities are measured within each component, so radiality (which compares
+        // them against one graph-wide diameter) is only meaningful for connected graphs
+        if self.count_weakly_connected_components() != 1 {
+            return self.nodes.keys().map(|&id| (id, None)).collect();
         }
 
         let eccentricities = self.compute_eccentricities();
@@ -7545,272 +7599,6 @@ impl Graph {
 
     // ========== Community Detection ==========
 
-    /// Get community membership using Fast Greedy (Clauset-Newman-Moore) algorithm
-    ///
-    /// Greedy modularity optimization using an efficient heap-based approach.
-    /// Merges communities that maximally increase modularity until no improvement is possible.
-    ///
-    /// Algorithm:
-    /// 1. Initialize: each node in its own community
-    /// 2. Build heap of merge candidates ordered by ΔQ (modularity gain)
-    /// 3. Repeatedly merge communities with largest ΔQ until heap empty or ΔQ ≤ 0
-    /// 4. Return partition with maximum modularity achieved
-    ///
-    /// Complexity: O(n log²n) on sparse graphs
-    ///
-    /// # Arguments
-    /// * None - uses default modularity calculation
-    ///
-    /// # Returns
-    /// * HashMap mapping node_id -> community_id (0-indexed)
-    ///
-    /// # Errors
-    /// * Returns error if graph is directed (requires undirected graph)
-    ///
-    /// # References
-    /// Clauset, Newman, Moore. "Finding community structure in very large networks" (2004)
-    #[inline]
-    fn get_cmty_fast_greedy(&self) -> PyResult<FxHashMap<u64, usize>> {
-        // Require undirected graph
-        if self.is_directed() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "Fast Greedy requires an undirected graph"
-            ));
-        }
-
-        let n = self.num_nodes();
-        if n == 0 {
-            return Ok(FxHashMap::default());
-        }
-
-        // Special case: single node
-        if n == 1 {
-            let mut result = FxHashMap::default();
-            if let Some(&node_id) = self.nodes.keys().next() {
-                result.insert(node_id, 0);
-            }
-            return Ok(result);
-        }
-
-        // Initialize: each node in own community
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let mut communities: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for (idx, &id) in node_ids.iter().enumerate() {
-            communities.insert(id, idx);
-        }
-
-        // Calculate total edge weight (m)
-        let m = self.num_edges() as f64;
-        if m == 0.0 {
-            // No edges: each node is its own community
-            return Ok(communities);
-        }
-
-        // Calculate degrees for all nodes
-        let degrees: Vec<f64> = node_ids.iter()
-            .map(|&id| self.degree(id) as f64)
-            .collect();
-
-        // Track edges between communities (sparse representation)
-        // (comm_i, comm_j) -> edge_weight
-        let mut edge_weights: FxHashMap<(usize, usize), f64> = FxHashMap::with_capacity_and_hasher(n * 5, Default::default());
-
-        // Initialize edge weights from graph edges
-        for (&from_id, neighbors) in &self.adjacency_list {
-            let from_comm = *communities.get(&from_id).unwrap();
-            for &to_id in neighbors {
-                let to_comm = *communities.get(&to_id).unwrap();
-                if from_comm != to_comm {
-                    let key = if from_comm < to_comm {
-                        (from_comm, to_comm)
-                    } else {
-                        (to_comm, from_comm)
-                    };
-                    *edge_weights.entry(key).or_insert(0.0) += 1.0;
-                }
-            }
-        }
-        // Divide by 2 because undirected edges are counted twice
-        for weight in edge_weights.values_mut() {
-            *weight /= 2.0;
-        }
-
-        // Calculate sum of degrees for each community
-        let mut community_degrees: Vec<f64> = degrees.clone();
-
-        // Build initial heap of merge candidates
-        use std::collections::BinaryHeap;
-        use std::cmp::Ordering;
-
-        #[derive(Debug)]
-        struct MergeCandidate {
-            delta_q: f64,
-            comm_a: usize,
-            comm_b: usize,
-        }
-
-        impl PartialEq for MergeCandidate {
-            fn eq(&self, other: &Self) -> bool {
-                self.delta_q == other.delta_q
-            }
-        }
-
-        impl Eq for MergeCandidate {}
-
-        impl PartialOrd for MergeCandidate {
-            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-
-        impl Ord for MergeCandidate {
-            fn cmp(&self, other: &Self) -> Ordering {
-                // Higher delta_q = higher priority
-                self.delta_q.partial_cmp(&other.delta_q).unwrap_or(Ordering::Equal)
-            }
-        }
-
-        let mut heap: BinaryHeap<MergeCandidate> = BinaryHeap::with_capacity(n);
-
-        // Populate initial heap with all community pairs that have edges
-        let inv_m = 1.0 / m;
-        let inv_two_m_sq = 1.0 / (2.0 * m * m);
-        for (&(comm_a, comm_b), &e_ij) in &edge_weights {
-            let a_i = community_degrees[comm_a];
-            let a_j = community_degrees[comm_b];
-
-            // ΔQ = e_ij/m - (a_i * a_j)/(2m²)
-            let delta_q = (e_ij * inv_m) - (a_i * a_j * inv_two_m_sq);
-
-            heap.push(MergeCandidate {
-                delta_q,
-                comm_a,
-                comm_b,
-            });
-        }
-
-        // Track which communities are still active
-        let mut active_communities: FxHashSet<usize> = (0..n).collect();
-
-        // Track best modularity and partition
-        let mut best_modularity = -1.0;
-        let mut best_partition = communities.clone();
-        let mut current_modularity = 0.0; // Initial modularity with all separate
-
-        // Main greedy loop
-        while let Some(candidate) = heap.pop() {
-            let MergeCandidate { delta_q, comm_a, comm_b } = candidate;
-
-            // Skip if communities were already merged
-            if !active_communities.contains(&comm_a) || !active_communities.contains(&comm_b) {
-                continue;
-            }
-
-            // Stop if no positive gain
-            if delta_q <= 0.0 {
-                break;
-            }
-
-            // Merge comm_b into comm_a (keep comm_a, remove comm_b)
-            for (_node_id, comm_id) in communities.iter_mut() {
-                if *comm_id == comm_b {
-                    *comm_id = comm_a;
-                }
-            }
-
-            // Update modularity
-            current_modularity += delta_q;
-
-            // Track best partition
-            if current_modularity > best_modularity {
-                best_modularity = current_modularity;
-                best_partition = communities.clone();
-            }
-
-            // Update community degrees
-            community_degrees[comm_a] += community_degrees[comm_b];
-            community_degrees[comm_b] = 0.0;
-
-            // Mark comm_b as inactive
-            active_communities.remove(&comm_b);
-
-            // Update edge weights: merge comm_b edges into comm_a
-            let mut new_edges: Vec<((usize, usize), f64)> = Vec::new();
-            let mut edges_to_remove: Vec<(usize, usize)> = Vec::new();
-
-            for (&(ci, cj), &weight) in &edge_weights {
-                if ci == comm_b || cj == comm_b {
-                    edges_to_remove.push((ci, cj));
-
-                    // Redirect to comm_a
-                    let new_ci = if ci == comm_b { comm_a } else { ci };
-                    let new_cj = if cj == comm_b { comm_a } else { cj };
-
-                    if new_ci != new_cj {
-                        let key = if new_ci < new_cj {
-                            (new_ci, new_cj)
-                        } else {
-                            (new_cj, new_ci)
-                        };
-                        new_edges.push((key, weight));
-                    }
-                }
-            }
-
-            // Remove old edges
-            for key in edges_to_remove {
-                edge_weights.remove(&key);
-            }
-
-            // Add new edges (accumulating weights)
-            for (key, weight) in new_edges {
-                *edge_weights.entry(key).or_insert(0.0) += weight;
-            }
-
-            // Add new merge candidates to heap
-            for &other_comm in &active_communities {
-                if other_comm == comm_a {
-                    continue;
-                }
-
-                let key = if comm_a < other_comm {
-                    (comm_a, other_comm)
-                } else {
-                    (other_comm, comm_a)
-                };
-
-                if let Some(&e_ij) = edge_weights.get(&key) {
-                    let a_i = community_degrees[comm_a];
-                    let a_j = community_degrees[other_comm];
-                    let delta_q = (e_ij * inv_m) - (a_i * a_j * inv_two_m_sq);
-
-                    heap.push(MergeCandidate {
-                        delta_q,
-                        comm_a: if comm_a < other_comm { comm_a } else { other_comm },
-                        comm_b: if comm_a < other_comm { other_comm } else { comm_a },
-                    });
-                }
-            }
-        }
-
-        // Renumber communities to be contiguous (0, 1, 2, ...)
-        let mut community_map: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n / 5, Default::default());
-        let mut next_id = 0;
-
-        for comm_id in best_partition.values() {
-            if !community_map.contains_key(comm_id) {
-                community_map.insert(*comm_id, next_id);
-                next_id += 1;
-            }
-        }
-
-        let result: FxHashMap<u64, usize> = best_partition.iter()
-            .map(|(&node_id, old_comm)| (node_id, *community_map.get(old_comm).unwrap()))
-            .collect();
-
-        Ok(result)
-    }
-
     /// Get community membership using Edge Betweenness (Girvan-Newman) algorithm
     ///
     /// Iteratively removes edges with highest betweenness centrality to reveal communities.
@@ -8018,65 +7806,16 @@ impl Graph {
 
         let m = self.num_edges() as f64;
         if m == 0.0 {
-            // No edges - each node is its own community
-            let mut result = FxHashMap::default();
-            for (idx, &node_id) in self.nodes.keys().enumerate() {
-                result.insert(node_id, idx);
-            }
-            return Ok(result);
+            // No edges - each node is its own community, numbered in node ID order
+            let mut ids: Vec<u64> = self.nodes.keys().copied().collect();
+            ids.sort_unstable();
+            return Ok(ids.into_iter().enumerate().map(|(idx, id)| (id, idx)).collect());
         }
 
-        // Build node index mapping
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for (idx, &node_id) in node_ids.iter().enumerate() {
-            node_to_idx.insert(node_id, idx);
-        }
-
-        // Initialize: each node in its own community
-        let mut node_to_comm: Vec<usize> = (0..node_ids.len()).collect();
-        let mut best_modularity = self.louvain_compute_modularity(&node_to_comm, &node_to_idx, m, resolution);
-
-        let mut improved = true;
-        let max_iterations = 100;
-        let mut iteration = 0;
-
-        while improved && iteration < max_iterations {
-            improved = false;
-            iteration += 1;
-
-            // Phase 1: Local optimization
-            let phase1_improved = self.louvain_optimize(&mut node_to_comm, &node_to_idx, m, resolution);
-            if phase1_improved {
-                let current_mod = self.louvain_compute_modularity(&node_to_comm, &node_to_idx, m, resolution);
-                if current_mod > best_modularity + 1e-10 {
-                    best_modularity = current_mod;
-                    improved = true;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        // Convert to result format with contiguous IDs
-        let mut unique_comms: Vec<usize> = node_to_comm.to_vec();
-        unique_comms.sort_unstable();
-        unique_comms.dedup();
-
-        let num_comms = unique_comms.len();
-        let mut comm_remap = FxHashMap::with_capacity_and_hasher(num_comms, Default::default());
-        for (new_id, &old_id) in unique_comms.iter().enumerate() {
-            comm_remap.insert(old_id, new_id);
-        }
-
-        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for (idx, node_id) in node_ids.iter().enumerate() {
-            let old_comm = node_to_comm[idx];
-            let new_comm = comm_remap.get(&old_comm).copied().unwrap_or(0);
-            result.insert(*node_id, new_comm);
-        }
-
-        Ok(result)
+        // Multi-level Louvain (local moving + aggregation); the fixed seed keeps it deterministic
+        let (ids, membership) =
+            crate::algorithms::community_detection::louvain_partition(self, resolution, 42);
+        Ok(ids.into_iter().zip(membership).collect())
     }
 
     /// Detect communities using the Walktrap algorithm.
@@ -9794,139 +9533,6 @@ impl Graph {
         reachable
     }
 
-    /// Louvain local optimization phase.
-    #[inline]
-    fn louvain_optimize(
-        &self,
-        node_to_comm: &mut [usize],
-        node_to_idx: &FxHashMap<u64, usize>,
-        m: f64,
-        resolution: f64,
-    ) -> bool {
-        let mut improved = false;
-        let mut changed = true;
-        let max_passes = 10;
-        let mut pass = 0;
-        let n = node_to_idx.len();
-
-        let mut node_ids: Vec<u64> = node_to_idx.keys().copied().collect();
-
-        while changed && pass < max_passes {
-            changed = false;
-            pass += 1;
-
-            // Shuffle node order with a fixed seed for determinism
-            // This helps convergence while keeping results reproducible
-            use rand::SeedableRng;
-            use rand::seq::SliceRandom;
-            let mut rng = rand::rngs::StdRng::seed_from_u64(42 + pass as u64);
-            node_ids.shuffle(&mut rng);
-
-            for &node_id in &node_ids {
-                let node_idx = node_to_idx[&node_id];
-                let current_comm = node_to_comm[node_idx];
-                let k_i = self.degree(node_id) as f64;
-
-                // Calculate weight_all (total degree of node)
-                let weight_all = k_i;
-
-                // Calculate edges from this node to each community
-                let mut comm_weights: FxHashMap<usize, f64> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
-
-                if let Some(neighbors) = self.adjacency_list.get(&node_id) {
-                    for &neighbor_id in neighbors {
-                        if let Some(&neighbor_idx) = node_to_idx.get(&neighbor_id) {
-                            let neighbor_comm = node_to_comm[neighbor_idx];
-                            if neighbor_id != node_id { // Don't count self-loops for community detection
-                                *comm_weights.entry(neighbor_comm).or_insert(0.0) += 1.0;
-                            }
-                        }
-                    }
-                }
-
-                // Calculate sum of degrees for each community (BEFORE removing current node)
-                let mut comm_degree_sum: FxHashMap<usize, f64> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
-                for (&nid, &idx) in node_to_idx {
-                    let comm = node_to_comm[idx];
-                    let deg = self.degree(nid) as f64;
-                    *comm_degree_sum.entry(comm).or_insert(0.0) += deg;
-                }
-
-                // Now "remove" the node from its current community for calculation
-                if let Some(sum) = comm_degree_sum.get_mut(&current_comm) {
-                    *sum -= k_i;
-                }
-
-                // Try moving to each neighboring community (or staying in modified current)
-                let mut best_comm = current_comm;
-                let mut best_gain = 0.0;
-
-                // Collect all communities the node has edges to
-                let communities_to_try: Vec<usize> = comm_weights.keys().copied().collect();
-
-                let inv_two_m = 1.0 / (2.0 * m);
-                for target_comm in communities_to_try {
-                    let k_i_in = comm_weights.get(&target_comm).copied().unwrap_or(0.0);
-
-                    // Modularity gain formula:
-                    // gain = k_i_in - resolution * sigma_tot * k_i / (2*m)
-                    // where sigma_tot is the sum of degrees in target community (with node removed if it's current)
-                    let sigma_tot = comm_degree_sum.get(&target_comm).copied().unwrap_or(0.0);
-                    let gain = k_i_in - resolution * sigma_tot * weight_all * inv_two_m;
-
-                    if gain > best_gain {
-                        best_gain = gain;
-                        best_comm = target_comm;
-                    }
-                }
-
-                // Move if beneficial
-                if best_gain > 1e-10 && best_comm != current_comm {
-                    node_to_comm[node_idx] = best_comm;
-                    changed = true;
-                    improved = true;
-                }
-            }
-        }
-
-        improved
-    }
-
-    /// Compute modularity for Louvain.
-    #[inline]
-    fn louvain_compute_modularity(
-        &self,
-        node_to_comm: &[usize],
-        node_to_idx: &FxHashMap<u64, usize>,
-        m: f64,
-        resolution: f64,
-    ) -> f64 {
-        if m == 0.0 {
-            return 0.0;
-        }
-
-        let mut q = 0.0;
-        let inv_two_m = 1.0 / (2.0 * m);
-
-        for (&node_i_id, &idx_i) in node_to_idx {
-            for (&node_j_id, &idx_j) in node_to_idx {
-                if node_to_comm[idx_i] == node_to_comm[idx_j] {
-                    // Check if edge exists via adjacency list
-                    let a_ij = if let Some(neighbors) = self.adjacency_list.get(&node_i_id) {
-                        if neighbors.contains(&node_j_id) { 1.0 } else { 0.0 }
-                    } else {
-                        0.0
-                    };
-                    let k_i = self.degree(node_i_id) as f64;
-                    let k_j = self.degree(node_j_id) as f64;
-                    q += a_ij - resolution * (k_i * k_j * inv_two_m);
-                }
-            }
-        }
-
-        q * inv_two_m
-    }
-
     // ===== Walktrap Helper Methods =====
 
     /// Find connected components using BFS
@@ -10332,7 +9938,7 @@ fn spectral_select<T>(mut items: Vec<T>, which: &str, count: usize, descending: 
 /// Laplacian `L = D - A` (or `D^(-1/2) L D^(-1/2)`), with `D` the row sums of `A`
 ///
 /// Isolated nodes get a zero row and column in the normalized variant.
-fn spectral_laplacian(adj: &CsrMatrix, normalized: bool) -> CsrMatrix {
+pub(crate) fn spectral_laplacian(adj: &CsrMatrix, normalized: bool) -> CsrMatrix {
     let n = adj.n();
     let degrees = adj.row_sums();
     let scale: Vec<f64> = if normalized {
@@ -10360,7 +9966,7 @@ const SPARSE_SPECTRUM_MIN_NODES: usize = 400;
 const DENSE_SPECTRUM_FALLBACK_MAX_NODES: usize = 3000;
 
 /// Flip an eigenvector so its first non-negligible entry is positive
-fn normalize_eigenvector_sign(vector: &mut [f64]) {
+pub(crate) fn normalize_eigenvector_sign(vector: &mut [f64]) {
     if let Some(&first) = vector.iter().find(|v| v.abs() > 1e-12) {
         if first < 0.0 {
             vector.iter_mut().for_each(|v| *v = -*v);
@@ -10369,7 +9975,7 @@ fn normalize_eigenvector_sign(vector: &mut [f64]) {
 }
 
 /// (eigenpairs as (value, vector), first two eigenvalues of the full spectrum)
-type SpectralPairs = (Vec<(f64, Vec<f64>)>, Vec<f64>);
+pub(crate) type SpectralPairs = (Vec<(f64, Vec<f64>)>, Vec<f64>);
 
 /// Selected eigenpairs of a symmetric matrix plus its two leading eigenvalues
 ///
@@ -10380,7 +9986,7 @@ type SpectralPairs = (Vec<(f64, Vec<f64>)>, Vec<f64>);
 /// eigenvalues use Chebyshev-filtered subspace iteration; everything else, and any
 /// sparse solve that fails to converge on a moderately sized matrix, uses the dense
 /// symmetric solver.
-fn spectral_symmetric(
+pub(crate) fn spectral_symmetric(
     matrix: &CsrMatrix,
     which: &str,
     count: usize,
