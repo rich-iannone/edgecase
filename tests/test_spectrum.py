@@ -1,7 +1,12 @@
 import math
+import random
 
+import edgecase as ec
+import networkx as nx
+import numpy as np
 import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_METRIC, KIND_QUERY
 
 
 class TestSpectrumBasics:
@@ -539,3 +544,98 @@ class TestSpectrumInvalidInputs:
 
         # Should return all 3 eigenvalues
         assert len(spec["values"]) == 3
+
+
+# Spectral partitioning (algebraic connectivity, Fiedler vector, spectral ordering and
+# bisection) and the Kemeny constant, validated against NetworkX (eigenvectors up to sign,
+# orderings up to reversal).
+
+
+def _connected_cases():
+    for seed in range(8):
+        rnd = random.Random(seed)
+        U = nx.connected_watts_strogatz_graph(20, 4, 0.3, seed=seed)
+        U = nx.Graph(sorted(U.edges))
+        for u, v in U.edges:
+            U[u][v]["weight"] = rnd.uniform(0.5, 3)
+        yield U
+
+
+def _build(G, weighted):
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in sorted(G.nodes)])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+def _two_triangles():
+    return (
+        ec.Graph()
+        .add_nodes(list("ABCDEF"))
+        .add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+    )
+
+
+class TestSpectralPartitioning:
+    def test_against_networkx(self):
+        for U in _connected_cases():
+            for weighted in (False, True):
+                g, w = _build(U, weighted), ("weight" if weighted else None)
+                for normalized in (False, True):
+                    assert g.algebraic_connectivity(normalized) == pytest.approx(
+                        nx.algebraic_connectivity(U, weight=w, normalized=normalized, tol=1e-12),
+                        rel=1e-6,
+                    )
+                    vec = g.fiedler_vector(normalized, return_dict=True)
+                    ours = np.array([vec[g.get_id_from_label(str(n))] for n in U])
+                    ref = nx.fiedler_vector(U, weight=w, normalized=normalized, tol=1e-12)
+                    assert min(np.abs(ours - ref).max(), np.abs(ours + ref).max()) < 1e-5
+                    order = [int(g.get_label_from_id(n)) for n in g.spectral_ordering(normalized)]
+                    ref_order = nx.spectral_ordering(U, weight=w, normalized=normalized, tol=1e-12)
+                    assert order in (ref_order, ref_order[::-1])
+                    neg, pos = g.spectral_bisection(normalized)
+                    ref_a, ref_b = nx.spectral_bisection(
+                        U, weight=w, normalized=normalized, tol=1e-12
+                    )
+                    ours_sets = {
+                        frozenset(int(g.get_label_from_id(n)) for n in side) for side in (neg, pos)
+                    }
+                    assert ours_sets == {frozenset(ref_a), frozenset(ref_b)}
+                assert g.kemeny_constant() == pytest.approx(nx.kemeny_constant(U, weight=w))
+
+    def test_examples_and_sparse_path(self):
+        assert ec.Graph().add_full_graph(6).algebraic_connectivity() == pytest.approx(6.0)
+        assert ec.Graph().add_cycle_graph(6).algebraic_connectivity() == pytest.approx(1.0)
+        split = ec.Graph().add_nodes(list("ABCD")).add_edges([("A", "B"), ("C", "D")])
+        assert split.algebraic_connectivity() == 0.0
+        with pytest.raises(ValueError, match="connected"):
+            split.fiedler_vector()
+        neg, pos = _two_triangles().spectral_bisection()
+        assert {len(neg), len(pos)} == {3}
+        big = nx.connected_watts_strogatz_graph(600, 6, 0.2, seed=3)  # sparse eigensolver path
+        g = _build(nx.Graph(sorted(big.edges)), False)
+        assert g.algebraic_connectivity() == pytest.approx(
+            nx.algebraic_connectivity(big, tol=1e-12), rel=1e-5
+        )
+
+    def test_fiedler_sign_convention_and_ordering_components(self):
+        path = ec.Graph().add_path_graph(5)
+        vec = path.fiedler_vector(return_dict=True)
+        assert vec[1] > 0 and sum(v * v for v in vec.values()) == pytest.approx(1)
+        g = ec.Graph().add_path_graph(4)
+        g.add_nodes(["x", "y"]).add_edge("x", "y")
+        assert sorted(g.spectral_ordering()) == sorted(g.get_node_ids(limit=None))
+
+    def test_steps(self):
+        g = _two_triangles()
+        g.fiedler_vector()
+        assert g.steps[-1].kind == KIND_METRIC
+        g.spectral_bisection()
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY and len(set(step.delta.node_groups.values())) == 2
