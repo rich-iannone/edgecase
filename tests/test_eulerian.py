@@ -1,5 +1,8 @@
+import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_QUERY, KIND_TRANSFORM
 
 
 class TestIsEulerian:
@@ -422,3 +425,139 @@ class TestEulerianCircuitIsolatedNodes:
             circuit = g.eulerian_circuit()
             assert circuit is not None
             assert self._is_valid_circuit(g, circuit, directed)
+
+
+# Eulerian paths and eulerize(), validated against NetworkX.
+
+
+def _santa_house() -> ec.Graph:
+    return (
+        ec.Graph()
+        .add_nodes(["bl", "br", "tl", "tr", "roof"])
+        .add_edges(
+            [
+                ("bl", "br"),
+                ("bl", "tl"),
+                ("br", "tr"),
+                ("tl", "tr"),
+                ("tl", "roof"),
+                ("tr", "roof"),
+                ("bl", "tr"),
+                ("br", "tl"),
+            ]
+        )  # fmt: skip
+    )
+
+
+class TestEulerianPathAndEulerize:
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_paths_match_networkx_existence_and_are_valid_trails(self, directed):
+        for seed in range(40):
+            G = nx.gnp_random_graph(8, 0.4, seed=seed, directed=directed)
+            G.remove_nodes_from(list(nx.isolates(G)))
+            if G.number_of_nodes() < 2:
+                continue
+            G = (nx.DiGraph if directed else nx.Graph)(sorted(G.edges))
+            g = ec.Graph(directed=directed).add_nodes([str(v) for v in G.nodes])
+            g.add_edges([(str(u), str(v)) for u, v in G.edges])
+            assert g.has_eulerian_path() == nx.has_eulerian_path(G)
+            for v in G.nodes:
+                vid = g.get_id_from_label(str(v))
+                assert g.has_eulerian_path(vid) == nx.has_eulerian_path(G, source=v)
+            nodes = g.eulerian_path()
+            if nodes is None:
+                assert not nx.has_eulerian_path(G)
+                continue
+            edges = g.eulerian_path(edges=True)
+            assert len(edges) == len(set(edges)) == G.number_of_edges()
+            assert len(nodes) == len(edges) + 1
+            for k, e in enumerate(edges):
+                s, t = g.get_node_ids_by_edge_id(e)
+                assert (s, t) == (nodes[k], nodes[k + 1]) or (
+                    not directed and (t, s) == (nodes[k], nodes[k + 1])
+                )
+
+    def test_house_of_santa_claus(self):
+        g = _santa_house()
+        path = [g.get_label_from_id(n) for n in g.eulerian_path()]
+        assert len(path) == 9 and {path[0], path[-1]} == {"bl", "br"}
+        assert g.eulerian_path(source="roof") is None
+        assert g.get_label_from_id(g.eulerian_path(source="br")[0]) == "br"
+
+    def test_circuit_case_and_parallel_edges(self):
+        cycle = ec.Graph().add_cycle_graph(4)
+        path = cycle.eulerian_path(source=3)
+        assert path[0] == path[-1] == 3 and len(path) == 5
+        doubled = ec.Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("A", "B")])
+        assert sorted(doubled.eulerian_path(edges=True)) == [1, 2]
+        assert ec.Graph().add_star_graph(4).eulerian_path() is None
+
+    def test_isolated_nodes_are_ignored(self):
+        g = ec.Graph().add_path_graph(3).add_node("lonely")
+        assert g.has_eulerian_path() and g.eulerian_path() is not None
+
+    def test_eulerize_matches_networkx_count(self):
+        for seed in range(20):
+            U = nx.gnp_random_graph(12, 0.35, seed=seed)
+            if not nx.is_connected(U):
+                continue
+            U = nx.Graph(sorted(U.edges))
+            g = ec.Graph().add_nodes([str(v) for v in sorted(U.nodes)])
+            g.add_edges([(str(u), str(v)) for u, v in U.edges])
+            walk = g.eulerize()
+            assert walk.is_eulerian()
+            added = walk.count_edges() - g.count_edges()
+            assert added == nx.eulerize(U).number_of_edges() - U.number_of_edges()
+
+    def test_eulerize_marks_duplicates_and_keeps_ids(self):
+        house = (
+            ec.Graph()
+            .add_nodes(["bl", "br", "tl", "tr", "roof"])
+            .add_edges(
+                [
+                    ("bl", "br"),
+                    ("bl", "tl"),
+                    ("br", "tr"),
+                    ("tl", "tr"),
+                    ("tl", "roof"),
+                    ("tr", "roof"),
+                ]
+            )
+        )
+        walk = house.eulerize()
+        added = walk.get_edge_df().filter(eulerize_added=True)
+        assert added.height == 1
+        assert walk.get_edge_df().filter(eulerize_added=False).height == 6  # never null
+        s, t = added.select(["source", "target"]).row(0)
+        assert {walk.get_label_from_id(s), walk.get_label_from_id(t)} == {"tl", "tr"}
+        assert walk.get_edge_ids(limit=None)[:6] == house.get_edge_ids(limit=None)
+        assert house.count_edges() == 6  # original untouched
+
+    def test_eulerize_weighted_prefers_light_paths(self):
+        # Odd nodes A and C: the direct A-C edge is heavy, so duplicate the light detour A-B-C
+        g = ec.Graph(weighted=True).add_nodes(list("ABCD"))
+        g.add_edges(
+            [("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0), ("C", "D", 1.0), ("D", "A", 1.0)]
+        )
+        added = g.eulerize().get_edge_df().filter(eulerize_added=True)
+        assert added.height == 2
+        assert g.eulerize(weighted=False).get_edge_df().filter(eulerize_added=True).height == 1
+
+    def test_eulerize_errors(self):
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A"]).eulerize()
+        two = ec.Graph().add_nodes(list("ABCD")).add_edges([("A", "B"), ("C", "D")])
+        with pytest.raises(ValueError, match="connected"):
+            two.eulerize()
+
+    def test_steps(self):
+        path = ec.Graph().add_path_graph(4)
+        path.eulerian_path()
+        step = path.steps[-1]
+        assert step.kind == KIND_QUERY
+        assert step.delta.edges_selected == [("1", "2"), ("2", "3"), ("3", "4")]
+        assert step.narration == "Eulerian path through 3 edges, from 1."
+        walk = path.eulerize()
+        step = path.steps[-1]
+        assert step.kind == KIND_TRANSFORM and step.narration == "eulerize() duplicated 3 edges."
+        assert len(walk.steps) == 1
