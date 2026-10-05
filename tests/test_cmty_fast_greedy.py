@@ -1,5 +1,8 @@
-import pytest
+import time
+
 import edgecase as ec
+import networkx as nx
+import pytest
 
 
 class TestFastGreedyBasic:
@@ -378,3 +381,53 @@ class TestFastGreedyEdgeCases:
 
         # Cycle has no natural split point
         assert len(communities) == 10
+
+
+# Fast greedy (lazy-bound CNM) modularity and resolution=, validated against NetworkX.
+
+
+class TestFastGreedyResolution:
+    @staticmethod
+    def _from_nx(G):
+        g = ec.Graph().add_nodes([str(n) for n in G.nodes])
+        g.add_edges([(str(u), str(v)) for u, v in G.edges])
+        return g
+
+    @pytest.mark.parametrize("resolution", [1.0, 0.5, 1.5])
+    def test_matches_networkx_modularity(self, resolution):
+        graphs = [
+            nx.Graph(nx.karate_club_graph().edges()),
+            nx.powerlaw_cluster_graph(400, 3, 0.3, seed=1),
+            nx.planted_partition_graph(5, 20, 0.4, 0.02, seed=3),
+        ]
+        for G in graphs:
+            g = self._from_nx(G)
+            m = g.cmty_fast_greedy(resolution=resolution, return_dict=True)
+            ref = nx.community.greedy_modularity_communities(G, resolution=resolution)
+            ref_q = nx.community.modularity(G, ref, resolution=resolution)
+            # Greedy merge order can differ on ties; require at least NetworkX's quality
+            assert g.modularity(m, resolution=resolution) >= ref_q - 2e-3
+
+    def test_resolution_controls_granularity(self):
+        karate = ec.karate_club()
+        counts = [
+            len(set(karate.cmty_fast_greedy(resolution=r, return_dict=True).values()))
+            for r in (0.5, 1.0, 1.5)
+        ]
+        assert counts[0] <= counts[1] < counts[2]
+
+    def test_large_graph_is_fast(self):
+        g = self._from_nx(nx.powerlaw_cluster_graph(20000, 3, 0.3, seed=1))
+        start = time.perf_counter()
+        m = g.cmty_fast_greedy(return_dict=True)
+        assert time.perf_counter() - start < 5.0  # ~0.1 s in practice
+        assert g.modularity(m) > 0.45
+
+    def test_uses_weights_and_resolution_recorded(self):
+        g = ec.Graph(weighted=True).add_nodes(list("ABCD"))
+        for u, v in [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]:
+            g.add_edge(u, v, weight=10.0 if (u, v) in {("B", "C"), ("D", "A")} else 1.0)
+        m = {g.get_label_from_id(n): c for n, c in g.cmty_fast_greedy(return_dict=True).items()}
+        assert m["B"] == m["C"] and m["D"] == m["A"] and m["A"] != m["B"]
+        g.cmty_fast_greedy(resolution=1.2)
+        assert ("cmty_fast_greedy", {"resolution": 1.2}, "cmty_fast_greedy") in g._computations
