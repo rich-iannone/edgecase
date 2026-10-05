@@ -15,6 +15,13 @@ Shared layouts so siblings can be compared directly:
   coreness, the k-core family, k-truss, and cohesive blocks. The k-core family
   returns subgraphs, so those figures use `transform`: kept elements `accent`
   inside a hull, dropped ones `removed`, same layout in both panels.
+
+`modularity` scores a partition you pass in, so that partition is drawn in
+g2 / g3 (input) and accent is kept for the returned Q; its card shows each
+community's L_c/m − (D_c/2m)² term. `partition_quality` follows the same
+input convention and its card shows the coverage and performance fractions. `cmty_k_clique` returns overlapping
+communities: their hulls overlap, a node in several communities stays ink
+inside the overlap, and nodes in no community are `muted`.
 """
 
 from core import Box, Scene, compute, figure, place, transform
