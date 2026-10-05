@@ -420,6 +420,40 @@ class TestSelectNodesByCentrality:
         assert final_count >= initial_count
 
 
+class TestSelectNodesByCentralityArgs:
+    """Regression: **kwargs only reached pagerank, and pagerank/betweenness wrote attributes."""
+
+    def _graph(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edge("A", "B", weight=1.0).add_edge("B", "C", weight=1.0)
+        g.add_edge("A", "D", weight=0.1).add_edge("D", "C", weight=0.1)
+        return g
+
+    def test_no_attributes_written(self):
+        g = self._graph()
+        columns = g.get_node_df().columns
+        g.select_nodes_by_centrality("pagerank", k=1)
+        g.select_nodes_by_centrality("betweenness", k=1)
+        assert g.get_node_df().columns == columns
+
+    def test_kwargs_reach_betweenness(self):
+        g = self._graph()
+        g.select_nodes_by_centrality("betweenness", k=1, weighted=True)
+        weighted = set(g.get_selected_node_ids())
+        g.clear_selection().select_nodes_by_centrality("betweenness", k=1, weighted=False, include_ties=True)
+        assert weighted == {g.get_id_from_label("D")}
+        assert set(g.get_selected_node_ids()) != weighted
+
+    def test_rejected_kwargs(self):
+        g = self._graph()
+        with pytest.raises(TypeError, match="takes no extra arguments"):
+            g.select_nodes_by_centrality("degree", k=1, damping=0.5)
+        with pytest.raises(TypeError, match="attr_name"):
+            g.select_nodes_by_centrality("pagerank", k=1, attr_name="pr")
+        with pytest.raises(TypeError):
+            g.select_nodes_by_centrality("betweenness", k=1, damping=0.5)
+
+
 class TestCombinedNeighborhoodCentrality:
     """Tests combining neighborhood and centrality selection."""
 
