@@ -5,7 +5,7 @@
 
 use crate::graph::Graph;
 use pyo3::prelude::*;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 
 /// Find all bridges (cut edges) in the graph.
 ///
@@ -47,104 +47,21 @@ pub fn has_bridges(graph: &Graph) -> PyResult<bool> {
     Ok(!find_bridges_undirected(graph)?.is_empty())
 }
 
-/// Find bridges in undirected graph using Tarjan's algorithm.
+/// Find bridges in an undirected graph.
+///
+/// A bridge is exactly a biconnected block made of a single edge, so this reuses the iterative,
+/// edge-based block decomposition. Working on edges (not node pairs) means a doubled edge is
+/// never a bridge, since removing one copy leaves the other; self-loops are never bridges.
+/// Returns edge IDs sorted ascending.
 fn find_bridges_undirected(graph: &Graph) -> PyResult<Vec<u64>> {
-    let nodes: Vec<u64> = graph.get_nodes().keys().copied().collect();
-
-    if nodes.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let mut bridges = Vec::new();
-    let mut visited = FxHashSet::default();
-    let mut disc = FxHashMap::default(); // Discovery time
-    let mut low = FxHashMap::default();  // Lowest reachable vertex
-    let mut time = 0;
-
-    // Map edges to their IDs for quick lookup
-    let mut edge_map: FxHashMap<(u64, u64), u64> = FxHashMap::default();
-    for edge in graph.get_edges_internal() {
-        edge_map.insert((edge.source, edge.target), edge.id);
-        edge_map.insert((edge.target, edge.source), edge.id);
-    }
-
-    // Run DFS from each unvisited node (handles disconnected graphs)
-    for &start_node in &nodes {
-        if !visited.contains(&start_node) {
-            tarjan_bridge_dfs(
-                start_node,
-                None,
-                graph,
-                &mut visited,
-                &mut disc,
-                &mut low,
-                &mut time,
-                &mut bridges,
-                &edge_map,
-            )?;
-        }
-    }
-
+    let blocks = crate::algorithms::structure_basics::biconnected_components(graph)?;
+    let mut bridges: Vec<u64> = blocks
+        .into_iter()
+        .filter(|(_, edges)| edges.len() == 1)
+        .map(|(_, edges)| edges[0])
+        .collect();
+    bridges.sort_unstable();
     Ok(bridges)
-}
-
-/// DFS helper for Tarjan's bridge-finding algorithm.
-#[allow(clippy::too_many_arguments)]
-fn tarjan_bridge_dfs(
-    u: u64,
-    parent: Option<u64>,
-    graph: &Graph,
-    visited: &mut FxHashSet<u64>,
-    disc: &mut FxHashMap<u64, i32>,
-    low: &mut FxHashMap<u64, i32>,
-    time: &mut i32,
-    bridges: &mut Vec<u64>,
-    edge_map: &FxHashMap<(u64, u64), u64>,
-) -> PyResult<()> {
-    visited.insert(u);
-    disc.insert(u, *time);
-    low.insert(u, *time);
-    *time += 1;
-
-    let neighbors = graph.neighbors(u)?;
-
-    for v in neighbors {
-        if !visited.contains(&v) {
-            // Tree edge - recurse
-            tarjan_bridge_dfs(
-                v,
-                Some(u),
-                graph,
-                visited,
-                disc,
-                low,
-                time,
-                bridges,
-                edge_map,
-            )?;
-
-            // Update low value
-            let low_v = *low.get(&v).unwrap_or(&i32::MAX);
-            let current_low = *low.get(&u).unwrap_or(&i32::MAX);
-            low.insert(u, current_low.min(low_v));
-
-            // Check if edge (u, v) is a bridge
-            let disc_u = *disc.get(&u).unwrap_or(&i32::MAX);
-            if low_v > disc_u {
-                // This is a bridge
-                if let Some(&edge_id) = edge_map.get(&(u, v)) {
-                    bridges.push(edge_id);
-                }
-            }
-        } else if Some(v) != parent {
-            // Back edge (not to parent)
-            let disc_v = *disc.get(&v).unwrap_or(&i32::MAX);
-            let current_low = *low.get(&u).unwrap_or(&i32::MAX);
-            low.insert(u, current_low.min(disc_v));
-        }
-    }
-
-    Ok(())
 }
 
 /// Find bridges in directed graph.
