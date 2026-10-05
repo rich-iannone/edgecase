@@ -1,5 +1,8 @@
-import pytest
+import random
+
 import edgecase as ec
+import networkx as nx
+import pytest
 
 
 class TestMeanDistance:
@@ -1069,3 +1072,86 @@ class TestKirchhoffIndex:
                 total += G.get_resistance_distance(i, j)
 
         assert abs(G.get_kirchhoff_index() - total) < 1e-10
+
+
+# Center, periphery and barycenter, validated against NetworkX.
+
+
+def _random_undirected():
+    for seed in range(25):
+        rnd = random.Random(seed)
+        G = nx.gnp_random_graph(18, rnd.choice([0.1, 0.15, 0.25]), seed=seed)
+        G.add_nodes_from(range(18))
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.choice([0.5, 1, 2, 3])
+        yield G
+
+
+def _build(G: nx.Graph, weighted: bool = False) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G.nodes])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+def _labels(g: ec.Graph, ids) -> list[str]:
+    return [g.get_label_from_id(n) for n in ids]
+
+
+def _lab(g: ec.Graph, nid: int) -> int:
+    return int(g.get_label_from_id(nid))
+
+
+class TestCenterAndBarycenter:
+    def test_center_matches_networkx_on_connected_graphs(self):
+        for G in _random_undirected():
+            big = G.subgraph(max(nx.connected_components(G), key=len)).copy()
+            if big.number_of_nodes() < 2:
+                continue
+            g = _build(big)
+            assert sorted(_lab(g, n) for n in g.get_center()) == sorted(nx.center(big))
+
+    def test_center_and_periphery_are_counterparts(self):
+        g = ec.Graph().add_path_graph(5)
+        assert g.get_center() == [3]
+        assert sorted(g.get_periphery()) == [1, 5]
+        assert ec.Graph().get_center() == []
+
+    @pytest.mark.parametrize("weighted", [False, True])
+    def test_barycenter_matches_networkx(self, weighted):
+        for G in _random_undirected():
+            big = G.subgraph(max(nx.connected_components(G), key=len)).copy()
+            if big.number_of_nodes() < 2:
+                continue
+            g = _build(big, weighted)
+            ref = nx.barycenter(big, weight="weight" if weighted else None)
+            assert sorted(_lab(g, n) for n in g.get_barycenter()) == sorted(ref)
+
+    def test_center_and_barycenter_differ(self):
+        g = ec.Graph().add_nodes(["hub", "A", "B", "C", "X", "D", "E", "F", "G"])
+        g.add_edges(
+            [("hub", x) for x in ["A", "B", "C", "X", "D"]] + [("D", "E"), ("E", "F"), ("F", "G")]
+        )
+        assert _labels(g, g.get_center()) == ["D", "E"]
+        assert _labels(g, g.get_barycenter()) == ["hub"]
+
+    def test_barycenter_requires_connectivity(self):
+        with pytest.raises(ValueError, match="connected"):
+            ec.Graph().add_nodes(["A", "B"]).get_barycenter()
+        one_way = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+        with pytest.raises(ValueError, match="strongly connected"):
+            one_way.get_barycenter()
+        cycle = ec.Graph(directed=True).add_nodes(list("ABC"))
+        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        assert cycle.get_barycenter() == [1, 2, 3]
+
+    def test_steps(self):
+        g = ec.Graph().add_path_graph(5)
+        g.get_center()
+        assert g.steps[-1].narration == "Center: 3 (eccentricity 2)."
+        g.get_barycenter()
+        assert g.steps[-1].narration == "Barycenter: 3 (total distance 6)."
