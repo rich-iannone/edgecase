@@ -206,6 +206,27 @@ def _parse_node_item(item: Any) -> tuple[Any, dict]:
     return item, {}
 
 
+def _warn_result_not_stored(method: str) -> None:
+    import warnings
+
+    warnings.warn(
+        f"{method}(return_dict=False) doesn't store its result anywhere; use the default "
+        f"return_dict=True to get it",
+        UserWarning,
+        stacklevel=3,
+    )
+
+
+def _with_alpha(color: str, alpha: float) -> str:
+    """Append an alpha channel (`alpha=` as a 0-100 percentage) to a `#RGB`/`#RRGGBB` color."""
+    digits = color[1:] if isinstance(color, str) and color.startswith("#") else ""
+    if len(digits) == 3:
+        digits = "".join(ch * 2 for ch in digits)
+    if len(digits) != 6 or any(ch not in "0123456789abcdefABCDEF" for ch in digits):
+        raise ValueError(f"alpha= needs hex colors like '#1f77b4', got {color!r}")
+    return f"#{digits.lower()}{round(alpha * 255 / 100):02x}"
+
+
 class Graph:
     """
     A high-performance graph data structure with optional direction and weights.
