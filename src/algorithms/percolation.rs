@@ -95,8 +95,31 @@ pub fn percolation_centrality(
         .map(|(idx, &node_id)| (node_id, idx))
         .collect();
 
-    // Determine if weighted
-    let use_weights = weight.is_some() && graph.is_weighted();
+    // Weighted shortest paths when an attribute is named: (neighbor, weight) per edge, with
+    // parallel edges kept (Dijkstra takes the cheapest). Every edge must hold a numeric value.
+    let weighted_adj: Option<FxHashMap<u64, Vec<(u64, f64)>>> = match weight {
+        Some(attr) => {
+            let mut adj: FxHashMap<u64, Vec<(u64, f64)>> = FxHashMap::default();
+            for edge in graph.get_edges_internal() {
+                let w = crate::algorithms::flow::named_edge_value(edge, attr, "weight")?;
+                if w < 0.0 {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Edge {} ({} -> {}) has negative weight {}",
+                        edge.id, edge.source, edge.target, w
+                    )));
+                }
+                if edge.source == edge.target {
+                    continue;
+                }
+                adj.entry(edge.source).or_default().push((edge.target, w));
+                if !graph.is_directed() {
+                    adj.entry(edge.target).or_default().push((edge.source, w));
+                }
+            }
+            Some(adj)
+        }
+        None => None,
+    };
 
     // Parallel computation
     let centrality = node_ids
@@ -109,8 +132,7 @@ pub fn percolation_centrality(
                 &node_to_idx,
                 &node_states,
                 percolation_sum,
-                use_weights,
-                weight,
+                weighted_adj.as_ref(),
             )
         })
         .reduce(
@@ -146,8 +168,7 @@ fn compute_percolation_from_source(
     node_to_idx: &FxHashMap<u64, usize>,
     node_states: &FxHashMap<u64, f64>,
     percolation_sum: f64,
-    use_weights: bool,
-    _weight_attr: Option<&str>, // Currently unused, weights not implemented
+    weighted_adj: Option<&FxHashMap<u64, Vec<(u64, f64)>>>,
 ) -> Vec<f64> {
     let n = node_ids.len();
     let source_idx = node_to_idx[&source];
@@ -164,7 +185,7 @@ fn compute_percolation_from_source(
     sigma[source_idx] = 1.0;
     distance[source_idx] = 0.0;
 
-    if use_weights {
+    if let Some(weighted_adj) = weighted_adj {
         // Dijkstra for weighted graphs
         use std::collections::BinaryHeap;
         use std::cmp::Ordering;
@@ -203,17 +224,9 @@ fn compute_percolation_from_source(
             stack.push(v_idx);
             let v = node_ids[v_idx];
 
-            if let Ok(neighbors) = graph.neighbors(v) {
-                for w in neighbors {
+            if let Some(neighbors) = weighted_adj.get(&v) {
+                for &(w, edge_weight) in neighbors {
                     let w_idx = node_to_idx[&w];
-
-                    // For simplicity, use weight=1.0 for all edges
-                    // Full weighted version would require edge lookup by (source, target)
-                    let edge_weight = 1.0;
-
-                    if edge_weight <= 0.0 {
-                        continue; // Skip non-positive weights
-                    }
 
                     let alt = distance[v_idx] + edge_weight;
 
