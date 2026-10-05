@@ -3615,6 +3615,16 @@ impl Graph {
                 "Source and sink must be different nodes",
             ));
         }
+        // A direct source -> sink edge (either orientation when undirected) can't be cut by
+        // removing other nodes. It would also carry unbounded flow and corrupt the residual
+        if !self.find_edge_ids(source, sink).is_empty() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!(
+                    "Source {} and sink {} are adjacent, so no node cut separates them",
+                    source, sink
+                ),
+            ));
+        }
 
         // Node connectivity is computed by transforming to edge connectivity:
         // Split each node v into v_in and v_out with an edge of capacity 1
