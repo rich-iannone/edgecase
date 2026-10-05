@@ -42,7 +42,7 @@ Shared layouts keep siblings comparable:
 
 import math
 
-from core import SIZE_NOTE, Box, Scene, compute, figure, place
+from core import SIZE_NOTE, Box, Scene, compute, figure, place, ring
 
 UNIT = 72  # one graph scale for the whole family
 COLORS = ("accent", "g2", "g3")
@@ -718,3 +718,45 @@ def node_disjoint_paths(s: Scene) -> None:
            ends=("A", "E"))
     s.card_centered(right, [(arrows(rt), c) for rt, c in zip(NODE_DISJ, COLORS)]
                     + ["(route via B, D reuses C)"], title="2 paths, no shared node")
+
+
+# --- later additions: round trips ---------------------------------------------
+#
+# traveling_salesman rebuilds its docstring example in edgecase and asserts the
+# returned route, so a library change breaks the build instead of the picture.
+# SITES: five sites on a pentagon with two chords (A–C, B–E) the tour skips.
+SITES = ring(list("ABCDE"), radius=1.0)
+SITES_EDGES = [("A", "B", 2), ("B", "C", 2), ("C", "D", 3), ("D", "E", 2), ("E", "A", 3),
+               ("A", "C", 4), ("B", "E", 3)]
+
+
+@figure("traveling_salesman", "paths", "Traveling salesman",
+        "Five sites A to E on a pentagon, joined by roads weighted with travel times: A–B 2, "
+        "B–C 2, C–D 3, D–E 2, E–A 3, and the two chords A–C 4 and B–E 3. The round trip "
+        "starts at A (outlined) and follows the accent arrows A, B, C, D, E, back to A, "
+        "visiting every site once; the chords are faded. The card shows the route and its "
+        "cost 2 + 2 + 3 + 2 + 3 = 12.")
+def traveling_salesman(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.traveling_salesman()")
+    g = ec.Graph(weighted=True).add_nodes(list(SITES))
+    g.add_edges([(a, b, float(w)) for a, b, w in SITES_EDGES])
+    tour = [g.get_label_from_id(n) for n in g.traveling_salesman()]
+    assert tour == ["A", "B", "C", "D", "E", "A"]
+    w = {frozenset((a, b)): c for a, b, c in SITES_EDGES}
+    legs = list(zip(tour, tour[1:]))
+    cost = [w[frozenset(leg)] for leg in legs]
+    assert sum(cost) == 12
+    on = {frozenset(leg) for leg in legs}
+    # chord weights sit off the crossing point so the two labels stay apart
+    t = {frozenset("AC"): 0.72, frozenset("BE"): 0.75}
+    specs = [(a, b, {"style": "accent", "weight": c, "directed": True}) for (a, b), c in
+             zip(legs, cost)]
+    specs += [(a, b, {"style": "muted", "weight": c, "weight_t": t[frozenset((a, b))]})
+              for a, b, c in SITES_EDGES if frozenset((a, b)) not in on]
+    s.graph(place(SITES, left, unit=UNIT), specs,
+            styles={k: "soft" if k == tour[0] else "accent" for k in SITES})
+    s.card_centered(right, [(arrows(tour), "accent"),
+                            "cost  " + " + ".join(str(c) for c in cost) + f" = {sum(cost)}"],
+                    title="visit every site, return to A")
