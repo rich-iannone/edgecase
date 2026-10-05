@@ -8004,24 +8004,24 @@ impl Graph {
     /// # Example
     /// ```python
     /// # Find all simple paths from 'A' to 'D' with max length 4
-    /// paths = graph.all_simple_paths('A', 'D', cutoff=4)
+    /// paths = graph.all_simple_paths(a_id, d_id, cutoff=4)
     /// ```
     #[pyo3(signature = (source, target, cutoff=None))]
     fn all_simple_paths(
         &self,
-        source: String,
-        target: String,
+        source: u64,
+        target: u64,
         cutoff: Option<usize>,
     ) -> PyResult<Vec<Vec<String>>> {
-        // Look up node IDs from labels
-        let source_id = self.node_labels.get(&source)
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node '{}' not found", source)
-            ))?;
-        let target_id = self.node_labels.get(&target)
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Target node '{}' not found", target)
-            ))?;
+        // Endpoints are node IDs, so unlabelled nodes work too
+        for (role, id) in [("Source", source), ("Target", target)] {
+            if !self.nodes.contains_key(&id) {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    format!("{} node {} does not exist", role, id)
+                ));
+            }
+        }
+        let (source_id, target_id) = (&source, &target);
 
         // Initialize visited set and result container
         let mut visited = FxHashSet::default();
