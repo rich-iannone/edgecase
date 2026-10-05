@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>All topological sorts</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="552.0" y="38.0" width="144.1" height="120.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 163.02 61.26 L 167.81 64.05 L 172.59 66.85 L 177.38 69.64 L 182.17 72.43 L 186.95 75.22 L 191.74 78.01 L 196.52 80.81 L 201.31 83.60 L 205.14 85.83" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="210.88,89.18 200.91,87.42 204.44,81.37" fill="#1f2328" fill-opacity="1"/>
+<path d="M 163.02 134.74 L 167.81 131.95 L 172.59 129.15 L 177.38 126.36 L 182.17 123.57 L 186.95 120.78 L 191.74 117.99 L 196.52 115.19 L 201.31 112.40 L 205.14 110.17" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="210.88,106.82 204.44,114.63 200.91,108.58" fill="#1f2328" fill-opacity="1"/>
+<path d="M 239.82 89.94 L 244.61 87.15 L 249.39 84.35 L 254.18 81.56 L 258.97 78.77 L 263.75 75.98 L 268.54 73.19 L 273.32 70.39 L 278.11 67.60 L 281.94 65.37" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="287.68,62.02 281.24,69.83 277.71,63.78" fill="#1f2328" fill-opacity="1"/>
+<path d="M 239.82 106.06 L 244.61 108.85 L 249.39 111.65 L 254.18 114.44 L 258.97 117.23 L 263.75 120.02 L 268.54 122.81 L 273.32 125.61 L 278.11 128.40 L 281.94 130.63" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="287.68,133.98 277.71,132.22 281.24,126.17" fill="#1f2328" fill-opacity="1"/>
+<circle cx="149.2" cy="53.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="149.2" y="53.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="149.2" cy="142.8" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="149.2" y="142.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="226.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="302.8" cy="53.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="302.8" y="53.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<circle cx="302.8" cy="142.8" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="302.8" y="142.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.all_topological_sorts()</text>
+<text x="566.0" y="58.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">every valid order</text>
+<text x="566.0" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">A  B  C  D  E</text>
+<text x="566.0" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">A  B  C  E  D</text>
+<text x="566.0" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">B  A  C  D  E</text>
+<text x="566.0" y="138.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">B  A  C  E  D</text>
+</svg>

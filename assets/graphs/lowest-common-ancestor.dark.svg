@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Lowest common ancestor</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<rect x="541.9" y="58.0" width="164.2" height="80.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 126.80 53.20 L 131.13 53.20 L 135.46 53.20 L 139.79 53.20 L 144.12 53.20 L 148.45 53.20 L 152.78 53.20 L 157.11 53.20 L 161.44 53.20 L 163.45 53.20" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="170.10,53.20 160.60,56.70 160.60,49.70" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 121.21 65.35 L 126.71 71.76 L 132.21 78.18 L 137.71 84.60 L 143.21 91.01 L 148.71 97.43 L 154.21 103.85 L 159.71 110.26 L 165.21 116.68 L 170.71 123.10 L 171.88 124.46" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="176.21,129.51 167.37,124.58 172.69,120.02" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 126.80 142.80 L 131.13 142.80 L 135.46 142.80 L 139.79 142.80 L 144.12 142.80 L 148.45 142.80 L 152.78 142.80 L 157.11 142.80 L 161.44 142.80 L 163.45 142.80" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="170.10,142.80 160.60,146.30 160.60,139.30" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 203.60 53.20 L 207.93 53.20 L 212.26 53.20 L 216.59 53.20 L 220.92 53.20 L 225.25 53.20 L 229.58 53.20 L 233.91 53.20 L 238.24 53.20 L 240.25 53.20" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="246.90,53.20 237.40,56.70 237.40,49.70" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 198.01 130.65 L 203.51 124.24 L 209.01 117.82 L 214.51 111.40 L 220.01 104.99 L 225.51 98.57 L 231.01 92.15 L 236.51 85.74 L 242.01 79.32 L 247.51 72.90 L 248.34 71.93" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="253.01,66.49 249.28,76.79 243.40,71.75" fill="#f97316" fill-opacity="1"/>
+<path d="M 203.60 142.80 L 207.93 142.80 L 212.26 142.80 L 216.59 142.80 L 220.92 142.80 L 225.25 142.80 L 229.58 142.80 L 233.91 142.80 L 238.24 142.80 L 239.72 142.80" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="246.90,142.80 236.65,146.68 236.65,138.93" fill="#f97316" fill-opacity="1"/>
+<path d="M 278.22 61.26 L 283.01 64.05 L 287.79 66.85 L 292.58 69.64 L 297.37 72.43 L 302.15 75.22 L 306.94 78.01 L 311.72 80.81 L 316.51 83.60 L 320.34 85.83" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="326.08,89.18 316.11,87.42 319.64,81.37" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 278.22 134.74 L 283.01 131.95 L 287.79 129.15 L 292.58 126.36 L 297.37 123.57 L 302.15 120.78 L 306.94 117.99 L 311.72 115.19 L 316.51 112.40 L 320.34 110.17" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="326.08,106.82 319.64,114.63 316.11,108.58" fill="#e6edf3" fill-opacity="1"/>
+<circle cx="110.8" cy="53.2" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="110.8" y="53.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">A</text>
+<circle cx="110.8" cy="142.8" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="110.8" y="142.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">B</text>
+<circle cx="187.6" cy="53.2" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="187.6" y="53.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">C</text>
+<circle cx="187.6" cy="142.8" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="187.6" y="142.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">D</text>
+<circle cx="264.4" cy="53.2" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="264.4" y="53.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">E</text>
+<circle cx="264.4" cy="142.8" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="264.4" y="142.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">F</text>
+<circle cx="341.2" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="341.2" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">G</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="623.6" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.lowest_common_ancestor(&quot;E&quot;, &quot;F&quot;)</text>
+<text x="555.9" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">ancestors of E and F</text>
+<text x="555.9" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">common  A  B  D</text>
+<text x="555.9" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">lowest  D</text>
+</svg>

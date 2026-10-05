@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Multi-source shortest paths</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<g opacity="0.3"><circle cx="118.0" cy="58.4" r="23.0" fill="#c2410c"/></g>
+<g opacity="0.3"><circle cx="262.0" cy="137.6" r="23.0" fill="#0e7490"/></g>
+<rect x="529.7" y="48.0" width="188.6" height="100.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 134.00 58.40 L 174.00 58.40" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 206.00 58.40 L 246.00 58.40" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 278.00 58.40 L 318.00 58.40" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 134.00 137.60 L 174.00 137.60" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 206.00 137.60 L 246.00 137.60" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 278.00 137.60 L 318.00 137.60" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 118.00 74.40 L 118.00 121.60" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 190.00 74.40 L 190.00 121.60" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 262.00 74.40 L 262.00 121.60" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 334.00 74.40 L 334.00 121.60" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="118.0" cy="58.4" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="118.0" y="58.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="190.0" cy="58.4" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="190.0" y="58.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="262.0" cy="58.4" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="262.0" y="58.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">C</text>
+<circle cx="334.0" cy="58.4" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="334.0" y="58.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">D</text>
+<circle cx="118.0" cy="137.6" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="118.0" y="137.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">E</text>
+<circle cx="190.0" cy="137.6" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="190.0" y="137.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">F</text>
+<circle cx="262.0" cy="137.6" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="262.0" y="137.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">G</text>
+<circle cx="334.0" cy="137.6" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="334.0" y="137.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">H</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g,  src = [&quot;A&quot;, &quot;G&quot;]</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.multi_source_shortest_path(src)</text>
+<text x="543.7" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">nearest source:  nodes</text>
+<text x="543.7" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">A:  A, B, E</text>
+<text x="543.7" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">G:  C, D, F, G, H</text>
+<text x="543.7" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">path to D  [G, C, D]</text>
+</svg>

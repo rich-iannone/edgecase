@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Incidence matrix</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="520.0" y="54.0" width="208.0" height="100.0" rx="4" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<rect x="549.0" y="75.0" width="34.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="585.0" y="75.0" width="34.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="549.0" y="95.0" width="34.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="621.0" y="95.0" width="34.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="657.0" y="95.0" width="34.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="585.0" y="115.0" width="34.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="621.0" y="115.0" width="34.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="693.0" y="115.0" width="34.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="657.0" y="135.0" width="34.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="693.0" y="135.0" width="34.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="520.0" y1="74.0" x2="728.0" y2="74.0" stroke="#1f2328" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>
+<line x1="520.0" y1="94.0" x2="728.0" y2="94.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="520.0" y1="114.0" x2="728.0" y2="114.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="520.0" y1="134.0" x2="728.0" y2="134.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="548.0" y1="54.0" x2="548.0" y2="154.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="584.0" y1="54.0" x2="584.0" y2="154.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="620.0" y1="54.0" x2="620.0" y2="154.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="656.0" y1="54.0" x2="656.0" y2="154.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="692.0" y1="54.0" x2="692.0" y2="154.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<path d="M 140.31 90.84 L 147.31 87.34 L 154.32 83.84 L 161.32 80.34 L 168.33 76.84 L 175.33 73.34 L 182.33 69.83 L 189.34 66.33 L 196.34 62.83 L 203.34 59.33 L 204.40 58.80" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="210.35,55.83 203.42,63.21 200.29,56.94" fill="#1f2328" fill-opacity="1"/>
+<path d="M 140.31 105.16 L 147.31 108.66 L 154.32 112.16 L 161.32 115.66 L 168.33 119.16 L 175.33 122.66 L 182.33 126.17 L 189.34 129.67 L 196.34 133.17 L 203.34 136.67 L 204.40 137.20" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="210.35,140.17 200.29,139.06 203.42,132.79" fill="#1f2328" fill-opacity="1"/>
+<path d="M 226.00 64.00 L 226.00 70.65 L 226.00 77.30 L 226.00 83.95 L 226.00 90.60 L 226.00 97.25 L 226.00 103.90 L 226.00 110.55 L 226.00 117.20 L 226.00 123.85 L 226.00 123.85" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="226.00,130.50 222.50,121.00 229.50,121.00" fill="#1f2328" fill-opacity="1"/>
+<path d="M 240.31 55.16 L 247.31 58.66 L 254.32 62.16 L 261.32 65.66 L 268.33 69.16 L 275.33 72.66 L 282.33 76.17 L 289.34 79.67 L 296.34 83.17 L 303.34 86.67 L 304.40 87.20" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="310.35,90.17 300.29,89.06 303.42,82.79" fill="#1f2328" fill-opacity="1"/>
+<path d="M 240.31 140.84 L 247.31 137.34 L 254.32 133.84 L 261.32 130.34 L 268.33 126.84 L 275.33 123.34 L 282.33 119.83 L 289.34 116.33 L 296.34 112.83 L 303.34 109.33 L 304.40 108.80" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="310.35,105.83 303.42,113.21 300.29,106.94" fill="#1f2328" fill-opacity="1"/>
+<circle cx="126.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="126.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="226.0" cy="48.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="48.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="226.0" cy="148.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="148.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="326.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="326.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<rect x="95.0" y="90.0" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1"/>
+<rect x="217.5" y="17.0" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1"/>
+<rect x="217.5" y="163.0" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1"/>
+<rect x="340.0" y="90.0" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.incidence_matrix(oriented=True)</text>
+<rect x="169.0" y="65.8" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="175.3" y="73.3" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">1</text>
+<rect x="169.0" y="115.2" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="175.3" y="122.7" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<rect x="219.6" y="89.8" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="226.0" y="97.2" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<rect x="269.0" y="65.2" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="275.3" y="72.7" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">4</text>
+<rect x="269.0" y="115.8" width="12.7" height="15.0" rx="3" fill="#ffffff"/>
+<text x="275.3" y="123.3" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">5</text>
+<text x="103.5" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">1</text>
+<text x="226.0" y="25.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="226.0" y="171.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<text x="348.5" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">4</text>
+<text x="534.0" y="64.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7"></text>
+<text x="566.0" y="64.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">1</text>
+<text x="602.0" y="64.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">2</text>
+<text x="638.0" y="64.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">3</text>
+<text x="674.0" y="64.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">4</text>
+<text x="710.0" y="64.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">5</text>
+<text x="534.0" y="84.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">A</text>
+<text x="566.0" y="84.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">-1</text>
+<text x="602.0" y="84.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">-1</text>
+<text x="638.0" y="84.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="674.0" y="84.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="710.0" y="84.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="534.0" y="104.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">B</text>
+<text x="566.0" y="104.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<text x="602.0" y="104.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="638.0" y="104.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">-1</text>
+<text x="674.0" y="104.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">-1</text>
+<text x="710.0" y="104.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="534.0" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">C</text>
+<text x="566.0" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="602.0" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<text x="638.0" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<text x="674.0" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="710.0" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">-1</text>
+<text x="534.0" y="144.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">D</text>
+<text x="566.0" y="144.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="602.0" y="144.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="638.0" y="144.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">0</text>
+<text x="674.0" y="144.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<text x="710.0" y="144.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<text x="624.0" y="42.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">rows: node_ids, cols: edge_ids</text>
+</svg>

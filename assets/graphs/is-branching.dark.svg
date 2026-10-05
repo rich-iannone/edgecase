@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Is branching</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<line x1="380.0" y1="18.0" x2="380.0" y2="210.0" stroke="#e6edf3" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<path d="M 147.45 74.37 L 145.53 78.96 L 143.62 83.54 L 141.71 88.13 L 139.80 92.72 L 137.89 97.31 L 135.98 101.90 L 134.07 106.48 L 132.15 111.07 L 130.89 114.11" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="128.33,120.25 128.75,110.13 135.22,112.82" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 159.75 74.37 L 161.67 78.96 L 163.58 83.54 L 165.49 88.13 L 167.40 92.72 L 169.31 97.31 L 171.22 101.90 L 173.13 106.48 L 175.05 111.07 L 176.31 114.11" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="178.87,120.25 171.98,112.82 178.45,110.13" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 262.40 75.60 L 262.40 79.93 L 262.40 84.26 L 262.40 88.59 L 262.40 92.92 L 262.40 97.25 L 262.40 101.58 L 262.40 105.91 L 262.40 110.24 L 262.40 112.25" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="262.40,118.90 258.90,109.40 265.90,109.40" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 523.45 74.37 L 521.53 78.96 L 519.62 83.54 L 517.71 88.13 L 515.80 92.72 L 513.89 97.31 L 511.98 101.90 L 510.07 106.48 L 508.15 111.07 L 506.89 114.11" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="504.33,120.25 504.75,110.13 511.22,112.82" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 535.75 74.37 L 537.67 78.96 L 539.58 83.54 L 541.49 88.13 L 543.40 92.72 L 545.31 97.31 L 547.22 101.90 L 549.13 106.48 L 551.05 111.07 L 552.31 114.11" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="554.87,120.25 547.98,112.82 554.45,110.13" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 638.40 75.60 L 638.40 79.93 L 638.40 84.26 L 638.40 88.59 L 638.40 92.92 L 638.40 97.25 L 638.40 101.58 L 638.40 105.91 L 638.40 110.24 L 638.40 112.25" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="638.40,118.90 634.90,109.40 641.90,109.40" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 627.09 70.91 L 621.78 76.22 L 616.46 81.54 L 611.15 86.85 L 605.84 92.16 L 600.53 97.47 L 595.22 102.78 L 589.91 108.09 L 584.60 113.40 L 579.29 118.71 L 579.05 118.95" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="573.97,124.03 578.48,114.04 583.96,119.52" fill="#f97316" fill-opacity="1"/>
+<circle cx="153.6" cy="59.6" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="153.6" y="59.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">A</text>
+<circle cx="121.6" cy="136.4" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="121.6" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">B</text>
+<circle cx="185.6" cy="136.4" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="185.6" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">C</text>
+<circle cx="262.4" cy="59.6" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="262.4" y="59.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">D</text>
+<circle cx="262.4" cy="136.4" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="262.4" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">E</text>
+<circle cx="529.6" cy="59.6" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="529.6" y="59.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">A</text>
+<circle cx="497.6" cy="136.4" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="497.6" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">B</text>
+<circle cx="561.6" cy="136.4" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="561.6" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">C</text>
+<circle cx="638.4" cy="59.6" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="638.4" y="59.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">D</text>
+<circle cx="638.4" cy="136.4" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="638.4" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">E</text>
+<text x="107.8" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.is_branching() → </text>
+<text x="246.9" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#f97316" fill-opacity="1.0">True</text>
+<text x="480.2" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.is_branching() → </text>
+<text x="619.2" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#e6edf3" fill-opacity="1.0">False</text>
+</svg>
