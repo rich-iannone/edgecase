@@ -302,6 +302,9 @@ class TestBridgesParallelEdges:
         doubled = Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("A", "B")])
         assert doubled.bridges() == []
         assert not doubled.has_bridges()
+        reversed_pair = Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "A")])
+        assert reversed_pair.bridges() == []
+        assert not reversed_pair.has_bridges()
 
     def test_self_loop_is_not_a_bridge(self):
         g = Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "B")])
