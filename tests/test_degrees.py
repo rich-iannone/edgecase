@@ -1,5 +1,9 @@
-import pytest
+import random
+
 import edgecase as ec
+import networkx as nx
+import pytest
+from edgecase.steps import KIND_QUERY
 
 
 class TestDegreesBasic:
@@ -351,3 +355,51 @@ class TestDegreesRealWorld:
         # Verify degrees were computed
         degree_col = ndf["degree"]
         assert all(d > 0 for d in degree_col)
+
+
+# Isolated nodes, validated against NetworkX.
+
+
+def _random_undirected():
+    for seed in range(25):
+        rnd = random.Random(seed)
+        G = nx.gnp_random_graph(18, rnd.choice([0.1, 0.15, 0.25]), seed=seed)
+        G.add_nodes_from(range(18))
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.choice([0.5, 1, 2, 3])
+        yield G
+
+
+def _build(G: nx.Graph, weighted: bool = False) -> ec.Graph:
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G.nodes])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+def _labels(g: ec.Graph, ids) -> list[str]:
+    return [g.get_label_from_id(n) for n in ids]
+
+
+def _lab(g: ec.Graph, nid: int) -> int:
+    return int(g.get_label_from_id(nid))
+
+
+class TestIsolates:
+    def test_isolates_match_networkx(self):
+        for G in _random_undirected():
+            g = _build(G)
+            assert sorted(_lab(g, n) for n in g.isolates()) == sorted(nx.isolates(G))
+        d = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        d.add_edges([("A", "B"), ("C", "C")])
+        assert _labels(d, d.isolates()) == ["D"]  # B has an in-edge; C has a self-loop
+
+    def test_steps(self):
+        g = ec.Graph().add_nodes(["A", "B", "Z"]).add_edge("A", "B")
+        g.isolates()
+        assert g.steps[-1].kind == KIND_QUERY
+        assert g.steps[-1].delta.nodes_selected == ["Z"]
