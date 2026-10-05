@@ -139,6 +139,7 @@ def _fruchterman_reingold_python(
     n: int,
     edges: List[Tuple[int, int]],
     iterations: int = 300,
+    seed: Optional[int] = None,
 ) -> Dict[int, Tuple[float, float]]:
     """Pure-Python Fruchterman-Reingold force-directed layout."""
     if n == 0:
@@ -153,8 +154,9 @@ def _fruchterman_reingold_python(
     repulsion_k2 = k * k * (1.0 + max(0, n - 30) / 50.0)
 
     spread = area * 0.4
-    pos_x = [random.uniform(-spread, spread) for _ in range(n)]
-    pos_y = [random.uniform(-spread, spread) for _ in range(n)]
+    rng = random.Random(seed)
+    pos_x = [rng.uniform(-spread, spread) for _ in range(n)]
+    pos_y = [rng.uniform(-spread, spread) for _ in range(n)]
 
     adj: Dict[int, List[int]] = {i: [] for i in range(n)}
     for u, v in edges:
@@ -402,6 +404,7 @@ def _remove_overlaps(
     radii: Dict[str, float],
     padding: float = 2.0,
     max_passes: int = 50,
+    seed: Optional[int] = None,
 ) -> Dict[str, Tuple[float, float]]:
     """Push overlapping nodes apart until no circles overlap.
 
@@ -410,6 +413,7 @@ def _remove_overlaps(
     the overlap distance each, along the line connecting their centers.
     """
     ids = list(positions.keys())
+    rng = random.Random(seed)
     n = len(ids)
     if n < 2:
         return dict(positions)
@@ -452,7 +456,7 @@ def _remove_overlaps(
                         min_dist = ri + rj + padding
                         if dist < min_dist:
                             if dist < 0.01:
-                                angle = random.uniform(0, 2 * math.pi)
+                                angle = rng.uniform(0, 2 * math.pi)
                                 dx, dy = math.cos(angle), math.sin(angle)
                                 dist = 0.01
                             overlap = min_dist - dist
@@ -476,6 +480,7 @@ def _force_directed_layout(
     width: float,
     height: float,
     iterations: int = 300,
+    seed: Optional[int] = None,
 ) -> Dict[str, Tuple[float, float]]:
     """Compute force-directed layout, using Rust engine with Python fallback."""
     if len(node_ids) == 0:
@@ -491,12 +496,14 @@ def _force_directed_layout(
     try:
         from edgecase._core import force_directed_layout_rust
 
-        raw = force_directed_layout_rust(len(node_ids), indexed_edges, min(iterations, 500))
+        raw = force_directed_layout_rust(
+            len(node_ids), indexed_edges, min(iterations, 500), seed=seed
+        )
     except Exception:
         pass
 
     if not raw:
-        raw = _fruchterman_reingold_python(len(node_ids), indexed_edges, iterations)
+        raw = _fruchterman_reingold_python(len(node_ids), indexed_edges, iterations, seed=seed)
 
     if not raw:
         return _circular_layout(node_ids, width, height)
@@ -518,8 +525,10 @@ def _force_directed_layout(
     cx_svg = width / 2
     cy_svg = height / 2
 
+    # Key order follows node_ids (the Rust result is a hash map in arbitrary order), so later
+    # order-dependent steps like overlap removal are reproducible
     positions = {}
-    for idx, pos in raw.items():
+    for idx, pos in sorted(raw.items()):
         x = cx_svg + (pos[0] - cx_raw) * scale
         y = cy_svg + (pos[1] - cy_raw) * scale
         positions[node_ids[idx]] = (x, y)
@@ -1044,6 +1053,33 @@ def _compute_viewbox(
 # ---------------------------------------------------------------------------
 
 
+def _plot_node_values(graph, node_ids, node_data, key, param):
+    """Resolve `label_by=` / `size_by=` / `color_by=` to a value per node (keyed by str ID).
+
+    `"id"` is always the node ID. Otherwise a stored node attribute with that name wins, and
+    `"label"` (falling back to the ID) and `"degree"` are computed. Any other name that no node has raises, rather than
+    silently plotting nothing. Nodes lacking a stored attribute get `None`.
+    """
+    if key is None:
+        return {str(nid): None for nid in node_ids}
+    if key == "id":
+        return {str(nid): str(nid) for nid in node_ids}
+    if any(key in attrs for attrs in node_data.values()):
+        return {str(nid): node_data[nid].get(key) for nid in node_ids}
+    if key == "label":
+        return {
+            str(nid): (lbl if (lbl := graph.get_label_from_id(nid)) is not None else str(nid))
+            for nid in node_ids
+        }
+    if key == "degree":
+        # get_degree() rather than degrees(), which also writes a "degree" column
+        return {str(nid): graph.get_degree(nid) for nid in node_ids}
+    raise ValueError(
+        f"{param}={key!r}: no node has an attribute {key!r} (built-in options are 'id', "
+        f"'label' and 'degree')"
+    )
+
+
 def render_plot(
     graph,
     layout: str = "force",
@@ -1065,10 +1101,15 @@ def render_plot(
     edge_routing: Union[str, float] = "around",
     show_labels: bool = True,
     output: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer."""
 
     th = THEMES.get(theme, LIGHT)
+    if color_by or edge_color_by:
+        from edgecase.colors import get_palette
+
+        get_palette(palette)  # raises ValueError for an unknown name
 
     # --- Extract graph data ---
     node_ids = list(graph.get_node_ids(limit=None))
@@ -1102,6 +1143,11 @@ def render_plot(
         obj = graph.get_node(nid)
         attrs = dict(obj.attributes) if obj and obj.attributes else {}
         node_data[nid] = attrs
+
+    # Per-node values for label_by= / size_by= / color_by= (keyed by str ID)
+    label_values = _plot_node_values(graph, node_ids, node_data, label_by, "label_by")
+    size_by_values = _plot_node_values(graph, node_ids, node_data, size_by, "size_by")
+    color_by_values = _plot_node_values(graph, node_ids, node_data, color_by, "color_by")
 
     # Edge data (supports multi-edges between same pair)
     is_directed = graph.is_directed()
@@ -1145,7 +1191,7 @@ def render_plot(
     if layout == "circular":
         positions = _circular_layout(str_ids, float(width), float(height))
     elif layout == "random":
-        positions = _random_layout(str_ids, float(width), float(height))
+        positions = _random_layout(str_ids, float(width), float(height), seed=seed)
     else:
         n = len(str_ids)
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
@@ -1155,6 +1201,7 @@ def render_plot(
             float(width),
             float(height),
             iterations=fr_iters,
+            seed=seed,
         )
 
     # --- Aesthetic mappings ---
@@ -1165,7 +1212,7 @@ def render_plot(
     if color_by:
         cat_values = []
         for nid in str_ids:
-            val = node_data.get(int(nid) if nid.isdigit() else nid, {}).get(color_by)
+            val = color_by_values[nid]
             cat_values.append(val)
             node_community[nid] = val
         palette_map = _build_color_map(cat_values, palette)
@@ -1197,7 +1244,7 @@ def render_plot(
     if size_by:
         size_values = []
         for nid in str_ids:
-            val = node_data.get(int(nid) if nid.isdigit() else nid, {}).get(size_by)
+            val = size_by_values[nid]
             try:
                 size_values.append(float(val))
             except (TypeError, ValueError):
@@ -1221,18 +1268,14 @@ def render_plot(
     # --- Overlap removal (force layout only) ---
     if node_overlap != "allow" and layout not in ("circular",) and n >= 2:
         overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
-        positions = _remove_overlaps(positions, radii, padding=overlap_pad)
+        positions = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
 
     # --- Build label map for viewBox computation ---
     label_map = {}
     if show_labels:
         for nid in str_ids:
-            raw_nid = int(nid) if nid.isdigit() else nid
-            n_attrs = node_data.get(raw_nid, {})
-            if label_by == "id":
-                label_map[nid] = str(nid)
-            else:
-                label_map[nid] = str(n_attrs.get(label_by, nid))
+            value = label_values[nid]
+            label_map[nid] = nid if value is None else str(value)
 
     # --- Compute viewBox ---
     vb = _compute_viewbox(
@@ -1490,12 +1533,7 @@ def render_plot(
             x, y = positions[nid]
             r = radii.get(nid, node_size)
 
-            raw_nid = int(nid) if nid.isdigit() else nid
-            n_attrs = node_data.get(raw_nid, {})
-            if label_by == "id":
-                text = str(nid)
-            else:
-                text = str(n_attrs.get(label_by, nid))
+            text = label_map[nid]
 
             svg_parts.append(_svg_label(x, y, r, text, th.label_color, font_size))
 
@@ -1590,7 +1628,8 @@ def _infer_tree_edges(
     """Infer tree edges from a visit order.
 
     For each node after the first, the tree edge connects it to its already-visited neighbor that
-    appears latest in visit_order.
+    appears latest in visit_order. `adjacency` maps each node to its possible parents (its
+    neighbors, or its predecessors on a directed graph).
     """
     order_idx = {nid: i for i, nid in enumerate(visit_order)}
     tree_edges: List[Tuple[str, str]] = []
@@ -1757,7 +1796,15 @@ def render_traversal(
 
     # --- Infer tree edges if not provided ---
     if tree_edges is None:
-        tree_edges_str = _infer_tree_edges(visit_order_str, adjacency)
+        # A node's tree parent reaches it by an edge, so on directed graphs look at the node's
+        # predecessors (the adjacency lists hold successors only)
+        parent_candidates = adjacency
+        if is_directed:
+            parent_candidates = {nid: [] for nid in adjacency}
+            for src, targets in adjacency.items():
+                for tgt in targets:
+                    parent_candidates.setdefault(tgt, []).append(src)
+        tree_edges_str = _infer_tree_edges(visit_order_str, parent_candidates)
     else:
         tree_edges_str = [(str(s), str(t)) for s, t in tree_edges]
 
@@ -3597,10 +3644,24 @@ def _progressive_layouts(
     return frames, state_frame, [nodes for nodes, _ in frame_states]
 
 
+def _speed_options_html(speed: float) -> str:
+    """`<option>`s for the playback speed menu: 0.5x/1x/2x/4x, plus `speed` if it's another value.
+
+    Each option's value is the delay between steps in ms (1200 ms at 1x), and `speed` is selected.
+    """
+    speeds = sorted({0.5, 1.0, 2.0, 4.0, float(speed)})
+    return "\n".join(
+        f'      <option value="{round(1200 / s)}"{" selected" if s == speed else ""}>'
+        f"{s:g}&times;</option>"
+        for s in speeds
+    )
+
+
 def render_steps(
     graph,
     steps: list,
     full_steps: Optional[list] = None,
+    baseline: Optional[tuple] = None,
     layout: str = "force",
     theme: str = "light",
     width: int = 700,
@@ -3614,6 +3675,8 @@ def render_steps(
     output: Optional[str] = None,
 ) -> "StepPlayer":
     """Render an interactive step-through visualization of recorded graph steps."""
+    if isinstance(speed, bool) or not isinstance(speed, (int, float)) or not speed > 0:
+        raise ValueError(f"speed must be a positive number, got {speed!r}")
     global _step_counter
     _step_counter += 1
     uid = f"stv{_step_counter}"
@@ -3649,10 +3712,12 @@ def render_steps(
     step_states = []
     all_states = []
     visible_state_idx = []
-    cum_nodes: set = set()
-    cum_edges: set = set()
-    all_nodes: set = set()
-    all_edges: set = set()
+    # Start from what existed when the log was last cleared (empty if it never was)
+    base_nodes, base_edges = baseline if baseline is not None else ([], [])
+    cum_nodes: set = set(base_nodes)
+    cum_edges: set = set(base_edges)
+    all_nodes: set = set(cum_nodes)
+    all_edges: set = set(cum_edges)
 
     for step in state_source:
         delta = step.delta
@@ -4615,10 +4680,7 @@ def render_steps(
     <input type="range" id="{uid}-slider" min="0" max="{len(step_data) - 1}" value="0" step="1"/>
     <span class="step-counter" id="{uid}-counter">Step 1 / {len(step_data)}</span>
     <select id="{uid}-speed" class="step-speed" title="Playback speed">
-      <option value="2400"{"" if speed != 0.5 else " selected"}>0.5&times;</option>
-      <option value="1200"{"" if speed != 1.0 else " selected"}>1&times;</option>
-      <option value="600"{"" if speed != 2.0 else " selected"}>2&times;</option>
-      <option value="300"{"" if speed != 4.0 else " selected"}>4&times;</option>
+{_speed_options_html(speed)}
     </select>
   </div>
 </div>
