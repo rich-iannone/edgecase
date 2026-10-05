@@ -13,16 +13,18 @@ use std::collections::HashMap;
 /// * `edges` - List of edges as (source, target) tuples
 /// * `iterations` - Number of layout iterations (default: 50)
 /// * `use_barnes_hut` - Whether to use Barnes-Hut optimization (default: true for >100 nodes)
+/// * `seed` - Seed for the random starting positions (default: entropy, so runs differ)
 ///
 /// # Returns
 /// Dictionary mapping node indices to (x, y) positions
 #[pyfunction]
-#[pyo3(signature = (node_count, edges, iterations=50, use_barnes_hut=None))]
+#[pyo3(signature = (node_count, edges, iterations=50, use_barnes_hut=None, seed=None))]
 pub fn force_directed_layout_rust(
     node_count: usize,
     edges: Vec<(usize, usize)>,
     iterations: usize,
     use_barnes_hut: Option<bool>,
+    seed: Option<u64>,
 ) -> PyResult<HashMap<usize, (f64, f64)>> {
     let use_bh = use_barnes_hut.unwrap_or(node_count > 100);
 
@@ -33,6 +35,7 @@ pub fn force_directed_layout_rust(
         use_barnes_hut: use_bh,
         theta: 0.5,
         damping: 0.9,
+        seed,
     };
 
     let layout = ForceDirectedLayout::new(config);
