@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Immediate dominators</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="521.8" y="18.0" width="204.5" height="160.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 75.60 98.00 L 80.57 98.00 L 85.54 98.00 L 90.51 98.00 L 95.48 98.00 L 100.45 98.00 L 105.42 98.00 L 110.39 98.00 L 115.36 98.00 L 118.13 98.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="125.30,98.00 115.05,101.88 115.05,94.12" fill="#c2410c" fill-opacity="1"/>
+<path d="M 157.11 90.84 L 162.43 88.18 L 167.76 85.52 L 173.08 82.86 L 178.41 80.20 L 183.73 77.54 L 189.05 74.87 L 194.38 72.21 L 199.70 69.55 L 203.93 67.43" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="210.35,64.23 202.91,72.28 199.45,65.34" fill="#c2410c" fill-opacity="1"/>
+<path d="M 157.11 105.16 L 162.43 107.82 L 167.76 110.48 L 173.08 113.14 L 178.41 115.80 L 183.73 118.46 L 189.05 121.13 L 194.38 123.79 L 199.70 126.45 L 203.93 128.57" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="210.35,131.77 199.45,130.66 202.91,123.72" fill="#c2410c" fill-opacity="1"/>
+<path d="M 240.31 63.56 L 245.63 66.22 L 250.96 68.88 L 256.28 71.54 L 261.61 74.20 L 266.93 76.86 L 272.25 79.53 L 277.58 82.19 L 282.90 84.85 L 287.60 87.20" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="293.55,90.17 283.49,89.06 286.62,82.79" fill="#1f2328" fill-opacity="0.35"/>
+<path d="M 240.31 132.44 L 245.63 129.78 L 250.96 127.12 L 256.28 124.46 L 261.61 121.80 L 266.93 119.14 L 272.25 116.47 L 277.58 113.81 L 282.90 111.15 L 287.60 108.80" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="293.55,105.83 286.62,113.21 283.49,106.94" fill="#1f2328" fill-opacity="0.35"/>
+<path d="M 325.20 98.00 L 330.17 98.00 L 335.14 98.00 L 340.11 98.00 L 345.08 98.00 L 350.05 98.00 L 355.02 98.00 L 359.99 98.00 L 364.96 98.00 L 367.72 98.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="374.90,98.00 364.65,101.88 364.65,94.12" fill="#c2410c" fill-opacity="1"/>
+<path d="M 158.80 98.00 L 172.09 98.00 L 185.38 98.00 L 198.67 98.00 L 211.96 98.00 L 225.25 98.00 L 238.54 98.00 L 251.83 98.00 L 265.12 98.00 L 278.41 98.00 L 285.05 98.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 3"/>
+<polygon points="291.70,98.00 282.20,101.50 282.20,94.50" fill="#c2410c" fill-opacity="1"/>
+<circle cx="59.6" cy="98.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="142.8" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="226.0" cy="56.4" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="226.0" cy="139.6" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="309.2" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="392.4" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.immediate_dominators(&quot;entry&quot;)</text>
+<text x="59.6" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">entry</text>
+<text x="142.8" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">if</text>
+<text x="226.0" y="30.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">then</text>
+<text x="226.0" y="165.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">else</text>
+<text x="309.2" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">merge</text>
+<text x="392.4" y="124.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">exit</text>
+<text x="535.8" y="38.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">node   immediate dominator</text>
+<text x="535.8" y="58.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">entry  entry</text>
+<text x="535.8" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">if     entry</text>
+<text x="535.8" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">then   if</text>
+<text x="535.8" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">else   if</text>
+<text x="535.8" y="138.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">merge  if</text>
+<text x="535.8" y="158.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">exit   merge</text>
+</svg>

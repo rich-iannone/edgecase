@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Find minimal d-separator</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="505.9" y="58.0" width="236.2" height="80.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 94.20 133.80 L 102.49 133.80 L 110.78 133.80 L 119.07 133.80 L 127.36 133.80 L 135.65 133.80 L 143.94 133.80 L 152.23 133.80 L 160.52 133.80 L 168.81 133.80 L 170.45 133.80" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="177.10,133.80 167.60,137.30 167.60,130.30" fill="#1f2328" fill-opacity="1"/>
+<path d="M 207.10 123.81 L 213.44 118.74 L 219.79 113.67 L 226.13 108.61 L 232.47 103.54 L 238.81 98.47 L 245.16 93.40 L 251.50 88.33 L 257.84 83.26 L 264.19 78.19 L 265.33 77.28" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="270.53,73.12 265.29,81.79 260.92,76.32" fill="#1f2328" fill-opacity="1"/>
+<path d="M 296.70 72.19 L 303.04 77.26 L 309.39 82.33 L 315.73 87.39 L 322.07 92.46 L 328.41 97.53 L 334.76 102.60 L 341.10 107.67 L 347.44 112.74 L 353.79 117.81 L 354.93 118.72" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="360.13,122.88 350.52,119.68 354.89,114.21" fill="#1f2328" fill-opacity="1"/>
+<path d="M 210.60 133.80 L 225.17 133.80 L 239.74 133.80 L 254.31 133.80 L 268.88 133.80 L 283.45 133.80 L 298.02 133.80 L 312.59 133.80 L 327.16 133.80 L 341.73 133.80 L 349.65 133.80" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="356.30,133.80 346.80,137.30 346.80,130.30" fill="#1f2328" fill-opacity="1"/>
+<circle cx="78.2" cy="133.8" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="194.6" cy="133.8" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="284.2" cy="62.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="373.8" cy="133.8" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="594.3" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.find_minimal_d_separator(&quot;age&quot;, &quot;heart&quot;)</text>
+<text x="78.2" y="159.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">age</text>
+<text x="194.6" y="159.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">exercise</text>
+<text x="284.2" y="36.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">weight</text>
+<text x="373.8" y="159.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">heart</text>
+<text x="519.9" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">minimal separator z</text>
+<text x="519.9" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">[exercise]</text>
+<text x="519.9" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">blocks all age–heart paths</text>
+</svg>

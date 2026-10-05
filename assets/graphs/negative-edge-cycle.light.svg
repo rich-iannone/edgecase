@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Negative edge cycle</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<line x1="380.0" y1="18.0" x2="380.0" y2="210.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<path d="M 111.31 150.69 L 118.14 143.86 L 124.98 137.02 L 131.81 130.19 L 138.64 123.36 L 145.47 116.53 L 152.30 109.70 L 159.13 102.87 L 165.96 96.04 L 172.79 89.21 L 174.55 87.45" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="179.63,82.37 175.12,92.36 169.64,86.88" fill="#c2410c" fill-opacity="1"/>
+<rect x="125.69" y="108.53" width="39.55" height="16" rx="3" fill="#ffffff"/>
+<text x="145.47" y="116.53" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">−0.10</text>
+<path d="M 203.31 81.31 L 210.14 88.14 L 216.98 94.98 L 223.81 101.81 L 230.64 108.64 L 237.47 115.47 L 244.30 122.30 L 251.13 129.13 L 257.96 135.96 L 264.79 142.79 L 266.55 144.55" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="271.63,149.63 261.64,145.12 267.12,139.64" fill="#c2410c" fill-opacity="1"/>
+<rect x="217.69" y="107.47" width="39.55" height="16" rx="3" fill="#ffffff"/>
+<text x="237.47" y="115.47" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">−0.15</text>
+<path d="M 268.00 162.00 L 252.95 162.00 L 237.90 162.00 L 222.85 162.00 L 207.80 162.00 L 192.75 162.00 L 177.70 162.00 L 162.65 162.00 L 147.60 162.00 L 132.55 162.00 L 124.67 162.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="117.50,162.00 127.75,158.12 127.75,165.88" fill="#c2410c" fill-opacity="1"/>
+<rect x="172.97" y="154.00" width="39.55" height="16" rx="3" fill="#ffffff"/>
+<text x="192.75" y="162.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">+0.20</text>
+<path d="M 487.31 150.69 L 494.14 143.86 L 500.98 137.02 L 507.81 130.19 L 514.64 123.36 L 521.47 116.53 L 528.30 109.70 L 535.13 102.87 L 541.96 96.04 L 548.79 89.21 L 550.92 87.08" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="555.63,82.37 551.38,91.57 546.43,86.62" fill="#1f2328" fill-opacity="1"/>
+<rect x="501.69" y="108.53" width="39.55" height="16" rx="3" fill="#ffffff"/>
+<text x="521.47" y="116.53" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">−0.10</text>
+<path d="M 579.31 81.31 L 586.14 88.14 L 592.98 94.98 L 599.81 101.81 L 606.64 108.64 L 613.47 115.47 L 620.30 122.30 L 627.13 129.13 L 633.96 135.96 L 640.79 142.79 L 642.92 144.92" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="647.63,149.63 638.43,145.38 643.38,140.43" fill="#1f2328" fill-opacity="1"/>
+<rect x="593.69" y="107.47" width="39.55" height="16" rx="3" fill="#ffffff"/>
+<text x="613.47" y="115.47" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">−0.15</text>
+<path d="M 644.00 162.00 L 628.95 162.00 L 613.90 162.00 L 598.85 162.00 L 583.80 162.00 L 568.75 162.00 L 553.70 162.00 L 538.65 162.00 L 523.60 162.00 L 508.55 162.00 L 500.15 162.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="493.50,162.00 503.00,158.50 503.00,165.50" fill="#1f2328" fill-opacity="1"/>
+<rect x="548.98" y="154.00" width="39.55" height="16" rx="3" fill="#ffffff"/>
+<text x="568.75" y="162.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#1f2328" fill-opacity="1">+0.30</text>
+<circle cx="100.0" cy="162.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="192.0" cy="70.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="284.0" cy="162.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="476.0" cy="162.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="568.0" cy="70.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="660.0" cy="162.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="82.2" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.negative_edge_cycle() → </text>
+<text x="272.5" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#c2410c" fill-opacity="1.0">True</text>
+<text x="454.5" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.negative_edge_cycle() → </text>
+<text x="644.9" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#1f2328" fill-opacity="1.0">False</text>
+<text x="192.0" y="20.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">cycle total −0.05</text>
+<text x="79.0" y="162.0" text-anchor="end" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">USD</text>
+<text x="192.0" y="44.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">EUR</text>
+<text x="305.0" y="162.0" text-anchor="start" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">GBP</text>
+<text x="568.0" y="20.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">cycle total +0.05</text>
+<text x="455.0" y="162.0" text-anchor="end" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">USD</text>
+<text x="568.0" y="44.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">EUR</text>
+<text x="681.0" y="162.0" text-anchor="start" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">GBP</text>
+</svg>

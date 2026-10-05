@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Find isomorphism</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="512.0" y="48.0" width="224.0" height="100.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 70.31 109.69 L 73.94 106.06 L 77.58 102.42 L 81.21 98.79 L 84.84 95.16 L 88.47 91.53 L 92.10 87.90 L 95.73 84.27 L 99.36 80.64 L 101.92 78.08" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="106.63,73.37 102.38,82.57 97.43,77.62" fill="#1f2328" fill-opacity="1"/>
+<path d="M 130.31 72.31 L 133.94 75.94 L 137.58 79.58 L 141.21 83.21 L 144.84 86.84 L 148.47 90.47 L 152.10 94.10 L 155.73 97.73 L 159.36 101.36 L 161.92 103.92" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="166.63,108.63 157.43,104.38 162.38,99.43" fill="#1f2328" fill-opacity="1"/>
+<path d="M 75.00 121.00 L 83.65 121.00 L 92.30 121.00 L 100.95 121.00 L 109.60 121.00 L 118.25 121.00 L 126.90 121.00 L 135.55 121.00 L 144.20 121.00 L 152.85 121.00 L 154.85 121.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="161.50,121.00 152.00,124.50 152.00,117.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 374.40 74.80 L 371.01 79.32 L 367.62 83.84 L 364.23 88.36 L 360.84 92.88 L 357.45 97.40 L 354.06 101.92 L 350.67 106.44 L 347.28 110.96 L 344.49 114.68" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="340.50,120.00 343.40,110.30 349.00,114.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 291.70 83.73 L 294.47 87.36 L 297.24 91.00 L 300.01 94.63 L 302.78 98.27 L 305.55 101.90 L 308.32 105.54 L 311.08 109.17 L 313.85 112.81 L 315.36 114.79" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="319.39,120.08 310.85,114.64 316.42,110.40" fill="#1f2328" fill-opacity="1"/>
+<path d="M 297.94 69.59 L 304.80 68.99 L 311.66 68.38 L 318.53 67.78 L 325.39 67.17 L 332.25 66.57 L 339.12 65.96 L 345.98 65.35 L 352.84 64.75 L 359.70 64.14 L 359.94 64.12" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="366.57,63.54 357.41,67.86 356.80,60.89" fill="#1f2328" fill-opacity="1"/>
+<circle cx="59.0" cy="121.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="119.0" cy="61.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="179.0" cy="121.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="282.0" cy="71.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="282.0" y="71.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">s1</text>
+<circle cx="384.0" cy="62.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="384.0" y="62.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">s2</text>
+<circle cx="330.0" cy="134.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<text x="330.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1">s3</text>
+<text x="119.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">a</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">a.find_isomorphism(b)</text>
+<text x="333.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">b</text>
+<text x="59.0" y="147.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">fetch</text>
+<text x="119.0" y="35.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">build</text>
+<text x="179.0" y="147.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">test</text>
+<text x="526.0" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">node of a → node of b</text>
+<text x="526.0" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">fetch  →  s1</text>
+<text x="526.0" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">build  →  s2</text>
+<text x="526.0" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">test   →  s3</text>
+</svg>

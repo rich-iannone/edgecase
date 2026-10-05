@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Is d-separator</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<line x1="380.0" y1="18.0" x2="380.0" y2="210.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<path d="M 109.60 64.00 L 116.09 64.00 L 122.58 64.00 L 129.07 64.00 L 135.56 64.00 L 142.05 64.00 L 148.54 64.00 L 155.03 64.00 L 161.52 64.00 L 167.85 64.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="174.50,64.00 165.00,67.50 165.00,60.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 208.00 64.00 L 214.49 64.00 L 220.98 64.00 L 227.47 64.00 L 233.96 64.00 L 240.45 64.00 L 246.94 64.00 L 253.43 64.00 L 259.92 64.00 L 266.25 64.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="272.90,64.00 263.40,67.50 263.40,60.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 105.89 74.24 L 113.16 80.30 L 120.42 86.35 L 127.69 92.41 L 134.96 98.46 L 142.22 104.52 L 149.49 110.58 L 156.76 116.63 L 164.02 122.69 L 171.29 128.74 L 173.45 130.54" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="178.56,134.80 169.02,131.40 173.50,126.03" fill="#1f2328" fill-opacity="1"/>
+<path d="M 485.60 64.00 L 492.09 64.00 L 498.58 64.00 L 505.07 64.00 L 511.56 64.00 L 518.05 64.00 L 524.54 64.00 L 531.03 64.00 L 537.52 64.00 L 543.33 64.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="550.50,64.00 540.25,67.88 540.25,60.12" fill="#c2410c" fill-opacity="1"/>
+<path d="M 584.00 64.00 L 590.49 64.00 L 596.98 64.00 L 603.47 64.00 L 609.96 64.00 L 616.45 64.00 L 622.94 64.00 L 629.43 64.00 L 635.92 64.00 L 641.73 64.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="648.90,64.00 638.65,67.88 638.65,60.12" fill="#c2410c" fill-opacity="1"/>
+<path d="M 481.89 74.24 L 489.16 80.30 L 496.42 86.35 L 503.69 92.41 L 510.96 98.46 L 518.22 104.52 L 525.49 110.58 L 532.76 116.63 L 540.02 122.69 L 547.29 128.74 L 549.45 130.54" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="554.56,134.80 545.02,131.40 549.50,126.03" fill="#1f2328" fill-opacity="1"/>
+<circle cx="93.6" cy="64.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="192.0" cy="64.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="290.4" cy="64.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="192.0" cy="146.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="469.6" cy="64.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="568.0" cy="64.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="666.4" cy="64.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="568.0" cy="146.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="20.0" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.is_d_separator(&quot;smoking&quot;, &quot;cancer&quot;, z) → </text>
+<text x="334.7" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#c2410c" fill-opacity="1.0">True</text>
+<text x="392.3" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.is_d_separator(&quot;smoking&quot;, &quot;cancer&quot;, z) → </text>
+<text x="707.1" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#1f2328" fill-opacity="1.0">False</text>
+<text x="192.0" y="20.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">z = [tar]</text>
+<text x="93.6" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">smoking</text>
+<text x="192.0" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">tar</text>
+<text x="290.4" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">cancer</text>
+<text x="192.0" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">fingers</text>
+<text x="568.0" y="20.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">z = []</text>
+<text x="469.6" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">smoking</text>
+<text x="568.0" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">tar</text>
+<text x="666.4" y="38.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">cancer</text>
+<text x="568.0" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">fingers</text>
+</svg>
