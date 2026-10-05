@@ -285,3 +285,36 @@ class TestBridgesIntegration:
             if result:
                 u, v = result
                 assert u != v
+
+
+class TestBridgesParallelEdges:
+    """Regression: bridges were found per node pair, so a doubled edge counted as a bridge."""
+
+    def test_doubled_edge_is_not_a_bridge(self):
+        g = Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("A", "B"), ("B", "C")])
+        assert g.bridges() == g.find_edge_ids("B", "C")
+        doubled = Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("A", "B")])
+        assert doubled.bridges() == []
+        assert not doubled.has_bridges()
+
+    def test_self_loop_is_not_a_bridge(self):
+        g = Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "B")])
+        assert g.bridges() == g.find_edge_ids("A", "B")
+
+    def test_matches_networkx_and_handles_long_paths(self):
+        import random
+
+        import networkx as nx
+
+        for seed in range(30):
+            G = nx.gnp_random_graph(20, random.Random(seed).choice([0.08, 0.12, 0.2]), seed=seed)
+            g = Graph().add_nodes([str(n) for n in G])
+            if G.number_of_edges():
+                g.add_edges([(str(u), str(v)) for u, v in G.edges])
+            ours = sorted(
+                tuple(sorted(int(g.get_label_from_id(x)) for x in g.get_node_ids_by_edge_id(e)))
+                for e in g.bridges()
+            )
+            assert ours == sorted(tuple(sorted(e)) for e in nx.bridges(G))
+        # iterative, so no recursion limit on long paths
+        assert len(Graph().add_path_graph(20000).bridges()) == 19999
