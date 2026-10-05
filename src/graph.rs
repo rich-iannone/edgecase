@@ -905,18 +905,16 @@ impl Graph {
         max_degree: Option<usize>,
         degree_type: &str,
     ) -> PyResult<()> {
-        for &node_id in self.nodes.keys() {
-            let degree = match degree_type {
-                "in" => self.in_degree(node_id),
-                "out" => self.out_degree(node_id),
-                "total" => self.degree(node_id),
-                _ => {
-                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                        "Invalid degree_type '{}'. Must be 'in', 'out', or 'total'",
-                        degree_type
-                    )))
-                }
-            };
+        if !matches!(degree_type, "in" | "out" | "total") {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid degree_type '{}'. Must be 'in', 'out', or 'total'",
+                degree_type
+            )));
+        }
+        let degrees = self.degrees_by_type(degree_type);
+        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        for node_id in node_ids {
+            let degree = degrees.get(&node_id).copied().unwrap_or(0);
 
             let matches = match (min_degree, max_degree) {
                 (Some(min), Some(max)) => degree >= min && degree <= max,
@@ -930,6 +928,24 @@ impl Graph {
             }
         }
         Ok(())
+    }
+
+    /// Degree of every node in one pass: `"in"`, `"out"`, or `"total"` (in + out on directed
+    /// graphs, as in `get_degree()`). On undirected graphs all three are the adjacency length
+    fn degrees_by_type(&self, degree_type: &str) -> FxHashMap<u64, usize> {
+        let mut degrees: FxHashMap<u64, usize> =
+            FxHashMap::with_capacity_and_hasher(self.nodes.len(), Default::default());
+        let count_out = !self.directed || degree_type != "in";
+        let count_in = self.directed && degree_type != "out";
+        for &node_id in self.nodes.keys() {
+            degrees.insert(node_id, if count_out { self.degree(node_id) } else { 0 });
+        }
+        if count_in {
+            for edge in &self.edges {
+                *degrees.entry(edge.target).or_insert(0) += 1;
+            }
+        }
+        degrees
     }
 
     /// Get the degree of a node (total neighbors)
