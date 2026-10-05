@@ -46,10 +46,14 @@ class StepList(list):
     """A list of Steps with Polars-style filtering and export."""
 
     _graph_ref = None
+    # Node labels and (source, target) label pairs present when clear_steps() was called, so
+    # play() can start from them instead of an empty graph
+    baseline: Optional[tuple[list[str], list[tuple[str, str]]]] = None
 
     def _with_graph(self, source: "StepList") -> "StepList":
-        """Copy graph reference from another StepList."""
+        """Copy graph reference (and clear_steps() baseline) from another StepList."""
         self._graph_ref = source._graph_ref
+        self.baseline = source.baseline
         return self
 
     def filter(
@@ -178,6 +182,7 @@ class StepList(list):
             graph=graph,
             steps=list(self),
             full_steps=full_steps,
+            baseline=graph.steps.baseline,
             layout=layout,
             theme=theme,
             width=width,
