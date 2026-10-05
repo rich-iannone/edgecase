@@ -17,8 +17,27 @@ Shared layouts keep siblings comparable:
 - HOUSE: a 5-node graph (a triangle on a square) for every cycle method; its
   directed version (DHOUSE_EDGES) also hosts both random walks, whose visit
   positions (0 = start) are filled badges on nodes or labels on edges.
+- SANTA_EDGES: HOUSE plus both diagonals (the house of Santa Claus) for
+  eulerian_path, which mirrors eulerian_circuit: every edge `accent` and
+  numbered in trail order, the two odd ends `soft`. predicates.py reuses it
+  for has_eulerian_path, transforms.py reuses HOUSE for eulerize.
 - TRAIL: a spine A-B-C-D with a directed loop at B, where trails, paths,
   and walks differ.
+- SP also hosts the shortest-path queries: shortest_path_length (weighted
+  route + hop count on the card), all_shortest_paths (unweighted, two tied
+  routes in accent / g2), and the single-source pair, which draw the
+  Dijkstra tree from the `soft` source in accent (distances as badges for
+  the *_length variant). bidirectional_dijkstra shades the nodes each end
+  actually settles (forward g2, backward g3) behind the accent path.
+- LADDER: a 2 x 4 ladder with sources A and G for the multi-source pair.
+  The path variant colors every node and tree edge by its nearest source's
+  catchment (accent / g2), marking each source with a halo (a one-node
+  hull); the *_length variant keeps the sources `soft` with distance badges.
+- DAG (from traversal.py) with durations as weights for dag_longest_path
+  and dag_longest_path_length: the critical path in accent, the rest muted.
+- BOWTIE: two triangles sharing C plus a detour A - F - E, for the Menger
+  pair. edge_disjoint_paths finds three routes from A to E (two meet at C);
+  node_disjoint_paths keeps only two, and the route through B, D stays muted.
 """
 
 import math
@@ -42,6 +61,10 @@ AP_EDGES = [("A", "B", 1), ("B", "C", 2), ("A", "C", 4), ("C", "D", 1), ("D", "A
 
 HOUSE = {"A": (0.75, 0), "B": (0, 0.85), "C": (1.5, 0.85), "D": (0, 1.75), "E": (1.5, 1.75)}
 HOUSE_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "E"), ("D", "E")]
+# The "house of Santa Claus": HOUSE plus both diagonals of the square, in the
+# eulerian_path docstring's insertion order (bl-br, bl-tl, br-tr, tl-tr, ...).
+SANTA_EDGES = [("D", "E"), ("D", "B"), ("E", "C"), ("B", "C"), ("B", "A"), ("C", "A"),
+               ("D", "C"), ("E", "B")]
 
 TRAIL = {"A": (0, 1), "B": (1, 1), "C": (2, 1), "D": (3, 1), "E": (0.5, 0), "F": (1.5, 0)}
 TRAIL_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("B", "E"), ("E", "F"), ("F", "B")]
@@ -299,6 +322,28 @@ def eulerian_circuit(s: Scene) -> None:
                     title="every edge once, back to start")
 
 
+SANTA_TRAIL = list("DECBDCABE")  # g.eulerian_path()
+
+
+@figure("eulerian_path", "paths", "Eulerian path",
+        "The house of Santa Claus: a square with both diagonals and a roof. Only the bottom "
+        "corners D and E (outlined) have odd degree, so the Eulerian path runs from one to "
+        "the other, using each of the eight edges once; edges are numbered in the order the "
+        "path takes them, and the card lists D, E, C, B, D, C, A, B, E.")
+def eulerian_path(s: Scene) -> None:
+    left, right = compute(s, "g", "g.eulerian_path()")
+    pos = place(HOUSE, left, unit=UNIT)
+    steps = list(zip(SANTA_TRAIL, SANTA_TRAIL[1:]))
+    # the two diagonals cross mid-square: label them near their lower ends instead
+    t = {("D", "C"): 0.28, ("B", "E"): 0.72}
+    s.graph(pos, [(a, b, {"style": "accent", "weight": str(i), "weight_t": t.get((a, b), 0.5)})
+                  for i, (a, b) in enumerate(steps, 1)],
+            styles={SANTA_TRAIL[0]: "soft", SANTA_TRAIL[-1]: "soft"})
+    s.card_centered(right, [(" → ".join(SANTA_TRAIL[:5]), "accent"),
+                            ("→ " + " → ".join(SANTA_TRAIL[5:]), "accent")],
+                    title="every edge once, odd to odd")
+
+
 # --- cycles ------------------------------------------------------------------
 
 
@@ -444,3 +489,232 @@ def random_edge_walk(s: Scene) -> None:
     hops = [f"{a}→{b}" for a, b in zip(WALK, WALK[1:])]
     s.card_centered(right, [("  ".join(hops[:3]), "accent"), ("  ".join(hops[3:]), "accent")],
                     title="(edge_id, source, target) × 6")
+
+
+# --- shortest-path queries on the shared SP graph ------------------------------
+
+
+@figure("shortest_path_length", "paths", "Shortest path length",
+        "The directed weighted graph with three routes from A to F, costing 4, 6, and 5. On "
+        "a weighted graph the distance is the cheapest total weight, so the route A, B, C, F "
+        "is drawn in the accent color and the card reads 1 + 2 + 1 = 4.0; on the unweighted "
+        "graph the same call counts hops and returns 2.")
+def shortest_path_length(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.shortest_path_length("A", "F")')
+    sp_panel(s, left, [TOP])
+    s.card_centered(right, [("1 + 2 + 1 = 4.0", "accent"), "unweighted g:  2 hops"],
+                    title="weighted distance, A to F")
+
+
+@figure("all_shortest_paths", "paths", "All shortest paths",
+        "The directed graph with three routes from A to F, unweighted. Two routes tie at "
+        "two hops and both are returned: A, D, F in the accent color and A, E, F in teal. "
+        "The three-hop route through B and C stays faint.")
+def all_shortest_paths(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.all_shortest_paths("A", "F")')
+    sp_panel(s, left, [MID, LOW], weights=False)
+    s.card_centered(right, [("A → D → F", "accent"), ("A → E → F", "g2")],
+                    title="every 2-hop path")
+
+
+# bidirectional_dijkstra("A", "F") on the weighted SP graph. Replaying the Rust
+# loop (expand whichever side has the smaller tentative distance, stop once
+# top_f + top_b >= best) settles A, B forward and F, C backward, in the order
+# A, F, B, C; best = 4 is found when B relaxes B -> C. D and E get tentative
+# distances but are never settled.
+BIDI_FWD, BIDI_BWD = list("AB"), list("FC")
+
+
+@figure("bidirectional_dijkstra", "paths", "Bidirectional Dijkstra",
+        "The directed weighted graph with three routes from A to F. One search grows "
+        "forward from A and settles A and B (teal region), the other grows backward from F "
+        "and settles F and C (violet region); they meet across the edge B to C, and D and E "
+        "are never settled. The returned path A, B, C, F is in the accent color, with "
+        "length 1 + 2 + 1 = 4.0.")
+def bidirectional_dijkstra(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.bidirectional_dijkstra("A", "F")')
+    sp_panel(s, left, [TOP])
+    s.hull(BIDI_FWD, "g2")
+    s.hull(BIDI_BWD, "g3")
+    s.card_centered(right, [("forward   A, B", "g2"), ("backward  F, C", "g3"),
+                            ("A → B → C → F", "accent"), ("length  1 + 2 + 1 = 4.0", "accent")],
+                    title="settled from each end, path")
+
+
+# single_source_shortest_path("A") on the weighted SP graph (Dijkstra).
+SSSP = {"A": list("A"), "B": list("AB"), "C": list("ABC"), "D": list("AD"), "E": list("AE"),
+        "F": list("ABCF")}
+SSSP_TREE = {("A", "B"), ("B", "C"), ("C", "F"), ("A", "D"), ("A", "E")}
+SSSP_DIST = {"A": "0.0", "B": "1.0", "C": "3.0", "D": "3.0", "E": "2.0", "F": "4.0"}
+
+
+def _tree_panel(s: Scene, box: Box) -> None:
+    """SP with the shortest-path tree from A in accent and A soft."""
+    pos = place(SP, box, unit=UNIT)
+    s.graph(pos, [(a, b, {"style": "accent" if (a, b) in SSSP_TREE else "muted",
+                          "weight": str(w)}) for a, b, w in SP_EDGES],
+            directed=True, styles={k: "soft" if k == "A" else "accent" for k in SP})
+
+
+@figure("single_source_shortest_path", "paths", "Single-source shortest paths",
+        "The directed weighted graph with the source A outlined. The cheapest path from A to "
+        "every other node together forms a tree, drawn in the accent color: B, D, and E hang "
+        "off A directly, C and F are reached through B. The edges D to F and E to F are not "
+        "used. The card lists each node's path.")
+def single_source_shortest_path(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.single_source_shortest_path("A")')
+    _tree_panel(s, left)
+    s.card_centered(right, [f"{k}  {' → '.join(p)}" for k, p in SSSP.items()],
+                    title="target   path")
+
+
+@figure("single_source_shortest_path_length", "paths", "Single-source shortest path lengths",
+        "The directed weighted graph with the source A outlined and each node's distance "
+        "from A in a badge: A 0.0, B 1.0, E 2.0, C and D 3.0, and F 4.0, reached along the "
+        "accent edges. The table lists the same distances from nearest to farthest.")
+def single_source_shortest_path_length(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.single_source_shortest_path_length("A")')
+    _tree_panel(s, left)
+    for k, v in SSSP_DIST.items():
+        s.badge(k, v)
+    order = sorted(SSSP_DIST, key=lambda k: (float(SSSP_DIST[k]), k))
+    groups: dict[str, list[str]] = {}
+    for k in order:
+        groups.setdefault(SSSP_DIST[k], []).append(k)
+    rows = [["node", "distance"]] + [[", ".join(ks), v] for v, ks in groups.items()]
+    s.table_centered(right, rows, [64, 72])
+
+
+# --- multi-source shortest paths: catchments on a ladder ------------------------
+
+# A 2 x 4 ladder with sources A and G. They are an odd number of hops apart on a
+# bipartite graph, so no node is equally close to both (no ties to break).
+LADDER = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0), "E": (0, 1.1), "F": (1, 1.1),
+          "G": (2, 1.1), "H": (3, 1.1)}
+LADDER_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("E", "F"), ("F", "G"), ("G", "H"),
+                ("A", "E"), ("B", "F"), ("C", "G"), ("D", "H")]
+SOURCES = ("A", "G")
+# multi_source_shortest_path(["A", "G"]): path per node, starting at its nearest source
+MSP = {"A": list("A"), "B": list("AB"), "E": list("AE"), "G": list("G"), "C": list("GC"),
+       "F": list("GF"), "H": list("GH"), "D": list("GCD")}
+MSP_DIST = {k: len(p) - 1 for k, p in MSP.items()}
+SRC_CAPTION = 'g,  src = ["A", "G"]'
+
+
+@figure("multi_source_shortest_path", "paths", "Multi-source shortest paths",
+        "A two-by-four ladder with sources A and G. Each node is reached from whichever "
+        "source is nearer, which splits the graph into two catchment areas: A serves B and E "
+        "(accent color), G serves C, D, F, and H (teal). The shortest-path tree edges take "
+        "their catchment's color, and each source has a halo. The card lists each catchment "
+        "and the path to D, [G, C, D].")
+def multi_source_shortest_path(s: Scene) -> None:
+    left, right = compute(s, SRC_CAPTION, "g.multi_source_shortest_path(src)")
+    color = {k: "accent" if p[0] == "A" else "g2" for k, p in MSP.items()}
+    tree = {(p[-2], p[-1]) for p in MSP.values() if len(p) > 1}
+    edges = []
+    for a, b in LADDER_EDGES:
+        on = (a, b) in tree or (b, a) in tree
+        edges.append((a, b, {"style": color[a] if on else "muted"}))
+    s.graph(place(LADDER, left, unit=UNIT), edges, styles=color)
+    # catchment hulls would cut across the ladder diagonally; node and tree-edge
+    # colors carry the catchments, and a halo marks each source
+    for src, c in zip(SOURCES, ("accent", "g2")):
+        s.hull([src], c, pad=7, opacity=0.3)
+    s.card_centered(right, [("A:  A, B, E", "accent"), ("G:  C, D, F, G, H", "g2"),
+                            "path to D  [G, C, D]"], title="nearest source:  nodes")
+
+
+@figure("multi_source_shortest_path_length", "paths", "Multi-source shortest path lengths",
+        "A two-by-four ladder with sources A and G outlined, each node's distance to the "
+        "nearer source in a badge. The sources are at 0; B, C, E, F, and H are one hop from "
+        "a source; D, in the far corner, is the only node at distance 2. The table groups "
+        "the nodes by distance.")
+def multi_source_shortest_path_length(s: Scene) -> None:
+    left, right = compute(s, SRC_CAPTION, "g.multi_source_shortest_path_length(src)")
+    s.graph(place(LADDER, left, unit=UNIT), LADDER_EDGES,
+            styles={k: "soft" for k in SOURCES})
+    for k in LADDER:
+        s.badge(k, str(MSP_DIST[k]))
+    groups: dict[int, list[str]] = {}
+    for k in sorted(LADDER):
+        groups.setdefault(MSP_DIST[k], []).append(k)
+    rows = [["distance", "nodes"]] + [[str(d), ", ".join(groups[d])] for d in sorted(groups)]
+    s.table_centered(right, rows, [72, 112])
+
+
+# --- longest paths in a DAG (the shared DAG from traversal.py) ------------------
+
+# Task durations on the DAG's edges; the critical path is B → D → F → G.
+DAG_W = {("A", "C"): 2, ("A", "D"): 1, ("B", "D"): 3, ("C", "E"): 2, ("D", "E"): 1,
+         ("D", "F"): 4, ("E", "G"): 1, ("F", "G"): 2}
+CRITICAL = list("BDFG")
+
+
+def _dag_panel(s: Scene, box: Box) -> None:
+    from figures.traversal import DAG, DAG_EDGES
+
+    routes(s, place(DAG, box, unit=UNIT), [(a, b, DAG_W[(a, b)]) for a, b in DAG_EDGES],
+           [CRITICAL], directed=True, weights=True)
+
+
+@figure("dag_longest_path", "paths", "DAG longest path",
+        "A seven-node DAG whose edges carry task durations. The heaviest chain of tasks, the "
+        "critical path B, D, F, G, is drawn in the accent color: its durations 3 + 4 + 2 add "
+        "up to 9.0, more than any other route from a source to G.")
+def dag_longest_path(s: Scene) -> None:
+    left, right = compute(s, "g", "g.dag_longest_path()")
+    _dag_panel(s, left)
+    s.card_centered(right, [("B → D → F → G", "accent"), "weight  3 + 4 + 2 = 9.0"],
+                    title="critical path")
+
+
+@figure("dag_longest_path_length", "paths", "DAG longest path length",
+        "The seven-node DAG with task durations on its edges. The longest path, B, D, F, G "
+        "in the accent color, has total weight 3 + 4 + 2 = 9.0, which the card gives as the "
+        "result; ignoring the weights, the longest path has 3 edges.")
+def dag_longest_path_length(s: Scene) -> None:
+    left, right = compute(s, "g", "g.dag_longest_path_length()")
+    _dag_panel(s, left)
+    s.card_centered(right, ["B → D → F → G", ("3 + 4 + 2 = 9.0", "accent"),
+                            "unweighted g:  3"], title="longest path length")
+
+
+# --- disjoint paths (Menger): the bowtie plus a detour through F ----------------
+
+# Two triangles sharing C (the edge_disjoint_paths docstring bowtie), plus a
+# third route A - F - E that avoids C, so both variants find more than one path.
+BOWTIE = {"A": (0, 0.8), "B": (1, 0), "C": (2, 0.8), "D": (3, 0), "E": (4, 0.8), "F": (2, 1.7)}
+BOWTIE_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C"),
+                ("A", "F"), ("F", "E")]
+EDGE_DISJ = [list("ACE"), list("AFE"), list("ABCDE")]  # edge_disjoint_paths("A", "E")
+NODE_DISJ = [list("ACE"), list("AFE")]  # node_disjoint_paths("A", "E")
+
+
+def arrows(rt: list[str]) -> str:
+    return " → ".join(rt)
+
+
+@figure("edge_disjoint_paths", "paths", "Edge-disjoint paths",
+        "Two triangles sharing node C, plus a detour from A to E through F. Three paths from "
+        "A to E use no edge twice: A, C, E in the accent color, A, F, E in teal, and the long "
+        "way A, B, C, D, E in violet. Two of them pass through C, which edge-disjoint paths "
+        "may share.")
+def edge_disjoint_paths(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.edge_disjoint_paths("A", "E")')
+    routes(s, place(BOWTIE, left, unit=UNIT), BOWTIE_EDGES, EDGE_DISJ, directed=False,
+           ends=("A", "E"))
+    s.card_centered(right, [(arrows(rt), c) for rt, c in zip(EDGE_DISJ, COLORS)],
+                    title="3 paths, no shared edge")
+
+
+@figure("node_disjoint_paths", "paths", "Node-disjoint paths",
+        "The same graph: two triangles sharing node C, plus a detour from A to E through F. "
+        "Only two paths from A to E avoid each other's inner nodes, A, C, E in the accent "
+        "color and A, F, E in teal; the third edge-disjoint route, A, B, C, D, E, would "
+        "reuse C, so B and D stay faint.")
+def node_disjoint_paths(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.node_disjoint_paths("A", "E")')
+    routes(s, place(BOWTIE, left, unit=UNIT), BOWTIE_EDGES, NODE_DISJ, directed=False,
+           ends=("A", "E"))
+    s.card_centered(right, [(arrows(rt), c) for rt, c in zip(NODE_DISJ, COLORS)]
+                    + ["(route via B, D reuses C)"], title="2 paths, no shared node")
