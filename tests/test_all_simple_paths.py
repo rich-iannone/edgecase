@@ -396,3 +396,20 @@ class TestWeightedGraphs:
         paths = g.get_all_simple_paths( "A", "D")
         assert len(paths) == 2
         # Simple path enumeration doesn't consider weights
+
+
+class TestUnlabelledAndMissingEndpoints:
+    """Regression: TypeError for an unlabelled endpoint or a nonexistent integer ID."""
+
+    def test_unlabelled_endpoints(self):
+        g = Graph().add_cycle_graph(4, label=False)
+        a, b, c, d = sorted(g.get_node_ids())
+        paths = g.get_all_simple_paths(a, c)
+        assert sorted(paths) == sorted([[str(a), str(b), str(c)], [str(a), str(d), str(c)]])
+
+    def test_missing_integer_id_raises_value_error(self):
+        g = Graph().add_path_graph(3)
+        with pytest.raises(ValueError, match="Source node 999 does not exist"):
+            g.get_all_simple_paths(999, 1)
+        with pytest.raises(ValueError, match="Target node 999 does not exist"):
+            g.get_all_simple_paths(1, 999)
