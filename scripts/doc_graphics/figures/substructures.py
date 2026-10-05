@@ -27,8 +27,18 @@ type / count / triads table; two triads are highlighted in the graph and their
 rows: the cycle 030C in accent, the 120U triad in g2.
 """
 
-from core import (R_SMALL, SIZE_CARD, SIZE_NOTE, Box, Scene, compute, figure, place, text_width,
-                  transform)
+from core import (
+    R_SMALL,
+    SIZE_CARD,
+    SIZE_NOTE,
+    Box,
+    Scene,
+    compute,
+    figure,
+    place,
+    text_width,
+    transform,
+)
 
 UNIT = 84  # family-wide grid step for the main graph
 MINI_UNIT = 36  # grid step inside the small multiples (max that keeps rows apart)
@@ -44,7 +54,6 @@ SPAN_EDGES = [("A", "B", 4), ("A", "C", 1), ("A", "D", 5), ("B", "D", 2), ("C", 
 # the greedy maximal matching takes it first and blocks everything else.
 BULL = {"1": (0, 0), "2": (1, 0), "3": (2, 0), "4": (3, 0), "5": (1.5, 0.9)}
 BULL_EDGES = [("2", "3"), ("1", "2"), ("3", "4"), ("2", "5"), ("3", "5")]
-BULL_W = {("2", "3"): 3, ("1", "2"): 5, ("3", "4"): 4, ("2", "5"): 1, ("3", "5"): 2}
 
 # Pendant 1, triangle (2, 3, 4), bridge 4–5, triangle (5, 6, 7).
 DOM = {"1": (0, 0.6), "2": (1, 0), "3": (1, 1.2), "4": (2, 0.6), "5": (3, 0.6),
@@ -173,17 +182,34 @@ def maximal_matching(s: Scene) -> None:
                             "size      1 (maximum 2)"])
 
 
+# max_weight_matching docstring: the heavy middle edge B–C is a trap.
+TRAP = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0)}
+TRAP_EDGES = [("A", "B", 4), ("B", "C", 5), ("C", "D", 4)]
+
+
 @figure("max_weight_matching", "substructures", "Maximum weight matching",
-        "The same five-node graph with edge weights. Taking edges by weight, the matching "
-        "picks 1–2 (5) and 3–4 (4), shown in the accent color with their endpoints. The "
-        "card shows the returned edge ids 2 and 3, the pairs, and the total weight 5 + 4 = 9.")
+        "A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two "
+        "outer edges A–B and C–D, in the accent color with their endpoints, for a total "
+        "weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the "
+        "greedy method would lock in B–C first and stop at a total of 5.")
 def max_weight_matching(s: Scene) -> None:
+    import edgecase as ec
+
     left, right = compute(s, "g", "g.max_weight_matching()")
-    s.graph(place(BULL, left, unit=UNIT),
-            _edges(BULL_EDGES, {("1", "2"), ("3", "4")}, weights=BULL_W),
-            styles={k: "accent" for k in "1234"})
-    s.card_centered(right, [("edge ids  [2, 3]", "accent"), "pairs     1–2, 3–4",
-                            "weight    5 + 4 = 9"])
+    g = ec.Graph(weighted=True).add_nodes(list(TRAP))
+    g.add_edges([(a, b, float(w)) for a, b, w in TRAP_EDGES])
+    exact = _id_edges(g, g.max_weight_matching())
+    greedy = _id_edges(g, g.max_weight_matching(method="greedy"))
+    ex_on = {_key(a, b) for a, b, _ in exact}
+    assert ex_on == {("A", "B"), ("C", "D")}
+    assert [_key(a, b) for a, b, _ in greedy] == [("B", "C")]
+    s.graph(place(TRAP, left, unit=UNIT), _edges(TRAP_EDGES, ex_on),
+            styles={k: "accent" for k in TRAP})
+    gw = [w for _, _, w in greedy]
+    s.card_centered(right, [" ".join(f"{a}–{b}" for a, b in sorted(ex_on)),
+                            (_total([w for _, _, w in exact]), "accent"),
+                            f"greedy: {greedy[0][0]}–{greedy[0][1]} = {_num(gw[0])}"],
+                    title="matched edges")
 
 
 # --- independent sets ------------------------------------------------------
@@ -482,6 +508,12 @@ def _ec_edges(h) -> list[tuple[str, str, float | None]]:
     return out
 
 
+def _id_edges(g, ids) -> list[tuple[str, str, float | None]]:
+    """(source label, target label, weight) for the edge ids a matching/cover returns."""
+    return [(g.get_label_from_id(e.source), g.get_label_from_id(e.target), e.weight)
+            for e in (g.get_edge(i) for i in ids)]
+
+
 def _num(w: float) -> str:
     """A weight as drawn: integral, with a real minus sign."""
     v = int(w) if float(w).is_integer() else w
@@ -731,7 +763,7 @@ def to_prufer_sequence(s: Scene) -> None:
              for a, b in PRUFER_EDGES])
     for i, (leaf, _) in enumerate(steps, 1):
         s.badge(leaf, str(i), filled=True)
-    s.card_centered(right, ["leaves  " + "  ".join(l for l, _ in steps),
+    s.card_centered(right, ["leaves  " + "  ".join(leaf for leaf, _ in steps),
                             ("result  [" + ", ".join(seq) + "]", "accent")],
                     title="remove leaf, write neighbor")
 
@@ -778,3 +810,223 @@ def from_prufer_sequence(s: Scene) -> None:
             [(a, b, {"style": "accent"}) if _key(a, b) in entries else (a, b)
              for a, b in sorted(got)],
             styles={k: "accent" for k in set(PRUFER_SEQ)})
+
+
+# --- later additions: exact matchings and covers ---------------------------
+#
+# Each figure rebuilds its docstring example in edgecase and asserts the
+# returned structure, so a library change breaks the build instead of the
+# picture. Bipartite graphs are drawn as two columns (left side / right side)
+# or two rows (top / bottom); matched edges are `accent`, the rest `muted`.
+
+
+def _labels(g, ids) -> list[str]:
+    return [g.get_label_from_id(n) for n in ids]
+
+
+# min_weight_matching docstring: four drivers paired into two teams.
+TEAMS = {"A": (0, 0), "B": (1.6, 0), "C": (0, 1.2), "D": (1.6, 1.2)}
+TEAMS_EDGES = [("A", "B", 2), ("C", "D", 3), ("A", "C", 1), ("B", "D", 6), ("A", "D", 4)]
+
+
+@figure("min_weight_matching", "substructures", "Minimum weight matching",
+        "Four drivers A, B, C, D with the extra driving time of each possible pair as edge "
+        "weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that "
+        "pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; "
+        "the other edges are faded. The card notes that taking the cheapest edge A–C (1) "
+        "would force B–D (6), a total of 7.")
+def min_weight_matching(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.min_weight_matching()")
+    g = ec.Graph(weighted=True).add_nodes(list(TEAMS))
+    g.add_edges([(a, b, float(w)) for a, b, w in TEAMS_EDGES])
+    got = _id_edges(g, g.min_weight_matching())
+    on = {_key(a, b) for a, b, _ in got}
+    assert on == {("A", "B"), ("C", "D")}
+    s.graph(place(TEAMS, left, unit=UNIT), _edges(TEAMS_EDGES, on),
+            styles={k: "accent" for k in TEAMS})
+    s.card_centered(right, [" ".join(f"{a}–{b}" for a, b in sorted(on)),
+                            (_total([w for _, _, w in sorted(got)]), "accent"),
+                            "A–C B–D  1 + 6 = 7"],
+                    title="teams")
+
+
+# bipartite_maximum_matching docstring: applicants (left) and jobs (right).
+JOBS = {"Ann": (0, 0), "Bob": (0, 1), "Cy": (0, 2), "Dev": (2.4, 0), "Ops": (2.4, 1),
+        "QA": (2.4, 2)}
+JOBS_EDGES = [("Ann", "Dev"), ("Bob", "Dev"), ("Cy", "Ops"), ("Cy", "QA")]
+
+
+@figure("bipartite_maximum_matching", "substructures", "Bipartite maximum matching",
+        "Three applicants, Ann, Bob, and Cy, in a column on the left and three jobs, Dev, Ops, "
+        "and QA, on the right. Ann and Bob can only do Dev, and Cy can do Ops or QA, so at "
+        "most two pairs form: Ann–Dev and Cy–Ops, in the accent color with their endpoints. "
+        "Bob and QA stay unmatched. The card lists the two pairs and the size 2.")
+def bipartite_maximum_matching(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.bipartite_maximum_matching()")
+    g = ec.Graph().add_nodes(list(JOBS))
+    g.add_edges(JOBS_EDGES)
+    got = _id_edges(g, g.bipartite_maximum_matching(top_nodes=["Ann", "Bob", "Cy"]))
+    assert {(a, b) for a, b, _ in got} == {("Ann", "Dev"), ("Cy", "Ops")}
+    assert len(g.bipartite_maximum_matching()) == 2
+    on = {_key(a, b) for a, b, _ in got}
+    s.graph(place(JOBS, left, unit=UNIT), _edges(JOBS_EDGES, on),
+            styles={k: "accent" for a, b, _ in got for k in (a, b)})
+    s.card_centered(right, [f"{a}–{b}" for a, b, _ in got] + [(f"size  {len(got)}", "accent")],
+                    title="matched pairs")
+
+
+# bipartite_min_weight_full_matching docstring: couriers and delivery times.
+COURIERS = ["Ana", "Ben", "Cho"]
+DROPS = ["d1", "d2", "d3"]
+COST = {"Ana": (2, 3, 8), "Ben": (3, 7, 9), "Cho": (6, 4, 5)}
+
+
+@figure("bipartite_min_weight_full_matching", "substructures",
+        "Bipartite minimum weight full matching",
+        "Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three "
+        "deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is "
+        "Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table "
+        "of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, "
+        "even though Ana's nearest delivery is d1 (2).")
+def bipartite_min_weight_full_matching(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.bipartite_min_weight_full_matching()")
+    g = ec.Graph(weighted=True).add_nodes(COURIERS + DROPS)
+    arcs = [(c, d, COST[c][j]) for c in COURIERS for j, d in enumerate(DROPS)]
+    g.add_edges([(a, b, float(w)) for a, b, w in arcs])
+    got = _id_edges(g, g.bipartite_min_weight_full_matching(top_nodes=COURIERS))
+    pick = {a: b for a, b, _ in got}
+    assert pick == {"Ana": "d2", "Ben": "d1", "Cho": "d3"}
+    coords = {c: (0, i) for i, c in enumerate(COURIERS)} | {d: (2.4, i) for i, d in
+                                                            enumerate(DROPS)}
+    # nine crossing links leave no room for weight labels; the table carries them
+    specs = [(a, b, {"style": "accent" if pick[a] == b else "muted"}) for a, b, _ in arcs]
+    s.graph(place(coords, left, unit=UNIT), specs, styles={k: "accent" for k in coords})
+    rows = [[""] + DROPS] + [[c] + [str(v) for v in COST[c]] for c in COURIERS]
+    hi = {(i + 1, DROPS.index(pick[c]) + 1): "accent" for i, c in enumerate(COURIERS)}
+    tb = s.table(right.cx - 88, right.cy - 52, rows, [56, 40, 40, 40], highlight=hi)
+    s.text(right.cx, tb[3] + 20, _total([COST[c][DROPS.index(pick[c])] for c in COURIERS]),
+           size=SIZE_CARD, color="accent", weight=600, role="card")
+
+
+# bipartite_vertex_cover docstring: top row A, B, C; bottom row D, E.
+KONIG = {"A": (0, 0), "B": (1.2, 0), "C": (2.4, 0), "D": (0.6, 1.3), "E": (1.8, 1.3)}
+KONIG_EDGES = [("A", "D"), ("A", "E"), ("B", "E"), ("C", "E")]
+
+
+@figure("bipartite_vertex_cover", "substructures", "Bipartite vertex cover",
+        "A bipartite graph with A, B, C on the top row and D, E on the bottom row, and edges "
+        "A–D, A–E, B–E, and C–E. The minimum vertex cover is A and E, in the accent color: "
+        "every edge touches one of them. A maximum matching, A–D and B–E in a second color, "
+        "has the same size, as König's theorem says. The card shows the cover [A, E] and "
+        "the matching, both of size 2.")
+def bipartite_vertex_cover(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.bipartite_vertex_cover()")
+    g = ec.Graph().add_nodes(list(KONIG))
+    g.add_edges(KONIG_EDGES)
+    cover = _labels(g, g.bipartite_vertex_cover())
+    match = {_key(a, b) for a, b, _ in _id_edges(g, g.bipartite_maximum_matching())}
+    assert cover == ["A", "E"] and match == {("A", "D"), ("B", "E")}
+    s.graph(place(KONIG, left, unit=UNIT),
+            [(a, b, {"style": "g2"}) if (a, b) in match else (a, b) for a, b in KONIG_EDGES],
+            styles={k: "accent" for k in cover})
+    s.card_centered(right, [("cover     [" + ", ".join(cover) + "]", "accent"),
+                            ("matching  " + " ".join(f"{a}–{b}" for a, b in sorted(match)),
+                             "g2"),
+                            f"size      {len(cover)} = {len(match)}"])
+
+
+# min_weighted_vertex_cover docstring: a star whose hub costs 10.
+HUBSTAR = {"a": (0, 0), "b": (2, 0), "hub": (1, 0.6), "c": (0, 1.2), "d": (2, 1.2)}
+
+
+@figure("min_weighted_vertex_cover", "substructures", "Minimum weighted vertex cover",
+        "A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the "
+        "hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the "
+        "method takes the four leaves instead, in the accent color. The card shows the cover "
+        "[a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub.")
+def min_weighted_vertex_cover(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", 'g.min_weighted_vertex_cover("cost")')
+    leaves = ["a", "b", "c", "d"]
+    g = ec.Graph().add_nodes(["hub"] + leaves)
+    g.add_edges([("hub", x) for x in leaves])
+    g.set_node_attrs("cost", {g.get_id_from_label("hub"): 10.0})
+    cover = _labels(g, g.min_weighted_vertex_cover(weight_attr="cost"))
+    assert cover == leaves
+    assert _labels(g, g.min_weighted_vertex_cover()) == ["hub"]
+    s.graph(place(HUBSTAR, left, unit=UNIT), [("hub", x) for x in leaves],
+            styles={k: "accent" for k in cover})
+    s.badge("hub", "10", where="n", color="ink")
+    for k in leaves:
+        s.badge(k, "1", where="n" if HUBSTAR[k][1] == 0 else "s", color="ink")
+    s.card_centered(right, [("cover  [" + ", ".join(cover) + "]", "accent"),
+                            "cost   " + " + ".join("1" for _ in cover) + f" = {len(cover)}",
+                            "hub    10"])
+
+
+# min_edge_cover docstring: a five-node path.
+PATH5 = {k: (i, 0) for i, k in enumerate("ABCDE")}
+PATH5_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+
+
+@figure("min_edge_cover", "substructures", "Minimum edge cover",
+        "A path of five nodes, A to E. A maximum matching covers four nodes with two edges, "
+        "and one more edge is needed for the fifth, so the minimum edge cover has three "
+        "edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a "
+        "chosen edge. The card lists the three edges and the count 5 − 2 = 3.")
+def min_edge_cover(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.min_edge_cover()")
+    g = ec.Graph().add_nodes(list(PATH5))
+    g.add_edges(PATH5_EDGES)
+    got = {_key(a, b) for a, b, _ in _id_edges(g, g.min_edge_cover())}
+    nu = len(g.max_weight_matching())
+    assert got == {("A", "B"), ("B", "C"), ("D", "E")} and len(got) == len(PATH5) - nu
+    s.graph(place(PATH5, left, unit=UNIT), _edges(PATH5_EDGES, got),
+            styles={k: "accent" for k in PATH5})
+    s.card_centered(right, [("edges  " + " ".join(f"{a}–{b}" for a, b in sorted(got)),
+                             "accent"),
+                            f"size   {len(PATH5)} − {nu} = {len(got)}"])
+
+
+# densest_subgraph docstring: a 4-clique of friends with a chain D–E–F.
+DENSE = {"A": (0, 0.55), "B": (0.8, 0), "C": (0.8, 1.1), "D": (1.6, 0.55), "E": (2.6, 0.55),
+         "F": (3.6, 0.55)}
+DENSE_EDGES = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+               ("D", "E"), ("E", "F")]
+
+
+@figure("densest_subgraph", "substructures", "Densest subgraph",
+        "A clique of four nodes A, B, C, D, every pair joined, with a chain D–E–F hanging "
+        "off D. The densest subgraph is the clique, in the accent color: 6 edges on 4 nodes, "
+        "density 6 / 4 = 1.5. The chain dilutes it, since the whole graph has 8 edges on 6 "
+        "nodes, density 8 / 6 = 1.33. The card shows the nodes [A, B, C, D] and both "
+        "densities.")
+def densest_subgraph(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, "g", "g.densest_subgraph()")
+    g = ec.Graph().add_nodes(list(DENSE))
+    g.add_edges(DENSE_EDGES)
+    density, ids = g.densest_subgraph()
+    nodes = _labels(g, ids)
+    on = {_key(a, b) for a, b in DENSE_EDGES if a in nodes and b in nodes}
+    assert nodes == ["A", "B", "C", "D"] and density == len(on) / len(nodes) == 1.5
+    m, n = g.count_edges(), g.count_nodes()
+    assert (m, n) == (8, 6)
+    s.graph(place(DENSE, left, unit=UNIT), _edges(DENSE_EDGES, on, off="default"),
+            styles={k: "accent" for k in nodes})
+    s.card_centered(right, [("nodes    [" + ", ".join(nodes) + "]", "accent"),
+                            (f"density  {len(on)} / {len(nodes)} = {density:g}", "accent"),
+                            f"whole    {m} / {n} = {m / n:.2f}"],
+                    title="edges / nodes")
