@@ -7,8 +7,7 @@ import random
 import edgecase as ec
 import networkx as nx
 import pytest
-from edgecase.steps import KIND_TRANSFORM
-
+from edgecase.steps import KIND_QUERY, KIND_TRANSFORM
 
 # Validated against NetworkX on random DAGs and checked on hand-built pipelines.
 
@@ -210,3 +209,80 @@ class TestDag:
         assert step.kind == KIND_TRANSFORM
         assert step.delta.node_groups == {"A": 0, "B": 0, "C": 1}
         assert len(dag.steps) == 1 and dag.steps[0].delta.nodes_added == ["{A,B}", "C"]
+
+
+# Dominators and d-separation, validated against NetworkX.
+
+
+def _digraph(G):
+    g = ec.Graph(directed=True).add_nodes([str(n) for n in G])
+    for u, v in G.edges:
+        g.add_edge(str(u), str(v))
+    return g
+
+
+class TestDominators:
+    def test_against_networkx(self):
+        for seed in range(100):
+            rnd = random.Random(seed)
+            D = nx.gnp_random_graph(rnd.randint(1, 12), 0.25, seed=seed, directed=True)
+            g = _digraph(D)
+            lab = {g.get_id_from_label(str(n)): n for n in D}
+            idom = {lab[a]: lab[b] for a, b in g.immediate_dominators("0").items()}
+            assert idom == nx.immediate_dominators(D, 0)
+            df = {lab[a]: {lab[x] for x in b} for a, b in g.dominance_frontiers("0").items()}
+            assert df == nx.dominance_frontiers(D, 0)
+
+    def test_errors_and_steps(self):
+        with pytest.raises(ValueError, match="directed"):
+            ec.Graph().add_path_graph(3).immediate_dominators(1)
+        g = ec.Graph(directed=True).add_nodes(["entry", "a", "b", "merge"])
+        g.add_edges([("entry", "a"), ("entry", "b"), ("a", "merge"), ("b", "merge")])
+        idom = g.immediate_dominators("entry")
+        assert idom[g.get_id_from_label("merge")] == g.get_id_from_label("entry")
+        assert g.steps[-1].kind == KIND_QUERY
+        assert g.dominance_frontiers("entry")[g.get_id_from_label("a")] == {
+            g.get_id_from_label("merge")
+        }
+
+
+class TestDSeparation:
+    def test_against_networkx(self):
+        for seed in range(80):
+            rnd = random.Random(seed)
+            n = rnd.randint(3, 10)
+            D = nx.DiGraph()
+            D.add_nodes_from(range(n))
+            D.add_edges_from(
+                (u, v) for u, v in itertools.combinations(range(n), 2) if rnd.random() < 0.3
+            )
+            g = _digraph(D)
+            for _ in range(10):
+                x, y = rnd.sample(range(n), 2)
+                rest = [v for v in range(n) if v not in (x, y)]
+                z = set(rnd.sample(rest, rnd.randint(0, len(rest))))
+                ids = lambda s: [str(v) for v in s]  # noqa: E731
+                assert g.is_d_separator(str(x), str(y), ids(z)) == nx.is_d_separator(D, x, y, z)
+                assert g.is_minimal_d_separator(str(x), str(y), ids(z)) == (
+                    nx.is_minimal_d_separator(D, x, y, z)
+                )
+                ref = nx.find_minimal_d_separator(D, x, y)
+                ours = g.find_minimal_d_separator(str(x), str(y))
+                if ref is None:
+                    assert ours is None
+                else:
+                    assert {int(g.get_label_from_id(v)) for v in ours} == ref
+                    assert g.is_minimal_d_separator(str(x), str(y), ours)
+
+    def test_examples_and_errors(self):
+        g = ec.Graph(directed=True).add_nodes(["talent", "luck", "success"])
+        g.add_edges([("talent", "success"), ("luck", "success")])
+        assert g.is_d_separator("talent", "luck", [])
+        assert not g.is_d_separator("talent", "luck", "success")
+        with pytest.raises(ValueError, match="disjoint"):
+            g.is_d_separator("talent", "luck", "talent")
+        cyclic = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "A")])
+        with pytest.raises(ValueError, match="acyclic"):
+            cyclic.is_d_separator("A", "B", [])
+        g.find_minimal_d_separator("talent", "luck")
+        assert g.steps[-1].delta.node_groups == {"talent": 0, "luck": 1}
