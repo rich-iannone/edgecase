@@ -49,9 +49,24 @@ on graph_metrics' PAIR (two triangles joined by C–D, the graph fiedler_vector
 shades): the negative side `g2` (fiedler_vector's negative color), the
 non-negative side `g3`, the one cut edge in accent, and a card with both id
 lists in their colors.
+
+The edge-connectivity partitions also use PAIR, whose bridge C–D is the
+weak link: `chain_decomposition` colors each chain (nodes and edges) accent /
+`g2` with the bridge `muted` (it is in no chain), and `k_edge_components`
+shades the two 2-edge-connected triangles as accent / `g2` hulls with the
+bridge muted. `k_edge_subgraphs` uses `contrast` on its docstring's K2,3
+(hubs u, v; middle nodes a, b, c) to set the two notions side by side for
+k = 3: the three edge-disjoint u–v paths (accent / g2 / g3) join u and v into
+one component, but no edge runs inside {u, v}, so every subgraph is a single
+node. `is_k_edge_connected` and `average_node_connectivity` use `contrast`
+on six nodes like graph_metrics' algebraic_connectivity: the cycle (any one
+edge can go; the two accent edges are a cut of size 2) and the cycle beside
+the path (two node-disjoint A–D routes in accent / g2, then one, its missing
+closing edge `removed`). Each figure computes its result with edgecase and
+asserts it, so a library change breaks the build.
 """
 
-from core import SIZE_NOTE, Box, Scene, compute, figure, place, ring, transform
+from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring, transform
 
 from figures.graph_metrics import PAIR, PAIR_EDGES
 
@@ -677,3 +692,157 @@ def max_cut(s: Scene) -> None:
                             ("T      " + ", ".join(side_t), "g3"),
                             f"cut    {len(cut)} of {len(HEX_EDGES)} edges"],
                     title="(value, (S, T))")
+
+
+# --- later additions: edge-connectivity partitions -------------------------
+#
+# chain_decomposition and k_edge_components rebuild PAIR (the docstrings' two
+# triangles joined by the bridge C–D) in edgecase and assert their results.
+
+
+def _pair_graph():
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(PAIR))
+    g.add_edges(PAIR_EDGES)
+    return g
+
+
+def _labels(g, ids) -> list[str]:
+    return [g.get_label_from_id(n) for n in ids]
+
+
+@figure("chain_decomposition", "connectivity", "Chain decomposition",
+        "Two triangles joined by the bridge C–D. The depth-first search splits the edges into "
+        "two chains, each a closed loop: A, C, B back to A (accent) and D, F, E back to D "
+        "(teal). The bridge C–D, faded, lies on no cycle and so belongs to no chain. The card "
+        "lists both chains as edge pairs in traversal order.")
+def chain_decomposition(s: Scene) -> None:
+    g = _pair_graph()
+    chains = [[tuple(_labels(g, e)) for e in c] for c in g.chain_decomposition()]
+    assert chains == [[("A", "C"), ("C", "B"), ("B", "A")], [("D", "F"), ("F", "E"), ("E", "D")]]
+    left, right = compute(s, "g", "g.chain_decomposition()")
+    colors = ("accent", "g2")
+    edge_color = {frozenset(e): c for c, chain in zip(colors, chains) for e in chain}
+    node_color = {k: c for c, chain in zip(colors, chains) for e in chain for k in e}
+    s.graph(place(PAIR, left, unit=UNIT),
+            [(a, b, {"style": edge_color.get(frozenset((a, b)), "muted")}) for a, b in PAIR_EDGES],
+            styles=node_color)
+    s.card_centered(right, [("[" + ", ".join(f"({a}, {b})" for a, b in chain) + "]", c)
+                            for c, chain in zip(colors, chains)] + ["C–D  in no chain"],
+                    title="chains, as (u, v) pairs")
+
+
+@figure("k_edge_components", "connectivity", "k-edge-connected components",
+        "Two triangles joined by the bridge C–D. With k = 2, nodes belong together when two "
+        "edge-disjoint paths join them: the triangle A, B, C (accent region) and the triangle "
+        "D, E, F (teal region) qualify, while the faded bridge offers only one path between "
+        "them. The card lists the two components; with k = 3 all 6 nodes are separate.")
+def k_edge_components(s: Scene) -> None:
+    g = _pair_graph()
+    comps = [_labels(g, c) for c in g.k_edge_components(2)]
+    assert comps == [["A", "B", "C"], ["D", "E", "F"]]
+    assert len(g.k_edge_components(3)) == 6
+    left, right = compute(s, "g", "g.k_edge_components(2)")
+    colors = dict(zip(("ABC", "DEF"), ("accent", "g2")))
+    group = {k: c for ks, c in colors.items() for k in ks}
+    s.graph(place(PAIR, left, unit=UNIT),
+            [(a, b, {"style": group[a] if group[a] == group[b] else "muted"})
+             for a, b in PAIR_EDGES], styles=group)
+    for ks, c in colors.items():
+        s.hull(list(ks), c)
+    s.card_centered(right, [(f"[{', '.join(c)}]", colors["".join(c)]) for c in comps]
+                    + ["k = 3  6 singletons"], title="k = 2 components")
+
+
+# k_edge_subgraphs docstring: hubs u and v joined through a, b and c (K2,3).
+K23 = {"u": (0, 1), "a": (1, 0), "b": (1, 1), "c": (1, 2), "v": (2, 1)}
+K23_EDGES = [("u", "a"), ("a", "v"), ("u", "b"), ("b", "v"), ("u", "c"), ("c", "v")]
+
+
+@figure("k_edge_subgraphs", "connectivity", "k-edge-connected subgraphs",
+        "Both sides show hubs u and v joined through a, b and c, with k = 3. Left: "
+        "k_edge_components(3) counts paths through the whole graph, and the three "
+        "edge-disjoint u–v paths (accent, teal, violet) put u and v in one component, with "
+        "a, b and c alone. Right: k_edge_subgraphs(3) counts only edges inside each group, "
+        "and u and v are not even adjacent, so every subgraph is a single node.")
+def k_edge_subgraphs(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(["u", "v", "a", "b", "c"])  # the docstring's node order
+    g.add_edges(K23_EDGES)
+    comps = [_labels(g, c) for c in g.k_edge_components(3)]
+    subs = [_labels(g, c) for c in g.k_edge_subgraphs(3)]
+    assert comps == [["u", "v"], ["a"], ["b"], ["c"]]
+    assert subs == [["u"], ["v"], ["a"], ["b"], ["c"]]
+    left, right = contrast(s, "g.k_edge_components(3)", "g.k_edge_subgraphs(3)",
+                           "[[u, v], [a], [b], [c]]", "5 singletons")
+    paths = dict(zip("abc", ("accent", "g2", "g3")))
+    for box, p, note in ((left, "l.", "3 edge-disjoint u–v paths"),
+                         (right, "r.", "no edge inside {u, v}")):
+        s.text(box.cx, box.y0 + 8, note, size=SIZE_NOTE, opacity=0.6)
+        gbox = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+        if p == "l.":
+            edges = [(a, b, {"style": paths[a if a in paths else b]}) for a, b in K23_EDGES]
+            styles = {"u": "accent", "v": "accent"}
+        else:
+            edges, styles = K23_EDGES, {}
+        s.graph(place(K23, gbox, unit=UNIT), edges, styles=styles, prefix=p)
+
+
+# is_k_edge_connected docstring: the six-node cycle, for k = 2 and k = 3.
+HEX_CUT = {("B", "C"), ("E", "F")}  # two opposite edges: a cut of size 2
+
+
+@figure("is_k_edge_connected", "connectivity", "Is k-edge-connected",
+        "The same six-node cycle on both sides. Left: removing any single edge leaves a path, "
+        "so the cycle is 2-edge-connected and is_k_edge_connected(2) returns True. Right: "
+        "removing the two accent edges B–C and E–F splits it in two, so fewer than 3 edge "
+        "removals disconnect it and is_k_edge_connected(3) returns False.")
+def is_k_edge_connected(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(HEX))
+    g.add_edges(HEX_EDGES)
+    assert g.is_k_edge_connected(2) is True and g.is_k_edge_connected(3) is False
+    assert g.get_edge_connectivity() == len(HEX_CUT)
+    left, right = contrast(s, "g.is_k_edge_connected(2)", "g.is_k_edge_connected(3)")
+    for box, p, note, cut in ((left, "l.", "any 1 edge can go", set()),
+                              (right, "r.", "2 edges cut it in two", HEX_CUT)):
+        s.text(box.cx, box.y0 + 8, note, size=SIZE_NOTE, opacity=0.6)
+        gbox = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+        s.graph(place(HEX, gbox, unit=UNIT),
+                [(a, b, {"style": "accent"}) if (a, b) in cut else (a, b) for a, b in HEX_EDGES],
+                prefix=p)
+
+
+@figure("average_node_connectivity", "connectivity", "Average node connectivity",
+        "Left: a six-node cycle, where every pair of nodes, such as A and D (outlined), is "
+        "joined by two routes that share no other node (accent and teal), so the average "
+        "node connectivity is 2.0. Right: the same nodes without the closing edge F–A "
+        "(dashed), a path, where every pair has only one route and the average is 1.0.")
+def average_node_connectivity(s: Scene) -> None:
+    import edgecase as ec
+
+    cycle = ec.Graph().add_cycle_graph(6)
+    path = ec.Graph().add_path_graph(6)
+    assert cycle.average_node_connectivity() == 2.0 and path.average_node_connectivity() == 1.0
+    assert ec.Graph().add_full_graph(5).average_node_connectivity() == 4.0
+    left, right = contrast(s, "g.average_node_connectivity()", "g.average_node_connectivity()",
+                           "2.0", "1.0")
+    upper = {("A", "B"), ("B", "C"), ("C", "D")}
+    for box, p, note in ((left, "l.", "A to D: 2 disjoint routes"),
+                         (right, "r.", "A to D: 1 route")):
+        s.text(box.cx, box.y0 + 8, note, size=SIZE_NOTE, opacity=0.6)
+        gbox = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+        edges = []
+        for a, b in HEX_EDGES:
+            if (a, b) in upper:
+                st = "accent"
+            elif (a, b) == ("F", "A") and p == "r.":
+                st = "removed"
+            else:
+                st = "g2" if p == "l." else "muted"
+            edges.append((a, b, {"style": st}))
+        s.graph(place(HEX, gbox, unit=UNIT), edges,
+                styles={"A": "soft", "D": "soft"}, prefix=p)
