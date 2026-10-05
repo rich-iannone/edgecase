@@ -22,9 +22,25 @@ the edges that reach them `accent`; topological_generations instead gives
 each generation a group color and hull, with a card listing the layers. all_topological_sorts needs a DAG with only a few orderings, so
 it uses a five-node bowtie (`BOWTIE`, two sources, one hub, two sinks) in the
 same left-to-right style, with every ordering listed on the card.
+
+Control flow and causal DAGs follow their docstring examples, with the node
+names (too long for a circle) set beside the nodes. The dominator pair shares
+one if/else control-flow graph (`CFG`) laid out left to right from `entry`
+(`soft`). immediate_dominators draws the dominator tree over it: CFG edges
+that are tree edges in accent, the two branch-to-merge edges muted, and the
+tree edge if -> merge, which is no CFG edge, as a dashed accent (`ghost`)
+arrow; the card lists every node's immediate dominator. dominance_frontiers
+outlines the two branches and fills their frontier, merge, in accent along
+the edges that reach it. The d-separation methods color x `g2` and y `g3`
+and name the conditioning set z in a note: the two predicates use
+`contrast`, z `soft`, with the open path (or the redundant member of z) in
+accent on the False side; find_minimal_d_separator returns z, so it is in
+accent. Every figure asserts its result with edgecase.
 """
 
-from core import SIZE_NOTE, Box, Scene, compute, figure, place, transform
+from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, transform
+
+from figures.similarity import _name
 
 UNIT = 64  # one density for the whole family
 
@@ -486,3 +502,173 @@ def dfs_postorder_nodes(s: Scene) -> None:
         s.badge(k, str(i), filled=True, where="e" if k == "A" else "auto")
     s.card_centered(right, [("  ".join(POSTORDER), "accent"), "dfs()  A B D E C F G"],
                     title="finish order")
+
+
+# --- later additions: dominators -------------------------------------------
+#
+# The dominator docstrings' if/else control-flow graph, left to right.
+CFG = {"entry": (0, 0.5), "if": (1, 0.5), "then": (2, 0), "else": (2, 1), "merge": (3, 0.5),
+       "exit": (4, 0.5)}
+CFG_EDGES = [("entry", "if"), ("if", "then"), ("if", "else"), ("then", "merge"),
+             ("else", "merge"), ("merge", "exit")]
+CFG_NAME_AT = {"then": "n"}  # every other name sits below its node
+
+
+def _cfg_graph():
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(CFG))
+    g.add_edges(CFG_EDGES)
+    return g
+
+
+def _cfg(s: Scene, box: Box, edges: list, styles: dict) -> None:
+    gbox = Box(box.x0, box.y0 + 14, box.x1, box.y1 - 14)  # rows for names above and below
+    s.graph(place(CFG, gbox, unit=UNIT * 1.3), edges, directed=True, styles=styles, labels=False)
+    for k in CFG:
+        st = styles.get(k, "default")
+        _name(s, k, k, CFG_NAME_AT.get(k, "s"), "ink" if st == "default" else "accent")
+
+
+@figure("immediate_dominators", "traversal", "Immediate dominators",
+        "An if/else control-flow graph: entry (outlined) leads to if, which branches to then "
+        "and else; both rejoin at merge, which leads to exit. The dominator tree is drawn in "
+        "the accent color: every path to merge passes through if but through neither branch, "
+        "so the dashed accent arrow if to merge replaces the faded branch edges. The card "
+        "maps each node to its immediate dominator: if for then, else and merge, merge for "
+        "exit.")
+def immediate_dominators(s: Scene) -> None:
+    g = _cfg_graph()
+    idom = {g.get_label_from_id(n): g.get_label_from_id(d)
+            for n, d in g.immediate_dominators("entry").items()}
+    assert idom == {"entry": "entry", "if": "entry", "then": "if", "else": "if", "merge": "if",
+                    "exit": "merge"}
+    left, right = compute(s, "g", 'g.immediate_dominators("entry")')
+    tree = {(d, n) for n, d in idom.items() if n != d}
+    edges = [(a, b, {"style": "accent" if (a, b) in tree else "muted"}) for a, b in CFG_EDGES]
+    edges += [(d, n, {"style": "ghost"}) for d, n in sorted(tree) if (d, n) not in CFG_EDGES]
+    _cfg(s, left, edges, {"entry": "soft"})
+    s.card_centered(right, [(f"{n:<6} {d}", "accent" if n == "merge" else "ink")
+                            for n, d in idom.items()], title="node   immediate dominator")
+
+
+@figure("dominance_frontiers", "traversal", "Dominance frontiers",
+        "The same if/else control-flow graph from entry. The branches then and else are "
+        "outlined: each dominates only itself, and its edge into merge (accent) leaves its "
+        "region, so merge, filled in accent, is the dominance frontier of both. The card "
+        "lists every node's frontier: merge for then and else, and empty for the others.")
+def dominance_frontiers(s: Scene) -> None:
+    g = _cfg_graph()
+    df = {g.get_label_from_id(n): sorted(g.get_label_from_id(f) for f in fs)
+          for n, fs in g.dominance_frontiers("entry").items()}
+    assert df == {"entry": [], "if": [], "then": ["merge"], "else": ["merge"], "merge": [],
+                  "exit": []}
+    left, right = compute(s, "g", 'g.dominance_frontiers("entry")')
+    hot = {("then", "merge"), ("else", "merge")}
+    _cfg(s, left, [(a, b, {"style": "accent"}) if (a, b) in hot else (a, b) for a, b in CFG_EDGES],
+         {"then": "soft", "else": "soft", "merge": "accent"})
+    s.card_centered(right, [(f"{n:<6} {{{', '.join(f)}}}" if f else f"{n:<6} {{}}",
+                             "accent" if f else "ink") for n, f in df.items()],
+                    title="node   dominance frontier")
+
+
+# --- later additions: d-separation ------------------------------------------
+#
+# Causal DAGs from the docstrings; x is g2, y is g3, z is named in a note.
+SMOKING = {"smoking": (0, 0), "tar": (1.2, 0), "cancer": (2.4, 0), "fingers": (1.2, 1)}
+SMOKING_EDGES = [("smoking", "tar"), ("tar", "cancer"), ("smoking", "fingers")]
+
+
+def _dag_graph(nodes, edges):
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(nodes))
+    g.add_edges(edges)
+    return g
+
+
+def _named_dag(s: Scene, box: Box, coords: dict, edges: list, styles: dict, prefix: str,
+               below: set, unit: float) -> None:
+    """A causal DAG with names beside its nodes (`below` under them, the rest above)."""
+    gbox = Box(box.x0, box.y0 + 16, box.x1, box.y1 - 16)
+    s.graph(place(coords, gbox, unit=unit), edges, directed=True, styles=styles, labels=False,
+            prefix=prefix)
+    for k in coords:
+        st = styles.get(k, "default")
+        color = {"g2": "g2", "g3": "g3", "default": "ink"}.get(st, "accent")
+        _name(s, prefix + k, k, "s" if k in below else "n", color)
+
+
+@figure("is_d_separator", "traversal", "Is d-separator",
+        "A causal graph: smoking (teal) causes tar, tar causes cancer (violet), and smoking "
+        "also causes yellow fingers. Left: conditioning on tar (outlined) blocks the only "
+        "path from smoking to cancer, so is_d_separator returns True. Right: with nothing "
+        "conditioned on, the chain smoking, tar, cancer (accent) is open, so smoking and "
+        "cancer are dependent and is_d_separator returns False.")
+def is_d_separator(s: Scene) -> None:
+    g = _dag_graph(SMOKING, SMOKING_EDGES)
+    assert g.is_d_separator("smoking", "cancer", "tar") is True
+    assert g.is_d_separator("smoking", "cancer", []) is False
+    left, right = contrast(s, 'g.is_d_separator("smoking", "cancer", z)',
+                           'g.is_d_separator("smoking", "cancer", z)')
+    xy = {"smoking": "g2", "cancer": "g3"}
+    chain = {("smoking", "tar"), ("tar", "cancer")}
+    for box, p, z in ((left, "l.", ["tar"]), (right, "r.", [])):
+        s.text(box.cx, box.y0 + 8, f"z = [{', '.join(z)}]", size=SIZE_NOTE, opacity=0.6)
+        gbox = Box(box.x0, box.y0 + 14, box.x1, box.y1)
+        edges = [(a, b, {"style": "accent"}) if not z and (a, b) in chain else (a, b)
+                 for a, b in SMOKING_EDGES]
+        _named_dag(s, gbox, SMOKING, edges, {**xy, **dict.fromkeys(z, "soft")}, p,
+                   below={"fingers"}, unit=UNIT * 1.4)
+
+
+CHAIN4 = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0)}
+CHAIN4_EDGES = [("A", "B"), ("B", "C"), ("C", "D")]
+
+
+@figure("is_minimal_d_separator", "traversal", "Is minimal d-separator",
+        "The chain A to B to C to D, with A in teal and D in violet. Left: z = [B] (outlined) "
+        "blocks the chain, and dropping B would open it, so is_minimal_d_separator returns "
+        "True. Right: z = [B, C] also separates A from D, but C (accent) is not needed, since "
+        "B alone already blocks the chain, so the set is not minimal and the call returns "
+        "False.")
+def is_minimal_d_separator(s: Scene) -> None:
+    g = _dag_graph(CHAIN4, CHAIN4_EDGES)
+    assert g.is_minimal_d_separator("A", "D", ["B"]) is True
+    assert g.is_minimal_d_separator("A", "D", ["B", "C"]) is False
+    assert g.is_d_separator("A", "D", ["B", "C"]) is True
+    left, right = contrast(s, 'g.is_minimal_d_separator("A", "D", z)',
+                           'g.is_minimal_d_separator("A", "D", z)')
+    for box, p, z in ((left, "l.", "B"), (right, "r.", "BC")):
+        s.text(box.cx, box.y0 + 8, f"z = [{', '.join(z)}]", size=SIZE_NOTE, opacity=0.6)
+        gbox = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+        styles = {"A": "g2", "D": "g3", "B": "soft"}
+        if "C" in z:
+            styles["C"] = "accent"
+        s.graph(place(CHAIN4, gbox, unit=UNIT * 1.3), CHAIN4_EDGES, directed=True, styles=styles,
+                prefix=p)
+
+
+# find_minimal_d_separator docstring: age acts on heart health only through exercise.
+HEART = {"age": (0, 0.8), "exercise": (1.3, 0.8), "weight": (2.3, 0), "heart": (3.3, 0.8)}
+HEART_EDGES = [("age", "exercise"), ("exercise", "weight"), ("weight", "heart"),
+               ("exercise", "heart")]
+
+
+@figure("find_minimal_d_separator", "traversal", "Find minimal d-separator",
+        "A causal graph: age (teal) affects exercise, exercise affects weight, and both "
+        "exercise and weight affect heart health (violet). Every path from age to heart "
+        "starts with the edge into exercise, so conditioning on exercise alone, in the "
+        "accent color, blocks them all. The card returns the minimal separator [exercise].")
+def find_minimal_d_separator(s: Scene) -> None:
+    g = _dag_graph(HEART, HEART_EDGES)
+    z = [g.get_label_from_id(n) for n in g.find_minimal_d_separator("age", "heart")]
+    assert z == ["exercise"]
+    g.add_edge("age", "heart")
+    assert g.find_minimal_d_separator("age", "heart") is None
+    left, right = compute(s, "g", 'g.find_minimal_d_separator("age", "heart")')
+    _named_dag(s, left, HEART, HEART_EDGES,
+               {"age": "g2", "heart": "g3", "exercise": "accent"}, "",
+               below={"age", "exercise", "heart"}, unit=UNIT * 1.4)
+    s.card_centered(right, [(f"[{', '.join(z)}]", "accent"), "blocks all age–heart paths"],
+                    title="minimal separator z")
