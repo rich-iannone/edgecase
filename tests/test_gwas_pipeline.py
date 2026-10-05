@@ -152,7 +152,7 @@ class TestGwasPipelineEnrichment:
         g = make_three_cliques()
         scores = {nid: 1.0 for nid in g.get_node_ids()}
         positive = [g.get_id_from_label(str(i)) for i in range(4)]
-        result = g.gwas_pipeline(scores, enrichment_attr="gene_set", enrichment_labels=positive)
+        result = g.gwas_pipeline(scores, enrichment_labels=positive)
 
         assert "enrichment" in result
         assert len(result["enrichment"]) == len(result["communities"])
@@ -161,7 +161,7 @@ class TestGwasPipelineEnrichment:
         g = make_three_cliques()
         scores = {nid: 1.0 for nid in g.get_node_ids()}
         positive = [g.get_id_from_label(str(i)) for i in range(4)]
-        result = g.gwas_pipeline(scores, enrichment_attr="gene_set", enrichment_labels=positive)
+        result = g.gwas_pipeline(scores, enrichment_labels=positive)
         for val in result["enrichment"].values():
             assert val >= 0.0
 
@@ -178,7 +178,7 @@ class TestGwasPipelineEnrichment:
 
         # All positive nodes in first clique
         positive = [g.get_id_from_label(str(i)) for i in range(4)]
-        result = g.gwas_pipeline(scores, enrichment_attr="gene_set", enrichment_labels=positive)
+        result = g.gwas_pipeline(scores, enrichment_labels=positive)
 
         # At least one community should be enriched (ratio > 1.0)
         max_enrichment = max(result["enrichment"].values())
@@ -221,3 +221,38 @@ class TestGwasPipelineEdgeCases:
         result = g.gwas_pipeline(scores)
 
         assert len(result["communities"]) >= 1
+
+
+class TestGwasPipelineEnrichmentAttr:
+    """Regression: enrichment_attr= was only an on-switch (its value was never read), and the
+    community step wrote a cmty_* column."""
+
+    def test_attr_marks_positive_nodes(self):
+        g = make_three_cliques()
+        scores = {nid: 1.0 for nid in g.get_node_ids()}
+        positive = [g.get_id_from_label(str(i)) for i in range(4)]
+        g.set_node_attrs("known", {nid: (nid in positive) for nid in g.get_node_ids()})
+        by_attr = g.gwas_pipeline(scores, enrichment_attr="known")
+        by_labels = g.gwas_pipeline(scores, enrichment_labels=positive)
+        assert by_attr["communities"] == by_labels["communities"]
+        assert by_attr["enrichment"] == by_labels["enrichment"]
+
+    def test_attr_alone_enables_enrichment_and_missing_values_are_negative(self):
+        g = make_three_cliques()
+        scores = {nid: 1.0 for nid in g.get_node_ids()}
+        # Only one node carries the attribute at all
+        g.set_node_attrs("flag", {g.get_id_from_label("0"): 1})
+        result = g.gwas_pipeline(scores, enrichment_attr="flag")
+        assert sum(v > 0 for v in result["enrichment"].values()) == 1
+
+    def test_both_raise(self):
+        g = make_three_cliques()
+        with pytest.raises(ValueError, match="not both"):
+            g.gwas_pipeline({}, enrichment_attr="known", enrichment_labels=[1])
+
+    def test_nothing_written_to_graph(self):
+        g = make_three_cliques()
+        columns = g.get_node_df().columns
+        g.gwas_pipeline({nid: 1.0 for nid in g.get_node_ids()})
+        g.gwas_pipeline({nid: 1.0 for nid in g.get_node_ids()}, community_method="walktrap")
+        assert g.get_node_df().columns == columns
