@@ -9,16 +9,22 @@ the same makes the deciding difference obvious. An element that is missing
 Sibling predicates share a base layout so they can be compared directly:
 the six-node tree (is_tree / is_forest / is_arborescence), the directed
 triangle strip (is_dag / has_cycles), two triangles joined at C-D
-(is_connected / is_strongly_connected / is_weakly_connected / has_bridges),
-the bowtie (is_eulerian / is_semieulerian), the hexagon (is_regular /
+(is_connected / is_strongly_connected / is_weakly_connected / has_bridges /
+is_biconnected), the bowtie (is_eulerian / is_semieulerian), the house of
+Santa Claus from paths.py (has_eulerian_path: dropping its roof leaves four odd
+corners, so the roof is `removed` on the right), the hexagon (is_regular /
 is_k_regular), and the 2 x 3 ladder (is_bipartite and every set-checking
 method). Set checkers draw the candidate set `soft` on both sides and name it
-in a note above the graph; the violation is `accent`. Graph scale is the
+in a note above the graph; the violation is `accent`. has_path keeps the
+query endpoints `soft` on both sides: the path is `accent` on the left, the
+reversed edge that cuts it off is `accent` on the right. Graph scale is the
 default `UNIT` throughout.
 """
 
 
 from core import R_SMALL, SIZE_NOTE, Box, Scene, contrast, figure, place, ring
+
+from figures.paths import HOUSE, SANTA_EDGES
 
 
 def _hi(edges, accent, style="accent"):
@@ -83,6 +89,35 @@ def is_arborescence(s: Scene) -> None:
     s.graph(place(TREE, left), TREE_EDGES, directed=True, prefix="l.")
     s.graph(place(TREE, right), TREE_EDGES[:-1] + [("F", "C", {"style": "accent"})],
             directed=True, prefix="r.")
+
+
+# Two small arborescences side by side: A -> B, A -> C and D -> E. Adding D -> C
+# gives C a second parent. Both answers are computed with edgecase.
+BRANCH = {"A": (0.5, 0), "B": (0, 1.2), "C": (1, 1.2), "D": (2.2, 0), "E": (2.2, 1.2)}
+BRANCH_ARCS = [("A", "B"), ("A", "C"), ("D", "E")]
+
+
+def _is_branching(arcs) -> bool:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(BRANCH))
+    g.add_edges(arcs)
+    return g.is_branching()
+
+
+@figure("is_branching", "predicates", "Is branching",
+        "Left: a directed forest of two trees, A pointing to B and C, and D pointing to E; "
+        "every node has at most one incoming edge, so is_branching() returns True. Right: "
+        "the same graph plus an edge from D to C (shown in the accent color); C now has two "
+        "parents, A and D, so is_branching() returns False.")
+def is_branching(s: Scene) -> None:
+    extra = ("D", "C")
+    left, right = contrast(s, "g.is_branching()", "g.is_branching()",
+                           str(_is_branching(BRANCH_ARCS)),
+                           str(_is_branching(BRANCH_ARCS + [extra])))
+    s.graph(place(BRANCH, left), BRANCH_ARCS, directed=True, prefix="l.")
+    s.graph(place(BRANCH, right), BRANCH_ARCS + [(*extra, {"style": "accent"})],
+            directed=True, styles={"C": "accent"}, prefix="r.")
 
 
 # --- directed acyclicity -----------------------------------------------------------
@@ -179,6 +214,21 @@ def has_bridges(s: Scene) -> None:
     s.graph(place(TWIN, left), TWIN_EDGES + [("C", "D", {"style": "accent"})], prefix="l.")
     s.graph(place(TWIN, right), TWIN_EDGES + [("C", "D"), ("B", "F", {"style": "accent"})],
             prefix="r.")
+
+
+@figure("is_biconnected", "predicates", "Is biconnected",
+        "Left: two triangles joined by the edges C-D and B-F, so every pair of nodes has two "
+        "routes with no other node in common, and is_biconnected() returns True. Right: the same "
+        "triangles joined by C-D and B-D instead; every route between the two sides now "
+        "passes through D (shown in the accent color), so is_biconnected() returns False.")
+def is_biconnected(s: Scene) -> None:
+    left, right = contrast(s, "g.is_biconnected()", "g.is_biconnected()")
+    # The True side is has_bridges' False side; the False side has no bridge
+    # (B-D and C-D lie on triangle B, C, D), only the articulation point D.
+    s.graph(place(TWIN, left), TWIN_EDGES + [("C", "D"), ("B", "F")], prefix="l.")
+    # B-D bows below C to stay clear of it
+    s.graph(place(TWIN, right), TWIN_EDGES + [("C", "D"), ("B", "D", {"bend": 14})],
+            styles={"D": "accent"}, prefix="r.")
 
 
 # --- the 2 x 3 ladder (bipartite + candidate-set checks) --------------------------
@@ -288,8 +338,12 @@ BOWTIE = {"A": (0, 0), "B": (0, 1.8), "C": (1.2, 0.9), "D": (2.4, 0), "E": (2.4,
 BOWTIE_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D"), ("C", "E"), ("D", "E")]
 
 
-def _degrees(s: Scene, prefix: str, edges, odd_style: str = "accent") -> None:
-    """Degree badge on every node of a panel; odd-degree nodes get `odd_style`."""
+def _degrees(s: Scene, prefix: str, edges, odd_style: str = "accent",
+             where: dict | None = None) -> None:
+    """Degree badge on every node of a panel; odd-degree nodes get `odd_style`.
+
+    `where` optionally pins a node's badge to a compass direction.
+    """
     deg = {}
     for a, b, *_ in edges:
         deg[a] = deg.get(a, 0) + 1
@@ -298,7 +352,8 @@ def _degrees(s: Scene, prefix: str, edges, odd_style: str = "accent") -> None:
         if d % 2:
             s.nodes[prefix + k].style = odd_style
     for k, d in sorted(deg.items()):
-        s.badge(prefix + k, str(d), color="accent" if d % 2 else "ink")
+        s.badge(prefix + k, str(d), color="accent" if d % 2 else "ink",
+                where=(where or {}).get(k, "auto"))
 
 
 @figure("is_eulerian", "predicates", "Is Eulerian",
@@ -328,6 +383,23 @@ def is_semieulerian(s: Scene) -> None:
     _degrees(s, "l.", edges, odd_style="soft")
     s.graph(place(BOWTIE, right), edges + [("A", "D", {"style": "accent"})], prefix="r.")
     _degrees(s, "r.", edges + [("A", "D")])
+
+
+@figure("has_eulerian_path", "predicates", "Has Eulerian path",
+        "Left: the house of Santa Claus, a square with both diagonals and a roof; badges give "
+        "each node's degree and only the bottom corners D and E are odd (outlined), so one "
+        "stroke can draw it and has_eulerian_path() returns True. Right: without the roof "
+        "(dashed), all four corners have degree 3 (shown in the accent color), so "
+        "has_eulerian_path() returns False.")
+def has_eulerian_path(s: Scene) -> None:
+    left, right = contrast(s, "g.has_eulerian_path()", "g.has_eulerian_path()")
+    s.graph(place(HOUSE, left), SANTA_EDGES, prefix="l.")
+    _degrees(s, "l.", SANTA_EDGES, odd_style="soft")
+    kept = [e for e in SANTA_EDGES if "A" not in e]
+    s.graph(place(HOUSE, right), kept + [(a, b, {"style": "removed"}) for a, b in SANTA_EDGES
+                                         if "A" in (a, b)],
+            styles={"A": "removed"}, prefix="r.")
+    _degrees(s, "r.", kept)
 
 
 # Flat-topped hexagon, A at the upper left, read clockwise.
@@ -473,3 +545,26 @@ def is_isomorphic(s: Scene) -> None:
         s.graph(place(c5, gbox, r=R_SMALL), c5_edges, r=R_SMALL, prefix=f"{box.x0}g.")
         s.graph(place(h, hbox, r=R_SMALL), h_edges, r=R_SMALL,
                 styles={k: "accent" for k in odd}, prefix=f"{box.x0}h.")
+
+
+# --- reachability ------------------------------------------------------------------
+
+# A to D runs A -> B -> C -> D (E is a side branch into C). Reversing C -> D
+# leaves D with no incoming edge, so nothing reaches it.
+REACH = {"A": (0, 0.5), "B": (1, 0), "C": (2, 0), "D": (3, 0.5), "E": (1.5, 1.1)}
+REACH_EDGES = [("A", "B"), ("B", "C"), ("A", "E"), ("E", "C")]
+
+
+@figure("has_path", "predicates", "Has path",
+        "Left: a five-node directed graph in which the arrows lead from A through B and C to "
+        "D (the path in the accent color), so a path from A to D exists and has_path() "
+        "returns True. Right: the same graph with the edge between C and D reversed (in the "
+        "accent color); no arrow enters D any more, so has_path() returns False.")
+def has_path(s: Scene) -> None:
+    left, right = contrast(s, 'g.has_path("A", "D")', 'g.has_path("A", "D")')
+    ends = {"A": "soft", "D": "soft"}
+    s.graph(place(REACH, left),
+            _hi(REACH_EDGES, {("A", "B"), ("B", "C")}) + [("C", "D", {"style": "accent"})],
+            directed=True, styles=ends, prefix="l.")
+    s.graph(place(REACH, right), REACH_EDGES + [("D", "C", {"style": "accent"})],
+            directed=True, styles=ends, prefix="r.")
