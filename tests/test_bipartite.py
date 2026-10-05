@@ -327,3 +327,49 @@ class TestBipartiteBetweennessCentrality:
         gene_set = _gene_set_index(g, s0, s1)
         bb = g.bipartite_betweenness_centrality(which=gene_set, return_dict=True)
         assert all(v >= 0 for v in bb.values())
+
+
+class TestBipartiteDirected:
+    """Regression: on directed graphs the coloring only followed out-edges, so bipartite_sets()
+    could raise "not bipartite" when is_bipartite() was True, and the projection and
+    centralities only saw outgoing edges."""
+
+    EDGES = [("g2", "d1"), ("g1", "d1"), ("g3", "d2"), ("g2", "d2"), ("d3", "g3")]
+
+    def _pair(self):
+        nodes = ["d1", "d2", "d3", "g1", "g2", "g3"]
+        directed = ec.Graph(directed=True).add_nodes(nodes).add_edges(self.EDGES)
+        undirected = ec.Graph().add_nodes(nodes).add_edges(self.EDGES)
+        return directed, undirected
+
+    def test_edge_toward_lower_id_does_not_raise(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"]).add_edges([("B", "A"), ("C", "B")])
+        assert g.is_bipartite()
+        a, b, c = (g.get_id_from_label(x) for x in "ABC")
+        assert g.bipartite_sets() == ([a, c], [b])
+
+    def test_matches_undirected(self):
+        directed, undirected = self._pair()
+        assert directed.is_bipartite() and undirected.is_bipartite()
+        assert directed.bipartite_sets() == undirected.bipartite_sets()
+        for which in (0, 1):
+            for method in (
+                "bipartite_degree_centrality",
+                "bipartite_closeness_centrality",
+                "bipartite_betweenness_centrality",
+            ):
+                d = getattr(directed, method)(which=which, return_dict=True)
+                u = getattr(undirected, method)(which=which, return_dict=True)
+                assert d == pytest.approx(u), method
+            dp = directed.bipartite_projection(which=which)
+            up = undirected.bipartite_projection(which=which)
+            assert sorted(dp.get_edges_as_tuples()) == sorted(up.get_edges_as_tuples())
+
+    def test_directed_odd_cycle_and_self_loop_not_bipartite(self):
+        tri = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        tri.add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+        assert not tri.is_bipartite()
+        with pytest.raises(ValueError, match="not bipartite"):
+            tri.bipartite_sets()
+        loop = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "B")])
+        assert not loop.is_bipartite()
