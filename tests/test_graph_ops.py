@@ -1,5 +1,7 @@
+import edgecase as ec
 import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_MUTATE
 
 
 class TestGraphUnion:
@@ -622,3 +624,58 @@ class TestGraphAlgebraWeighted:
         edges = result.get_edges_as_tuples()
 
         assert len(edges) == 1
+
+
+# Node relabeling.
+
+
+class TestRelabelNodes:
+    def _graph(self):
+        g = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c")])
+        g.set_node_attrs("score", {1: 0.5})
+        return g
+
+    def test_dict_by_label_and_id_keeps_ids_attrs_edges(self):
+        g = self._graph().relabel_nodes({"a": "alpha", 2: "beta"})
+        assert g.get_node_df()["label"].to_list() == ["alpha", "beta", "c"]
+        assert g.get_id_from_label("alpha") == 1
+        assert g.get_node_attrs("score") == {1: 0.5}
+        assert g.get_edges_str_repr(use_labels=True) == ["alpha--beta", "beta--c"]
+        assert not g.has_node("a")
+
+    def test_callable_and_swap(self):
+        g = self._graph().relabel_nodes(str.upper)
+        assert g.get_node_df()["label"].to_list() == ["A", "B", "C"]
+        g.relabel_nodes({"A": "B", "B": "A"})
+        assert g.get_id_from_label("B") == 1 and g.get_id_from_label("A") == 2
+
+    def test_collisions_are_atomic(self):
+        g = self._graph()
+        with pytest.raises(ValueError, match="already used"):
+            g.relabel_nodes({"a": "c"})
+        with pytest.raises(ValueError, match="both be labeled"):
+            g.relabel_nodes({"a": "x", "b": "x"})
+        assert g.get_node_df()["label"].to_list() == ["a", "b", "c"]  # unchanged
+
+    def test_type_and_existence_errors(self):
+        g = self._graph()
+        with pytest.raises(TypeError, match="strings"):
+            g.relabel_nodes({"a": 5})
+        with pytest.raises(ValueError):
+            g.relabel_nodes({"zzz": "q"})
+        with pytest.raises(TypeError, match="dict or a callable"):
+            g.relabel_nodes([("a", "b")])
+
+    def test_step_records_rename_for_the_player(self):
+        g = self._graph().relabel_nodes({"a": "alpha"})
+        step = g.steps[-1]
+        assert step.kind == KIND_MUTATE
+        assert step.delta.nodes_removed == ["a"] and step.delta.nodes_added == ["alpha"]
+        assert step.delta.edges_removed == [("a", "b")]
+        assert step.delta.edges_added == [("alpha", "b")]
+        assert step.narration == "relabel_nodes() renamed a → alpha."
+        html = g.play()._html  # the player can replay across the rename
+        assert '"alpha"' in html
+        n = len(g.steps)
+        g.relabel_nodes({"alpha": "alpha"})  # no-op rename records nothing
+        assert len(g.steps) == n
