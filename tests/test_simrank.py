@@ -1,7 +1,11 @@
-"""Tests for SimRank* similarity."""
+"""Tests for SimRank and SimRank* similarity."""
 
-import pytest
+import random
+
 import edgecase as ec
+import networkx as nx
+import pytest
+from edgecase.steps import KIND_METRIC
 
 
 @pytest.fixture
@@ -267,3 +271,41 @@ class TestSimRankStarGraphMethod:
         assert low[id2].get(id3, 0.0) < high[id2].get(id3, 0.0), (
             "Higher importance factor should give higher similarity"
         )
+
+
+class TestPlainSimRank:
+    """SimRank (Jeh and Widom), validated against NetworkX's simrank_similarity."""
+
+    def test_against_networkx(self):
+        for seed in range(50):
+            rnd = random.Random(seed)
+            directed = seed % 2 == 0
+            weighted = seed % 3 == 0
+            G = nx.gnp_random_graph(rnd.randint(1, 14), 0.3, seed=seed, directed=directed)
+            for u, v in G.edges:
+                G[u][v]["weight"] = rnd.uniform(0.5, 3) if weighted else 1
+            g = ec.Graph(directed=directed, weighted=weighted).add_nodes([str(n) for n in G])
+            for u, v in G.edges:
+                g.add_edge(str(u), str(v), weight=G[u][v]["weight"])
+            try:
+                ref = nx.simrank_similarity(G)
+            except nx.ExceededMaxIterations:
+                continue
+            label = {g.get_id_from_label(str(n)): n for n in G}
+            for a, row in g.simrank_similarity().items():
+                for b, value in row.items():
+                    assert value == pytest.approx(ref[label[a]][label[b]], abs=1e-9)
+
+    def test_source_target_and_steps(self):
+        g = ec.Graph().add_nodes(["ann", "bob", "cy", "math", "art", "bio"])
+        g.add_edges(
+            [("ann", "math"), ("ann", "art"), ("bob", "math"), ("bob", "art"), ("cy", "bio")]
+        )
+        assert g.simrank_similarity("ann", "bob") == pytest.approx(0.818, abs=1e-3)
+        assert g.simrank_similarity("ann", "cy") == 0.0
+        row = g.simrank_similarity("math")
+        assert row[g.get_id_from_label("math")] == 1.0
+        step = g.steps[-1]
+        assert step.kind == KIND_METRIC and step.delta.nodes_selected == ["math"]
+        with pytest.raises(ValueError, match="converge"):
+            g.simrank_similarity(max_iterations=1)
